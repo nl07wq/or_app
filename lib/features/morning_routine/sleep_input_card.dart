@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/operation_card.dart';
 
 class SleepInputCard extends StatelessWidget {
-  const SleepInputCard({super.key});
+  final TextEditingController controller;
+
+  const SleepInputCard({
+    super.key,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +26,8 @@ class SleepInputCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           TextField(
+            ccontroller: controller,
+),
             keyboardType: TextInputType.number,
             style: const TextStyle(
               color: Colors.white,

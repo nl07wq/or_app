@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/operation_card.dart';
 
 class WorkInputCard extends StatelessWidget {
-  const WorkInputCard({super.key});
+final TextEditingController controller;
 
+const WorkInputCard({
+  super.key,
+  required this.controller,
+});
   @override
   Widget build(BuildContext context) {
     return OperationCard(
@@ -21,6 +25,7 @@ class WorkInputCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           TextField(
+            controller: controller,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,

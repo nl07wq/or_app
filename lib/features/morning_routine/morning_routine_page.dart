@@ -5,13 +5,28 @@ import 'work_input_card.dart';
 import 'morning_submit_button.dart';
 import '../../data/morning_data_sample.dart';
 
-class MorningRoutinePage extends StatelessWidget {
+class MorningRoutinePage extends StatefulWidget {
   const MorningRoutinePage({super.key});
+
+  @override
+  State<MorningRoutinePage> createState() =>
+      _MorningRoutinePageState();
+}
+
+class _MorningRoutinePageState extends State<MorningRoutinePage> {
+
+final weightController = TextEditingController();
+final sleepController = TextEditingController();
+final workController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
 
     final data = sampleMorningData;
+
+weightController.text = data.weight.toString();
+sleepController.text = data.sleepHours.toString();
+workController.text = data.workMemo;
     
     return Scaffold(
       appBar: AppBar(
@@ -23,13 +38,17 @@ class MorningRoutinePage extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       WeightInputCard(
-  initialValue: data.weight,
+  controller: weightController,
 ),
-      const SleepInputCard(),
+      SleepInputCard(
+  controller: sleepController,
+),
 
 const SizedBox(height: 16),
 
-const WorkInputCard(),
+WorkInputCard(
+  controller: workController,
+),
 const SizedBox(height: 24),
 
 const MorningSubmitButton(),
