@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/operation_card.dart';
 
 class WeightInputCard extends StatelessWidget {
-  const WeightInputCard({super.key});
+  final double initialValue;
+
+  const WeightInputCard({
+    super.key,
+    required this.initialValue,
+  });
+
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +27,9 @@ class WeightInputCard extends StatelessWidget {
           SizedBox(height: 12),
 
           TextField(
+            controller: TextEditingController(
+  text: initialValue.toString(),
+),
             keyboardType: TextInputType.number,
             style: TextStyle(
               color: Colors.white,

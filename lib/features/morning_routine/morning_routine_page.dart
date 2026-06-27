@@ -3,12 +3,16 @@ import 'weight_input_card.dart';
 import 'sleep_input_card.dart';
 import 'work_input_card.dart';
 import 'morning_submit_button.dart';
+import '../../data/morning_data_sample.dart';
 
 class MorningRoutinePage extends StatelessWidget {
   const MorningRoutinePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+
+    final data = sampleMorningData;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text("Morning Routine"),
@@ -18,7 +22,9 @@ class MorningRoutinePage extends StatelessWidget {
   child: Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      WeightInputCard(),
+      WeightInputCard(
+  initialValue: data.weight,
+),
       const SleepInputCard(),
 
 const SizedBox(height: 16),
