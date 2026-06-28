@@ -12,8 +12,8 @@ class CommandCenterPage extends StatelessWidget {
   const CommandCenterPage({super.key});
 
   @override
- Widget build(BuildContext context) {
-final operation = sampleOperation;
+  Widget build(BuildContext context) {
+    final operation = sampleOperation;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -26,34 +26,28 @@ final operation = sampleOperation;
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionTitle(
-              title: "COMMAND CENTER",
+            const SectionTitle(title: "COMMAND CENTER"),
+
+            OperationStatusCard(
+              status: operation.status,
+              description: operation.description,
+              operationId: operation.operationId,
+              statusColor: Colors.green,
             ),
 
-OperationStatusCard(
-  status: operation.status,
-  description: operation.description,
-  operationId: operation.operationId,
-  statusColor: Colors.green,
-),
-
-            CommanderIntentCard(
-  intent: operation.commanderIntent,
-),
+            CommanderIntentCard(intent: operation.commanderIntent),
 
             const Spacer(),
 
-OperationButton(
-  text: "▶ Morning Routine",
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const MorningRoutinePage(),
-      ),
-    );
-  },
-),
+            OperationButton(
+              text: "▶ Morning Routine",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MorningRoutinePage()),
+                );
+              },
+            ),
           ],
         ),
       ),

@@ -5,11 +5,7 @@ import '../../core/widgets/operation_card.dart';
 class WeightInputCard extends StatelessWidget {
   final TextEditingController controller;
 
-  const WeightInputCard({
-    super.key,
-    required this.controller,
-  });
-
+  const WeightInputCard({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -17,22 +13,14 @@ class WeightInputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "WEIGHT",
-            style: TextStyle(
-              color: Colors.white70,
-            ),
-          ),
+          Text("WEIGHT", style: TextStyle(color: Colors.white70)),
 
           SizedBox(height: 12),
 
           TextField(
-  controller: controller,
+            controller: controller,
             keyboardType: TextInputType.number,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: 22),
             decoration: InputDecoration(
               labelText: "体重 (kg)",
               labelStyle: TextStyle(color: Colors.white70),

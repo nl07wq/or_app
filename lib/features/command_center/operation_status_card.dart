@@ -22,14 +22,9 @@ class OperationStatusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           Row(
             children: [
-
-              CircleAvatar(
-                radius: 6,
-                backgroundColor: statusColor,
-              ),
+              CircleAvatar(radius: 6, backgroundColor: statusColor),
 
               const SizedBox(width: 8),
 
@@ -41,7 +36,6 @@ class OperationStatusCard extends StatelessWidget {
                   letterSpacing: 1,
                 ),
               ),
-
             ],
           ),
 
@@ -58,26 +52,14 @@ class OperationStatusCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          Text(
-            description,
-            style: const TextStyle(
-              color: Colors.white70,
-            ),
-          ),
+          Text(description, style: const TextStyle(color: Colors.white70)),
 
-          const Divider(
-            color: Colors.white24,
-            height: 32,
-          ),
+          const Divider(color: Colors.white24, height: 32),
 
           Text(
             operationId,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.white38, fontSize: 12),
           ),
-
         ],
       ),
     );

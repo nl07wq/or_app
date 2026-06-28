@@ -5,10 +5,7 @@ import '../../core/widgets/operation_card.dart';
 class CommanderIntentCard extends StatelessWidget {
   final String intent;
 
-  const CommanderIntentCard({
-    super.key,
-    required this.intent,
-  });
+  const CommanderIntentCard({super.key, required this.intent});
 
   @override
   Widget build(BuildContext context) {
@@ -16,22 +13,11 @@ class CommanderIntentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "COMMANDER INTENT",
-            style: TextStyle(
-              color: Colors.white70,
-            ),
-          ),
+          Text("COMMANDER INTENT", style: TextStyle(color: Colors.white70)),
 
           SizedBox(height: 8),
 
-          Text(
-            intent,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-            ),
-          ),
+          Text(intent, style: TextStyle(color: Colors.white, fontSize: 18)),
         ],
       ),
     );
