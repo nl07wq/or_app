@@ -19,14 +19,20 @@ class SleepInputCard extends StatelessWidget {
 
           TextField(
             controller: controller,
-            keyboardType: TextInputType.number,
+            keyboardType: TextInputType.datetime,
             style: const TextStyle(color: Colors.white, fontSize: 22),
             decoration: const InputDecoration(
-              labelText: '睡眠時間 (時間)',
+              labelText: '睡眠時間',
+              hintText: '例：7:30',
+              helperText: '時間:分（24時間ではありません）',
               labelStyle: TextStyle(color: Colors.white70),
+              hintStyle: TextStyle(color: Colors.white38),
+              helperStyle: TextStyle(color: Colors.white54),
+
               enabledBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: Colors.white24),
               ),
+
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: Colors.blue),
               ),

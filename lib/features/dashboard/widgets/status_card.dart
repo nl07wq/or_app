@@ -21,8 +21,8 @@ class _StatusCardState extends State<StatusCard> {
     loadMorningData();
   }
 
-  void loadMorningData() {
-    final records = MorningRecordService.load();
+  Future<void> loadMorningData() async {
+    final records = await MorningRecordService.load();
 
     if (records.isNotEmpty) {
       setState(() {

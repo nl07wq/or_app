@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/widgets/operation_card.dart';
 
-class WorkInputCard extends StatelessWidget {
+class MemoInputCard extends StatelessWidget {
   final TextEditingController controller;
 
-  const WorkInputCard({super.key, required this.controller});
+  const MemoInputCard({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -13,21 +13,21 @@ class WorkInputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('WORK', style: TextStyle(color: Colors.white70)),
+          const Text('MEMO', style: TextStyle(color: Colors.white70)),
 
           const SizedBox(height: 12),
 
           TextField(
             controller: controller,
-            keyboardType: TextInputType.datetime,
-            style: const TextStyle(color: Colors.white, fontSize: 22),
+            maxLines: 3,
+            style: const TextStyle(color: Colors.white, fontSize: 18),
             decoration: const InputDecoration(
-              labelText: '勤務時間',
-              hintText: '例：8:30',
-              helperText: '時間:分（24時間ではありません）',
+              labelText: 'メモ（任意）',
+              hintText: '体調・仕事内容・予定など',
               labelStyle: TextStyle(color: Colors.white70),
+              hintStyle: TextStyle(color: Colors.white38),
               enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.white70),
+                borderSide: BorderSide(color: Colors.white24),
               ),
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: Colors.blue),

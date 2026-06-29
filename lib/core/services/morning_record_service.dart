@@ -11,15 +11,19 @@ class MorningRecordService {
     return encoder.convert(data.toRecordJson());
   }
 
-  static void save(MorningData data) {
-    MorningRepository.add(data);
+  static Future<void> save(MorningData data) async {
+    await MorningRepository.add(data);
 
     debugPrint(export(data));
-
     debugPrint('Records: ${MorningRepository.getAll().length}');
   }
 
-  static List<MorningData> load() {
+  static Future<List<MorningData>> load() async {
+    await MorningRepository.load();
     return MorningRepository.getAll();
+  }
+
+  static Future<void> clear() async {
+    await MorningRepository.clear();
   }
 }
