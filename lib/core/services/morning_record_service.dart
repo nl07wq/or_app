@@ -18,4 +18,8 @@ class MorningRecordService {
 
     debugPrint('Records: ${MorningRepository.getAll().length}');
   }
+
+  static List<MorningData> load() {
+    return MorningRepository.getAll();
+  }
 }
