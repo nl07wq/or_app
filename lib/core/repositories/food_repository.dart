@@ -11,6 +11,10 @@ class FoodRepository {
     return List.unmodifiable(_records);
   }
 
+  static void remove(FoodData data) {
+    _records.remove(data);
+  }
+
   static void clear() {
     _records.clear();
   }

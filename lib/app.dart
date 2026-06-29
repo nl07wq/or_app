@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/theme/app_theme.dart';
 import 'features/command_center/command_center_page.dart';
 
 class OperationRebootApp extends StatelessWidget {
@@ -7,9 +8,10 @@ class OperationRebootApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Operation Reboot',
-      debugShowCheckedModeBanner: false,
-      home: const CommandCenterPage(),
-    );
+  title: 'Operation Reboot',
+  debugShowCheckedModeBanner: false,
+  theme: AppTheme.darkTheme,
+  home: const CommandCenterPage(),
+);
   }
 }

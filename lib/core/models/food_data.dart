@@ -1,5 +1,6 @@
 class FoodData {
   final String date;
+  final String mealType; // ←追加
   final String meal;
   final int calories;
   final double protein;
@@ -9,6 +10,7 @@ class FoodData {
 
   const FoodData({
     required this.date,
+    required this.mealType,
     required this.meal,
     required this.calories,
     required this.protein,
@@ -23,16 +25,17 @@ class FoodData {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'date': date,
-      'meal': meal,
-      'calories': calories,
-      'protein': protein,
-      'fat': fat,
-      'carbohydrate': carbohydrate,
-      'memo': memo,
-    };
-  }
+  return {
+    'date': date,
+    'mealType': mealType,
+    'meal': meal,
+    'calories': calories,
+    'protein': protein,
+    'fat': fat,
+    'carbohydrate': carbohydrate,
+    'memo': memo,
+  };
+}
 
   Map<String, dynamic> toRecordJson() {
     return {'recordType': 'FoodData', 'version': '1.0', 'data': toJson()};

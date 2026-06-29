@@ -7,6 +7,8 @@ import 'commander_intent_card.dart';
 import '../../core/models/operation_data.dart';
 import '../../data/operation_sample.dart';
 import '../morning_routine/morning_routine_page.dart';
+import '../food/food_input_page.dart';
+import '../training/training_input_page.dart';
 
 class CommandCenterPage extends StatelessWidget {
   const CommandCenterPage({super.key});
@@ -45,6 +47,30 @@ class CommandCenterPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const MorningRoutinePage()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+            
+            OperationButton(
+              text: "🍱 Food Input",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FoodInputPage()),
+                );
+              },
+            ),
+            
+            const SizedBox(height: 12),
+            
+            OperationButton(
+              text: "🏋️ Training",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TrainingInputPage()),
                 );
               },
             ),

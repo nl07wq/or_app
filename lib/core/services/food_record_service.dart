@@ -11,12 +11,16 @@ class FoodRecordService {
 
     const encoder = JsonEncoder.withIndent('  ');
 
-    debugPrint(
-      encoder.convert(data.toRecordJson()),
-    );
+    debugPrint(encoder.convert(data.toRecordJson()));
 
-    debugPrint(
-      'Food Records: ${FoodRepository.getAll().length}',
-    );
+    debugPrint('Food Records: ${FoodRepository.getAll().length}');
+  }
+
+  static Future<List<FoodData>> load() async {
+    return FoodRepository.getAll();
+  }
+
+  static void delete(FoodData data) {
+    FoodRepository.remove(data);
   }
 }
