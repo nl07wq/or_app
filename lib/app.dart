@@ -18,8 +18,7 @@ class OperationRebootApp extends StatelessWidget {
     return MaterialApp(
       title: 'Operation Reboot',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-
+      theme: StandardTheme.theme,
       initialRoute: AppRoutes.dashboard,
 
       routes: {

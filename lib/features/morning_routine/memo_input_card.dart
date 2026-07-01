@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/operation_text_field.dart';
 
 class MemoInputCard extends StatelessWidget {
   final TextEditingController controller;
@@ -13,27 +15,10 @@ class MemoInputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('MEMO', style: TextStyle(color: Colors.white70)),
-
+          const SectionHeader(icon: Icons.edit_note, title: "MEMO"),
           const SizedBox(height: 12),
 
-          TextField(
-            controller: controller,
-            maxLines: 3,
-            style: const TextStyle(color: Colors.white, fontSize: 18),
-            decoration: const InputDecoration(
-              labelText: 'メモ（任意）',
-              hintText: '体調・仕事内容・予定など',
-              labelStyle: TextStyle(color: Colors.white70),
-              hintStyle: TextStyle(color: Colors.white38),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.white24),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.blue),
-              ),
-            ),
-          ),
+          OperationTextField(controller: controller, label: "メモ", maxLines: 4),
         ],
       ),
     );

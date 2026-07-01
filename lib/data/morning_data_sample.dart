@@ -1,13 +1,13 @@
 import '../core/models/morning_data.dart';
+import '../core/models/work_type.dart';
 
 const sampleMorningData = MorningData(
-  date: '2026-06-28',
-
-  weight: 104.6,
-
-  sleepHours: 6.5,
-
-  workHours: 9.0,
-
-  memo: '通常勤務',
+  date: "",
+  weight: 0.0,
+  bodyFat: 0.0,
+  sleepHours: 0.0,
+  sleepScore: 0,
+  workType: WorkType.work,
+  workHours: 0.0,
+  memo: "",
 );

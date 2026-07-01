@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/section_header.dart';
 
 class WeightInputCard extends StatelessWidget {
   final TextEditingController controller;
@@ -13,16 +14,18 @@ class WeightInputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("WEIGHT", style: TextStyle(color: Colors.white70)),
+          const SectionHeader(icon: Icons.monitor_weight, title: "BODY"),
 
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
 
           TextField(
             controller: controller,
-            keyboardType: TextInputType.number,
-            style: TextStyle(color: Colors.white, fontSize: 22),
-            decoration: InputDecoration(
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: const TextStyle(color: Colors.white, fontSize: 22),
+            decoration: const InputDecoration(
               labelText: "体重 (kg)",
+              hintText: "例）100.0",
+              hintStyle: TextStyle(color: Colors.white38),
               labelStyle: TextStyle(color: Colors.white70),
 
               enabledBorder: OutlineInputBorder(

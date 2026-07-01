@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/morning_data.dart';
@@ -23,6 +24,8 @@ class MorningRepository {
 
     final jsonString = prefs.getString(_storageKey);
 
+    debugPrint('LOAD raw: $jsonString');
+
     if (jsonString == null) {
       _records = [];
       return;
@@ -30,7 +33,11 @@ class MorningRepository {
 
     final List decoded = jsonDecode(jsonString);
 
-    _records = decoded.map((e) => MorningData.fromJson(e)).toList();
+    _records = decoded
+        .map((e) => MorningData.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    debugPrint('LOAD count: ${_records.length}');
   }
 
   static Future<void> save() async {
@@ -38,7 +45,12 @@ class MorningRepository {
 
     final jsonString = jsonEncode(_records.map((e) => e.toJson()).toList());
 
+    debugPrint('SAVE raw: $jsonString');
+
     await prefs.setString(_storageKey, jsonString);
+
+    final verify = prefs.getString(_storageKey);
+    debugPrint('VERIFY raw: $verify');
   }
 
   static Future<void> clear() async {

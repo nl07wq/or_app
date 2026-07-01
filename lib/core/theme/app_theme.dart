@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class AppTheme {
-  static ThemeData darkTheme = ThemeData(
+class StandardTheme {
+  static ThemeData theme = ThemeData(
     brightness: Brightness.dark,
 
     scaffoldBackgroundColor: const Color(0xFF101010),
@@ -29,6 +29,18 @@ class AppTheme {
 
     inputDecorationTheme: const InputDecorationTheme(
       border: OutlineInputBorder(),
+
+      enabledBorder: OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.white24),
+      ),
+
+      focusedBorder: OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.cyanAccent, width: 2),
+      ),
+
+      labelStyle: TextStyle(color: Colors.white70),
+
+      hintStyle: TextStyle(color: Colors.white38),
     ),
   );
 }

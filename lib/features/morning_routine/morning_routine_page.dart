@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
-import 'weight_input_card.dart';
+import 'body_card.dart';
 import 'sleep_input_card.dart';
-import 'work_input_card.dart';
+import 'sleep_score_input_card.dart';
+import 'work_card.dart';
 import 'memo_input_card.dart';
 import 'morning_submit_button.dart';
+import 'recovery_card.dart';
 
 import '../../core/models/morning_data.dart';
+import '../../core/models/work_type.dart';
 import '../../core/services/morning_record_service.dart';
-import '../../data/morning_data_sample.dart';
 import '../morning_history/morning_history_page.dart';
 
 class MorningRoutinePage extends StatefulWidget {
@@ -20,9 +22,12 @@ class MorningRoutinePage extends StatefulWidget {
 
 class _MorningRoutinePageState extends State<MorningRoutinePage> {
   final weightController = TextEditingController();
+  final bodyFatController = TextEditingController();
   final sleepController = TextEditingController();
+  final sleepScoreController = TextEditingController();
   final workController = TextEditingController();
   final memoController = TextEditingController();
+  WorkType selectedWorkType = WorkType.work;
 
   double? _parseTime(String text) {
     final parts = text.trim().split(':');
@@ -57,12 +62,6 @@ class _MorningRoutinePageState extends State<MorningRoutinePage> {
 
   @override
   Widget build(BuildContext context) {
-    final data = sampleMorningData;
-
-    if (weightController.text.isEmpty) {
-      weightController.text = data.weight.toString();
-    }
-
     return Scaffold(
       appBar: AppBar(title: const Text("Morning Routine")),
       body: Padding(
@@ -71,15 +70,31 @@ class _MorningRoutinePageState extends State<MorningRoutinePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              WeightInputCard(controller: weightController),
+              BodyCard(
+                weightController: weightController,
+                bodyFatController: bodyFatController,
+              ),
 
               const SizedBox(height: 16),
 
-              SleepInputCard(controller: sleepController),
+              RecoveryCard(
+                sleepController: sleepController,
+                sleepScoreController: sleepScoreController,
+              ),
 
               const SizedBox(height: 16),
 
-              WorkInputCard(controller: workController),
+              WorkCard(
+                workType: selectedWorkType,
+                workController: workController,
+                onChanged: (value) {
+                  if (value == null) return;
+
+                  setState(() {
+                    selectedWorkType = value;
+                  });
+                },
+              ),
 
               const SizedBox(height: 16),
 
@@ -111,10 +126,28 @@ class _MorningRoutinePageState extends State<MorningRoutinePage> {
                     return;
                   }
 
+                  final bodyFat = double.tryParse(
+                    bodyFatController.text.trim(),
+                  );
+
+                  if (bodyFat == null) {
+                    _showError("体脂肪率を入力してください");
+                    return;
+                  }
+
                   final sleep = _parseTime(sleepController.text);
 
                   if (sleep == null) {
                     _showError("睡眠時間は 7:30 の形式で入力してください");
+                    return;
+                  }
+
+                  final sleepScore = int.tryParse(
+                    sleepScoreController.text.trim(),
+                  );
+
+                  if (sleepScore == null) {
+                    _showError("睡眠スコアを入力してください");
                     return;
                   }
 
@@ -126,11 +159,14 @@ class _MorningRoutinePageState extends State<MorningRoutinePage> {
                   }
 
                   final morningData = MorningData(
-                    date: DateTime.now().toIso8601String().split('T')[0],
+                    date: DateTime.now().toIso8601String(),
                     weight: weight,
+                    bodyFat: bodyFat,
                     sleepHours: sleep,
+                    sleepScore: sleepScore,
+                    workType: selectedWorkType,
                     workHours: work,
-                    memo: memoController.text,
+                    memo: memoController.text.trim(),
                   );
 
                   await MorningRecordService.save(morningData);
