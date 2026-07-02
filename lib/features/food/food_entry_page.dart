@@ -7,14 +7,14 @@ import 'widgets/food_record_tile.dart';
 import 'widgets/food_history.dart';
 import 'widgets/food_input_form.dart';
 
-class FoodInputPage extends StatefulWidget {
-  const FoodInputPage({super.key});
+class FoodEntryPage extends StatefulWidget {
+  const FoodEntryPage({super.key});
 
   @override
-  State<FoodInputPage> createState() => _FoodInputPageState();
+  State<FoodEntryPage> createState() => _FoodEntryPageState();
 }
 
-class _FoodInputPageState extends State<FoodInputPage> {
+class _FoodEntryPageState extends State<FoodEntryPage> {
   final mealController = TextEditingController();
 
   final calorieController = TextEditingController();

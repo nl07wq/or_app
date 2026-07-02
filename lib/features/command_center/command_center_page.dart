@@ -7,7 +7,7 @@ import 'commander_intent_card.dart';
 import '../../core/models/operation_data.dart';
 import '../../data/operation_sample.dart';
 import '../morning_routine/morning_routine_page.dart';
-import '../food/food_input_page.dart';
+import '../food/food_entry_page.dart';
 import '../training/training_input_page.dart';
 
 class CommandCenterPage extends StatelessWidget {
@@ -58,7 +58,7 @@ class CommandCenterPage extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const FoodInputPage()),
+                  MaterialPageRoute(builder: (_) => const FoodEntryPage()),
                 );
               },
             ),

@@ -5,10 +5,11 @@ import 'core/theme/app_theme.dart';
 
 import 'features/dashboard/dashboard_page.dart';
 import 'features/morning_routine/morning_routine_page.dart';
-import 'features/food/food_input_page.dart';
+import 'features/food/food_page.dart';
 import 'features/training/training_input_page.dart';
 import 'features/morning_history/morning_history_page.dart';
 import 'features/command_center/command_center_page.dart';
+import 'features/food/food_entry_page.dart';
 
 class OperationRebootApp extends StatelessWidget {
   const OperationRebootApp({super.key});
@@ -24,7 +25,7 @@ class OperationRebootApp extends StatelessWidget {
       routes: {
         AppRoutes.dashboard: (_) => const DashboardPage(),
         AppRoutes.morningRoutine: (_) => const MorningRoutinePage(),
-        AppRoutes.food: (_) => const FoodInputPage(),
+        AppRoutes.food: (_) => const FoodPage(),
         AppRoutes.training: (_) => const TrainingInputPage(),
         AppRoutes.morningHistory: (_) => const MorningHistoryPage(),
         AppRoutes.commandCenter: (_) => const CommandCenterPage(),

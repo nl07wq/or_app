@@ -32,7 +32,7 @@ class DashboardPage extends StatelessWidget {
 
           ElevatedButton.icon(
             icon: const Icon(Icons.restaurant),
-            label: const Text("Food Input"),
+            label: const Text("Food Module"),
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.food);
             },
