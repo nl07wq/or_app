@@ -3,9 +3,11 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/models/food_data.dart';
 import '../../core/services/food_record_service.dart';
 import '../../core/widgets/operation_button.dart';
-import 'widgets/food_record_tile.dart';
 import 'widgets/food_history.dart';
-import 'widgets/food_input_form.dart';
+import '../../core/widgets/operation_text_field.dart';
+import '../../core/widgets/operation_dropdown.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/operation_description.dart';
 
 class FoodEntryPage extends StatefulWidget {
   const FoodEntryPage({super.key});
@@ -75,7 +77,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Food Input')),
+      appBar: AppBar(title: const Text("FOOD ENTRY")),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
@@ -85,22 +87,24 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'FOOD',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    const SectionHeader(
+                      icon: Icons.restaurant,
+                      title: "FOOD ENTRY",
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
 
-                    DropdownButtonFormField<String>(
+                    const OperationDescription(
+                      text:
+                          "食事内容と栄養情報を記録します。\n"
+                          "手入力またはSync機能から登録できます。",
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    OperationDropdown<String>(
+                      label: "Meal Type",
                       value: mealType,
-                      decoration: const InputDecoration(
-                        labelText: 'Meal Type',
-                        border: OutlineInputBorder(),
-                      ),
                       items: const [
                         DropdownMenuItem(value: '朝食', child: Text('🌅 朝食')),
                         DropdownMenuItem(value: '昼食', child: Text('☀️ 昼食')),
@@ -117,69 +121,50 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                         });
                       },
                     ),
-
                     const SizedBox(height: 16),
 
-                    TextField(
+                    OperationTextField(
                       controller: mealController,
-                      decoration: const InputDecoration(
-                        labelText: 'Meal',
-                        border: OutlineInputBorder(),
-                      ),
+                      label: "Meal",
                     ),
                     const SizedBox(height: 16),
 
-                    TextField(
+                    OperationTextField(
                       controller: calorieController,
+                      label: "Calories",
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Calories',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    TextField(
+                    OperationTextField(
                       controller: proteinController,
+                      label: "Protein (g)",
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Protein (g)',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    TextField(
+                    OperationTextField(
                       controller: fatController,
+                      label: "Fat (g)",
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Fat (g)',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    TextField(
+                    OperationTextField(
                       controller: carbohydrateController,
+                      label: "Carbohydrate (g)",
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Carbohydrate (g)',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    TextField(
+                    OperationTextField(
                       controller: memoController,
+                      label: "Memo",
                       maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Memo',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -219,14 +204,10 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Today's Total",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    const SectionHeader(
+                      icon: Icons.calculate,
+                      title: "TODAY'S TOTAL",
                     ),
-
                     const SizedBox(height: 12),
 
                     Text("🔥 $totalCalories kcal"),

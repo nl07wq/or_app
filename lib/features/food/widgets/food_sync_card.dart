@@ -20,7 +20,8 @@ class FoodSyncCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OperationButton(
-              text: "Import Food Report",
+              icon: Icons.sync,
+              text: "Sync Report",
               onPressed: () {
                 // 次回実装
               },

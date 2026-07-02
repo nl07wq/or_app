@@ -20,7 +20,8 @@ class FoodHistoryButton extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OperationButton(
-              text: "View Food History",
+              icon: Icons.history,
+              text: "History",
               onPressed: () {
                 // 次回実装
               },

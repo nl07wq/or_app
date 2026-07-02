@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/navigation/app_routes.dart';
 import 'widgets/status_card.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/operation_description.dart';
+import '../../core/widgets/operation_button.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -12,17 +15,27 @@ class DashboardPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const SizedBox(height: 20),
+
           const StatusCard(),
 
           const SizedBox(height: 24),
 
-          Text("Quick Access", style: Theme.of(context).textTheme.titleLarge),
+          const SectionHeader(icon: Icons.dashboard, title: "QUICK ACCESS"),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
-          ElevatedButton.icon(
-            icon: const Icon(Icons.play_arrow),
-            label: const Text("Morning Routine"),
+          const OperationDescription(
+            text:
+                "本日のOperation状況を確認し、\n"
+                "各モジュールへアクセスします。",
+          ),
+
+          const SizedBox(height: 20),
+
+          OperationButton(
+            icon: Icons.play_arrow,
+            text: "Morning Routine",
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.morningRoutine);
             },
@@ -30,9 +43,9 @@ class DashboardPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          ElevatedButton.icon(
-            icon: const Icon(Icons.restaurant),
-            label: const Text("Food Module"),
+          OperationButton(
+            icon: Icons.restaurant,
+            text: "Food",
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.food);
             },
@@ -40,9 +53,9 @@ class DashboardPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          ElevatedButton.icon(
-            icon: const Icon(Icons.fitness_center),
-            label: const Text("Training"),
+          OperationButton(
+            icon: Icons.fitness_center,
+            text: "Training",
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.training);
             },
@@ -50,9 +63,9 @@ class DashboardPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          ElevatedButton.icon(
-            icon: const Icon(Icons.flag),
-            label: const Text("Command Center"),
+          OperationButton(
+            icon: Icons.flag,
+            text: "Command Center",
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.commandCenter);
             },
@@ -60,9 +73,9 @@ class DashboardPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          ElevatedButton.icon(
-            icon: const Icon(Icons.history),
-            label: const Text("Morning History"),
+          OperationButton(
+            icon: Icons.history,
+            text: "History",
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.morningHistory);
             },

@@ -21,7 +21,8 @@ class FoodManualCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OperationButton(
-              text: "＋ Food Entry",
+              icon: Icons.edit_note,
+              text: "Food Entry",
               onPressed: () {
                 Navigator.push(
                   context,
