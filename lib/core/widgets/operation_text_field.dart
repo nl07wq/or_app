@@ -22,7 +22,6 @@ class OperationTextField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: const TextStyle(color: Colors.white, fontSize: 18),
       decoration: InputDecoration(labelText: label, hintText: hint),
     );
   }

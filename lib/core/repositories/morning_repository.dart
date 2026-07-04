@@ -1,60 +1,58 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/morning_data.dart';
 
 class MorningRepository {
-  static const _storageKey = 'morning_records';
+  static const _key = 'morning_records';
 
-  static List<MorningData> _records = [];
-
-  static Future<void> add(MorningData data) async {
-    _records.add(data);
-    await save();
-  }
-
-  static List<MorningData> getAll() {
-    return List.unmodifiable(_records);
-  }
-
-  static Future<void> load() async {
+  static Future<void> save(MorningData data) async {
     final prefs = await SharedPreferences.getInstance();
 
-    final jsonString = prefs.getString(_storageKey);
+    final list = await getAll();
 
-    debugPrint('LOAD raw: $jsonString');
+    list.add(data);
 
-    if (jsonString == null) {
-      _records = [];
-      return;
+    final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
+
+    await prefs.setStringList(_key, jsonList);
+  }
+
+  static Future<List<MorningData>> getAll() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    try {
+      final jsonList = prefs.getStringList(_key) ?? [];
+
+      return jsonList.map((e) => MorningData.fromJson(jsonDecode(e))).toList();
+    } catch (_) {
+      // 旧フォーマットのデータは破棄
+      await prefs.remove(_key);
+      return [];
     }
-
-    final List decoded = jsonDecode(jsonString);
-
-    _records = decoded
-        .map((e) => MorningData.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-
-    debugPrint('LOAD count: ${_records.length}');
-  }
-
-  static Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final jsonString = jsonEncode(_records.map((e) => e.toJson()).toList());
-
-    debugPrint('SAVE raw: $jsonString');
-
-    await prefs.setString(_storageKey, jsonString);
-
-    final verify = prefs.getString(_storageKey);
-    debugPrint('VERIFY raw: $verify');
   }
 
   static Future<void> clear() async {
-    _records.clear();
-    await save();
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove(_key);
+  }
+
+  static Future<void> remove(MorningData data) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final list = await getAll();
+
+    list.removeWhere(
+      (e) =>
+          e.date == data.date &&
+          e.weight == data.weight &&
+          e.workType == data.workType,
+    );
+
+    final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
+
+    await prefs.setStringList(_key, jsonList);
   }
 }

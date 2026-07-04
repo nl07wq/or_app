@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../../core/navigation/app_routes.dart';
-import 'widgets/status_card.dart';
-import '../../core/widgets/section_header.dart';
-import '../../core/widgets/operation_description.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
+import '../../core/widgets/operation_description.dart';
+import '../../core/widgets/section_header.dart';
+
+import 'widgets/status_card.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -11,77 +14,106 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Dashboard")),
+      appBar: AppBar(title: const Text('Dashboard')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const SizedBox(height: 20),
+        padding: AppSpacing.cardPadding,
+        children: const [
+          AppSpacing.gapLG,
 
-          const StatusCard(),
+          StatusCard(),
 
-          const SizedBox(height: 24),
+          AppSpacing.gapXL,
 
-          const SectionHeader(icon: Icons.dashboard, title: "QUICK ACCESS"),
+          SectionHeader(icon: Icons.dashboard, title: 'QUICK ACCESS'),
 
-          const SizedBox(height: 8),
+          AppSpacing.gapSM,
 
-          const OperationDescription(
+          OperationDescription(
             text:
-                "本日のOperation状況を確認し、\n"
-                "各モジュールへアクセスします。",
+                '本日のOperation状況を確認し、'
+                '\n'
+                '各モジュールへアクセスします。',
           ),
 
-          const SizedBox(height: 20),
+          AppSpacing.gapLG,
 
-          OperationButton(
-            icon: Icons.play_arrow,
-            text: "Morning Routine",
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.morningRoutine);
-            },
-          ),
+          _MorningButton(),
 
-          const SizedBox(height: 12),
+          AppSpacing.gapMD,
 
-          OperationButton(
-            icon: Icons.restaurant,
-            text: "Food",
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.food);
-            },
-          ),
+          _FoodButton(),
 
-          const SizedBox(height: 12),
+          AppSpacing.gapMD,
 
-          OperationButton(
-            icon: Icons.fitness_center,
-            text: "Training",
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.training);
-            },
-          ),
+          _TrainingButton(),
 
-          const SizedBox(height: 12),
+          AppSpacing.gapMD,
 
-          OperationButton(
-            icon: Icons.flag,
-            text: "Command Center",
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.commandCenter);
-            },
-          ),
+          _CommandCenterButton(),
 
-          const SizedBox(height: 12),
-
-          OperationButton(
-            icon: Icons.history,
-            text: "History",
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.morningHistory);
-            },
-          ),
+          AppSpacing.gapMD,
         ],
       ),
+    );
+  }
+}
+
+class _MorningButton extends StatelessWidget {
+  const _MorningButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return OperationButton(
+      icon: Icons.play_arrow,
+      text: 'Morning',
+      onPressed: () {
+        Navigator.pushNamed(context, AppRoutes.morning);
+      },
+    );
+  }
+}
+
+class _FoodButton extends StatelessWidget {
+  const _FoodButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return OperationButton(
+      icon: Icons.restaurant,
+      text: 'Food',
+      onPressed: () {
+        Navigator.pushNamed(context, AppRoutes.food);
+      },
+    );
+  }
+}
+
+class _TrainingButton extends StatelessWidget {
+  const _TrainingButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return OperationButton(
+      icon: Icons.fitness_center,
+      text: 'Training',
+      onPressed: () {
+        Navigator.pushNamed(context, AppRoutes.training);
+      },
+    );
+  }
+}
+
+class _CommandCenterButton extends StatelessWidget {
+  const _CommandCenterButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return OperationButton(
+      icon: Icons.flag,
+      text: 'Command Center',
+      onPressed: () {
+        Navigator.pushNamed(context, AppRoutes.commandCenter);
+      },
     );
   }
 }

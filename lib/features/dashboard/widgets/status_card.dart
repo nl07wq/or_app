@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/morning_data.dart';
-import '../../../core/services/morning_record_service.dart';
+import '../../../core/repositories/morning_repository.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_title.dart';
 
@@ -22,7 +22,7 @@ class _StatusCardState extends State<StatusCard> {
   }
 
   Future<void> loadMorningData() async {
-    final records = await MorningRecordService.load();
+    final records = await MorningRepository.getAll();
 
     if (records.isNotEmpty) {
       setState(() {

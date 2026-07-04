@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/food_data.dart';
 import 'food_record_tile.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/theme/app_spacing.dart';
 
 class FoodHistory extends StatelessWidget {
   final List<FoodData> records;
@@ -16,16 +17,13 @@ class FoodHistory extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Saved Records",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          Text("Saved Records", style: Theme.of(context).textTheme.titleMedium),
 
           const SizedBox(height: 12),
 
           Text("保存件数 : ${records.length}"),
 
-          const SizedBox(height: 12),
+          AppSpacing.gapMD,
 
           ...records.map(
             (record) => FoodRecordTile(

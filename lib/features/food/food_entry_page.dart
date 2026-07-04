@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/models/food_data.dart';
-import '../../core/services/food_record_service.dart';
 import '../../core/widgets/operation_button.dart';
-import 'widgets/food_history.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/operation_dropdown.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/operation_description.dart';
+import '../../core/repositories/food_repository.dart';
 
 class FoodEntryPage extends StatefulWidget {
   const FoodEntryPage({super.key});
@@ -57,7 +56,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   }
 
   Future<void> loadRecords() async {
-    records = await FoodRecordService.load();
+    records = await FoodRepository.getAll();
 
     if (mounted) {
       setState(() {});
@@ -121,13 +120,13 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     OperationTextField(
                       controller: mealController,
                       label: "Meal",
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     OperationTextField(
                       controller: calorieController,
@@ -135,7 +134,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                       keyboardType: TextInputType.number,
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     OperationTextField(
                       controller: proteinController,
@@ -143,7 +142,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                       keyboardType: TextInputType.number,
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     OperationTextField(
                       controller: fatController,
@@ -151,7 +150,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                       keyboardType: TextInputType.number,
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     OperationTextField(
                       controller: carbohydrateController,
@@ -159,7 +158,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                       keyboardType: TextInputType.number,
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     OperationTextField(
                       controller: memoController,
@@ -170,7 +169,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
 
                     OperationButton(
                       text: "💾 Save Food",
-                      onPressed: () {
+                      onPressed: () async {
                         final record = FoodData(
                           date: DateTime.now()
                               .toIso8601String()
@@ -186,9 +185,11 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                           memo: memoController.text,
                         );
 
-                        FoodRecordService.save(record);
+                        await FoodRepository.save(record);
 
-                        loadRecords();
+                        await loadRecords();
+
+                        if (!mounted) return;
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Food saved')),
@@ -216,21 +217,6 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                     Text("🍚 C ${totalCarbohydrate.toStringAsFixed(1)} g"),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              FoodHistory(
-                records: records,
-                onDelete: (record) {
-                  FoodRecordService.delete(record);
-
-                  loadRecords();
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text("Food deleted")));
-                },
               ),
             ],
           ),

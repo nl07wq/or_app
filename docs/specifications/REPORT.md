@@ -1,0 +1,7 @@
+Daily
+
+Weekly
+
+Monthly
+
+Analysis

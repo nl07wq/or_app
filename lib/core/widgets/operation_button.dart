@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_text_styles.dart';
+
 class OperationButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -20,28 +24,17 @@ class OperationButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blueAccent,
-          foregroundColor: Colors.white,
           elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
               Icon(icon, size: 20),
-              const SizedBox(width: 8),
+              SizedBox(width: AppSpacing.sm),
             ],
-            Text(
-              text,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
-              ),
-            ),
+            Text(text, style: AppTextStyles.label),
           ],
         ),
       ),

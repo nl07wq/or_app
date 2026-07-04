@@ -1,6 +1,6 @@
 class FoodData {
   final String date;
-  final String mealType; // ←追加
+  final String mealType;
   final String meal;
   final int calories;
   final double protein;
@@ -19,25 +19,38 @@ class FoodData {
     required this.memo,
   });
 
-  @override
-  String toString() {
-    return 'FoodData(date: $date, meal: $meal, calories: $calories)';
+  factory FoodData.fromJson(Map<String, dynamic> json) {
+    return FoodData(
+      date: json['date'] as String,
+      mealType: json['mealType'] as String,
+      meal: json['meal'] as String,
+      calories: json['calories'] as int,
+      protein: (json['protein'] as num).toDouble(),
+      fat: (json['fat'] as num).toDouble(),
+      carbohydrate: (json['carbohydrate'] as num).toDouble(),
+      memo: json['memo'] as String,
+    );
   }
 
   Map<String, dynamic> toJson() {
-  return {
-    'date': date,
-    'mealType': mealType,
-    'meal': meal,
-    'calories': calories,
-    'protein': protein,
-    'fat': fat,
-    'carbohydrate': carbohydrate,
-    'memo': memo,
-  };
-}
+    return {
+      'date': date,
+      'mealType': mealType,
+      'meal': meal,
+      'calories': calories,
+      'protein': protein,
+      'fat': fat,
+      'carbohydrate': carbohydrate,
+      'memo': memo,
+    };
+  }
 
   Map<String, dynamic> toRecordJson() {
     return {'recordType': 'FoodData', 'version': '1.0', 'data': toJson()};
+  }
+
+  @override
+  String toString() {
+    return 'FoodData(date: $date, meal: $meal, calories: $calories)';
   }
 }
