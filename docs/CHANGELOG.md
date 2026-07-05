@@ -40,3 +40,19 @@ None
 - Roadmap updated for Data Foundation
 - Reports generated from DNS
 - Early Beta defined before Commander Center
+
+## 2026-07-04
+
+### Morning Module Refactor
+
+- Morning Routine を Morning Fact へ名称変更
+- Morning Module を Food Module と同一アーキテクチャへ統一
+- MorningPage を追加（Module Home）
+- MorningFactPage を入力画面として整理
+- MorningHistoryPage を追加
+- MorningRepository による SharedPreferences 永続保存を実装
+- MorningRecordService を廃止
+- Dashboard の導線を MorningPage へ変更
+- History を各Module内へ移設
+- Dashboard の共通Historyを廃止
+- Morning Module の入力・保存・再起動・History表示を確認

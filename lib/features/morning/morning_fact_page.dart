@@ -11,6 +11,8 @@ import 'widgets/body_card.dart';
 import 'widgets/memo_input_card.dart';
 import 'widgets/morning_submit_button.dart';
 import 'widgets/recovery_card.dart';
+import 'widgets/foot_card.dart';
+import 'widgets/bowel_card.dart';
 import 'widgets/work_card.dart';
 
 class MorningFactPage extends StatefulWidget {
@@ -21,12 +23,18 @@ class MorningFactPage extends StatefulWidget {
 }
 
 class _MorningFactPageState extends State<MorningFactPage> {
+  // Controllers
   final weightController = TextEditingController();
   final bodyFatController = TextEditingController();
   final sleepController = TextEditingController();
   final sleepScoreController = TextEditingController();
   final workController = TextEditingController();
   final memoController = TextEditingController();
+
+  // State
+  int footPain = 0;
+  int bowelAmount = 0;
+  int bowelShape = 1;
 
   WorkType selectedWorkType = WorkType.work;
 
@@ -64,7 +72,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Morning Routine')),
+      appBar: AppBar(title: const Text('Morning Fact')),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: SingleChildScrollView(
@@ -81,6 +89,34 @@ class _MorningFactPageState extends State<MorningFactPage> {
               RecoveryCard(
                 sleepController: sleepController,
                 sleepScoreController: sleepScoreController,
+              ),
+
+              AppSpacing.gapMD,
+
+              FootCard(
+                footPain: footPain,
+                onChanged: (value) {
+                  setState(() {
+                    footPain = value;
+                  });
+                },
+              ),
+
+              AppSpacing.gapMD,
+
+              BowelCard(
+                bowelAmount: bowelAmount,
+                bowelShape: bowelShape,
+                onAmountChanged: (value) {
+                  setState(() {
+                    bowelAmount = value;
+                  });
+                },
+                onShapeChanged: (value) {
+                  setState(() {
+                    bowelShape = value;
+                  });
+                },
               ),
 
               AppSpacing.gapMD,
@@ -115,7 +151,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     return;
                   }
 
-                  if (workController.text.trim().isEmpty) {
+                  if ((selectedWorkType == WorkType.work ||
+                          selectedWorkType == WorkType.halfDay) &&
+                      workController.text.trim().isEmpty) {
                     _showError('勤務時間を入力してください');
                     return;
                   }
@@ -152,11 +190,18 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     return;
                   }
 
-                  final work = _parseTime(workController.text);
+                  double work = 0;
 
-                  if (work == null) {
-                    _showError('勤務時間は 8:30 の形式で入力してください');
-                    return;
+                  if (selectedWorkType == WorkType.work ||
+                      selectedWorkType == WorkType.halfDay) {
+                    final parsed = _parseTime(workController.text);
+
+                    if (parsed == null) {
+                      _showError('勤務時間は 8:30 の形式で入力してください');
+                      return;
+                    }
+
+                    work = parsed;
                   }
 
                   final morningData = MorningData(
@@ -165,6 +210,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     bodyFat: bodyFat,
                     sleepHours: sleep,
                     sleepScore: sleepScore,
+                    footPain: footPain,
+                    bowelAmount: bowelAmount,
+                    bowelShape: bowelShape,
                     workType: selectedWorkType,
                     workHours: work,
                     memo: memoController.text.trim(),

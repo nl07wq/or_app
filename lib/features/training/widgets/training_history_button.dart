@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 
+import '../training_history_page.dart';
+
 class TrainingHistoryButton extends StatelessWidget {
   const TrainingHistoryButton({super.key});
 
@@ -13,7 +15,10 @@ class TrainingHistoryButton extends StatelessWidget {
         icon: Icons.history,
         text: 'History',
         onPressed: () {
-          // Phase3で実装予定
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TrainingHistoryPage()),
+          );
         },
       ),
     );

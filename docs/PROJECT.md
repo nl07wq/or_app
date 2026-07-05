@@ -254,3 +254,23 @@ REP.md
 UI_GUIDELINE.md
 
 CHANGELOG.md
+
+Current Development Status
+
+Completed
+
+- Dashboard
+- Morning Module
+- Food Module
+
+In Progress
+
+- Training Module
+
+Planned
+
+- Activity Module
+- Commander Center
+- Morning Brief
+- Operation Sync
+- SQLite Migration

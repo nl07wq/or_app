@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/operation_field_label.dart';
 import '../../../core/widgets/operation_text_field.dart';
+import '../../../core/widgets/section_header.dart';
 
 class BodyCard extends StatelessWidget {
   final TextEditingController weightController;
@@ -24,16 +25,25 @@ class BodyCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
+          const OperationFieldLabel("Weight"),
+
+          const SizedBox(height: 8),
+
           OperationTextField(
             controller: weightController,
-            label: "体重 (kg)",
+            hint: "kg",
             keyboardType: TextInputType.number,
           ),
+
           const SizedBox(height: 20),
+
+          const OperationFieldLabel("Body Fat"),
+
+          const SizedBox(height: 8),
 
           OperationTextField(
             controller: bodyFatController,
-            label: "体脂肪率 (%)",
+            hint: "%",
             keyboardType: TextInputType.number,
           ),
         ],

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/operation_field_label.dart';
 import '../../../core/widgets/operation_text_field.dart';
+import '../../../core/widgets/section_header.dart';
 
 class RecoveryCard extends StatelessWidget {
   final TextEditingController sleepController;
@@ -24,16 +25,20 @@ class RecoveryCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          OperationTextField(
-            controller: sleepController,
-            label: "睡眠時間",
-            hint: "例）7:30",
-          ),
-          const SizedBox(height: 16),
+          const OperationFieldLabel("Sleep Time"),
+
+          const SizedBox(height: 8),
+
+          OperationTextField(controller: sleepController, hint: "例）7:30"),
+
+          const SizedBox(height: 20),
+
+          const OperationFieldLabel("Sleep Score"),
+
+          const SizedBox(height: 8),
 
           OperationTextField(
             controller: sleepScoreController,
-            label: "睡眠スコア",
             hint: "0〜100",
             keyboardType: TextInputType.number,
           ),

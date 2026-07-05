@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/models/work_type.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_dropdown.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/operation_field_label.dart';
 import '../../../core/widgets/operation_text_field.dart';
+import '../../../core/widgets/section_header.dart';
 
 class WorkCard extends StatelessWidget {
   final WorkType workType;
@@ -28,8 +29,12 @@ class WorkCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
+          const OperationFieldLabel("Work Type"),
+
+          const SizedBox(height: 8),
+
           OperationDropdown<WorkType>(
-            label: "勤務区分",
+            label: "",
             value: workType,
             onChanged: onChanged,
             items: const [
@@ -41,14 +46,15 @@ class WorkCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 20),
+          if (workType == WorkType.work || workType == WorkType.halfDay) ...[
+            const SizedBox(height: 20),
 
-          if (workType == WorkType.work || workType == WorkType.halfDay)
-            OperationTextField(
-              controller: workController,
-              label: "勤務時間",
-              hint: "例）8:00",
-            ),
+            const OperationFieldLabel("Work Time"),
+
+            const SizedBox(height: 8),
+
+            OperationTextField(controller: workController, hint: "例）8:00"),
+          ],
         ],
       ),
     );

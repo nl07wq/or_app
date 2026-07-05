@@ -6,7 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/morning/morning_page.dart';
 import 'features/food/food_page.dart';
-import 'features/training/training_entry_page.dart';
+import 'features/training/training_page.dart';
 import 'features/command_center/command_center_page.dart';
 
 class OperationRebootApp extends StatelessWidget {
@@ -24,7 +24,7 @@ class OperationRebootApp extends StatelessWidget {
         AppRoutes.dashboard: (_) => const DashboardPage(),
         AppRoutes.morning: (_) => const MorningPage(),
         AppRoutes.food: (_) => const FoodPage(),
-        AppRoutes.training: (_) => const TrainingEntryPage(),
+        AppRoutes.training: (_) => const TrainingPage(),
         AppRoutes.commandCenter: (_) => const CommandCenterPage(),
       },
     );

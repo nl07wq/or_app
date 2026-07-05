@@ -13,6 +13,18 @@ Last Updated
 
 ---
 
+Status
+
+Planned
+Design
+In Progress
+Early β
+Implemented
+Refactoring
+Completed
+
+---
+
 # Development Philosophy
 
 ORLOは
@@ -478,3 +490,104 @@ ARCHITECTURE.md
 DATABASE.md
 
 OPERATION_ENGINE.md
+
+---
+
+## Module Progress
+
+- [x] Dashboard
+- [x] Morning Module
+- [x] Food Module
+- [ ] Training Module
+- [ ] Activity Module
+- [ ] Commander Center
+- [ ] Morning Brief AI
+- [ ] Operation Sync
+
+## Post Early β
+
+### UI Component Refactoring
+
+Status
+Planned
+
+Priority
+Medium
+
+Purpose
+
+Morning・Food・Trainingなどで共通利用している
+入力UIをコンポーネント化し、
+保守性・統一性を向上させる。
+
+Candidate Components
+
+- OperationField
+- OperationFormGroup
+- OperationNumberField
+- OperationTimeField
+- OperationDropdownField
+
+Current
+
+OperationFieldLabel
+
+↓
+
+SizedBox
+
+↓
+
+OperationTextField / OperationDropdown
+
+Future
+
+OperationField(
+    title: "...",
+    child: ...
+)
+
+Benefits
+
+・コード量削減
+・UI統一
+・余白管理の一元化
+・Theme変更容易
+・保守性向上
+
+Notes
+
+Early βでは実施しない。
+
+Early βでMorning・Food・Trainingを完成させ、
+実運用後にリファクタリングを実施する。
+
+Operation Reboot Principle
+
+Documentation First
+
+Architecture Before Code
+
+### History Common Components
+
+Status
+Planned
+
+Purpose
+
+Morning・Food・Training・Activityの
+History UIを共通化する。
+
+Components
+
+- HistoryActionButtons
+- HistoryDeleteDialog
+- HistoryCard
+- HistoryEmptyView
+
+Rules
+
+・IDによる削除
+・削除確認ダイアログ
+・削除後自動リロード
+・編集機能を将来追加可能な構造

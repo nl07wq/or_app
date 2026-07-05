@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../../core/models/training_data.dart';
-import '../../core/services/training_record_service.dart';
-
+import '../../core/models/training_exercise.dart';
+import '../../core/models/training_session.dart';
+import '../../core/models/training_set.dart';
+import '../../core/repositories/training_repository.dart';
 import '../../core/theme/app_spacing.dart';
 
-import '../../core/widgets/operation_button.dart';
-import '../../core/widgets/operation_card.dart';
-import '../../core/widgets/operation_description.dart';
-import '../../core/widgets/operation_text_field.dart';
-import '../../core/widgets/section_header.dart';
+import 'models/training_session_controller.dart';
+
+import 'widgets/training_exercise_list.dart';
+import 'widgets/training_session_card.dart';
+import 'widgets/training_submit_button.dart';
+import '../../core/widgets/operation_menu_button.dart';
 
 class TrainingEntryPage extends StatefulWidget {
   const TrainingEntryPage({super.key});
@@ -19,106 +21,163 @@ class TrainingEntryPage extends StatefulWidget {
 }
 
 class _TrainingEntryPageState extends State<TrainingEntryPage> {
-  final exerciseController = TextEditingController();
-  final setsController = TextEditingController();
-  final repsController = TextEditingController();
-  final weightController = TextEditingController();
-  final memoController = TextEditingController();
+  final sessionController = TrainingSessionController();
+
+  bool isEditMode = false;
+
+  void _showError(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('入力エラー'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final exercises = <TrainingExercise>[];
+
+    for (
+      int exerciseIndex = 0;
+      exerciseIndex < sessionController.exercises.length;
+      exerciseIndex++
+    ) {
+      final controller = sessionController.exercises[exerciseIndex];
+
+      if (controller.exerciseController.text.trim().isEmpty) {
+        _showError('種目を入力してください');
+        return;
+      }
+
+      final sets = <TrainingSet>[];
+
+      for (int i = 0; i < controller.sets.length; i++) {
+        final set = controller.sets[i];
+
+        final weight = double.tryParse(set.weightController.text.trim());
+
+        final reps = int.tryParse(set.repsController.text.trim());
+
+        if (weight == null) {
+          _showError('重量を入力してください');
+          return;
+        }
+
+        if (reps == null) {
+          _showError('回数を入力してください');
+          return;
+        }
+
+        sets.add(TrainingSet(setNo: i + 1, weight: weight, reps: reps));
+      }
+
+      exercises.add(
+        TrainingExercise(
+          exerciseName: controller.exerciseController.text.trim(),
+          order: exerciseIndex + 1,
+          sets: sets,
+        ),
+      );
+    }
+
+    final session = TrainingSession(
+      date: DateTime.now().toIso8601String(),
+      memo: sessionController.memoController.text.trim(),
+      exercises: exercises,
+    );
+
+    await TrainingRepository.save(session);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Training Saved')));
+
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    sessionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Training Entry')),
-      body: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SectionHeader(
-              icon: Icons.fitness_center,
-              title: 'TRAINING ENTRY',
-            ),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(
-              text:
-                  '本日のトレーニング内容を入力して\n'
-                  '記録します。',
-            ),
-
-            AppSpacing.gapMD,
-
-            OperationCard(
-              child: Column(
-                children: [
-                  OperationTextField(
-                    controller: exerciseController,
-                    label: 'Exercise',
-                  ),
-
-                  AppSpacing.gapMD,
-
-                  OperationTextField(
-                    controller: setsController,
-                    label: 'Sets',
-                    keyboardType: TextInputType.number,
-                  ),
-
-                  AppSpacing.gapMD,
-
-                  OperationTextField(
-                    controller: repsController,
-                    label: 'Reps',
-                    keyboardType: TextInputType.number,
-                  ),
-
-                  AppSpacing.gapMD,
-
-                  OperationTextField(
-                    controller: weightController,
-                    label: 'Weight (kg)',
-                    keyboardType: TextInputType.number,
-                  ),
-
-                  AppSpacing.gapMD,
-
-                  OperationTextField(
-                    controller: memoController,
-                    label: 'Memo',
-                    maxLines: 3,
-                  ),
-                ],
+      appBar: AppBar(
+        title: const Text('Training Entry'),
+        actions: [
+          OperationMenuButton(
+            items: [
+              OperationMenuItem(
+                icon: isEditMode ? Icons.check : Icons.edit_outlined,
+                title: isEditMode ? 'Finish Editing' : 'Edit Mode',
+                onTap: () {
+                  setState(() {
+                    isEditMode = !isEditMode;
+                  });
+                },
               ),
-            ),
 
-            AppSpacing.gapXL,
+              OperationMenuItem(
+                icon: Icons.delete_sweep_outlined,
+                title: 'Clear Session',
+                onTap: () {
+                  // Phase2
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: AppSpacing.cardPadding,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TrainingSessionCard(
+                memoController: sessionController.memoController,
+              ),
 
-            OperationButton(
-              icon: Icons.save,
-              text: 'Save Training',
-              onPressed: () {
-                final record = TrainingData(
-                  date: DateTime.now().toIso8601String().split('T').first,
-                  exercise: exerciseController.text,
-                  sets: int.tryParse(setsController.text) ?? 0,
-                  reps: int.tryParse(repsController.text) ?? 0,
-                  weight: double.tryParse(weightController.text) ?? 0,
-                  memo: memoController.text,
-                );
+              AppSpacing.gapMD,
 
-                TrainingRecordService.save(record);
+              TrainingExerciseList(
+                exercises: sessionController.exercises,
+                isEditMode: isEditMode,
+                onDelete: (exercise) {
+                  setState(() {
+                    sessionController.removeExercise(exercise);
+                  });
+                },
+              ),
 
-                if (!mounted) return;
+              AppSpacing.gapXL,
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Training saved')));
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    sessionController.addExercise();
+                  });
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Add Exercise'),
+              ),
 
-                Navigator.pop(context);
-              },
-            ),
-          ],
+              AppSpacing.gapXL,
+
+              TrainingSubmitButton(onPressed: _save),
+            ],
+          ),
         ),
       ),
     );

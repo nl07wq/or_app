@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/widgets/operation_button.dart';
+import '../../../../core/widgets/operation_button.dart';
 
-class MorningSubmitButton extends StatelessWidget {
+class TrainingSubmitButton extends StatelessWidget {
   final VoidCallback onPressed;
 
-  const MorningSubmitButton({super.key, required this.onPressed});
+  const TrainingSubmitButton({super.key, required this.onPressed});
+
   @override
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.save,
-      text: "Save Morning",
+      text: 'Save Training',
       onPressed: onPressed,
     );
   }

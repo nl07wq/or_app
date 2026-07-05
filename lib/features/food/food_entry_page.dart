@@ -168,7 +168,8 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                     const SizedBox(height: 20),
 
                     OperationButton(
-                      text: "💾 Save Food",
+                      icon: Icons.save,
+                      text: "Save Food",
                       onPressed: () async {
                         final record = FoodData(
                           date: DateTime.now()

@@ -5,8 +5,8 @@ import '../../core/repositories/food_repository.dart';
 
 import '../../core/theme/app_spacing.dart';
 
+import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
-import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/section_header.dart';
 
 class FoodHistoryPage extends StatefulWidget {
@@ -30,11 +30,15 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   }
 
   Future<void> _deleteRecord(FoodData data) async {
+    final result = await showHistoryDeleteDialog(context, title: 'Food Record');
+
+    if (!result) return;
+
     await FoodRepository.remove(data);
 
-    setState(() {
-      _loadRecords();
-    });
+    _loadRecords();
+
+    setState(() {});
   }
 
   @override
@@ -66,46 +70,55 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 日付＋削除
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            food.date,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            tooltip: 'Delete',
+                            onPressed: () {
+                              _deleteRecord(food);
+                            },
+                          ),
+                        ],
+                      ),
+
+                      AppSpacing.gapSM,
+
+                      // 食事区分
                       SectionHeader(
                         icon: Icons.restaurant,
                         title: food.mealType,
                       ),
 
-                      AppSpacing.gapSM,
+                      AppSpacing.gapMD,
 
-                      OperationDescription(text: food.date),
+                      // 食事名
+                      Text(
+                        food.meal,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
 
                       AppSpacing.gapMD,
 
-                      Text(
-                        food.meal,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-
-                      AppSpacing.gapSM,
-
-                      Text('${food.calories} kcal'),
-
-                      Text('P ${food.protein} g'),
-
-                      Text('F ${food.fat} g'),
-
-                      Text('C ${food.carbohydrate} g'),
+                      // 栄養情報
+                      Text('🔥 ${food.calories} kcal'),
+                      Text('🥩 P ${food.protein} g'),
+                      Text('🧈 F ${food.fat} g'),
+                      Text('🍚 C ${food.carbohydrate} g'),
 
                       if (food.memo.isNotEmpty) ...[
-                        AppSpacing.gapSM,
-                        Text(food.memo),
+                        AppSpacing.gapMD,
+                        Text('📝 ${food.memo}'),
                       ],
-
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () {
-                            _deleteRecord(food);
-                          },
-                        ),
-                      ),
                     ],
                   ),
                 );

@@ -403,3 +403,45 @@ Entry
 History
 
 利用者が学習し直さなくても操作できるUIを目指す。
+
+---
+
+### Danger Actions
+
+削除・リセット・初期化など、
+元に戻せない操作は
+
+Theme.of(context).colorScheme.error
+
+を使用する。
+
+Colors.red の直書きは禁止。
+
+理由
+
+・Theme対応
+・Dark Mode対応
+・Experience Package対応
+・UI統一
+
+---
+
+TrainingSessionController
+
+│
+
+├ MemoController
+
+└ List<TrainingExerciseController>
+
+        │
+
+        ├ ExerciseController
+
+        └ List<TrainingSetController>
+
+                │
+
+                ├ WeightController
+
+                └ RepsController
