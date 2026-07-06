@@ -17,8 +17,34 @@ class TrainingSessionController {
     exercises.add(TrainingExerciseController());
   }
 
+  void addExerciseWithName(String name) {
+    final exercise = TrainingExerciseController();
+    exercise.exerciseController.text = name;
+    exercises.add(exercise);
+  }
+
+  void clearExercises() {
+    for (final exercise in exercises) {
+      exercise.dispose();
+    }
+
+    exercises.clear();
+  }
+
   void addExerciseCopy(TrainingExerciseController exercise) {
     exercises.add(exercise.clone());
+  }
+
+  void clearSession() {
+    memoController.clear();
+
+    for (final exercise in exercises) {
+      exercise.dispose();
+    }
+
+    exercises.clear();
+
+    addExercise();
   }
 
   void removeExercise(TrainingExerciseController controller) {

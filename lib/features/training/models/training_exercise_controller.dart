@@ -24,6 +24,10 @@ class TrainingExerciseController {
     sets.add(TrainingSetController());
   }
 
+  void addSetCopy(int index) {
+    sets.insert(index + 1, sets[index].clone());
+  }
+
   void removeSet(int index) {
     if (sets.length <= 1) return;
 

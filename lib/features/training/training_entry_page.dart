@@ -12,6 +12,7 @@ import 'widgets/training_exercise_list.dart';
 import 'widgets/training_session_card.dart';
 import 'widgets/training_submit_button.dart';
 import '../../core/widgets/operation_menu_button.dart';
+import 'training_plan_page.dart';
 
 class TrainingEntryPage extends StatefulWidget {
   const TrainingEntryPage({super.key});
@@ -132,7 +133,31 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                 icon: Icons.delete_sweep_outlined,
                 title: 'Clear Session',
                 onTap: () {
-                  // Phase2
+                  setState(() {
+                    sessionController.clearSession();
+                  });
+                },
+              ),
+              OperationMenuItem(
+                icon: Icons.library_books_outlined,
+                title: 'Training Plan',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TrainingPlanPage(
+                        onSelect: (exerciseNames) {
+                          setState(() {
+                            sessionController.clearExercises();
+
+                            for (final name in exerciseNames) {
+                              sessionController.addExerciseWithName(name);
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                  );
                 },
               ),
             ],

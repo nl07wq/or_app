@@ -59,7 +59,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
                 child: OperationTextField(
                   controller: widget.controller.exerciseController,
                   label: 'Exercise',
-                  hint: 'Bench Press',
+                  hint: '種目名',
                 ),
               ),
 
@@ -88,6 +88,13 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
           TrainingSetList(
             sets: widget.controller.sets,
             isEditMode: widget.isEditMode,
+
+            onCopy: (index) {
+              setState(() {
+                widget.controller.addSetCopy(index);
+              });
+            },
+
             onDelete: (index) {
               setState(() {
                 widget.controller.removeSet(index);

@@ -7,11 +7,13 @@ class TrainingSetList extends StatefulWidget {
   final List<TrainingSetController> sets;
   final bool isEditMode;
   final Function(int) onDelete;
+  final Function(int) onCopy;
 
   const TrainingSetList({
     super.key,
     required this.sets,
     required this.isEditMode,
+    required this.onCopy,
     required this.onDelete,
   });
 
@@ -59,15 +61,29 @@ class _TrainingSetListState extends State<TrainingSetList> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
 
-                  if (widget.isEditMode && widget.sets.length > 1)
-                    IconButton(
-                      icon: Icon(
-                        Icons.delete_outline,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      onPressed: () {
-                        widget.onDelete(index);
-                      },
+                  if (widget.isEditMode)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.copy_outlined),
+                          tooltip: 'Copy Set',
+                          onPressed: () {
+                            widget.onCopy(index);
+                          },
+                        ),
+
+                        if (widget.sets.length > 1)
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            onPressed: () {
+                              widget.onDelete(index);
+                            },
+                          ),
+                      ],
                     ),
                 ],
               ),
