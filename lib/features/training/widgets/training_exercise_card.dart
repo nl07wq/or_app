@@ -8,9 +8,11 @@ import '../../../core/widgets/section_header.dart';
 
 import '../models/training_exercise_controller.dart';
 import 'training_set_list.dart';
+import '../../../core/widgets/operation_menu_button.dart';
 
 class TrainingExerciseCard extends StatefulWidget {
   final TrainingExerciseController controller;
+  final VoidCallback onCopy;
   final VoidCallback onDelete;
   final bool isEditMode;
   final int index;
@@ -18,6 +20,7 @@ class TrainingExerciseCard extends StatefulWidget {
   const TrainingExerciseCard({
     super.key,
     required this.controller,
+    required this.onCopy,
     required this.onDelete,
     required this.isEditMode,
     required this.index,
@@ -63,13 +66,19 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
               if (widget.isEditMode) ...[
                 const SizedBox(width: 8),
 
-                IconButton(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  tooltip: 'Delete Exercise',
-                  onPressed: widget.onDelete,
+                OperationMenuButton(
+                  items: [
+                    OperationMenuItem(
+                      icon: Icons.copy,
+                      title: 'Copy',
+                      onTap: widget.onCopy,
+                    ),
+                    OperationMenuItem(
+                      icon: Icons.delete_outline,
+                      title: 'Delete',
+                      onTap: widget.onDelete,
+                    ),
+                  ],
                 ),
               ],
             ],

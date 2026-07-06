@@ -11,6 +11,13 @@ class TrainingSetController {
   }) : weightController = weightController ?? TextEditingController(),
        repsController = repsController ?? TextEditingController();
 
+  TrainingSetController clone() {
+    return TrainingSetController(
+      weightController: TextEditingController(text: weightController.text),
+      repsController: TextEditingController(text: repsController.text),
+    );
+  }
+
   void dispose() {
     weightController.dispose();
     repsController.dispose();

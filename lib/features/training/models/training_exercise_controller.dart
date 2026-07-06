@@ -4,7 +4,7 @@ import 'training_set_controller.dart';
 
 class TrainingExerciseController {
   final TextEditingController exerciseController;
-  
+
   final List<TrainingSetController> sets;
 
   TrainingExerciseController({
@@ -12,6 +12,13 @@ class TrainingExerciseController {
     List<TrainingSetController>? sets,
   }) : exerciseController = exerciseController ?? TextEditingController(),
        sets = sets ?? [TrainingSetController()];
+
+  TrainingExerciseController clone() {
+    return TrainingExerciseController(
+      exerciseController: TextEditingController(text: exerciseController.text),
+      sets: sets.map((set) => set.clone()).toList(),
+    );
+  }
 
   void addSet() {
     sets.add(TrainingSetController());

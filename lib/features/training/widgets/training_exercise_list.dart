@@ -6,12 +6,14 @@ import 'training_exercise_card.dart';
 class TrainingExerciseList extends StatefulWidget {
   final List<TrainingExerciseController> exercises;
   final bool isEditMode;
+  final Function(TrainingExerciseController) onCopy;
   final Function(TrainingExerciseController) onDelete;
 
   const TrainingExerciseList({
     super.key,
     required this.exercises,
     required this.isEditMode,
+    required this.onCopy,
     required this.onDelete,
   });
 
@@ -51,6 +53,9 @@ class _TrainingExerciseListState extends State<TrainingExerciseList> {
             controller: exercise,
 
             isEditMode: widget.isEditMode,
+
+            onCopy: () => widget.onCopy(exercise),
+
             onDelete: () => widget.onDelete(exercise),
           ),
         );

@@ -154,6 +154,13 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
               TrainingExerciseList(
                 exercises: sessionController.exercises,
                 isEditMode: isEditMode,
+
+                onCopy: (exercise) {
+                  setState(() {
+                    sessionController.addExerciseCopy(exercise);
+                  });
+                },
+
                 onDelete: (exercise) {
                   setState(() {
                     sessionController.removeExercise(exercise);

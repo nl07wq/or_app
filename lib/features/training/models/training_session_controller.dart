@@ -17,6 +17,10 @@ class TrainingSessionController {
     exercises.add(TrainingExerciseController());
   }
 
+  void addExerciseCopy(TrainingExerciseController exercise) {
+    exercises.add(exercise.clone());
+  }
+
   void removeExercise(TrainingExerciseController controller) {
     if (exercises.length <= 1) return;
 
