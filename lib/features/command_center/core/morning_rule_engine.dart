@@ -21,6 +21,36 @@ class MorningRuleEngine extends RuleEngine {
       );
     }
 
+    if (fact.fatigue >= 4) {
+      return const CommandState(
+        module: 'Morning',
+        status: CommandStatus.warning,
+        priority: CommandPriority.medium,
+        message: '疲労蓄積',
+        action: '回復を優先する',
+      );
+    }
+
+    if (fact.plantarPain >= 5) {
+      return const CommandState(
+        module: 'Morning',
+        status: CommandStatus.warning,
+        priority: CommandPriority.medium,
+        message: '足底筋膜炎悪化',
+        action: '歩行負荷を抑える',
+      );
+    }
+
+    if (fact.weight >= 106.0) {
+      return const CommandState(
+        module: 'Morning',
+        status: CommandStatus.warning,
+        priority: CommandPriority.low,
+        message: '体重増加',
+        action: '食事管理を意識する',
+      );
+    }
+
     return const CommandState(
       module: 'Morning',
       status: CommandStatus.ready,

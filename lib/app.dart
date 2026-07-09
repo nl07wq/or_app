@@ -7,7 +7,7 @@ import 'features/dashboard/dashboard_page.dart';
 import 'features/morning/morning_page.dart';
 import 'features/food/food_page.dart';
 import 'features/training/training_page.dart';
-import 'features/command_center/command_center_page.dart';
+import 'features/command_center/pages/command_center_page.dart';
 
 class OperationRebootApp extends StatelessWidget {
   const OperationRebootApp({super.key});

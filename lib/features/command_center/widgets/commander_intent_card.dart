@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/widgets/operation_card.dart';
+import '../../../core/widgets/operation_card.dart';
 
 class CommanderIntentCard extends StatelessWidget {
   final String intent;

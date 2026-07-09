@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/widgets/operation_card.dart';
+import '../../../core/widgets/operation_card.dart';
 
 class OperationStatusCard extends StatelessWidget {
   final String status;
