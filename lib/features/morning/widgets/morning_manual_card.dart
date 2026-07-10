@@ -15,7 +15,7 @@ class MorningManualCard extends StatelessWidget {
       onPressed: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const MorningFactPage()),
+          MaterialPageRoute(builder: (_) => MorningFactPage()),
         );
       },
     );
