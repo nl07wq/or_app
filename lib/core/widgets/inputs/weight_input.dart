@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
-
-import '../operation_text_field.dart';
+import 'ruler_input.dart';
 
 class WeightInput extends StatelessWidget {
   final TextEditingController controller;
 
-  const WeightInput({
-    super.key,
-    required this.controller,
-  });
+  const WeightInput({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return OperationTextField(
+    return RulerInput(
       controller: controller,
-      hint: "kg",
-      keyboardType: TextInputType.number,
+      min: 40,
+      max: 180,
+      step: 0.1,
+      unit: "kg",
     );
   }
 }
