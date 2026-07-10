@@ -4,6 +4,8 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_field_label.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/input/weight_input.dart';
+import '../../../core/widgets/input/body_fat_input.dart';
 
 class BodyCard extends StatelessWidget {
   final TextEditingController weightController;
@@ -29,11 +31,7 @@ class BodyCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          OperationTextField(
-            controller: weightController,
-            hint: "kg",
-            keyboardType: TextInputType.number,
-          ),
+          WeightInput(controller: weightController),
 
           const SizedBox(height: 20),
 
@@ -41,11 +39,7 @@ class BodyCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          OperationTextField(
-            controller: bodyFatController,
-            hint: "%",
-            keyboardType: TextInputType.number,
-          ),
+          BodyFatInput(controller: bodyFatController),
         ],
       ),
     );

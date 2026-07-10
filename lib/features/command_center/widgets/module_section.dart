@@ -15,15 +15,18 @@ class ModuleSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'MODULE STATUS',
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-            letterSpacing: 1,
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            'MODULE STATUS',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              letterSpacing: 1,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+
         ...states.map(
           (state) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
