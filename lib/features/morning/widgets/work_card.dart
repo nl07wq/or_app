@@ -4,8 +4,8 @@ import '../../../core/models/work_type.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/operation_field_label.dart';
-import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/inputs/work_input.dart';
 
 class WorkCard extends StatelessWidget {
   final WorkType workType;
@@ -53,8 +53,9 @@ class WorkCard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            OperationTextField(controller: workController, hint: "例）8:00"),
-          ],
+WorkInput(
+  controller: workController,
+)          ],
         ],
       ),
     );
