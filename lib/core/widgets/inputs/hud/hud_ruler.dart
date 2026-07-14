@@ -129,7 +129,7 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
           onHorizontalDragUpdate: (details) {
             final dragDistance = details.localPosition.dx - _dragStartX;
 
-            final delta = (dragDistance / 10) * -0.02;
+            final delta = (dragDistance / 8) * -0.02;
 
             _velocity = delta;
             _dragSpeed = delta.abs();
