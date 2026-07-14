@@ -33,15 +33,17 @@ class _MorningFactPageState extends State<MorningFactPage> {
   // Controllers
   final weightController = TextEditingController();
   final bodyFatController = TextEditingController();
+
   final sleepController = TextEditingController();
   final sleepScoreController = TextEditingController();
+
+  final footPainController = TextEditingController(); // ←これを追加
+
+  final bowelAmountController = TextEditingController();
+  final bowelShapeController = TextEditingController();
+
   final workController = TextEditingController();
   final memoController = TextEditingController();
-
-  // State
-  int footPain = 0;
-  int bowelAmount = 0;
-  int bowelShape = 1;
 
   WorkType selectedWorkType = WorkType.work;
 
@@ -100,30 +102,13 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
               AppSpacing.gapMD,
 
-              FootCard(
-                footPain: footPain,
-                onChanged: (value) {
-                  setState(() {
-                    footPain = value;
-                  });
-                },
-              ),
+              FootCard(controller: footPainController),
 
               AppSpacing.gapMD,
 
               BowelCard(
-                bowelAmount: bowelAmount,
-                bowelShape: bowelShape,
-                onAmountChanged: (value) {
-                  setState(() {
-                    bowelAmount = value;
-                  });
-                },
-                onShapeChanged: (value) {
-                  setState(() {
-                    bowelShape = value;
-                  });
-                },
+                amountController: bowelAmountController,
+                shapeController: bowelShapeController,
               ),
 
               AppSpacing.gapMD,
@@ -133,6 +118,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
                 workController: workController,
                 onChanged: (value) {
                   if (value == null) return;
+
+                  FocusManager.instance.primaryFocus?.unfocus();
 
                   setState(() {
                     selectedWorkType = value;
@@ -217,9 +204,12 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     bodyFat: bodyFat,
                     sleepHours: sleep,
                     sleepScore: sleepScore,
-                    footPain: footPain,
-                    bowelAmount: bowelAmount,
-                    bowelShape: bowelShape,
+                    footPain: int.tryParse(footPainController.text) ?? 3,
+                    bowelAmount: int.tryParse(bowelAmountController.text) ?? 2,
+
+                    bowelShape: int.tryParse(bowelAmountController.text) == 0
+                        ? 0
+                        : int.tryParse(bowelShapeController.text) ?? 2,
                     workType: selectedWorkType,
                     workHours: work,
                     memo: memoController.text.trim(),

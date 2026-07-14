@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
 
 class BowelCard extends StatelessWidget {
-  final int bowelAmount;
-  final int bowelShape;
-
-  final ValueChanged<int> onAmountChanged;
-  final ValueChanged<int> onShapeChanged;
+  final TextEditingController amountController;
+  final TextEditingController shapeController;
 
   const BowelCard({
     super.key,
-    required this.bowelAmount,
-    required this.bowelShape,
-    required this.onAmountChanged,
-    required this.onShapeChanged,
+    required this.amountController,
+    required this.shapeController,
   });
 
   @override
@@ -27,39 +22,47 @@ class BowelCard extends StatelessWidget {
         children: [
           const SectionHeader(icon: Icons.monitor_heart, title: "BOWEL"),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          OperationDropdown<int>(
-            label: "Amount",
-            value: bowelAmount,
-            items: List.generate(
-              4,
-              (index) =>
-                  DropdownMenuItem(value: index, child: Text(index.toString())),
-            ),
-            onChanged: (value) {
-              if (value != null) {
-                onAmountChanged(value);
-              }
-            },
+          WheelInputCard(
+            title: "Amount",
+            unit: "",
+            controller: amountController,
+            min: 0,
+            max: 3,
+            step: 1,
+            initialValue: 2,
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          OperationDropdown<int>(
-            label: "Shape",
-            value: bowelShape,
-            items: List.generate(
-              3,
-              (index) => DropdownMenuItem(
-                value: index + 1,
-                child: Text((index + 1).toString()),
-              ),
-            ),
-            onChanged: (value) {
-              if (value != null) {
-                onShapeChanged(value);
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: amountController,
+            builder: (context, value, _) {
+              final amount = int.tryParse(value.text) ?? 2;
+              if (amount == 0 && shapeController.text.isNotEmpty) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  shapeController.clear();
+                });
               }
+
+              return Column(
+                children: [
+                  if (amount != 0) ...[
+                    const SizedBox(height: 20),
+
+                    WheelInputCard(
+                      title: "Shape",
+                      unit: "",
+                      controller: shapeController,
+                      min: 1,
+                      max: 3,
+                      step: 1,
+                      initialValue: 2,
+                    ),
+                  ],
+                ],
+              );
             },
           ),
         ],

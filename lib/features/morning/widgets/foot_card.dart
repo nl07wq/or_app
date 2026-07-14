@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
 
 class FootCard extends StatelessWidget {
-  final int footPain;
-  final ValueChanged<int> onChanged;
+  final TextEditingController controller;
 
-  const FootCard({super.key, required this.footPain, required this.onChanged});
+  const FootCard({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -21,21 +20,16 @@ class FootCard extends StatelessWidget {
             title: "FOOT HEALTH",
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          OperationDropdown<int>(
-            label: "Pain Level",
-            value: footPain,
-            items: List.generate(
-              11,
-              (index) =>
-                  DropdownMenuItem(value: index, child: Text(index.toString())),
-            ),
-            onChanged: (value) {
-              if (value != null) {
-                onChanged(value);
-              }
-            },
+          WheelInputCard(
+            title: "Pain Level",
+            unit: "",
+            controller: controller,
+            min: 0,
+            max: 10,
+            step: 1,
+            initialValue: 3,
           ),
         ],
       ),
