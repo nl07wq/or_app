@@ -1,27 +1,31 @@
 class HUDSnap {
-  const HUDSnap._();
+  double _remainder = 0;
 
-  static double _remainder = 0;
+  void reset() {
+    _remainder = 0;
+  }
 
-  static double apply({
+  double apply({
     required double delta,
     double sensitivity = 0.02,
-    double step = 0.1,
+    double notch = 12,
+    double valueStep = 0.1,
   }) {
-    _remainder += delta * sensitivity;
+    _remainder += delta.abs();
 
-    if (_remainder.abs() < step) {
+    if (_remainder < notch) {
       return 0;
     }
 
-    final direction = _remainder > 0 ? 1 : -1;
+    final direction = delta < 0 ? 1.0 : -1.0;
 
-    _remainder -= direction * step;
+    double value = 0;
 
-    return direction * step;
-  }
+    while (_remainder >= notch) {
+      _remainder -= notch;
+      value += valueStep;
+    }
 
-  static void reset() {
-    _remainder = 0;
+    return direction * value;
   }
 }

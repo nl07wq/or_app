@@ -32,6 +32,8 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
 
   double _lastLockValue = 0;
 
+  final HUDSnap _snap = HUDSnap();
+
   @override
   void initState() {
     super.initState();
@@ -99,16 +101,15 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
           behavior: HitTestBehavior.opaque,
 
           onHorizontalDragStart: (_) {
-            HUDSnap.reset();
-
+            _snap.reset();
             _startDrag();
           },
 
           onHorizontalDragUpdate: (details) {
-            final delta = HUDSnap.apply(
+            final delta = _snap.apply(
               delta: details.delta.dx,
-              sensitivity: -0.02,
-              step: 0.1,
+              notch: 12,
+              valueStep: 0.1,
             );
 
             if (delta == 0) return;
