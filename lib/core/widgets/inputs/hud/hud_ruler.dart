@@ -31,7 +31,6 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
   double _velocity = 0;
   double _dragSpeed = 0;
 
-  double _dragStartX = 0;
   double _lastLockValue = 0;
 
   @override
@@ -120,16 +119,13 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
 
-          onHorizontalDragStart: (details) {
+          onHorizontalDragStart: (_) {
             _velocity = 0;
-            _dragStartX = details.localPosition.dx;
             _startDrag();
           },
 
           onHorizontalDragUpdate: (details) {
-            final dragDistance = details.localPosition.dx - _dragStartX;
-
-            final delta = (dragDistance / 6) * -0.02;
+            final delta = details.delta.dx * -0.02;
 
             _velocity = delta;
             _dragSpeed = delta.abs();
@@ -137,8 +133,6 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
             _displayValue += delta;
 
             widget.onDrag(delta);
-
-            _dragStartX = details.localPosition.dx;
 
             final current = (_displayValue * 10).round();
             final last = (_lastLockValue * 10).round();
