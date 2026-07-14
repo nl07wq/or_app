@@ -51,10 +51,8 @@ class HUDScalePainter extends CustomPainter {
       final isCenter = distance < (majorSpacing / 2);
 
       majorPaint
-        ..color = isCenter
-            ? Color.lerp(Colors.cyanAccent, Colors.white, 1 - animation)!
-            : Colors.white.withValues(alpha: opacity)
-        ..strokeWidth = isCenter ? 3.8 : 2.2;
+        ..color = Colors.white.withValues(alpha: opacity)
+        ..strokeWidth = 2.2;
 
       canvas.drawLine(
         Offset(majorX, centerY - (isCenter ? 32 : 22)),
@@ -155,23 +153,16 @@ class HUDScalePainter extends CustomPainter {
         text: TextSpan(
           text: major.toString(),
           style: TextStyle(
-            color: isCenter
-                ? Colors.cyanAccent
-                : Colors.white.withValues(
-                    alpha:
-                        textOpacity *
-                        (0.35 +
-                            (1 - (distance / (size.width * .5))).clamp(
-                                  0.0,
-                                  1.0,
-                                ) *
-                                0.65),
-                  ),
-            fontSize: isCenter
-                ? 18
-                : (12 +
-                      (1 - (distance / (size.width * .5))).clamp(0.0, 1.0) * 4),
-            fontWeight: isCenter ? FontWeight.bold : FontWeight.w600,
+            color: Colors.white.withValues(
+              alpha:
+                  textOpacity *
+                  (0.35 +
+                      (1 - (distance / (size.width * .5))).clamp(0.0, 1.0) *
+                          0.65),
+            ),
+            fontSize:
+                12 + (1 - (distance / (size.width * .5))).clamp(0.0, 1.0) * 4,
+            fontWeight: FontWeight.w600,
           ),
         ),
         textDirection: TextDirection.ltr,
