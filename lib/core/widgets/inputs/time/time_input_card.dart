@@ -1,35 +1,39 @@
 import 'package:flutter/material.dart';
 
-import 'wheel_ruler.dart';
+import '../operation_time_picker.dart';
 
-class WheelInputCard extends StatefulWidget {
+class TimeInputCard extends StatefulWidget {
   final String title;
-  final String unit;
-
   final TextEditingController controller;
 
-  final double min;
-  final double max;
-  final double step;
-  final double initialValue;
-
-  const WheelInputCard({
+  const TimeInputCard({
     super.key,
     required this.title,
-    required this.unit,
     required this.controller,
-    required this.min,
-    required this.max,
-    required this.step,
-    required this.initialValue,
   });
 
   @override
-  State<WheelInputCard> createState() => _WheelInputCardState();
+  State<TimeInputCard> createState() => _TimeInputCardState();
 }
 
-class _WheelInputCardState extends State<WheelInputCard> {
+class _TimeInputCardState extends State<TimeInputCard> {
   bool expanded = true;
+
+  void collapse() {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    if (!mounted) return;
+
+    setState(() {
+      expanded = false;
+    });
+  }
+
+  void expand() {
+    setState(() {
+      expanded = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,11 +51,9 @@ class _WheelInputCardState extends State<WheelInputCard> {
 
             if (!expanded && widget.controller.text.isNotEmpty)
               TextButton(
-                onPressed: () {
-                  setState(() => expanded = true);
-                },
+                onPressed: expand,
                 child: Text(
-                  "${widget.controller.text} ${widget.unit}",
+                  widget.controller.text,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -63,25 +65,13 @@ class _WheelInputCardState extends State<WheelInputCard> {
         ),
 
         if (expanded) ...[
-          WheelRuler(
-            controller: widget.controller,
-            min: widget.min,
-            max: widget.max,
-            step: widget.step,
-            unit: widget.unit,
-            initialValue: widget.initialValue,
-          ),
-          
+          OperationTimePicker(controller: widget.controller),
+
           const SizedBox(height: 12),
 
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: () {
-                setState(() => expanded = false);
-              },
-              child: const Text("完了"),
-            ),
+            child: FilledButton(onPressed: collapse, child: const Text("完了")),
           ),
         ],
       ],

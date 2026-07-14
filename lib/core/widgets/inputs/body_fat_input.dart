@@ -10,12 +10,14 @@ class BodyFatInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-    return WheelRuler(
-      controller: controller,
-      min: 0,
-      max: 60,
-      step: 0.1,
-      unit: "%",
+    return
+WheelRuler(
+  controller: controller,
+  min: 0,
+  max: 60,
+  step: 0.1,
+  unit: "%",
+  initialValue: 20,
     );
   }
 }

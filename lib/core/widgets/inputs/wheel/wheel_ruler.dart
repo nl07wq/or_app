@@ -10,6 +10,7 @@ class WheelRuler extends StatefulWidget {
 
   final String unit;
 
+  final double initialValue;
   final ValueChanged<double>? onChanged;
 
   const WheelRuler({
@@ -19,6 +20,7 @@ class WheelRuler extends StatefulWidget {
     required this.max,
     required this.step,
     required this.unit,
+    required this.initialValue,
     this.onChanged,
   });
 
@@ -43,10 +45,11 @@ class _WheelRulerState extends State<WheelRuler> {
       values.add(double.parse(v.toStringAsFixed(1)));
     }
 
-    double initialValue = widget.min;
+    double initialValue = widget.initialValue;
 
     if (widget.controller.text.isNotEmpty) {
-      initialValue = double.tryParse(widget.controller.text) ?? widget.min;
+      initialValue =
+          double.tryParse(widget.controller.text) ?? widget.initialValue;
     }
 
     final index = values.indexWhere((e) => (e - initialValue).abs() < 0.0001);
@@ -54,6 +57,16 @@ class _WheelRulerState extends State<WheelRuler> {
     selectedIndex = index < 0 ? 0 : index;
 
     _scrollController = FixedExtentScrollController(initialItem: selectedIndex);
+
+    widget.controller.text = _formatValue(values[selectedIndex]);
+  }
+
+  String _formatValue(double value) {
+    if (widget.step >= 1) {
+      return value.toInt().toString();
+    }
+
+    return value.toStringAsFixed(1);
   }
 
   @override
@@ -62,7 +75,6 @@ class _WheelRulerState extends State<WheelRuler> {
       height: 180,
       child: CupertinoPicker(
         itemExtent: 40,
-
         useMagnifier: true,
         magnification: 1.15,
         diameterRatio: 1.4,
@@ -76,26 +88,26 @@ class _WheelRulerState extends State<WheelRuler> {
             ),
           ),
         ),
+
         onSelectedItemChanged: (index) {
+          final value = values[index];
+
           setState(() {
             selectedIndex = index;
           });
-          final value = values[index];
 
-          widget.controller.text = value.toStringAsFixed(1);
+          widget.controller.text = _formatValue(value);
 
           widget.onChanged?.call(value);
-
-          setState(() {});
         },
+
         children: List.generate(values.length, (index) {
           final value = values[index];
-
           final selected = index == selectedIndex;
 
           return Center(
             child: Text(
-              "${value.toStringAsFixed(1)} ${widget.unit}",
+              "${_formatValue(value)} ${widget.unit}",
               style: TextStyle(
                 fontSize: selected ? 28 : 20,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,

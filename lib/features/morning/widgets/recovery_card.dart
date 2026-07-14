@@ -4,8 +4,8 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_field_label.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/inputs/sleep_input.dart';
-import '../../../core/widgets/inputs/sleep_score_input.dart';
+import '../../../core/widgets/inputs/time/time_input_card.dart';
+import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
 
 class RecoveryCard extends StatelessWidget {
   final TextEditingController sleepController;
@@ -27,19 +27,19 @@ class RecoveryCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          const OperationFieldLabel("Sleep Time"),
-
-          const SizedBox(height: 8),
-
-          SleepInput(controller: sleepController),
+          TimeInputCard(title: "Sleep Time", controller: sleepController),
 
           const SizedBox(height: 20),
 
-          const OperationFieldLabel("Sleep Score"),
-
-          const SizedBox(height: 8),
-
-          SleepScoreInput(controller: sleepScoreController),
+          WheelInputCard(
+            title: "Sleep Score",
+            unit: "",
+            controller: sleepScoreController,
+            min: 0,
+            max: 100,
+            step: 1,
+            initialValue: 80,
+          ),
         ],
       ),
     );

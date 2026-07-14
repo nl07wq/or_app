@@ -43,6 +43,7 @@ class BodyCard extends StatelessWidget {
             min: 0,
             max: 60,
             step: 0.1,
+            initialValue: 20,
           ),
         ],
       ),
