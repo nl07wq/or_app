@@ -29,6 +29,9 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
 
   double _displayValue = 0;
   double _velocity = 0;
+  double _dragSpeed = 0;
+
+  double _dragStartX = 0;
   double _lastLockValue = 0;
 
   @override
@@ -53,7 +56,7 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
         return;
       }
 
-      _velocity *= .93;
+      _velocity *= .86;
 
       _displayValue += _velocity;
 
@@ -88,6 +91,12 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
 
   void _endDrag() {
     _dragging = false;
+
+    // ゆっくりドラッグなら慣性なし
+    if (_dragSpeed < 0.18) {
+      _velocity = 0;
+    }
+
     _state = HUDState.locked;
     _controller.reverse();
 
@@ -111,19 +120,25 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
 
-          onHorizontalDragStart: (_) {
+          onHorizontalDragStart: (details) {
             _velocity = 0;
+            _dragStartX = details.localPosition.dx;
             _startDrag();
           },
 
           onHorizontalDragUpdate: (details) {
-            final delta = details.delta.dx * -0.02;
+            final dragDistance = details.localPosition.dx - _dragStartX;
+
+            final delta = (dragDistance / 8) * -0.02;
 
             _velocity = delta;
+            _dragSpeed = delta.abs();
 
             _displayValue += delta;
 
             widget.onDrag(delta);
+
+            _dragStartX = details.localPosition.dx;
 
             final current = (_displayValue * 10).round();
             final last = (_lastLockValue * 10).round();
