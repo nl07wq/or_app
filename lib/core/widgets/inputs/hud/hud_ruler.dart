@@ -28,9 +28,7 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
   HUDState _state = HUDState.idle;
 
   double _displayValue = 0;
-  double _velocity = 0;
-  double _dragSpeed = 0;
-
+  
   double _lastLockValue = 0;
 
   @override
@@ -46,32 +44,15 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
       lowerBound: 0,
       upperBound: 1,
     );
-
-    _controller.addListener(() {
-      if (_dragging) return;
-
-      if (_velocity.abs() < .003) {
-        _velocity = 0;
-        return;
-      }
-
-      _velocity *= .86;
-
-      _displayValue += _velocity;
-
-      widget.onDrag(_displayValue - widget.value);
-
-      setState(() {});
-    });
   }
 
   @override
   void didUpdateWidget(covariant HUDRuler oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    setState(() {
-      _displayValue += (widget.value - _displayValue) * 0.22;
-    });
+    if (_dragging) return;
+
+    _displayValue = widget.value;
   }
 
   @override
@@ -89,12 +70,9 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
   }
 
   void _endDrag() {
-    _dragging = false;
+    _displayValue = widget.value;
 
-    // ゆっくりドラッグなら慣性なし
-    if (_dragSpeed < 0.18) {
-      _velocity = 0;
-    }
+    _dragging = false;
 
     _state = HUDState.locked;
     _controller.reverse();
@@ -120,15 +98,11 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
           behavior: HitTestBehavior.opaque,
 
           onHorizontalDragStart: (_) {
-            _velocity = 0;
             _startDrag();
           },
 
           onHorizontalDragUpdate: (details) {
             final delta = details.delta.dx * -0.012;
-
-            _velocity = delta;
-            _dragSpeed = delta.abs();
 
             _displayValue += delta;
 
