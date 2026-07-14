@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'hud_scale.dart';
 import 'hud_state.dart';
 import 'hud_value.dart';
+import 'hud_snap.dart';
 
 class HUDRuler extends StatefulWidget {
   final double value;
@@ -98,11 +99,19 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
           behavior: HitTestBehavior.opaque,
 
           onHorizontalDragStart: (_) {
+            HUDSnap.reset();
+
             _startDrag();
           },
 
           onHorizontalDragUpdate: (details) {
-            final delta = details.delta.dx * -0.02;
+            final delta = HUDSnap.apply(
+              delta: details.delta.dx,
+              sensitivity: -0.02,
+              step: 0.1,
+            );
+
+            if (delta == 0) return;
 
             _displayValue += delta;
 
