@@ -28,7 +28,7 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
   HUDState _state = HUDState.idle;
 
   double _displayValue = 0;
-  
+
   double _lastLockValue = 0;
 
   @override
@@ -52,7 +52,9 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
 
     if (_dragging) return;
 
-    _displayValue = widget.value;
+    setState(() {
+      _displayValue += (widget.value - _displayValue) * 0.22;
+    });
   }
 
   @override
@@ -70,8 +72,6 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
   }
 
   void _endDrag() {
-    _displayValue = widget.value;
-
     _dragging = false;
 
     _state = HUDState.locked;
@@ -102,7 +102,7 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
           },
 
           onHorizontalDragUpdate: (details) {
-            final delta = details.delta.dx * -0.012;
+            final delta = details.delta.dx * -0.02;
 
             _displayValue += delta;
 
