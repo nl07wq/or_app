@@ -50,6 +50,8 @@ class HUDScalePainter extends CustomPainter {
 
       final isCenter = distance < (majorSpacing / 2);
 
+      final currentX = centerX;
+
       majorPaint
         ..color = Colors.white.withValues(alpha: opacity)
         ..strokeWidth = 2.2;
@@ -64,7 +66,7 @@ class HUDScalePainter extends CustomPainter {
       // Center Pulse
       //========================
 
-      if (isCenter) {
+      if (major == value.floor()) {
         final pulse =
             (0.5 +
                     0.5 *
@@ -98,8 +100,8 @@ class HUDScalePainter extends CustomPainter {
           ..strokeCap = StrokeCap.round;
 
         canvas.drawLine(
-          Offset(majorX, centerY - cursorLength / 2),
-          Offset(majorX, centerY + cursorLength / 2),
+          Offset(currentX, centerY - cursorLength / 2),
+          Offset(currentX, centerY + cursorLength / 2),
           highlight,
         );
 
@@ -115,8 +117,8 @@ class HUDScalePainter extends CustomPainter {
           ..strokeCap = StrokeCap.round;
 
         canvas.drawLine(
-          Offset(majorX, centerY - coreHeight / 2),
-          Offset(majorX, centerY + coreHeight / 2),
+          Offset(currentX, centerY - coreHeight / 2),
+          Offset(currentX, centerY + coreHeight / 2),
           corePaint,
         );
         if (state == HUDState.drag) {
@@ -129,14 +131,14 @@ class HUDScalePainter extends CustomPainter {
             final offset = i * 14.0;
 
             canvas.drawLine(
-              Offset(majorX, centerY - coreHeight / 2 - offset),
-              Offset(majorX, centerY + coreHeight / 2 - offset),
+              Offset(currentX, centerY - coreHeight / 2 - offset),
+              Offset(currentX, centerY + coreHeight / 2 - offset),
               trail,
             );
 
             canvas.drawLine(
-              Offset(majorX, centerY - coreHeight / 2 + offset),
-              Offset(majorX, centerY + coreHeight / 2 + offset),
+              Offset(currentX, centerY - coreHeight / 2 + offset),
+              Offset(currentX, centerY + coreHeight / 2 + offset),
               trail,
             );
           }
