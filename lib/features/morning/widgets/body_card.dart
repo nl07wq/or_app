@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_field_label.dart';
 import '../../../core/widgets/section_header.dart';
+
+import '../../../core/widgets/operation_input_container.dart';
+
 import '../../../core/widgets/inputs/weight_input.dart';
-import '../../../core/widgets/inputs/body_fat_input.dart';
+import '../../../core/widgets/inputs/operation_picker.dart';
+import '../../../core/widgets/operation_input_container.dart';
 
 class BodyCard extends StatelessWidget {
   final TextEditingController weightController;
@@ -26,19 +30,39 @@ class BodyCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          const OperationFieldLabel("Weight"),
+          OperationInputContainer(
+            title: "Weight",
+            suffix: "kg",
+            controller: weightController,
+            autoCollapse: true,
 
-          const SizedBox(height: 8),
+            onCompleted: () {
+              FocusScope.of(context).unfocus();
+            },
 
-          WeightInput(controller: weightController),
+            child: WeightInput(controller: weightController),
+          ),
 
           const SizedBox(height: 20),
 
-          const OperationFieldLabel("Body Fat"),
+          OperationInputContainer(
+            title: "Body Fat",
+            suffix: "%",
+            controller: bodyFatController,
+            autoCollapse: true,
 
-          const SizedBox(height: 8),
+            onCompleted: () {
+              FocusScope.of(context).unfocus();
+            },
 
-          BodyFatInput(controller: bodyFatController),
+            child: OperationPicker(
+              controller: bodyFatController,
+              min: 0,
+              max: 60,
+              step: 0.1,
+              unit: "%",
+            ),
+          ),
         ],
       ),
     );

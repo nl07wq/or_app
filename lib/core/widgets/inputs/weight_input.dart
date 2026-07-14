@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'ruler_input.dart';
+
+import 'operation_ruler.dart';
 
 class WeightInput extends StatelessWidget {
   final TextEditingController controller;
@@ -8,7 +9,7 @@ class WeightInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RulerInput(
+    return OperationRuler(
       controller: controller,
       min: 40,
       max: 180,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_button.dart';
-import 'package:or_app/features/morning/morning_fact_page.dart';
+import '../morning_fact_page.dart';
 
 class MorningManualCard extends StatelessWidget {
   const MorningManualCard({super.key});
