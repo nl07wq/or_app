@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../operation_text_field.dart';
+import 'wheel/wheel_ruler.dart';
 
 class BodyFatInput extends StatelessWidget {
   final TextEditingController controller;
 
-  const BodyFatInput({
-    super.key,
-    required this.controller,
-  });
+  const BodyFatInput({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return OperationTextField(
+
+    return WheelRuler(
       controller: controller,
-      hint: "%",
-      keyboardType: TextInputType.number,
+      min: 0,
+      max: 60,
+      step: 0.1,
+      unit: "%",
     );
   }
 }
