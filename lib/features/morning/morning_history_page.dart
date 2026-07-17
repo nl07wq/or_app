@@ -110,7 +110,14 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                       Text('🚽 排便量：${data.bowelAmount}'),
                       Text('🧻 排便形状：${data.bowelShape}'),
                       Text('💼 勤務区分：${data.workType.label}'),
-                      Text('⏰ 勤務時間：${formatTime(data.workHours)}'),
+
+                      if (data.workType.isWorking) ...[
+                        Text('🕒 勤務開始：${data.workStart}'),
+                        Text('🕕 勤務終了：${data.workEnd}'),
+                        Text('☕ 休憩：${data.workBreak}'),
+                        Text('⏰ 勤務時間：${formatTime(data.workHours)}'),
+                      ],
+
                       Text('📝 メモ：${data.memo.isEmpty ? "なし" : data.memo}'),
                     ],
                   ),

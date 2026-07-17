@@ -16,6 +16,9 @@ const sampleMorningData = MorningData(
   bowelShape: 1,
 
   workType: WorkType.work,
+  workStart: "09:00",
+  workEnd: "18:00",
+  workBreak: "1:00",
   workHours: 0.0,
 
   memo: "",

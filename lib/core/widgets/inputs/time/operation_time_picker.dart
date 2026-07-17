@@ -4,7 +4,17 @@ import 'package:flutter/material.dart';
 class OperationTimePicker extends StatefulWidget {
   final TextEditingController controller;
 
-  const OperationTimePicker({super.key, required this.controller});
+  /// 分刻み
+  /// 1 = 1分
+  /// 5 = 5分
+  /// 15 = 15分
+  final int minuteStep;
+
+  const OperationTimePicker({
+    super.key,
+    required this.controller,
+    this.minuteStep = 1,
+  });
 
   @override
   State<OperationTimePicker> createState() => _OperationTimePickerState();
@@ -15,7 +25,7 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
   int minute = 30;
 
   int selectedHour = 7;
-  int selectedMinute = 30;
+  int selectedMinute = 0;
 
   @override
   void initState() {
@@ -29,12 +39,14 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
     }
 
     selectedHour = hour;
-    selectedMinute = minute;
+    selectedMinute = minute ~/ widget.minuteStep;
 
     _updateController();
   }
 
   void _updateController() {
+    minute = selectedMinute * widget.minuteStep;
+
     widget.controller.text = "$hour:${minute.toString().padLeft(2, '0')}";
   }
 
@@ -47,7 +59,6 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
           Expanded(
             child: CupertinoPicker(
               itemExtent: 40,
-
               useMagnifier: true,
               magnification: 1.15,
               diameterRatio: 1.4,
@@ -101,7 +112,6 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
           Expanded(
             child: CupertinoPicker(
               itemExtent: 40,
-
               useMagnifier: true,
               magnification: 1.15,
               diameterRatio: 1.4,
@@ -116,23 +126,24 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
               ),
 
               scrollController: FixedExtentScrollController(
-                initialItem: minute,
+                initialItem: selectedMinute,
               ),
 
               onSelectedItemChanged: (value) {
                 setState(() {
-                  minute = value;
                   selectedMinute = value;
                   _updateController();
                 });
               },
 
-              children: List.generate(60, (index) {
+              children: List.generate(60 ~/ widget.minuteStep, (index) {
                 final selected = index == selectedMinute;
+
+                final displayMinute = index * widget.minuteStep;
 
                 return Center(
                   child: Text(
-                    index.toString().padLeft(2, '0'),
+                    displayMinute.toString().padLeft(2, '0'),
                     style: TextStyle(
                       fontSize: selected ? 28 : 20,
                       fontWeight: selected

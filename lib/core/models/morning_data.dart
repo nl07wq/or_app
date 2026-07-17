@@ -20,6 +20,13 @@ class MorningData {
 
   // WORK
   final WorkType workType;
+
+  // Fact
+  final String workStart;
+  final String workEnd;
+  final String workBreak;
+
+  // Derived
   final double workHours;
 
   // MEMO
@@ -40,6 +47,11 @@ class MorningData {
     required this.bowelShape,
 
     required this.workType,
+
+    required this.workStart,
+    required this.workEnd,
+    required this.workBreak,
+
     required this.workHours,
 
     required this.memo,
@@ -64,7 +76,11 @@ class MorningData {
         (e) => e.name == json['workType'],
         orElse: () => WorkType.work,
       ),
-      workHours: (json['workHours'] as num).toDouble(),
+      workStart: json['workStart'] ?? "",
+      workEnd: json['workEnd'] ?? "",
+      workBreak: json['workBreak'] ?? "",
+
+      workHours: (json['workHours'] ?? 0).toDouble(),
 
       memo: json['memo'] as String,
     );
@@ -86,6 +102,11 @@ class MorningData {
       'bowelShape': bowelShape,
 
       'workType': workType.name,
+
+      'workStart': workStart,
+      'workEnd': workEnd,
+      'workBreak': workBreak,
+
       'workHours': workHours,
 
       'memo': memo,
@@ -93,6 +114,6 @@ class MorningData {
   }
 
   Map<String, dynamic> toRecordJson() {
-    return {'recordType': 'MorningData', 'version': '1.3', 'data': toJson()};
+    return {'recordType': 'MorningData', 'version': '1.4', 'data': toJson()};
   }
 }

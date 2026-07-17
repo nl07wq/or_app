@@ -11,7 +11,11 @@ class WheelInputCard extends StatefulWidget {
   final double min;
   final double max;
   final double step;
-  final double initialValue;
+
+  final double? initialValue;
+
+  /// 数値→表示名
+  final Map<int, String>? labels;
 
   const WheelInputCard({
     super.key,
@@ -21,7 +25,8 @@ class WheelInputCard extends StatefulWidget {
     required this.min,
     required this.max,
     required this.step,
-    required this.initialValue,
+    this.initialValue,
+    this.labels,
   });
 
   @override
@@ -30,6 +35,24 @@ class WheelInputCard extends StatefulWidget {
 
 class _WheelInputCardState extends State<WheelInputCard> {
   bool expanded = true;
+
+  String _displayValue() {
+    if (widget.controller.text.isEmpty) return "";
+
+    final value = double.tryParse(widget.controller.text);
+
+    if (value == null) return widget.controller.text;
+
+    if (widget.labels != null) {
+      return widget.labels![value.toInt()] ?? widget.controller.text;
+    }
+
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+
+    return value.toStringAsFixed(1);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +74,7 @@ class _WheelInputCardState extends State<WheelInputCard> {
                   setState(() => expanded = true);
                 },
                 child: Text(
-                  "${widget.controller.text} ${widget.unit}",
+                  "${_displayValue()} ${widget.unit}",
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -70,8 +93,9 @@ class _WheelInputCardState extends State<WheelInputCard> {
             step: widget.step,
             unit: widget.unit,
             initialValue: widget.initialValue,
+            labels: widget.labels,
           ),
-          
+
           const SizedBox(height: 12),
 
           Align(

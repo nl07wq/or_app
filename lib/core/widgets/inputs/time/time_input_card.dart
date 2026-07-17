@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../operation_time_picker.dart';
+import 'operation_time_picker.dart';
 
 class TimeInputCard extends StatefulWidget {
   final String title;
   final TextEditingController controller;
 
+  /// 分刻み
+  final int minuteStep;
+
   const TimeInputCard({
     super.key,
     required this.title,
     required this.controller,
+    this.minuteStep = 1,
   });
 
   @override
@@ -65,7 +69,10 @@ class _TimeInputCardState extends State<TimeInputCard> {
         ),
 
         if (expanded) ...[
-          OperationTimePicker(controller: widget.controller),
+          OperationTimePicker(
+            controller: widget.controller,
+            minuteStep: widget.minuteStep,
+          ),
 
           const SizedBox(height: 12),
 

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/models/morning_data.dart';
 import '../../core/models/work_type.dart';
-import '../../core/repositories/morning_repository.dart';
 import '../../core/theme/app_spacing.dart';
 
 import 'morning_history_page.dart';
@@ -15,8 +13,15 @@ import 'widgets/foot_card.dart';
 import 'widgets/bowel_card.dart';
 import 'widgets/work_card.dart';
 
+import 'services/morning_submit_service.dart';
+import '../../core/models/morning_data.dart';
+
 class MorningFactPage extends StatefulWidget {
-  const MorningFactPage({super.key});
+  const MorningFactPage({super.key, this.data});
+
+  final MorningData? data;
+
+  bool get isEdit => data != null;
 
   @override
   State<MorningFactPage> createState() => _MorningFactPageState();
@@ -27,7 +32,28 @@ class _MorningFactPageState extends State<MorningFactPage> {
   void initState() {
     super.initState();
 
-    weightController.text = "100.0";
+    if (widget.data != null) {
+      final data = widget.data!;
+
+      weightController.text = data.weight.toString();
+      bodyFatController.text = data.bodyFat.toString();
+
+      sleepController.text = data.sleepHours.toString();
+      sleepScoreController.text = data.sleepScore.toString();
+
+      footPainController.text = data.footPain.toString();
+
+      bowelAmountController.text = data.bowelAmount.toString();
+      bowelShapeController.text = data.bowelShape.toString();
+
+      selectedWorkType = data.workType;
+
+      workStartController.text = data.workStart;
+      workEndController.text = data.workEnd;
+      workBreakController.text = data.workBreak;
+
+      memoController.text = data.memo;
+    }
   }
 
   // Controllers
@@ -37,30 +63,20 @@ class _MorningFactPageState extends State<MorningFactPage> {
   final sleepController = TextEditingController();
   final sleepScoreController = TextEditingController();
 
-  final footPainController = TextEditingController(); // ←これを追加
+  final footPainController = TextEditingController();
 
   final bowelAmountController = TextEditingController();
   final bowelShapeController = TextEditingController();
 
-  final workController = TextEditingController();
+  final workStartController = TextEditingController();
+
+  final workEndController = TextEditingController();
+
+  final workBreakController = TextEditingController();
+
   final memoController = TextEditingController();
 
   WorkType selectedWorkType = WorkType.work;
-
-  double? _parseTime(String text) {
-    final parts = text.trim().split(':');
-
-    if (parts.length != 2) return null;
-
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-
-    if (hour == null || minute == null) return null;
-
-    if (minute < 0 || minute >= 60) return null;
-
-    return hour + minute / 60;
-  }
 
   void _showError(String message) {
     showDialog(
@@ -115,16 +131,14 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
               WorkCard(
                 workType: selectedWorkType,
-                workController: workController,
                 onChanged: (value) {
-                  if (value == null) return;
-
-                  FocusManager.instance.primaryFocus?.unfocus();
-
                   setState(() {
                     selectedWorkType = value;
                   });
                 },
+                startController: workStartController,
+                endController: workEndController,
+                breakController: workBreakController,
               ),
 
               AppSpacing.gapMD,
@@ -135,89 +149,27 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
               MorningSubmitButton(
                 onPressed: () async {
-                  if (weightController.text.trim().isEmpty) {
-                    _showError('体重を入力してください');
-                    return;
-                  }
-
-                  if (sleepController.text.trim().isEmpty) {
-                    _showError('睡眠時間を入力してください');
-                    return;
-                  }
-
-                  if ((selectedWorkType == WorkType.work ||
-                          selectedWorkType == WorkType.halfDay) &&
-                      workController.text.trim().isEmpty) {
-                    _showError('勤務時間を入力してください');
-                    return;
-                  }
-
-                  final weight = double.tryParse(weightController.text.trim());
-
-                  if (weight == null) {
-                    _showError('体重は数字で入力してください');
-                    return;
-                  }
-
-                  final bodyFat = double.tryParse(
-                    bodyFatController.text.trim(),
-                  );
-
-                  if (bodyFat == null) {
-                    _showError('体脂肪率を入力してください');
-                    return;
-                  }
-
-                  final sleep = _parseTime(sleepController.text);
-
-                  if (sleep == null) {
-                    _showError('睡眠時間は 7:30 の形式で入力してください');
-                    return;
-                  }
-
-                  final sleepScore = int.tryParse(
-                    sleepScoreController.text.trim(),
-                  );
-
-                  if (sleepScore == null) {
-                    _showError('睡眠スコアを入力してください');
-                    return;
-                  }
-
-                  double work = 0;
-
-                  if (selectedWorkType == WorkType.work ||
-                      selectedWorkType == WorkType.halfDay) {
-                    final parsed = _parseTime(workController.text);
-
-                    if (parsed == null) {
-                      _showError('勤務時間は 8:30 の形式で入力してください');
-                      return;
-                    }
-
-                    work = parsed;
-                  }
-
-                  final morningData = MorningData(
-                    date: DateTime.now().toIso8601String(),
-                    weight: weight,
-                    bodyFat: bodyFat,
-                    sleepHours: sleep,
-                    sleepScore: sleepScore,
-                    footPain: int.tryParse(footPainController.text) ?? 3,
-                    bowelAmount: int.tryParse(bowelAmountController.text) ?? 2,
-
-                    bowelShape: int.tryParse(bowelAmountController.text) == 0
-                        ? 0
-                        : int.tryParse(bowelShapeController.text) ?? 2,
+                  final error = await MorningSubmitService.submit(
                     workType: selectedWorkType,
-                    workHours: work,
-                    memo: memoController.text.trim(),
+                    weightText: weightController.text,
+                    bodyFatText: bodyFatController.text,
+                    sleepText: sleepController.text,
+                    sleepScoreText: sleepScoreController.text,
+                    footPainText: footPainController.text,
+                    bowelAmountText: bowelAmountController.text,
+                    bowelShapeText: bowelShapeController.text,
+                    workStart: workStartController.text,
+                    workEnd: workEndController.text,
+                    workBreak: workBreakController.text,
+                    memo: memoController.text,
                   );
-
-                  await MorningRepository.save(morningData);
 
                   if (!context.mounted) return;
+
+                  if (error != null) {
+                    _showError(error);
+                    return;
+                  }
 
                   Navigator.push(
                     context,
@@ -232,5 +184,27 @@ class _MorningFactPageState extends State<MorningFactPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    weightController.dispose();
+    bodyFatController.dispose();
+
+    sleepController.dispose();
+    sleepScoreController.dispose();
+
+    footPainController.dispose();
+
+    bowelAmountController.dispose();
+    bowelShapeController.dispose();
+
+    workStartController.dispose();
+    workEndController.dispose();
+    workBreakController.dispose();
+
+    memoController.dispose();
+
+    super.dispose();
   }
 }

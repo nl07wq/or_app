@@ -14,6 +14,10 @@ class MorningRepository {
 
     list.add(data);
 
+    list.sort(
+      (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)),
+    );
+
     final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
 
     await prefs.setStringList(_key, jsonList);
@@ -44,12 +48,7 @@ class MorningRepository {
 
     final list = await getAll();
 
-    list.removeWhere(
-      (e) =>
-          e.date == data.date &&
-          e.weight == data.weight &&
-          e.workType == data.workType,
-    );
+    list.removeWhere((e) => e.date == data.date);
 
     final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
 

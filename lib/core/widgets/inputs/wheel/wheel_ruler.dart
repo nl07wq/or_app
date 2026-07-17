@@ -10,7 +10,11 @@ class WheelRuler extends StatefulWidget {
 
   final String unit;
 
-  final double initialValue;
+  final double? initialValue;
+
+  /// 数値→表示文字
+  final Map<int, String>? labels;
+
   final ValueChanged<double>? onChanged;
 
   const WheelRuler({
@@ -20,7 +24,8 @@ class WheelRuler extends StatefulWidget {
     required this.max,
     required this.step,
     required this.unit,
-    required this.initialValue,
+    this.initialValue,
+    this.labels,
     this.onChanged,
   });
 
@@ -45,11 +50,10 @@ class _WheelRulerState extends State<WheelRuler> {
       values.add(double.parse(v.toStringAsFixed(1)));
     }
 
-    double initialValue = widget.initialValue;
+    double initialValue = widget.initialValue ?? widget.min;
 
     if (widget.controller.text.isNotEmpty) {
-      initialValue =
-          double.tryParse(widget.controller.text) ?? widget.initialValue;
+      initialValue = double.tryParse(widget.controller.text) ?? initialValue;
     }
 
     final index = values.indexWhere((e) => (e - initialValue).abs() < 0.0001);
@@ -58,10 +62,16 @@ class _WheelRulerState extends State<WheelRuler> {
 
     _scrollController = FixedExtentScrollController(initialItem: selectedIndex);
 
-    widget.controller.text = _formatValue(values[selectedIndex]);
+    widget.controller.text = values[selectedIndex].toStringAsFixed(
+      widget.step < 1 ? 1 : 0,
+    );
   }
 
-  String _formatValue(double value) {
+  String _displayValue(double value) {
+    if (widget.labels != null) {
+      return widget.labels![value.toInt()] ?? value.toString();
+    }
+
     if (widget.step >= 1) {
       return value.toInt().toString();
     }
@@ -75,9 +85,11 @@ class _WheelRulerState extends State<WheelRuler> {
       height: 180,
       child: CupertinoPicker(
         itemExtent: 40,
+
         useMagnifier: true,
         magnification: 1.15,
         diameterRatio: 1.4,
+
         scrollController: _scrollController,
 
         selectionOverlay: Container(
@@ -90,24 +102,27 @@ class _WheelRulerState extends State<WheelRuler> {
         ),
 
         onSelectedItemChanged: (index) {
-          final value = values[index];
-
           setState(() {
             selectedIndex = index;
           });
 
-          widget.controller.text = _formatValue(value);
+          final value = values[index];
+
+          widget.controller.text = value.toStringAsFixed(
+            widget.step < 1 ? 1 : 0,
+          );
 
           widget.onChanged?.call(value);
         },
 
         children: List.generate(values.length, (index) {
           final value = values[index];
+
           final selected = index == selectedIndex;
 
           return Center(
             child: Text(
-              "${_formatValue(value)} ${widget.unit}",
+              "${_displayValue(value)} ${widget.unit}",
               style: TextStyle(
                 fontSize: selected ? 28 : 20,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
