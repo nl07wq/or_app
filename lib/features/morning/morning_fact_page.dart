@@ -53,6 +53,11 @@ class _MorningFactPageState extends State<MorningFactPage> {
       workBreakController.text = data.workBreak;
 
       memoController.text = data.memo;
+    } else {
+      // 新規入力時のデフォルト値
+      workStartController.text = "11:00";
+      workEndController.text = "18:00";
+      workBreakController.text = "01:00";
     }
   }
 

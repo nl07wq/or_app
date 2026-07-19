@@ -33,7 +33,9 @@ class BodyCard extends StatelessWidget {
             min: 40,
             max: 180,
             step: 0.1,
+            initialValue: 100,
           ),
+
           const SizedBox(height: 32),
 
           WheelInputCard(

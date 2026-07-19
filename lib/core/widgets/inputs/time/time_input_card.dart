@@ -5,15 +5,18 @@ import 'operation_time_picker.dart';
 class TimeInputCard extends StatefulWidget {
   final String title;
   final TextEditingController controller;
-
-  /// 分刻み
   final int minuteStep;
+
+  final int initialHour;
+  final int initialMinute;
 
   const TimeInputCard({
     super.key,
     required this.title,
     required this.controller,
     this.minuteStep = 1,
+    this.initialHour = 0,
+    this.initialMinute = 0,
   });
 
   @override
@@ -72,6 +75,8 @@ class _TimeInputCardState extends State<TimeInputCard> {
           OperationTimePicker(
             controller: widget.controller,
             minuteStep: widget.minuteStep,
+            initialHour: widget.initialHour,
+            initialMinute: widget.initialMinute,
           ),
 
           const SizedBox(height: 12),

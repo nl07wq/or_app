@@ -6,7 +6,9 @@ import '../theme/app_text_styles.dart';
 
 class OperationButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+
+  final VoidCallback? onPressed;
+
   final IconData? icon;
 
   const OperationButton({

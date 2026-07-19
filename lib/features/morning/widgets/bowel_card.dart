@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/models/bowel_amount.dart';
+import '../../../core/models/bowel_shape.dart';
+
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
 
-class BowelCard extends StatelessWidget {
+class BowelCard extends StatefulWidget {
   final TextEditingController amountController;
   final TextEditingController shapeController;
 
@@ -13,6 +15,51 @@ class BowelCard extends StatelessWidget {
     required this.amountController,
     required this.shapeController,
   });
+
+  @override
+  State<BowelCard> createState() => _BowelCardState();
+}
+
+class _BowelCardState extends State<BowelCard> {
+  late bool amountExpanded;
+  late bool shapeExpanded;
+
+  BowelAmount get amount =>
+      BowelAmount.fromValue(int.tryParse(widget.amountController.text) ?? 2);
+
+  BowelShape get shape =>
+      BowelShape.fromValue(int.tryParse(widget.shapeController.text) ?? 1);
+
+  void _selectAmount(BowelAmount value) {
+    widget.amountController.text = value.value.toString();
+
+    if (value == BowelAmount.none) {
+      widget.shapeController.clear();
+      shapeExpanded = false;
+    } else if (widget.shapeController.text.isEmpty) {
+      widget.shapeController.text = BowelShape.normal.value.toString();
+    }
+
+    setState(() {
+      amountExpanded = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    amountExpanded = widget.amountController.text.isEmpty;
+    shapeExpanded = widget.shapeController.text.isEmpty;
+  }
+
+  void _selectShape(BowelShape value) {
+    widget.shapeController.text = value.value.toString();
+
+    setState(() {
+      shapeExpanded = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,47 +71,105 @@ class BowelCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          WheelInputCard(
-            title: "Amount",
-            unit: "",
-            controller: amountController,
-            min: 0,
-            max: 3,
-            step: 1,
-            initialValue: 2,
+          // =========================
+          // Amount
+          // =========================
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  "Amount",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+
+              if (!amountExpanded)
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      amountExpanded = true;
+                    });
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(amount.icon, size: 18),
+                      const SizedBox(width: 6),
+                      Text(amount.label),
+                    ],
+                  ),
+                ),
+            ],
           ),
 
-          const SizedBox(height: 20),
+          if (amountExpanded) ...[
+            const SizedBox(height: 12),
 
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: amountController,
-            builder: (context, value, _) {
-              final amount = int.tryParse(value.text) ?? 2;
-              if (amount == 0 && shapeController.text.isNotEmpty) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  shapeController.clear();
-                });
-              }
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: BowelAmount.values.map((item) {
+                return ChoiceChip(
+                  avatar: Icon(item.icon, size: 18),
+                  label: Text(item.label),
+                  selected: amount == item,
+                  onSelected: (_) => _selectAmount(item),
+                );
+              }).toList(),
+            ),
+          ],
 
-              return Column(
-                children: [
-                  if (amount != 0) ...[
-                    const SizedBox(height: 20),
+          // =========================
+          // Shape
+          // =========================
+          if (amount != BowelAmount.none) ...[
+            const SizedBox(height: 24),
 
-                    WheelInputCard(
-                      title: "Shape",
-                      unit: "",
-                      controller: shapeController,
-                      min: 1,
-                      max: 3,
-                      step: 1,
-                      initialValue: 2,
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    "Shape",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+
+                if (!shapeExpanded)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        shapeExpanded = true;
+                      });
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(shape.icon, size: 18),
+                        const SizedBox(width: 6),
+                        Text(shape.label),
+                      ],
                     ),
-                  ],
-                ],
-              );
-            },
-          ),
+                  ),
+              ],
+            ),
+
+            if (shapeExpanded) ...[
+              const SizedBox(height: 12),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: BowelShape.values.map((item) {
+                  return ChoiceChip(
+                    avatar: Icon(item.icon, size: 18),
+                    label: Text(item.label),
+                    selected: shape == item,
+                    onSelected: (_) => _selectShape(item),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
         ],
       ),
     );

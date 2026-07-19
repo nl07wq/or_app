@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../core/widgets/operation_card.dart';
-import '../../core/models/food_data.dart';
-import '../../core/widgets/operation_button.dart';
-import '../../core/widgets/operation_text_field.dart';
-import '../../core/widgets/operation_dropdown.dart';
-import '../../core/widgets/section_header.dart';
-import '../../core/widgets/operation_description.dart';
+
+import '../../core/models/meal_data.dart';
 import '../../core/repositories/food_repository.dart';
+
+import 'services/food_submit_service.dart';
+
+import 'widgets/food_input_form.dart';
+import 'widgets/food_summary_card.dart';
 
 class FoodEntryPage extends StatefulWidget {
   const FoodEntryPage({super.key});
@@ -16,38 +16,7 @@ class FoodEntryPage extends StatefulWidget {
 }
 
 class _FoodEntryPageState extends State<FoodEntryPage> {
-  final mealController = TextEditingController();
-
-  final calorieController = TextEditingController();
-
-  final proteinController = TextEditingController();
-
-  final fatController = TextEditingController();
-
-  final carbohydrateController = TextEditingController();
-
-  final memoController = TextEditingController();
-
-  String mealType = "朝食";
-
-  List<FoodData> records = [];
-
-  String mealTypeLabel(String type) {
-    switch (type) {
-      case "朝食":
-        return "🌅 朝食";
-      case "昼食":
-        return "☀️ 昼食";
-      case "夕食":
-        return "🌙 夕食";
-      case "間食":
-        return "🍫 間食";
-      case "補食":
-        return "💪 トレーニング補食";
-      default:
-        return type;
-    }
-  }
+  List<MealData> records = [];
 
   @override
   void initState() {
@@ -63,15 +32,17 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     }
   }
 
-  int get totalCalories => records.fold(0, (sum, item) => sum + item.calories);
+  Future<void> save(MealData data) async {
+    await FoodSubmitService.save(data);
 
-  double get totalProtein =>
-      records.fold(0.0, (sum, item) => sum + item.protein);
+    await loadRecords();
 
-  double get totalFat => records.fold(0.0, (sum, item) => sum + item.fat);
+    if (!mounted) return;
 
-  double get totalCarbohydrate =>
-      records.fold(0.0, (sum, item) => sum + item.carbohydrate);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Meal saved")));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,143 +53,10 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              OperationCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionHeader(
-                      icon: Icons.restaurant,
-                      title: "FOOD ENTRY",
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    const OperationDescription(
-                      text:
-                          "食事内容と栄養情報を記録します。\n"
-                          "手入力またはSync機能から登録できます。",
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    OperationDropdown<String>(
-                      label: "Meal Type",
-                      value: mealType,
-                      items: const [
-                        DropdownMenuItem(value: '朝食', child: Text('🌅 朝食')),
-                        DropdownMenuItem(value: '昼食', child: Text('☀️ 昼食')),
-                        DropdownMenuItem(value: '夕食', child: Text('🌙 夕食')),
-                        DropdownMenuItem(value: '間食', child: Text('🍫 間食')),
-                        DropdownMenuItem(
-                          value: '補食',
-                          child: Text('💪 トレーニング補食'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          mealType = value!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    OperationTextField(
-                      controller: mealController,
-                      label: "Meal",
-                    ),
-                    const SizedBox(height: 12),
-
-                    OperationTextField(
-                      controller: calorieController,
-                      label: "Calories",
-                      keyboardType: TextInputType.number,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    OperationTextField(
-                      controller: proteinController,
-                      label: "Protein (g)",
-                      keyboardType: TextInputType.number,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    OperationTextField(
-                      controller: fatController,
-                      label: "Fat (g)",
-                      keyboardType: TextInputType.number,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    OperationTextField(
-                      controller: carbohydrateController,
-                      label: "Carbohydrate (g)",
-                      keyboardType: TextInputType.number,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    OperationTextField(
-                      controller: memoController,
-                      label: "Memo",
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 20),
-
-                    OperationButton(
-                      icon: Icons.save,
-                      text: "Save Food",
-                      onPressed: () async {
-                        final record = FoodData(
-                          date: DateTime.now()
-                              .toIso8601String()
-                              .split('T')
-                              .first,
-                          mealType: mealType,
-                          meal: mealController.text,
-                          calories: int.tryParse(calorieController.text) ?? 0,
-                          protein: double.tryParse(proteinController.text) ?? 0,
-                          fat: double.tryParse(fatController.text) ?? 0,
-                          carbohydrate:
-                              double.tryParse(carbohydrateController.text) ?? 0,
-                          memo: memoController.text,
-                        );
-
-                        await FoodRepository.save(record);
-
-                        await loadRecords();
-
-                        if (!mounted) return;
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Food saved')),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
+              FoodInputForm(onSave: save),
               const SizedBox(height: 20),
 
-              OperationCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionHeader(
-                      icon: Icons.calculate,
-                      title: "TODAY'S TOTAL",
-                    ),
-                    const SizedBox(height: 12),
-
-                    Text("🔥 $totalCalories kcal"),
-                    Text("💪 P ${totalProtein.toStringAsFixed(1)} g"),
-                    Text("🥑 F ${totalFat.toStringAsFixed(1)} g"),
-                    Text("🍚 C ${totalCarbohydrate.toStringAsFixed(1)} g"),
-                  ],
-                ),
-              ),
+              FoodSummaryCard(records: records),
             ],
           ),
         ),

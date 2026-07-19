@@ -9,6 +9,8 @@ class OperationTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final int maxLines;
 
+  final ValueChanged<String>? onChanged;
+
   const OperationTextField({
     super.key,
     required this.controller,
@@ -16,12 +18,14 @@ class OperationTextField extends StatelessWidget {
     this.hint,
     this.keyboardType = TextInputType.text,
     this.maxLines = 1,
+    this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      onChanged: onChanged,
       keyboardType: keyboardType,
       maxLines: maxLines,
       decoration: InputDecoration(

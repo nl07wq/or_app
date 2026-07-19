@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../core/models/food_data.dart';
+import 'food_edit_page.dart';
+
+import '../../core/models/meal_data.dart';
 import '../../core/repositories/food_repository.dart';
 
 import '../../core/theme/app_spacing.dart';
@@ -17,7 +19,7 @@ class FoodHistoryPage extends StatefulWidget {
 }
 
 class _FoodHistoryPageState extends State<FoodHistoryPage> {
-  late Future<List<FoodData>> _records;
+  late Future<List<MealData>> _records;
 
   @override
   void initState() {
@@ -29,8 +31,8 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     _records = FoodRepository.getAll();
   }
 
-  Future<void> _deleteRecord(FoodData data) async {
-    final result = await showHistoryDeleteDialog(context, title: 'Food Record');
+  Future<void> _deleteRecord(MealData data) async {
+    final result = await showHistoryDeleteDialog(context, title: 'Meal Record');
 
     if (!result) return;
 
@@ -47,7 +49,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       appBar: AppBar(title: const Text('Food History')),
       body: Padding(
         padding: AppSpacing.cardPadding,
-        child: FutureBuilder<List<FoodData>>(
+        child: FutureBuilder<List<MealData>>(
           future: _records,
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
@@ -57,67 +59,84 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             final records = snapshot.data!;
 
             if (records.isEmpty) {
-              return const Center(child: Text('No food records.'));
+              return const Center(child: Text('No meal records.'));
             }
 
             return ListView.separated(
               itemCount: records.length,
               separatorBuilder: (_, __) => AppSpacing.gapMD,
               itemBuilder: (context, index) {
-                final food = records[index];
+                final meal = records[index];
 
                 return OperationCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 日付＋削除
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            food.date,
-                            style: Theme.of(context).textTheme.titleMedium,
+                          Expanded(
+                            child: Text(
+                              meal.date,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
                           ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () async {
+                              final updated = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FoodEditPage(meal: meal),
+                                ),
+                              );
+
+                              if (updated == true) {
+                                _loadRecords();
+                                setState(() {});
+                              }
+                            },
+                          ),
+
                           IconButton(
                             icon: Icon(
                               Icons.delete_outline,
                               color: Theme.of(context).colorScheme.error,
                             ),
-                            tooltip: 'Delete',
-                            onPressed: () {
-                              _deleteRecord(food);
-                            },
+                            onPressed: () => _deleteRecord(meal),
                           ),
                         ],
                       ),
 
-                      AppSpacing.gapSM,
-
-                      // 食事区分
                       SectionHeader(
                         icon: Icons.restaurant,
-                        title: food.mealType,
+                        title: meal.mealType,
                       ),
 
                       AppSpacing.gapMD,
 
-                      // 食事名
-                      Text(
-                        food.meal,
-                        style: Theme.of(context).textTheme.titleLarge,
+                      ...meal.items.map(
+                        (item) => ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.restaurant_menu),
+                          title: Text(item.name),
+                          subtitle: Text(
+                            "${item.calories} kcal"
+                            "  P ${item.protein}"
+                            "  F ${item.fat}"
+                            "  C ${item.carbohydrate}",
+                          ),
+                        ),
                       ),
 
-                      AppSpacing.gapMD,
-
-                      // 栄養情報
-                      Text('🔥 ${food.calories} kcal'),
-                      Text('🥩 P ${food.protein} g'),
-                      Text('🧈 F ${food.fat} g'),
-                      Text('🍚 C ${food.carbohydrate} g'),
-
-                      if (food.memo.isNotEmpty) ...[
+                      if (meal.memo.isNotEmpty) ...[
                         AppSpacing.gapMD,
-                        Text('📝 ${food.memo}'),
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.note_outlined),
+                          title: Text(meal.memo),
+                        ),
                       ],
                     ],
                   ),

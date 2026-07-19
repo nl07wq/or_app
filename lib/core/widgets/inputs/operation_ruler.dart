@@ -11,6 +11,8 @@ class OperationRuler extends StatefulWidget {
 
   final String unit;
 
+  final double initialValue;
+
   const OperationRuler({
     super.key,
     required this.controller,
@@ -18,6 +20,7 @@ class OperationRuler extends StatefulWidget {
     required this.max,
     required this.step,
     required this.unit,
+    required this.initialValue,
   });
 
   @override
@@ -31,11 +34,12 @@ class _OperationRulerState extends State<OperationRuler> {
   void initState() {
     super.initState();
 
-    value =
-        double.tryParse(widget.controller.text) ??
-        ((widget.max + widget.min) / 2);
-
-    widget.controller.text = value.toStringAsFixed(1);
+    if (widget.controller.text.isNotEmpty) {
+      value = double.tryParse(widget.controller.text) ?? widget.initialValue;
+    } else {
+      value = widget.initialValue;
+      widget.controller.text = value.toStringAsFixed(1);
+    }
   }
 
   void update(double delta) {

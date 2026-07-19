@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/models/food_data.dart';
-import 'food_record_tile.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/models/meal_data.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/operation_card.dart';
+
+import 'food_record_tile.dart';
 
 class FoodHistory extends StatelessWidget {
-  final List<FoodData> records;
-  final Function(FoodData) onDelete;
+  final List<MealData> records;
+  final Function(MealData) onDelete;
+  final Function(MealData) onEdit;
 
-  const FoodHistory({super.key, required this.records, required this.onDelete});
+  const FoodHistory({
+    super.key,
+    required this.records,
+    required this.onDelete,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +28,14 @@ class FoodHistory extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          Text("保存件数 : ${records.length}"),
+          Text("Records : ${records.length}"),
 
           AppSpacing.gapMD,
 
           ...records.map(
             (record) => FoodRecordTile(
               record: record,
+              onEdit: () => onEdit(record),
               onDelete: () => onDelete(record),
             ),
           ),

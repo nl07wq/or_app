@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/food_data.dart';
+import '../models/meal_data.dart';
 
 class FoodRepository {
-  static const _key = 'food_records';
+  static const _key = 'meal_records';
 
-  static Future<void> save(FoodData data) async {
+  static Future<void> save(MealData data) async {
     final prefs = await SharedPreferences.getInstance();
 
     final list = await getAll();
@@ -19,12 +19,30 @@ class FoodRepository {
     await prefs.setStringList(_key, jsonList);
   }
 
-  static Future<List<FoodData>> getAll() async {
+  static Future<void> update(MealData data) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final list = await getAll();
+
+    final index = list.indexWhere((e) => e.id == data.id);
+
+    if (index == -1) {
+      list.add(data);
+    } else {
+      list[index] = data;
+    }
+
+    final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
+
+    await prefs.setStringList(_key, jsonList);
+  }
+
+  static Future<List<MealData>> getAll() async {
     final prefs = await SharedPreferences.getInstance();
 
     final jsonList = prefs.getStringList(_key) ?? [];
 
-    return jsonList.map((e) => FoodData.fromJson(jsonDecode(e))).toList();
+    return jsonList.map((e) => MealData.fromJson(jsonDecode(e))).toList();
   }
 
   static Future<void> clear() async {
@@ -33,13 +51,13 @@ class FoodRepository {
     await prefs.remove(_key);
   }
 
-  static Future<void> remove(FoodData data) async {
+  static Future<void> remove(MealData data) async {
     final prefs = await SharedPreferences.getInstance();
 
     final list = await getAll();
 
-    list.removeWhere((e) => e.date == data.date && e.meal == data.meal);
-    
+    list.removeWhere((e) => e.id == data.id);
+
     final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
 
     await prefs.setStringList(_key, jsonList);

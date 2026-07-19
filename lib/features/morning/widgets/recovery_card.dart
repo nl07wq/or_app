@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/operation_field_label.dart';
-import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/inputs/time/time_input_card.dart';
 import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
@@ -27,7 +25,12 @@ class RecoveryCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          TimeInputCard(title: "Sleep Time", controller: sleepController),
+          TimeInputCard(
+            title: "Sleep Time",
+            controller: sleepController,
+            initialHour: 8,
+            initialMinute: 0,
+          ),
 
           const SizedBox(height: 20),
 

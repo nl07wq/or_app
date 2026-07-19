@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/data/default_training_templates.dart';
 import '../../core/widgets/operation_card.dart';
-import '../../core/theme/app_spacing.dart';
 
 class TrainingPlanPage extends StatelessWidget {
   final Function(List<String>) onSelect;
