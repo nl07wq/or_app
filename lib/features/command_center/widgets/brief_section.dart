@@ -1,53 +1,51 @@
 import 'package:flutter/material.dart';
 
-import '../models/morning_brief.dart';
-
-import 'situation_card.dart';
-import 'summary_card.dart';
-import 'operation_status_card.dart';
+import '../../../core/engine/commander_analysis_snapshot.dart';
+import '../../../core/engine/operation_status.dart';
 import 'commander_intent_card.dart';
 import 'operation_action_card.dart';
-import 'warning_chip.dart';
-import '../extensions/command_status_extension.dart';
+import 'operation_status_card.dart';
+import 'situation_card.dart';
+import 'summary_card.dart';
 
 class BriefSection extends StatelessWidget {
-  final MorningBrief brief;
+  final CommanderAnalysisSnapshot analysis;
 
-  const BriefSection({super.key, required this.brief});
+  const BriefSection({super.key, required this.analysis});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SituationCard(situation: brief.situation),
-
-        SummaryCard(summary: brief.summary),
-
-        if (brief.commanderWarnings.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: brief.commanderWarnings
-                .map((e) => WarningChip(warning: e))
-                .toList(),
-          ),
-          const SizedBox(height: 24),
-        ],
-
+        SituationCard(situation: analysis.overview),
+        SummaryCard(summary: analysis.recoveryAnalysis),
         OperationStatusCard(
-          status: brief.operationStatus.label,
-          description: brief.operationStatus.description,
-          operationId: brief.operationId,
-          statusColor: brief.operationStatus.color,
+          status: analysis.status.name.toUpperCase(),
+          description: analysis.recoveryAnalysis,
+          operationId: 'OPERATION ENGINE',
+          statusColor: _statusColor(analysis.status),
         ),
-
-        CommanderIntentCard(intent: brief.commanderIntent),
-
+        CommanderIntentCard(intent: analysis.overview),
         OperationActionCard(
-          action: brief.actions.isEmpty ? null : brief.actions.first,
+          action: analysis.recommendations.isEmpty
+              ? null
+              : analysis.recommendations.first,
         ),
       ],
     );
+  }
+
+  Color _statusColor(OperationStatus status) {
+    switch (status) {
+      case OperationStatus.green:
+        return Colors.green;
+      case OperationStatus.yellow:
+        return Colors.yellow;
+      case OperationStatus.red:
+        return Colors.red;
+      case OperationStatus.black:
+        return Colors.black;
+    }
   }
 }

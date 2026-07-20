@@ -1,24 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/models/meal_data.dart';
+import '../../../core/engine/food_summary.dart';
 
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 
 class FoodSummaryCard extends StatelessWidget {
-  final List<MealData> records;
+  final FoodSummary summary;
 
-  const FoodSummaryCard({super.key, required this.records});
-
-  int get totalCalories => records.fold(0, (sum, meal) => sum + meal.calories);
-
-  double get totalProtein =>
-      records.fold(0.0, (sum, meal) => sum + meal.protein);
-
-  double get totalFat => records.fold(0.0, (sum, meal) => sum + meal.fat);
-
-  double get totalCarbohydrate =>
-      records.fold(0.0, (sum, meal) => sum + meal.carbohydrate);
+  const FoodSummaryCard({super.key, required this.summary});
 
   @override
   Widget build(BuildContext context) {
@@ -36,28 +26,28 @@ class FoodSummaryCard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.local_fire_department_outlined),
             title: const Text("Calories"),
-            trailing: Text("$totalCalories kcal"),
+            trailing: Text("${summary.calories.toStringAsFixed(0)} kcal"),
             contentPadding: EdgeInsets.zero,
           ),
 
           ListTile(
             leading: const Icon(Icons.fitness_center),
             title: const Text("Protein"),
-            trailing: Text("${totalProtein.toStringAsFixed(1)} g"),
+            trailing: Text("${summary.protein.toStringAsFixed(1)} g"),
             contentPadding: EdgeInsets.zero,
           ),
 
           ListTile(
             leading: const Icon(Icons.opacity),
             title: const Text("Fat"),
-            trailing: Text("${totalFat.toStringAsFixed(1)} g"),
+            trailing: Text("${summary.fat.toStringAsFixed(1)} g"),
             contentPadding: EdgeInsets.zero,
           ),
 
           ListTile(
             leading: const Icon(Icons.rice_bowl_outlined),
             title: const Text("Carbohydrate"),
-            trailing: Text("${totalCarbohydrate.toStringAsFixed(1)} g"),
+            trailing: Text("${summary.carbohydrates.toStringAsFixed(1)} g"),
             contentPadding: EdgeInsets.zero,
           ),
         ],

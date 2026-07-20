@@ -4,6 +4,7 @@ import '../../core/models/meal_data.dart';
 import '../../core/repositories/food_repository.dart';
 
 import 'services/food_submit_service.dart';
+import 'services/food_summary_service.dart';
 
 import 'widgets/food_input_form.dart';
 import 'widgets/food_summary_card.dart';
@@ -56,7 +57,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
               FoodInputForm(onSave: save),
               const SizedBox(height: 20),
 
-              FoodSummaryCard(records: records),
+              FoodSummaryCard(summary: FoodSummaryService.today(records)),
             ],
           ),
         ),

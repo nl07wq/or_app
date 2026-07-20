@@ -1,41 +1,51 @@
 # ARCHITECTURE
 
-Operation Reboot Life OS
+Operation Reboot Life OS (ORLO)
 
 Version
-0.3
+
+1.0
 
 Status
+
 Draft
 
 Last Updated
-2026-07-04
+
+2026-07-20
 
 ---
 
 # Purpose
 
-ARCHITECTUREは
-ORLO全体のシステム構造を定義する。
+ARCHITECTURE defines the overall system structure of ORLO.
 
-各Module・Engine・Databaseは
-本設計に従って実装する。
+Every Module, Engine, Repository, Database, and UI component must follow this architecture.
 
-UIよりも
-責任分離・保守性・拡張性を優先する。
+The primary goals are:
+
+- Clear responsibility separation
+- Long-term maintainability
+- Scalability
+- Reusability
+- Predictable data flow
+
+Architecture always takes priority over implementation.
 
 ---
 
 # Architecture Philosophy
 
-ORLOは
+ORLO is designed as a
 
-Life Operating System
+Life Operating System.
 
-である。
+Rather than treating health management as individual applications,
+ORLO manages an entire lifestyle as one operating system.
 
-各機能を独立した責任範囲へ分離し、
-必要最小限の依存関係で構成する。
+Every component has a single responsibility.
+
+Architecture is built from the inside out.
 
 Architecture
 
@@ -45,17 +55,96 @@ Database
 
 ↓
 
+Repository
+
+↓
+
 Operation Engine
 
 ↓
 
-UI
+Presentation
 
 ↓
 
 AI
 
-の順で構築する。
+The UI never becomes the center of the architecture.
+
+---
+
+# Core Design Philosophy
+
+Operation Reboot defines the following information flow.
+
+Fact
+
+↓
+
+Analysis
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Archive
+
+ORLO follows the same philosophy.
+
+Fact is entered only once.
+
+Analysis is generated automatically.
+
+Decision is presented to the user.
+
+Execution is performed through the application.
+
+Archive stores historical information.
+
+Every module should support this information flow.
+
+---
+
+# Fact Visibility Principle
+
+Facts are stored for the Operation Engine,
+not for direct display.
+
+A stored Fact does not automatically appear
+on the Dashboard.
+
+The Dashboard displays only information
+required for today's execution.
+
+The Operation Engine determines which Facts
+should influence:
+
+- Commander Intent
+- Morning Brief
+- Operation Status
+- Dashboard
+- Commander Center
+
+Facts may exist solely for analysis and never
+be displayed directly to the user.
+
+---
+
+# Objective Fact Principle
+
+Objective measurements are preferred.
+
+Subjective self-evaluation should not be
+stored as Fact unless no objective alternative exists.
+
+Wearable-generated measurements have
+higher priority than subjective input.
 
 ---
 
@@ -65,15 +154,19 @@ User
 
 ↓
 
-Modules
+Presentation Layer
 
 ↓
 
-Repository
+Application Layer
 
 ↓
 
-SQLite
+Repository Layer
+
+↓
+
+SQLite Database
 
 ↓
 
@@ -85,15 +178,99 @@ Dashboard
 
 ↓
 
-Commander
+Commander Center
 
 ↓
 
-Argo Engine（Future）
+Argo Engine (Future)
+
+---
+
+# Information Architecture
+
+ORLO separates
+
+Daily Execution
+
+and
+
+Strategic Analysis
+
+into different user experiences.
+
+This separation reduces cognitive load,
+improves usability,
+and allows each screen to focus on a single purpose.
+
+---
+
+## Dashboard
+
+Purpose
+
+Provide today's operational overview.
+
+The Dashboard is the user's daily starting point.
+
+Users should understand today's situation within approximately 30 seconds.
+
+Dashboard supports execution.
+
+Typical information
+
+- Today's Status
+- Commander Intent
+- Morning Brief Summary
+- Today's Progress
+- Quick Access
+- Commander Center Entry
+
+Dashboard intentionally avoids detailed analysis.
+
+Its purpose is
+
+"What should I do today?"
+
+---
+
+## Commander Center
+
+Purpose
+
+Support analysis,
+decision making,
+and long-term review.
+
+Commander Center is not the application's home screen.
+
+It functions as the strategic command room.
+
+Typical information
+
+- Morning Brief
+- Daily Decision
+- Weight Trends
+- Nutrition Trends
+- Training Trends
+- Sleep Trends
+- Weekly Reports
+- Monthly Reports
+- Historical Data
+- AI Analysis
+
+Commander Center supports analysis.
+
+Its purpose is
+
+"Why did this happen?"
+
+"What should change next?"
 
 ---
 
 # Module Structure
+
+Dashboard
 
 Morning
 
@@ -103,18 +280,17 @@ Training
 
 Activity
 
-Dashboard
-
 Commander Center
-
-Settings
 
 History
 
+Settings
+
 Operation Sync
 
-各Moduleは
-独立して動作できる構造とする。
+Each module must remain independently maintainable.
+
+Modules communicate through repositories and shared models rather than direct dependencies whenever possible.
 
 ---
 
@@ -140,139 +316,159 @@ Operation Engine
 
 ↓
 
-AI Layer（Future）
+AI Layer (Future)
+
+Each layer has a single responsibility.
+
+Upper layers must never bypass lower architectural rules.
+
+Business logic belongs inside the Operation Engine.
+
+Presentation should remain lightweight.
 
 ---
 
 # Presentation Layer
 
-責任
+Responsibilities
 
-画面表示
+- Screen rendering
+- User interaction
+- Navigation
+- Theme
+- Animation
+- Widget composition
 
-入力
+The Presentation Layer is responsible only for displaying information and receiving user input.
 
-Navigation
+It must not contain business logic.
 
-Widget
+It must not access SQLite directly.
 
-Theme
+It communicates with the Application Layer only.
 
-Animation
+---
 
-Presentation Layerは
-計算を行わない。
+# Application Layer
+
+Responsibilities
+
+- Screen state
+- UI state management
+- Controller logic
+- Input validation
+- Coordination between UI and Repository
+
+The Application Layer manages application behavior.
+
+It does not generate business analysis.
+
+Business decisions belong to the Operation Engine.
 
 ---
 
 # Repository Layer
 
-責任
+Responsibilities
 
-SQLiteとの仲介
+- Persist data
+- Retrieve data
+- Update data
+- Delete data
 
-保存
+Repositories isolate the application from the database.
 
-取得
+Repositories do not contain business rules.
 
-更新
+Repositories do not generate summaries or analytics.
 
-削除
-
-Repositoryは
-Business Logicを持たない。
+Their responsibility is data access only.
 
 ---
 
 # Database Layer
 
-正式データ保存
+The Database stores only verified facts.
 
-Morning
+Database entities include:
 
-Food
+- Morning
+- Food
+- Training
+- Activity
+- Settings
+- Operation Sync
 
-Training
+The database never stores calculated summaries unless explicitly required for caching.
 
-Activity
-
-Settings
-
-Operation Sync
-
-Databaseは
-Factのみ保存する。
+Analysis should always be reproducible from Fact.
 
 ---
 
-# ARCHITECTURE
+# Operation Engine
 
-Operation Reboot Life OS
+The Operation Engine is the core of ORLO.
 
-Version
-0.3
+Its responsibility is transforming Fact into Analysis.
 
-Status
-Draft
+Responsibilities
 
-Last Updated
-2026-07-04
+- Summary generation
+- Nutrition analysis
+- Calorie estimation
+- Operation Status
+- Operation Score
+- Rule evaluation
+- Alerts
+- Trend generation
 
----
+The Operation Engine never receives manual user input.
 
-# Purpose
-
-ARCHITECTUREは
-ORLO全体のシステム構造を定義する。
-
-各Module・Engine・Databaseは
-本設計に従って実装する。
-
-UIよりも
-責任分離・保守性・拡張性を優先する。
+It processes only verified Fact.
 
 ---
 
-# Architecture Philosophy
+# Fact First Principle
 
-ORLOは
+Users enter
 
-Life Operating System
+Fact.
 
-である。
+Examples
 
-各機能を独立した責任範囲へ分離し、
-必要最小限の依存関係で構成する。
+- Weight
+- Body Fat
+- Food
+- Water Intake
+- Training
+- Steps
+- Exercise Minutes
+- Sleep
+- Heart Rate
 
-Architecture
+Everything else is generated.
 
-↓
+Examples
 
-Database
+- Calories Burned
+- Nutrition Summary
+- Daily Summary
+- Weekly Summary
+- Commander Intent
+- Morning Brief
+- Operation Score
 
-↓
-
-Operation Engine
-
-↓
-
-UI
-
-↓
-
-AI
-
-の順で構築する。
+Fact should never be overwritten by generated Analysis.
 
 ---
 
-# System Architecture
+# Data Flow
 
-User
+Fact
 
 ↓
 
-Modules
+SQLite Database
 
 ↓
 
@@ -280,554 +476,95 @@ Repository
 
 ↓
 
-SQLite
-
-↓
-
 Operation Engine
 
 ↓
 
-Dashboard
+Analysis
 
 ↓
 
-Commander
+Dashboard
+(Daily Execution)
 
 ↓
-
-Argo Engine（Future）
-
----
-
-# Module Structure
-
-Morning
-
-Food
-
-Training
-
-Activity
-
-Dashboard
 
 Commander Center
-
-Settings
-
-History
-
-Operation Sync
-
-各Moduleは
-独立して動作できる構造とする。
-
----
-
-# Layer Structure
-
-Presentation Layer
+(Analysis & Decision)
 
 ↓
 
-Application Layer
+AI Support
 
 ↓
 
-Repository Layer
+Archive
 
-↓
+Every layer has a single responsibility.
 
-Database Layer
-
-↓
-
-Operation Engine
-
-↓
-
-AI Layer（Future）
-
----
-
-# Presentation Layer
-
-責任
-
-画面表示
-
-入力
-
-Navigation
-
-Widget
-
-Theme
-
-Animation
-
-Presentation Layerは
-計算を行わない。
-
----
-
-# Repository Layer
-
-責任
-
-SQLiteとの仲介
-
-保存
-
-取得
-
-更新
-
-削除
-
-Repositoryは
-Business Logicを持たない。
-
----
-
-# Database Layer
-
-正式データ保存
-
-Morning
-
-Food
-
-Training
-
-Activity
-
-Settings
-
-Operation Sync
-
-Databaseは
-Factのみ保存する。
-
----
-
-# Operation Engine
-
-Operation Engineは
-ORLOの中核エンジンである。
-
-責任
-
-Summary
-
-Calories
-
-Nutrition
-
-Operation Score
-
-Operation Status
-
-Rule Engine
-
-Alert
-
-Engineは
-FactからAnalysisを生成する。
-
----
-
-# Fact First Principle
-
-ユーザーが入力するのは
-Factのみ。
-
-例
-
-Weight
-
-Food
-
-Training
-
-Steps
-
-Exercise Minutes
-
-Sleep
-
-Analysisは
-Operation Engineが生成する。
-
----
-
-# Data Flow
-
-Fact
-
-↓
-
-SQLite
-
-↓
-
-Operation Engine
-
-↓
-
-Summary
-
-↓
-
-Dashboard
-
-↓
-
-Commander
-
-↓
-
-AI
+No layer should bypass this flow.
 
 ---
 
 # Rule Engine
 
-Operation Engine内部で動作する。
+The Rule Engine operates inside the Operation Engine.
 
-責任
+Responsibilities
 
-Alert
+- Threshold evaluation
+- Warning generation
+- Recovery detection
+- Operation Status
+- Nutrition alerts
+- Recovery alerts
 
-Threshold
+Future responsibilities
 
-Warning
+- Mission Rules
+- Commander Rules
+- Gaming Rules
+- Adaptive Difficulty
 
-Danger
-
-Recovery
-
-Future
-
-Gaming Rule
-
-Mission Rule
-
-Commander Rule
+The Rule Engine converts Analysis into actionable information.
 
 ---
 
-# Summary Engine
+# Brief Generator
 
-Morning Summary
+Brief Generator converts structured analysis into
+human-readable operational guidance.
 
-Daily Summary
+The Brief Generator is responsible for generating
+all user-facing operational text.
 
-Weekly Summary
+It does not make decisions.
 
-Monthly Summary
-
-Yearly Summary
-
-Summaryは
-DNSから生成する。
-
-保存対象ではない。
+It only converts Rule Engine output into
+consistent Operation Reboot language.
 
 ---
 
-# Calories Engine
+## Responsibilities
 
-Morning Weight
+Generate
 
-↓
+- Commander Intent
+- Morning Brief
+- Dashboard Messages
+- Recovery Messages
+- Hydration Messages
+- Nutrition Messages
+- Training Messages
 
-BMR
-
-↓
-
-Steps
-
-↓
-
-Exercise Minutes
-
-↓
-
-Estimated Calories Burned
-
-HealthKitが利用可能な場合
-
-↓
-
-Actual Calories Burned
-
-↓
-
-Estimatedより優先
+All generated messages should follow
+the Operation Reboot writing style.
 
 ---
 
-# Operation Score
-
-Operation Engineは
-
-Nutrition
-
-Activity
-
-Recovery
-
-Training
-
-を評価し
-
-Operation Scoreを生成する。
-
-Future
-
-Gaming Package
-
-Commander Center
-
-AI
-
-へ提供する。
-
----
-
-# Operation Status
-
-GREEN
-
-YELLOW
-
-RED
-
-BLACK
-
-Operation Statusは
-
-Dashboard
-
-Commander
-
-Gaming
-
-Theme
-
-共通利用する。
-
----
-
-# AI Responsibility
-
-AIは
-
-分析
-
-提案
-
-相談
-
-Morning Brief
-
-Commander Support
-
-のみ担当する。
-
-AIが停止しても
-
-Morning
-
-Food
-
-Training
-
-Activity
-
-は正常動作する。
-
----
-
-# Experience Package
-
-Experienceは
-Operation Engineから独立する。
-
-Package
-
-DressUp
-
-Gaming
-
-Animation
-
-Sound
-
-Voice
-
-Future Theme
-
-Standard
-
-Military
-
-Neural
-
-Quest
-
-Hunter
-
-RPG
-
-Experience Packageは
-表示のみ変更する。
-
-Operation Engineは変更しない。
-
----
-
-# Health Integration
-
-Future
-
-HealthKit
-
-Google Health Connect
-
-Apple Health
-
-取得対象
-
-Steps
-
-Calories
-
-Sleep
-
-Heart Rate
-
-Exercise
-
-取得したデータは
-Factとして保存する。
-
----
-
-# Operation Sync
-
-Operation Syncは
-
-Migration
-
-Import
-
-Export
-
-Backup
-
-Restore
-
-を担当する。
-
-Operation Rebootからの
-DNS Migrationを正式対応する。
-
----
-
-# Design Principles
-
-Single Responsibility
-
-Fact First
-
-Documentation First
-
-Architecture Before Code
-
-Long-term Maintainability
-
-UI Independence
-
-AI Optional
-
----
-
-# Related Documents
-
-PROJECT.md
-
-ROADMAP.md
-
-DATABASE.md
-
-architecture/OPERATION_ENGINE.md
-
-UI_GUIDELINE.md
-
-REP.md
-
----
-
-# Operation Engine
-
-Operation Engineは
-ORLOの中核エンジンである。
-
-責任
-
-Summary
-
-Calories
-
-Nutrition
-
-Operation Score
-
-Operation Status
-
-Rule Engine
-
-Alert
-
-Engineは
-FactからAnalysisを生成する。
-
----
-
-# Fact First Principle
-
-ユーザーが入力するのは
-Factのみ。
-
-例
-
-Weight
-
-Food
-
-Training
-
-Steps
-
-Exercise Minutes
-
-Sleep
-
-Analysisは
-Operation Engineが生成する。
-
----
-
-# Data Flow
+## Data Flow
 
 Fact
-
-↓
-
-SQLite
 
 ↓
 
@@ -835,7 +572,11 @@ Operation Engine
 
 ↓
 
-Summary
+Rule Engine
+
+↓
+
+Brief Generator
 
 ↓
 
@@ -843,297 +584,419 @@ Dashboard
 
 ↓
 
-Commander
+Commander Center
 
 ↓
 
 AI
 
+The Rule Engine determines
+
+"What should happen."
+
+The Brief Generator determines
+
+"How it should be communicated."
+
 ---
 
-# Rule Engine
+## Writing Style
 
-Operation Engine内部で動作する。
+Brief Generator follows a unified writing style.
 
-責任
+System terminology remains in English.
 
-Alert
+Examples
 
-Threshold
+- Dashboard
+- Commander Intent
+- Morning Brief
+- Operation Status
+- Commander Center
+- STANDBY
+- READY
+- BRIEFING
 
-Warning
+Operational guidance is written in Japanese.
 
-Danger
+Examples
 
-Recovery
+✓ 水分補給を意識しましょう。
 
-Future
+✓ Recoveryを優先しながら勤務を完遂しましょう。
 
-Gaming Rule
+✓ 朝食を整え、トレーニング時間を確保しましょう。
 
-Mission Rule
+Avoid command-style wording.
 
-Commander Rule
+Preferred tone
+
+Supportive
+
+Concise
+
+Professional
+
+Consistent
+
+---
+
+## Message Templates
+
+The Brief Generator should generate messages
+using reusable templates rather than
+hard-coded strings.
+
+Example
+
+Rule Engine
+
+Priority = Recovery
+
+↓
+
+Commander Intent
+
+Recoveryを優先しながら
+勤務を完遂しましょう。
+
+---
+
+Priority = Hydration
+
+↓
+
+Commander Intent
+
+水分補給を優先しながら
+安定したコンディションを維持しましょう。
+
+---
+
+Priority = Training
+
+↓
+
+Commander Intent
+
+予定通りトレーニングを実施しましょう。
+
+The Rule Engine never generates sentences.
+
+It generates structured analysis only.
+
+---
+
+## Separation of Responsibility
+
+Operation Engine
+
+Responsible for
+
+Analysis
+
+↓
+
+Rule Engine
+
+Responsible for
+
+Decision
+
+↓
+
+Brief Generator
+
+Responsible for
+
+Communication
+
+↓
+
+Dashboard
+
+Responsible for
+
+Execution
+
+↓
+
+Commander Center
+
+Responsible for
+
+Analysis and Review
+
+↓
+
+AI
+
+Responsible for
+
+Additional interpretation and advice
+
+Each component has exactly one responsibility.
 
 ---
 
 # Summary Engine
 
-Morning Summary
+The Summary Engine produces temporary summaries.
 
-Daily Summary
+Examples
 
-Weekly Summary
+- Morning Summary
+- Daily Summary
+- Weekly Summary
+- Monthly Summary
+- Yearly Summary
 
-Monthly Summary
+Summaries are generated from Fact.
 
-Yearly Summary
+Summaries are not primary data.
 
-Summaryは
-DNSから生成する。
-
-保存対象ではない。
+They may be regenerated at any time.
 
 ---
 
 # Calories Engine
 
-Morning Weight
+Input
 
-↓
+- Morning Weight
+- Activity
+- Steps
+- Exercise Minutes
 
-BMR
-
-↓
-
-Steps
-
-↓
-
-Exercise Minutes
+Calculation
 
 ↓
 
 Estimated Calories Burned
 
-HealthKitが利用可能な場合
+When HealthKit or Health Connect data is available
 
 ↓
 
 Actual Calories Burned
 
-↓
-
-Estimatedより優先
+Actual values always take priority over estimated values.
 
 ---
 
 # Operation Score
 
-Operation Engineは
+Operation Score evaluates overall lifestyle quality.
 
-Nutrition
+Evaluation categories
 
-Activity
+- Nutrition
+- Activity
+- Recovery
+- Training
 
-Recovery
+Future categories
 
-Training
+- Consistency
+- Sleep Quality
+- Stress Management
 
-を評価し
+Operation Score is shared with
 
-Operation Scoreを生成する。
+- Dashboard
+- Commander Center
+- AI
+- Experience Package
 
-Future
+Operation Score is generated automatically.
 
-Gaming Package
-
-Commander Center
-
-AI
-
-へ提供する。
+Users never enter it manually.
 
 ---
 
 # Operation Status
 
-GREEN
+Operation Status represents today's operational condition.
 
-YELLOW
+Available states
 
-RED
+🟢 GREEN
 
-BLACK
+🟡 YELLOW
 
-Operation Statusは
+🔴 RED
 
-Dashboard
+⚫ BLACK
 
-Commander
+Operation Status is shared across
 
-Gaming
+- Dashboard
+- Commander Center
+- Themes
+- Gaming Package
+- AI
 
-Theme
+Operation Status is derived automatically from Fact and Analysis.
 
-共通利用する。
+It is never entered manually.
 
 ---
 
 # AI Responsibility
 
-AIは
+Artificial Intelligence is an optional support layer.
 
-分析
+The application must continue operating normally even if AI services are unavailable.
 
-提案
+AI never replaces the Operation Engine.
 
-相談
+AI uses Analysis generated by the Operation Engine to assist the user.
 
-Morning Brief
+---
 
-Commander Support
+## Responsibilities
 
-のみ担当する。
+AI supports
 
-AIが停止しても
+- Morning Brief generation
+- Commander support
+- Daily advice
+- Long-term analysis
+- Trend interpretation
+- Question answering
+- Decision support
 
-Morning
+AI does not generate Fact.
 
-Food
+AI does not modify Fact.
 
-Training
+AI does not directly update the database.
 
-Activity
+---
 
-は正常動作する。
+## AI Position
+
+Fact
+
+↓
+
+Operation Engine
+
+↓
+
+Analysis
+
+↓
+
+AI
+
+↓
+
+User Decision
+
+↓
+
+Execution
+
+AI provides recommendations.
+
+The final decision always belongs to the user.
 
 ---
 
 # Experience Package
 
-Experienceは
-Operation Engineから独立する。
+Experience Packages customize how ORLO feels.
 
-Package
+Experience Packages never modify business logic.
 
-DressUp
+They only affect presentation.
 
-Gaming
+Examples
 
-Animation
+- Theme
+- Animation
+- Sound
+- Voice
+- Gaming
+- Visual Effects
 
-Sound
+Future Packages
 
-Voice
+- Standard
+- Military
+- Tactical
+- Neural
+- RPG
+- Hunter
+- Minimal
 
-Future Theme
+Experience Packages should be interchangeable.
 
-Standard
-
-Military
-
-Neural
-
-Quest
-
-Hunter
-
-RPG
-
-Experience Packageは
-表示のみ変更する。
-
-Operation Engineは変更しない。
+Changing a package must never affect stored data.
 
 ---
 
 # Health Integration
 
-Future
+Future integrations
 
-HealthKit
+- Apple Health
+- Health Connect
+- Garmin
+- Fitbit
+- Other wearable platforms
 
-Google Health Connect
+Supported data
 
-Apple Health
+- Steps
+- Calories
+- Sleep
+- Heart Rate
+- Exercise
+- Active Energy
+- Resting Heart Rate
 
-取得対象
+Imported data is treated as
 
-Steps
+Fact.
 
-Calories
-
-Sleep
-
-Heart Rate
-
-Exercise
-
-取得したデータは
-Factとして保存する。
+The Operation Engine performs all analysis after import.
 
 ---
 
 # Operation Sync
 
-Operation Syncは
+Operation Sync is responsible for
 
-Migration
+- Import
+- Export
+- Backup
+- Restore
+- Migration
+- Device synchronization
 
-Import
+Future responsibilities
 
-Export
+- Cloud Backup
+- Multi-device Sync
+- Offline Synchronization
 
-Backup
+Operation Sync never performs analysis.
 
-Restore
-
-を担当する。
-
-Operation Rebootからの
-DNS Migrationを正式対応する。
-
----
-
-# Design Principles
-
-Single Responsibility
-
-Fact First
-
-Documentation First
-
-Architecture Before Code
-
-Long-term Maintainability
-
-UI Independence
-
-AI Optional
+Its responsibility is reliable data transfer.
 
 ---
 
-# Related Documents
-
-PROJECT.md
-
-ROADMAP.md
-
-DATABASE.md
-
-architecture/OPERATION_ENGINE.md
-
-UI_GUIDELINE.md
-
-REP.md
-
----
 # UI Architecture
 
-ORLOではUIと保存データを分離する。
+The UI follows a strict responsibility separation.
 
 Standard Flow
+
+View
+
+↓
 
 Controller
 
@@ -1149,47 +1012,169 @@ Repository
 
 Storage
 
-Controllerは入力状態を管理する。
+Responsibilities
 
-Modelは保存データを管理する。
+View
 
-Repositoryは永続化を担当する。
+- Display information
+- Receive user interaction
 
-StorageはSQLite・SharedPreferencesなどを担当する。
+Controller
 
-UIはControllerのみを操作し、
-Repositoryへ直接入力値を書き込まない。
+- Manage UI state
+- Validate input
+- Coordinate application behavior
+
+Model
+
+- Represent business entities
+- Hold application data
+
+Repository
+
+- Persist data
+- Retrieve data
+
+Storage
+
+- SQLite
+- SharedPreferences
+- Future Cloud Storage
+
+Views must never communicate directly with Storage.
+
+Repositories must never contain presentation logic.
 
 ---
 
-Training Session
+# Feature Architecture
 
-↓
+Every feature should follow the same structure.
 
-Exercise
+Feature
 
-↓
+├── presentation
 
-Set
+├── widgets
 
-Training Sessionは
-複数のExerciseを保持する。
+├── models
 
-Exerciseは
-複数のSetを保持する。
+├── repository
 
-Setは
+├── controllers (Future)
 
-Weight
+└── services (if required)
 
-Reps
+Features should remain self-contained whenever practical.
 
-（Future）
+Shared functionality belongs inside the core package.
 
-RPE
+---
 
-Tempo
+# Design Principles
 
-Rest
+Single Responsibility
 
-を保持する。
+Fact First
+
+Architecture Before Code
+
+Documentation First
+
+Long-term Maintainability
+
+UI Independence
+
+AI Optional
+
+Modular Design
+
+Separation of Concerns
+
+Scalability First
+
+The architecture should support future expansion without requiring major redesign.
+
+Incremental Responsibility Separation
+
+Responsibilities should be separated only
+when doing so reduces total maintenance cost.
+
+Logical architecture may precede physical implementation.
+
+Physical separation should be introduced
+through iterative improvement (PDCA),
+not by premature abstraction.
+
+---
+
+# Responsibility Separation Principle
+
+Separate components only when:
+
+Responsibilities are clearly different, and
+Combining them would significantly increase complexity, branching, or maintenance cost.
+
+Otherwise, keep the implementation unified until separation provides a clear benefit.
+
+---
+
+# Future Architecture
+
+Future planned systems include
+
+- Argo Engine
+- Voice Commander
+- AI Analytics
+- Predictive Analysis
+- Commander Center Analytics
+- Trend Engine
+- Notification Engine
+- Mission Engine
+- Achievement System
+- Plugin Architecture
+
+These systems should integrate through existing architectural layers.
+
+Future functionality must extend the architecture rather than replace it.
+
+---
+
+# Related Documents
+
+PROJECT.md
+
+ROADMAP.md
+
+DATABASE.md
+
+UI_GUIDELINE.md
+
+AGENTS.md
+
+TASK_TEMPLATE.md
+
+REP.md
+
+---
+
+# Version History
+
+## Version 1.0
+
+Major redesign of the architecture.
+
+- Added Brief Generator architecture.
+- Separated decision generation from message generation.
+
+Highlights
+
+- Removed duplicated sections.
+- Added Information Architecture.
+- Clearly separated Dashboard and Commander Center responsibilities.
+- Dashboard defined as the daily execution entry point.
+- Commander Center defined as the strategic analysis workspace.
+- Updated Data Flow to match the Operation Reboot lifecycle.
+- Introduced Feature Architecture.
+- Clarified AI responsibilities.
+- Improved long-term scalability.

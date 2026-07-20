@@ -7,6 +7,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 import 'training_detail_page.dart';
+import 'models/training_summary_state.dart';
 
 class TrainingHistoryPage extends StatefulWidget {
   const TrainingHistoryPage({super.key});
@@ -37,6 +38,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
     if (!result) return;
 
     await TrainingRepository.remove(session);
+    await refreshTrainingSummary();
 
     _loadRecords();
 

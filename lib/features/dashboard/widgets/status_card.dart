@@ -1,35 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/models/morning_data.dart';
-import '../../../core/repositories/morning_repository.dart';
+import '../../../core/engine/operation_status.dart';
+import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/section_title.dart';
+import '../../../core/widgets/section_header.dart';
 
-class StatusCard extends StatefulWidget {
-  const StatusCard({super.key});
+class StatusCard extends StatelessWidget {
+  final bool isReady;
+  final OperationStatus? status;
 
-  @override
-  State<StatusCard> createState() => _StatusCardState();
-}
-
-class _StatusCardState extends State<StatusCard> {
-  MorningData? morningData;
-
-  @override
-  void initState() {
-    super.initState();
-    loadMorningData();
-  }
-
-  Future<void> loadMorningData() async {
-    final records = await MorningRepository.getAll();
-
-    if (records.isNotEmpty) {
-      setState(() {
-        morningData = records.last;
-      });
-    }
-  }
+  const StatusCard({
+    super.key,
+    required this.isReady,
+    required this.status,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,23 +21,25 @@ class _StatusCardState extends State<StatusCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(title: "Today's Status"),
-          const SizedBox(height: 16),
-
-          Text(
-            "⚖ Weight : ${morningData?.weight.toStringAsFixed(1) ?? "--.-"} kg",
+          const SectionHeader(
+            icon: Icons.shield_outlined,
+            title: 'OPERATION STATUS',
           ),
-          const SizedBox(height: 8),
-
-          Text(
-            "😴 Sleep : ${morningData?.sleepHours.toStringAsFixed(1) ?? "--.-"} h",
+          AppSpacing.gapSM,
+          Row(
+            children: [
+              Icon(
+                Icons.check_circle_outline,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(child: Text(isReady ? 'READY' : 'STANDBY')),
+              Text(
+                status?.name.toUpperCase() ?? '--',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-
-          const Text("🏋 Training : ---"),
-          const SizedBox(height: 8),
-
-          const Text("🔥 Calories : ---- kcal"),
         ],
       ),
     );

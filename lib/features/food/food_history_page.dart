@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'food_edit_page.dart';
+import 'services/food_submit_service.dart';
 
 import '../../core/models/meal_data.dart';
 import '../../core/repositories/food_repository.dart';
@@ -28,7 +29,10 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   }
 
   void _loadRecords() {
-    _records = FoodRepository.getAll();
+    _records = FoodRepository.getAll().then((records) {
+      records.sort((a, b) => b.date.compareTo(a.date));
+      return records;
+    });
   }
 
   Future<void> _deleteRecord(MealData data) async {
@@ -36,17 +40,88 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
     if (!result) return;
 
-    await FoodRepository.remove(data);
+    await FoodSubmitService.delete(data);
 
     _loadRecords();
 
     setState(() {});
   }
 
+  Widget _buildMealCard(BuildContext context, MealData meal) {
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  meal.date,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () async {
+                  final updated = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FoodEditPage(meal: meal),
+                    ),
+                  );
+
+                  if (updated == true) {
+                    _loadRecords();
+                    setState(() {});
+                  }
+                },
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => _deleteRecord(meal),
+              ),
+            ],
+          ),
+          SectionHeader(
+            icon: Icons.restaurant,
+            title: meal.mealType,
+          ),
+          AppSpacing.gapMD,
+          ...meal.items.map(
+            (item) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.restaurant_menu),
+              title: Text(item.name),
+              subtitle: Text(
+                "${item.calories} kcal"
+                "  P ${item.protein}"
+                "  F ${item.fat}"
+                "  C ${item.carbohydrate}",
+              ),
+            ),
+          ),
+          if (meal.memo.isNotEmpty) ...[
+            AppSpacing.gapMD,
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.note_outlined),
+              title: Text(meal.memo),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Food History')),
+      appBar: AppBar(title: const Text('FOOD HISTORY')),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: FutureBuilder<List<MealData>>(
@@ -58,88 +133,38 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
             final records = snapshot.data!;
 
+            final groupedRecords = <String, List<MealData>>{};
+
+            for (final meal in records) {
+              groupedRecords.putIfAbsent(meal.date, () => []).add(meal);
+            }
+
             if (records.isEmpty) {
               return const Center(child: Text('No meal records.'));
             }
 
             return ListView.separated(
-              itemCount: records.length,
-              separatorBuilder: (_, __) => AppSpacing.gapMD,
+              itemCount: groupedRecords.length,
+              separatorBuilder: (_, __) => AppSpacing.gapXL,
               itemBuilder: (context, index) {
-                final meal = records[index];
+                final group = groupedRecords.entries.elementAt(index);
 
-                return OperationCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              meal.date,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () async {
-                              final updated = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => FoodEditPage(meal: meal),
-                                ),
-                              );
-
-                              if (updated == true) {
-                                _loadRecords();
-                                setState(() {});
-                              }
-                            },
-                          ),
-
-                          IconButton(
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            onPressed: () => _deleteRecord(meal),
-                          ),
-                        ],
-                      ),
-
-                      SectionHeader(
-                        icon: Icons.restaurant,
-                        title: meal.mealType,
-                      ),
-
-                      AppSpacing.gapMD,
-
-                      ...meal.items.map(
-                        (item) => ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.restaurant_menu),
-                          title: Text(item.name),
-                          subtitle: Text(
-                            "${item.calories} kcal"
-                            "  P ${item.protein}"
-                            "  F ${item.fat}"
-                            "  C ${item.carbohydrate}",
-                          ),
-                        ),
-                      ),
-
-                      if (meal.memo.isNotEmpty) ...[
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SectionHeader(
+                      icon: Icons.calendar_today,
+                      title: group.key,
+                    ),
+                    AppSpacing.gapMD,
+                    for (var mealIndex = 0;
+                        mealIndex < group.value.length;
+                        mealIndex++) ...[
+                      _buildMealCard(context, group.value[mealIndex]),
+                      if (mealIndex < group.value.length - 1)
                         AppSpacing.gapMD,
-                        ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.note_outlined),
-                          title: Text(meal.memo),
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 );
               },
             );

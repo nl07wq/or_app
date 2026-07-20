@@ -7,6 +7,7 @@ import '../../core/repositories/training_repository.dart';
 import '../../core/theme/app_spacing.dart';
 
 import 'models/training_session_controller.dart';
+import 'models/training_summary_state.dart';
 
 import 'widgets/training_exercise_list.dart';
 import 'widgets/training_session_card.dart';
@@ -95,6 +96,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     );
 
     await TrainingRepository.save(session);
+    await refreshTrainingSummary();
 
     if (!mounted) return;
 

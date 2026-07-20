@@ -3,6 +3,9 @@ import '../../../core/models/work_type.dart';
 import '../../../core/repositories/morning_repository.dart';
 import '../../../core/services/work_calculator.dart';
 
+import '../models/morning_fact.dart';
+import '../models/morning_fact_state.dart';
+
 class MorningSubmitService {
   const MorningSubmitService._();
 
@@ -93,8 +96,22 @@ class MorningSubmitService {
           )
         : 0.0;
 
+    final now = DateTime.now();
+
+    final morningFact = MorningFact(
+      date: now,
+      weight: weight,
+      bodyFat: bodyFat,
+      sleepDuration: Duration(minutes: (sleep * 60).round()),
+      workHours: workHours,
+      bowelMovement: (int.tryParse(bowelAmountText) ?? 0) > 0,
+      footPain: int.tryParse(footPainText) ?? 3,
+      medications: const [],
+      freeNotes: memo.trim().isEmpty ? null : memo.trim(),
+    );
+
     final morningData = MorningData(
-      date: DateTime.now().toIso8601String(),
+      date: now.toIso8601String(),
 
       weight: weight,
       bodyFat: bodyFat,
@@ -130,6 +147,8 @@ class MorningSubmitService {
     );
 
     await MorningRepository.save(morningData);
+
+    morningFactNotifier.value = morningFact;
 
     return null;
   }
