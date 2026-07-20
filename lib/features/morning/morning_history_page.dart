@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/morning_data.dart';
 import '../../core/repositories/morning_repository.dart';
-
 import '../../core/theme/app_spacing.dart';
-
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 
@@ -33,10 +31,10 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
 
   String formatTime(double hours) {
     final totalMinutes = (hours * 60).round();
-    final h = totalMinutes ~/ 60;
-    final m = totalMinutes % 60;
+    final hour = totalMinutes ~/ 60;
+    final minute = totalMinutes % 60;
 
-    return '$h時間$m分';
+    return '$hour時間$minute分';
   }
 
   Future<void> _deleteRecord(MorningData data) async {
@@ -51,8 +49,14 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
     await refreshMorningFact();
 
     _loadRecords();
-
     setState(() {});
+  }
+
+  Future<void> _editRecord(MorningData data) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => MorningFactPage(data: data)),
+    );
   }
 
   @override
@@ -85,23 +89,17 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            data.date.split('T').first,
-                            style: Theme.of(context).textTheme.titleMedium,
+                          Expanded(
+                            child: Text(
+                              data.date.split('T').first,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.edit_outlined),
                             tooltip: 'Edit',
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => MorningFactPage(data: data),
-                                ),
-                              );
-                            },
+                            onPressed: () => _editRecord(data),
                           ),
                           IconButton(
                             icon: Icon(
@@ -109,32 +107,78 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                               color: Theme.of(context).colorScheme.error,
                             ),
                             tooltip: 'Delete',
-                            onPressed: () {
-                              _deleteRecord(data);
-                            },
+                            onPressed: () => _deleteRecord(data),
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 12),
-
-                      Text('⚖ 体重：${data.weight.toStringAsFixed(1)} kg'),
-                      Text('📊 体脂肪：${data.bodyFat.toStringAsFixed(1)} %'),
-                      Text('😴 睡眠：${formatTime(data.sleepHours)}'),
-                      Text('💯 睡眠スコア：${data.sleepScore}'),
-                      Text('🦶 足底筋膜炎：${data.footPain}'),
-                      Text('🚽 排便量：${data.bowelAmount}'),
-                      Text('🧻 排便形状：${data.bowelShape}'),
-                      Text('💼 勤務区分：${data.workType.label}'),
-
+                      _HistoryDetailRow(
+                        icon: Icons.monitor_weight_outlined,
+                        label: '体重',
+                        value: '${data.weight.toStringAsFixed(1)} kg',
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.percent,
+                        label: '体脂肪',
+                        value: '${data.bodyFat.toStringAsFixed(1)} %',
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.bedtime_outlined,
+                        label: '睡眠',
+                        value: formatTime(data.sleepHours),
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.speed,
+                        label: '睡眠スコア',
+                        value: '${data.sleepScore}',
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.directions_walk,
+                        label: '足底筋膜炎',
+                        value: '${data.footPain}',
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.check_circle_outline,
+                        label: '排便量',
+                        value: '${data.bowelAmount}',
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.health_and_safety_outlined,
+                        label: '排便形状',
+                        value: '${data.bowelShape}',
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.work_outline,
+                        label: '勤務区分',
+                        value: data.workType.label,
+                      ),
                       if (data.workType.isWorking) ...[
-                        Text('🕒 勤務開始：${data.workStart}'),
-                        Text('🕕 勤務終了：${data.workEnd}'),
-                        Text('☕ 休憩：${data.workBreak}'),
-                        Text('⏰ 勤務時間：${formatTime(data.workHours)}'),
+                        _HistoryDetailRow(
+                          icon: Icons.login,
+                          label: '勤務開始',
+                          value: data.workStart,
+                        ),
+                        _HistoryDetailRow(
+                          icon: Icons.logout,
+                          label: '勤務終了',
+                          value: data.workEnd,
+                        ),
+                        _HistoryDetailRow(
+                          icon: Icons.pause_circle_outline,
+                          label: '休憩',
+                          value: data.workBreak,
+                        ),
+                        _HistoryDetailRow(
+                          icon: Icons.timer_outlined,
+                          label: '勤務時間',
+                          value: formatTime(data.workHours),
+                        ),
                       ],
-
-                      Text('📝 メモ：${data.memo.isEmpty ? "なし" : data.memo}'),
+                      _HistoryDetailRow(
+                        icon: Icons.note_outlined,
+                        label: 'メモ',
+                        value: data.memo.isEmpty ? 'なし' : data.memo,
+                      ),
                     ],
                   ),
                 );
@@ -142,6 +186,32 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _HistoryDetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _HistoryDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(child: Text('$label: $value')),
+        ],
       ),
     );
   }
