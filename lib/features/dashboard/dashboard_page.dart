@@ -5,12 +5,15 @@ import '../../core/engine/food_summary.dart';
 import '../../core/engine/operation_engine.dart';
 import '../../core/engine/operation_input.dart';
 import '../../core/engine/training_summary.dart';
+import '../../core/models/meal_data.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../../core/widgets/operation_text_field.dart';
 
+import '../food/services/food_submit_service.dart';
 import '../morning/models/morning_fact.dart';
 import '../morning/models/morning_fact_state.dart';
 
@@ -97,6 +100,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 estimatedTDEE: estimatedTDEE,
                 foodSummary: foodSummary,
                 trainingSummary: trainingSummary,
+                onWaterTap: () => _showQuickWaterInput(context),
               ),
               AppSpacing.gapXL,
               SectionHeader(icon: Icons.bolt_outlined, title: 'QUICK ACCESS'),
@@ -117,6 +121,14 @@ class _DashboardPageState extends State<DashboardPage> {
           },
         );
       },
+    );
+  }
+
+  void _showQuickWaterInput(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _QuickWaterSheet(dashboardContext: context),
     );
   }
 }
@@ -201,12 +213,14 @@ class _ProgressCard extends StatelessWidget {
   final double? estimatedTDEE;
   final FoodSummary? foodSummary;
   final TrainingSummary? trainingSummary;
+  final VoidCallback onWaterTap;
 
   const _ProgressCard({
     required this.morningFact,
     required this.estimatedTDEE,
     required this.foodSummary,
     required this.trainingSummary,
+    required this.onWaterTap,
   });
 
   @override
@@ -277,6 +291,7 @@ class _ProgressCard extends StatelessWidget {
             label: 'WATER',
             status: '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
             progress: (hydrationMl / 3500).clamp(0.0, 1.0).toDouble(),
+            onTap: onWaterTap,
           ),
           AppSpacing.gapMD,
           _ProgressRow(
@@ -317,28 +332,197 @@ class _ProgressRow extends StatelessWidget {
   final String label;
   final String status;
   final double progress;
+  final VoidCallback? onTap;
 
   const _ProgressRow({
     required this.label,
     required this.status,
     required this.progress,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: Theme.of(context).textTheme.labelLarge),
-            Text(status),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(status),
+                if (onTap != null) ...[
+                  SizedBox(width: AppSpacing.sm),
+                  Icon(
+                    Icons.add_circle_outline,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
         AppSpacing.gapXS,
         LinearProgressIndicator(value: progress),
       ],
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: content,
+      ),
+    );
+  }
+}
+
+class _QuickWaterSheet extends StatefulWidget {
+  final BuildContext dashboardContext;
+
+  const _QuickWaterSheet({required this.dashboardContext});
+
+  @override
+  State<_QuickWaterSheet> createState() => _QuickWaterSheetState();
+}
+
+class _QuickWaterSheetState extends State<_QuickWaterSheet> {
+  final _customAmountController = TextEditingController();
+  bool _isSaving = false;
+  String? _validationMessage;
+
+  @override
+  void dispose() {
+    _customAmountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save(int amountMl) async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+      _validationMessage = null;
+    });
+
+    try {
+      await FoodSubmitService.save(
+        MealData(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          date: DateTime.now().toIso8601String().split('T').first,
+          mealType: 'Water',
+          items: const [],
+          memo: '',
+          waterMl: amountMl.toDouble(),
+        ),
+      );
+
+      if (!mounted) return;
+
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(widget.dashboardContext).showSnackBar(
+        SnackBar(content: Text('$amountMl ml を記録しました')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Water を記録できませんでした')),
+      );
+    }
+  }
+
+  void _saveCustomAmount() {
+    final amountMl = int.tryParse(_customAmountController.text.trim());
+
+    if (amountMl == null || amountMl <= 0) {
+      setState(() => _validationMessage = '正の整数の ml を入力してください。');
+      return;
+    }
+
+    _save(amountMl);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+        child: OperationCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.water_drop_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'QUICK WATER LOG',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [250, 350, 500, 750]
+                    .map(
+                      (amount) => OutlinedButton(
+                        onPressed: _isSaving ? null : () => _save(amount),
+                        child: Text('$amount ml'),
+                      ),
+                    )
+                    .toList(),
+              ),
+              AppSpacing.gapLG,
+              OperationTextField(
+                controller: _customAmountController,
+                label: 'Custom amount (ml)',
+                keyboardType: TextInputType.number,
+                onChanged: (_) {
+                  if (_validationMessage != null) {
+                    setState(() => _validationMessage = null);
+                  }
+                },
+              ),
+              if (_validationMessage != null) ...[
+                AppSpacing.gapXS,
+                Text(
+                  _validationMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              AppSpacing.gapMD,
+              OperationButton(
+                icon: Icons.save_outlined,
+                text: 'Save Water',
+                onPressed: _isSaving ? null : _saveCustomAmount,
+              ),
+              TextButton(
+                onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
