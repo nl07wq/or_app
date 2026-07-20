@@ -4,13 +4,18 @@ import '../../../core/widgets/operation_button.dart';
 
 class MorningSubmitButton extends StatelessWidget {
   final VoidCallback onPressed;
+  final bool isEdit;
 
-  const MorningSubmitButton({super.key, required this.onPressed});
+  const MorningSubmitButton({
+    super.key,
+    required this.onPressed,
+    this.isEdit = false,
+  });
   @override
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.save,
-      text: "Save Morning",
+      text: isEdit ? 'Update Morning' : 'Save Morning',
       onPressed: onPressed,
     );
   }

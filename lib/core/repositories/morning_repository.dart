@@ -23,6 +23,25 @@ class MorningRepository {
     await prefs.setStringList(_key, jsonList);
   }
 
+  static Future<void> update(MorningData data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = await getAll();
+    final index = list.indexWhere((record) => record.date == data.date);
+
+    if (index == -1) {
+      throw StateError('Morning record to update was not found.');
+    }
+
+    list[index] = data;
+
+    list.sort(
+      (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)),
+    );
+
+    final jsonList = list.map((entry) => jsonEncode(entry.toJson())).toList();
+    await prefs.setStringList(_key, jsonList);
+  }
+
   static Future<List<MorningData>> getAll() async {
     final prefs = await SharedPreferences.getInstance();
 

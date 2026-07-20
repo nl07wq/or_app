@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/work_type.dart';
 import '../../core/theme/app_spacing.dart';
-
-import 'morning_history_page.dart';
+import '../../core/navigation/app_routes.dart';
 
 import 'widgets/body_card.dart';
 import 'widgets/memo_input_card.dart';
@@ -38,7 +37,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
       weightController.text = data.weight.toString();
       bodyFatController.text = data.bodyFat.toString();
 
-      sleepController.text = data.sleepHours.toString();
+      sleepController.text = _formatTime(data.sleepHours);
       sleepScoreController.text = data.sleepScore.toString();
 
       footPainController.text = data.footPain.toString();
@@ -82,6 +81,13 @@ class _MorningFactPageState extends State<MorningFactPage> {
   final memoController = TextEditingController();
 
   WorkType selectedWorkType = WorkType.work;
+
+  String _formatTime(double hours) {
+    final totalMinutes = (hours * 60).round();
+    final hour = totalMinutes ~/ 60;
+    final minute = totalMinutes % 60;
+    return '$hour:${minute.toString().padLeft(2, '0')}';
+  }
 
   void _showError(String message) {
     showDialog(
@@ -153,8 +159,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
               AppSpacing.gapXL,
 
               MorningSubmitButton(
+                isEdit: widget.isEdit,
                 onPressed: () async {
                   final error = await MorningSubmitService.submit(
+                    existingData: widget.data,
                     workType: selectedWorkType,
                     weightText: weightController.text,
                     bodyFatText: bodyFatController.text,
@@ -176,11 +184,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     return;
                   }
 
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MorningHistoryPage(),
-                    ),
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.dashboard,
+                    (route) => false,
                   );
                 },
               ),

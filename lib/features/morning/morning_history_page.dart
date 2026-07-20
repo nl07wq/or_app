@@ -8,6 +8,9 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 
+import 'models/morning_fact_state.dart';
+import 'morning_fact_page.dart';
+
 class MorningHistoryPage extends StatefulWidget {
   const MorningHistoryPage({super.key});
 
@@ -45,6 +48,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
     if (!result) return;
 
     await MorningRepository.remove(data);
+    await refreshMorningFact();
 
     _loadRecords();
 
@@ -86,6 +90,18 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                           Text(
                             data.date.split('T').first,
                             style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: 'Edit',
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => MorningFactPage(data: data),
+                                ),
+                              );
+                            },
                           ),
                           IconButton(
                             icon: Icon(

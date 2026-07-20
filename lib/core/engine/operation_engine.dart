@@ -109,10 +109,17 @@ class OperationEngine {
       );
     }
 
-    if (food != null && food.hydrationMl < _hydrationTargetMl) {
+    if (food != null && food.hydrationMl < 1000) {
       return const _DailyFocus(
-        commanderIntent: '水分補給を優先して運用を整える',
-        primaryAction: '次の機会に水分を補給する',
+        commanderIntent: '水分補給を最優先して運用を整える',
+        primaryAction: 'まずは1,000 mlを目標に水分を補給する',
+      );
+    }
+
+    if (food != null && food.hydrationMl < 2000) {
+      return const _DailyFocus(
+        commanderIntent: '水分補給を優先して安定運用を支える',
+        primaryAction: '次は2,000 mlを目標に水分を補給する',
       );
     }
 
@@ -134,6 +141,13 @@ class OperationEngine {
       return const _DailyFocus(
         commanderIntent: 'タンパク質の確保を優先する',
         primaryAction: 'タンパク質を含む食事を選ぶ',
+      );
+    }
+
+    if (food.hydrationMl < _hydrationTargetMl) {
+      return const _DailyFocus(
+        commanderIntent: '水分補給を継続して目標達成へ進める',
+        primaryAction: '3,500 mlの目標まで水分補給を続ける',
       );
     }
 
@@ -163,12 +177,12 @@ class OperationEngine {
       return '回復に配慮しながら安定して進める状態です。';
     }
 
-    if (food != null && food.hydrationMl == 0) {
-      return '水分記録はまだありません。';
+    if (food != null && food.hydrationMl < 1000) {
+      return '水分補給が1,000 ml未満です。まずは最低ラインを目指しましょう。';
     }
 
-    if (food != null && food.hydrationMl < _hydrationTargetMl) {
-      return '水分補給が目標に達していません。';
+    if (food != null && food.hydrationMl < 2000) {
+      return '水分補給は進んでいますが、2,000 mlの目標まで補給が必要です。';
     }
 
     if (food == null || food.mealCount == 0) {
@@ -181,6 +195,10 @@ class OperationEngine {
 
     if (food.protein < _proteinTargetGrams) {
       return 'タンパク質の確保が必要です。';
+    }
+
+    if (food.hydrationMl < _hydrationTargetMl) {
+      return '水分補給は順調です。3,500 mlの目標まで続けましょう。';
     }
 
     if (training?.completed == true) {
@@ -224,12 +242,20 @@ class OperationEngine {
   }
 
   String _hydrationAnalysis(FoodSummary? food) {
-    if (food == null || food.hydrationMl == 0) {
-      return '水分記録はまだありません。';
+    if (food == null) {
+      return '水分データはまだありません。';
+    }
+
+    if (food.hydrationMl < 1000) {
+      return '水分補給が大きく不足しています。まずは1,000 mlを目指しましょう。';
+    }
+
+    if (food.hydrationMl < 2000) {
+      return '最低ラインには近づいています。次は2,000 mlを目指しましょう。';
     }
 
     if (food.hydrationMl < _hydrationTargetMl) {
-      return '水分補給が目標に達していません。';
+      return '水分補給は順調です。3,500 mlの目標まで補給を続けましょう。';
     }
 
     return '水分目標を達成しています。';
@@ -258,12 +284,16 @@ class OperationEngine {
   }) {
     final recommendations = LinkedHashSet<String>();
 
+    final hydrationRecommendation = _hydrationRecommendation(food);
+
     if (status == OperationStatus.red) {
-      recommendations.add('水分と食事を無理のない範囲で整える');
+      if (hydrationRecommendation != null) {
+        recommendations.add(hydrationRecommendation);
+      }
       recommendations.add('トレーニングは見送り、休息を確保する');
     } else {
-      if (food == null || food.hydrationMl < _hydrationTargetMl) {
-        recommendations.add('水分を補給する');
+      if (hydrationRecommendation != null) {
+        recommendations.add(hydrationRecommendation);
       }
       if (food == null || food.mealCount == 0) {
         recommendations.add('最初の食事を記録する');
@@ -284,6 +314,22 @@ class OperationEngine {
     }
 
     return recommendations.take(3).toList(growable: false);
+  }
+
+  String? _hydrationRecommendation(FoodSummary? food) {
+    if (food == null || food.hydrationMl >= _hydrationTargetMl) {
+      return null;
+    }
+
+    if (food.hydrationMl < 1000) {
+      return '手元の飲み物で1,000 mlまで補給する';
+    }
+
+    if (food.hydrationMl < 2000) {
+      return '次の休憩で2,000 mlに届くよう水分を補給する';
+    }
+
+    return '残りの水分を分けて補給し、3,500 mlを目指す';
   }
 }
 
