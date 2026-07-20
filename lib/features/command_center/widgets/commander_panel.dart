@@ -10,7 +10,6 @@ import 'argo_comment_card.dart';
 import 'brief_section.dart';
 import 'module_section.dart';
 import 'situation_card.dart';
-import 'summary_card.dart';
 
 class CommanderPanel extends StatelessWidget {
   final CommanderAnalysisSnapshot? analysis;
@@ -28,7 +27,6 @@ class CommanderPanel extends StatelessWidget {
           SituationCard(
             situation: 'Morning Routineを完了するとCommander分析を開始できます。',
           ),
-          SummaryCard(summary: 'Morning Factの確認を待っています。'),
         ],
       );
     }
@@ -42,6 +40,12 @@ class CommanderPanel extends StatelessWidget {
         const SizedBox(height: 16),
         ModuleSection(
           states: [
+            CommandState(
+              module: 'RECOVERY',
+              status: commandStatus,
+              priority: CommandPriority.none,
+              message: currentAnalysis.recoveryAnalysis,
+            ),
             CommandState(
               module: 'NUTRITION',
               status: commandStatus,

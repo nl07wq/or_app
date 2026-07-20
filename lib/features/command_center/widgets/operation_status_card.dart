@@ -5,14 +5,12 @@ import '../../../core/widgets/operation_card.dart';
 class OperationStatusCard extends StatelessWidget {
   final String status;
   final String description;
-  final String operationId;
   final Color statusColor;
 
   const OperationStatusCard({
     super.key,
     required this.status,
     required this.description,
-    required this.operationId,
     required this.statusColor,
   });
 
@@ -54,12 +52,6 @@ class OperationStatusCard extends StatelessWidget {
 
           Text(description, style: const TextStyle(color: Colors.white70)),
 
-          const Divider(color: Colors.white24, height: 32),
-
-          Text(
-            operationId,
-            style: const TextStyle(color: Colors.white38, fontSize: 12),
-          ),
         ],
       ),
     );

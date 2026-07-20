@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/engine/commander_analysis_snapshot.dart';
 import '../../../core/engine/operation_status.dart';
-import 'commander_intent_card.dart';
-import 'operation_action_card.dart';
 import 'operation_status_card.dart';
-import 'situation_card.dart';
-import 'summary_card.dart';
+import '../../../core/widgets/operation_card.dart';
 
 class BriefSection extends StatelessWidget {
   final CommanderAnalysisSnapshot analysis;
@@ -18,16 +15,13 @@ class BriefSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SituationCard(situation: analysis.situation),
-        SummaryCard(summary: analysis.dashboardSummary),
+        _DailyCommandCard(analysis: analysis),
+        const SizedBox(height: 16),
         OperationStatusCard(
           status: analysis.status.name.toUpperCase(),
           description: analysis.recoveryAnalysis,
-          operationId: 'OPERATION ENGINE',
           statusColor: _statusColor(analysis.status),
         ),
-        CommanderIntentCard(intent: analysis.commanderIntent),
-        OperationActionCard(action: analysis.primaryAction),
       ],
     );
   }
@@ -43,5 +37,50 @@ class BriefSection extends StatelessWidget {
       case OperationStatus.black:
         return Colors.black;
     }
+  }
+}
+
+class _DailyCommandCard extends StatelessWidget {
+  final CommanderAnalysisSnapshot analysis;
+
+  const _DailyCommandCard({required this.analysis});
+
+  @override
+  Widget build(BuildContext context) {
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'DAILY COMMAND',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'SITUATION',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(analysis.situation),
+          const Divider(height: 24),
+          Text(
+            'COMMANDER INTENT',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            analysis.commanderIntent,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const Divider(height: 24),
+          Text(
+            'TODAY\'S ACTION',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(analysis.primaryAction),
+        ],
+      ),
+    );
   }
 }
