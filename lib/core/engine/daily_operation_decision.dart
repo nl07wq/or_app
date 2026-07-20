@@ -1,6 +1,6 @@
 import 'operation_status.dart';
 
-class CommanderAnalysisSnapshot {
+class DailyOperationDecision {
   final OperationStatus status;
   final String situation;
   final String commanderIntent;
@@ -12,7 +12,7 @@ class CommanderAnalysisSnapshot {
   final String trainingAnalysis;
   final List<String> recommendations;
 
-  const CommanderAnalysisSnapshot({
+  const DailyOperationDecision({
     required this.status,
     required this.situation,
     required this.commanderIntent,
@@ -25,7 +25,7 @@ class CommanderAnalysisSnapshot {
     required this.recommendations,
   });
 
-  CommanderAnalysisSnapshot copyWith({
+  DailyOperationDecision copyWith({
     OperationStatus? status,
     String? situation,
     String? commanderIntent,
@@ -37,7 +37,7 @@ class CommanderAnalysisSnapshot {
     String? trainingAnalysis,
     List<String>? recommendations,
   }) {
-    return CommanderAnalysisSnapshot(
+    return DailyOperationDecision(
       status: status ?? this.status,
       situation: situation ?? this.situation,
       commanderIntent: commanderIntent ?? this.commanderIntent,
@@ -55,7 +55,7 @@ class CommanderAnalysisSnapshot {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    return other is CommanderAnalysisSnapshot &&
+    return other is DailyOperationDecision &&
         status == other.status &&
         situation == other.situation &&
         commanderIntent == other.commanderIntent &&

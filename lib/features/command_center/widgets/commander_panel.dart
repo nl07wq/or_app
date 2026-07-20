@@ -49,6 +49,12 @@ class CommanderPanel extends StatelessWidget {
               message: currentAnalysis.nutritionAnalysis,
             ),
             CommandState(
+              module: 'HYDRATION',
+              status: commandStatus,
+              priority: CommandPriority.none,
+              message: currentAnalysis.hydrationAnalysis,
+            ),
+            CommandState(
               module: 'TRAINING',
               status: commandStatus,
               priority: CommandPriority.none,
@@ -60,7 +66,7 @@ class CommanderPanel extends StatelessWidget {
         ArgoCommentCard(
           commanderMessage: CommanderMessage(
             title: 'COMMANDER ANALYSIS',
-            message: currentAnalysis.recoveryAnalysis,
+            message: currentAnalysis.dashboardSummary,
             recommendations: currentAnalysis.recommendations,
           ),
         ),

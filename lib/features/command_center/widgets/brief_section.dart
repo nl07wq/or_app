@@ -18,20 +18,16 @@ class BriefSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SituationCard(situation: analysis.overview),
-        SummaryCard(summary: analysis.recoveryAnalysis),
+        SituationCard(situation: analysis.situation),
+        SummaryCard(summary: analysis.dashboardSummary),
         OperationStatusCard(
           status: analysis.status.name.toUpperCase(),
           description: analysis.recoveryAnalysis,
           operationId: 'OPERATION ENGINE',
           statusColor: _statusColor(analysis.status),
         ),
-        CommanderIntentCard(intent: analysis.overview),
-        OperationActionCard(
-          action: analysis.recommendations.isEmpty
-              ? null
-              : analysis.recommendations.first,
-        ),
+        CommanderIntentCard(intent: analysis.commanderIntent),
+        OperationActionCard(action: analysis.primaryAction),
       ],
     );
   }
