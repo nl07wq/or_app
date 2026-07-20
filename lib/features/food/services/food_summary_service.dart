@@ -7,17 +7,22 @@ class FoodSummaryService {
   static FoodSummary today(Iterable<MealData> records) {
     final today = DateTime.now().toIso8601String().split('T').first;
     final dailyRecords = records.where((meal) => meal.date == today);
+    final meals = dailyRecords.where((record) => !record.isWaterEntry);
+    final waterEntries = dailyRecords.where((record) => record.isWaterEntry);
 
     return FoodSummary(
-      calories: dailyRecords.fold(0.0, (sum, meal) => sum + meal.calories),
-      protein: dailyRecords.fold(0.0, (sum, meal) => sum + meal.protein),
-      fat: dailyRecords.fold(0.0, (sum, meal) => sum + meal.fat),
-      carbohydrates: dailyRecords.fold(
+      calories: meals.fold(0.0, (sum, meal) => sum + meal.calories),
+      protein: meals.fold(0.0, (sum, meal) => sum + meal.protein),
+      fat: meals.fold(0.0, (sum, meal) => sum + meal.fat),
+      carbohydrates: meals.fold(
         0.0,
         (sum, meal) => sum + meal.carbohydrate,
       ),
-      hydrationMl: 0,
-      mealCount: dailyRecords.length,
+      hydrationMl: waterEntries.fold(
+        0.0,
+        (sum, entry) => sum + entry.waterMl!,
+      ),
+      mealCount: meals.length,
     );
   }
 }

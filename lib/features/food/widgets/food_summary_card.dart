@@ -50,6 +50,13 @@ class FoodSummaryCard extends StatelessWidget {
             trailing: Text("${summary.carbohydrates.toStringAsFixed(1)} g"),
             contentPadding: EdgeInsets.zero,
           ),
+
+          ListTile(
+            leading: const Icon(Icons.water_drop_outlined),
+            title: const Text("Water"),
+            trailing: Text("${summary.hydrationMl.toStringAsFixed(0)} ml"),
+            contentPadding: EdgeInsets.zero,
+          ),
         ],
       ),
     );

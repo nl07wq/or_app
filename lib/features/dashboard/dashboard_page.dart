@@ -215,6 +215,7 @@ class _ProgressCard extends StatelessWidget {
     final mealCount = foodSummary?.mealCount ?? 0;
     final calories = foodSummary?.calories ?? 0;
     final protein = foodSummary?.protein ?? 0;
+    final hydrationMl = foodSummary?.hydrationMl ?? 0;
 
     return OperationCard(
       child: Column(
@@ -274,8 +275,8 @@ class _ProgressCard extends StatelessWidget {
           AppSpacing.gapMD,
           _ProgressRow(
             label: 'WATER',
-            status: '0 / 3500 ml',
-            progress: 0.0,
+            status: '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
+            progress: (hydrationMl / 3500).clamp(0.0, 1.0).toDouble(),
           ),
           AppSpacing.gapMD,
           _ProgressRow(

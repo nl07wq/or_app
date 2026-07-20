@@ -6,6 +6,7 @@ class MealData {
   final List<FoodItem> items;
   final String memo;
   final String id;
+  final double? waterMl;
 
   const MealData({
     required this.date,
@@ -13,7 +14,10 @@ class MealData {
     required this.items,
     required this.memo,
     required this.id,
+    this.waterMl,
   });
+
+  bool get isWaterEntry => waterMl != null;
 
   int get calories => items.fold(0, (sum, item) => sum + item.calories);
 
@@ -31,6 +35,7 @@ class MealData {
       memo: json['memo'] as String,
       items: (json['items'] as List).map((e) => FoodItem.fromJson(e)).toList(),
       id: json['id'] as String,
+      waterMl: (json['waterMl'] as num?)?.toDouble(),
     );
   }
 
@@ -41,6 +46,7 @@ class MealData {
       'memo': memo,
       'items': items.map((e) => e.toJson()).toList(),
       'id': id,
+      if (waterMl != null) 'waterMl': waterMl,
     };
   }
 

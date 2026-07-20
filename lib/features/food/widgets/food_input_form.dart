@@ -30,6 +30,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final proteinController = TextEditingController();
   final fatController = TextEditingController();
   final carbohydrateController = TextEditingController();
+  final waterVolumeController = TextEditingController();
   final memoController = TextEditingController();
 
   MealType mealType = MealType.breakfast;
@@ -37,6 +38,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final List<FoodItem> items = [];
 
   int? editingIndex;
+  bool isWaterEntry = false;
 
   @override
   void initState() {
@@ -54,6 +56,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
 
     memoController.text = meal.memo;
+    isWaterEntry = meal.isWaterEntry;
+    waterVolumeController.text = meal.waterMl?.toStringAsFixed(0) ?? '';
 
     items.addAll(meal.items);
   }
@@ -65,6 +69,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     proteinController.dispose();
     fatController.dispose();
     carbohydrateController.dispose();
+    waterVolumeController.dispose();
     memoController.dispose();
     super.dispose();
   }
@@ -110,6 +115,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.clear();
       mealType = MealType.breakfast;
       memoController.clear();
+      waterVolumeController.clear();
+      isWaterEntry = false;
       _clearFoodInputs();
     });
   }
@@ -171,7 +178,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   Future<void> saveMeal() async {
-    if (previewItems.isEmpty) {
+    final waterMl = double.tryParse(waterVolumeController.text.trim());
+
+    if (isWaterEntry && (waterMl == null || waterMl <= 0)) {
+      return;
+    }
+
+    if (!isWaterEntry && previewItems.isEmpty) {
       return;
     }
 
@@ -182,9 +195,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
       date:
           widget.initialMeal?.date ??
           DateTime.now().toIso8601String().split('T').first,
-      mealType: mealType.label,
-      items: previewItems,
+      mealType: isWaterEntry ? 'Water' : mealType.label,
+      items: isWaterEntry ? const [] : previewItems,
       memo: memoController.text.trim(),
+      waterMl: isWaterEntry ? waterMl : null,
     );
 
     await widget.onSave(meal);
@@ -212,6 +226,59 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
           AppSpacing.gapXL,
 
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Entry Type',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+
+          AppSpacing.gapMD,
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                avatar: const Icon(Icons.restaurant, size: 18),
+                label: const Text('Meal'),
+                selected: !isWaterEntry,
+                onSelected: (_) => setState(() => isWaterEntry = false),
+              ),
+              ChoiceChip(
+                avatar: const Icon(Icons.water_drop_outlined, size: 18),
+                label: const Text('Water'),
+                selected: isWaterEntry,
+                onSelected: (_) => setState(() => isWaterEntry = true),
+              ),
+            ],
+          ),
+
+          AppSpacing.gapXL,
+
+          if (isWaterEntry) ...[
+            const SectionHeader(
+              icon: Icons.water_drop_outlined,
+              title: 'Water Entry',
+            ),
+
+            AppSpacing.gapMD,
+
+            OperationTextField(
+              controller: waterVolumeController,
+              label: 'Water Volume (ml)',
+              keyboardType: TextInputType.number,
+            ),
+
+            AppSpacing.gapXL,
+
+            OperationButton(
+              icon: Icons.water_drop_outlined,
+              text: widget.initialMeal == null ? 'Save Water' : 'Update Water',
+              onPressed: saveMeal,
+            ),
+          ] else ...[
           const Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -293,6 +360,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               text: widget.initialMeal == null ? 'Save Meal' : 'Update Meal',
               onPressed: saveMeal,
             ),
+          ],
           ],
         ],
       ),

@@ -42,7 +42,9 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Meal saved")));
+    ).showSnackBar(
+      SnackBar(content: Text(data.isWaterEntry ? 'Water saved' : 'Meal saved')),
+    );
   }
 
   @override

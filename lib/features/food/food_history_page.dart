@@ -36,7 +36,10 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   }
 
   Future<void> _deleteRecord(MealData data) async {
-    final result = await showHistoryDeleteDialog(context, title: 'Meal Record');
+    final result = await showHistoryDeleteDialog(
+      context,
+      title: data.isWaterEntry ? 'Water Record' : 'Meal Record',
+    );
 
     if (!result) return;
 
@@ -86,24 +89,34 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             ],
           ),
           SectionHeader(
-            icon: Icons.restaurant,
-            title: meal.mealType,
+            icon: meal.isWaterEntry
+                ? Icons.water_drop_outlined
+                : Icons.restaurant,
+            title: meal.isWaterEntry ? 'Water' : meal.mealType,
           ),
           AppSpacing.gapMD,
-          ...meal.items.map(
-            (item) => ListTile(
+          if (meal.isWaterEntry)
+            ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.restaurant_menu),
-              title: Text(item.name),
-              subtitle: Text(
-                "${item.calories} kcal"
-                "  P ${item.protein}"
-                "  F ${item.fat}"
-                "  C ${item.carbohydrate}",
+              leading: const Icon(Icons.water_drop_outlined),
+              title: Text('${meal.waterMl!.toStringAsFixed(0)} ml'),
+            )
+          else
+            ...meal.items.map(
+              (item) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.restaurant_menu),
+                title: Text(item.name),
+                subtitle: Text(
+                  "${item.calories} kcal"
+                  "  P ${item.protein}"
+                  "  F ${item.fat}"
+                  "  C ${item.carbohydrate}",
+                ),
               ),
             ),
-          ),
           if (meal.memo.isNotEmpty) ...[
             AppSpacing.gapMD,
             ListTile(

@@ -63,6 +63,45 @@ class OperationEngine {
       );
     }
 
+    if (food != null && food.hydrationMl == 0) {
+      return CommanderSnapshot(
+        status: status,
+        commanderIntent: '水分を記録して運用を開始する',
+        summary: '水分記録はまだありません。',
+        actions: const [
+          '水分を記録する',
+          '食事を記録する',
+          'タンパク質を確保する',
+        ],
+      );
+    }
+
+    if (food != null && food.hydrationMl < 3500) {
+      return CommanderSnapshot(
+        status: status,
+        commanderIntent: '水分補給を継続する',
+        summary: '水分摂取が不足しています。こまめに補給しましょう。',
+        actions: const [
+          '水分を補給する',
+          '食事を記録する',
+          'タンパク質を確保する',
+        ],
+      );
+    }
+
+    if (food != null && food.hydrationMl >= 3500) {
+      return CommanderSnapshot(
+        status: status,
+        commanderIntent: '水分目標を維持して運用を継続する',
+        summary: '水分目標を達成しています。',
+        actions: const [
+          '水分を維持する',
+          '食事を記録する',
+          'タンパク質を確保する',
+        ],
+      );
+    }
+
     if (food == null || food.mealCount == 0) {
       return CommanderSnapshot(
         status: status,
@@ -133,6 +172,14 @@ class OperationEngine {
 
     if (food == null || food.mealCount == 0) {
       return '本日の食事記録はまだありません。';
+    }
+
+    if (food.hydrationMl == 0) {
+      return '水分記録はまだありません。';
+    }
+
+    if (food.hydrationMl < 3500) {
+      return '水分摂取が不足しています。こまめに補給しましょう。';
     }
 
     if (food.mealCount < 3) {
