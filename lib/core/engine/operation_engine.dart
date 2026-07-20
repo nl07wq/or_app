@@ -70,13 +70,14 @@ class OperationEngine {
     final trainingAnalysis = _trainingAnalysis(training, status);
     final focus = _focus(status, food, training);
     final situation = _situation(status, food, training);
+    final dashboardSummary = _dashboardSummary(status, food, training);
 
     return DailyOperationDecision(
       status: status,
       situation: situation,
       commanderIntent: focus.commanderIntent,
       primaryAction: focus.primaryAction,
-      dashboardSummary: '$situation ${focus.primaryAction}',
+      dashboardSummary: dashboardSummary,
       recoveryAnalysis: recoveryAnalysis,
       nutritionAnalysis: nutritionAnalysis,
       hydrationAnalysis: hydrationAnalysis,
@@ -151,10 +152,17 @@ class OperationEngine {
       );
     }
 
+    if (_isMaintenanceState(status, food, training)) {
+      return const _DailyFocus(
+        commanderIntent: '達成状態を維持し、回復を整えて一日を終える',
+        primaryAction: '余分な負荷を避け、現在の計画を維持する',
+      );
+    }
+
     if (training?.completed == true) {
       return const _DailyFocus(
-        commanderIntent: '完了したトレーニング後の回復を整える',
-        primaryAction: '回復と次の食事を整える',
+        commanderIntent: 'トレーニング後の回復を優先する',
+        primaryAction: '水分・食事・休息を確認する',
       );
     }
 
@@ -199,6 +207,10 @@ class OperationEngine {
 
     if (food.hydrationMl < _hydrationTargetMl) {
       return '水分補給は順調です。3,500 mlの目標まで続けましょう。';
+    }
+
+    if (_isMaintenanceState(status, food, training)) {
+      return '食事・水分・トレーニングの主要目標は達成済みです。';
     }
 
     if (training?.completed == true) {
@@ -292,19 +304,24 @@ class OperationEngine {
       }
       recommendations.add('トレーニングは見送り、休息を確保する');
     } else {
-      if (hydrationRecommendation != null) {
-        recommendations.add(hydrationRecommendation);
-      }
-      if (food == null || food.mealCount == 0) {
-        recommendations.add('最初の食事を記録する');
-      } else if (food.mealCount < 3) {
-        recommendations.add('次の食事を記録する');
-      }
-      if (food != null && food.protein < _proteinTargetGrams) {
-        recommendations.add('タンパク質を含む食事を選ぶ');
-      }
-      if (training?.completed == true) {
-        recommendations.add('トレーニング後の回復を整える');
+      if (_isMaintenanceState(status, food, training)) {
+        recommendations.add('回復のための休息を確保する');
+        recommendations.add('現在の計画を無理なく維持する');
+      } else {
+        if (hydrationRecommendation != null) {
+          recommendations.add(hydrationRecommendation);
+        }
+        if (food == null || food.mealCount == 0) {
+          recommendations.add('最初の食事を記録する');
+        } else if (food.mealCount < 3) {
+          recommendations.add('次の食事を記録する');
+        }
+        if (food != null && food.protein < _proteinTargetGrams) {
+          recommendations.add('タンパク質を含む食事を選ぶ');
+        }
+        if (training?.completed == true) {
+          recommendations.add('トレーニング後の回復を整える');
+        }
       }
     }
 
@@ -330,6 +347,67 @@ class OperationEngine {
     }
 
     return '残りの水分を分けて補給し、3,500 mlを目指す';
+  }
+
+  bool _isMaintenanceState(
+    OperationStatus status,
+    FoodSummary? food,
+    TrainingSummary? training,
+  ) {
+    return status == OperationStatus.green &&
+        food != null &&
+        food.mealCount >= 3 &&
+        food.protein >= _proteinTargetGrams &&
+        food.hydrationMl >= _hydrationTargetMl &&
+        training?.completed == true;
+  }
+
+  String _dashboardSummary(
+    OperationStatus status,
+    FoodSummary? food,
+    TrainingSummary? training,
+  ) {
+    if (_isMaintenanceState(status, food, training)) {
+      return '本日の主要目標は達成済みです。回復を整え、安定した運用を続けましょう。';
+    }
+
+    if (status == OperationStatus.red) {
+      return '回復を最優先にする日です。無理のない予定へ調整しましょう。';
+    }
+
+    if (status == OperationStatus.yellow) {
+      return '回復に配慮しながら進めましょう。負荷は上げすぎないでください。';
+    }
+
+    if (food != null && food.hydrationMl < 1000) {
+      return '水分補給が不足しています。まずは1,000 mlを目標にしましょう。';
+    }
+
+    if (food != null && food.hydrationMl < 2000) {
+      return '水分補給を続けましょう。次は2,000 mlが目安です。';
+    }
+
+    if (food == null || food.mealCount == 0) {
+      return '食事記録はまだありません。最初の食事から整えましょう。';
+    }
+
+    if (food.mealCount < 3) {
+      return '食事回数が目標に届いていません。次の食事を記録しましょう。';
+    }
+
+    if (food.protein < _proteinTargetGrams) {
+      return 'タンパク質の確保が必要です。次の食事で補いましょう。';
+    }
+
+    if (food.hydrationMl < _hydrationTargetMl) {
+      return '水分補給は順調です。3,500 mlの目標まで続けましょう。';
+    }
+
+    if (training?.completed == true) {
+      return 'トレーニングは完了しています。回復を整えて一日を締めましょう。';
+    }
+
+    return '日次運用は安定しています。現在の計画を継続しましょう。';
   }
 }
 
