@@ -10,6 +10,9 @@ import '../../../core/widgets/operation_description.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 
+import '../data/beta_meal_templates.dart';
+import '../models/meal_template.dart';
+import '../services/beta_meal_template_resolver.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
 import 'food_total_card.dart';
@@ -39,6 +42,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   int? editingIndex;
   bool isWaterEntry = false;
+  String? selectedTemplateId;
 
   @override
   void initState() {
@@ -74,7 +78,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     super.dispose();
   }
 
-  FoodItem? _currentFoodItem() {
+  FoodItem? _currentFoodItem({int quantity = 1}) {
     final name = foodNameController.text.trim();
 
     if (name.isEmpty) {
@@ -87,6 +91,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       protein: double.tryParse(proteinController.text) ?? 0,
       fat: double.tryParse(fatController.text) ?? 0,
       carbohydrate: double.tryParse(carbohydrateController.text) ?? 0,
+      quantity: quantity,
     );
   }
 
@@ -164,7 +169,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void updateFood() {
     if (editingIndex == null) return;
 
-    final item = _currentFoodItem();
+    final item = _currentFoodItem(quantity: items[editingIndex!].quantity);
 
     if (item == null) return;
 
@@ -175,6 +180,44 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
       _clearFoodInputs();
     });
+  }
+
+  void updateQuantity(int index, int change) {
+    if (index >= items.length) return;
+
+    final item = items[index];
+    final quantity = item.quantity + change;
+
+    if (quantity < 1) return;
+
+    setState(() {
+      items[index] = item.copyWith(quantity: quantity);
+    });
+  }
+
+  void _applyTemplate(MealTemplate template) {
+    final resolution = BetaMealTemplateResolver.resolve(template);
+
+    setState(() {
+      isWaterEntry = false;
+      mealType = switch (template.mealType) {
+        MealTemplateMealType.breakfast => MealType.breakfast,
+        MealTemplateMealType.lunch => MealType.lunch,
+        MealTemplateMealType.dinner => MealType.dinner,
+      };
+      selectedTemplateId = template.id;
+      items
+        ..clear()
+        ..addAll(resolution.items);
+      editingIndex = null;
+      _clearFoodInputs();
+    });
+
+    if (resolution.skippedEntryCount > 0 && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('一部のテンプレート項目を反映できませんでした。')));
+    }
   }
 
   Future<void> saveMeal() async {
@@ -279,88 +322,126 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onPressed: saveMeal,
             ),
           ] else ...[
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Meal Type',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Meal Type',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
 
-          AppSpacing.gapMD,
+            AppSpacing.gapMD,
 
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: MealType.values.map((type) {
-              return ChoiceChip(
-                avatar: Icon(type.icon, size: 18),
-                label: Text(type.label),
-                selected: mealType == type,
-                onSelected: (_) {
-                  setState(() {
-                    mealType = type;
-                  });
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: MealType.values.map((type) {
+                return ChoiceChip(
+                  avatar: Icon(type.icon, size: 18),
+                  label: Text(type.label),
+                  selected: mealType == type,
+                  onSelected: (_) {
+                    setState(() {
+                      mealType = type;
+                      selectedTemplateId = null;
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+
+            AppSpacing.gapXL,
+
+            if (widget.initialMeal == null) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Meal Template',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+
+              AppSpacing.gapMD,
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: betaMealTemplates.map((template) {
+                  return ChoiceChip(
+                    label: Text(template.name),
+                    selected: selectedTemplateId == template.id,
+                    onSelected: (_) => _applyTemplate(template),
+                  );
+                }).toList(),
+              ),
+
+              AppSpacing.gapXL,
+            ],
+
+            const SectionHeader(
+              icon: Icons.restaurant_menu,
+              title: 'Add Food Item',
+            ),
+
+            AppSpacing.gapMD,
+
+            FoodInputFields(
+              foodNameController: foodNameController,
+              calorieController: calorieController,
+              proteinController: proteinController,
+              fatController: fatController,
+              carbohydrateController: carbohydrateController,
+              onChanged: (_) => setState(() {}),
+            ),
+
+            AppSpacing.gapLG,
+
+            if (preview.isNotEmpty) ...[
+              AppSpacing.gapXL,
+
+              FoodItemList(
+                items: preview,
+                onDelete: (index) {
+                  if (index < items.length) {
+                    removeFood(index);
+                  }
                 },
-              );
-            }).toList(),
-          ),
+                onTap: (index) {
+                  if (index < items.length) {
+                    editFood(index);
+                  }
+                },
+                onQuantityChanged: updateQuantity,
+                editableItemCount: items.length,
+                actionIcon: editingIndex == null
+                    ? Icons.add_circle_outline
+                    : Icons.edit_outlined,
+                actionText: editingIndex == null
+                    ? 'Add Another Food'
+                    : 'Update Food',
+                onAction: editingIndex == null ? addFood : updateFood,
+              ),
 
-          AppSpacing.gapXL,
+              AppSpacing.gapXL,
 
-          const SectionHeader(
-            icon: Icons.restaurant_menu,
-            title: 'Add Food Item',
-          ),
+              FoodTotalCard(items: preview),
 
-          AppSpacing.gapMD,
+              AppSpacing.gapLG,
 
-          FoodInputFields(
-            foodNameController: foodNameController,
-            calorieController: calorieController,
-            proteinController: proteinController,
-            fatController: fatController,
-            carbohydrateController: carbohydrateController,
-            onChanged: (_) => setState(() {}),
-          ),
+              OperationTextField(
+                controller: memoController,
+                label: 'Meal Memo',
+                maxLines: 3,
+              ),
 
-          AppSpacing.gapLG,
+              AppSpacing.gapXL,
 
-          if (preview.isNotEmpty) ...[
-            AppSpacing.gapXL,
-
-            FoodItemList(items: preview, onDelete: removeFood, onTap: editFood),
-
-            AppSpacing.gapLG,
-
-            OperationButton(
-              icon: editingIndex == null
-                  ? Icons.add_circle_outline
-                  : Icons.edit_outlined,
-              text: editingIndex == null ? 'Add Another Food' : 'Update Food',
-              onPressed: editingIndex == null ? addFood : updateFood,
-            ),
-
-            AppSpacing.gapXL,
-
-            FoodTotalCard(items: preview),
-
-            AppSpacing.gapLG,
-
-            OperationTextField(
-              controller: memoController,
-              label: 'Meal Memo',
-              maxLines: 3,
-            ),
-
-            AppSpacing.gapXL,
-
-            OperationButton(
-              icon: Icons.save,
-              text: widget.initialMeal == null ? 'Save Meal' : 'Update Meal',
-              onPressed: saveMeal,
-            ),
-          ],
+              OperationButton(
+                icon: Icons.save,
+                text: widget.initialMeal == null ? 'Save Meal' : 'Update Meal',
+                onPressed: saveMeal,
+              ),
+            ],
           ],
         ],
       ),

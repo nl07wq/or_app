@@ -8,6 +8,7 @@ class OperationTextField extends StatelessWidget {
 
   final TextInputType keyboardType;
   final int maxLines;
+  final FocusNode? focusNode;
 
   final ValueChanged<String>? onChanged;
 
@@ -18,6 +19,7 @@ class OperationTextField extends StatelessWidget {
     this.hint,
     this.keyboardType = TextInputType.text,
     this.maxLines = 1,
+    this.focusNode,
     this.onChanged,
   });
 
@@ -25,6 +27,7 @@ class OperationTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       onChanged: onChanged,
       keyboardType: keyboardType,
       maxLines: maxLines,

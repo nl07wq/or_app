@@ -1,6 +1,7 @@
 import '../../../core/models/morning_data.dart';
 import '../../../core/models/work_type.dart';
 import '../../../core/repositories/morning_repository.dart';
+import '../../../core/services/daily_log_mutation_guard.dart';
 import '../../../core/services/work_calculator.dart';
 
 import '../models/morning_fact_state.dart';
@@ -137,8 +138,10 @@ class MorningSubmitService {
     );
 
     if (existingData == null) {
+      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(morningData.date));
       await MorningRepository.save(morningData);
     } else {
+      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(morningData.date));
       await MorningRepository.update(morningData);
     }
 

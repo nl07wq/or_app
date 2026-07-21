@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/morning_data.dart';
 import '../../core/repositories/morning_repository.dart';
+import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
@@ -45,7 +47,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
 
     if (!result) return;
 
-    await MorningRepository.remove(data);
+    try { await DailyLogMutationGuard.assertDateMutable(DateTime.parse(data.date)); await MorningRepository.remove(data); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
     await refreshMorningFact();
 
     _loadRecords();

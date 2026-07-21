@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/models/work_type.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/navigation/app_routes.dart';
+import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/widgets/confirmed_log_message.dart';
 
 import 'widgets/body_card.dart';
 import 'widgets/memo_input_card.dart';
@@ -161,7 +163,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
               MorningSubmitButton(
                 isEdit: widget.isEdit,
                 onPressed: () async {
-                  final error = await MorningSubmitService.submit(
+                  String? error;
+                  try { error = await MorningSubmitService.submit(
                     existingData: widget.data,
                     workType: selectedWorkType,
                     weightText: weightController.text,
@@ -187,7 +190,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
                   Navigator.of(context).pushNamedAndRemoveUntil(
                     AppRoutes.dashboard,
                     (route) => false,
-                  );
+                  ); } on ConfirmedDailyLogException catch (exception) { if (context.mounted) showConfirmedLogMessage(context, exception); return; }
                 },
               ),
             ],

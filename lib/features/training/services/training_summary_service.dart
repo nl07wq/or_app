@@ -5,10 +5,7 @@ class TrainingSummaryService {
   const TrainingSummaryService._();
 
   static TrainingSummary? today(Iterable<TrainingSession> sessions) {
-    final today = DateTime.now().toIso8601String().split('T').first;
-    final dailySessions = sessions
-        .where((session) => session.date.split('T').first == today)
-        .toList();
+    final dailySessions = _todaySessions(sessions);
 
     if (dailySessions.isEmpty) return null;
 
@@ -32,5 +29,32 @@ class TrainingSummaryService {
           ? null
           : latestSession.exercises.first.exerciseName,
     );
+  }
+
+  static double todayCardioCalories(Iterable<TrainingSession> sessions) {
+    return _todaySessions(sessions)
+        .fold<double>(
+          0,
+          (total, session) =>
+              total +
+              session.cardioEntries.fold<double>(
+                0,
+                (sessionTotal, entry) =>
+                    sessionTotal + (entry.estimatedCalories ?? 0),
+              ),
+        );
+  }
+
+  static List<TrainingSession> _todaySessions(
+    Iterable<TrainingSession> sessions,
+  ) {
+    final now = DateTime.now();
+
+    return sessions.where((session) {
+      final date = DateTime.parse(session.date).toLocal();
+      return date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    }).toList(growable: false);
   }
 }

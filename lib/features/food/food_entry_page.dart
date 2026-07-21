@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/meal_data.dart';
 import '../../core/repositories/food_repository.dart';
+import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/widgets/confirmed_log_message.dart';
 
 import 'services/food_submit_service.dart';
 import 'services/food_summary_service.dart';
@@ -34,7 +36,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   }
 
   Future<void> save(MealData data) async {
-    await FoodSubmitService.save(data);
+    try { await FoodSubmitService.save(data); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
 
     await loadRecords();
 

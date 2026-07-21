@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../food_nutrition_formatter.dart';
 import '../../../core/engine/food_summary.dart';
 
 import '../../../core/widgets/operation_card.dart';
@@ -26,28 +27,34 @@ class FoodSummaryCard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.local_fire_department_outlined),
             title: const Text("Calories"),
-            trailing: Text("${summary.calories.toStringAsFixed(0)} kcal"),
+            trailing: Text(
+              "${FoodNutritionFormatter.calories(summary.calories)} kcal",
+            ),
             contentPadding: EdgeInsets.zero,
           ),
 
           ListTile(
             leading: const Icon(Icons.fitness_center),
             title: const Text("Protein"),
-            trailing: Text("${summary.protein.toStringAsFixed(1)} g"),
+            trailing: Text(
+              "${FoodNutritionFormatter.macro(summary.protein)} g",
+            ),
             contentPadding: EdgeInsets.zero,
           ),
 
           ListTile(
             leading: const Icon(Icons.opacity),
             title: const Text("Fat"),
-            trailing: Text("${summary.fat.toStringAsFixed(1)} g"),
+            trailing: Text("${FoodNutritionFormatter.macro(summary.fat)} g"),
             contentPadding: EdgeInsets.zero,
           ),
 
           ListTile(
             leading: const Icon(Icons.rice_bowl_outlined),
             title: const Text("Carbohydrate"),
-            trailing: Text("${summary.carbohydrates.toStringAsFixed(1)} g"),
+            trailing: Text(
+              "${FoodNutritionFormatter.macro(summary.carbohydrates)} g",
+            ),
             contentPadding: EdgeInsets.zero,
           ),
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/meal_data.dart';
+import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/widgets/confirmed_log_message.dart';
 
 import 'services/food_submit_service.dart';
 import 'widgets/food_input_form.dart';
@@ -11,7 +13,7 @@ class FoodEditPage extends StatelessWidget {
   const FoodEditPage({super.key, required this.meal});
 
   Future<void> _update(BuildContext context, MealData data) async {
-    await FoodSubmitService.update(data);
+    try { await FoodSubmitService.update(data); } on ConfirmedDailyLogException catch (error) { if (context.mounted) showConfirmedLogMessage(context, error); return; }
 
     if (!context.mounted) return;
 

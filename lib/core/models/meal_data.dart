@@ -19,14 +19,14 @@ class MealData {
 
   bool get isWaterEntry => waterMl != null;
 
-  int get calories => items.fold(0, (sum, item) => sum + item.calories);
+  int get calories => items.fold(0, (sum, item) => sum + item.totalCalories);
 
-  double get protein => items.fold(0.0, (sum, item) => sum + item.protein);
+  double get protein => items.fold(0.0, (sum, item) => sum + item.totalProtein);
 
-  double get fat => items.fold(0.0, (sum, item) => sum + item.fat);
+  double get fat => items.fold(0.0, (sum, item) => sum + item.totalFat);
 
   double get carbohydrate =>
-      items.fold(0.0, (sum, item) => sum + item.carbohydrate);
+      items.fold(0.0, (sum, item) => sum + item.totalCarbohydrate);
 
   factory MealData.fromJson(Map<String, dynamic> json) {
     return MealData(

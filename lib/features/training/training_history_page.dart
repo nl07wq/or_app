@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/training_session.dart';
 import '../../core/repositories/training_repository.dart';
+import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 import 'training_detail_page.dart';
+import 'training_entry_page.dart';
 import 'models/training_summary_state.dart';
 
 class TrainingHistoryPage extends StatefulWidget {
@@ -37,7 +40,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
 
     if (!result) return;
 
-    await TrainingRepository.remove(session);
+    try { await DailyLogMutationGuard.assertDateMutable(DateTime.parse(session.date)); await TrainingRepository.remove(session); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
     await refreshTrainingSummary();
 
     _loadRecords();
@@ -114,8 +117,39 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
+                            if (session.cardioEntries.isNotEmpty) ...[
+                              AppSpacing.gapMD,
+                              Text(
+                                'Cardio: ${session.cardioEntries.length}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              Text(
+                                'Cardio Time: ${session.cardioEntries.fold<int>(0, (sum, entry) => sum + entry.durationMinutes)} min',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
                           ],
                         ),
+                      ),
+
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit',
+                        onPressed: () async {
+                          final updated = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TrainingEntryPage(
+                                existingSession: session,
+                              ),
+                            ),
+                          );
+
+                          if (updated == true && mounted) {
+                            _loadRecords();
+                            setState(() {});
+                          }
+                        },
                       ),
 
                       IconButton(

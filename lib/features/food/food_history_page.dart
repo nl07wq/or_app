@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'food_nutrition_formatter.dart';
 import 'food_edit_page.dart';
 import 'services/food_submit_service.dart';
 
 import '../../core/models/meal_data.dart';
 import '../../core/repositories/food_repository.dart';
+import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/widgets/confirmed_log_message.dart';
 
 import '../../core/theme/app_spacing.dart';
 
@@ -43,7 +46,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
     if (!result) return;
 
-    await FoodSubmitService.delete(data);
+    try { await FoodSubmitService.delete(data); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
 
     _loadRecords();
 
@@ -108,12 +111,16 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.restaurant_menu),
-                title: Text(item.name),
+                title: Text(
+                  item.quantity > 1
+                      ? '${item.name} ×${item.quantity}'
+                      : item.name,
+                ),
                 subtitle: Text(
-                  "${item.calories} kcal"
-                  "  P ${item.protein}"
-                  "  F ${item.fat}"
-                  "  C ${item.carbohydrate}",
+                  "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
+                  "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
+                  "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
+                  "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
                 ),
               ),
             ),
