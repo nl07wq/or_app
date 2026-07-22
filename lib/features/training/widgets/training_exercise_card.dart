@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 
 import '../models/training_exercise_controller.dart';
+import 'exercise_selector.dart';
 import 'training_set_list.dart';
 
 class TrainingExerciseCard extends StatefulWidget {
@@ -57,10 +57,8 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
                   ),
                 ),
               Expanded(
-                child: OperationTextField(
+                child: ExerciseSelector(
                   controller: widget.controller.exerciseController,
-                  label: 'Exercise',
-                  hint: '種目名',
                 ),
               ),
 
