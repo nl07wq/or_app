@@ -16,8 +16,9 @@ enum _EditableStepField { measuredSteps, carryOver }
 
 class ActivityEntryPage extends StatefulWidget {
   final ActivityData? initialData;
+  final DateTime? targetDate;
 
-  const ActivityEntryPage({super.key, this.initialData});
+  const ActivityEntryPage({super.key, this.initialData, this.targetDate});
 
   @override
   State<ActivityEntryPage> createState() => _ActivityEntryPageState();
@@ -35,7 +36,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   @override
   void initState() {
     super.initState();
-    _date = widget.initialData?.date ?? AppClock.today();
+    _date = widget.initialData?.date ?? widget.targetDate ?? AppClock.today();
     _measuredStepsController = TextEditingController(
       text: widget.initialData?.measuredSteps.toString() ?? '',
     );

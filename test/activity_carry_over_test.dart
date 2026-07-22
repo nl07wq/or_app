@@ -1,13 +1,21 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/models/activity_data.dart';
+import 'package:or_app/core/services/app_clock.dart';
+import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    AppClock.resetForTesting();
   });
+
+  tearDown(AppClock.resetForTesting);
 
   ActivitySummary summaryFor({
     required int measuredSteps,
@@ -126,5 +134,65 @@ void main() {
       throwsArgumentError,
     );
     expect(await repository.findByDate(DateTime(2026, 7, 21)), isNull);
+  });
+
+  testWidgets('new entry uses the current Debug Date and prior Carry Over', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final previous = ActivityData(
+      date: DateTime(2026, 7, 22),
+      measuredSteps: 10000,
+      carryOver: 5000,
+    );
+    SharedPreferences.setMockInitialValues({
+      'activity_records': [jsonEncode(previous.toJson())],
+    });
+    AppClock.setDebugDate(DateTime(2026, 7, 23));
+
+    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+    await tester.tap(find.text('Log Activity'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Activity Entry'), findsOneWidget);
+    expect(find.text('2026-07-23'), findsOneWidget);
+    expect(find.text('-5,000 steps'), findsOneWidget);
+  });
+
+  testWidgets('existing target-date record opens in Edit mode', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final previous = ActivityData(
+      date: DateTime(2026, 7, 22),
+      measuredSteps: 10000,
+      carryOver: 5000,
+    );
+    final existing = ActivityData(
+      date: DateTime(2026, 7, 23),
+      measuredSteps: 12000,
+      carryOver: 0,
+    );
+    SharedPreferences.setMockInitialValues({
+      'activity_records': [
+        jsonEncode(previous.toJson()),
+        jsonEncode(existing.toJson()),
+      ],
+    });
+    AppClock.setDebugDate(DateTime(2026, 7, 23));
+
+    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+    await tester.tap(find.text('Log Activity'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Activity'), findsOneWidget);
+    expect(find.text('2026-07-23'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '12000'), findsOneWidget);
+    expect(find.text('-5,000 steps'), findsOneWidget);
+    expect(find.text('7,000 steps'), findsOneWidget);
   });
 }
