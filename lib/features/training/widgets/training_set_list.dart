@@ -61,30 +61,53 @@ class _TrainingSetListState extends State<TrainingSetList> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
 
-                  if (widget.isEditMode)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (index > 0) ...[
                         IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.monitor_weight_outlined),
+                          tooltip: 'Copy previous weight',
+                          onPressed: () => _copyText(
+                            widget.sets[index - 1].weightController,
+                            set.weightController,
+                          ),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.repeat),
+                          tooltip: 'Copy previous reps',
+                          onPressed: () => _copyText(
+                            widget.sets[index - 1].repsController,
+                            set.repsController,
+                          ),
+                        ),
+                      ],
+                      if (widget.isEditMode)
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.copy_outlined),
                           tooltip: 'Copy Set',
                           onPressed: () {
                             widget.onCopy(index);
                           },
                         ),
-
-                        if (widget.sets.length > 1)
-                          IconButton(
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            onPressed: () {
-                              widget.onDelete(index);
-                            },
-                          ),
-                      ],
-                    ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        tooltip: 'Delete set',
+                        onPressed: widget.sets.length > 1
+                            ? () {
+                                widget.onDelete(index);
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
                 ],
               ),
 
@@ -97,6 +120,17 @@ class _TrainingSetListState extends State<TrainingSetList> {
           ),
         );
       },
+    );
+  }
+
+  void _copyText(
+    TextEditingController source,
+    TextEditingController destination,
+  ) {
+    final text = source.text;
+    destination.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

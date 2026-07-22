@@ -53,6 +53,7 @@ class _TrainingExerciseListState extends State<TrainingExerciseList> {
             controller: exercise,
 
             isEditMode: widget.isEditMode,
+            canDelete: widget.exercises.length > 1,
 
             onCopy: () => widget.onCopy(exercise),
 

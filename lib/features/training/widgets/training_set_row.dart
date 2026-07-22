@@ -48,7 +48,37 @@ class TrainingSetRow extends StatelessWidget {
             ),
           ],
         ),
+
+        AppSpacing.gapSM,
+
+        Row(
+          children: [
+            for (final amount in const [1, 5, 10]) ...[
+              if (amount != 1) const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _addReps(amount),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: Text('+$amount'),
+                ),
+              ),
+            ],
+          ],
+        ),
       ],
+    );
+  }
+
+  void _addReps(int amount) {
+    final current = int.tryParse(repsController.text.trim()) ?? 0;
+    final text = (current + amount).toString();
+    repsController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }
