@@ -74,15 +74,16 @@ class TrainingSetRow extends StatelessWidget {
 
   Widget _repQuickButton(int amount) {
     return SizedBox(
-      width: 40,
-      height: 36,
-      child: ActionChip(
-        label: Text(amount > 0 ? '+$amount' : '$amount'),
+      width: 50,
+      height: 42,
+      child: OutlinedButton(
         onPressed: () => _adjustReps(amount),
-        padding: EdgeInsets.zero,
-        labelPadding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: Text(amount > 0 ? '+$amount' : '$amount'),
       ),
     );
   }

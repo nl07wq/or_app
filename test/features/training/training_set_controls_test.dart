@@ -10,7 +10,7 @@ void main() {
   testWidgets('compact rep buttons adjust reps and clamp at zero', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(360, 800);
+    tester.view.physicalSize = const Size(420, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -34,8 +34,11 @@ void main() {
       ),
     );
 
-    expect(find.byType(ActionChip), findsNWidgets(6));
-    expect(tester.getSize(find.byType(ActionChip).first), const Size(40, 36));
+    expect(find.byType(OutlinedButton), findsNWidgets(6));
+    expect(
+      tester.getSize(find.byType(OutlinedButton).first),
+      const Size(50, 42),
+    );
 
     final minusTen = tester.getRect(find.text('-10'));
     final minusFive = tester.getRect(find.text('-5'));
@@ -45,8 +48,8 @@ void main() {
     final centerGap = plusOne.left - minusOne.right;
     expect(centerGap, greaterThan(normalGap));
 
-    final firstButton = tester.getRect(find.byType(ActionChip).first);
-    final lastButton = tester.getRect(find.byType(ActionChip).last);
+    final firstButton = tester.getRect(find.byType(OutlinedButton).first);
+    final lastButton = tester.getRect(find.byType(OutlinedButton).last);
     final buttonRowCenter = (firstButton.left + lastButton.right) / 2;
     final weightField = tester.getRect(
       find.widgetWithText(TextField, 'Weight'),
