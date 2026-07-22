@@ -51,32 +51,39 @@ class TrainingSetRow extends StatelessWidget {
 
         AppSpacing.gapSM,
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (final amount in const [-10, -5, -1]) ...[
-              if (amount != -10) const SizedBox(width: AppSpacing.xs),
-              _repQuickButton(amount),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final amount in const [-10, -5, -1]) ...[
+                if (amount != -10) const SizedBox(width: AppSpacing.sm),
+                _repQuickButton(amount),
+              ],
+              const SizedBox(width: AppSpacing.xl),
+              for (final amount in const [1, 5, 10]) ...[
+                if (amount != 1) const SizedBox(width: AppSpacing.sm),
+                _repQuickButton(amount),
+              ],
             ],
-            const SizedBox(width: AppSpacing.md),
-            for (final amount in const [1, 5, 10]) ...[
-              if (amount != 1) const SizedBox(width: AppSpacing.xs),
-              _repQuickButton(amount),
-            ],
-          ],
+          ),
         ),
       ],
     );
   }
 
   Widget _repQuickButton(int amount) {
-    return ActionChip(
-      label: Text(amount > 0 ? '+$amount' : '$amount'),
-      onPressed: () => _adjustReps(amount),
-      padding: EdgeInsets.zero,
-      labelPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return SizedBox(
+      width: 40,
+      height: 36,
+      child: ActionChip(
+        label: Text(amount > 0 ? '+$amount' : '$amount'),
+        onPressed: () => _adjustReps(amount),
+        padding: EdgeInsets.zero,
+        labelPadding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
     );
   }
 

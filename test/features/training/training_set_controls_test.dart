@@ -10,6 +10,10 @@ void main() {
   testWidgets('compact rep buttons adjust reps and clamp at zero', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final weightController = TextEditingController();
     final repsController = TextEditingController(text: '10');
     addTearDown(weightController.dispose);
@@ -18,16 +22,28 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TrainingSetRow(
-            setNo: 1,
-            weightController: weightController,
-            repsController: repsController,
+          body: Padding(
+            padding: const EdgeInsets.all(32),
+            child: TrainingSetRow(
+              setNo: 1,
+              weightController: weightController,
+              repsController: repsController,
+            ),
           ),
         ),
       ),
     );
 
     expect(find.byType(ActionChip), findsNWidgets(6));
+    expect(tester.getSize(find.byType(ActionChip).first), const Size(40, 36));
+
+    final minusTen = tester.getRect(find.text('-10'));
+    final minusFive = tester.getRect(find.text('-5'));
+    final minusOne = tester.getRect(find.text('-1'));
+    final plusOne = tester.getRect(find.text('+1'));
+    final normalGap = minusFive.left - minusTen.right;
+    final centerGap = plusOne.left - minusOne.right;
+    expect(centerGap, greaterThan(normalGap));
 
     await tester.tap(find.text('+5'));
     expect(repsController.text, '15');
