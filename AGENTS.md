@@ -1,8 +1,8 @@
 # AGENTS.md
 
 # OR-APP Development Standard
-Version: 1.0.1
-Last Updated: 2026-07-19
+Version: 1.0.2
+Last Updated: 2026-07-22
 
 ---
 
@@ -13,6 +13,22 @@ Before starting any task:
 - Commit the current workspace.
 - Never rely on Undo.
 - Always rely on Git history for recovery.
+
+## Workspace Exception Policy
+
+If a task explicitly prohibits git history modification
+(commit/reset/checkout/stash/revert),
+
+the task automatically overrides the
+"default commit before work" rule.
+
+No additional approval is required.
+
+Proceed without creating a commit.
+
+Preserve existing workspace changes.
+
+Do not modify unrelated files.
 
 ---
 
@@ -58,13 +74,16 @@ TASK_TEMPLATE.md defines:
 - Requirements
 - Definition of Done
 
-If TASK_TEMPLATE.md conflicts with AGENTS.md:
+If TASK_TEMPLATE.md or the current task instructions conflict with AGENTS.md:
 
 STOP.
 
-Explain why.
+Unless the current task explicitly overrides
+a Git Rule,
+Validation Rule,
+or Editable Scope.
 
-Wait for approval.
+Those overrides are allowed.
 
 ---
 
@@ -226,15 +245,68 @@ Wait for approval.
 
 ---
 
-# Verification Rules
+## Verification Rules
 
-Never consider a task complete unless verification succeeds.
+Verification steps explicitly listed in the current task are pre-approved.
 
-If compilation or analysis cannot be completed:
+Do not request additional approval.
 
-- Report the limitation clearly.
-- Do not assume success.
-- Do not claim the implementation is fully verified.
+This includes, for example:
+
+- dart format
+- flutter analyze
+- flutter test
+- git --no-pager diff --check (read-only)
+
+Only request approval when:
+
+- executing validation outside the approved environment
+- sandbox restrictions require elevated execution
+- the validation command is not included in the current task
+- the command performs destructive operations
+
+---
+
+## Post-Review Approval
+
+Once a task has been approved by the reviewer, the following operations are automatically authorized for that task without requesting additional approval.
+
+### Automatically Approved
+
+- Stage the approved task files only (`git add`)
+- Create the approved baseline commit (`git commit`)
+- Run only the validation commands already listed in the current task
+
+### Conditions
+
+- Only files within the approved Editable Scope may be staged.
+- The approved commit message must be used.
+- AGENTS.md, .vscode/, and unrelated files must not be included unless explicitly approved.
+- No amend, reset, rebase, checkout, stash, revert, rebase, or other history-modifying operations are authorized.
+
+After a task review has been approved, the assistant should perform these operations directly instead of requesting additional approval.
+
+---
+
+## Sandbox Validation Exception
+
+If Flutter/Dart validation commands cannot complete because of sandbox limitations,
+
+request approval once,
+unless the current task already grants permission.
+
+After approval,
+
+all remaining validation commands for the current task may be executed outside the sandbox.
+
+Examples:
+
+- dart format
+- flutter test
+- flutter analyze
+- git --no-pager diff --check
+
+No further approvals are required.
 
 ---
 
@@ -315,3 +387,18 @@ Explain the issue.
 
 Wait for approval.
 
+---
+
+# Task Override Rules
+
+The current task may explicitly override the following rules:
+
+- Git Rule
+- Validation Rule
+- Editable Scope
+
+If the task explicitly overrides one of these rules,
+
+follow the task.
+
+Do not request additional approval.
