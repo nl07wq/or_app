@@ -8,6 +8,8 @@ class TrainingSetList extends StatefulWidget {
   final bool isEditMode;
   final Function(int) onDelete;
   final Function(int) onCopy;
+  final TrainingSetController? activeSet;
+  final ValueChanged<TrainingSetController?> onSetActivated;
 
   const TrainingSetList({
     super.key,
@@ -15,6 +17,8 @@ class TrainingSetList extends StatefulWidget {
     required this.isEditMode,
     required this.onCopy,
     required this.onDelete,
+    required this.activeSet,
+    required this.onSetActivated,
   });
 
   @override
@@ -31,6 +35,7 @@ class _TrainingSetListState extends State<TrainingSetList> {
 
       itemCount: widget.sets.length,
 
+      // ignore: deprecated_member_use
       onReorder: (oldIndex, newIndex) {
         setState(() {
           if (newIndex > oldIndex) {
@@ -115,6 +120,8 @@ class _TrainingSetListState extends State<TrainingSetList> {
                 setNo: index + 1,
                 weightController: set.weightController,
                 repsController: set.repsController,
+                isActive: identical(widget.activeSet, set),
+                onActivated: () => widget.onSetActivated(set),
               ),
             ],
           ),

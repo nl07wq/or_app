@@ -6,6 +6,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 
 import '../models/training_exercise_controller.dart';
+import '../models/training_set_controller.dart';
 import 'exercise_selector.dart';
 import 'training_set_list.dart';
 
@@ -16,6 +17,8 @@ class TrainingExerciseCard extends StatefulWidget {
   final bool canDelete;
   final bool isEditMode;
   final int index;
+  final TrainingSetController? activeSet;
+  final ValueChanged<TrainingSetController?> onSetActivated;
 
   const TrainingExerciseCard({
     super.key,
@@ -25,6 +28,8 @@ class TrainingExerciseCard extends StatefulWidget {
     required this.canDelete,
     required this.isEditMode,
     required this.index,
+    required this.activeSet,
+    required this.onSetActivated,
   });
 
   @override
@@ -86,6 +91,8 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
           TrainingSetList(
             sets: widget.controller.sets,
             isEditMode: widget.isEditMode,
+            activeSet: widget.activeSet,
+            onSetActivated: widget.onSetActivated,
 
             onCopy: (index) {
               setState(() {
@@ -94,6 +101,10 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
             },
 
             onDelete: (index) {
+              final set = widget.controller.sets[index];
+              if (identical(widget.activeSet, set)) {
+                widget.onSetActivated(null);
+              }
               setState(() {
                 widget.controller.removeSet(index);
               });

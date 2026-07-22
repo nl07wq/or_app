@@ -9,12 +9,16 @@ class TrainingSetRow extends StatelessWidget {
 
   final TextEditingController weightController;
   final TextEditingController repsController;
+  final bool isActive;
+  final VoidCallback onActivated;
 
   const TrainingSetRow({
     super.key,
     required this.setNo,
     required this.weightController,
     required this.repsController,
+    required this.isActive,
+    required this.onActivated,
   });
 
   @override
@@ -27,66 +31,135 @@ class TrainingSetRow extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: OperationTextField(
-                controller: weightController,
-                label: 'Weight',
-                hint: 'kg',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+              child: Focus(
+                onFocusChange: (hasFocus) {
+                  if (hasFocus) onActivated();
+                },
+                child: OperationTextField(
+                  controller: weightController,
+                  label: 'Weight',
+                  hint: 'kg',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                 ),
               ),
             ),
 
-            AppSpacing.gapMD,
+            const SizedBox(width: AppSpacing.md),
 
             Expanded(
-              child: OperationTextField(
-                controller: repsController,
-                label: 'Reps',
-                hint: '回',
-                keyboardType: TextInputType.number,
+              child: Focus(
+                onFocusChange: (hasFocus) {
+                  if (hasFocus) onActivated();
+                },
+                child: OperationTextField(
+                  controller: repsController,
+                  label: 'Reps',
+                  hint: '回',
+                  keyboardType: TextInputType.number,
+                ),
               ),
             ),
           ],
         ),
 
-        AppSpacing.gapSM,
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          transitionBuilder: (child, animation) => SizeTransition(
+            sizeFactor: animation,
+            alignment: Alignment.topCenter,
+            child: FadeTransition(opacity: animation, child: child),
+          ),
+          child: isActive
+              ? Padding(
+                  key: const ValueKey('active-set-controls'),
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: _contextToolbar(),
+                )
+              : const SizedBox(key: ValueKey('inactive-set-controls')),
+        ),
+      ],
+    );
+  }
 
-        Align(
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final amount in const [-10, -5, -1]) ...[
-                if (amount != -10) const SizedBox(width: AppSpacing.sm),
-                _repQuickButton(amount),
-              ],
-              const SizedBox(width: AppSpacing.xl),
-              for (final amount in const [1, 5, 10]) ...[
-                if (amount != 1) const SizedBox(width: AppSpacing.sm),
-                _repQuickButton(amount),
-              ],
-            ],
+  Widget _contextToolbar() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: const [-10.0, -5.0, -2.5, 2.5, 5.0, 10.0]
+                .map(
+                  (amount) => _quickButton(
+                    kind: 'weight',
+                    amount: amount,
+                    onPressed: () => _adjustWeight(amount),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: const [-10, -5, -1, 1, 5, 10]
+                .map(
+                  (amount) => _quickButton(
+                    kind: 'reps',
+                    amount: amount,
+                    onPressed: () => _adjustReps(amount),
+                  ),
+                )
+                .toList(),
           ),
         ),
       ],
     );
   }
 
-  Widget _repQuickButton(int amount) {
+  Widget _quickButton({
+    required String kind,
+    required num amount,
+    required VoidCallback onPressed,
+  }) {
+    final amountText = _formatAmount(amount);
+    final label = amount > 0 ? '+$amountText' : amountText;
     return SizedBox(
       width: 50,
       height: 42,
       child: OutlinedButton(
-        onPressed: () => _adjustReps(amount),
+        key: ValueKey('$kind-adjust-$amount'),
+        onPressed: () {
+          onActivated();
+          onPressed();
+        },
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
-        child: Text(amount > 0 ? '+$amount' : '$amount'),
+        child: Text(label, semanticsLabel: 'Adjust $kind by $label'),
       ),
+    );
+  }
+
+  void _adjustWeight(double amount) {
+    final current = double.tryParse(weightController.text.trim()) ?? 0;
+    final adjusted = current + amount;
+    final text = adjusted == adjusted.truncateToDouble()
+        ? adjusted.toInt().toString()
+        : adjusted.toString();
+    weightController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 
@@ -98,5 +171,11 @@ class TrainingSetRow extends StatelessWidget {
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
     );
+  }
+
+  String _formatAmount(num amount) {
+    return amount == amount.truncateToDouble()
+        ? amount.toInt().toString()
+        : amount.toString();
   }
 }

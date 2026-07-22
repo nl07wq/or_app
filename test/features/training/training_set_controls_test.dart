@@ -3,19 +3,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/training/models/training_exercise_controller.dart';
 import 'package:or_app/features/training/models/training_set_controller.dart';
 import 'package:or_app/features/training/widgets/training_exercise_card.dart';
+import 'package:or_app/features/training/widgets/training_exercise_list.dart';
 import 'package:or_app/features/training/widgets/training_set_list.dart';
 import 'package:or_app/features/training/widgets/training_set_row.dart';
 
 void main() {
-  testWidgets('compact rep buttons adjust reps and clamp at zero', (
-    tester,
-  ) async {
+  testWidgets('context controls adjust weight and reps', (tester) async {
     tester.view.physicalSize = const Size(420, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final weightController = TextEditingController();
+    final weightController = TextEditingController(text: '80');
     final repsController = TextEditingController(text: '10');
+    var activations = 0;
     addTearDown(weightController.dispose);
     addTearDown(repsController.dispose);
 
@@ -28,57 +28,110 @@ void main() {
               setNo: 1,
               weightController: weightController,
               repsController: repsController,
+              isActive: true,
+              onActivated: () => activations++,
             ),
           ),
         ),
       ),
     );
 
-    expect(find.byType(OutlinedButton), findsNWidgets(6));
+    expect(find.byType(OutlinedButton), findsNWidgets(12));
     expect(
       tester.getSize(find.byType(OutlinedButton).first),
       const Size(50, 42),
     );
 
-    final minusTen = tester.getRect(find.text('-10'));
-    final minusFive = tester.getRect(find.text('-5'));
-    final minusOne = tester.getRect(find.text('-1'));
-    final plusOne = tester.getRect(find.text('+1'));
-    final normalGap = minusFive.left - minusTen.right;
-    final centerGap = plusOne.left - minusOne.right;
-    expect(centerGap, greaterThan(normalGap));
-
-    final firstButton = tester.getRect(find.byType(OutlinedButton).first);
-    final lastButton = tester.getRect(find.byType(OutlinedButton).last);
-    final buttonRowCenter = (firstButton.left + lastButton.right) / 2;
+    final weightButton = tester.getRect(
+      find.byKey(const ValueKey('weight-adjust--10.0')),
+    );
+    final repButton = tester.getRect(
+      find.byKey(const ValueKey('reps-adjust--10')),
+    );
     final weightField = tester.getRect(
       find.widgetWithText(TextField, 'Weight'),
     );
     final repsField = tester.getRect(find.widgetWithText(TextField, 'Reps'));
-    final fieldRowCenter = (weightField.left + repsField.right) / 2;
     expect(weightField.center.dy, closeTo(repsField.center.dy, 0.1));
-    expect(firstButton.top, greaterThan(repsField.bottom));
-    expect(buttonRowCenter, closeTo(fieldRowCenter, 0.1));
+    expect(weightButton.top, greaterThan(weightField.bottom));
+    expect(weightButton.right, lessThan(repButton.left));
 
-    await tester.tap(find.text('+5'));
+    await tester.tap(find.byKey(const ValueKey('weight-adjust-2.5')));
+    expect(weightController.text, '82.5');
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '81.25');
+    await tester.tap(find.byKey(const ValueKey('weight-adjust--2.5')));
+    expect(weightController.text, '78.75');
+
+    await tester.tap(find.byKey(const ValueKey('reps-adjust-5')));
     expect(repsController.text, '15');
 
     await tester.enterText(find.widgetWithText(TextField, 'Reps'), '3');
-    await tester.tap(find.text('+1'));
+    await tester.tap(find.byKey(const ValueKey('reps-adjust-1')));
     expect(repsController.text, '4');
 
-    await tester.tap(find.text('+10'));
+    await tester.tap(find.byKey(const ValueKey('reps-adjust-10')));
     expect(repsController.text, '14');
 
-    await tester.tap(find.text('-10'));
+    await tester.tap(find.byKey(const ValueKey('reps-adjust--10')));
     expect(repsController.text, '4');
 
-    await tester.tap(find.text('-5'));
+    await tester.tap(find.byKey(const ValueKey('reps-adjust--5')));
     expect(repsController.text, '0');
 
     await tester.enterText(find.widgetWithText(TextField, 'Reps'), '20');
-    await tester.tap(find.text('-1'));
+    await tester.tap(find.byKey(const ValueKey('reps-adjust--1')));
     expect(repsController.text, '19');
+    expect(activations, greaterThan(0));
+  });
+
+  testWidgets('context controls move to the focused set', (tester) async {
+    tester.view.physicalSize = const Size(420, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = TrainingExerciseController(
+      sets: [TrainingSetController(), TrainingSetController()],
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TrainingExerciseList(
+            exercises: [controller],
+            isEditMode: false,
+            onCopy: (_) {},
+            onDelete: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(OutlinedButton), findsNothing);
+
+    final repsFields = find.widgetWithText(TextField, 'Reps');
+    await tester.tap(repsFields.first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OutlinedButton), findsNWidgets(12));
+    var activeButton = tester.getRect(
+      find.byKey(const ValueKey('reps-adjust-1')),
+    );
+    expect(
+      activeButton.top,
+      greaterThan(tester.getRect(repsFields.first).bottom),
+    );
+    expect(activeButton.bottom, lessThan(tester.getRect(repsFields.last).top));
+
+    await tester.tap(repsFields.last);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OutlinedButton), findsNWidgets(12));
+    activeButton = tester.getRect(find.byKey(const ValueKey('reps-adjust-1')));
+    expect(
+      activeButton.top,
+      greaterThan(tester.getRect(repsFields.last).bottom),
+    );
   });
 
   testWidgets('previous set values can be copied outside Edit Mode', (
@@ -104,6 +157,8 @@ void main() {
           body: TrainingSetList(
             sets: sets,
             isEditMode: false,
+            activeSet: null,
+            onSetActivated: (_) {},
             onCopy: (_) {},
             onDelete: (index) => deletedIndex = index,
           ),
@@ -139,6 +194,8 @@ void main() {
             canDelete: true,
             isEditMode: false,
             index: 0,
+            activeSet: null,
+            onSetActivated: (_) {},
           ),
         ),
       ),

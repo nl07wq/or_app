@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/training_exercise_controller.dart';
+import '../models/training_set_controller.dart';
 import 'training_exercise_card.dart';
 
 class TrainingExerciseList extends StatefulWidget {
@@ -22,6 +23,20 @@ class TrainingExerciseList extends StatefulWidget {
 }
 
 class _TrainingExerciseListState extends State<TrainingExerciseList> {
+  TrainingSetController? _activeSet;
+
+  @override
+  void didUpdateWidget(covariant TrainingExerciseList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final activeSet = _activeSet;
+    if (activeSet != null &&
+        !widget.exercises.any(
+          (exercise) => exercise.sets.contains(activeSet),
+        )) {
+      _activeSet = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ReorderableListView.builder(
@@ -31,6 +46,7 @@ class _TrainingExerciseListState extends State<TrainingExerciseList> {
 
       itemCount: widget.exercises.length,
 
+      // ignore: deprecated_member_use
       onReorder: (oldIndex, newIndex) {
         setState(() {
           if (newIndex > oldIndex) {
@@ -54,13 +70,25 @@ class _TrainingExerciseListState extends State<TrainingExerciseList> {
 
             isEditMode: widget.isEditMode,
             canDelete: widget.exercises.length > 1,
+            activeSet: _activeSet,
+            onSetActivated: _activateSet,
 
             onCopy: () => widget.onCopy(exercise),
 
-            onDelete: () => widget.onDelete(exercise),
+            onDelete: () {
+              if (exercise.sets.contains(_activeSet)) {
+                _activateSet(null);
+              }
+              widget.onDelete(exercise);
+            },
           ),
         );
       },
     );
+  }
+
+  void _activateSet(TrainingSetController? set) {
+    if (identical(_activeSet, set)) return;
+    setState(() => _activeSet = set);
   }
 }
