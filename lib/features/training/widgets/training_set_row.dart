@@ -23,20 +23,30 @@ class TrainingSetRow extends StatelessWidget {
       children: [
         AppSpacing.gapSM,
 
-        OperationTextField(
-          controller: weightController,
-          label: 'Weight',
-          hint: 'kg',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        ),
+        Row(
+          children: [
+            Expanded(
+              child: OperationTextField(
+                controller: weightController,
+                label: 'Weight',
+                hint: 'kg',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+            ),
 
-        AppSpacing.gapMD,
+            AppSpacing.gapMD,
 
-        OperationTextField(
-          controller: repsController,
-          label: 'Reps',
-          hint: '回',
-          keyboardType: TextInputType.number,
+            Expanded(
+              child: OperationTextField(
+                controller: repsController,
+                label: 'Reps',
+                hint: '回',
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ],
         ),
 
         AppSpacing.gapSM,

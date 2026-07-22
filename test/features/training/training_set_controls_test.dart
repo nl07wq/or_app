@@ -48,11 +48,14 @@ void main() {
     final firstButton = tester.getRect(find.byType(ActionChip).first);
     final lastButton = tester.getRect(find.byType(ActionChip).last);
     final buttonRowCenter = (firstButton.left + lastButton.right) / 2;
-    final repsFieldCenter = tester
-        .getRect(find.widgetWithText(TextField, 'Reps'))
-        .center
-        .dx;
-    expect(buttonRowCenter, closeTo(repsFieldCenter, 0.1));
+    final weightField = tester.getRect(
+      find.widgetWithText(TextField, 'Weight'),
+    );
+    final repsField = tester.getRect(find.widgetWithText(TextField, 'Reps'));
+    final fieldRowCenter = (weightField.left + repsField.right) / 2;
+    expect(weightField.center.dy, closeTo(repsField.center.dy, 0.1));
+    expect(firstButton.top, greaterThan(repsField.bottom));
+    expect(buttonRowCenter, closeTo(fieldRowCenter, 0.1));
 
     await tester.tap(find.text('+5'));
     expect(repsController.text, '15');
