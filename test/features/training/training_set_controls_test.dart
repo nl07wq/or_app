@@ -45,6 +45,15 @@ void main() {
     final centerGap = plusOne.left - minusOne.right;
     expect(centerGap, greaterThan(normalGap));
 
+    final firstButton = tester.getRect(find.byType(ActionChip).first);
+    final lastButton = tester.getRect(find.byType(ActionChip).last);
+    final buttonRowCenter = (firstButton.left + lastButton.right) / 2;
+    final repsFieldCenter = tester
+        .getRect(find.widgetWithText(TextField, 'Reps'))
+        .center
+        .dx;
+    expect(buttonRowCenter, closeTo(repsFieldCenter, 0.1));
+
     await tester.tap(find.text('+5'));
     expect(repsController.text, '15');
 
