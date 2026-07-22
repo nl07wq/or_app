@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_text_field.dart';
 
@@ -79,9 +80,10 @@ class TrainingSetRow extends StatelessWidget {
       child: OutlinedButton(
         onPressed: () => _adjustReps(amount),
         style: OutlinedButton.styleFrom(
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
         child: Text(amount > 0 ? '+$amount' : '$amount'),
       ),

@@ -144,6 +144,22 @@ void main() {
       ),
     );
 
+    final selectorHeight = tester
+        .getSize(find.byKey(const Key('exercise-selector')))
+        .height;
+    final weightFieldHeight = tester
+        .getSize(find.widgetWithText(TextField, 'Weight'))
+        .height;
+    final repsFieldHeight = tester
+        .getSize(find.widgetWithText(TextField, 'Reps'))
+        .height;
+    final addSetButtonHeight = tester
+        .getSize(find.widgetWithText(ElevatedButton, 'Add Set'))
+        .height;
+    expect(selectorHeight, weightFieldHeight);
+    expect(selectorHeight, repsFieldHeight);
+    expect(selectorHeight, addSetButtonHeight);
+
     expect(find.byTooltip('Delete exercise'), findsOneWidget);
     await tester.tap(find.byTooltip('Delete exercise'));
     expect(deleted, isTrue);

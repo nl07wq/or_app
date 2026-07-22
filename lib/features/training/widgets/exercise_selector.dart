@@ -21,6 +21,7 @@ class ExerciseSelector extends StatelessWidget {
             decoration: const InputDecoration(
               labelText: 'Exercise',
               suffixIcon: Icon(Icons.arrow_drop_down),
+              constraints: BoxConstraints(minHeight: 56),
             ),
             child: Text(
               selectedName.isEmpty ? 'Select exercise' : selectedName,

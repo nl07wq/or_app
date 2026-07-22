@@ -40,7 +40,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
         children: [
           const SectionHeader(icon: Icons.fitness_center, title: 'EXERCISE'),
 
-          AppSpacing.gapMD,
+          AppSpacing.gapLG,
 
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,16 +100,17 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
             },
           ),
 
-          AppSpacing.gapSM,
-
-          OperationButton(
-            icon: Icons.add,
-            text: 'Add Set',
-            onPressed: () {
-              setState(() {
-                widget.controller.addSet();
-              });
-            },
+          SizedBox(
+            height: 56,
+            child: OperationButton(
+              icon: Icons.add,
+              text: 'Add Set',
+              onPressed: () {
+                setState(() {
+                  widget.controller.addSet();
+                });
+              },
+            ),
           ),
         ],
       ),
