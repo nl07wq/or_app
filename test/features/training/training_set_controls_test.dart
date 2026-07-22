@@ -7,37 +7,48 @@ import 'package:or_app/features/training/widgets/training_set_list.dart';
 import 'package:or_app/features/training/widgets/training_set_row.dart';
 
 void main() {
-  testWidgets(
-    'rep adjustment buttons update reps and preserve manual editing',
-    (tester) async {
-      final weightController = TextEditingController();
-      final repsController = TextEditingController(text: '10');
-      addTearDown(weightController.dispose);
-      addTearDown(repsController.dispose);
+  testWidgets('compact rep buttons adjust reps and clamp at zero', (
+    tester,
+  ) async {
+    final weightController = TextEditingController();
+    final repsController = TextEditingController(text: '10');
+    addTearDown(weightController.dispose);
+    addTearDown(repsController.dispose);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: TrainingSetRow(
-              setNo: 1,
-              weightController: weightController,
-              repsController: repsController,
-            ),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TrainingSetRow(
+            setNo: 1,
+            weightController: weightController,
+            repsController: repsController,
           ),
         ),
-      );
+      ),
+    );
 
-      await tester.tap(find.text('+5'));
-      expect(repsController.text, '15');
+    expect(find.byType(ActionChip), findsNWidgets(6));
 
-      await tester.enterText(find.widgetWithText(TextField, 'Reps'), '3');
-      await tester.tap(find.text('+1'));
-      expect(repsController.text, '4');
+    await tester.tap(find.text('+5'));
+    expect(repsController.text, '15');
 
-      await tester.tap(find.text('+10'));
-      expect(repsController.text, '14');
-    },
-  );
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '3');
+    await tester.tap(find.text('+1'));
+    expect(repsController.text, '4');
+
+    await tester.tap(find.text('+10'));
+    expect(repsController.text, '14');
+
+    await tester.tap(find.text('-10'));
+    expect(repsController.text, '4');
+
+    await tester.tap(find.text('-5'));
+    expect(repsController.text, '0');
+
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '20');
+    await tester.tap(find.text('-1'));
+    expect(repsController.text, '19');
+  });
 
   testWidgets('previous set values can be copied outside Edit Mode', (
     tester,

@@ -52,20 +52,16 @@ class TrainingSetRow extends StatelessWidget {
         AppSpacing.gapSM,
 
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            for (final amount in const [-10, -5, -1]) ...[
+              if (amount != -10) const SizedBox(width: AppSpacing.xs),
+              _repQuickButton(amount),
+            ],
+            const SizedBox(width: AppSpacing.md),
             for (final amount in const [1, 5, 10]) ...[
-              if (amount != 1) const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _addReps(amount),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: Text('+$amount'),
-                ),
-              ),
+              if (amount != 1) const SizedBox(width: AppSpacing.xs),
+              _repQuickButton(amount),
             ],
           ],
         ),
@@ -73,9 +69,21 @@ class TrainingSetRow extends StatelessWidget {
     );
   }
 
-  void _addReps(int amount) {
+  Widget _repQuickButton(int amount) {
+    return ActionChip(
+      label: Text(amount > 0 ? '+$amount' : '$amount'),
+      onPressed: () => _adjustReps(amount),
+      padding: EdgeInsets.zero,
+      labelPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+
+  void _adjustReps(int amount) {
     final current = int.tryParse(repsController.text.trim()) ?? 0;
-    final text = (current + amount).toString();
+    final adjusted = current + amount;
+    final text = (adjusted < 0 ? 0 : adjusted).toString();
     repsController.value = TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
