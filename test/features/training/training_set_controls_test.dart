@@ -190,6 +190,10 @@ void main() {
   testWidgets('exercise delete stays visible outside Edit Mode', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final controller = TrainingExerciseController();
     addTearDown(controller.dispose);
     var deleted = false;

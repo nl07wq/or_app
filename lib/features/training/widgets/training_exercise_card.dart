@@ -10,6 +10,7 @@ import '../models/training_set_controller.dart';
 import 'equipment_selector.dart';
 import 'exercise_selector.dart';
 import 'training_history_preview.dart';
+import 'training_metrics_section.dart';
 import 'training_progression_card.dart';
 import 'training_set_list.dart';
 
@@ -107,6 +108,14 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
           TrainingProgressionCard(
             exerciseController: widget.controller.exerciseController,
             equipmentController: widget.controller.equipmentController,
+          ),
+
+          AppSpacing.gapXS,
+
+          TrainingMetricsSection(
+            exerciseController: widget.controller.exerciseController,
+            equipmentController: widget.controller.equipmentController,
+            sets: widget.controller.sets,
           ),
 
           AppSpacing.gapMD,
