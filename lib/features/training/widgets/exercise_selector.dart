@@ -19,12 +19,11 @@ class ExerciseSelector extends StatelessWidget {
           child: InputDecorator(
             isEmpty: selectedName.isEmpty,
             decoration: const InputDecoration(
-              labelText: 'Exercise',
               suffixIcon: Icon(Icons.arrow_drop_down),
               constraints: BoxConstraints(minHeight: 56),
             ),
             child: Text(
-              selectedName.isEmpty ? 'Select exercise' : selectedName,
+              selectedName.isEmpty ? 'Select Exercise' : selectedName,
             ),
           ),
         );

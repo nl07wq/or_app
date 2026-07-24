@@ -203,6 +203,7 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     final selectorHeight = tester
         .getSize(find.byKey(const Key('exercise-selector')))
@@ -219,6 +220,20 @@ void main() {
     expect(selectorHeight, weightFieldHeight);
     expect(selectorHeight, repsFieldHeight);
     expect(selectorHeight, addSetButtonHeight);
+
+    final selectorRect = tester.getRect(
+      find.byKey(const Key('exercise-selector')),
+    );
+    final previousRect = tester.getRect(find.text('Previous'));
+    final historyRect = tester.getRect(
+      find.byKey(const Key('training-history-preview')),
+    );
+    final firstSetFieldRect = tester.getRect(
+      find.widgetWithText(TextField, 'Weight'),
+    );
+    expect(previousRect.top, greaterThan(selectorRect.bottom));
+    expect(historyRect.top, greaterThan(previousRect.bottom));
+    expect(firstSetFieldRect.top, greaterThan(historyRect.bottom));
 
     expect(find.byTooltip('Delete exercise'), findsOneWidget);
     await tester.tap(find.byTooltip('Delete exercise'));

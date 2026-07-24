@@ -46,7 +46,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
         children: [
           const SectionHeader(icon: Icons.fitness_center, title: 'EXERCISE'),
 
-          AppSpacing.gapLG,
+          AppSpacing.gapMD,
 
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,13 +87,13 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
               ),
             ],
           ),
-          AppSpacing.gapSM,
+          AppSpacing.gapXS,
 
           TrainingHistoryPreview(
             exerciseController: widget.controller.exerciseController,
           ),
 
-          AppSpacing.gapLG,
+          AppSpacing.gapMD,
 
           TrainingSetList(
             sets: widget.controller.sets,

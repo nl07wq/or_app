@@ -62,6 +62,14 @@ void main() {
     );
 
     expect(find.byType(TextField), findsNothing);
+    expect(find.text('Select Exercise'), findsOneWidget);
+    expect(
+      tester
+          .widget<InputDecorator>(find.byType(InputDecorator))
+          .decoration
+          .labelText,
+      isNull,
+    );
     await tester.tap(find.byKey(const Key('exercise-selector')));
     await tester.pumpAndSettle();
 

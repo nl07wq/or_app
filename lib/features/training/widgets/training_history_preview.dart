@@ -44,33 +44,31 @@ class _TrainingHistoryPreviewState extends State<TrainingHistoryPreview> {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Previous',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: FutureBuilder<List<TrainingSet>?>(
-            future: _history,
-            builder: (context, snapshot) {
-              final sets = snapshot.data;
-              final text = snapshot.connectionState == ConnectionState.waiting
-                  ? 'Loading…'
-                  : sets == null || sets.isEmpty
-                  ? 'No previous record'
-                  : sets.map(_formatSet).join(' / ');
-              return Text(
-                text,
-                key: const Key('training-history-preview'),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: color),
-              );
-            },
-          ),
+        AppSpacing.gapXS,
+        FutureBuilder<List<TrainingSet>?>(
+          future: _history,
+          builder: (context, snapshot) {
+            final sets = snapshot.data;
+            final text = snapshot.connectionState == ConnectionState.waiting
+                ? 'Loading…'
+                : sets == null || sets.isEmpty
+                ? 'No previous record'
+                : sets.map(_formatSet).join(' / ');
+            return Text(
+              text,
+              key: const Key('training-history-preview'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: color),
+            );
+          },
         ),
       ],
     );
