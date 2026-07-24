@@ -1,11 +1,10 @@
-import 'export_data.dart';
 import 'export_metadata.dart';
+import 'repository_snapshot.dart';
 
 class ImportData {
   final String schemaVersion;
   final DateTime exportedAt;
-  final List<Map<String, Object?>>? training;
-  final List<Map<String, Object?>>? morningFact;
+  final RepositorySnapshot snapshot;
   final ExportMetadata metadata;
 
   factory ImportData({
@@ -15,28 +14,25 @@ class ImportData {
     Iterable<Map<String, Object?>>? morningFact,
     ExportMetadata metadata = const ExportMetadata(),
   }) {
-    final immutableData = ExportData(
+    return ImportData.fromSnapshot(
       schemaVersion: schemaVersion,
       exportedAt: exportedAt,
-      training: training,
-      morningFact: morningFact,
+      snapshot: RepositorySnapshot(
+        trainingRecords: training,
+        morningFactRecords: morningFact,
+      ),
       metadata: metadata,
-    );
-
-    return ImportData._(
-      schemaVersion: immutableData.schemaVersion,
-      exportedAt: immutableData.exportedAt,
-      training: immutableData.training,
-      morningFact: immutableData.morningFact,
-      metadata: immutableData.metadata,
     );
   }
 
-  const ImportData._({
+  const ImportData.fromSnapshot({
     required this.schemaVersion,
     required this.exportedAt,
-    required this.training,
-    required this.morningFact,
-    required this.metadata,
+    required this.snapshot,
+    this.metadata = const ExportMetadata(),
   });
+
+  List<Map<String, Object?>>? get training => snapshot.trainingRecords;
+
+  List<Map<String, Object?>>? get morningFact => snapshot.morningFactRecords;
 }

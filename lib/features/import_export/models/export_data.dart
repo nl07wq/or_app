@@ -1,22 +1,42 @@
 import 'export_metadata.dart';
+import 'repository_snapshot.dart';
 
 class ExportData {
   static const currentSchemaVersion = '1.0';
 
   final String schemaVersion;
   final DateTime exportedAt;
-  final List<Map<String, Object?>>? training;
-  final List<Map<String, Object?>>? morningFact;
+  final RepositorySnapshot snapshot;
   final ExportMetadata metadata;
 
-  ExportData({
-    required this.schemaVersion,
-    required this.exportedAt,
+  factory ExportData({
+    required String schemaVersion,
+    required DateTime exportedAt,
     Iterable<Map<String, Object?>>? training,
     Iterable<Map<String, Object?>>? morningFact,
+    ExportMetadata metadata = const ExportMetadata(),
+  }) {
+    return ExportData.fromSnapshot(
+      schemaVersion: schemaVersion,
+      exportedAt: exportedAt,
+      snapshot: RepositorySnapshot(
+        trainingRecords: training,
+        morningFactRecords: morningFact,
+      ),
+      metadata: metadata,
+    );
+  }
+
+  const ExportData.fromSnapshot({
+    required this.schemaVersion,
+    required this.exportedAt,
+    required this.snapshot,
     this.metadata = const ExportMetadata(),
-  }) : training = _freezeRecords(training),
-       morningFact = _freezeRecords(morningFact);
+  });
+
+  List<Map<String, Object?>>? get training => snapshot.trainingRecords;
+
+  List<Map<String, Object?>>? get morningFact => snapshot.morningFactRecords;
 
   Map<String, Object?> toJson() {
     return {
@@ -26,34 +46,5 @@ class ExportData {
       if (morningFact != null) 'morningFact': morningFact,
       'metadata': metadata.toJson(),
     };
-  }
-
-  static List<Map<String, Object?>>? _freezeRecords(
-    Iterable<Map<String, Object?>>? records,
-  ) {
-    if (records == null) return null;
-
-    return List.unmodifiable(records.map(_freezeMap));
-  }
-
-  static Map<String, Object?> _freezeMap(Map<String, Object?> source) {
-    return Map.unmodifiable(
-      source.map((key, value) => MapEntry(key, _freezeValue(value))),
-    );
-  }
-
-  static Object? _freezeValue(Object? value) {
-    if (value is Map) {
-      return Map.unmodifiable(
-        value.map(
-          (key, nestedValue) =>
-              MapEntry(key.toString(), _freezeValue(nestedValue)),
-        ),
-      );
-    }
-    if (value is Iterable) {
-      return List.unmodifiable(value.map(_freezeValue));
-    }
-    return value;
   }
 }
