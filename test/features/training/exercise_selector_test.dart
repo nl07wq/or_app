@@ -37,7 +37,7 @@ void main() {
     expect(catalog.recent, ['Bench Press', 'Lat Pulldown']);
     expect(
       catalog.all.map(exerciseDisplayName),
-      containsAll(['ベンチプレス', 'ラットプルダウン']),
+      containsAll(['ベンチプレス', 'ラットプルダウン', 'ハックスクワット']),
     );
   });
 
@@ -55,6 +55,7 @@ void main() {
           'SeatedRow',
           'Squat',
           'LegCurl',
+          'HackSquat',
         ])
           name: exerciseDisplayName(name),
       },
@@ -69,6 +70,7 @@ void main() {
         'SeatedRow': 'シーテッドロー',
         'Squat': 'スクワット',
         'LegCurl': 'レッグカール',
+        'HackSquat': 'ハックスクワット',
       },
     );
   });

@@ -9,6 +9,7 @@ const _builtInExerciseNames = <String, String>{
   'seatedrow': 'シーテッドロー',
   'squat': 'スクワット',
   'legcurl': 'レッグカール',
+  'hacksquat': 'ハックスクワット',
 };
 
 String exerciseDisplayName(String name) {

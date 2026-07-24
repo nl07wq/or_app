@@ -7,6 +7,7 @@ import '../../../core/widgets/section_header.dart';
 
 import '../models/training_exercise_controller.dart';
 import '../models/training_set_controller.dart';
+import 'equipment_selector.dart';
 import 'exercise_selector.dart';
 import 'training_history_preview.dart';
 import 'training_set_list.dart';
@@ -87,6 +88,10 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
               ),
             ],
           ),
+          AppSpacing.gapXS,
+
+          EquipmentSelector(controller: widget.controller.equipmentController),
+
           AppSpacing.gapXS,
 
           TrainingHistoryPreview(

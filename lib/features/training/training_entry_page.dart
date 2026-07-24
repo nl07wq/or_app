@@ -58,6 +58,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     for (final exercise in session.exercises) {
       final controller = TrainingExerciseController(
         exerciseController: TextEditingController(text: exercise.exerciseName),
+        equipmentController: ValueNotifier(exercise.equipmentId),
         sets: exercise.sets
             .map(
               (set) => TrainingSetController(
@@ -112,7 +113,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         cardio.durationError = parsedDuration == null || parsedDuration <= 0
             ? '運動時間は1分以上の整数で入力してください。'
             : null;
-        cardio.distanceError = !distance.isEmpty &&
+        cardio.distanceError = distance.isNotEmpty &&
                 (parsedDistance == null ||
                     !parsedDistance.isFinite ||
                     parsedDistance < 0)
@@ -174,6 +175,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           exerciseName: controller.exerciseController.text.trim(),
           order: exerciseIndex + 1,
           sets: sets,
+          equipmentId: controller.equipmentController.value,
         ),
       );
     }
@@ -431,6 +433,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                           ],
                         ),
                         DropdownButtonFormField<CardioType>(
+                          // ignore: deprecated_member_use
                           value: _cardioPlaceholders[index].type,
                           decoration: const InputDecoration(
                             labelText: '種目',
@@ -456,6 +459,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                           },
                         ),
                         DropdownButtonFormField<CardioIntensity>(
+                          // ignore: deprecated_member_use
                           value: _cardioPlaceholders[index].intensity,
                           decoration: const InputDecoration(
                             labelText: '強度',

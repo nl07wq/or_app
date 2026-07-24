@@ -218,6 +218,9 @@ void main() {
     final weightFieldHeight = tester
         .getSize(find.widgetWithText(TextField, 'Weight'))
         .height;
+    final equipmentSelectorHeight = tester
+        .getSize(find.byKey(const Key('equipment-selector')))
+        .height;
     final repsFieldHeight = tester
         .getSize(find.widgetWithText(TextField, 'Reps'))
         .height;
@@ -225,6 +228,7 @@ void main() {
         .getSize(find.widgetWithText(ElevatedButton, 'Add Set'))
         .height;
     expect(selectorHeight, weightFieldHeight);
+    expect(selectorHeight, equipmentSelectorHeight);
     expect(selectorHeight, repsFieldHeight);
     expect(selectorHeight, addSetButtonHeight);
 
@@ -232,13 +236,17 @@ void main() {
       find.byKey(const Key('exercise-selector')),
     );
     final previousRect = tester.getRect(find.text('Previous'));
+    final equipmentRect = tester.getRect(
+      find.byKey(const Key('equipment-selector')),
+    );
     final historyRect = tester.getRect(
       find.byKey(const Key('training-history-preview')),
     );
     final firstSetFieldRect = tester.getRect(
       find.widgetWithText(TextField, 'Weight'),
     );
-    expect(previousRect.top, greaterThan(selectorRect.bottom));
+    expect(equipmentRect.top, greaterThan(selectorRect.bottom));
+    expect(previousRect.top, greaterThan(equipmentRect.bottom));
     expect(historyRect.top, greaterThan(previousRect.bottom));
     expect(firstSetFieldRect.top, greaterThan(historyRect.bottom));
 

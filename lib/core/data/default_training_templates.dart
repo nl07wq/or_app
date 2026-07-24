@@ -16,5 +16,8 @@ const defaultTrainingTemplates = [
     exercises: ['ラットプルダウン', 'シーテッドロー', 'Dumbbell Curl'],
   ),
 
-  TrainingTemplate(name: 'Leg', exercises: ['スクワット', 'レッグプレス', 'レッグカール']),
+  TrainingTemplate(
+    name: 'Leg',
+    exercises: ['スクワット', 'レッグプレス', 'レッグカール', 'ハックスクワット'],
+  ),
 ];
