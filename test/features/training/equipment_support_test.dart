@@ -4,6 +4,7 @@ import 'package:or_app/core/models/training_exercise.dart';
 import 'package:or_app/features/training/models/equipment.dart';
 import 'package:or_app/features/training/models/training_exercise_controller.dart';
 import 'package:or_app/features/training/services/equipment_catalog.dart';
+import 'package:or_app/features/training/services/exercise_equipment_mapping.dart';
 import 'package:or_app/features/training/widgets/equipment_selector.dart';
 
 void main() {
@@ -41,7 +42,7 @@ void main() {
   test('built-in equipment catalog contains unique extendable entities', () {
     expect(
       builtInEquipment.map((equipment) => equipment.id).toSet(),
-      hasLength(8),
+      hasLength(builtInEquipment.length),
     );
     expect(
       builtInEquipment.map((equipment) => equipment.displayName),
@@ -59,15 +60,60 @@ void main() {
     expect(equipmentById('cable_machine')?.category, EquipmentCategory.cable);
   });
 
-  testWidgets('equipment selector supports a selection and None', (
+  test('every built-in exercise references catalog equipment', () {
+    for (final exercise in const [
+      'BenchPress',
+      'LatPulldown',
+      'LegPress',
+      'ShoulderPress',
+      'InclineBenchPress',
+      'ChestPress',
+      'SeatedRow',
+      'DumbbellCurl',
+      'Squat',
+      'LegCurl',
+      'HackSquat',
+    ]) {
+      final ids = compatibleEquipmentIds(exercise);
+      expect(ids, isNotEmpty, reason: exercise);
+      expect(ids.every((id) => equipmentById(id) != null), isTrue);
+    }
+
+    expect(
+      compatibleEquipment('BenchPress').map((item) => item.displayName),
+      containsAll(['Power Rack', 'Smith Machine', 'Hammer Strength Bench']),
+    );
+    expect(
+      compatibleEquipment('LegPress').map((item) => item.displayName),
+      containsAll(['45° Leg Press', 'Linear Leg Press', 'Squat Press']),
+    );
+    expect(
+      compatibleEquipment('LatPulldown').map((item) => item.displayName),
+      containsAll([
+        'Technogym Lat Pulldown',
+        'Life Fitness Lat Pulldown',
+        'Cable Station',
+      ]),
+    );
+    expect(compatibleEquipmentIds('Custom Exercise'), isEmpty);
+  });
+
+  testWidgets('equipment selector follows the selected exercise', (
     tester,
   ) async {
+    final exerciseController = TextEditingController(text: 'BenchPress');
     final controller = ValueNotifier<String?>(null);
+    addTearDown(exerciseController.dispose);
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: EquipmentSelector(controller: controller)),
+        home: Scaffold(
+          body: EquipmentSelector(
+            exerciseController: exerciseController,
+            controller: controller,
+          ),
+        ),
       ),
     );
 
@@ -76,18 +122,42 @@ void main() {
 
     await tester.tap(find.byKey(const Key('equipment-selector')));
     await tester.pumpAndSettle();
+    expect(find.text('Power Rack'), findsOneWidget);
+    expect(find.text('Hammer Strength Bench'), findsOneWidget);
+    expect(find.text('45° Leg Press'), findsNothing);
     await tester.tap(find.text('Smith Machine'));
     await tester.pumpAndSettle();
 
     expect(controller.value, 'smith_machine');
     expect(find.text('Smith Machine'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('equipment-selector')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('None').last);
-    await tester.pumpAndSettle();
+    exerciseController.text = 'LegPress';
+    await tester.pump();
 
     expect(controller.value, isNull);
     expect(find.text('None'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('equipment-selector')));
+    await tester.pumpAndSettle();
+    expect(find.text('45° Leg Press'), findsOneWidget);
+    expect(find.text('Linear Leg Press'), findsOneWidget);
+    expect(find.text('Squat Press'), findsOneWidget);
+    expect(find.text('Smith Machine'), findsNothing);
+    await tester.tap(find.text('45° Leg Press'));
+    await tester.pumpAndSettle();
+
+    expect(controller.value, 'leg_press_45');
+
+    exerciseController.text = 'My Custom Exercise';
+    await tester.pump();
+
+    expect(controller.value, isNull);
+    expect(find.text('None'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('equipment-selector')));
+    await tester.pumpAndSettle();
+    expect(find.text('Power Rack'), findsNothing);
+    expect(find.text('45° Leg Press'), findsNothing);
+    expect(find.text('None'), findsNWidgets(2));
   });
 }

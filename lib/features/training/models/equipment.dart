@@ -1,4 +1,4 @@
-enum EquipmentCategory { rack, machine, cable }
+enum EquipmentCategory { rack, machine, cable, freeWeight }
 
 class Equipment {
   final String id;

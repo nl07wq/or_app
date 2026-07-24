@@ -90,7 +90,10 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
           ),
           AppSpacing.gapXS,
 
-          EquipmentSelector(controller: widget.controller.equipmentController),
+          EquipmentSelector(
+            exerciseController: widget.controller.exerciseController,
+            controller: widget.controller.equipmentController,
+          ),
 
           AppSpacing.gapXS,
 

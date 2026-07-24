@@ -19,7 +19,16 @@ String exerciseDisplayName(String name) {
 }
 
 String exerciseIdentityKey(String name) {
-  return _normalizeExerciseName(exerciseDisplayName(name));
+  final normalizedName = _normalizeExerciseName(name);
+  if (_builtInExerciseNames.containsKey(normalizedName)) {
+    return normalizedName;
+  }
+  for (final entry in _builtInExerciseNames.entries) {
+    if (_normalizeExerciseName(entry.value) == normalizedName) {
+      return entry.key;
+    }
+  }
+  return normalizedName;
 }
 
 String _normalizeExerciseName(String name) {

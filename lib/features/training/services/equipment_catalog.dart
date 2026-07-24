@@ -2,6 +2,11 @@ import '../models/equipment.dart';
 
 const builtInEquipment = <Equipment>[
   Equipment(
+    id: 'power_rack',
+    displayName: 'Power Rack',
+    category: EquipmentCategory.rack,
+  ),
+  Equipment(
     id: 'bench_press_rack',
     displayName: 'Bench Press Rack',
     category: EquipmentCategory.rack,
@@ -9,6 +14,11 @@ const builtInEquipment = <Equipment>[
   Equipment(
     id: 'smith_machine',
     displayName: 'Smith Machine',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'hammer_strength_bench',
+    displayName: 'Hammer Strength Bench',
     category: EquipmentCategory.machine,
   ),
   Equipment(
@@ -27,8 +37,28 @@ const builtInEquipment = <Equipment>[
     category: EquipmentCategory.machine,
   ),
   Equipment(
+    id: 'linear_leg_press',
+    displayName: 'Linear Leg Press',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'squat_press',
+    displayName: 'Squat Press',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
     id: 'lat_pulldown',
     displayName: 'Lat Pulldown',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'technogym_lat_pulldown',
+    displayName: 'Technogym Lat Pulldown',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'life_fitness_lat_pulldown',
+    displayName: 'Life Fitness Lat Pulldown',
     category: EquipmentCategory.machine,
   ),
   Equipment(
@@ -37,9 +67,44 @@ const builtInEquipment = <Equipment>[
     category: EquipmentCategory.cable,
   ),
   Equipment(
+    id: 'cable_station',
+    displayName: 'Cable Station',
+    category: EquipmentCategory.cable,
+  ),
+  Equipment(
     id: 'hack_squat_machine',
     displayName: 'Hack Squat Machine',
     category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'shoulder_press_machine',
+    displayName: 'Shoulder Press Machine',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'incline_bench_machine',
+    displayName: 'Incline Bench Machine',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'chest_press_machine',
+    displayName: 'Chest Press Machine',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'seated_row_machine',
+    displayName: 'Seated Row Machine',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'leg_curl_machine',
+    displayName: 'Leg Curl Machine',
+    category: EquipmentCategory.machine,
+  ),
+  Equipment(
+    id: 'dumbbells',
+    displayName: 'Dumbbells',
+    category: EquipmentCategory.freeWeight,
   ),
 ];
 
