@@ -154,9 +154,10 @@ class TrainingSetRow extends StatelessWidget {
   void _adjustWeight(double amount) {
     final current = double.tryParse(weightController.text.trim()) ?? 0;
     final adjusted = current + amount;
-    final text = adjusted == adjusted.truncateToDouble()
-        ? adjusted.toInt().toString()
-        : adjusted.toString();
+    final clamped = adjusted < 0 ? 0.0 : adjusted;
+    final text = clamped == clamped.truncateToDouble()
+        ? clamped.toInt().toString()
+        : clamped.toString();
     weightController.value = TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),

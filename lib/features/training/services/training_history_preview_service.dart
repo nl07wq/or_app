@@ -1,17 +1,18 @@
 import '../../../core/models/training_set.dart';
 import '../../../core/repositories/training_repository.dart';
+import 'exercise_name_localization.dart';
 
 class TrainingHistoryPreviewService {
   TrainingHistoryPreviewService._();
 
   static Future<List<TrainingSet>?> load(String exerciseName) async {
-    final normalizedName = exerciseName.trim().toLowerCase();
-    if (normalizedName.isEmpty) return null;
+    final identityKey = exerciseIdentityKey(exerciseName);
+    if (identityKey.isEmpty) return null;
 
     final sessions = await TrainingRepository.getAll();
     for (final session in sessions) {
       for (final exercise in session.exercises) {
-        if (exercise.exerciseName.trim().toLowerCase() != normalizedName) {
+        if (exerciseIdentityKey(exercise.exerciseName) != identityKey) {
           continue;
         }
 

@@ -65,6 +65,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('weight-adjust--2.5')));
     expect(weightController.text, '78.75');
 
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '5');
+    await tester.tap(find.byKey(const ValueKey('weight-adjust--10.0')));
+    expect(weightController.text, '0');
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '2.5');
+    await tester.tap(find.byKey(const ValueKey('weight-adjust--5.0')));
+    expect(weightController.text, '0');
+
     await tester.tap(find.byKey(const ValueKey('reps-adjust-5')));
     expect(repsController.text, '15');
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/exercise_catalog_service.dart';
+import '../services/exercise_name_localization.dart';
 
 class ExerciseSelector extends StatelessWidget {
   final TextEditingController controller;
@@ -23,7 +24,9 @@ class ExerciseSelector extends StatelessWidget {
               constraints: BoxConstraints(minHeight: 56),
             ),
             child: Text(
-              selectedName.isEmpty ? 'Select Exercise' : selectedName,
+              selectedName.isEmpty
+                  ? 'Select Exercise'
+                  : exerciseDisplayName(selectedName),
             ),
           ),
         );
@@ -67,7 +70,7 @@ class _ExercisePickerSheet extends StatelessWidget {
                     ...catalog.recent.map(
                       (name) => ListTile(
                         leading: const Icon(Icons.history),
-                        title: Text(name),
+                        title: Text(exerciseDisplayName(name)),
                         onTap: () => Navigator.pop(context, name),
                       ),
                     ),
@@ -76,7 +79,7 @@ class _ExercisePickerSheet extends StatelessWidget {
                   const _SectionLabel('All Exercises'),
                   ...catalog.all.map(
                     (name) => ListTile(
-                      title: Text(name),
+                      title: Text(exerciseDisplayName(name)),
                       onTap: () => Navigator.pop(context, name),
                     ),
                   ),

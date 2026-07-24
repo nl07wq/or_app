@@ -5,6 +5,7 @@ import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/repositories/training_repository.dart';
 import 'package:or_app/features/training/models/training_set_controller.dart';
 import 'package:or_app/features/training/services/exercise_catalog_service.dart';
+import 'package:or_app/features/training/services/exercise_name_localization.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,7 +35,42 @@ void main() {
     final catalog = await ExerciseCatalogService.load();
 
     expect(catalog.recent, ['Bench Press', 'Lat Pulldown']);
-    expect(catalog.all, containsAll(['Bench Press', 'Lat Pulldown']));
+    expect(
+      catalog.all.map(exerciseDisplayName),
+      containsAll(['ベンチプレス', 'ラットプルダウン']),
+    );
+  });
+
+  test('all built-in identifiers have localized display names', () {
+    expect(
+      {
+        for (final name in const [
+          'BenchPress',
+          'DumbbellCurl',
+          'LatPulldown',
+          'LegPress',
+          'ShoulderPress',
+          'InclineBenchPress',
+          'ChestPress',
+          'SeatedRow',
+          'Squat',
+          'LegCurl',
+        ])
+          name: exerciseDisplayName(name),
+      },
+      {
+        'BenchPress': 'ベンチプレス',
+        'DumbbellCurl': 'ダンベルカール',
+        'LatPulldown': 'ラットプルダウン',
+        'LegPress': 'レッグプレス',
+        'ShoulderPress': 'ショルダープレス',
+        'InclineBenchPress': 'インクラインベンチプレス',
+        'ChestPress': 'チェストプレス',
+        'SeatedRow': 'シーテッドロー',
+        'Squat': 'スクワット',
+        'LegCurl': 'レッグカール',
+      },
+    );
   });
 
   testWidgets('selector changes only the exercise name', (tester) async {
@@ -43,7 +79,7 @@ void main() {
         date: '2026-07-22T12:00:00.000',
         memo: '',
         exercises: const [
-          TrainingExercise(exerciseName: 'Bench Press', order: 1, sets: []),
+          TrainingExercise(exerciseName: 'BenchPress', order: 1, sets: []),
         ],
       ),
     );
@@ -75,10 +111,11 @@ void main() {
 
     expect(find.text('Recent'), findsOneWidget);
     expect(find.text('All Exercises'), findsOneWidget);
-    await tester.tap(find.text('Bench Press').first);
+    await tester.tap(find.text('ベンチプレス').first);
     await tester.pumpAndSettle();
 
-    expect(exerciseController.text, 'Bench Press');
+    expect(exerciseController.text, 'BenchPress');
+    expect(find.text('ベンチプレス'), findsOneWidget);
     expect(setController.weightController.text, '80');
     expect(setController.repsController.text, '8');
   });

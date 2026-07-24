@@ -28,7 +28,7 @@ void main() {
         ],
       );
 
-      final sets = await TrainingHistoryPreviewService.load(' Bench Press ');
+      final sets = await TrainingHistoryPreviewService.load(' ベンチプレス ');
 
       expect(sets, hasLength(2));
       expect(sets!.map((set) => set.setNo), [1, 2]);

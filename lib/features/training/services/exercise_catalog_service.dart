@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/data/default_training_templates.dart';
 import '../../../core/repositories/training_repository.dart';
+import 'exercise_name_localization.dart';
 
 class ExerciseCatalog {
   final List<String> recent;
@@ -48,7 +49,8 @@ class ExerciseCatalogService {
 
     final all = allByKey.values.toList()
       ..sort(
-        (first, second) => first.toLowerCase().compareTo(second.toLowerCase()),
+        (first, second) =>
+            exerciseDisplayName(first).compareTo(exerciseDisplayName(second)),
       );
 
     return ExerciseCatalog(recent: recentByKey.values.toList(), all: all);
@@ -76,6 +78,6 @@ class ExerciseCatalogService {
   static void _addUnique(Map<String, String> exercises, String name) {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) return;
-    exercises.putIfAbsent(trimmedName.toLowerCase(), () => trimmedName);
+    exercises.putIfAbsent(exerciseIdentityKey(trimmedName), () => trimmedName);
   }
 }
