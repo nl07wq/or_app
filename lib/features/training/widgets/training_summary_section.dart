@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/training_set.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../models/personal_record_result.dart';
-import '../models/statistics_result.dart';
 import '../models/training_set_controller.dart';
-import '../services/personal_record_service.dart';
-import '../services/statistics_service.dart';
+import '../models/training_summary.dart';
+import '../services/training_summary_engine.dart';
+import 'training_history_preview.dart';
 import 'training_personal_record_card.dart';
+import 'training_progression_card.dart';
 import 'training_statistics_card.dart';
 
-class TrainingMetricsSection extends StatefulWidget {
+class TrainingSummarySection extends StatefulWidget {
   final TextEditingController exerciseController;
   final ValueNotifier<String?> equipmentController;
   final List<TrainingSetController> sets;
 
-  const TrainingMetricsSection({
+  const TrainingSummarySection({
     super.key,
     required this.exerciseController,
     required this.equipmentController,
@@ -23,13 +23,12 @@ class TrainingMetricsSection extends StatefulWidget {
   });
 
   @override
-  State<TrainingMetricsSection> createState() => _TrainingMetricsSectionState();
+  State<TrainingSummarySection> createState() => _TrainingSummarySectionState();
 }
 
-class _TrainingMetricsSectionState extends State<TrainingMetricsSection> {
+class _TrainingSummarySectionState extends State<TrainingSummarySection> {
   final List<TrainingSetController> _listenedSets = [];
-  late StatisticsResult _statistics;
-  late Future<PersonalRecordResult?> _personalRecord;
+  late Future<TrainingSummary> _summary;
 
   @override
   void initState() {
@@ -37,11 +36,11 @@ class _TrainingMetricsSectionState extends State<TrainingMetricsSection> {
     widget.exerciseController.addListener(_refresh);
     widget.equipmentController.addListener(_refresh);
     _syncSetListeners();
-    _updateResults();
+    _summary = _load();
   }
 
   @override
-  void didUpdateWidget(covariant TrainingMetricsSection oldWidget) {
+  void didUpdateWidget(covariant TrainingSummarySection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.exerciseController, widget.exerciseController)) {
       oldWidget.exerciseController.removeListener(_refresh);
@@ -52,7 +51,7 @@ class _TrainingMetricsSectionState extends State<TrainingMetricsSection> {
       widget.equipmentController.addListener(_refresh);
     }
     _syncSetListeners();
-    _updateResults();
+    _summary = _load();
   }
 
   @override
@@ -65,12 +64,33 @@ class _TrainingMetricsSectionState extends State<TrainingMetricsSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TrainingStatisticsCard(result: _statistics),
-        AppSpacing.gapXS,
-        TrainingPersonalRecordCard(result: _personalRecord),
-      ],
+    return FutureBuilder<TrainingSummary>(
+      future: _summary,
+      builder: (context, snapshot) {
+        final summary = snapshot.data;
+        if (summary == null) {
+          return Text(
+            'Loading…',
+            key: const Key('training-summary-loading'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TrainingHistoryPreview(summary: summary),
+            AppSpacing.gapXS,
+            TrainingProgressionCard(summary: summary),
+            AppSpacing.gapXS,
+            TrainingStatisticsCard(summary: summary),
+            AppSpacing.gapXS,
+            TrainingPersonalRecordCard(summary: summary),
+          ],
+        );
+      },
     );
   }
 
@@ -91,27 +111,18 @@ class _TrainingMetricsSectionState extends State<TrainingMetricsSection> {
     _listenedSets.clear();
   }
 
-  void _updateResults() {
-    final sets = _completedSets();
-    _statistics = StatisticsService.calculate(sets);
-    _personalRecord = PersonalRecordService.load(
+  Future<TrainingSummary> _load() {
+    return TrainingSummaryEngine.summarize(
       exerciseName: widget.exerciseController.text,
       equipmentId: widget.equipmentController.value,
-      currentSets: sets,
+      currentSets: _completedSets(),
     );
   }
 
   void _refresh() {
-    final sets = _completedSets();
-    final statistics = StatisticsService.calculate(sets);
-    final personalRecord = PersonalRecordService.load(
-      exerciseName: widget.exerciseController.text,
-      equipmentId: widget.equipmentController.value,
-      currentSets: sets,
-    );
+    final summary = _load();
     setState(() {
-      _statistics = statistics;
-      _personalRecord = personalRecord;
+      _summary = summary;
     });
   }
 

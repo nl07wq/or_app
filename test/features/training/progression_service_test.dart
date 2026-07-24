@@ -5,8 +5,9 @@ import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/core/repositories/training_repository.dart';
 import 'package:or_app/features/training/models/progression_result.dart';
+import 'package:or_app/features/training/models/training_set_controller.dart';
 import 'package:or_app/features/training/services/progression_service.dart';
-import 'package:or_app/features/training/widgets/training_progression_card.dart';
+import 'package:or_app/features/training/widgets/training_summary_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -87,15 +88,18 @@ void main() {
     );
     final exerciseController = TextEditingController(text: 'BenchPress');
     final equipmentController = ValueNotifier<String?>('power_rack');
+    final setController = TrainingSetController();
     addTearDown(exerciseController.dispose);
     addTearDown(equipmentController.dispose);
+    addTearDown(setController.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TrainingProgressionCard(
+          body: TrainingSummarySection(
             exerciseController: exerciseController,
             equipmentController: equipmentController,
+            sets: [setController],
           ),
         ),
       ),

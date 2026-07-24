@@ -4,8 +4,9 @@ import 'package:or_app/core/models/training_exercise.dart';
 import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/core/repositories/training_repository.dart';
+import 'package:or_app/features/training/models/training_set_controller.dart';
 import 'package:or_app/features/training/services/training_history_preview_service.dart';
-import 'package:or_app/features/training/widgets/training_history_preview.dart';
+import 'package:or_app/features/training/widgets/training_summary_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -56,12 +57,20 @@ void main() {
       sets: const [TrainingSet(setNo: 1, weight: 100.5, reps: 8)],
     );
     final controller = TextEditingController(text: 'Bench Press');
+    final equipmentController = ValueNotifier<String?>(null);
+    final setController = TrainingSetController();
     addTearDown(controller.dispose);
+    addTearDown(equipmentController.dispose);
+    addTearDown(setController.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TrainingHistoryPreview(exerciseController: controller),
+          body: TrainingSummarySection(
+            exerciseController: controller,
+            equipmentController: equipmentController,
+            sets: [setController],
+          ),
         ),
       ),
     );

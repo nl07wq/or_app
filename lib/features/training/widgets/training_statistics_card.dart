@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../models/statistics_result.dart';
+import '../models/training_summary.dart';
 import 'training_metric_format.dart';
 
 class TrainingStatisticsCard extends StatelessWidget {
-  final StatisticsResult result;
+  final TrainingSummary summary;
 
-  const TrainingStatisticsCard({super.key, required this.result});
+  const TrainingStatisticsCard({super.key, required this.summary});
 
   @override
   Widget build(BuildContext context) {
+    final result = summary.statisticsResult;
     final heaviestSet = result.heaviestSet;
     return Container(
       width: double.infinity,

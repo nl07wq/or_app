@@ -9,7 +9,7 @@ import 'package:or_app/features/training/models/training_set_controller.dart';
 import 'package:or_app/features/training/services/personal_record_service.dart';
 import 'package:or_app/features/training/services/statistics_service.dart';
 import 'package:or_app/features/training/widgets/training_metric_format.dart';
-import 'package:or_app/features/training/widgets/training_metrics_section.dart';
+import 'package:or_app/features/training/widgets/training_summary_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -92,7 +92,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TrainingMetricsSection(
+          body: TrainingSummarySection(
             exerciseController: exerciseController,
             equipmentController: equipmentController,
             sets: [setController],
