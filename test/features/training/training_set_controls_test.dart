@@ -6,8 +6,11 @@ import 'package:or_app/features/training/widgets/training_exercise_card.dart';
 import 'package:or_app/features/training/widgets/training_exercise_list.dart';
 import 'package:or_app/features/training/widgets/training_set_list.dart';
 import 'package:or_app/features/training/widgets/training_set_row.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('context controls adjust weight and reps', (tester) async {
     tester.view.physicalSize = const Size(420, 800);
     tester.view.devicePixelRatio = 1;

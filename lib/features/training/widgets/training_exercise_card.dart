@@ -8,6 +8,7 @@ import '../../../core/widgets/section_header.dart';
 import '../models/training_exercise_controller.dart';
 import '../models/training_set_controller.dart';
 import 'exercise_selector.dart';
+import 'training_history_preview.dart';
 import 'training_set_list.dart';
 
 class TrainingExerciseCard extends StatefulWidget {
@@ -86,6 +87,12 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
               ),
             ],
           ),
+          AppSpacing.gapSM,
+
+          TrainingHistoryPreview(
+            exerciseController: widget.controller.exerciseController,
+          ),
+
           AppSpacing.gapLG,
 
           TrainingSetList(
