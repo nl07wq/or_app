@@ -6,9 +6,12 @@ class MorningFact {
   final int? sleepScore;
   final int? footPain;
   final int? condition;
+  @Deprecated('Legacy read compatibility only. Use Activity bowel movement.')
   final String? bowel;
   final double? hydration;
   final String? workSchedule;
+  final bool? previousCarryoverConfirmed;
+  final String? note;
 
   const MorningFact({
     this.date,
@@ -21,5 +24,7 @@ class MorningFact {
     this.bowel,
     this.hydration,
     this.workSchedule,
+    this.previousCarryoverConfirmed,
+    this.note,
   });
 }

@@ -160,6 +160,7 @@ void main() {
     expect(find.text('Activity Entry'), findsOneWidget);
     expect(find.text('2026-07-23'), findsOneWidget);
     expect(find.text('-5,000 steps'), findsOneWidget);
+    expect(find.text('BOWEL MOVEMENT'), findsOneWidget);
   });
 
   testWidgets('existing target-date record opens in Edit mode', (tester) async {

@@ -13,10 +13,13 @@ class MorningData {
 
   // FOOT HEALTH
   final int footPain;
+  final int? condition;
+  final bool? previousCarryoverConfirmed;
 
   // BOWEL
-  final int bowelAmount;
-  final int bowelShape;
+  /// Legacy-only Activity data. New Morning input leaves these values null.
+  final int? bowelAmount;
+  final int? bowelShape;
 
   // WORK
   final WorkType workType;
@@ -42,9 +45,11 @@ class MorningData {
     required this.sleepScore,
 
     required this.footPain,
+    this.condition,
+    this.previousCarryoverConfirmed,
 
-    required this.bowelAmount,
-    required this.bowelShape,
+    this.bowelAmount,
+    this.bowelShape,
 
     required this.workType,
 
@@ -68,9 +73,11 @@ class MorningData {
       sleepScore: (json['sleepScore'] ?? 0) as int,
 
       footPain: (json['footPain'] ?? 0) as int,
+      condition: (json['condition'] as num?)?.toInt(),
+      previousCarryoverConfirmed: json['previousCarryoverConfirmed'] as bool?,
 
-      bowelAmount: (json['bowelAmount'] ?? 0) as int,
-      bowelShape: (json['bowelShape'] ?? 0) as int,
+      bowelAmount: (json['bowelAmount'] as num?)?.toInt(),
+      bowelShape: (json['bowelShape'] as num?)?.toInt(),
 
       workType: WorkType.values.firstWhere(
         (e) => e.name == json['workType'],
@@ -97,9 +104,12 @@ class MorningData {
       'sleepScore': sleepScore,
 
       'footPain': footPain,
+      if (condition != null) 'condition': condition,
+      if (previousCarryoverConfirmed != null)
+        'previousCarryoverConfirmed': previousCarryoverConfirmed,
 
-      'bowelAmount': bowelAmount,
-      'bowelShape': bowelShape,
+      if (bowelAmount != null) 'bowelAmount': bowelAmount,
+      if (bowelShape != null) 'bowelShape': bowelShape,
 
       'workType': workType.name,
 

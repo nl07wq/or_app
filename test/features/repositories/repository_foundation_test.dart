@@ -6,6 +6,7 @@ import 'package:or_app/features/morning_fact/models/morning_fact.dart';
 import 'package:or_app/features/repositories/memory/in_memory_morning_fact_repository.dart';
 import 'package:or_app/features/repositories/memory/in_memory_training_repository.dart';
 import 'package:or_app/features/repositories/repository_provider.dart';
+import 'package:or_app/features/activity/repository/in_memory_activity_repository.dart';
 import 'package:or_app/features/repositories/repository_record.dart';
 
 void main() {
@@ -94,6 +95,12 @@ void main() {
     final second = RepositoryProvider.inMemory();
 
     expect(first.morningFactRepository, isA<InMemoryMorningFactRepository>());
+    expect(first.activityRepository, isA<InMemoryActivityRepository>());
+    expect(second.activityRepository, isA<InMemoryActivityRepository>());
+    expect(
+      identical(first.activityRepository, second.activityRepository),
+      isFalse,
+    );
     expect(first.trainingRepository, isA<InMemoryTrainingRepository>());
     expect(
       first.morningFactRepository,

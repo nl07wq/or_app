@@ -117,13 +117,13 @@ class _WorkCardState extends State<WorkCard> {
 
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: widget.startController,
-              builder: (_, __, ___) {
+              builder: (_, _, _) {
                 return ValueListenableBuilder<TextEditingValue>(
                   valueListenable: widget.endController,
-                  builder: (_, __, ___) {
+                  builder: (_, _, _) {
                     return ValueListenableBuilder<TextEditingValue>(
                       valueListenable: widget.breakController,
-                      builder: (_, __, ___) {
+                      builder: (_, _, _) {
                         final workHours = WorkCalculator.calculate(
                           start: widget.startController.text,
                           end: widget.endController.text,

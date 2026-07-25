@@ -13,9 +13,10 @@ void main() {
       sleepScore: 82,
       footPain: 2,
       condition: 4,
-      bowel: 'normal',
       hydration: 500,
-      workSchedule: '11:00–18:00',
+      workSchedule: '11:00-18:00',
+      previousCarryoverConfirmed: true,
+      note: 'Ready',
     );
 
     expect(fact.date, same(date));
@@ -25,9 +26,11 @@ void main() {
     expect(fact.sleepScore, 82);
     expect(fact.footPain, 2);
     expect(fact.condition, 4);
-    expect(fact.bowel, 'normal');
+    expect(fact.bowel, isNull);
     expect(fact.hydration, 500);
-    expect(fact.workSchedule, '11:00–18:00');
+    expect(fact.workSchedule, '11:00-18:00');
+    expect(fact.previousCarryoverConfirmed, isTrue);
+    expect(fact.note, 'Ready');
   });
 
   test('all MorningFact values may be absent', () {

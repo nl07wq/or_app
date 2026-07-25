@@ -11,9 +11,10 @@ class MorningFactBuilder {
     int? sleepScore,
     int? footPain,
     int? condition,
-    String? bowel,
     double? hydration,
     String? workSchedule,
+    bool? previousCarryoverConfirmed,
+    String? note,
   }) {
     return MorningFact(
       date: date,
@@ -23,9 +24,10 @@ class MorningFactBuilder {
       sleepScore: sleepScore,
       footPain: footPain,
       condition: condition,
-      bowel: bowel,
       hydration: hydration,
       workSchedule: workSchedule,
+      previousCarryoverConfirmed: previousCarryoverConfirmed,
+      note: note,
     );
   }
 }

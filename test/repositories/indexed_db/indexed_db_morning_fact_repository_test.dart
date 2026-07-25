@@ -32,6 +32,8 @@ void main() {
         bowel: 'normal',
         hydration: 500,
         workSchedule: '11:00–18:00',
+        previousCarryoverConfirmed: true,
+        note: 'Morning note',
       ),
     );
     const updated = RepositoryRecord(
@@ -58,6 +60,8 @@ void main() {
     expect(stored?.value.bowel, 'normal');
     expect(stored?.value.hydration, 500);
     expect(stored?.value.workSchedule, '11:00–18:00');
+    expect(stored?.value.previousCarryoverConfirmed, isTrue);
+    expect(stored?.value.note, 'Morning note');
 
     await repository.save(updated);
     await repository.save(second);

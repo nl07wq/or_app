@@ -18,7 +18,9 @@ Future<void> refreshMorningFact() async {
     }
 
     if (latestRecord == null ||
-        DateTime.parse(record.date).isAfter(DateTime.parse(latestRecord.date))) {
+        DateTime.parse(
+          record.date,
+        ).isAfter(DateTime.parse(latestRecord.date))) {
       latestRecord = record;
     }
   }
@@ -29,11 +31,14 @@ Future<void> refreshMorningFact() async {
           date: DateTime.parse(latestRecord.date),
           weight: latestRecord.weight,
           bodyFat: latestRecord.bodyFat,
-          sleepDuration:
-              Duration(minutes: (latestRecord.sleepHours * 60).round()),
+          sleepDuration: Duration(
+            minutes: (latestRecord.sleepHours * 60).round(),
+          ),
+          sleepScore: latestRecord.sleepScore,
           workHours: latestRecord.workHours,
-          bowelMovement: latestRecord.bowelAmount > 0,
           footPain: latestRecord.footPain,
+          condition: latestRecord.condition,
+          previousCarryoverConfirmed: latestRecord.previousCarryoverConfirmed,
           medications: const [],
           freeNotes: latestRecord.memo.isEmpty ? null : latestRecord.memo,
         );

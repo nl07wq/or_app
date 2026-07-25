@@ -11,7 +11,6 @@ import 'widgets/memo_input_card.dart';
 import 'widgets/morning_submit_button.dart';
 import 'widgets/recovery_card.dart';
 import 'widgets/foot_card.dart';
-import 'widgets/bowel_card.dart';
 import 'widgets/work_card.dart';
 
 import 'services/morning_submit_service.dart';
@@ -44,9 +43,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
       footPainController.text = data.footPain.toString();
 
-      bowelAmountController.text = data.bowelAmount.toString();
-      bowelShapeController.text = data.bowelShape.toString();
-
       selectedWorkType = data.workType;
 
       workStartController.text = data.workStart;
@@ -70,9 +66,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
   final sleepScoreController = TextEditingController();
 
   final footPainController = TextEditingController();
-
-  final bowelAmountController = TextEditingController();
-  final bowelShapeController = TextEditingController();
 
   final workStartController = TextEditingController();
 
@@ -135,13 +128,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
               AppSpacing.gapMD,
 
-              BowelCard(
-                amountController: bowelAmountController,
-                shapeController: bowelShapeController,
-              ),
-
-              AppSpacing.gapMD,
-
               WorkCard(
                 workType: selectedWorkType,
                 onChanged: (value) {
@@ -164,33 +150,38 @@ class _MorningFactPageState extends State<MorningFactPage> {
                 isEdit: widget.isEdit,
                 onPressed: () async {
                   String? error;
-                  try { error = await MorningSubmitService.submit(
-                    existingData: widget.data,
-                    workType: selectedWorkType,
-                    weightText: weightController.text,
-                    bodyFatText: bodyFatController.text,
-                    sleepText: sleepController.text,
-                    sleepScoreText: sleepScoreController.text,
-                    footPainText: footPainController.text,
-                    bowelAmountText: bowelAmountController.text,
-                    bowelShapeText: bowelShapeController.text,
-                    workStart: workStartController.text,
-                    workEnd: workEndController.text,
-                    workBreak: workBreakController.text,
-                    memo: memoController.text,
-                  );
+                  try {
+                    error = await MorningSubmitService.submit(
+                      existingData: widget.data,
+                      workType: selectedWorkType,
+                      weightText: weightController.text,
+                      bodyFatText: bodyFatController.text,
+                      sleepText: sleepController.text,
+                      sleepScoreText: sleepScoreController.text,
+                      footPainText: footPainController.text,
+                      workStart: workStartController.text,
+                      workEnd: workEndController.text,
+                      workBreak: workBreakController.text,
+                      memo: memoController.text,
+                    );
 
-                  if (!context.mounted) return;
+                    if (!context.mounted) return;
 
-                  if (error != null) {
-                    _showError(error);
+                    if (error != null) {
+                      _showError(error);
+                      return;
+                    }
+
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      AppRoutes.dashboard,
+                      (route) => false,
+                    );
+                  } on ConfirmedDailyLogException catch (exception) {
+                    if (context.mounted) {
+                      showConfirmedLogMessage(context, exception);
+                    }
                     return;
                   }
-
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    AppRoutes.dashboard,
-                    (route) => false,
-                  ); } on ConfirmedDailyLogException catch (exception) { if (context.mounted) showConfirmedLogMessage(context, exception); return; }
                 },
               ),
             ],
@@ -209,9 +200,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
     sleepScoreController.dispose();
 
     footPainController.dispose();
-
-    bowelAmountController.dispose();
-    bowelShapeController.dispose();
 
     workStartController.dispose();
     workEndController.dispose();

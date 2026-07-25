@@ -35,9 +35,6 @@ class MorningSubmitService {
 
     required String footPainText,
 
-    required String bowelAmountText,
-    required String bowelShapeText,
-
     required String workStart,
     required String workEnd,
     required String workBreak,
@@ -111,12 +108,13 @@ class MorningSubmitService {
       sleepScore: sleepScore,
 
       footPain: int.tryParse(footPainText) ?? 3,
+      condition: existingData?.condition,
+      previousCarryoverConfirmed: existingData?.previousCarryoverConfirmed,
 
-      bowelAmount: int.tryParse(bowelAmountText) ?? 2,
-
-      bowelShape: (int.tryParse(bowelAmountText) ?? 0) == 0
-          ? 0
-          : int.tryParse(bowelShapeText) ?? 2,
+      // Preserve legacy data when editing. New Morning records leave bowel
+      // movement unconfirmed because Activity is now authoritative.
+      bowelAmount: existingData?.bowelAmount,
+      bowelShape: existingData?.bowelShape,
 
       workType: workType,
 
@@ -138,10 +136,14 @@ class MorningSubmitService {
     );
 
     if (existingData == null) {
-      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(morningData.date));
+      await DailyLogMutationGuard.assertDateMutable(
+        DateTime.parse(morningData.date),
+      );
       await MorningRepository.save(morningData);
     } else {
-      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(morningData.date));
+      await DailyLogMutationGuard.assertDateMutable(
+        DateTime.parse(morningData.date),
+      );
       await MorningRepository.update(morningData);
     }
 

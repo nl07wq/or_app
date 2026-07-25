@@ -47,7 +47,13 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
 
     if (!result) return;
 
-    try { await DailyLogMutationGuard.assertDateMutable(DateTime.parse(data.date)); await MorningRepository.remove(data); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
+    try {
+      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(data.date));
+      await MorningRepository.remove(data);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return;
+    }
     await refreshMorningFact();
 
     _loadRecords();
@@ -82,7 +88,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
 
             return ListView.separated(
               itemCount: records.length,
-              separatorBuilder: (_, __) => AppSpacing.gapMD,
+              separatorBuilder: (_, _) => AppSpacing.gapMD,
               itemBuilder: (context, index) {
                 final data = records[index];
 
@@ -139,16 +145,18 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                         label: '足底筋膜炎',
                         value: '${data.footPain}',
                       ),
-                      _HistoryDetailRow(
-                        icon: Icons.check_circle_outline,
-                        label: '排便量',
-                        value: '${data.bowelAmount}',
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.health_and_safety_outlined,
-                        label: '排便形状',
-                        value: '${data.bowelShape}',
-                      ),
+                      if (data.bowelAmount != null)
+                        _HistoryDetailRow(
+                          icon: Icons.info_outline,
+                          label: '旧排便量',
+                          value: '${data.bowelAmount}',
+                        ),
+                      if (data.bowelShape != null)
+                        _HistoryDetailRow(
+                          icon: Icons.info_outline,
+                          label: '旧排便形状',
+                          value: '${data.bowelShape}',
+                        ),
                       _HistoryDetailRow(
                         icon: Icons.work_outline,
                         label: '勤務区分',

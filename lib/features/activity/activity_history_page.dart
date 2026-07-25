@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/activity_data.dart';
+import '../../core/models/bowel_movement_record.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
@@ -61,7 +62,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: records.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final data = records[index];
               final previousCarryOver = _findPreviousCarryOver(
@@ -90,6 +91,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                         Text(
                           'Previous Carry Over deducted: -${_formatSteps(previousCarryOver)} steps',
                         ),
+                      Text(
+                        'Bowel: ${_formatBowelMovement(data.bowelMovement)}',
+                      ),
                     ],
                   ),
                   trailing: Row(
@@ -142,5 +146,14 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       }
     }
     return 0;
+  }
+
+  String _formatBowelMovement(BowelMovementRecord record) {
+    return switch (record.status) {
+      BowelMovementStatus.unconfirmed => 'Not entered',
+      BowelMovementStatus.none => 'None',
+      BowelMovementStatus.recorded =>
+        record.count == null ? 'Recorded (legacy)' : '${record.count} time(s)',
+    };
   }
 }

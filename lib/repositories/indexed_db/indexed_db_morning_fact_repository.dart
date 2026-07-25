@@ -87,9 +87,11 @@ class IndexedDbMorningFactRepository implements MorningFactRepository {
       'sleepScore': fact.sleepScore,
       'footPain': fact.footPain,
       'condition': fact.condition,
-      'bowel': fact.bowel,
+      if (fact.bowel != null) 'bowel': fact.bowel,
       'hydration': fact.hydration,
       'workSchedule': fact.workSchedule,
+      'previousCarryoverConfirmed': fact.previousCarryoverConfirmed,
+      'note': fact.note,
     };
   }
 
@@ -123,6 +125,11 @@ class IndexedDbMorningFactRepository implements MorningFactRepository {
       bowel: _optionalString(data, 'bowel'),
       hydration: _optionalDouble(data, 'hydration'),
       workSchedule: _optionalString(data, 'workSchedule'),
+      previousCarryoverConfirmed: _optionalBool(
+        data,
+        'previousCarryoverConfirmed',
+      ),
+      note: _optionalString(data, 'note'),
     );
   }
 
@@ -144,6 +151,13 @@ class IndexedDbMorningFactRepository implements MorningFactRepository {
     final value = data[key];
     if (value == null) return null;
     if (value is! String) throw FormatException('Invalid MorningFact $key.');
+    return value;
+  }
+
+  bool? _optionalBool(Map<String, Object?> data, String key) {
+    final value = data[key];
+    if (value == null) return null;
+    if (value is! bool) throw FormatException('Invalid MorningFact $key.');
     return value;
   }
 }

@@ -5,32 +5,38 @@ class MorningFact {
   final double weight;
   final double? bodyFat;
   final Duration sleepDuration;
+  final int sleepScore;
   final double workHours;
-  final bool bowelMovement;
   final int footPain;
+  final int? condition;
+  final bool? previousCarryoverConfirmed;
   final List<String> medications;
   final String? freeNotes;
 
-  const MorningFact({
+  MorningFact({
     required this.date,
     required this.weight,
     required this.bodyFat,
     required this.sleepDuration,
+    required this.sleepScore,
     required this.workHours,
-    required this.bowelMovement,
     required this.footPain,
-    required this.medications,
+    this.condition,
+    this.previousCarryoverConfirmed,
+    required List<String> medications,
     required this.freeNotes,
-  });
+  }) : medications = List.unmodifiable(medications);
 
   MorningFact copyWith({
     DateTime? date,
     double? weight,
     Object? bodyFat = _unset,
     Duration? sleepDuration,
+    int? sleepScore,
     double? workHours,
-    bool? bowelMovement,
     int? footPain,
+    Object? condition = _unset,
+    Object? previousCarryoverConfirmed = _unset,
     List<String>? medications,
     Object? freeNotes = _unset,
   }) {
@@ -39,9 +45,13 @@ class MorningFact {
       weight: weight ?? this.weight,
       bodyFat: bodyFat == _unset ? this.bodyFat : bodyFat as double?,
       sleepDuration: sleepDuration ?? this.sleepDuration,
+      sleepScore: sleepScore ?? this.sleepScore,
       workHours: workHours ?? this.workHours,
-      bowelMovement: bowelMovement ?? this.bowelMovement,
       footPain: footPain ?? this.footPain,
+      condition: condition == _unset ? this.condition : condition as int?,
+      previousCarryoverConfirmed: previousCarryoverConfirmed == _unset
+          ? this.previousCarryoverConfirmed
+          : previousCarryoverConfirmed as bool?,
       medications: medications ?? this.medications,
       freeNotes: freeNotes == _unset ? this.freeNotes : freeNotes as String?,
     );
@@ -52,12 +62,12 @@ class MorningFact {
       date: DateTime.parse(json['date'] as String),
       weight: (json['weight'] as num).toDouble(),
       bodyFat: (json['bodyFat'] as num?)?.toDouble(),
-      sleepDuration: Duration(
-        microseconds: json['sleepDuration'] as int,
-      ),
+      sleepDuration: Duration(microseconds: json['sleepDuration'] as int),
+      sleepScore: (json['sleepScore'] as num?)?.toInt() ?? 0,
       workHours: (json['workHours'] as num).toDouble(),
-      bowelMovement: json['bowelMovement'] as bool,
       footPain: json['footPain'] as int,
+      condition: (json['condition'] as num?)?.toInt(),
+      previousCarryoverConfirmed: json['previousCarryoverConfirmed'] as bool?,
       medications: List<String>.from(json['medications'] as List),
       freeNotes: json['freeNotes'] as String?,
     );
@@ -69,9 +79,12 @@ class MorningFact {
       'weight': weight,
       'bodyFat': bodyFat,
       'sleepDuration': sleepDuration.inMicroseconds,
+      'sleepScore': sleepScore,
       'workHours': workHours,
-      'bowelMovement': bowelMovement,
       'footPain': footPain,
+      if (condition != null) 'condition': condition,
+      if (previousCarryoverConfirmed != null)
+        'previousCarryoverConfirmed': previousCarryoverConfirmed,
       'medications': medications,
       'freeNotes': freeNotes,
     };
@@ -86,9 +99,11 @@ class MorningFact {
         weight == other.weight &&
         bodyFat == other.bodyFat &&
         sleepDuration == other.sleepDuration &&
+        sleepScore == other.sleepScore &&
         workHours == other.workHours &&
-        bowelMovement == other.bowelMovement &&
         footPain == other.footPain &&
+        condition == other.condition &&
+        previousCarryoverConfirmed == other.previousCarryoverConfirmed &&
         freeNotes == other.freeNotes &&
         _sameMedications(other.medications);
   }
@@ -110,9 +125,11 @@ class MorningFact {
       weight,
       bodyFat,
       sleepDuration,
+      sleepScore,
       workHours,
-      bowelMovement,
       footPain,
+      condition,
+      previousCarryoverConfirmed,
       Object.hashAll(medications),
       freeNotes,
     );
