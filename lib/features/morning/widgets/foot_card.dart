@@ -1,13 +1,77 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
 
-class FootCard extends StatelessWidget {
+class FootCard extends StatefulWidget {
   final TextEditingController controller;
 
   const FootCard({super.key, required this.controller});
+
+  @override
+  State<FootCard> createState() => _FootCardState();
+}
+
+class _FootCardState extends State<FootCard> {
+  static const _firstRowValues = [1, 2, 3, 4, 5];
+  static const _secondRowValues = [6, 7, 8, 9, 10];
+
+  int? get _selectedValue => int.tryParse(widget.controller.text);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller.text.isEmpty) {
+      widget.controller.text = '3';
+    }
+    widget.controller.addListener(_handleControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(FootCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+
+    oldWidget.controller.removeListener(_handleControllerChanged);
+    if (widget.controller.text.isEmpty) {
+      widget.controller.text = '3';
+    }
+    widget.controller.addListener(_handleControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _selectPainLevel(int value) {
+    widget.controller.text = value.toString();
+  }
+
+  Widget _buildPainLevelRow(List<int> values, Key key) {
+    return Row(
+      key: key,
+      children: values
+          .map(
+            (value) => Expanded(
+              child: Center(
+                child: ChoiceChip(
+                  label: Text('$value'),
+                  selected: _selectedValue == value,
+                  onSelected: (_) => _selectPainLevel(value),
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,14 +86,34 @@ class FootCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          WheelInputCard(
-            title: "Pain Level",
-            unit: "",
-            controller: controller,
-            min: 0,
-            max: 10,
-            step: 1,
-            initialValue: 3,
+          const Text(
+            'Pain Level',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          AppSpacing.gapMD,
+
+          _buildPainLevelRow(
+            _firstRowValues,
+            const Key('foot-pain-levels-1-5'),
+          ),
+
+          AppSpacing.gapSM,
+
+          _buildPainLevelRow(
+            _secondRowValues,
+            const Key('foot-pain-levels-6-10'),
+          ),
+
+          AppSpacing.gapMD,
+
+          Text(
+            '1–2：軽微\n'
+            '3–4：軽い\n'
+            '5–6：中程度\n'
+            '7–8：強い\n'
+            '9–10：非常に強い',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
