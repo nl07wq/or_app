@@ -15,7 +15,7 @@ void main() {
         id: 'activity-1',
         date: DateTime(2026, 7, 25),
         measuredSteps: 1000,
-        bowelMovement: BowelMovementRecord.recorded(count: 1),
+        bowelMovement: BowelMovementRecord.recorded(amount: 1, shape: 1),
       );
       final updated = first.copyWith(measuredSteps: 2000);
       final second = ActivityData(

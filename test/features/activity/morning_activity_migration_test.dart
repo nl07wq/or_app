@@ -45,8 +45,7 @@ void main() {
     final result = resolver.resolve(legacyMorningBowel: 'normal');
 
     expect(result.status, BowelMovementStatus.recorded);
-    expect(result.count, isNull);
-    expect(result.note, 'normal');
+    expect(result.amount, isNull);
   });
 
   test('Morning creates an incomplete Activity initial value', () {
@@ -67,7 +66,7 @@ void main() {
       date: DateTime(2026, 7, 25),
       measuredSteps: 9000,
       plannedWork: 'custom',
-      bowelMovement: BowelMovementRecord.recorded(count: 2),
+      bowelMovement: BowelMovementRecord.recorded(amount: 2, shape: 1),
     );
 
     final result = mapper.initialize(
@@ -78,7 +77,8 @@ void main() {
     expect(identical(result, existing), isTrue);
     expect(result.measuredSteps, 9000);
     expect(result.plannedWork, 'custom');
-    expect(result.bowelMovement.count, 2);
+    expect(result.bowelMovement.amount, 2);
+    expect(result.bowelMovement.shape, 1);
   });
 }
 

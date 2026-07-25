@@ -74,16 +74,13 @@ void main() {
   test('distinguishes bowel none, recorded, and unconfirmed', () {
     const unconfirmed = BowelMovementRecord.unconfirmed();
     const none = BowelMovementRecord.none();
-    final recorded = BowelMovementRecord.recorded(
-      count: 2,
-      amount: 3,
-      shape: 4,
-    );
+    final recorded = BowelMovementRecord.recorded(amount: 3, shape: 3);
 
     expect(unconfirmed.hasMovement, isNull);
     expect(none.hasMovement, isFalse);
     expect(recorded.hasMovement, isTrue);
-    expect(recorded.count, 2);
+    expect(recorded.amount, 3);
+    expect(recorded.shape, 3);
   });
 
   test('same input produces the same summary without mutating the record', () {

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/activity_data.dart';
 import '../../core/models/bowel_movement_record.dart';
+import '../../core/models/morning_data.dart';
 import '../../core/navigation/app_routes.dart';
+import '../../core/repositories/morning_repository.dart';
 import '../../core/services/app_clock.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/theme/app_spacing.dart';
@@ -12,6 +14,8 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
 import 'models/activity_summary_state.dart';
+import 'services/bowel_movement_resolver.dart';
+import 'widgets/bowel_card.dart';
 
 enum _EditableStepField { measuredSteps, carryOver }
 
@@ -31,12 +35,8 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   late final TextEditingController _carryOverController;
   late final FocusNode _measuredStepsFocusNode;
   late final FocusNode _carryOverFocusNode;
-  late BowelMovementStatus _bowelStatus;
-  late final TextEditingController _bowelCountController;
   late final TextEditingController _bowelAmountController;
   late final TextEditingController _bowelShapeController;
-  late final TextEditingController _bowelTimeController;
-  late final TextEditingController _bowelNoteController;
   int _previousCarryOverDeduction = 0;
   _EditableStepField _lastFocusedField = _EditableStepField.measuredSteps;
 
@@ -55,24 +55,15 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     final bowelMovement =
         widget.initialData?.bowelMovement ??
         const BowelMovementRecord.unconfirmed();
-    _bowelStatus = bowelMovement.status;
-    _bowelCountController = TextEditingController(
-      text: bowelMovement.count?.toString() ?? '',
-    );
     _bowelAmountController = TextEditingController(
-      text: bowelMovement.amount?.toString() ?? '',
+      text: switch (bowelMovement.status) {
+        BowelMovementStatus.unconfirmed => '',
+        BowelMovementStatus.none => '0',
+        BowelMovementStatus.recorded => bowelMovement.amount?.toString() ?? '',
+      },
     );
     _bowelShapeController = TextEditingController(
-      text: bowelMovement.shape?.toString() ?? '',
-    );
-    _bowelTimeController = TextEditingController(
-      text: bowelMovement.time == null
-          ? ''
-          : '${bowelMovement.time!.hour.toString().padLeft(2, '0')}:'
-                '${bowelMovement.time!.minute.toString().padLeft(2, '0')}',
-    );
-    _bowelNoteController = TextEditingController(
-      text: bowelMovement.note ?? '',
+      text: _shapeControllerValue(bowelMovement.shape),
     );
     _measuredStepsFocusNode.addListener(
       () => _updateFocusedField(
@@ -87,6 +78,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       ),
     );
     _loadPreviousCarryOver(_date);
+    _loadLegacyBowel(_date);
   }
 
   @override
@@ -95,11 +87,8 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     _carryOverController.dispose();
     _measuredStepsFocusNode.dispose();
     _carryOverFocusNode.dispose();
-    _bowelCountController.dispose();
     _bowelAmountController.dispose();
     _bowelShapeController.dispose();
-    _bowelTimeController.dispose();
-    _bowelNoteController.dispose();
     super.dispose();
   }
 
@@ -154,14 +143,6 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     }
 
     final bowelMovement = _buildBowelMovement();
-    if (bowelMovement == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a valid bowel count and optional HH:mm time.'),
-        ),
-      );
-      return;
-    }
 
     try {
       final initial = widget.initialData;
@@ -216,8 +197,11 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() {
       _date = picked;
       _previousCarryOverDeduction = 0;
+      _bowelAmountController.clear();
+      _bowelShapeController.clear();
     });
     await _loadPreviousCarryOver(picked);
+    await _loadLegacyBowel(picked);
   }
 
   void _addQuickSteps(int amount) {
@@ -238,61 +222,58 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() {});
   }
 
-  BowelMovementRecord? _buildBowelMovement() {
-    final note = _bowelNoteController.text.trim();
-    final timeText = _bowelTimeController.text.trim();
-    final time = _parseOptionalTime(timeText);
-    if (timeText.isNotEmpty && time == null) return null;
-
-    switch (_bowelStatus) {
-      case BowelMovementStatus.unconfirmed:
-        return const BowelMovementRecord.unconfirmed();
-      case BowelMovementStatus.none:
-        return BowelMovementRecord.none(
-          time: time,
-          note: note.isEmpty ? null : note,
-        );
-      case BowelMovementStatus.recorded:
-        final count = int.tryParse(_bowelCountController.text.trim());
-        if (count == null || count <= 0) {
-          final existing = widget.initialData?.bowelMovement;
-          if (existing?.status == BowelMovementStatus.recorded &&
-              existing?.count == null &&
-              _bowelCountController.text.trim().isEmpty) {
-            return existing;
-          }
-          return null;
-        }
-        return BowelMovementRecord.recorded(
-          count: count,
-          amount: _optionalInt(_bowelAmountController.text),
-          shape: _optionalInt(_bowelShapeController.text),
-          time: time,
-          note: note.isEmpty ? null : note,
-        );
+  BowelMovementRecord _buildBowelMovement() {
+    final amountText = _bowelAmountController.text.trim();
+    if (amountText.isEmpty) {
+      final existing = widget.initialData?.bowelMovement;
+      if (existing?.status == BowelMovementStatus.recorded &&
+          existing?.amount == null) {
+        return existing!;
+      }
+      return const BowelMovementRecord.unconfirmed();
     }
+    final amount = int.tryParse(amountText);
+    if (amount == null || amount == 0) {
+      return const BowelMovementRecord.none();
+    }
+    final shape = int.tryParse(_bowelShapeController.text.trim()) ?? 1;
+    return BowelMovementRecord.recorded(amount: amount, shape: shape + 1);
   }
 
-  int? _optionalInt(String text) {
-    final value = text.trim();
-    return value.isEmpty ? null : int.tryParse(value);
+  Future<void> _loadLegacyBowel(DateTime date) async {
+    if (widget.initialData?.bowelMovement.isConfirmed ?? false) return;
+
+    final records = await MorningRepository.getAll();
+    MorningData? legacyMorning;
+    for (final record in records) {
+      final recordDate = DateTime.parse(record.date);
+      if (_isSameDate(recordDate, date)) {
+        legacyMorning = record;
+        break;
+      }
+    }
+    final bowelMovement = const BowelMovementResolver().resolve(
+      legacyMorning: legacyMorning,
+    );
+    if (!mounted ||
+        !_isSameDate(_date, date) ||
+        _bowelAmountController.text.isNotEmpty ||
+        !bowelMovement.isConfirmed) {
+      return;
+    }
+
+    setState(() {
+      _bowelAmountController.text =
+          bowelMovement.status == BowelMovementStatus.none
+          ? '0'
+          : bowelMovement.amount?.toString() ?? '';
+      _bowelShapeController.text = _shapeControllerValue(bowelMovement.shape);
+    });
   }
 
-  DateTime? _parseOptionalTime(String text) {
-    if (text.isEmpty) return null;
-    final parts = text.split(':');
-    if (parts.length != 2) return null;
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-    if (hour == null ||
-        minute == null ||
-        hour < 0 ||
-        hour > 23 ||
-        minute < 0 ||
-        minute > 59) {
-      return null;
-    }
-    return DateTime(_date.year, _date.month, _date.day, hour, minute);
+  static String _shapeControllerValue(int? domainShape) {
+    if (domainShape == null) return '';
+    return (domainShape - 1).clamp(0, 2).toString();
   }
 
   @override
@@ -346,66 +327,6 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 ),
                 AppSpacing.gapMD,
                 _OfficialStepsDisplay(officialSteps: officialSteps),
-                AppSpacing.gapLG,
-                const SectionHeader(
-                  icon: Icons.health_and_safety_outlined,
-                  title: 'BOWEL MOVEMENT',
-                ),
-                AppSpacing.gapMD,
-                DropdownButtonFormField<BowelMovementStatus>(
-                  initialValue: _bowelStatus,
-                  decoration: const InputDecoration(labelText: 'Status'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: BowelMovementStatus.unconfirmed,
-                      child: Text('Not entered'),
-                    ),
-                    DropdownMenuItem(
-                      value: BowelMovementStatus.none,
-                      child: Text('No bowel movement'),
-                    ),
-                    DropdownMenuItem(
-                      value: BowelMovementStatus.recorded,
-                      child: Text('Recorded'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _bowelStatus = value);
-                  },
-                ),
-                if (_bowelStatus == BowelMovementStatus.recorded) ...[
-                  AppSpacing.gapMD,
-                  OperationTextField(
-                    controller: _bowelCountController,
-                    label: 'Count',
-                    keyboardType: TextInputType.number,
-                  ),
-                  AppSpacing.gapMD,
-                  OperationTextField(
-                    controller: _bowelAmountController,
-                    label: 'Amount (optional)',
-                    keyboardType: TextInputType.number,
-                  ),
-                  AppSpacing.gapMD,
-                  OperationTextField(
-                    controller: _bowelShapeController,
-                    label: 'Shape (optional)',
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
-                if (_bowelStatus != BowelMovementStatus.unconfirmed) ...[
-                  AppSpacing.gapMD,
-                  OperationTextField(
-                    controller: _bowelTimeController,
-                    label: 'Time HH:mm (optional)',
-                    keyboardType: TextInputType.datetime,
-                  ),
-                  AppSpacing.gapMD,
-                  OperationTextField(
-                    controller: _bowelNoteController,
-                    label: 'Bowel note (optional)',
-                  ),
-                ],
                 AppSpacing.gapMD,
                 Wrap(
                   spacing: 8,
@@ -418,6 +339,11 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                         ),
                       )
                       .toList(),
+                ),
+                AppSpacing.gapLG,
+                BowelCard(
+                  amountController: _bowelAmountController,
+                  shapeController: _bowelShapeController,
                 ),
                 AppSpacing.gapLG,
                 OperationButton(

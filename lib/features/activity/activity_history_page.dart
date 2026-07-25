@@ -153,7 +153,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       BowelMovementStatus.unconfirmed => 'Not entered',
       BowelMovementStatus.none => 'None',
       BowelMovementStatus.recorded =>
-        record.count == null ? 'Recorded (legacy)' : '${record.count} time(s)',
+        record.amount == null
+            ? 'Recorded (legacy)'
+            : 'Amount ${record.amount}, shape ${record.shape ?? '-'}',
     };
   }
 }
