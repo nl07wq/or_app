@@ -59,7 +59,6 @@ class _FootCardState extends State<FootCard> {
               size: const Size.fromHeight(48),
               child: ChoiceChip(
                 key: Key('foot-pain-chip-${values[index]}'),
-                avatar: const SizedBox.square(dimension: 18),
                 label: Text('${values[index]}'),
                 selected: _selectedValue == values[index],
                 onSelected: (_) => _selectPainLevel(values[index]),

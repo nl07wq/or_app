@@ -148,8 +148,7 @@ void main() {
     expect(footChip.showCheckmark, bowelChip.showCheckmark);
     expect(footChip.materialTapTargetSize, bowelChip.materialTapTargetSize);
     expect(footChip.visualDensity, bowelChip.visualDensity);
-    expect((footChip.avatar as SizedBox).width, 18);
-    expect((footChip.avatar as SizedBox).height, 18);
+    expect(footChip.avatar, isNull);
     expect((bowelChip.avatar as Icon).size, 18);
   });
 
@@ -161,16 +160,25 @@ void main() {
     await tester.pumpWidget(_testApp(controller));
 
     final chipFinder = find.byKey(const Key('foot-pain-chip-8'));
+    final labelFinder = find.descendant(
+      of: chipFinder,
+      matching: find.text('8'),
+    );
     final beforeSize = tester.getSize(chipFinder);
     final beforeChip = _chip(tester, 8);
+    final chipCenter = tester.getCenter(chipFinder).dx;
+    final beforeLabelCenter = tester.getCenter(labelFinder).dx;
+    expect((beforeLabelCenter - chipCenter).abs(), lessThan(1));
 
     await tester.tap(chipFinder);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final afterChip = _chip(tester, 8);
+    final afterLabelCenter = tester.getCenter(labelFinder).dx;
     expect(controller.text, '8');
     expect(_chip(tester, 3).selected, isFalse);
     expect(afterChip.selected, isTrue);
+    expect(afterLabelCenter, greaterThan(beforeLabelCenter));
     expect(tester.getSize(chipFinder), beforeSize);
     expect(afterChip.padding, beforeChip.padding);
     expect(afterChip.labelPadding, beforeChip.labelPadding);
