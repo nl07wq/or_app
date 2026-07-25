@@ -57,22 +57,15 @@ class _FootCardState extends State<FootCard> {
           Expanded(
             child: SizedBox(
               height: layout.chipHeight,
-              child: ChoiceChip(
-                key: Key('foot-pain-chip-${values[index]}'),
-                label: Text(
-                  '${values[index]}',
-                  style: TextStyle(fontSize: layout.labelFontSize),
-                ),
-                labelPadding: EdgeInsets.symmetric(
-                  horizontal: layout.labelPadding,
-                ),
-                padding: EdgeInsets.symmetric(
-                  horizontal: layout.horizontalPadding,
-                ),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                showCheckmark: true,
+              child: _SelectablePainChip(
+                chipKey: Key('foot-pain-chip-${values[index]}'),
+                value: values[index],
                 selected: _selectedValue == values[index],
-                onSelected: (_) => _selectPainLevel(values[index]),
+                height: layout.chipHeight,
+                labelFontSize: layout.labelFontSize,
+                horizontalPadding: layout.horizontalPadding,
+                checkIconSize: layout.checkIconSize,
+                onTap: () => _selectPainLevel(values[index]),
               ),
             ),
           ),
@@ -138,13 +131,95 @@ class _FootCardState extends State<FootCard> {
   }
 }
 
+class _SelectablePainChip extends StatelessWidget {
+  final Key chipKey;
+  final int value;
+  final bool selected;
+  final double height;
+  final double labelFontSize;
+  final double horizontalPadding;
+  final double checkIconSize;
+  final VoidCallback onTap;
+
+  const _SelectablePainChip({
+    required this.chipKey,
+    required this.value,
+    required this.selected,
+    required this.height,
+    required this.labelFontSize,
+    required this.horizontalPadding,
+    required this.checkIconSize,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final foreground = selected
+        ? colors.onSecondaryContainer
+        : colors.onSurfaceVariant;
+    final shape = StadiumBorder(side: BorderSide(color: colors.outlineVariant));
+
+    return Semantics(
+      key: chipKey,
+      button: true,
+      selected: selected,
+      label: 'Pain level $value',
+      child: SizedBox(
+        width: double.infinity,
+        height: height,
+        child: Material(
+          color: selected
+              ? colors.secondaryContainer
+              : colors.surfaceContainerLow,
+          shape: shape,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            customBorder: shape,
+            onTap: onTap,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox.square(
+                      dimension: checkIconSize,
+                      child: Opacity(
+                        opacity: selected ? 1 : 0,
+                        child: Icon(
+                          Icons.check,
+                          size: checkIconSize,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      '$value',
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: labelFontSize,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FootPainLayout {
   final double chipHeight;
   final double labelFontSize;
   final double chipSpacing;
   final double rowSpacing;
   final double horizontalPadding;
-  final double labelPadding;
+  final double checkIconSize;
 
   const _FootPainLayout({
     required this.chipHeight,
@@ -152,7 +227,7 @@ class _FootPainLayout {
     required this.chipSpacing,
     required this.rowSpacing,
     required this.horizontalPadding,
-    required this.labelPadding,
+    required this.checkIconSize,
   });
 
   factory _FootPainLayout.fromWidth(double width) {
@@ -163,7 +238,7 @@ class _FootPainLayout {
         chipSpacing: 2,
         rowSpacing: 6,
         horizontalPadding: 0,
-        labelPadding: 0,
+        checkIconSize: 14,
       );
     }
     if (width < 600) {
@@ -173,7 +248,7 @@ class _FootPainLayout {
         chipSpacing: 4,
         rowSpacing: 8,
         horizontalPadding: 2,
-        labelPadding: 1,
+        checkIconSize: 15,
       );
     }
     return const _FootPainLayout(
@@ -182,7 +257,7 @@ class _FootPainLayout {
       chipSpacing: 6,
       rowSpacing: 8,
       horizontalPadding: 4,
-      labelPadding: 2,
+      checkIconSize: 16,
     );
   }
 }

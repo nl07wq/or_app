@@ -26,13 +26,13 @@ void main() {
     final secondRow = find.byKey(const Key('foot-pain-levels-6-10'));
     expect(tester.widget(firstRow), isA<Row>());
     expect(tester.widget(secondRow), isA<Row>());
-    expect(find.byType(ChoiceChip), findsNWidgets(10));
+    expect(find.byType(ChoiceChip), findsNothing);
 
     for (final value in [1, 2, 3, 4, 5]) {
       expect(
         find.descendant(
           of: firstRow,
-          matching: find.widgetWithText(ChoiceChip, '$value'),
+          matching: find.byKey(Key('foot-pain-chip-$value')),
         ),
         findsOneWidget,
       );
@@ -41,15 +41,19 @@ void main() {
       expect(
         find.descendant(
           of: secondRow,
-          matching: find.widgetWithText(ChoiceChip, '$value'),
+          matching: find.byKey(Key('foot-pain-chip-$value')),
         ),
         findsOneWidget,
       );
     }
 
     expect(controller.text, isEmpty);
-    final initialChips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
-    expect(initialChips.every((chip) => !chip.selected), isTrue);
+    expect(
+      [
+        for (var value = 1; value <= 10; value++) _chip(tester, value),
+      ].every((chip) => chip.properties.selected == false),
+      isTrue,
+    );
     final compactSizes = [
       for (var value = 1; value <= 10; value++)
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
@@ -99,7 +103,7 @@ void main() {
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
     expect(sizes.every((size) => size.height == 48), isTrue);
     expect(_chipLabel(tester, 1).style?.fontSize, 16);
-    expect(_chip(tester, 10).selected, isTrue);
+    expect(_chip(tester, 10).properties.selected, isTrue);
     expect(tester.takeException(), isNull);
   });
 
@@ -112,18 +116,33 @@ void main() {
 
     final chipFinder = find.byKey(const Key('foot-pain-chip-8'));
     final beforeSize = tester.getSize(chipFinder);
-    final beforeChip = _chip(tester, 8);
-    await tester.tap(find.widgetWithText(ChoiceChip, '8'));
+    final beforeMaterial = _chipMaterial(tester, 8);
+    final beforePadding = _chipPadding(tester, 8);
+    final beforeTextColor = _chipLabel(tester, 8).style?.color;
+    expect(_checkOpacity(tester, 8).opacity, 0);
+
+    await tester.tap(chipFinder);
     await tester.pump();
 
-    final afterChip = _chip(tester, 8);
+    final afterMaterial = _chipMaterial(tester, 8);
+    final afterPadding = _chipPadding(tester, 8);
     expect(controller.text, '8');
-    expect(_chip(tester, 3).selected, isFalse);
-    expect(afterChip.selected, isTrue);
-    expect(afterChip.showCheckmark, isTrue);
+    expect(_chip(tester, 3).properties.selected, isFalse);
+    expect(_chip(tester, 8).properties.selected, isTrue);
     expect(tester.getSize(chipFinder), beforeSize);
-    expect(afterChip.padding, beforeChip.padding);
-    expect(afterChip.labelPadding, beforeChip.labelPadding);
+    expect(afterPadding.padding, beforePadding.padding);
+    expect(afterMaterial.shape, beforeMaterial.shape);
+    expect(afterMaterial.color, isNot(beforeMaterial.color));
+    expect(_chipLabel(tester, 8).style?.color, isNot(beforeTextColor));
+    expect(_checkOpacity(tester, 8).opacity, 1);
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(of: chipFinder, matching: find.byIcon(Icons.check)),
+          )
+          .icon,
+      Icons.check,
+    );
     expect(
       find.descendant(of: chipFinder, matching: find.byType(Checkbox)),
       findsNothing,
@@ -140,8 +159,8 @@ void main() {
     controller.text = '9';
     await tester.pump();
 
-    expect(_chip(tester, 2).selected, isFalse);
-    expect(_chip(tester, 9).selected, isTrue);
+    expect(_chip(tester, 2).properties.selected, isFalse);
+    expect(_chip(tester, 9).properties.selected, isTrue);
   });
 
   testWidgets('legacy value 0 remains stored and selects no chip', (
@@ -152,8 +171,12 @@ void main() {
     await tester.pumpWidget(_testApp(controller));
 
     expect(controller.text, '0');
-    final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
-    expect(chips.every((chip) => !chip.selected), isTrue);
+    expect(
+      [
+        for (var value = 1; value <= 10; value++) _chip(tester, value),
+      ].every((chip) => chip.properties.selected == false),
+      isTrue,
+    );
   });
 
   testWidgets('selected value is saved through the existing submit service', (
@@ -163,7 +186,7 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 
-    await tester.tap(find.widgetWithText(ChoiceChip, '7'));
+    await tester.tap(find.byKey(const Key('foot-pain-chip-7')));
     await tester.pump();
 
     final error = await MorningSubmitService.submit(
@@ -216,8 +239,8 @@ Widget _testApp(TextEditingController controller) {
   );
 }
 
-ChoiceChip _chip(WidgetTester tester, int value) {
-  return tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '$value'));
+Semantics _chip(WidgetTester tester, int value) {
+  return tester.widget<Semantics>(find.byKey(Key('foot-pain-chip-$value')));
 }
 
 Text _chipLabel(WidgetTester tester, int value) {
@@ -225,6 +248,33 @@ Text _chipLabel(WidgetTester tester, int value) {
     find.descendant(
       of: find.byKey(Key('foot-pain-chip-$value')),
       matching: find.text('$value'),
+    ),
+  );
+}
+
+Material _chipMaterial(WidgetTester tester, int value) {
+  return tester.widget<Material>(
+    find.descendant(
+      of: find.byKey(Key('foot-pain-chip-$value')),
+      matching: find.byType(Material),
+    ),
+  );
+}
+
+Padding _chipPadding(WidgetTester tester, int value) {
+  return tester.widget<Padding>(
+    find.descendant(
+      of: find.byKey(Key('foot-pain-chip-$value')),
+      matching: find.byType(Padding),
+    ),
+  );
+}
+
+Opacity _checkOpacity(WidgetTester tester, int value) {
+  return tester.widget<Opacity>(
+    find.descendant(
+      of: find.byKey(Key('foot-pain-chip-$value')),
+      matching: find.byType(Opacity),
     ),
   );
 }
