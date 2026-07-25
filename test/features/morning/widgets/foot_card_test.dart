@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/repositories/morning_repository.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
+import 'package:or_app/features/activity/widgets/bowel_card.dart';
 import 'package:or_app/features/morning/services/morning_submit_service.dart';
 import 'package:or_app/features/morning/widgets/foot_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,7 +27,7 @@ void main() {
     final secondRow = find.byKey(const Key('foot-pain-levels-6-10'));
     expect(tester.widget(firstRow), isA<Row>());
     expect(tester.widget(secondRow), isA<Row>());
-    expect(find.byType(ChoiceChip), findsNothing);
+    expect(find.byType(ChoiceChip), findsNWidgets(10));
 
     for (final value in [1, 2, 3, 4, 5]) {
       expect(
@@ -51,7 +52,7 @@ void main() {
     expect(
       [
         for (var value = 1; value <= 10; value++) _chip(tester, value),
-      ].every((chip) => chip.properties.selected == false),
+      ].every((chip) => !chip.selected),
       isTrue,
     );
     final compactSizes = [
@@ -59,12 +60,11 @@ void main() {
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(compactSizes.every((size) => size.height == 44), isTrue);
-    expect(_chipLabel(tester, 1).style?.fontSize, 14);
+    expect(compactSizes.every((size) => size.height == 48), isTrue);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('uses standard sizing while preserving equal five-chip rows', (
+  testWidgets('keeps Bowel height while preserving equal five-chip rows', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(600, 900);
@@ -81,12 +81,11 @@ void main() {
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(sizes.every((size) => size.height == 46), isTrue);
-    expect(_chipLabel(tester, 1).style?.fontSize, 15);
+    expect(sizes.every((size) => size.height == 48), isTrue);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('uses larger chips at desktop width', (tester) async {
+  testWidgets('keeps fixed Bowel height at desktop width', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -102,9 +101,56 @@ void main() {
     ];
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
     expect(sizes.every((size) => size.height == 48), isTrue);
-    expect(_chipLabel(tester, 1).style?.fontSize, 16);
-    expect(_chip(tester, 10).properties.selected, isTrue);
+    expect(_chip(tester, 10).selected, isTrue);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses the same visual configuration as Bowel ChoiceChip', (
+    tester,
+  ) async {
+    final footController = TextEditingController();
+    final amountController = TextEditingController();
+    final shapeController = TextEditingController();
+    addTearDown(footController.dispose);
+    addTearDown(amountController.dispose);
+    addTearDown(shapeController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ListView(
+          children: [
+            BowelCard(
+              amountController: amountController,
+              shapeController: shapeController,
+            ),
+            FootCard(controller: footController),
+          ],
+        ),
+      ),
+    );
+
+    final bowelChipFinder = find.widgetWithText(ChoiceChip, '少');
+    final bowelChip = tester.widget<ChoiceChip>(bowelChipFinder);
+    final footChip = _chip(tester, 1);
+
+    expect(
+      tester.getSize(find.byKey(const Key('foot-pain-chip-1'))).height,
+      tester.getSize(bowelChipFinder).height,
+    );
+    expect(footChip.padding, bowelChip.padding);
+    expect(footChip.labelPadding, bowelChip.labelPadding);
+    expect(footChip.labelStyle, bowelChip.labelStyle);
+    expect(footChip.shape, bowelChip.shape);
+    expect(footChip.side, bowelChip.side);
+    expect(footChip.selectedColor, bowelChip.selectedColor);
+    expect(footChip.backgroundColor, bowelChip.backgroundColor);
+    expect(footChip.checkmarkColor, bowelChip.checkmarkColor);
+    expect(footChip.showCheckmark, bowelChip.showCheckmark);
+    expect(footChip.materialTapTargetSize, bowelChip.materialTapTargetSize);
+    expect(footChip.visualDensity, bowelChip.visualDensity);
+    expect((footChip.avatar as SizedBox).width, 18);
+    expect((footChip.avatar as SizedBox).height, 18);
+    expect((bowelChip.avatar as Icon).size, 18);
   });
 
   testWidgets('selecting a chip updates the controller and selection', (
@@ -116,37 +162,21 @@ void main() {
 
     final chipFinder = find.byKey(const Key('foot-pain-chip-8'));
     final beforeSize = tester.getSize(chipFinder);
-    final beforeMaterial = _chipMaterial(tester, 8);
-    final beforePadding = _chipPadding(tester, 8);
-    final beforeTextColor = _chipLabel(tester, 8).style?.color;
-    expect(_checkOpacity(tester, 8).opacity, 0);
+    final beforeChip = _chip(tester, 8);
 
     await tester.tap(chipFinder);
     await tester.pump();
 
-    final afterMaterial = _chipMaterial(tester, 8);
-    final afterPadding = _chipPadding(tester, 8);
+    final afterChip = _chip(tester, 8);
     expect(controller.text, '8');
-    expect(_chip(tester, 3).properties.selected, isFalse);
-    expect(_chip(tester, 8).properties.selected, isTrue);
+    expect(_chip(tester, 3).selected, isFalse);
+    expect(afterChip.selected, isTrue);
     expect(tester.getSize(chipFinder), beforeSize);
-    expect(afterPadding.padding, beforePadding.padding);
-    expect(afterMaterial.shape, beforeMaterial.shape);
-    expect(afterMaterial.color, isNot(beforeMaterial.color));
-    expect(_chipLabel(tester, 8).style?.color, isNot(beforeTextColor));
-    expect(_checkOpacity(tester, 8).opacity, 1);
-    expect(
-      tester
-          .widget<Icon>(
-            find.descendant(of: chipFinder, matching: find.byIcon(Icons.check)),
-          )
-          .icon,
-      Icons.check,
-    );
-    expect(
-      find.descendant(of: chipFinder, matching: find.byType(Checkbox)),
-      findsNothing,
-    );
+    expect(afterChip.padding, beforeChip.padding);
+    expect(afterChip.labelPadding, beforeChip.labelPadding);
+    expect(afterChip.shape, beforeChip.shape);
+    expect(afterChip.side, beforeChip.side);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('external controller updates refresh the selected chip', (
@@ -159,8 +189,8 @@ void main() {
     controller.text = '9';
     await tester.pump();
 
-    expect(_chip(tester, 2).properties.selected, isFalse);
-    expect(_chip(tester, 9).properties.selected, isTrue);
+    expect(_chip(tester, 2).selected, isFalse);
+    expect(_chip(tester, 9).selected, isTrue);
   });
 
   testWidgets('legacy value 0 remains stored and selects no chip', (
@@ -174,7 +204,7 @@ void main() {
     expect(
       [
         for (var value = 1; value <= 10; value++) _chip(tester, value),
-      ].every((chip) => chip.properties.selected == false),
+      ].every((chip) => !chip.selected),
       isTrue,
     );
   });
@@ -239,42 +269,6 @@ Widget _testApp(TextEditingController controller) {
   );
 }
 
-Semantics _chip(WidgetTester tester, int value) {
-  return tester.widget<Semantics>(find.byKey(Key('foot-pain-chip-$value')));
-}
-
-Text _chipLabel(WidgetTester tester, int value) {
-  return tester.widget<Text>(
-    find.descendant(
-      of: find.byKey(Key('foot-pain-chip-$value')),
-      matching: find.text('$value'),
-    ),
-  );
-}
-
-Material _chipMaterial(WidgetTester tester, int value) {
-  return tester.widget<Material>(
-    find.descendant(
-      of: find.byKey(Key('foot-pain-chip-$value')),
-      matching: find.byType(Material),
-    ),
-  );
-}
-
-Padding _chipPadding(WidgetTester tester, int value) {
-  return tester.widget<Padding>(
-    find.descendant(
-      of: find.byKey(Key('foot-pain-chip-$value')),
-      matching: find.byType(Padding),
-    ),
-  );
-}
-
-Opacity _checkOpacity(WidgetTester tester, int value) {
-  return tester.widget<Opacity>(
-    find.descendant(
-      of: find.byKey(Key('foot-pain-chip-$value')),
-      matching: find.byType(Opacity),
-    ),
-  );
+ChoiceChip _chip(WidgetTester tester, int value) {
+  return tester.widget<ChoiceChip>(find.byKey(Key('foot-pain-chip-$value')));
 }
