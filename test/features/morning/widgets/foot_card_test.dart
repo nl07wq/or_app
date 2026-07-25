@@ -58,11 +58,13 @@ void main() {
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(compactSizes.first, const Size(50, 48));
+    expect(compactSizes.first.width, closeTo(49.2, 0.01));
+    expect(compactSizes.first.height, 48);
+    expect(compactSizes.first.width, greaterThan(compactSizes.first.height));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('uses a fixed slightly-wide shape without flex sizing', (
+  testWidgets('distributes five fixed-height chips across the full row', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(600, 900);
@@ -79,20 +81,33 @@ void main() {
       for (var value = 1; value <= 10; value++)
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
+    final firstRowRect = tester.getRect(firstRow);
+    final chipRects = [
+      for (var value = 1; value <= 5; value++)
+        tester.getRect(find.byKey(Key('foot-pain-chip-$value'))),
+    ];
+    final centerSpacing = firstRowRect.width / 5;
 
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(sizes.every((size) => size == const Size(56, 48)), isTrue);
+    expect(sizes.every((size) => size == const Size(72, 48)), isTrue);
     expect(sizes.first.width, greaterThan(sizes.first.height));
     expect(
       find.descendant(of: firstRow, matching: find.byType(Expanded)),
-      findsNothing,
+      findsNWidgets(5),
+    );
+    for (var index = 1; index < chipRects.length; index++) {
+      expect(
+        chipRects[index].center.dx - chipRects[index - 1].center.dx,
+        closeTo(centerSpacing, 0.01),
+      );
+    }
+    expect(
+      chipRects.first.left - firstRowRect.left,
+      lessThan(firstRowRect.width * 0.05),
     );
     expect(
-      find.descendant(
-        of: firstRow,
-        matching: find.byType(FractionallySizedBox),
-      ),
-      findsNothing,
+      firstRowRect.right - chipRects.last.right,
+      lessThan(firstRowRect.width * 0.05),
     );
     expect(tester.takeException(), isNull);
   });
@@ -111,7 +126,7 @@ void main() {
       for (var value = 1; value <= 10; value++)
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
-    expect(sizes.every((size) => size == const Size(56, 48)), isTrue);
+    expect(sizes.every((size) => size == const Size(72, 48)), isTrue);
     expect(_checkmarkFinder(10), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -138,7 +153,7 @@ void main() {
     expect(shape.borderRadius, const BorderRadius.all(Radius.circular(8)));
     expect(
       tester.getSize(find.byKey(const Key('foot-pain-chip-5'))),
-      const Size(56, 48),
+      const Size(72, 48),
     );
     expect(inkWell.onTap, isNotNull);
     expect(inkWell.customBorder, shape);

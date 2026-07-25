@@ -16,9 +16,8 @@ class FootCard extends StatefulWidget {
 class _FootCardState extends State<FootCard> {
   static const _firstRowValues = [1, 2, 3, 4, 5];
   static const _secondRowValues = [6, 7, 8, 9, 10];
-  static const _minimumChipWidth = 50.0;
-  static const _maximumChipWidth = 56.0;
-  static const _maximumChipGap = 4.0;
+  static const _maximumChipWidth = 72.0;
+  static const _compactWidth = 280.0;
 
   int? get _selectedValue => int.tryParse(widget.controller.text);
 
@@ -55,34 +54,31 @@ class _FootCardState extends State<FootCard> {
     return LayoutBuilder(
       key: key,
       builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-        final minimumRowWidth = _minimumChipWidth * values.length;
-        final chipWidth = availableWidth < minimumRowWidth
-            ? availableWidth / values.length
-            : ((availableWidth - (_maximumChipGap * (values.length - 1))) /
-                      values.length)
-                  .clamp(_minimumChipWidth, _maximumChipWidth)
-                  .toDouble();
-        final chipGap = availableWidth <= minimumRowWidth
-            ? 0.0
-            : ((availableWidth - (chipWidth * values.length)) /
-                      (values.length - 1))
-                  .clamp(0.0, _maximumChipGap)
-                  .toDouble();
+        final horizontalInset = constraints.maxWidth < _compactWidth
+            ? 1.0
+            : 4.0;
 
         return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            for (var index = 0; index < values.length; index++) ...[
-              if (index > 0) SizedBox(width: chipGap),
-              _PainLevelChip(
-                key: Key('foot-pain-chip-${values[index]}'),
-                value: values[index],
-                width: chipWidth,
-                selected: _selectedValue == values[index],
-                onPressed: () => _selectPainLevel(values[index]),
+            for (final value in values)
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalInset),
+                  child: Align(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: _maximumChipWidth,
+                      ),
+                      child: _PainLevelChip(
+                        key: Key('foot-pain-chip-$value'),
+                        value: value,
+                        selected: _selectedValue == value,
+                        onPressed: () => _selectPainLevel(value),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ],
           ],
         );
       },
@@ -143,13 +139,11 @@ class _PainLevelChip extends StatelessWidget {
   const _PainLevelChip({
     super.key,
     required this.value,
-    required this.width,
     required this.selected,
     required this.onPressed,
   });
 
   final int value;
-  final double width;
   final bool selected;
   final VoidCallback onPressed;
 
@@ -173,7 +167,7 @@ class _PainLevelChip extends StatelessWidget {
       label: 'Pain level $value',
       onTap: onPressed,
       child: SizedBox(
-        width: width,
+        width: double.infinity,
         height: 48,
         child: Material(
           key: Key('foot-pain-material-$value'),
