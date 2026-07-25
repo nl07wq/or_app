@@ -22,9 +22,6 @@ class _FootCardState extends State<FootCard> {
   @override
   void initState() {
     super.initState();
-    if (widget.controller.text.isEmpty) {
-      widget.controller.text = '3';
-    }
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -34,9 +31,6 @@ class _FootCardState extends State<FootCard> {
     if (oldWidget.controller == widget.controller) return;
 
     oldWidget.controller.removeListener(_handleControllerChanged);
-    if (widget.controller.text.isEmpty) {
-      widget.controller.text = '3';
-    }
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -76,6 +70,7 @@ class _FootCardState extends State<FootCard> {
                   horizontal: layout.horizontalPadding,
                 ),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                showCheckmark: true,
                 selected: _selectedValue == values[index],
                 onSelected: (_) => _selectPainLevel(values[index]),
               ),
@@ -163,31 +158,31 @@ class _FootPainLayout {
   factory _FootPainLayout.fromWidth(double width) {
     if (width < 300) {
       return const _FootPainLayout(
-        chipHeight: 46,
-        labelFontSize: 16,
-        chipSpacing: 4,
-        rowSpacing: 8,
-        horizontalPadding: 2,
+        chipHeight: 44,
+        labelFontSize: 14,
+        chipSpacing: 2,
+        rowSpacing: 6,
+        horizontalPadding: 0,
         labelPadding: 0,
       );
     }
     if (width < 600) {
       return const _FootPainLayout(
-        chipHeight: 56,
-        labelFontSize: 19,
-        chipSpacing: 8,
-        rowSpacing: 10,
-        horizontalPadding: 6,
-        labelPadding: 2,
+        chipHeight: 46,
+        labelFontSize: 15,
+        chipSpacing: 4,
+        rowSpacing: 8,
+        horizontalPadding: 2,
+        labelPadding: 1,
       );
     }
     return const _FootPainLayout(
-      chipHeight: 68,
-      labelFontSize: 24,
-      chipSpacing: 12,
-      rowSpacing: 12,
-      horizontalPadding: 12,
-      labelPadding: 4,
+      chipHeight: 48,
+      labelFontSize: 16,
+      chipSpacing: 6,
+      rowSpacing: 8,
+      horizontalPadding: 4,
+      labelPadding: 2,
     );
   }
 }

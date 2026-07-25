@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('shows 1 to 10 in two fixed rows with initial value 3', (
+  testWidgets('shows 1 to 10 in two fixed rows with no initial selection', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 800);
@@ -47,15 +47,16 @@ void main() {
       );
     }
 
-    expect(controller.text, '3');
-    expect(_chip(tester, 3).selected, isTrue);
+    expect(controller.text, isEmpty);
+    final initialChips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
+    expect(initialChips.every((chip) => !chip.selected), isTrue);
     final compactSizes = [
       for (var value = 1; value <= 10; value++)
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(compactSizes.every((size) => size.height == 46), isTrue);
-    expect(_chipLabel(tester, 1).style?.fontSize, 16);
+    expect(compactSizes.every((size) => size.height == 44), isTrue);
+    expect(_chipLabel(tester, 1).style?.fontSize, 14);
     expect(tester.takeException(), isNull);
   });
 
@@ -76,8 +77,8 @@ void main() {
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(sizes.every((size) => size.height == 56), isTrue);
-    expect(_chipLabel(tester, 1).style?.fontSize, 19);
+    expect(sizes.every((size) => size.height == 46), isTrue);
+    expect(_chipLabel(tester, 1).style?.fontSize, 15);
     expect(tester.takeException(), isNull);
   });
 
@@ -96,8 +97,8 @@ void main() {
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(sizes.every((size) => size.height == 68), isTrue);
-    expect(_chipLabel(tester, 1).style?.fontSize, 24);
+    expect(sizes.every((size) => size.height == 48), isTrue);
+    expect(_chipLabel(tester, 1).style?.fontSize, 16);
     expect(_chip(tester, 10).selected, isTrue);
     expect(tester.takeException(), isNull);
   });
@@ -109,12 +110,24 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 
+    final chipFinder = find.byKey(const Key('foot-pain-chip-8'));
+    final beforeSize = tester.getSize(chipFinder);
+    final beforeChip = _chip(tester, 8);
     await tester.tap(find.widgetWithText(ChoiceChip, '8'));
     await tester.pump();
 
+    final afterChip = _chip(tester, 8);
     expect(controller.text, '8');
     expect(_chip(tester, 3).selected, isFalse);
-    expect(_chip(tester, 8).selected, isTrue);
+    expect(afterChip.selected, isTrue);
+    expect(afterChip.showCheckmark, isTrue);
+    expect(tester.getSize(chipFinder), beforeSize);
+    expect(afterChip.padding, beforeChip.padding);
+    expect(afterChip.labelPadding, beforeChip.labelPadding);
+    expect(
+      find.descendant(of: chipFinder, matching: find.byType(Checkbox)),
+      findsNothing,
+    );
   });
 
   testWidgets('external controller updates refresh the selected chip', (
