@@ -64,7 +64,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('keeps Bowel height while preserving equal five-chip rows', (
+  testWidgets('shortens each chip by 18 percent within equal five-chip rows', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(600, 900);
@@ -80,7 +80,12 @@ void main() {
       for (var value = 1; value <= 10; value++)
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
+    final firstRowWidth = tester
+        .getSize(find.byKey(const Key('foot-pain-levels-1-5')))
+        .width;
+    final previousExpandedChipWidth = (firstRowWidth - (8 * 4)) / 5;
     expect(sizes.map((size) => size.width).toSet(), hasLength(1));
+    expect(sizes.first.width, closeTo(previousExpandedChipWidth * 0.82, 0.01));
     expect(sizes.every((size) => size.height == 48), isTrue);
     expect(tester.takeException(), isNull);
   });

@@ -16,6 +16,7 @@ class FootCard extends StatefulWidget {
 class _FootCardState extends State<FootCard> {
   static const _firstRowValues = [1, 2, 3, 4, 5];
   static const _secondRowValues = [6, 7, 8, 9, 10];
+  static const _chipWidthFactor = 0.82;
 
   int? get _selectedValue => int.tryParse(widget.controller.text);
 
@@ -55,13 +56,16 @@ class _FootCardState extends State<FootCard> {
         for (var index = 0; index < values.length; index++) ...[
           if (index > 0) const SizedBox(width: 8),
           Expanded(
-            child: SizedBox.fromSize(
-              size: const Size.fromHeight(48),
-              child: ChoiceChip(
-                key: Key('foot-pain-chip-${values[index]}'),
-                label: Text('${values[index]}'),
-                selected: _selectedValue == values[index],
-                onSelected: (_) => _selectPainLevel(values[index]),
+            child: FractionallySizedBox(
+              widthFactor: _chipWidthFactor,
+              child: SizedBox.fromSize(
+                size: const Size.fromHeight(48),
+                child: ChoiceChip(
+                  key: Key('foot-pain-chip-${values[index]}'),
+                  label: Text('${values[index]}'),
+                  selected: _selectedValue == values[index],
+                  onSelected: (_) => _selectPainLevel(values[index]),
+                ),
               ),
             ),
           ),
