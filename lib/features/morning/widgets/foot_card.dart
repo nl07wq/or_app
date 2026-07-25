@@ -54,22 +54,35 @@ class _FootCardState extends State<FootCard> {
     widget.controller.text = value.toString();
   }
 
-  Widget _buildPainLevelRow(List<int> values, Key key) {
+  Widget _buildPainLevelRow(List<int> values, Key key, _FootPainLayout layout) {
     return Row(
       key: key,
-      children: values
-          .map(
-            (value) => Expanded(
-              child: Center(
-                child: ChoiceChip(
-                  label: Text('$value'),
-                  selected: _selectedValue == value,
-                  onSelected: (_) => _selectPainLevel(value),
+      children: [
+        for (var index = 0; index < values.length; index++) ...[
+          if (index > 0) SizedBox(width: layout.chipSpacing),
+          Expanded(
+            child: SizedBox(
+              height: layout.chipHeight,
+              child: ChoiceChip(
+                key: Key('foot-pain-chip-${values[index]}'),
+                label: Text(
+                  '${values[index]}',
+                  style: TextStyle(fontSize: layout.labelFontSize),
                 ),
+                labelPadding: EdgeInsets.symmetric(
+                  horizontal: layout.labelPadding,
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: layout.horizontalPadding,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                selected: _selectedValue == values[index],
+                onSelected: (_) => _selectPainLevel(values[index]),
               ),
             ),
-          )
-          .toList(),
+          ),
+        ],
+      ],
     );
   }
 
@@ -93,16 +106,25 @@ class _FootCardState extends State<FootCard> {
 
           AppSpacing.gapMD,
 
-          _buildPainLevelRow(
-            _firstRowValues,
-            const Key('foot-pain-levels-1-5'),
-          ),
-
-          AppSpacing.gapSM,
-
-          _buildPainLevelRow(
-            _secondRowValues,
-            const Key('foot-pain-levels-6-10'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final layout = _FootPainLayout.fromWidth(constraints.maxWidth);
+              return Column(
+                children: [
+                  _buildPainLevelRow(
+                    _firstRowValues,
+                    const Key('foot-pain-levels-1-5'),
+                    layout,
+                  ),
+                  SizedBox(height: layout.rowSpacing),
+                  _buildPainLevelRow(
+                    _secondRowValues,
+                    const Key('foot-pain-levels-6-10'),
+                    layout,
+                  ),
+                ],
+              );
+            },
           ),
 
           AppSpacing.gapMD,
@@ -117,6 +139,55 @@ class _FootCardState extends State<FootCard> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FootPainLayout {
+  final double chipHeight;
+  final double labelFontSize;
+  final double chipSpacing;
+  final double rowSpacing;
+  final double horizontalPadding;
+  final double labelPadding;
+
+  const _FootPainLayout({
+    required this.chipHeight,
+    required this.labelFontSize,
+    required this.chipSpacing,
+    required this.rowSpacing,
+    required this.horizontalPadding,
+    required this.labelPadding,
+  });
+
+  factory _FootPainLayout.fromWidth(double width) {
+    if (width < 300) {
+      return const _FootPainLayout(
+        chipHeight: 46,
+        labelFontSize: 16,
+        chipSpacing: 4,
+        rowSpacing: 8,
+        horizontalPadding: 2,
+        labelPadding: 0,
+      );
+    }
+    if (width < 600) {
+      return const _FootPainLayout(
+        chipHeight: 56,
+        labelFontSize: 19,
+        chipSpacing: 8,
+        rowSpacing: 10,
+        horizontalPadding: 6,
+        labelPadding: 2,
+      );
+    }
+    return const _FootPainLayout(
+      chipHeight: 68,
+      labelFontSize: 24,
+      chipSpacing: 12,
+      rowSpacing: 12,
+      horizontalPadding: 12,
+      labelPadding: 4,
     );
   }
 }

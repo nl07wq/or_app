@@ -49,6 +49,56 @@ void main() {
 
     expect(controller.text, '3');
     expect(_chip(tester, 3).selected, isTrue);
+    final compactSizes = [
+      for (var value = 1; value <= 10; value++)
+        tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
+    ];
+    expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
+    expect(compactSizes.every((size) => size.height == 46), isTrue);
+    expect(_chipLabel(tester, 1).style?.fontSize, 16);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses standard sizing while preserving equal five-chip rows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = TextEditingController(text: '5');
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_testApp(controller));
+
+    final sizes = [
+      for (var value = 1; value <= 10; value++)
+        tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
+    ];
+    expect(sizes.map((size) => size.width).toSet(), hasLength(1));
+    expect(sizes.every((size) => size.height == 56), isTrue);
+    expect(_chipLabel(tester, 1).style?.fontSize, 19);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses larger chips at desktop width', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = TextEditingController(text: '10');
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_testApp(controller));
+
+    final sizes = [
+      for (var value = 1; value <= 10; value++)
+        tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
+    ];
+    expect(sizes.map((size) => size.width).toSet(), hasLength(1));
+    expect(sizes.every((size) => size.height == 68), isTrue);
+    expect(_chipLabel(tester, 1).style?.fontSize, 24);
+    expect(_chip(tester, 10).selected, isTrue);
     expect(tester.takeException(), isNull);
   });
 
@@ -155,4 +205,13 @@ Widget _testApp(TextEditingController controller) {
 
 ChoiceChip _chip(WidgetTester tester, int value) {
   return tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '$value'));
+}
+
+Text _chipLabel(WidgetTester tester, int value) {
+  return tester.widget<Text>(
+    find.descendant(
+      of: find.byKey(Key('foot-pain-chip-$value')),
+      matching: find.text('$value'),
+    ),
+  );
 }
