@@ -1,6 +1,30 @@
 abstract final class IndexedDbStoreNames {
+  // IndexedDB v1 compatibility stores. Do not delete or repurpose them.
   static const morningFacts = 'morning_facts';
   static const trainings = 'trainings';
 
-  static const all = [morningFacts, trainings];
+  // IndexedDB v2 canonical stores.
+  static const statusRecords = 'status_records';
+  static const foodRecords = 'food_records';
+  static const trainingRecords = 'training_records';
+  static const activityRecords = 'activity_records';
+  static const dailyLogConfirmations = 'daily_log_confirmations';
+  static const migrationMetadata = 'migration_metadata';
+  static const migrationQuarantine = 'migration_quarantine';
+  static const customTrainingExercises = 'custom_training_exercises';
+
+  static const legacy = [morningFacts, trainings];
+
+  static const canonical = [
+    statusRecords,
+    foodRecords,
+    trainingRecords,
+    activityRecords,
+    dailyLogConfirmations,
+    migrationMetadata,
+    migrationQuarantine,
+    customTrainingExercises,
+  ];
+
+  static const all = [...legacy, ...canonical];
 }

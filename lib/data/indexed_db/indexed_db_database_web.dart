@@ -19,12 +19,28 @@ Future<IndexedDbDatabase> createIndexedDbDatabase() async {
       final request = event.target as dynamic;
       final database = request.result as dynamic;
       final existingStores = database.objectStoreNames ?? const <String>[];
-      for (final storeName in IndexedDbSchema.objectStores) {
-        if (!existingStores.contains(storeName)) {
-          database.createObjectStore(
-            storeName,
-            keyPath: IndexedDbSchema.keyPath,
+      final transaction = request.transaction as dynamic;
+      for (final definition in IndexedDbSchema.storeDefinitions) {
+        final dynamic store;
+        if (!existingStores.contains(definition.name)) {
+          store = database.createObjectStore(
+            definition.name,
+            keyPath: definition.keyPath,
           );
+        } else {
+          store = transaction.objectStore(definition.name);
+        }
+
+        final existingIndexes = store.indexNames ?? const <String>[];
+        for (final index in definition.indexes) {
+          if (!existingIndexes.contains(index.name)) {
+            store.createIndex(
+              index.name,
+              index.keyPath,
+              unique: index.unique,
+              multiEntry: index.multiEntry,
+            );
+          }
         }
       }
     },
