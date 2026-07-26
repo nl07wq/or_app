@@ -16,4 +16,6 @@ class AppRoutes {
   static const training = '/training';
 
   static const commandCenter = '/command-center';
+
+  static const backupRestore = '/backup-restore';
 }

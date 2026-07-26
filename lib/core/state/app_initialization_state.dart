@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 enum PersistenceMode {
   initializing,
   indexedDbReadWrite,
+  maintenance,
   legacyReadOnly,
   failed,
 }
@@ -82,6 +83,13 @@ class AppInitializationController
   void markReady() {
     value = const AppInitializationState(
       mode: PersistenceMode.indexedDbReadWrite,
+      currentStage: InitializationStage.complete,
+    );
+  }
+
+  void markMaintenance() {
+    value = const AppInitializationState(
+      mode: PersistenceMode.maintenance,
       currentStage: InitializationStage.complete,
     );
   }

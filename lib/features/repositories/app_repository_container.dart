@@ -14,6 +14,7 @@ import '../training/repository/indexed_db_custom_training_exercise_repository.da
 import '../training/repository/training_session_repository.dart';
 
 class AppRepositoryContainer {
+  final IndexedDbDatabase database;
   final StatusRepository status;
   final ActivityRepository activity;
   final FoodRepository food;
@@ -22,6 +23,7 @@ class AppRepositoryContainer {
   final DailyLogConfirmationStore confirmation;
 
   AppRepositoryContainer._({
+    required this.database,
     required this.status,
     required this.activity,
     required this.food,
@@ -32,6 +34,7 @@ class AppRepositoryContainer {
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
     return AppRepositoryContainer._(
+      database: database,
       status: IndexedDbStatusRepository(database),
       activity: IndexedDbActivityRepository(database),
       food: IndexedDbFoodRepository(database),

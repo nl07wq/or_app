@@ -340,6 +340,7 @@ void main() {
 
     for (final mode in [
       PersistenceMode.initializing,
+      PersistenceMode.maintenance,
       PersistenceMode.failed,
       PersistenceMode.legacyReadOnly,
     ]) {
@@ -353,6 +354,8 @@ void main() {
           );
         case PersistenceMode.legacyReadOnly:
           controller.markLegacyReadOnly();
+        case PersistenceMode.maintenance:
+          controller.markMaintenance();
         case PersistenceMode.indexedDbReadWrite:
           fail('ready is not a rejection mode');
       }

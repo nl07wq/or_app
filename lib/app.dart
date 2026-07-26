@@ -15,6 +15,7 @@ import 'features/food/food_page.dart';
 import 'features/activity/activity_page.dart';
 import 'features/training/training_page.dart';
 import 'features/command_center/pages/command_center_page.dart';
+import 'features/import_export/backup_restore_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -69,6 +70,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.activity: (_) => const ActivityPage(),
         AppRoutes.training: (_) => const TrainingPage(),
         AppRoutes.commandCenter: (_) => const CommandCenterPage(),
+        AppRoutes.backupRestore: (_) => const BackupRestorePage(),
       },
     );
   }

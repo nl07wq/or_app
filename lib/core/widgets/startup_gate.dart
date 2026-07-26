@@ -26,9 +26,47 @@ class StartupGate extends StatelessWidget {
             state: state,
             child: child,
           ),
+          PersistenceMode.maintenance => _MaintenanceView(child: child),
           PersistenceMode.indexedDbReadWrite => child,
         };
       },
+    );
+  }
+}
+
+class _MaintenanceView extends StatelessWidget {
+  final Widget child;
+
+  const _MaintenanceView({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        const ModalBarrier(dismissible: false, color: Colors.black54),
+        Center(
+          child: Material(
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 24),
+                  Text(
+                    'RESTORING BACKUP',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Do not close this window.'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
