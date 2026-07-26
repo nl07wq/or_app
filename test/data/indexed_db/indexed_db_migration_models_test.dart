@@ -67,12 +67,14 @@ void main() {
     final quarantined = IndexedDbQuarantinedRecord(
       id: 'quarantine:status:0',
       migrationId: 'shared_preferences_to_v2',
+      sourceSystem: 'shared_preferences',
+      sourceKey: 'morning_records',
       sourceSection: 'morning_records',
       sourceIndex: 0,
       rawPayload: rawPayload,
       errorCode: 'invalidDate',
       errorMessage: 'date is invalid',
-      detectedAt: DateTime.parse('2026-07-26T00:00:00Z'),
+      quarantinedAt: DateTime.parse('2026-07-26T00:00:00Z'),
     );
 
     (rawPayload['values']! as List<int>).clear();
@@ -94,8 +96,10 @@ void main() {
       quarantined.toRecord(),
     );
     expect(restored.sourceSection, 'morning_records');
+    expect(restored.sourceSystem, 'shared_preferences');
+    expect(restored.sourceKey, 'morning_records');
     expect(restored.sourceIndex, 0);
     expect(restored.errorCode, 'invalidDate');
-    expect(restored.detectedAt, DateTime.parse('2026-07-26T00:00:00Z'));
+    expect(restored.quarantinedAt, DateTime.parse('2026-07-26T00:00:00Z'));
   });
 }

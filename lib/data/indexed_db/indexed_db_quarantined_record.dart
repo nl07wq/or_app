@@ -1,34 +1,49 @@
 class IndexedDbQuarantinedRecord {
   final String id;
   final String migrationId;
+  final String sourceSystem;
+  final String sourceKey;
   final String sourceSection;
   final int sourceIndex;
   final Object? rawPayload;
   final String errorCode;
   final String? errorMessage;
-  final DateTime detectedAt;
+  final DateTime quarantinedAt;
 
   IndexedDbQuarantinedRecord({
     required this.id,
     required this.migrationId,
+    this.sourceSystem = 'unknown',
+    String? sourceKey,
     required this.sourceSection,
     required this.sourceIndex,
     required Object? rawPayload,
     required this.errorCode,
     this.errorMessage,
-    required this.detectedAt,
-  }) : rawPayload = _freeze(rawPayload);
+    DateTime? quarantinedAt,
+    DateTime? detectedAt,
+  }) : rawPayload = _freeze(rawPayload),
+       sourceKey = sourceKey ?? sourceSection,
+       quarantinedAt =
+           quarantinedAt ??
+           detectedAt ??
+           (throw ArgumentError('quarantinedAt is required.'));
+
+  @Deprecated('Use quarantinedAt.')
+  DateTime get detectedAt => quarantinedAt;
 
   Map<String, Object?> toRecord() {
     return {
       'id': id,
       'migrationId': migrationId,
+      'sourceSystem': sourceSystem,
+      'sourceKey': sourceKey,
       'sourceSection': sourceSection,
       'sourceIndex': sourceIndex,
       'rawPayload': _copy(rawPayload),
       'errorCode': errorCode,
       if (errorMessage != null) 'errorMessage': errorMessage,
-      'detectedAt': detectedAt.toUtc().toIso8601String(),
+      'quarantinedAt': quarantinedAt.toUtc().toIso8601String(),
     };
   }
 
@@ -36,12 +51,19 @@ class IndexedDbQuarantinedRecord {
     return IndexedDbQuarantinedRecord(
       id: _requiredString(record, 'id'),
       migrationId: _requiredString(record, 'migrationId'),
+      sourceSystem: _optionalString(record, 'sourceSystem') ?? 'unknown',
+      sourceKey:
+          _optionalString(record, 'sourceKey') ??
+          _requiredString(record, 'sourceSection'),
       sourceSection: _requiredString(record, 'sourceSection'),
       sourceIndex: _requiredInt(record, 'sourceIndex'),
       rawPayload: record['rawPayload'],
       errorCode: _requiredString(record, 'errorCode'),
       errorMessage: _optionalString(record, 'errorMessage'),
-      detectedAt: _requiredDate(record, 'detectedAt'),
+      quarantinedAt: _requiredDate(
+        record,
+        record.containsKey('quarantinedAt') ? 'quarantinedAt' : 'detectedAt',
+      ),
     );
   }
 

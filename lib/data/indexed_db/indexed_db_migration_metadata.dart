@@ -9,6 +9,8 @@ enum IndexedDbMigrationStatus {
 }
 
 class IndexedDbMigrationMetadata {
+  static const Object _unset = Object();
+
   final String id;
   final IndexedDbMigrationStatus status;
   final String source;
@@ -52,6 +54,51 @@ class IndexedDbMigrationMetadata {
          for (final entry in expectedRecordIds.entries)
            entry.key: List<String>.unmodifiable(entry.value),
        });
+
+  IndexedDbMigrationMetadata copyWith({
+    IndexedDbMigrationStatus? status,
+    int? attempt,
+    DateTime? startedAt,
+    DateTime? updatedAt,
+    Object? completedAt = _unset,
+    Object? ownerId = _unset,
+    Object? leaseExpiresAt = _unset,
+    Map<String, int>? sourceCounts,
+    Map<String, int>? validCounts,
+    Map<String, int>? quarantinedCounts,
+    Map<String, List<String>>? expectedRecordIds,
+    Object? sourceDigest = _unset,
+    Object? errorCode = _unset,
+    Object? errorMessage = _unset,
+  }) {
+    return IndexedDbMigrationMetadata(
+      id: id,
+      status: status ?? this.status,
+      source: source,
+      targetDatabaseVersion: targetDatabaseVersion,
+      attempt: attempt ?? this.attempt,
+      startedAt: startedAt ?? this.startedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      completedAt: completedAt == _unset
+          ? this.completedAt
+          : completedAt as DateTime?,
+      ownerId: ownerId == _unset ? this.ownerId : ownerId as String?,
+      leaseExpiresAt: leaseExpiresAt == _unset
+          ? this.leaseExpiresAt
+          : leaseExpiresAt as DateTime?,
+      sourceCounts: sourceCounts ?? this.sourceCounts,
+      validCounts: validCounts ?? this.validCounts,
+      quarantinedCounts: quarantinedCounts ?? this.quarantinedCounts,
+      expectedRecordIds: expectedRecordIds ?? this.expectedRecordIds,
+      sourceDigest: sourceDigest == _unset
+          ? this.sourceDigest
+          : sourceDigest as String?,
+      errorCode: errorCode == _unset ? this.errorCode : errorCode as String?,
+      errorMessage: errorMessage == _unset
+          ? this.errorMessage
+          : errorMessage as String?,
+    );
+  }
 
   Map<String, Object?> toRecord() {
     return {
