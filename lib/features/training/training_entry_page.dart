@@ -418,6 +418,17 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
 
                 AppSpacing.gapMD,
 
+                for (var index = 0; index < _cardioPlaceholders.length; index++)
+                  Padding(
+                    key: ValueKey(_cardioPlaceholders[index]),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: _buildCardioCard(
+                      morningFact,
+                      _cardioPlaceholders[index],
+                      index,
+                    ),
+                  ),
+
                 OutlinedButton.icon(
                   onPressed: () {
                     setState(() {
@@ -431,19 +442,6 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                   icon: const Icon(Icons.add),
                   label: const Text('Add Cardio'),
                 ),
-
-                AppSpacing.gapMD,
-
-                for (var index = 0; index < _cardioPlaceholders.length; index++)
-                  Padding(
-                    key: ValueKey(_cardioPlaceholders[index]),
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    child: _buildCardioCard(
-                      morningFact,
-                      _cardioPlaceholders[index],
-                      index,
-                    ),
-                  ),
 
                 AppSpacing.gapXL,
 

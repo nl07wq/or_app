@@ -39,6 +39,65 @@ void main() {
     expect(find.bySemanticsLabel('EXERCISE 1, expanded'), findsOneWidget);
   });
 
+  testWidgets('empty cardio section shows only Add Cardio below its header', (
+    tester,
+  ) async {
+    await _pumpEntry(tester);
+
+    final header = find.text('CARDIO');
+    final addButton = find.widgetWithText(OutlinedButton, 'Add Cardio');
+    expect(find.text('CARDIO 1'), findsNothing);
+    expect(
+      tester.getTopLeft(header).dy,
+      lessThan(tester.getTopLeft(addButton).dy),
+    );
+  });
+
+  testWidgets('Add Cardio remains after every cardio card', (tester) async {
+    await _pumpEntry(tester);
+
+    final addButton = find.widgetWithText(OutlinedButton, 'Add Cardio');
+    await _tapVisible(tester, addButton);
+    expect(
+      tester.getTopLeft(find.text('CARDIO 1')).dy,
+      lessThan(tester.getTopLeft(addButton).dy),
+    );
+
+    await _tapVisible(tester, addButton);
+    expect(
+      tester.getTopLeft(find.text('CARDIO 1')).dy,
+      lessThan(tester.getTopLeft(find.text('CARDIO 2')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('CARDIO 2')).dy,
+      lessThan(tester.getTopLeft(addButton).dy),
+    );
+    expect(find.bySemanticsLabel('CARDIO 1, collapsed'), findsOneWidget);
+    expect(find.bySemanticsLabel('CARDIO 2, expanded'), findsOneWidget);
+  });
+
+  testWidgets('deleting the last cardio restores the empty section', (
+    tester,
+  ) async {
+    await _pumpEntry(tester);
+    await _tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Add Cardio'),
+    );
+
+    await tester.tap(find.byTooltip('Delete cardio'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('CARDIO 1'), findsNothing);
+    expect(find.byTooltip('Delete cardio'), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('CARDIO')).dy,
+      lessThan(
+        tester.getTopLeft(find.widgetWithText(OutlinedButton, 'Add Cardio')).dy,
+      ),
+    );
+  });
+
   testWidgets('history edit starts with every exercise and cardio collapsed', (
     tester,
   ) async {
