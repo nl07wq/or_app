@@ -28,15 +28,10 @@ class _FootCardState extends State<FootCard> {
     return value != null && value >= 1 && value <= 10;
   }
 
-  String get _currentValueLabel {
-    final value = _selectedValue;
-    return _hasSelectedValue ? '$value' : '—';
-  }
-
   @override
   void initState() {
     super.initState();
-    _expanded = widget.controller.text.trim().isEmpty;
+    _expanded = !_hasSelectedValue;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -46,7 +41,7 @@ class _FootCardState extends State<FootCard> {
     if (oldWidget.controller == widget.controller) return;
 
     oldWidget.controller.removeListener(_handleControllerChanged);
-    _expanded = widget.controller.text.trim().isEmpty;
+    _expanded = !_hasSelectedValue;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -57,7 +52,19 @@ class _FootCardState extends State<FootCard> {
   }
 
   void _handleControllerChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+
+    setState(() {
+      if (!_hasSelectedValue) {
+        _expanded = true;
+      }
+    });
+  }
+
+  void _expand() {
+    setState(() {
+      _expanded = true;
+    });
   }
 
   void _selectPainLevel(int value) {
@@ -135,42 +142,31 @@ class _FootCardState extends State<FootCard> {
 
           const SizedBox(height: 20),
 
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              key: const Key('foot-pain-toggle'),
-              onTap: () {
-                setState(() {
-                  _expanded = !_expanded;
-                });
-              },
-              child: SizedBox(
-                height: 48,
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Pain Level',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+          SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Pain Level',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (_hasSelectedValue)
+                  TextButton(
+                    key: const Key('foot-pain-current-value-button'),
+                    onPressed: _expand,
+                    child: Text(
+                      '$_selectedValue',
+                      key: const Key('foot-pain-current-value'),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.lightBlueAccent,
                       ),
                     ),
-                    Text(
-                      _currentValueLabel,
-                      key: const Key('foot-pain-current-value'),
-                      style: _hasSelectedValue
-                          ? const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.lightBlueAccent,
-                            )
-                          : Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.white70,
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
 
