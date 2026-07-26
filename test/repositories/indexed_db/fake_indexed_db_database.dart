@@ -1,4 +1,5 @@
 import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
+import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 class FakeIndexedDbDatabase implements IndexedDbDatabase {
@@ -14,6 +15,21 @@ class FakeIndexedDbDatabase implements IndexedDbDatabase {
   Future<void> put(String storeName, Map<String, Object?> record) async {
     final id = record['id'];
     if (id is! String) throw const FormatException('Record ID is required.');
+    final definition = IndexedDbSchema.storeDefinitions.singleWhere(
+      (definition) => definition.name == storeName,
+    );
+    for (final index in definition.indexes.where((index) => index.unique)) {
+      final value = record[index.keyPath];
+      if (value == null) continue;
+      final conflicts = _store(storeName).entries.where(
+        (entry) => entry.key != id && entry.value[index.keyPath] == value,
+      );
+      if (conflicts.isNotEmpty) {
+        throw StateError(
+          'Unique index conflict: $storeName.${index.name}=$value',
+        );
+      }
+    }
     _store(storeName)[id] = _copyMap(record);
   }
 

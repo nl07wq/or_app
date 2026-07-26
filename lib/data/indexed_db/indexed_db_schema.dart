@@ -12,6 +12,51 @@ class IndexedDbIndexDefinition {
     this.unique = false,
     this.multiEntry = false,
   });
+
+  bool matches({
+    required String existingKeyPath,
+    required bool existingUnique,
+    required bool existingMultiEntry,
+  }) {
+    return keyPath == existingKeyPath &&
+        unique == existingUnique &&
+        multiEntry == existingMultiEntry;
+  }
+}
+
+class IndexedDbExistingIndexDefinition {
+  final String keyPath;
+  final bool unique;
+  final bool multiEntry;
+
+  const IndexedDbExistingIndexDefinition({
+    required this.keyPath,
+    required this.unique,
+    required this.multiEntry,
+  });
+}
+
+void reconcileIndexedDbStoreIndexes({
+  required IndexedDbStoreDefinition desiredStore,
+  required Map<String, IndexedDbExistingIndexDefinition> existingIndexes,
+  required void Function(String indexName) deleteIndex,
+  required void Function(IndexedDbIndexDefinition index) createIndex,
+}) {
+  for (final desired in desiredStore.indexes) {
+    final existing = existingIndexes[desired.name];
+    if (existing != null &&
+        desired.matches(
+          existingKeyPath: existing.keyPath,
+          existingUnique: existing.unique,
+          existingMultiEntry: existing.multiEntry,
+        )) {
+      continue;
+    }
+    if (existing != null) {
+      deleteIndex(desired.name);
+    }
+    createIndex(desired);
+  }
 }
 
 class IndexedDbStoreDefinition {
@@ -39,7 +84,7 @@ abstract final class IndexedDbIndexNames {
 
 abstract final class IndexedDbSchema {
   static const databaseName = 'operation_reboot_db';
-  static const databaseVersion = 2;
+  static const databaseVersion = 3;
   static const keyPath = 'id';
 
   static const storeDefinitions = [
@@ -88,6 +133,10 @@ abstract final class IndexedDbSchema {
         IndexedDbIndexDefinition(
           name: IndexedDbIndexNames.byLocalDate,
           keyPath: 'localDate',
+        ),
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byCanonicalDate,
+          keyPath: 'canonicalDate',
           unique: true,
         ),
       ],

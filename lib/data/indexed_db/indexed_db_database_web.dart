@@ -31,17 +31,35 @@ Future<IndexedDbDatabase> createIndexedDbDatabase() async {
           store = transaction.objectStore(definition.name);
         }
 
-        final existingIndexes = store.indexNames ?? const <String>[];
-        for (final index in definition.indexes) {
-          if (!existingIndexes.contains(index.name)) {
+        final existingIndexes = <String, IndexedDbExistingIndexDefinition>{};
+        for (final name in store.indexNames ?? const <String>[]) {
+          final indexName = name.toString();
+          final existingIndex = store.index(indexName);
+          final keyPath = existingIndex.keyPath;
+          existingIndexes[indexName] = IndexedDbExistingIndexDefinition(
+            keyPath: keyPath is String ? keyPath : keyPath.toString(),
+            unique: existingIndex.unique == true,
+            multiEntry: existingIndex.multiEntry == true,
+          );
+        }
+        reconcileIndexedDbStoreIndexes(
+          desiredStore: definition,
+          existingIndexes: existingIndexes,
+          deleteIndex: (indexName) {
+            // IndexedDB cannot mutate an index definition. Recreate only the
+            // changed index inside the version-change transaction; the
+            // Object Store and every existing record remain intact.
+            store.deleteIndex(indexName);
+          },
+          createIndex: (index) {
             store.createIndex(
               index.name,
               index.keyPath,
               unique: index.unique,
               multiEntry: index.multiEntry,
             );
-          }
-        }
+          },
+        );
       }
     },
   );
