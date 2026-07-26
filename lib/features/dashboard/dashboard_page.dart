@@ -31,6 +31,7 @@ import '../activity/models/activity_summary_state.dart';
 import '../training/models/training_summary_state.dart';
 
 import 'widgets/status_card.dart';
+import 'widgets/daily_log_card.dart';
 import 'log_confirmation_review_page.dart';
 import 'package:flutter/foundation.dart';
 
@@ -135,7 +136,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               AppSpacing.gapXL,
                               SectionHeader(
                                 icon: Icons.fact_check_outlined,
-                                title: 'LOG CONFIRMATION',
+                                title: 'DAILY LOG',
                               ),
                               AppSpacing.gapSM,
                               ValueListenableBuilder<
@@ -152,12 +153,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                     );
                                   }
 
-                                  return _UnconfirmedLogConfirmationCard(
+                                  return DailyLogCard(
                                     morningFact: morningFact,
                                     foodSummary: foodSummary,
                                     activitySummary: activitySummary,
                                     trainingSummary: trainingSummary,
-                                    isReadOnly: isReadOnly,
+                                    onReview: morningFact == null || isReadOnly
+                                        ? null
+                                        : () => Navigator.pushNamed(
+                                            context,
+                                            AppRoutes.logConfirmationReview,
+                                            arguments: LogConfirmationReviewPage(
+                                              morning: morningFact,
+                                              food: foodSummary,
+                                              activity: activitySummary,
+                                              training: trainingSummary,
+                                              estimatedTotalBurn:
+                                                  estimatedTDEE == null
+                                                  ? null
+                                                  : estimatedTDEE +
+                                                        trainingCardioCaloriesNotifier
+                                                            .value,
+                                            ),
+                                          ),
                                   );
                                 },
                               ),
@@ -362,70 +380,6 @@ class _ConfirmedLogConfirmationCard extends StatelessWidget {
       ).showSnackBar(const SnackBar(content: Text('確定状態を解除できませんでした。')));
     }
   }
-}
-
-class _UnconfirmedLogConfirmationCard extends StatelessWidget {
-  const _UnconfirmedLogConfirmationCard({
-    required this.morningFact,
-    required this.foodSummary,
-    required this.activitySummary,
-    required this.trainingSummary,
-    required this.isReadOnly,
-  });
-
-  final MorningFact? morningFact;
-  final FoodSummary? foodSummary;
-  final ActivitySummary activitySummary;
-  final TrainingSummary? trainingSummary;
-  final bool isReadOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    final mealCount = foodSummary?.mealCount ?? 0;
-
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Morning: ${morningFact == null ? 'Missing' : 'Recorded'}'),
-          Text('Food: ${mealCount > 0 ? '$mealCount meals' : 'Not recorded'}'),
-          Text(
-            'Activity: ${activitySummary.isRecorded ? '${_formatSteps(activitySummary.steps)} steps' : 'Not recorded'}',
-          ),
-          Text(
-            'Training: ${trainingSummary == null
-                ? 'Not recorded'
-                : trainingSummary!.completed
-                ? 'Completed'
-                : 'Not completed'}',
-          ),
-          if (morningFact == null) const Text('Morningデータの入力が必要です。'),
-          AppSpacing.gapMD,
-          OperationButton(
-            icon: Icons.fact_check_outlined,
-            text: "Review Today's Log",
-            onPressed: morningFact == null || isReadOnly
-                ? null
-                : () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.logConfirmationReview,
-                    arguments: LogConfirmationReviewPage(
-                      morning: morningFact,
-                      food: foodSummary,
-                      activity: activitySummary,
-                      training: trainingSummary,
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatSteps(int steps) => steps.toString().replaceAllMapped(
-    RegExp(r'(?<!^)(?=(\d{3})+$)'),
-    (_) => ',',
-  );
 }
 
 class _CommanderIntentCard extends StatelessWidget {
