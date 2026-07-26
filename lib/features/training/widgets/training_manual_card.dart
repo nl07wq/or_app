@@ -13,7 +13,7 @@ class TrainingManualCard extends StatelessWidget {
     return OperationCard(
       child: OperationButton(
         icon: Icons.fitness_center,
-        text: 'Training Entry',
+        text: 'TRAINING ENTRY',
         onPressed: () {
           Navigator.push(
             context,

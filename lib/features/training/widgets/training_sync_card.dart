@@ -11,7 +11,7 @@ class TrainingSyncCard extends StatelessWidget {
     return OperationCard(
       child: OperationButton(
         icon: Icons.sync,
-        text: 'Sync Training',
+        text: 'SYNC TRAINING',
         onPressed: () {
           // Phase5 Argo Engineで実装
         },

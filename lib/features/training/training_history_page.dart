@@ -51,7 +51,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Training History')),
+      appBar: AppBar(title: const Text('TRAINING')),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: FutureBuilder<List<TrainingSession>>(

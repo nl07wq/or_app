@@ -11,7 +11,7 @@ class TrainingPlanPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Training Plan')),
+      appBar: AppBar(title: const Text('TRAINING')),
       body: ListView.builder(
         itemCount: defaultTrainingTemplates.length,
         itemBuilder: (context, index) {

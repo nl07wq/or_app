@@ -14,20 +14,20 @@ class TrainingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Training')),
+      appBar: AppBar(title: const Text('TRAINING')),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
-            SectionHeader(icon: Icons.sync, title: 'TRAINING SYNC'),
+            SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
 
             AppSpacing.gapSM,
 
             OperationDescription(
               text:
-                  'トレーニングデータを同期し、\n'
-                  '最新の記録を反映します。',
+                  'Operation Reboot Reportから\n'
+                  '本日のトレーニング記録を同期します。',
             ),
 
             AppSpacing.gapMD,
@@ -52,14 +52,14 @@ class TrainingPage extends StatelessWidget {
 
             AppSpacing.gapXL,
 
-            SectionHeader(icon: Icons.history, title: 'HISTORY'),
+            SectionHeader(icon: Icons.history, title: 'RECORD'),
 
             AppSpacing.gapSM,
 
             OperationDescription(
               text:
                   '過去のトレーニング履歴を\n'
-                  '確認します。',
+                  '確認・編集できます。',
             ),
 
             AppSpacing.gapMD,

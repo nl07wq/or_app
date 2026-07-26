@@ -286,9 +286,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _isEditingExistingSession ? 'Edit Training' : 'Training Entry',
-        ),
+        title: const Text('TRAINING'),
         actions: [
           OperationMenuButton(
             items: [

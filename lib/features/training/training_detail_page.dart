@@ -40,7 +40,7 @@ class TrainingDetailPage extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Training Detail')),
+      appBar: AppBar(title: const Text('TRAINING')),
       body: ListView(
         children: [
           TrainingSummaryCard(

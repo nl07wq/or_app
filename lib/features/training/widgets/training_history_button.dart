@@ -13,7 +13,7 @@ class TrainingHistoryButton extends StatelessWidget {
     return OperationCard(
       child: OperationButton(
         icon: Icons.history,
-        text: 'History',
+        text: 'RECORD',
         onPressed: () {
           Navigator.push(
             context,

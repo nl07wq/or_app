@@ -904,7 +904,7 @@ class _TrainingButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.fitness_center,
-      text: 'Training',
+      text: 'TRAINING',
       onPressed: () {
         Navigator.pushNamed(context, AppRoutes.training);
       },
