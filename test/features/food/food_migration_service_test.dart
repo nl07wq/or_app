@@ -309,6 +309,134 @@ void main() {
     );
   });
 
+  test('completed Migration permits normal FOOD Store changes', () async {
+    final source = [
+      jsonEncode(_meal(id: 'migrated').toJson()),
+      jsonEncode(_meal(id: 'removed').toJson()),
+    ];
+    SharedPreferences.setMockInitialValues({legacyKey: source});
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    await service.migrate();
+
+    await database.deleteById(IndexedDbStoreNames.foodRecords, 'food:removed');
+    await IndexedDbFoodRepository(
+      database,
+      now: () => migrationTime.add(const Duration(days: 1)),
+    ).update(_meal(id: 'migrated', memo: 'edited'));
+    await IndexedDbFoodRepository(
+      database,
+      now: () => migrationTime.add(const Duration(days: 1)),
+    ).save(_meal(id: 'new'));
+
+    final result = await service.migrate();
+
+    expect(result.alreadyCompleted, isTrue);
+    expect(result.foodRecordIds, {'food:migrated', 'food:removed'});
+  });
+
+  test('completed Migration permits REPLACE ALL equivalent IDs', () async {
+    SharedPreferences.setMockInitialValues({
+      legacyKey: [jsonEncode(_meal(id: 'legacy').toJson())],
+    });
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    await service.migrate();
+
+    await database.clear(IndexedDbStoreNames.foodRecords);
+    final replacement = PersistedFoodRecord(
+      id: 'food:replacement',
+      localDate: '2026-07-27',
+      createdAt: migrationTime.add(const Duration(days: 1)),
+      updatedAt: migrationTime.add(const Duration(days: 1)),
+      data: _meal(id: 'replacement', date: '2026-07-27'),
+    );
+    await database.put(IndexedDbStoreNames.foodRecords, replacement.toRecord());
+
+    expect((await service.migrate()).alreadyCompleted, isTrue);
+
+    await database.clear(IndexedDbStoreNames.foodRecords);
+    expect((await service.migrate()).alreadyCompleted, isTrue);
+  });
+
+  test('completed Migration rejects corrupted metadata', () async {
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    await service.migrate();
+    final metadata = _metadata(database).toRecord()
+      ..['targetDigest'] = 'not-a-digest';
+    database.seed(
+      IndexedDbStoreNames.migrationMetadata,
+      FoodMigrationService.migrationId,
+      metadata,
+    );
+
+    await expectLater(
+      service.migrate(),
+      throwsA(
+        isA<RepositoryException>().having(
+          (error) => error.code,
+          'code',
+          RepositoryErrorCode.verificationFailed,
+        ),
+      ),
+    );
+  });
+
+  test('completed Migration rejects mismatched ID and version', () async {
+    for (final mutation in <void Function(Map<String, Object?>)>[
+      (record) => record['id'] = 'wrong-migration-id',
+      (record) => record['targetDatabaseVersion'] = 99,
+    ]) {
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      await service.migrate();
+      final metadata = _metadata(database).toRecord();
+      mutation(metadata);
+      database.seed(
+        IndexedDbStoreNames.migrationMetadata,
+        FoodMigrationService.migrationId,
+        metadata,
+      );
+
+      await expectLater(
+        service.migrate(),
+        throwsA(
+          isA<RepositoryException>().having(
+            (error) => error.code,
+            'code',
+            RepositoryErrorCode.verificationFailed,
+          ),
+        ),
+      );
+    }
+  });
+
+  test('completed Migration rejects quarantine mismatch', () async {
+    SharedPreferences.setMockInitialValues({
+      legacyKey: ['{broken'],
+    });
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    final first = await service.migrate();
+    expect(first.quarantineRecordIds, hasLength(1));
+    await database.deleteById(
+      IndexedDbStoreNames.migrationQuarantine,
+      first.quarantineRecordIds.single,
+    );
+
+    await expectLater(
+      service.migrate(),
+      throwsA(
+        isA<RepositoryException>().having(
+          (error) => error.code,
+          'code',
+          RepositoryErrorCode.verificationFailed,
+        ),
+      ),
+    );
+  });
+
   test('transaction failure remains incomplete and can retry', () async {
     final source = [jsonEncode(_meal(id: 'meal-1').toJson())];
     SharedPreferences.setMockInitialValues({legacyKey: source});
@@ -349,6 +477,32 @@ void main() {
       (await SharedPreferences.getInstance()).getStringList(legacyKey),
       source,
     );
+  });
+
+  test('initial Migration rejects a missing Record after commit', () async {
+    final source = [jsonEncode(_meal(id: 'meal-1').toJson())];
+    SharedPreferences.setMockInitialValues({legacyKey: source});
+    final database = _RemoveFoodAfterCommitDatabase();
+
+    await expectLater(
+      _service(database, migrationTime).migrate(),
+      throwsA(isA<RepositoryException>()),
+    );
+
+    expect(_metadata(database).status, IndexedDbMigrationStatus.failed);
+  });
+
+  test('initial Migration rejects a target digest mismatch', () async {
+    final source = [jsonEncode(_meal(id: 'meal-1').toJson())];
+    SharedPreferences.setMockInitialValues({legacyKey: source});
+    final database = _CorruptFoodDigestDatabase();
+
+    await expectLater(
+      _service(database, migrationTime).migrate(),
+      throwsA(isA<RepositoryException>()),
+    );
+
+    expect(_metadata(database).status, IndexedDbMigrationStatus.failed);
   });
 
   test('does not take over an active Migration lease', () async {
@@ -496,5 +650,32 @@ class _CorruptAfterCommitDatabase extends FakeIndexedDbDatabase {
       }
     }
     return super.findAll(storeName);
+  }
+}
+
+class _RemoveFoodAfterCommitDatabase extends FakeIndexedDbDatabase {
+  var _foodFindAllCount = 0;
+
+  @override
+  Future<List<Map<String, Object?>>> findAll(String storeName) async {
+    if (storeName == IndexedDbStoreNames.foodRecords) {
+      _foodFindAllCount++;
+      if (_foodFindAllCount == 2) {
+        await deleteById(storeName, 'food:meal-1');
+      }
+    }
+    return super.findAll(storeName);
+  }
+}
+
+class _CorruptFoodDigestDatabase extends FakeIndexedDbDatabase {
+  @override
+  Future<void> put(String storeName, Map<String, Object?> record) {
+    if (storeName == IndexedDbStoreNames.migrationMetadata &&
+        record['id'] == FoodMigrationService.migrationId &&
+        record['status'] == IndexedDbMigrationStatus.verifying.name) {
+      return super.put(storeName, {...record, 'targetDigest': '00000000'});
+    }
+    return super.put(storeName, record);
   }
 }

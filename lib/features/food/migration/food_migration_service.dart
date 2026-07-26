@@ -487,6 +487,27 @@ class FoodMigrationService {
     if (!_sameSet(actual.keys, outcome.expectedIds)) {
       throw const FormatException('FOOD migration IDs differ after commit.');
     }
+    final metadataValue = await _database.findById(
+      IndexedDbStoreNames.migrationMetadata,
+      migrationId,
+    );
+    if (metadataValue == null) {
+      throw const FormatException(
+        'FOOD migration metadata is missing after commit.',
+      );
+    }
+    final storedMetadata = IndexedDbMigrationMetadata.fromRecord(metadataValue);
+    final actualTargetDigest = _digest(actual.keys.toList()..sort());
+    if (storedMetadata.targetDigest != actualTargetDigest ||
+        !_sameSet(
+          storedMetadata.expectedRecordIds[IndexedDbStoreNames.foodRecords] ??
+              const [],
+          outcome.expectedIds,
+        )) {
+      throw const FormatException(
+        'FOOD migration digest differs after commit.',
+      );
+    }
     for (final expected in outcome.expectedRecords) {
       final actualRecord = actual[expected.id]!;
       if (actualRecord.localDate != expected.localDate ||
@@ -518,22 +539,12 @@ class FoodMigrationService {
   Future<FoodMigrationResult> _verifyCompleted(
     IndexedDbMigrationMetadata metadata,
   ) async {
+    _validateCompletedMetadata(metadata);
     final expectedFoodIds =
         metadata.expectedRecordIds[IndexedDbStoreNames.foodRecords] ?? const [];
     final expectedQuarantineIds =
         metadata.expectedRecordIds[IndexedDbStoreNames.migrationQuarantine] ??
         const [];
-    final actualFoodIds = <String>{};
-    for (final id in expectedFoodIds) {
-      final value = await _database.findById(
-        IndexedDbStoreNames.foodRecords,
-        id,
-      );
-      if (value != null) {
-        PersistedFoodRecord.fromRecord(value);
-        actualFoodIds.add(id);
-      }
-    }
     final quarantineValues = await _database.findAll(
       IndexedDbStoreNames.migrationQuarantine,
     );
@@ -543,16 +554,9 @@ class FoodMigrationService {
             migrationId)
           value['id'] as String,
     };
-    final targetDigest = _digest(actualFoodIds.toList()..sort());
-    if (!_sameSet(actualFoodIds, expectedFoodIds) ||
-        !_sameSet(actualQuarantineIds, expectedQuarantineIds) ||
-        metadata.targetDigest != targetDigest) {
-      throw RepositoryException(
-        operation: 'food.migration.verifyCompleted',
-        code: RepositoryErrorCode.verificationFailed,
-        cause: const FormatException(
-          'Completed FOOD migration no longer matches metadata.',
-        ),
+    if (!_sameSet(actualQuarantineIds, expectedQuarantineIds)) {
+      throw _completedVerificationFailure(
+        'Completed FOOD migration quarantine no longer matches metadata.',
       );
     }
     return FoodMigrationResult(
@@ -563,8 +567,39 @@ class FoodMigrationService {
       conflictCount: metadata.validCounts['conflictRecordCount'] ?? 0,
       writtenCount: metadata.validCounts['writtenRecordCount'] ?? 0,
       existingMatchCount: metadata.validCounts['existingMatchCount'] ?? 0,
-      foodRecordIds: actualFoodIds,
+      foodRecordIds: expectedFoodIds,
       quarantineRecordIds: actualQuarantineIds,
+    );
+  }
+
+  static void _validateCompletedMetadata(IndexedDbMigrationMetadata metadata) {
+    final targetDigest = metadata.targetDigest;
+    final hasExpectedSections =
+        metadata.expectedRecordIds.containsKey(
+          IndexedDbStoreNames.foodRecords,
+        ) &&
+        metadata.expectedRecordIds.containsKey(
+          IndexedDbStoreNames.migrationQuarantine,
+        );
+    if (metadata.id != migrationId ||
+        metadata.source != FoodLegacyReader.sourceSystem ||
+        metadata.targetDatabaseVersion != IndexedDbSchema.databaseVersion ||
+        metadata.status != IndexedDbMigrationStatus.completed ||
+        metadata.completedAt == null ||
+        targetDigest == null ||
+        !RegExp(r'^[0-9a-f]{8}$').hasMatch(targetDigest) ||
+        !hasExpectedSections) {
+      throw _completedVerificationFailure(
+        'Completed FOOD migration metadata is invalid.',
+      );
+    }
+  }
+
+  static RepositoryException _completedVerificationFailure(String message) {
+    return RepositoryException(
+      operation: 'food.migration.verifyCompleted',
+      code: RepositoryErrorCode.verificationFailed,
+      cause: FormatException(message),
     );
   }
 
