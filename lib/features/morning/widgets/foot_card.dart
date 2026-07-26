@@ -18,8 +18,15 @@ class _FootCardState extends State<FootCard> {
   static const _secondRowValues = [6, 7, 8, 9, 10];
   static const _maximumChipWidth = 72.0;
   static const _compactWidth = 280.0;
+  static const _desktopWidth = 600.0;
+
+  bool _expanded = false;
 
   int? get _selectedValue => int.tryParse(widget.controller.text);
+  String get _currentValueLabel {
+    final value = _selectedValue;
+    return value != null && value >= 1 && value <= 10 ? '$value' : '—';
+  }
 
   @override
   void initState() {
@@ -47,6 +54,9 @@ class _FootCardState extends State<FootCard> {
   }
 
   void _selectPainLevel(int value) {
+    setState(() {
+      _expanded = false;
+    });
     widget.controller.text = value.toString();
   }
 
@@ -54,6 +64,26 @@ class _FootCardState extends State<FootCard> {
     return LayoutBuilder(
       key: key,
       builder: (context, constraints) {
+        if (constraints.maxWidth >= _desktopWidth) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < values.length; index++) ...[
+                if (index > 0) const SizedBox(width: 8),
+                SizedBox(
+                  width: _maximumChipWidth,
+                  child: _PainLevelChip(
+                    key: Key('foot-pain-chip-${values[index]}'),
+                    value: values[index],
+                    selected: _selectedValue == values[index],
+                    onPressed: () => _selectPainLevel(values[index]),
+                  ),
+                ),
+              ],
+            ],
+          );
+        }
+
         final horizontalInset = constraints.maxWidth < _compactWidth
             ? 1.0
             : 4.0;
@@ -98,37 +128,69 @@ class _FootCardState extends State<FootCard> {
 
           const SizedBox(height: 20),
 
-          const Text(
-            'Pain Level',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-
-          AppSpacing.gapMD,
-
-          Column(
-            children: [
-              _buildPainLevelRow(
-                _firstRowValues,
-                const Key('foot-pain-levels-1-5'),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const Key('foot-pain-toggle'),
+              onTap: () {
+                setState(() {
+                  _expanded = !_expanded;
+                });
+              },
+              child: SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Pain Level',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text(
+                      _currentValueLabel,
+                      key: const Key('foot-pain-current-value'),
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      _expanded ? Icons.keyboard_arrow_up : Icons.chevron_right,
+                      key: const Key('foot-pain-expand-icon'),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              _buildPainLevelRow(
-                _secondRowValues,
-                const Key('foot-pain-levels-6-10'),
-              ),
-            ],
+            ),
           ),
 
-          AppSpacing.gapMD,
+          if (_expanded) ...[
+            AppSpacing.gapMD,
 
-          Text(
-            '1–2：軽微\n'
-            '3–4：軽い\n'
-            '5–6：中程度\n'
-            '7–8：強い\n'
-            '9–10：非常に強い',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+            Column(
+              children: [
+                _buildPainLevelRow(
+                  _firstRowValues,
+                  const Key('foot-pain-levels-1-5'),
+                ),
+                const SizedBox(height: 8),
+                _buildPainLevelRow(
+                  _secondRowValues,
+                  const Key('foot-pain-levels-6-10'),
+                ),
+              ],
+            ),
+
+            AppSpacing.gapMD,
+
+            Text(
+              '1–2：軽微\n'
+              '3–4：軽い\n'
+              '5–6：中程度\n'
+              '7–8：強い\n'
+              '9–10：非常に強い',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ],
       ),
     );
