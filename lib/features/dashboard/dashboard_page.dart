@@ -891,7 +891,7 @@ class _ActivityButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.directions_walk_outlined,
-      text: 'Activity',
+      text: 'ACTIVITY',
       onPressed: () => Navigator.pushNamed(context, AppRoutes.activity),
     );
   }

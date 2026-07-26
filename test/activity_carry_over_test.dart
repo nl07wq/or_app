@@ -136,6 +136,23 @@ void main() {
     expect(await repository.findByDate(DateTime(2026, 7, 21)), isNull);
   });
 
+  testWidgets('Activity menu uses three sections and sync is coming soon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+
+    expect(find.text('REPORT SYNC'), findsOneWidget);
+    expect(find.text('MANUAL ENTRY'), findsOneWidget);
+    expect(find.text('RECORD'), findsNWidgets(2));
+    expect(find.text('SYNC ACTIVITY'), findsOneWidget);
+    expect(find.text('ACTIVITY ENTRY'), findsOneWidget);
+
+    await tester.tap(find.text('SYNC ACTIVITY'));
+    await tester.pump();
+
+    expect(find.text('Coming Soon'), findsOneWidget);
+  });
+
   testWidgets('new entry uses the current Debug Date and prior Carry Over', (
     tester,
   ) async {
@@ -154,10 +171,10 @@ void main() {
     AppClock.setDebugDate(DateTime(2026, 7, 23));
 
     await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
-    await tester.tap(find.text('Log Activity'));
+    await tester.tap(find.text('ACTIVITY ENTRY'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Activity Entry'), findsOneWidget);
+    expect(find.text('ACTIVITY'), findsOneWidget);
     expect(find.text('2026-07-23'), findsOneWidget);
     expect(find.text('-5,000 steps'), findsOneWidget);
     expect(find.text('BOWEL'), findsOneWidget);
@@ -187,10 +204,10 @@ void main() {
     AppClock.setDebugDate(DateTime(2026, 7, 23));
 
     await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
-    await tester.tap(find.text('Log Activity'));
+    await tester.tap(find.text('ACTIVITY ENTRY'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit Activity'), findsOneWidget);
+    expect(find.text('ACTIVITY'), findsOneWidget);
     expect(find.text('2026-07-23'), findsOneWidget);
     expect(find.widgetWithText(TextField, '12000'), findsOneWidget);
     expect(find.text('-5,000 steps'), findsOneWidget);

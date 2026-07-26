@@ -282,9 +282,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.initialData == null ? 'Activity Entry' : 'Edit Activity',
-        ),
+        title: const Text('ACTIVITY'),
       ),
       body: Padding(
         padding: AppSpacing.cardPadding,

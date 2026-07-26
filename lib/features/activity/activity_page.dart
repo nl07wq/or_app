@@ -30,42 +30,74 @@ class ActivityPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Activity')),
+    appBar: AppBar(title: const Text('ACTIVITY')),
     body: SingleChildScrollView(
       padding: AppSpacing.cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+
+          AppSpacing.gapSM,
+
+          const OperationDescription(
+            text:
+                'Operation Reboot Reportから\n'
+                '本日の活動記録を同期します。',
+          ),
+
+          AppSpacing.gapMD,
+
+          OperationButton(
+            icon: Icons.sync,
+            text: 'SYNC ACTIVITY',
+            onPressed: () {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Coming Soon')));
+            },
+          ),
+
+          AppSpacing.gapXL,
+
           const SectionHeader(
             icon: Icons.directions_walk_outlined,
-            title: 'ACTIVITY',
+            title: 'MANUAL ENTRY',
           ),
 
           AppSpacing.gapSM,
 
-          const OperationDescription(text: '歩数・排便・足底などを入力します。'),
+          const OperationDescription(
+            text:
+                '本日の歩数・排便など\n'
+                '本日の活動を記録します。',
+          ),
 
           AppSpacing.gapMD,
 
           OperationButton(
             icon: Icons.edit_outlined,
-            text: 'Log Activity',
+            text: 'ACTIVITY ENTRY',
             onPressed: () => _openEntry(context),
           ),
 
           AppSpacing.gapXL,
 
-          const SectionHeader(icon: Icons.history, title: 'HISTORY'),
+          const SectionHeader(icon: Icons.history, title: 'RECORD'),
 
           AppSpacing.gapSM,
 
-          const OperationDescription(text: '保存済みActivityを確認できます。'),
+          const OperationDescription(
+            text:
+                '過去の活動履歴を\n'
+                '確認・編集できます。',
+          ),
 
           AppSpacing.gapMD,
 
           OperationButton(
             icon: Icons.history_outlined,
-            text: 'Activity History',
+            text: 'RECORD',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ActivityHistoryPage()),
