@@ -2,6 +2,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/data/default_training_templates.dart';
 import '../../../core/repositories/training_repository.dart';
+import '../../../core/services/persistence_access.dart';
+import '../../../core/state/app_initialization_state.dart';
+import '../../repositories/app_repository_container.dart';
+import '../migration/custom_training_exercise_legacy_reader.dart';
+import '../models/custom_training_exercise.dart';
+import '../repository/custom_training_exercise_id_generator.dart';
 import 'exercise_name_localization.dart';
 
 class ExerciseCatalog {
@@ -21,9 +27,7 @@ class ExerciseCatalogService {
 
   static Future<ExerciseCatalog> load() async {
     final sessions = await TrainingRepository.getAll();
-    final preferences = await SharedPreferences.getInstance();
-    final customExercises =
-        preferences.getStringList(_customExercisesKey) ?? const <String>[];
+    final customExercises = await _loadCustomNames();
 
     final recentByKey = <String, String>{};
     for (final session in sessions) {
@@ -60,6 +64,21 @@ class ExerciseCatalogService {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) return;
 
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      PersistenceAccess.requireWrite('exerciseCatalog.registerCustom');
+      final repository =
+          AppRepositoryRegistry.container.customTrainingExercises;
+      final normalizedName = exerciseIdentityKey(trimmedName);
+      final existing = await repository.findAll();
+      if (existing.any(
+        (record) => exerciseIdentityKey(record.name) == normalizedName,
+      )) {
+        return;
+      }
+      await repository.create(trimmedName);
+      return;
+    }
+
     final preferences = await SharedPreferences.getInstance();
     final customByKey = <String, String>{};
     for (final exercise
@@ -73,6 +92,76 @@ class ExerciseCatalogService {
         (first, second) => first.toLowerCase().compareTo(second.toLowerCase()),
       );
     await preferences.setStringList(_customExercisesKey, customExercises);
+  }
+
+  static Future<List<CustomTrainingExercise>> loadCustomRecords() async {
+    PersistenceAccess.requireReadable('exerciseCatalog.loadCustomRecords');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.customTrainingExercises.findAll();
+    }
+    final legacy = await CustomTrainingExerciseLegacyReader().read();
+    final recordsByName = <String, CustomTrainingExercise>{};
+    for (final record in legacy.validRecords) {
+      recordsByName.putIfAbsent(
+        exerciseIdentityKey(record.name),
+        () => CustomTrainingExercise(
+          id: const CustomTrainingExerciseLegacyIdGenerator().generate(
+            record.name,
+          ),
+          name: record.name,
+        ),
+      );
+    }
+    final records = recordsByName.values.toList()
+      ..sort(
+        (first, second) => exerciseDisplayName(
+          first.name,
+        ).compareTo(exerciseDisplayName(second.name)),
+      );
+    return List.unmodifiable(records);
+  }
+
+  static Future<CustomTrainingExercise> updateCustomById(
+    String id,
+    String name,
+  ) {
+    PersistenceAccess.requireWrite('exerciseCatalog.updateCustomById');
+    return AppRepositoryRegistry.container.customTrainingExercises.updateById(
+      id,
+      name,
+    );
+  }
+
+  static Future<void> deleteCustomById(String id) {
+    PersistenceAccess.requireWrite('exerciseCatalog.deleteCustomById');
+    return AppRepositoryRegistry.container.customTrainingExercises.deleteById(
+      id,
+    );
+  }
+
+  static Future<List<String>> _loadCustomNames() async {
+    if (PersistenceAccess.usesCompatibilityStorage) {
+      final preferences = await SharedPreferences.getInstance();
+      return List.unmodifiable(
+        preferences.getStringList(_customExercisesKey) ?? const <String>[],
+      );
+    }
+    PersistenceAccess.requireReadable('exerciseCatalog.load');
+    if (PersistenceAccess.canReadIndexedDb) {
+      final records = await AppRepositoryRegistry
+          .container
+          .customTrainingExercises
+          .findAll();
+      return List.unmodifiable(records.map((record) => record.name));
+    }
+    if (AppRepositoryRegistry.controller.value.mode ==
+        PersistenceMode.legacyReadOnly) {
+      final legacy = await CustomTrainingExerciseLegacyReader().read();
+      return List.unmodifiable(
+        legacy.validRecords.map((record) => record.name),
+      );
+    }
+    throw StateError('Custom Training Exercise persistence is unavailable.');
   }
 
   static void _addUnique(Map<String, String> exercises, String name) {

@@ -21,6 +21,7 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/migration/status_migration_service.dart';
+import 'package:or_app/features/training/services/exercise_catalog_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -58,12 +59,13 @@ void main() {
         InitializationStage.migratingActivity,
         InitializationStage.migratingFood,
         InitializationStage.migratingTraining,
+        InitializationStage.migratingCustomTrainingExercises,
         InitializationStage.migratingConfirmation,
       ]);
       final metadata = await database.findAll(
         IndexedDbStoreNames.migrationMetadata,
       );
-      expect(metadata, hasLength(5));
+      expect(metadata, hasLength(6));
       expect(
         (await SharedPreferences.getInstance()).getString('unrelated'),
         'keep',
@@ -263,58 +265,74 @@ void main() {
     },
   );
 
-  test('all five production facades persist only to IndexedDB', () async {
-    final legacyValues = <String, Object>{
-      'morning_records': <String>[],
-      'meal_records': <String>[],
-      'training_sessions': <String>[],
-      'activity_records': <String>[],
-      'daily_log_confirmations': <String>[],
-      'unrelated': 'keep',
-    };
-    SharedPreferences.setMockInitialValues(legacyValues);
-    final database = FakeIndexedDbDatabase();
-    final controller = AppInitializationController();
-    final service = StartupInitializationService(
-      controller: controller,
-      openDatabase: () async => database,
-      restore: () async {},
-      isWeb: true,
-    );
-    await service.initialize();
+  test(
+    'production facades and custom catalog persist only to IndexedDB',
+    () async {
+      final legacyValues = <String, Object>{
+        'morning_records': <String>[],
+        'meal_records': <String>[],
+        'training_sessions': <String>[],
+        'training_custom_exercises': <String>[],
+        'activity_records': <String>[],
+        'daily_log_confirmations': <String>[],
+        'unrelated': 'keep',
+      };
+      SharedPreferences.setMockInitialValues(legacyValues);
+      final database = FakeIndexedDbDatabase();
+      final controller = AppInitializationController();
+      final service = StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      );
+      await service.initialize();
 
-    final morning = _morning();
-    final meal = _meal();
-    final activity = _activity();
-    final training = _training('indexed');
-    final confirmation = _confirmation();
-    await MorningRepository.save(morning);
-    await FoodRepository.save(meal);
-    await const LocalActivityRepository().save(activity);
-    final trainingRecord = await TrainingRepository.saveNew(training);
-    await DailyLogConfirmationRepository.save(confirmation);
+      final morning = _morning();
+      final meal = _meal();
+      final activity = _activity();
+      final training = _training('indexed');
+      final confirmation = _confirmation();
+      await MorningRepository.save(morning);
+      await FoodRepository.save(meal);
+      await const LocalActivityRepository().save(activity);
+      final trainingRecord = await TrainingRepository.saveNew(training);
+      await DailyLogConfirmationRepository.save(confirmation);
+      await ExerciseCatalogService.registerCustom('Custom Press');
 
-    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
-    expect((await MorningRepository.getAll()).single.date, morning.date);
-    expect((await FoodRepository.getAll()).single.id, meal.id);
-    expect(
-      (await const LocalActivityRepository().getAll()).single.id,
-      activity.id,
-    );
-    expect(
-      (await TrainingRepository.getRecords()).single.id,
-      trainingRecord.id,
-    );
-    expect(
-      (await DailyLogConfirmationRepository.getAll()).single.date,
-      confirmation.date,
-    );
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      expect((await MorningRepository.getAll()).single.date, morning.date);
+      expect((await FoodRepository.getAll()).single.id, meal.id);
+      expect(
+        (await const LocalActivityRepository().getAll()).single.id,
+        activity.id,
+      );
+      expect(
+        (await TrainingRepository.getRecords()).single.id,
+        trainingRecord.id,
+      );
+      expect(
+        (await DailyLogConfirmationRepository.getAll()).single.date,
+        confirmation.date,
+      );
+      expect(
+        (await AppRepositoryRegistry.container.customTrainingExercises
+                .findAll())
+            .single
+            .name,
+        'Custom Press',
+      );
+      expect(
+        (await ExerciseCatalogService.load()).all,
+        contains('Custom Press'),
+      );
 
-    final preferences = await SharedPreferences.getInstance();
-    for (final key in legacyValues.keys) {
-      expect(preferences.get(key), legacyValues[key], reason: key);
-    }
-  });
+      final preferences = await SharedPreferences.getInstance();
+      for (final key in legacyValues.keys) {
+        expect(preferences.get(key), legacyValues[key], reason: key);
+      }
+    },
+  );
 
   test('initializing, failed, and read-only modes reject all writes', () async {
     final controller = AppInitializationController();
@@ -378,6 +396,7 @@ void main() {
         'meal_records': <String>[jsonEncode(meal.toJson())],
         'activity_records': <String>[jsonEncode(activity.toJson())],
         'training_sessions': <String>[jsonEncode(training.toJson())],
+        'training_custom_exercises': <String>['Legacy Custom Press'],
         'daily_log_confirmations': <String>[jsonEncode(confirmation.toJson())],
       };
       SharedPreferences.setMockInitialValues(initial);
@@ -396,6 +415,10 @@ void main() {
         activity.id,
       );
       expect((await TrainingRepository.getAll()).single.memo, training.memo);
+      expect(
+        (await ExerciseCatalogService.load()).all,
+        contains('Legacy Custom Press'),
+      );
       expect(
         (await DailyLogConfirmationRepository.getAll()).single.date,
         confirmation.date,
@@ -504,6 +527,7 @@ Future<void> _expectAllWritesRejected() async {
       await TrainingRepository.saveNew(_training('rejected'));
     },
     () => DailyLogConfirmationRepository.save(_confirmation()),
+    () => ExerciseCatalogService.registerCustom('Rejected Custom Exercise'),
   ];
   for (final operation in operations) {
     await expectLater(operation(), throwsA(anything));

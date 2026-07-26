@@ -9,6 +9,8 @@ import '../food/repository/indexed_db_food_repository.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
+import '../training/repository/custom_training_exercise_repository.dart';
+import '../training/repository/indexed_db_custom_training_exercise_repository.dart';
 import '../training/repository/training_session_repository.dart';
 
 class AppRepositoryContainer {
@@ -16,6 +18,7 @@ class AppRepositoryContainer {
   final ActivityRepository activity;
   final FoodRepository food;
   final TrainingSessionRepository training;
+  final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
 
   AppRepositoryContainer._({
@@ -23,6 +26,7 @@ class AppRepositoryContainer {
     required this.activity,
     required this.food,
     required this.training,
+    required this.customTrainingExercises,
     required this.confirmation,
   });
 
@@ -32,6 +36,9 @@ class AppRepositoryContainer {
       activity: IndexedDbActivityRepository(database),
       food: IndexedDbFoodRepository(database),
       training: IndexedDbTrainingSessionRepository(database),
+      customTrainingExercises: IndexedDbCustomTrainingExerciseRepository(
+        database,
+      ),
       confirmation: IndexedDbDailyLogConfirmationRepository(database),
     );
   }

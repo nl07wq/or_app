@@ -16,6 +16,9 @@ import '../../features/status/migration/status_legacy_reader.dart';
 import '../../features/status/migration/status_migration_service.dart';
 import '../../features/training/migration/training_legacy_reader.dart';
 import '../../features/training/migration/training_migration_service.dart';
+import '../../features/training/migration/custom_training_exercise_legacy_reader.dart';
+import '../../features/training/migration/custom_training_exercise_migration_service.dart';
+import '../../features/training/repository/indexed_db_custom_training_exercise_repository.dart';
 import '../state/app_initialization_state.dart';
 import 'daily_state_restore_service.dart';
 
@@ -91,6 +94,9 @@ class StartupInitializationService {
       TrainingLegacyReader().read().then(
         (value) => value.invalidRecords.length,
       ),
+      CustomTrainingExerciseLegacyReader().read().then(
+        (value) => value.invalidRecords.length,
+      ),
       DailyLogConfirmationLegacyReader().read().then(
         (value) => value.invalidRecords.length,
       ),
@@ -146,6 +152,12 @@ class StartupInitializationService {
       );
       await _runMigration(
         database,
+        CustomTrainingExerciseMigrationService.migrationId,
+        InitializationStage.migratingCustomTrainingExercises,
+        () => CustomTrainingExerciseMigrationService(database).migrate(),
+      );
+      await _runMigration(
+        database,
         DailyLogConfirmationMigrationService.migrationId,
         InitializationStage.migratingConfirmation,
         () => DailyLogConfirmationMigrationService(database).migrate(),
@@ -184,8 +196,10 @@ class StartupInitializationService {
       InitializationStage.migratingActivity ||
       InitializationStage.migratingFood ||
       InitializationStage.migratingTraining ||
+      InitializationStage.migratingCustomTrainingExercises ||
       InitializationStage.migratingConfirmation =>
         RepositoryErrorCode.migrationFailed,
+      InitializationStage.verifyingCustomTrainingExercises ||
       InitializationStage.verifyingRepositories ||
       InitializationStage.restoringDailyState ||
       InitializationStage.complete => RepositoryErrorCode.verificationFailed,
@@ -245,6 +259,7 @@ class StartupInitializationService {
       ActivityMigrationService.migrationId,
       FoodMigrationService.migrationId,
       TrainingMigrationService.migrationId,
+      CustomTrainingExerciseMigrationService.migrationId,
       DailyLogConfirmationMigrationService.migrationId,
     ]) {
       final metadata = await _readMetadata(database, id);
@@ -267,6 +282,21 @@ class StartupInitializationService {
     await container.activity.findAll();
     await container.food.findAll();
     await container.training.findAll();
+    controller.updateStage(
+      InitializationStage.verifyingCustomTrainingExercises,
+    );
+    final customRepository = container.customTrainingExercises;
+    if (customRepository is IndexedDbCustomTrainingExerciseRepository) {
+      final result = await customRepository.findAllWithIssues();
+      if (result.hasIssues) {
+        throw _verificationFailure(
+          'Custom Training Exercises contain unreadable records.',
+        );
+      }
+    } else {
+      await customRepository.findAll();
+    }
+    controller.updateStage(InitializationStage.verifyingRepositories);
     await container.confirmation.findAll();
   }
 
