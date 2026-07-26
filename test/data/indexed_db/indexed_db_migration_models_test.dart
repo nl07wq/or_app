@@ -23,6 +23,7 @@ void main() {
       quarantinedCounts: const {'status': 0},
       expectedRecordIds: expectedIds,
       sourceDigest: 'digest',
+      targetDigest: 'target-digest',
     );
 
     sourceCounts['status'] = 99;
@@ -42,6 +43,7 @@ void main() {
     expect(restored.startedAt, DateTime.parse('2026-07-25T23:00:00Z'));
     expect(restored.expectedRecordIds, metadata.expectedRecordIds);
     expect(restored.sourceDigest, 'digest');
+    expect(restored.targetDigest, 'target-digest');
   });
 
   test('migration metadata rejects invalid state', () {

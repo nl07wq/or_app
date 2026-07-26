@@ -26,6 +26,7 @@ class IndexedDbMigrationMetadata {
   final Map<String, int> quarantinedCounts;
   final Map<String, List<String>> expectedRecordIds;
   final String? sourceDigest;
+  final String? targetDigest;
   final String? errorCode;
   final String? errorMessage;
 
@@ -45,6 +46,7 @@ class IndexedDbMigrationMetadata {
     Map<String, int> quarantinedCounts = const {},
     Map<String, List<String>> expectedRecordIds = const {},
     this.sourceDigest,
+    this.targetDigest,
     this.errorCode,
     this.errorMessage,
   }) : sourceCounts = Map<String, int>.unmodifiable(sourceCounts),
@@ -68,6 +70,7 @@ class IndexedDbMigrationMetadata {
     Map<String, int>? quarantinedCounts,
     Map<String, List<String>>? expectedRecordIds,
     Object? sourceDigest = _unset,
+    Object? targetDigest = _unset,
     Object? errorCode = _unset,
     Object? errorMessage = _unset,
   }) {
@@ -93,6 +96,9 @@ class IndexedDbMigrationMetadata {
       sourceDigest: sourceDigest == _unset
           ? this.sourceDigest
           : sourceDigest as String?,
+      targetDigest: targetDigest == _unset
+          ? this.targetDigest
+          : targetDigest as String?,
       errorCode: errorCode == _unset ? this.errorCode : errorCode as String?,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
@@ -119,6 +125,7 @@ class IndexedDbMigrationMetadata {
       'quarantinedCounts': quarantinedCounts,
       'expectedRecordIds': expectedRecordIds,
       if (sourceDigest != null) 'sourceDigest': sourceDigest,
+      if (targetDigest != null) 'targetDigest': targetDigest,
       if (errorCode != null) 'errorCode': errorCode,
       if (errorMessage != null) 'errorMessage': errorMessage,
     };
@@ -145,6 +152,7 @@ class IndexedDbMigrationMetadata {
       quarantinedCounts: _intMap(record, 'quarantinedCounts'),
       expectedRecordIds: _stringListMap(record, 'expectedRecordIds'),
       sourceDigest: _optionalString(record, 'sourceDigest'),
+      targetDigest: _optionalString(record, 'targetDigest'),
       errorCode: _optionalString(record, 'errorCode'),
       errorMessage: _optionalString(record, 'errorMessage'),
     );
