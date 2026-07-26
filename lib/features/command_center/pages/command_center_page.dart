@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../core/engine/food_summary.dart';
@@ -30,8 +28,6 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentPage);
-    unawaited(refreshFoodSummary());
-    unawaited(refreshTrainingSummary());
   }
 
   @override
@@ -153,10 +149,7 @@ class _BriefDebriefPage extends StatelessWidget {
     return ListView(
       padding: AppSpacing.cardPadding,
       children: const [
-        SectionHeader(
-          icon: Icons.article_outlined,
-          title: 'BRIEF / DEBRIEF',
-        ),
+        SectionHeader(icon: Icons.article_outlined, title: 'BRIEF / DEBRIEF'),
         AppSpacing.gapMD,
         _WorkspacePlaceholderCard(
           message:

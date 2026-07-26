@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
 import '../../core/services/app_clock.dart';
+import '../../core/state/app_initialization_state.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/section_header.dart';
@@ -51,11 +52,13 @@ class ActivityPage extends StatelessWidget {
           OperationButton(
             icon: Icons.sync,
             text: 'SYNC ACTIVITY',
-            onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Coming Soon')));
-            },
+            onPressed: appInitializationController.value.isReadOnly
+                ? null
+                : () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Coming Soon')),
+                    );
+                  },
           ),
 
           AppSpacing.gapXL,
@@ -78,7 +81,9 @@ class ActivityPage extends StatelessWidget {
           OperationButton(
             icon: Icons.edit_outlined,
             text: 'ACTIVITY ENTRY',
-            onPressed: () => _openEntry(context),
+            onPressed: appInitializationController.value.isReadOnly
+                ? null
+                : () => _openEntry(context),
           ),
 
           AppSpacing.gapXL,

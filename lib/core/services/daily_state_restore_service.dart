@@ -11,7 +11,10 @@ class DailyStateRestoreService {
   static Future<void>? _inFlightRestore;
   static bool _hasRestored = false;
 
-  static Future<void> restore() {
+  static Future<void> restore({bool force = false}) {
+    if (force) {
+      _hasRestored = false;
+    }
     if (_hasRestored) {
       return Future<void>.value();
     }

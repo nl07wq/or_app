@@ -14,6 +14,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../../core/state/app_initialization_state.dart';
 
 class FoodHistoryPage extends StatefulWidget {
   const FoodHistoryPage({super.key});
@@ -46,7 +47,12 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
     if (!result) return;
 
-    try { await FoodSubmitService.delete(data); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
+    try {
+      await FoodSubmitService.delete(data);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return;
+    }
 
     _loadRecords();
 
@@ -68,26 +74,30 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
               ),
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
-                onPressed: () async {
-                  final updated = await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FoodEditPage(meal: meal),
-                    ),
-                  );
+                onPressed: appInitializationController.value.isReadOnly
+                    ? null
+                    : () async {
+                        final updated = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FoodEditPage(meal: meal),
+                          ),
+                        );
 
-                  if (updated == true) {
-                    _loadRecords();
-                    setState(() {});
-                  }
-                },
+                        if (updated == true) {
+                          _loadRecords();
+                          setState(() {});
+                        }
+                      },
               ),
               IconButton(
                 icon: Icon(
                   Icons.delete_outline,
                   color: Theme.of(context).colorScheme.error,
                 ),
-                onPressed: () => _deleteRecord(meal),
+                onPressed: appInitializationController.value.isReadOnly
+                    ? null
+                    : () => _deleteRecord(meal),
               ),
             ],
           ),
@@ -172,17 +182,15 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SectionHeader(
-                      icon: Icons.calendar_today,
-                      title: group.key,
-                    ),
+                    SectionHeader(icon: Icons.calendar_today, title: group.key),
                     AppSpacing.gapMD,
-                    for (var mealIndex = 0;
-                        mealIndex < group.value.length;
-                        mealIndex++) ...[
+                    for (
+                      var mealIndex = 0;
+                      mealIndex < group.value.length;
+                      mealIndex++
+                    ) ...[
                       _buildMealCard(context, group.value[mealIndex]),
-                      if (mealIndex < group.value.length - 1)
-                        AppSpacing.gapMD,
+                      if (mealIndex < group.value.length - 1) AppSpacing.gapMD,
                     ],
                   ],
                 );

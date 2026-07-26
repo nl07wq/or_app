@@ -2,98 +2,144 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/repositories/app_repository_container.dart';
+import '../../features/training/migration/training_legacy_reader.dart';
+import '../../features/training/models/persisted_training_record.dart';
+import '../../features/training/repository/training_record_id_generator.dart';
 import '../models/training_session.dart';
+import '../services/persistence_access.dart';
 
 class TrainingRepository {
   static const _key = 'training_sessions';
 
   static Future<void> save(TrainingSession session) async {
-    final prefs = await SharedPreferences.getInstance();
+    await saveNew(session);
+  }
 
-    final list = await getAll();
-
-    list.add(session);
-
-    final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
-
-    await prefs.setStringList(_key, jsonList);
+  static Future<TrainingRecord> saveNew(TrainingSession session) async {
+    PersistenceAccess.requireWrite('training.saveNew');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.training.saveNew(session);
+    }
+    final records = await _legacyGetAll()
+      ..add(session);
+    await _legacyWrite(records);
+    return TrainingRecord(
+      id: _legacyId(session, records.length - 1),
+      session: session,
+    );
   }
 
   static Future<void> replaceForLocalDate(TrainingSession session) async {
-    final prefs = await SharedPreferences.getInstance();
-    final existingSessions = await getAll();
-    final targetDate = _localDate(session.date);
-    final updatedSessions = <TrainingSession>[];
-    var replaced = false;
-
-    for (final existingSession in existingSessions) {
-      if (_localDate(existingSession.date) != targetDate) {
-        updatedSessions.add(existingSession);
-        continue;
-      }
-
-      if (!replaced) {
-        updatedSessions.add(session);
-        replaced = true;
-      }
+    PersistenceAccess.requireWrite('training.replaceForLocalDate');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      throw StateError('ID-based update is required for persistent TRAINING.');
     }
+    final target = session.date.substring(0, 10);
+    final records = await _legacyGetAll();
+    final index = records.indexWhere(
+      (record) => record.date.substring(0, 10) == target,
+    );
+    index == -1 ? records.add(session) : records[index] = session;
+    await _legacyWrite(records);
+  }
 
-    if (!replaced) {
-      updatedSessions.add(session);
+  static Future<TrainingRecord> updateById(
+    String id,
+    TrainingSession session,
+  ) async {
+    PersistenceAccess.requireWrite('training.updateById');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.training.updateById(id, session);
     }
+    throw StateError('Legacy TRAINING does not support persistent IDs.');
+  }
 
-    final jsonList = updatedSessions
-        .map((entry) => jsonEncode(entry.toJson()))
-        .toList();
-
-    await prefs.setStringList(_key, jsonList);
+  static Future<List<TrainingRecord>> getRecords() async {
+    PersistenceAccess.requireReadable('training.getRecords');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.training.findAll();
+    }
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      final result = await TrainingLegacyReader().read();
+      return List.unmodifiable([
+        for (final record in result.validRecords)
+          TrainingRecord(
+            id: const TrainingLegacyIdGenerator().generate(
+              sessionJson: record.decodedPayload,
+              sourceIndex: record.sourceIndex,
+              duplicateOrdinal: 0,
+            ),
+            session: record.data,
+          ),
+      ]);
+    }
+    final sessions = await _legacyGetAll();
+    return List.unmodifiable([
+      for (var index = 0; index < sessions.length; index++)
+        TrainingRecord(
+          id: _legacyId(sessions[index], index),
+          session: sessions[index],
+        ),
+    ]);
   }
 
   static Future<List<TrainingSession>> getAll() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    try {
-      final jsonList = prefs.getStringList(_key) ?? [];
-
-      final sessions = jsonList
-          .map((e) => TrainingSession.fromJson(jsonDecode(e)))
-          .toList();
-      sessions.sort(
-        (first, second) => DateTime.parse(
-          second.date,
-        ).compareTo(DateTime.parse(first.date)),
-      );
-
-      return sessions;
-    } catch (_) {
-      await prefs.remove(_key);
-      return [];
-    }
+    final records = await getRecords();
+    return List.unmodifiable(records.map((record) => record.session));
   }
 
-  static Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.remove(_key);
+  static Future<void> deleteById(String id) async {
+    PersistenceAccess.requireWrite('training.deleteById');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.training.deleteById(id);
+    }
+    throw StateError('Legacy TRAINING does not support persistent IDs.');
   }
 
   static Future<void> remove(TrainingSession session) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final list = await getAll();
-
-    list.removeWhere((e) => e.date == session.date && e.memo == session.memo);
-
-    final jsonList = list.map((e) => jsonEncode(e.toJson())).toList();
-
-    await prefs.setStringList(_key, jsonList);
+    PersistenceAccess.requireWrite('training.remove');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      throw StateError('ID-based delete is required for persistent TRAINING.');
+    }
+    final records = await _legacyGetAll()
+      ..removeWhere(
+        (record) => record.date == session.date && record.memo == session.memo,
+      );
+    await _legacyWrite(records);
   }
 
-  static String _localDate(String value) {
-    final date = DateTime.parse(value).toLocal();
+  static Future<void> clear() async {
+    PersistenceAccess.requireWrite('training.clear');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.training.clear();
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
+  }
 
-    return '${date.year.toString().padLeft(4, '0')}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
+  static Future<List<TrainingSession>> _legacyGetAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    final records = (prefs.getStringList(_key) ?? const [])
+        .map((value) => TrainingSession.fromJson(jsonDecode(value)))
+        .toList();
+    records.sort((a, b) => b.date.compareTo(a.date));
+    return records;
+  }
+
+  static Future<void> _legacyWrite(List<TrainingSession> records) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _key,
+      records.map((record) => jsonEncode(record.toJson())).toList(),
+    );
+  }
+
+  static String _legacyId(TrainingSession session, int sourceIndex) {
+    return const TrainingLegacyIdGenerator().generate(
+      sessionJson: session.toJson(),
+      sourceIndex: sourceIndex,
+      duplicateOrdinal: 0,
+    );
   }
 }

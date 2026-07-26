@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/navigation/app_routes.dart';
-import 'core/services/daily_state_restore_service.dart';
+import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/startup_gate.dart';
 
 import 'features/dashboard/dashboard_page.dart';
 import 'features/dashboard/log_confirmation_detail_page.dart';
@@ -16,17 +17,23 @@ import 'features/training/training_page.dart';
 import 'features/command_center/pages/command_center_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
-  const OperationRebootApp({super.key});
+  final StartupInitializationService? initializationService;
+
+  const OperationRebootApp({super.key, this.initializationService});
 
   @override
   State<OperationRebootApp> createState() => _OperationRebootAppState();
 }
 
 class _OperationRebootAppState extends State<OperationRebootApp> {
+  late final StartupInitializationService _initializationService;
+
   @override
   void initState() {
     super.initState();
-    unawaited(DailyStateRestoreService.restore());
+    _initializationService =
+        widget.initializationService ?? StartupInitializationService();
+    unawaited(_initializationService.initialize());
   }
 
   @override
@@ -36,6 +43,10 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
       debugShowCheckedModeBanner: false,
       theme: StandardTheme.theme,
       initialRoute: AppRoutes.dashboard,
+      builder: (context, child) => StartupGate(
+        service: _initializationService,
+        child: child ?? const SizedBox.shrink(),
+      ),
 
       routes: {
         AppRoutes.dashboard: (_) => const DashboardPage(),
@@ -43,7 +54,9 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
           final page = ModalRoute.of(context)?.settings.arguments;
           return page is LogConfirmationReviewPage
               ? page
-              : const Scaffold(body: Center(child: Text('Review unavailable.')));
+              : const Scaffold(
+                  body: Center(child: Text('Review unavailable.')),
+                );
         },
         AppRoutes.logConfirmationDetail: (context) {
           final targetDate = ModalRoute.of(context)?.settings.arguments;

@@ -7,6 +7,7 @@ import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/state/app_initialization_state.dart';
 
 import 'models/morning_fact_state.dart';
 import 'morning_fact_page.dart';
@@ -107,7 +108,10 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                           IconButton(
                             icon: const Icon(Icons.edit_outlined),
                             tooltip: 'Edit',
-                            onPressed: () => _editRecord(data),
+                            onPressed:
+                                appInitializationController.value.isReadOnly
+                                ? null
+                                : () => _editRecord(data),
                           ),
                           IconButton(
                             icon: Icon(
@@ -115,7 +119,10 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                               color: Theme.of(context).colorScheme.error,
                             ),
                             tooltip: 'Delete',
-                            onPressed: () => _deleteRecord(data),
+                            onPressed:
+                                appInitializationController.value.isReadOnly
+                                ? null
+                                : () => _deleteRecord(data),
                           ),
                         ],
                       ),

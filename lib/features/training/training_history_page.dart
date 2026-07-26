@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/models/training_session.dart';
 import '../../core/repositories/training_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
@@ -8,9 +7,11 @@ import '../../core/theme/app_spacing.dart';
 
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/state/app_initialization_state.dart';
 import 'training_detail_page.dart';
 import 'training_entry_page.dart';
 import 'models/training_summary_state.dart';
+import 'models/persisted_training_record.dart';
 
 class TrainingHistoryPage extends StatefulWidget {
   const TrainingHistoryPage({super.key});
@@ -20,7 +21,7 @@ class TrainingHistoryPage extends StatefulWidget {
 }
 
 class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
-  late Future<List<TrainingSession>> _records;
+  late Future<List<TrainingRecord>> _records;
 
   @override
   void initState() {
@@ -29,10 +30,10 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
   }
 
   void _loadRecords() {
-    _records = TrainingRepository.getAll();
+    _records = TrainingRepository.getRecords();
   }
 
-  Future<void> _deleteRecord(TrainingSession session) async {
+  Future<void> _deleteRecord(TrainingRecord record) async {
     final result = await showHistoryDeleteDialog(
       context,
       title: 'Training Session',
@@ -40,7 +41,15 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
 
     if (!result) return;
 
-    try { await DailyLogMutationGuard.assertDateMutable(DateTime.parse(session.date)); await TrainingRepository.remove(session); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
+    try {
+      await DailyLogMutationGuard.assertDateMutable(
+        DateTime.parse(record.session.date),
+      );
+      await TrainingRepository.deleteById(record.id);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return;
+    }
     await refreshTrainingSummary();
 
     _loadRecords();
@@ -54,7 +63,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
       appBar: AppBar(title: const Text('TRAINING')),
       body: Padding(
         padding: AppSpacing.cardPadding,
-        child: FutureBuilder<List<TrainingSession>>(
+        child: FutureBuilder<List<TrainingRecord>>(
           future: _records,
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
@@ -71,9 +80,8 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
               itemCount: sessions.length,
               separatorBuilder: (_, __) => AppSpacing.gapMD,
               itemBuilder: (context, index) {
-                final session = sessions[index];
-
-                final exerciseCount = session.exercises.length;
+                final record = sessions[index];
+                final session = record.session;
 
                 final setCount = session.exercises.fold<int>(
                   0,
@@ -135,21 +143,24 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
                         tooltip: 'Edit',
-                        onPressed: () async {
-                          final updated = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TrainingEntryPage(
-                                existingSession: session,
-                              ),
-                            ),
-                          );
+                        onPressed: appInitializationController.value.isReadOnly
+                            ? null
+                            : () async {
+                                final updated = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TrainingEntryPage(
+                                      existingSession: session,
+                                      recordId: record.id,
+                                    ),
+                                  ),
+                                );
 
-                          if (updated == true && mounted) {
-                            _loadRecords();
-                            setState(() {});
-                          }
-                        },
+                                if (updated == true && mounted) {
+                                  _loadRecords();
+                                  setState(() {});
+                                }
+                              },
                       ),
 
                       IconButton(
@@ -158,9 +169,11 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                           color: Theme.of(context).colorScheme.error,
                         ),
                         tooltip: 'Delete',
-                        onPressed: () {
-                          _deleteRecord(session);
-                        },
+                        onPressed: appInitializationController.value.isReadOnly
+                            ? null
+                            : () {
+                                _deleteRecord(record);
+                              },
                       ),
                     ],
                   ),

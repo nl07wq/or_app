@@ -23,9 +23,14 @@ import '../../core/widgets/operation_menu_button.dart';
 import 'training_plan_page.dart';
 
 class TrainingEntryPage extends StatefulWidget {
-  const TrainingEntryPage({super.key, this.existingSession});
+  const TrainingEntryPage({super.key, this.existingSession, this.recordId})
+    : assert(
+        existingSession == null || recordId != null,
+        'Editing a TRAINING session requires its persistent record ID.',
+      );
 
   final TrainingSession? existingSession;
+  final String? recordId;
 
   @override
   State<TrainingEntryPage> createState() => _TrainingEntryPageState();
@@ -109,17 +114,21 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         final duration = cardio.durationController.text.trim();
         final distance = cardio.distanceController.text.trim();
         final parsedDuration = int.tryParse(duration);
-        final parsedDistance = distance.isEmpty ? null : double.tryParse(distance);
+        final parsedDistance = distance.isEmpty
+            ? null
+            : double.tryParse(distance);
         cardio.durationError = parsedDuration == null || parsedDuration <= 0
             ? '運動時間は1分以上の整数で入力してください。'
             : null;
-        cardio.distanceError = distance.isNotEmpty &&
+        cardio.distanceError =
+            distance.isNotEmpty &&
                 (parsedDistance == null ||
                     !parsedDistance.isFinite ||
                     parsedDistance < 0)
             ? '距離は0以上の数値で入力してください。'
             : null;
-        hasInvalidCardio |= cardio.durationError != null || cardio.distanceError != null;
+        hasInvalidCardio |=
+            cardio.durationError != null || cardio.distanceError != null;
       }
     });
     if (hasInvalidCardio) return;
@@ -185,34 +194,32 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         ? morningFact.weight
         : null;
     final cardioEntries = _cardioPlaceholders
-        .map(
-          (cardio) {
-            final durationMinutes = int.parse(
-              cardio.durationController.text.trim(),
-            );
-            final distanceText = cardio.distanceController.text.trim();
-            final distanceKm = distanceText.isEmpty
-                ? null
-                : double.parse(distanceText);
-            final estimatedCalories = bodyWeightKg == null
-                ? null
-                : estimateCardioCalories(
-                    type: cardio.type,
-                    intensity: cardio.intensity,
-                    durationMinutes: durationMinutes,
-                    bodyWeightKg: bodyWeightKg,
-                  );
+        .map((cardio) {
+          final durationMinutes = int.parse(
+            cardio.durationController.text.trim(),
+          );
+          final distanceText = cardio.distanceController.text.trim();
+          final distanceKm = distanceText.isEmpty
+              ? null
+              : double.parse(distanceText);
+          final estimatedCalories = bodyWeightKg == null
+              ? null
+              : estimateCardioCalories(
+                  type: cardio.type,
+                  intensity: cardio.intensity,
+                  durationMinutes: durationMinutes,
+                  bodyWeightKg: bodyWeightKg,
+                );
 
-            return CardioEntry(
-              type: cardio.type,
-              intensity: cardio.intensity,
-              durationMinutes: durationMinutes,
-              distanceKm: distanceKm,
-              notes: cardio.notesController.text,
-              estimatedCalories: estimatedCalories,
-            );
-          },
-        )
+          return CardioEntry(
+            type: cardio.type,
+            intensity: cardio.intensity,
+            durationMinutes: durationMinutes,
+            distanceKm: distanceKm,
+            notes: cardio.notesController.text,
+            estimatedCalories: estimatedCalories,
+          );
+        })
         .toList(growable: false);
 
     if (exercises.isEmpty && cardioEntries.isEmpty) {
@@ -221,8 +228,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     }
 
     final session = TrainingSession(
-      date:
-          widget.existingSession?.date ?? DateTime.now().toIso8601String(),
+      date: widget.existingSession?.date ?? DateTime.now().toIso8601String(),
       memo: sessionController.memoController.text.trim(),
       exercises: exercises,
       cardioEntries: cardioEntries,
@@ -233,9 +239,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         DateTime.parse(session.date),
       );
       if (_isEditingExistingSession) {
-        await TrainingRepository.replaceForLocalDate(session);
+        await TrainingRepository.updateById(widget.recordId!, session);
       } else {
-        await TrainingRepository.save(session);
+        await TrainingRepository.saveNew(session);
       }
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) {
@@ -256,9 +262,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           _isEditingExistingSession ? 'Training Updated' : 'Training Saved',
@@ -340,200 +344,187 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         child: ValueListenableBuilder<MorningFact?>(
           valueListenable: morningFactNotifier,
           builder: (context, morningFact, child) => SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TrainingSessionCard(
-                memoController: sessionController.memoController,
-              ),
-
-              AppSpacing.gapMD,
-
-              TrainingExerciseList(
-                exercises: sessionController.exercises,
-                isEditMode: isEditMode,
-
-                onCopy: (exercise) {
-                  setState(() {
-                    sessionController.addExerciseCopy(exercise);
-                  });
-                },
-
-                onDelete: (exercise) {
-                  setState(() {
-                    sessionController.removeExercise(exercise);
-                  });
-                },
-              ),
-
-              AppSpacing.gapXL,
-
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    sessionController.addExercise();
-                  });
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Add Exercise'),
-              ),
-
-              AppSpacing.gapXL,
-
-              const Text('Cardio', style: TextStyle(fontWeight: FontWeight.bold)),
-
-              AppSpacing.gapMD,
-
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _cardioPlaceholders.add(
-                      _CardioPlaceholder(_nextCardioPlaceholderId++),
-                    );
-                  });
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Add Cardio'),
-              ),
-
-              AppSpacing.gapMD,
-
-              for (
-                var index = 0;
-                index < _cardioPlaceholders.length;
-                index++
-              )
-                Card(
-                  key: ValueKey(_cardioPlaceholders[index].id),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text('Cardio ${index + 1}'),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline,
-                              ),
-                              onPressed: () {
-                                final cardio =
-                                    _cardioPlaceholders.removeAt(index);
-
-                                cardio.dispose();
-
-                                setState(() {});
-                              },
-                            ),
-                          ],
-                        ),
-                        DropdownButtonFormField<CardioType>(
-                          // ignore: deprecated_member_use
-                          value: _cardioPlaceholders[index].type,
-                          decoration: const InputDecoration(
-                            labelText: '種目',
-                          ),
-                          items: CardioType.values
-                              .map(
-                                (type) => DropdownMenuItem<CardioType>(
-                                  value: type,
-                                  child: Text(
-                                    _cardioTypeLabel(type),
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-
-                            setState(() {
-                              _cardioPlaceholders[index].type = value;
-                            });
-                          },
-                        ),
-                        DropdownButtonFormField<CardioIntensity>(
-                          // ignore: deprecated_member_use
-                          value: _cardioPlaceholders[index].intensity,
-                          decoration: const InputDecoration(
-                            labelText: '強度',
-                          ),
-                          items: CardioIntensity.values
-                              .map(
-                                (intensity) =>
-                                    DropdownMenuItem<CardioIntensity>(
-                                  value: intensity,
-                                  child: Text(
-                                    _cardioIntensityLabel(intensity),
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-
-                            setState(() {
-                              _cardioPlaceholders[index].intensity = value;
-                            });
-                          },
-                        ),
-                        TextField(
-                          controller:
-                              _cardioPlaceholders[index].durationController,
-                          decoration: InputDecoration(
-                            labelText: '運動時間（分）',
-                            errorText:
-                                _cardioPlaceholders[index].durationError,
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) {
-                            setState(() {});
-                          },
-                        ),
-                        TextField(
-                          controller:
-                              _cardioPlaceholders[index].distanceController,
-                          decoration: InputDecoration(
-                            labelText: '距離（km）',
-                            errorText:
-                                _cardioPlaceholders[index].distanceError,
-                          ),
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
-                        TextField(
-                          controller:
-                              _cardioPlaceholders[index].notesController,
-                          decoration: const InputDecoration(
-                            labelText: 'メモ',
-                          ),
-                          minLines: 2,
-                          maxLines: 3,
-                        ),
-                        AppSpacing.gapSM,
-                        _buildCardioCaloriePreview(
-                          morningFact,
-                          _cardioPlaceholders[index],
-                        ),
-                      ],
-                    ),
-                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TrainingSessionCard(
+                  memoController: sessionController.memoController,
                 ),
 
-              AppSpacing.gapXL,
+                AppSpacing.gapMD,
 
-              TrainingSubmitButton(onPressed: _save),
-            ],
+                TrainingExerciseList(
+                  exercises: sessionController.exercises,
+                  isEditMode: isEditMode,
+
+                  onCopy: (exercise) {
+                    setState(() {
+                      sessionController.addExerciseCopy(exercise);
+                    });
+                  },
+
+                  onDelete: (exercise) {
+                    setState(() {
+                      sessionController.removeExercise(exercise);
+                    });
+                  },
+                ),
+
+                AppSpacing.gapXL,
+
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      sessionController.addExercise();
+                    });
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Exercise'),
+                ),
+
+                AppSpacing.gapXL,
+
+                const Text(
+                  'Cardio',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+
+                AppSpacing.gapMD,
+
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _cardioPlaceholders.add(
+                        _CardioPlaceholder(_nextCardioPlaceholderId++),
+                      );
+                    });
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Cardio'),
+                ),
+
+                AppSpacing.gapMD,
+
+                for (var index = 0; index < _cardioPlaceholders.length; index++)
+                  Card(
+                    key: ValueKey(_cardioPlaceholders[index].id),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: Text('Cardio ${index + 1}')),
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: () {
+                                  final cardio = _cardioPlaceholders.removeAt(
+                                    index,
+                                  );
+
+                                  cardio.dispose();
+
+                                  setState(() {});
+                                },
+                              ),
+                            ],
+                          ),
+                          DropdownButtonFormField<CardioType>(
+                            // ignore: deprecated_member_use
+                            value: _cardioPlaceholders[index].type,
+                            decoration: const InputDecoration(labelText: '種目'),
+                            items: CardioType.values
+                                .map(
+                                  (type) => DropdownMenuItem<CardioType>(
+                                    value: type,
+                                    child: Text(_cardioTypeLabel(type)),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+
+                              setState(() {
+                                _cardioPlaceholders[index].type = value;
+                              });
+                            },
+                          ),
+                          DropdownButtonFormField<CardioIntensity>(
+                            // ignore: deprecated_member_use
+                            value: _cardioPlaceholders[index].intensity,
+                            decoration: const InputDecoration(labelText: '強度'),
+                            items: CardioIntensity.values
+                                .map(
+                                  (intensity) =>
+                                      DropdownMenuItem<CardioIntensity>(
+                                        value: intensity,
+                                        child: Text(
+                                          _cardioIntensityLabel(intensity),
+                                        ),
+                                      ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+
+                              setState(() {
+                                _cardioPlaceholders[index].intensity = value;
+                              });
+                            },
+                          ),
+                          TextField(
+                            controller:
+                                _cardioPlaceholders[index].durationController,
+                            decoration: InputDecoration(
+                              labelText: '運動時間（分）',
+                              errorText:
+                                  _cardioPlaceholders[index].durationError,
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) {
+                              setState(() {});
+                            },
+                          ),
+                          TextField(
+                            controller:
+                                _cardioPlaceholders[index].distanceController,
+                            decoration: InputDecoration(
+                              labelText: '距離（km）',
+                              errorText:
+                                  _cardioPlaceholders[index].distanceError,
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
+                          TextField(
+                            controller:
+                                _cardioPlaceholders[index].notesController,
+                            decoration: const InputDecoration(labelText: 'メモ'),
+                            minLines: 2,
+                            maxLines: 3,
+                          ),
+                          AppSpacing.gapSM,
+                          _buildCardioCaloriePreview(
+                            morningFact,
+                            _cardioPlaceholders[index],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                AppSpacing.gapXL,
+
+                TrainingSubmitButton(onPressed: _save),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -546,10 +537,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     if (morningFact == null || morningFact.weight <= 0) {
       return const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('推定消費カロリーを算出できません。'),
-          Text('Morningの体重入力が必要です。'),
-        ],
+        children: [Text('推定消費カロリーを算出できません。'), Text('Morningの体重入力が必要です。')],
       );
     }
 
@@ -583,4 +571,20 @@ String _cardioIntensityLabel(CardioIntensity intensity) => switch (intensity) {
   CardioIntensity.moderate => '普通',
   CardioIntensity.vigorous => '高い',
 };
-class _CardioPlaceholder { _CardioPlaceholder(this.id); final int id; final durationController = TextEditingController(); final distanceController = TextEditingController(); final notesController = TextEditingController(); String? durationError; String? distanceError; CardioType type = CardioType.exerciseBike; CardioIntensity intensity = CardioIntensity.moderate; void dispose() { durationController.dispose(); distanceController.dispose(); notesController.dispose(); } }
+
+class _CardioPlaceholder {
+  _CardioPlaceholder(this.id);
+  final int id;
+  final durationController = TextEditingController();
+  final distanceController = TextEditingController();
+  final notesController = TextEditingController();
+  String? durationError;
+  String? distanceError;
+  CardioType type = CardioType.exerciseBike;
+  CardioIntensity intensity = CardioIntensity.moderate;
+  void dispose() {
+    durationController.dispose();
+    distanceController.dispose();
+    notesController.dispose();
+  }
+}

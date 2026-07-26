@@ -19,6 +19,7 @@ import '../../core/services/daily_log_confirmation_state.dart';
 import '../../core/services/daily_log_confirmation_service.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/models/daily_log_confirmation_status.dart';
+import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
 import '../morning/models/morning_fact.dart';
@@ -43,6 +44,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
+    final isReadOnly = appInitializationController.value.isReadOnly;
     return ValueListenableBuilder<DateTime?>(
       valueListenable: AppClock.debugDateOverride,
       builder: (context, _, _) {
@@ -126,7 +128,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                 foodSummary: foodSummary,
                                 trainingSummary: trainingSummary,
                                 activitySummary: activitySummary,
-                                onWaterTap: () => _showQuickWaterInput(context),
+                                onWaterTap: isReadOnly
+                                    ? null
+                                    : () => _showQuickWaterInput(context),
                               ),
                               AppSpacing.gapXL,
                               SectionHeader(
@@ -144,6 +148,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       confirmedAt:
                                           confirmationStatus.confirmedAt!,
                                       date: confirmationStatus.date,
+                                      isReadOnly: isReadOnly,
                                     );
                                   }
 
@@ -152,6 +157,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     foodSummary: foodSummary,
                                     activitySummary: activitySummary,
                                     trainingSummary: trainingSummary,
+                                    isReadOnly: isReadOnly,
                                   );
                                 },
                               ),
@@ -274,10 +280,12 @@ class _ConfirmedLogConfirmationCard extends StatelessWidget {
   const _ConfirmedLogConfirmationCard({
     required this.confirmedAt,
     required this.date,
+    required this.isReadOnly,
   });
 
   final DateTime confirmedAt;
   final DateTime date;
+  final bool isReadOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +318,7 @@ class _ConfirmedLogConfirmationCard extends StatelessWidget {
           OperationButton(
             icon: Icons.edit_note_outlined,
             text: 'Correct Log',
-            onPressed: () => _showReopenDialog(context),
+            onPressed: isReadOnly ? null : () => _showReopenDialog(context),
           ),
         ],
       ),
@@ -362,12 +370,14 @@ class _UnconfirmedLogConfirmationCard extends StatelessWidget {
     required this.foodSummary,
     required this.activitySummary,
     required this.trainingSummary,
+    required this.isReadOnly,
   });
 
   final MorningFact? morningFact;
   final FoodSummary? foodSummary;
   final ActivitySummary activitySummary;
   final TrainingSummary? trainingSummary;
+  final bool isReadOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -394,7 +404,7 @@ class _UnconfirmedLogConfirmationCard extends StatelessWidget {
           OperationButton(
             icon: Icons.fact_check_outlined,
             text: "Review Today's Log",
-            onPressed: morningFact == null
+            onPressed: morningFact == null || isReadOnly
                 ? null
                 : () => Navigator.pushNamed(
                     context,
@@ -494,7 +504,7 @@ class _ProgressCard extends StatelessWidget {
   final FoodSummary? foodSummary;
   final TrainingSummary? trainingSummary;
   final ActivitySummary activitySummary;
-  final VoidCallback onWaterTap;
+  final VoidCallback? onWaterTap;
 
   const _ProgressCard({
     required this.morningFact,

@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/models/activity_data.dart';
+import '../../../core/services/persistence_access.dart';
+import '../../repositories/app_repository_container.dart';
+import '../migration/activity_legacy_reader.dart';
 
 abstract class ActivityRepository {
   Future<void> save(ActivityData data);
@@ -24,6 +27,10 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<void> save(ActivityData data) async {
+    PersistenceAccess.requireWrite('activity.save');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.activity.save(data);
+    }
     final records = (await getAll()).toList();
     final previousDate = DateTime(
       data.date.year,
@@ -50,6 +57,10 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<ActivityData?> findById(String id) async {
+    PersistenceAccess.requireReadable('activity.findById');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.activity.findById(id);
+    }
     final records = await getAll();
     for (final record in records) {
       if (record.id == id) return record;
@@ -59,6 +70,10 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<ActivityData?> findByDate(DateTime date) async {
+    PersistenceAccess.requireReadable('activity.findByDate');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.activity.findByDate(date);
+    }
     final records = await getAll();
     for (final record in records) {
       if (_isSameDate(record.date, date)) return record;
@@ -68,6 +83,16 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<List<ActivityData>> getAll() async {
+    PersistenceAccess.requireReadable('activity.getAll');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.activity.findAll();
+    }
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      final result = await ActivityLegacyReader().read();
+      final records = result.validRecords.map((record) => record.data).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+      return List.unmodifiable(records);
+    }
     final preferences = await SharedPreferences.getInstance();
     final records = (preferences.getStringList(_key) ?? [])
         .map((value) => ActivityData.fromJson(jsonDecode(value)))
@@ -81,6 +106,10 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<void> delete(String id) async {
+    PersistenceAccess.requireWrite('activity.delete');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.activity.delete(id);
+    }
     final records = (await getAll()).toList();
     records.removeWhere((record) => record.id == id);
     await _write(records);
@@ -88,6 +117,10 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<void> deleteByDate(DateTime date) async {
+    PersistenceAccess.requireWrite('activity.deleteByDate');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.activity.deleteByDate(date);
+    }
     final records = (await getAll()).toList();
     records.removeWhere((record) => _isSameDate(record.date, date));
     await _write(records);
@@ -95,6 +128,10 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<void> clear() async {
+    PersistenceAccess.requireWrite('activity.clear');
+    if (!PersistenceAccess.usesCompatibilityStorage) {
+      return AppRepositoryRegistry.container.activity.clear();
+    }
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_key);
   }
