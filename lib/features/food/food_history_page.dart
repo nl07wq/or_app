@@ -141,7 +141,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('FOOD HISTORY')),
+      appBar: AppBar(title: const Text('FOOD')),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: FutureBuilder<List<MealData>>(

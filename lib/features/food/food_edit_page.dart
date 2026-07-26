@@ -27,7 +27,7 @@ class FoodEditPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('EDIT MEAL')),
+      appBar: AppBar(title: const Text('FOOD')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(

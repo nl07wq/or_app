@@ -15,7 +15,7 @@ class FoodPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Food')),
+      appBar: AppBar(title: const Text('FOOD')),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(
@@ -28,7 +28,7 @@ class FoodPage extends StatelessWidget {
             OperationDescription(
               text:
                   'Operation Reboot Reportから\n'
-                  '本日の食事データを同期します。',
+                  '本日の食事記録を同期します。',
             ),
 
             AppSpacing.gapMD,
@@ -53,13 +53,13 @@ class FoodPage extends StatelessWidget {
 
             AppSpacing.gapXL,
 
-            SectionHeader(icon: Icons.history, title: 'HISTORY'),
+            SectionHeader(icon: Icons.history, title: 'RECORD'),
 
             AppSpacing.gapSM,
 
             OperationDescription(
               text:
-                  '登録済みの食事履歴を\n'
+                  '過去の食事履歴を\n'
                   '確認・編集できます。',
             ),
 

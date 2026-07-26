@@ -21,7 +21,7 @@ class MorningPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
-            SectionHeader(icon: Icons.sync, title: 'SYNC STATUS'),
+            SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
 
             AppSpacing.gapSM,
 

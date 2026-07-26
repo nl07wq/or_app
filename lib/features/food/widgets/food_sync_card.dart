@@ -11,7 +11,7 @@ class FoodSyncCard extends StatelessWidget {
     return OperationCard(
       child: OperationButton(
         icon: Icons.sync,
-        text: 'Sync Report',
+        text: 'SYNC FOOD',
         onPressed: () {
           // 次回実装
         },

@@ -12,7 +12,7 @@ class FoodManualCard extends StatelessWidget {
     return OperationCard(
             child: OperationButton(
               icon: Icons.edit_note,
-              text: "Food Entry",
+              text: "FOOD ENTRY",
               onPressed: () {
                 Navigator.push(
                   context,

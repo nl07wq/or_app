@@ -876,7 +876,7 @@ class _FoodButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.restaurant,
-      text: 'Food',
+      text: 'FOOD',
       onPressed: () {
         Navigator.pushNamed(context, AppRoutes.food);
       },

@@ -52,7 +52,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("FOOD ENTRY")),
+      appBar: AppBar(title: const Text("FOOD")),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
