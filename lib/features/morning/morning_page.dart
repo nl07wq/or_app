@@ -28,7 +28,7 @@ class MorningPage extends StatelessWidget {
             OperationDescription(
               text:
                   'Operation Reboot Reportから\n'
-                  'Morning Factを同期します。',
+                  '本日の状態記録を同期します。',
             ),
 
             AppSpacing.gapMD,
@@ -37,14 +37,14 @@ class MorningPage extends StatelessWidget {
 
             AppSpacing.gapXL,
 
-            SectionHeader(icon: Icons.edit_note, title: 'MORNING FACT'),
+            SectionHeader(icon: Icons.edit_note, title: 'MANUAL ENTRY'),
 
             AppSpacing.gapSM,
 
             OperationDescription(
               text:
                   '体重・睡眠・勤務情報など\n'
-                  'Morning Factを入力します。',
+                  '本日の状態を記録します。',
             ),
 
             AppSpacing.gapMD,
@@ -53,13 +53,13 @@ class MorningPage extends StatelessWidget {
 
             AppSpacing.gapXL,
 
-            SectionHeader(icon: Icons.history, title: 'HISTORY'),
+            SectionHeader(icon: Icons.history, title: 'RECORD'),
 
             AppSpacing.gapSM,
 
             OperationDescription(
               text:
-                  '保存済みのMorning Factを\n'
+                  '保存済みの状態記録を\n'
                   '確認できます。',
             ),
 

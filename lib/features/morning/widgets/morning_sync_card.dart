@@ -9,7 +9,7 @@ class MorningSyncCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.sync,
-      text: "Report Sync",
+      text: "REPORT SYNC",
       onPressed: () {
         ScaffoldMessenger.of(
           context,

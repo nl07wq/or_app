@@ -10,7 +10,7 @@ class MorningManualCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.edit_note,
-      text: "Morning Fact",
+      text: "STATUS ENTRY",
       onPressed: () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (context) => const MorningFactPage()),

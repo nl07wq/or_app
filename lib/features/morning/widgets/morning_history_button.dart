@@ -11,7 +11,7 @@ class MorningHistoryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.history,
-      text: "History",
+      text: "RECORD",
       onPressed: () {
         Navigator.push(
           context,
