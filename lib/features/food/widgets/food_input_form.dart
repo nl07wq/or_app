@@ -33,6 +33,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final proteinController = TextEditingController();
   final fatController = TextEditingController();
   final carbohydrateController = TextEditingController();
+  final baseAmountController = TextEditingController();
+  final amountController = TextEditingController();
   final waterVolumeController = TextEditingController();
   final memoController = TextEditingController();
 
@@ -43,6 +45,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   int? editingIndex;
   bool isWaterEntry = false;
   String? selectedTemplateId;
+  String? inputError;
+  FoodBaseUnit baseUnit = FoodBaseUnit.g;
 
   @override
   void initState() {
@@ -73,6 +77,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
     proteinController.dispose();
     fatController.dispose();
     carbohydrateController.dispose();
+    baseAmountController.dispose();
+    amountController.dispose();
     waterVolumeController.dispose();
     memoController.dispose();
     super.dispose();
@@ -85,14 +91,52 @@ class _FoodInputFormState extends State<FoodInputForm> {
       return null;
     }
 
-    return FoodItem(
-      name: name,
-      calories: int.tryParse(calorieController.text) ?? 0,
-      protein: double.tryParse(proteinController.text) ?? 0,
-      fat: double.tryParse(fatController.text) ?? 0,
-      carbohydrate: double.tryParse(carbohydrateController.text) ?? 0,
-      quantity: quantity,
-    );
+    final calories = double.tryParse(calorieController.text.trim());
+    final protein = double.tryParse(proteinController.text.trim());
+    final fat = double.tryParse(fatController.text.trim());
+    final carbohydrate = double.tryParse(carbohydrateController.text.trim());
+    if ([
+      calories,
+      protein,
+      fat,
+      carbohydrate,
+    ].any((value) => value == null || !value.isFinite || value < 0)) {
+      return null;
+    }
+
+    final baseAmount = double.tryParse(baseAmountController.text.trim());
+    final amount = double.tryParse(amountController.text.trim());
+    final editingItem = editingIndex == null ? null : items[editingIndex!];
+    final preservesLegacy =
+        editingItem != null &&
+        !editingItem.hasMeasuredAmount &&
+        baseAmountController.text.trim().isEmpty &&
+        amountController.text.trim().isEmpty;
+    if (!preservesLegacy &&
+        (baseAmount == null ||
+            !baseAmount.isFinite ||
+            baseAmount <= 0 ||
+            amount == null ||
+            !amount.isFinite ||
+            amount <= 0)) {
+      return null;
+    }
+
+    try {
+      return FoodItem(
+        name: name,
+        calories: calories!,
+        protein: protein!,
+        fat: fat!,
+        carbohydrate: carbohydrate!,
+        quantity: quantity,
+        amount: preservesLegacy ? null : amount,
+        baseAmount: preservesLegacy ? null : baseAmount,
+        baseUnit: preservesLegacy ? null : baseUnit,
+      );
+    } on ArgumentError {
+      return null;
+    }
   }
 
   List<FoodItem> get previewItems {
@@ -113,6 +157,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
     proteinController.clear();
     fatController.clear();
     carbohydrateController.clear();
+    baseAmountController.clear();
+    amountController.clear();
+    baseUnit = FoodBaseUnit.g;
+    inputError = null;
   }
 
   void _clearForm() {
@@ -130,11 +178,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final item = _currentFoodItem();
 
     if (item == null) {
+      setState(() {
+        inputError =
+            'Enter valid food, base amount, quantity, and nutrition values.';
+      });
       return;
     }
 
     setState(() {
       items.add(item);
+      inputError = null;
       _clearFoodInputs();
     });
   }
@@ -163,6 +216,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
       proteinController.text = item.protein.toString();
       fatController.text = item.fat.toString();
       carbohydrateController.text = item.carbohydrate.toString();
+      baseAmountController.text = item.baseAmount == null
+          ? ''
+          : _formatAmount(item.baseAmount!);
+      amountController.text = item.amount == null
+          ? ''
+          : _formatAmount(item.amount!);
+      baseUnit = item.baseUnit ?? FoodBaseUnit.g;
+      inputError = null;
     });
   }
 
@@ -171,12 +232,19 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     final item = _currentFoodItem(quantity: items[editingIndex!].quantity);
 
-    if (item == null) return;
+    if (item == null) {
+      setState(() {
+        inputError =
+            'Enter valid food, base amount, quantity, and nutrition values.';
+      });
+      return;
+    }
 
     setState(() {
       items[editingIndex!] = item;
 
       editingIndex = null;
+      inputError = null;
 
       _clearFoodInputs();
     });
@@ -186,6 +254,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     if (index >= items.length) return;
 
     final item = items[index];
+    if (item.hasMeasuredAmount) return;
     final quantity = item.quantity + change;
 
     if (quantity < 1) return;
@@ -206,6 +275,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         MealTemplateMealType.dinner => MealType.dinner,
       };
       selectedTemplateId = template.id;
+      inputError = null;
       items
         ..clear()
         ..addAll(resolution.items);
@@ -228,6 +298,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
 
     if (!isWaterEntry && previewItems.isEmpty) {
+      return;
+    }
+    if (!isWaterEntry &&
+        foodNameController.text.trim().isNotEmpty &&
+        _currentFoodItem() == null) {
+      setState(() {
+        inputError =
+            'Enter valid food, base amount, quantity, and nutrition values.';
+      });
       return;
     }
 
@@ -391,8 +470,37 @@ class _FoodInputFormState extends State<FoodInputForm> {
               proteinController: proteinController,
               fatController: fatController,
               carbohydrateController: carbohydrateController,
-              onChanged: (_) => setState(() {}),
+              baseAmountController: baseAmountController,
+              amountController: amountController,
+              baseUnit: baseUnit,
+              onChanged: (_) {
+                setState(() {
+                  inputError = null;
+                  if (amountController.text.trim().isEmpty) {
+                    final parsed = double.tryParse(
+                      baseAmountController.text.trim(),
+                    );
+                    if (parsed != null && parsed.isFinite && parsed > 0) {
+                      amountController.text = _formatAmount(parsed);
+                    }
+                  }
+                });
+              },
+              onBaseUnitChanged: (unit) {
+                setState(() {
+                  baseUnit = unit;
+                  inputError = null;
+                });
+              },
             ),
+
+            if (inputError != null) ...[
+              AppSpacing.gapMD,
+              Text(
+                inputError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
 
             AppSpacing.gapLG,
 
@@ -446,5 +554,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ],
       ),
     );
+  }
+
+  static String _formatAmount(double value) {
+    return value == value.roundToDouble()
+        ? value.round().toString()
+        : value.toString();
   }
 }

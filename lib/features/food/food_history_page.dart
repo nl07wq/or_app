@@ -143,7 +143,11 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.restaurant_menu),
                 title: Text(
-                  item.quantity > 1
+                  item.hasMeasuredAmount
+                      ? '${item.name}  '
+                            '${FoodNutritionFormatter.amount(item.amount!)}'
+                            '${item.baseUnit!.label}'
+                      : item.quantity > 1
                       ? '${item.name} ×${item.quantity}'
                       : item.name,
                 ),

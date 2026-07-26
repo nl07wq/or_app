@@ -129,7 +129,7 @@ class FoodLegacyReader {
       }
       final item = Map<String, dynamic>.from(itemValue);
       if (item['name'] is! String ||
-          item['calories'] is! int ||
+          item['calories'] is! num ||
           item['protein'] is! num ||
           item['fat'] is! num ||
           item['carbohydrate'] is! num) {
@@ -138,6 +138,22 @@ class FoodLegacyReader {
       final quantity = item['quantity'];
       if (quantity != null && (quantity is! int || quantity < 1)) {
         throw const FormatException('Invalid FOOD item quantity.');
+      }
+      final amount = item['amount'];
+      final baseAmount = item['baseAmount'];
+      final baseUnit = item['baseUnit'];
+      final measurementFieldCount = [
+        amount,
+        baseAmount,
+        baseUnit,
+      ].where((value) => value != null).length;
+      if (measurementFieldCount != 0 &&
+          (measurementFieldCount != 3 ||
+              amount is! num ||
+              baseAmount is! num ||
+              baseUnit is! String ||
+              !const {'g', 'mL', 'ml'}.contains(baseUnit))) {
+        throw const FormatException('Invalid FOOD item measurement.');
       }
     }
   }

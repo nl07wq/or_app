@@ -111,6 +111,16 @@ void main() {
           fat: 5.5,
           carbohydrate: 1.0,
         ),
+        FoodItem(
+          name: 'Chicken',
+          calories: 165,
+          protein: 31,
+          fat: 3.6,
+          carbohydrate: 0,
+          amount: 250,
+          baseAmount: 100,
+          baseUnit: FoodBaseUnit.g,
+        ),
       ],
     );
     final water = _meal(
@@ -125,7 +135,15 @@ void main() {
 
     final restored = await repository.findById('complete');
     expect(restored?.toJson(), meal.toJson());
-    expect(restored?.items.map((item) => item.name), ['Rice', 'Egg']);
+    expect(restored?.items.map((item) => item.name), [
+      'Rice',
+      'Egg',
+      'Chicken',
+    ]);
+    expect(restored?.items.last.amount, 250);
+    expect(restored?.items.last.baseAmount, 100);
+    expect(restored?.items.last.baseUnit, FoodBaseUnit.g);
+    expect(restored?.items.last.totalCalories, 412.5);
     expect(restored?.calories, meal.calories);
     expect(restored?.protein, meal.protein);
     expect(restored?.fat, meal.fat);
@@ -133,7 +151,7 @@ void main() {
     expect((await repository.findById('water'))?.waterMl, 350.5);
 
     restored!.items.clear();
-    expect((await repository.findById('complete'))?.items, hasLength(2));
+    expect((await repository.findById('complete'))?.items, hasLength(3));
   });
 
   test('delete and clear affect only FOOD Store', () async {

@@ -67,6 +67,41 @@ void main() {
     },
   );
 
+  test('confirmation snapshots calculated FOOD amount nutrition', () async {
+    final today = DateTime.now();
+    final meal = _mealJson(today)
+      ..['items'] = [
+        {
+          'name': 'Chicken',
+          'calories': 165,
+          'protein': 31,
+          'fat': 3.6,
+          'carbohydrate': 0,
+          'quantity': 1,
+          'amount': 250,
+          'baseAmount': 100,
+          'baseUnit': 'g',
+        },
+      ];
+    SharedPreferences.setMockInitialValues(
+      _validSourceValues(today, foodRecords: [meal]),
+    );
+
+    final confirmation = await DailyLogConfirmationService.confirmToday();
+    expect(confirmation.food?.calories, 412.5);
+    expect(confirmation.food?.protein, 77.5);
+    expect(confirmation.food?.fat, 9);
+    expect(confirmation.food?.carbohydrates, 0);
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList('meal_records', [
+      jsonEncode(_mealJson(today)),
+    ]);
+    final stored = await DailyLogConfirmationRepository.findByDate(today);
+    expect(stored?.food?.calories, 412.5);
+    expect(stored?.food?.protein, 77.5);
+  });
+
   test('Activity with inconsistent calculation basis is rejected', () async {
     final today = DateTime.now();
     final values = _validSourceValues(today);

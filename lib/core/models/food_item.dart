@@ -1,12 +1,32 @@
+enum FoodBaseUnit {
+  g('g'),
+  ml('mL');
+
+  const FoodBaseUnit(this.label);
+
+  final String label;
+
+  static FoodBaseUnit parse(String source) {
+    return switch (source) {
+      'g' => FoodBaseUnit.g,
+      'mL' || 'ml' => FoodBaseUnit.ml,
+      _ => throw FormatException('Unsupported food base unit: $source.'),
+    };
+  }
+}
+
 class FoodItem {
   final String name;
 
-  final int calories;
+  final num calories;
 
   final double protein;
   final double fat;
   final double carbohydrate;
   final int quantity;
+  final double? amount;
+  final double? baseAmount;
+  final FoodBaseUnit? baseUnit;
 
   const FoodItem({
     required this.name,
@@ -15,33 +35,79 @@ class FoodItem {
     required this.fat,
     required this.carbohydrate,
     int quantity = 1,
-  }) : quantity = quantity < 1 ? 1 : quantity;
+    this.amount,
+    this.baseAmount,
+    this.baseUnit,
+  }) : assert(calories >= 0),
+       assert(protein >= 0),
+       assert(fat >= 0),
+       assert(carbohydrate >= 0),
+       assert(
+         (amount == null && baseAmount == null && baseUnit == null) ||
+             (amount != null && baseAmount != null && baseUnit != null),
+       ),
+       assert(amount == null || amount > 0),
+       assert(baseAmount == null || baseAmount > 0),
+       quantity = quantity < 1 ? 1 : quantity;
 
-  int get totalCalories => calories * quantity;
-  double get totalProtein => protein * quantity;
-  double get totalFat => fat * quantity;
-  double get totalCarbohydrate => carbohydrate * quantity;
+  bool get hasMeasuredAmount =>
+      amount != null && baseAmount != null && baseUnit != null;
+
+  double get multiplier =>
+      hasMeasuredAmount ? amount! / baseAmount! : quantity.toDouble();
+
+  double get totalCalories => calories.toDouble() * multiplier;
+  double get totalProtein => protein * multiplier;
+  double get totalFat => fat * multiplier;
+  double get totalCarbohydrate => carbohydrate * multiplier;
 
   factory FoodItem.fromJson(Map<String, dynamic> json) {
     final quantity = (json['quantity'] as num?)?.toInt() ?? 1;
-
-    return FoodItem(
-      name: json['name'] as String,
-      calories: json['calories'] as int,
-      protein: (json['protein'] as num).toDouble(),
-      fat: (json['fat'] as num).toDouble(),
-      carbohydrate: (json['carbohydrate'] as num).toDouble(),
-      quantity: quantity < 1 ? 1 : quantity,
+    final baseUnitValue = json['baseUnit'];
+    final calories = json['calories'] as num;
+    final protein = (json['protein'] as num).toDouble();
+    final fat = (json['fat'] as num).toDouble();
+    final carbohydrate = (json['carbohydrate'] as num).toDouble();
+    final amount = (json['amount'] as num?)?.toDouble();
+    final baseAmount = (json['baseAmount'] as num?)?.toDouble();
+    final baseUnit = baseUnitValue == null
+        ? null
+        : FoodBaseUnit.parse(baseUnitValue as String);
+    _validateValues(
+      calories: calories,
+      protein: protein,
+      fat: fat,
+      carbohydrate: carbohydrate,
+      amount: amount,
+      baseAmount: baseAmount,
+      baseUnit: baseUnit,
     );
+
+    final item = FoodItem(
+      name: json['name'] as String,
+      calories: calories,
+      protein: protein,
+      fat: fat,
+      carbohydrate: carbohydrate,
+      quantity: quantity < 1 ? 1 : quantity,
+      amount: amount,
+      baseAmount: baseAmount,
+      baseUnit: baseUnit,
+    );
+    item._validateCalculatedSnapshot(json);
+    return item;
   }
 
   FoodItem copyWith({
     String? name,
-    int? calories,
+    num? calories,
     double? protein,
     double? fat,
     double? carbohydrate,
     int? quantity,
+    double? amount,
+    double? baseAmount,
+    FoodBaseUnit? baseUnit,
   }) {
     return FoodItem(
       name: name ?? this.name,
@@ -50,6 +116,9 @@ class FoodItem {
       fat: fat ?? this.fat,
       carbohydrate: carbohydrate ?? this.carbohydrate,
       quantity: quantity ?? this.quantity,
+      amount: amount ?? this.amount,
+      baseAmount: baseAmount ?? this.baseAmount,
+      baseUnit: baseUnit ?? this.baseUnit,
     );
   }
 
@@ -61,6 +130,15 @@ class FoodItem {
       'fat': fat,
       'carbohydrate': carbohydrate,
       'quantity': quantity,
+      if (amount != null) 'amount': amount,
+      if (baseAmount != null) 'baseAmount': baseAmount,
+      if (baseUnit != null) 'baseUnit': baseUnit!.label,
+      if (hasMeasuredAmount) ...{
+        'calculatedCalories': totalCalories,
+        'calculatedProtein': totalProtein,
+        'calculatedFat': totalFat,
+        'calculatedCarbohydrate': totalCarbohydrate,
+      },
     };
   }
 
@@ -72,7 +150,10 @@ class FoodItem {
         other.protein == protein &&
         other.fat == fat &&
         other.carbohydrate == carbohydrate &&
-        other.quantity == quantity;
+        other.quantity == quantity &&
+        other.amount == amount &&
+        other.baseAmount == baseAmount &&
+        other.baseUnit == baseUnit;
   }
 
   @override
@@ -83,5 +164,67 @@ class FoodItem {
     fat,
     carbohydrate,
     quantity,
+    amount,
+    baseAmount,
+    baseUnit,
   );
+
+  static void _validateValues({
+    required num calories,
+    required double protein,
+    required double fat,
+    required double carbohydrate,
+    required double? amount,
+    required double? baseAmount,
+    required FoodBaseUnit? baseUnit,
+  }) {
+    final values = [calories.toDouble(), protein, fat, carbohydrate];
+    if (values.any((value) => !value.isFinite || value < 0)) {
+      throw const FormatException('Nutrition must be finite and non-negative.');
+    }
+    final fields = [amount, baseAmount, baseUnit];
+    final populated = fields.where((value) => value != null).length;
+    if (populated != 0 && populated != fields.length) {
+      throw const FormatException(
+        'amount, baseAmount, and baseUnit must be provided together.',
+      );
+    }
+    if (amount != null && (!amount.isFinite || amount <= 0)) {
+      throw const FormatException(
+        'Amount must be finite and greater than zero.',
+      );
+    }
+    if (baseAmount != null && (!baseAmount.isFinite || baseAmount <= 0)) {
+      throw const FormatException(
+        'Base amount must be finite and greater than zero.',
+      );
+    }
+  }
+
+  void _validateCalculatedSnapshot(Map<String, dynamic> json) {
+    if (!hasMeasuredAmount) return;
+    final expected = <String, double>{
+      'calculatedCalories': totalCalories,
+      'calculatedProtein': totalProtein,
+      'calculatedFat': totalFat,
+      'calculatedCarbohydrate': totalCarbohydrate,
+    };
+    final populated = expected.keys.where(json.containsKey).length;
+    if (populated == 0) return;
+    if (populated != expected.length) {
+      throw const FormatException(
+        'Calculated FOOD nutrition Snapshot is incomplete.',
+      );
+    }
+    for (final entry in expected.entries) {
+      final stored = json[entry.key];
+      if (stored is! num ||
+          !stored.isFinite ||
+          (stored.toDouble() - entry.value).abs() > 1e-9) {
+        throw FormatException(
+          'Calculated FOOD nutrition Snapshot does not match ${entry.key}.',
+        );
+      }
+    }
+  }
 }

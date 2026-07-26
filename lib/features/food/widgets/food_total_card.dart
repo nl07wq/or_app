@@ -11,9 +11,11 @@ class FoodTotalCard extends StatelessWidget {
 
   const FoodTotalCard({super.key, required this.items});
 
-  int get totalCalories => items.fold(0, (sum, item) => sum + item.totalCalories);
+  double get totalCalories =>
+      items.fold(0.0, (sum, item) => sum + item.totalCalories);
 
-  double get totalProtein => items.fold(0.0, (sum, item) => sum + item.totalProtein);
+  double get totalProtein =>
+      items.fold(0.0, (sum, item) => sum + item.totalProtein);
 
   double get totalFat => items.fold(0.0, (sum, item) => sum + item.totalFat);
 

@@ -79,27 +79,44 @@ class FoodItemList extends StatelessWidget {
                                       ).textTheme.titleMedium,
                                     ),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(Icons.remove),
-                                    tooltip: 'Decrease quantity',
-                                    onPressed:
-                                        canAdjustQuantity && item.quantity > 1
-                                        ? () => onQuantityChanged(index, -1)
-                                        : null,
-                                  ),
-                                  Text('${item.quantity}'),
-                                  IconButton(
-                                    icon: const Icon(Icons.add),
-                                    tooltip: 'Increase quantity',
-                                    onPressed: canAdjustQuantity
-                                        ? () => onQuantityChanged(index, 1)
-                                        : null,
-                                  ),
+                                  if (item.hasMeasuredAmount)
+                                    Text(
+                                      '${FoodNutritionFormatter.amount(item.amount!)}'
+                                      '${item.baseUnit!.label}',
+                                    )
+                                  else ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      tooltip: 'Decrease quantity',
+                                      onPressed:
+                                          canAdjustQuantity && item.quantity > 1
+                                          ? () => onQuantityChanged(index, -1)
+                                          : null,
+                                    ),
+                                    Text('${item.quantity}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      tooltip: 'Increase quantity',
+                                      onPressed: canAdjustQuantity
+                                          ? () => onQuantityChanged(index, 1)
+                                          : null,
+                                    ),
+                                  ],
                                 ],
                               ),
 
                               AppSpacing.gapMD,
 
+                              if (item.hasMeasuredAmount) ...[
+                                Text(
+                                  'Base : '
+                                  '${FoodNutritionFormatter.amount(item.baseAmount!)}'
+                                  '${item.baseUnit!.label}',
+                                ),
+                                AppSpacing.gapXS,
+                                const Text('Calculated'),
+                                AppSpacing.gapXS,
+                              ],
                               Text(
                                 'Calories : ${FoodNutritionFormatter.calories(item.totalCalories)} kcal',
                               ),

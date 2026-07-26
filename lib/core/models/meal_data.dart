@@ -19,7 +19,8 @@ class MealData {
 
   bool get isWaterEntry => waterMl != null;
 
-  int get calories => items.fold(0, (sum, item) => sum + item.totalCalories);
+  double get calories =>
+      items.fold(0.0, (sum, item) => sum + item.totalCalories);
 
   double get protein => items.fold(0.0, (sum, item) => sum + item.totalProtein);
 

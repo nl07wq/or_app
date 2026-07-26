@@ -68,6 +68,38 @@ void main() {
     expect(find.text('Rice'), findsOneWidget);
   });
 
+  testWidgets('measured food shows amount and calculated nutrition', (
+    tester,
+  ) async {
+    _seed(
+      database,
+      MealData(
+        id: 'measured',
+        date: '2026-07-26',
+        mealType: 'Lunch',
+        items: const [
+          FoodItem(
+            name: 'Chicken',
+            calories: 165,
+            protein: 31,
+            fat: 3.6,
+            carbohydrate: 0,
+            amount: 250,
+            baseAmount: 100,
+            baseUnit: FoodBaseUnit.g,
+          ),
+        ],
+        memo: '',
+      ),
+    );
+
+    await _pumpPage(tester);
+
+    expect(find.text('Chicken  250g'), findsOneWidget);
+    expect(find.textContaining('413 kcal'), findsOneWidget);
+    expect(find.textContaining('P 77.5'), findsOneWidget);
+  });
+
   testWidgets('repository error replaces spinner with error and Retry', (
     tester,
   ) async {

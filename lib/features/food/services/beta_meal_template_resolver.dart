@@ -76,6 +76,24 @@ class BetaMealTemplateResolver {
       return null;
     }
 
+    final snapshotUnit = switch (unit) {
+      beta.FoodUnit.g => legacy.FoodBaseUnit.g,
+      beta.FoodUnit.ml => legacy.FoodBaseUnit.ml,
+      _ => null,
+    };
+    if (snapshotUnit != null) {
+      return legacy.FoodItem(
+        name: foodItem.name,
+        calories: foodItem.nutritionAtBaseAmount.calories,
+        protein: foodItem.nutritionAtBaseAmount.protein,
+        fat: foodItem.nutritionAtBaseAmount.fat,
+        carbohydrate: foodItem.nutritionAtBaseAmount.carbs,
+        amount: amount,
+        baseAmount: foodItem.baseAmount,
+        baseUnit: snapshotUnit,
+      );
+    }
+
     final nutrition = foodItem.nutritionForAmount(amount, unit);
     return legacy.FoodItem(
       name: '${foodItem.name} ${_formatAmount(amount, unit)}',

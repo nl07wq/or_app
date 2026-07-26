@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/food_item.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/work_type.dart';
@@ -8,6 +10,7 @@ import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
+import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_import_service.dart';
@@ -161,6 +164,67 @@ void main() {
 
     expect(result.success, isTrue);
     expect(restoredEnvelope.data.estimatedTotalBurnKcal, 2875.5);
+  });
+
+  test('Schema 2.0 preserves measured FOOD Snapshot fields', () async {
+    final timestamp = DateTime.utc(2026, 7, 26);
+    final envelope = PersistedFoodRecord(
+      id: 'food:meal-measured',
+      localDate: '2026-07-26',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      data: MealData(
+        date: '2026-07-26',
+        mealType: 'Lunch',
+        items: const [
+          FoodItem(
+            name: 'Chicken',
+            calories: 165,
+            protein: 31,
+            fat: 3.6,
+            carbohydrate: 0,
+            amount: 250,
+            baseAmount: 100,
+            baseUnit: FoodBaseUnit.g,
+          ),
+        ],
+        memo: '',
+        id: 'meal-measured',
+      ),
+    ).toRecord();
+    database.seed(
+      IndexedDbStoreNames.foodRecords,
+      envelope['id']! as String,
+      envelope,
+    );
+    final package = await BackupExportService(
+      database: database,
+      controller: controller,
+    ).create();
+    final restoredDatabase = FakeIndexedDbDatabase();
+    final restoredController = AppInitializationController()..markReady();
+    final service = BackupImportService(
+      database: restoredDatabase,
+      controller: restoredController,
+      restore: () async {},
+    );
+
+    final plan = await service.dryRun(package, BackupImportMode.replaceAll);
+    expect((await service.execute(plan)).success, isTrue);
+    final restored = PersistedFoodRecord.fromRecord(
+      (await restoredDatabase.findById(
+        IndexedDbStoreNames.foodRecords,
+        'food:meal-measured',
+      ))!,
+    );
+
+    expect(package.schemaVersion, 2);
+    expect(package.databaseVersion, 3);
+    expect(restored.recordVersion, 1);
+    expect(restored.data.items.single.amount, 250);
+    expect(restored.data.items.single.baseAmount, 100);
+    expect(restored.data.items.single.baseUnit, FoodBaseUnit.g);
+    expect(restored.data.items.single.totalCalories, 412.5);
   });
 
   test('Schema 1.0 converts STATUS and TRAINING only using exportedAt', () {
