@@ -23,6 +23,8 @@ void main() {
       quarantinedCounts: const {'status': 0},
       expectedRecordIds: expectedIds,
       sourceDigest: 'digest',
+      sourceIdDigest: 'source-id-digest',
+      targetIdDigest: 'target-id-digest',
       targetDigest: 'target-digest',
     );
 
@@ -43,6 +45,8 @@ void main() {
     expect(restored.startedAt, DateTime.parse('2026-07-25T23:00:00Z'));
     expect(restored.expectedRecordIds, metadata.expectedRecordIds);
     expect(restored.sourceDigest, 'digest');
+    expect(restored.sourceIdDigest, 'source-id-digest');
+    expect(restored.targetIdDigest, 'target-id-digest');
     expect(restored.targetDigest, 'target-digest');
   });
 
@@ -76,6 +80,10 @@ void main() {
       rawPayload: rawPayload,
       errorCode: 'invalidDate',
       errorMessage: 'date is invalid',
+      conflictingRecordId: 'training:id',
+      existingPayloadDigest: 'existing-digest',
+      legacyPayloadDigest: 'legacy-digest',
+      conflictType: 'targetIdConflict',
       quarantinedAt: DateTime.parse('2026-07-26T00:00:00Z'),
     );
 
@@ -102,6 +110,10 @@ void main() {
     expect(restored.sourceKey, 'morning_records');
     expect(restored.sourceIndex, 0);
     expect(restored.errorCode, 'invalidDate');
+    expect(restored.conflictingRecordId, 'training:id');
+    expect(restored.existingPayloadDigest, 'existing-digest');
+    expect(restored.legacyPayloadDigest, 'legacy-digest');
+    expect(restored.conflictType, 'targetIdConflict');
     expect(restored.quarantinedAt, DateTime.parse('2026-07-26T00:00:00Z'));
   });
 }

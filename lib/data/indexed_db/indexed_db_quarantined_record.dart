@@ -8,6 +8,10 @@ class IndexedDbQuarantinedRecord {
   final Object? rawPayload;
   final String errorCode;
   final String? errorMessage;
+  final String? conflictingRecordId;
+  final String? existingPayloadDigest;
+  final String? legacyPayloadDigest;
+  final String? conflictType;
   final DateTime quarantinedAt;
 
   IndexedDbQuarantinedRecord({
@@ -20,6 +24,10 @@ class IndexedDbQuarantinedRecord {
     required Object? rawPayload,
     required this.errorCode,
     this.errorMessage,
+    this.conflictingRecordId,
+    this.existingPayloadDigest,
+    this.legacyPayloadDigest,
+    this.conflictType,
     DateTime? quarantinedAt,
     DateTime? detectedAt,
   }) : rawPayload = _freeze(rawPayload),
@@ -43,6 +51,13 @@ class IndexedDbQuarantinedRecord {
       'rawPayload': _copy(rawPayload),
       'errorCode': errorCode,
       if (errorMessage != null) 'errorMessage': errorMessage,
+      if (conflictingRecordId != null)
+        'conflictingRecordId': conflictingRecordId,
+      if (existingPayloadDigest != null)
+        'existingPayloadDigest': existingPayloadDigest,
+      if (legacyPayloadDigest != null)
+        'legacyPayloadDigest': legacyPayloadDigest,
+      if (conflictType != null) 'conflictType': conflictType,
       'quarantinedAt': quarantinedAt.toUtc().toIso8601String(),
     };
   }
@@ -60,6 +75,10 @@ class IndexedDbQuarantinedRecord {
       rawPayload: record['rawPayload'],
       errorCode: _requiredString(record, 'errorCode'),
       errorMessage: _optionalString(record, 'errorMessage'),
+      conflictingRecordId: _optionalString(record, 'conflictingRecordId'),
+      existingPayloadDigest: _optionalString(record, 'existingPayloadDigest'),
+      legacyPayloadDigest: _optionalString(record, 'legacyPayloadDigest'),
+      conflictType: _optionalString(record, 'conflictType'),
       quarantinedAt: _requiredDate(
         record,
         record.containsKey('quarantinedAt') ? 'quarantinedAt' : 'detectedAt',

@@ -26,6 +26,8 @@ class IndexedDbMigrationMetadata {
   final Map<String, int> quarantinedCounts;
   final Map<String, List<String>> expectedRecordIds;
   final String? sourceDigest;
+  final String? sourceIdDigest;
+  final String? targetIdDigest;
   final String? targetDigest;
   final String? errorCode;
   final String? errorMessage;
@@ -46,6 +48,8 @@ class IndexedDbMigrationMetadata {
     Map<String, int> quarantinedCounts = const {},
     Map<String, List<String>> expectedRecordIds = const {},
     this.sourceDigest,
+    this.sourceIdDigest,
+    this.targetIdDigest,
     this.targetDigest,
     this.errorCode,
     this.errorMessage,
@@ -70,6 +74,8 @@ class IndexedDbMigrationMetadata {
     Map<String, int>? quarantinedCounts,
     Map<String, List<String>>? expectedRecordIds,
     Object? sourceDigest = _unset,
+    Object? sourceIdDigest = _unset,
+    Object? targetIdDigest = _unset,
     Object? targetDigest = _unset,
     Object? errorCode = _unset,
     Object? errorMessage = _unset,
@@ -96,6 +102,12 @@ class IndexedDbMigrationMetadata {
       sourceDigest: sourceDigest == _unset
           ? this.sourceDigest
           : sourceDigest as String?,
+      sourceIdDigest: sourceIdDigest == _unset
+          ? this.sourceIdDigest
+          : sourceIdDigest as String?,
+      targetIdDigest: targetIdDigest == _unset
+          ? this.targetIdDigest
+          : targetIdDigest as String?,
       targetDigest: targetDigest == _unset
           ? this.targetDigest
           : targetDigest as String?,
@@ -125,6 +137,8 @@ class IndexedDbMigrationMetadata {
       'quarantinedCounts': quarantinedCounts,
       'expectedRecordIds': expectedRecordIds,
       if (sourceDigest != null) 'sourceDigest': sourceDigest,
+      if (sourceIdDigest != null) 'sourceIdDigest': sourceIdDigest,
+      if (targetIdDigest != null) 'targetIdDigest': targetIdDigest,
       if (targetDigest != null) 'targetDigest': targetDigest,
       if (errorCode != null) 'errorCode': errorCode,
       if (errorMessage != null) 'errorMessage': errorMessage,
@@ -152,6 +166,8 @@ class IndexedDbMigrationMetadata {
       quarantinedCounts: _intMap(record, 'quarantinedCounts'),
       expectedRecordIds: _stringListMap(record, 'expectedRecordIds'),
       sourceDigest: _optionalString(record, 'sourceDigest'),
+      sourceIdDigest: _optionalString(record, 'sourceIdDigest'),
+      targetIdDigest: _optionalString(record, 'targetIdDigest'),
       targetDigest: _optionalString(record, 'targetDigest'),
       errorCode: _optionalString(record, 'errorCode'),
       errorMessage: _optionalString(record, 'errorMessage'),
