@@ -12,6 +12,7 @@ import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 
 import '../../core/widgets/history/history_delete_dialog.dart';
+import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/state/app_initialization_state.dart';
@@ -24,19 +25,42 @@ class FoodHistoryPage extends StatefulWidget {
 }
 
 class _FoodHistoryPageState extends State<FoodHistoryPage> {
-  late Future<List<MealData>> _records;
+  bool _isLoading = true;
+  List<MealData> _records = const [];
+  Object? _loadError;
 
   @override
   void initState() {
     super.initState();
-    _loadRecords();
+    _loadRecords(showLoading: false);
   }
 
-  void _loadRecords() {
-    _records = FoodRepository.getAll().then((records) {
-      records.sort((a, b) => b.date.compareTo(a.date));
-      return records;
-    });
+  Future<void> _loadRecords({bool showLoading = true}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
+
+    List<MealData>? loadedRecords;
+    Object? loadError;
+    try {
+      loadedRecords = (await FoodRepository.getAll()).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+    } catch (error) {
+      loadError = error;
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (loadError == null) {
+            _records = List.unmodifiable(loadedRecords!);
+          }
+          _loadError = loadError;
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _deleteRecord(MealData data) async {
@@ -54,9 +78,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       return;
     }
 
-    _loadRecords();
-
-    setState(() {});
+    await _loadRecords();
   }
 
   Widget _buildMealCard(BuildContext context, MealData meal) {
@@ -85,8 +107,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                         );
 
                         if (updated == true) {
-                          _loadRecords();
-                          setState(() {});
+                          await _loadRecords();
                         }
                       },
               ),
@@ -152,53 +173,73 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('FOOD')),
-      body: Padding(
-        padding: AppSpacing.cardPadding,
-        child: FutureBuilder<List<MealData>>(
-          future: _records,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+      body: Padding(padding: AppSpacing.cardPadding, child: _buildBody()),
+    );
+  }
 
-            final records = snapshot.data!;
-
-            final groupedRecords = <String, List<MealData>>{};
-
-            for (final meal in records) {
-              groupedRecords.putIfAbsent(meal.date, () => []).add(meal);
-            }
-
-            if (records.isEmpty) {
-              return const Center(child: Text('No meal records.'));
-            }
-
-            return ListView.separated(
-              itemCount: groupedRecords.length,
-              separatorBuilder: (_, __) => AppSpacing.gapXL,
-              itemBuilder: (context, index) {
-                final group = groupedRecords.entries.elementAt(index);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SectionHeader(icon: Icons.calendar_today, title: group.key),
-                    AppSpacing.gapMD,
-                    for (
-                      var mealIndex = 0;
-                      mealIndex < group.value.length;
-                      mealIndex++
-                    ) ...[
-                      _buildMealCard(context, group.value[mealIndex]),
-                      if (mealIndex < group.value.length - 1) AppSpacing.gapMD,
-                    ],
-                  ],
-                );
-              },
-            );
-          },
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final loadError = _loadError;
+    if (loadError != null) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Unable to load food records.',
+                textAlign: TextAlign.center,
+              ),
+              AppSpacing.gapMD,
+              Text(
+                loadError.toString(),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              AppSpacing.gapMD,
+              OperationButton(
+                icon: Icons.refresh,
+                text: 'RETRY',
+                onPressed: _loadRecords,
+              ),
+            ],
+          ),
         ),
-      ),
+      );
+    }
+    if (_records.isEmpty) {
+      return const Center(child: Text('No meal records.'));
+    }
+
+    final groupedRecords = <String, List<MealData>>{};
+    for (final meal in _records) {
+      groupedRecords.putIfAbsent(meal.date, () => []).add(meal);
+    }
+    return ListView.separated(
+      itemCount: groupedRecords.length,
+      separatorBuilder: (_, _) => AppSpacing.gapXL,
+      itemBuilder: (context, index) {
+        final group = groupedRecords.entries.elementAt(index);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(icon: Icons.calendar_today, title: group.key),
+            AppSpacing.gapMD,
+            for (
+              var mealIndex = 0;
+              mealIndex < group.value.length;
+              mealIndex++
+            ) ...[
+              _buildMealCard(context, group.value[mealIndex]),
+              if (mealIndex < group.value.length - 1) AppSpacing.gapMD,
+            ],
+          ],
+        );
+      },
     );
   }
 }
