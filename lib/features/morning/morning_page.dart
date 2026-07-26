@@ -15,13 +15,13 @@ class MorningPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Morning')),
+      appBar: AppBar(title: const Text('STATUS')),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
-            SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+            SectionHeader(icon: Icons.sync, title: 'SYNC STATUS'),
 
             AppSpacing.gapSM,
 
@@ -59,7 +59,7 @@ class MorningPage extends StatelessWidget {
 
             OperationDescription(
               text:
-                  '保存済みの状態記録を\n'
+                  '保存済みの状態履歴を\n'
                   '確認できます。',
             ),
 

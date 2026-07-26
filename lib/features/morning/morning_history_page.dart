@@ -70,7 +70,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Morning History')),
+      appBar: AppBar(title: const Text('STATUS')),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: FutureBuilder<List<MorningData>>(

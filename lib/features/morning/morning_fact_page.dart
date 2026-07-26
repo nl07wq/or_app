@@ -123,7 +123,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Morning Fact')),
+      appBar: AppBar(title: const Text('STATUS')),
       body: !_initialValuesLoaded
           ? const Center(child: CircularProgressIndicator())
           : Padding(

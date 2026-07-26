@@ -861,7 +861,7 @@ class _MorningButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.play_arrow,
-      text: 'Morning',
+      text: 'STATUS',
       onPressed: () {
         Navigator.pushNamed(context, AppRoutes.morning);
       },
