@@ -70,5 +70,6 @@ DailyLogConfirmation completeConfirmation({
       duration: const Duration(minutes: 75),
       sessionName: trainingName,
     ),
+    estimatedTotalBurnKcal: 2875.5,
   );
 }

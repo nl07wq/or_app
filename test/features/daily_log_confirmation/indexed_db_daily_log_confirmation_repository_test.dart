@@ -46,6 +46,7 @@ void main() {
       expect(restored?.activity?.calculationBasis?.rawSteps, 12000);
       expect(restored?.training?.exerciseCount, 4);
       expect(restored?.training?.duration, const Duration(minutes: 75));
+      expect(restored?.estimatedTotalBurnKcal, 2875.5);
     },
   );
 
@@ -119,6 +120,17 @@ void main() {
     expect(restored?.food, isNull);
     expect(restored?.activity, isNull);
     expect(restored?.training, isNull);
+    expect(restored?.estimatedTotalBurnKcal, isNull);
+  });
+
+  test('old JSON without energy remains readable and round-trips', () {
+    final json = completeConfirmation().toJson()
+      ..remove('estimatedTotalBurnKcal');
+
+    final restored = DailyLogConfirmation.fromJson(json);
+
+    expect(restored.estimatedTotalBurnKcal, isNull);
+    expect(restored.toJson().containsKey('estimatedTotalBurnKcal'), isFalse);
   });
 
   test('distinguishes missing, corrupt, and unsupported records', () async {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
@@ -10,15 +12,20 @@ import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
+import 'package:or_app/features/dashboard/log_confirmation_detail_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_review_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     appInitializationController.markReady();
     dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.unconfirmed(
       DateTime.now(),
@@ -37,15 +44,12 @@ void main() {
 
     expect(find.text('DAILY LOG'), findsOneWidget);
     expect(find.bySemanticsLabel('STATUS incomplete'), findsOneWidget);
-    expect(find.bySemanticsLabel('FOOD not recorded optional'), findsOneWidget);
+    expect(find.bySemanticsLabel('FOOD incomplete'), findsOneWidget);
     expect(
       find.bySemanticsLabel('TRAINING not recorded optional'),
       findsOneWidget,
     );
-    expect(
-      find.bySemanticsLabel('ACTIVITY not recorded optional'),
-      findsOneWidget,
-    );
+    expect(find.bySemanticsLabel('ACTIVITY incomplete'), findsOneWidget);
     expect(find.text('DAILY REVIEW'), findsOneWidget);
   });
 
@@ -65,7 +69,27 @@ void main() {
     expect(find.bySemanticsLabel('ACTIVITY completed'), findsOneWidget);
   });
 
-  testWidgets('DAILY LOG distinguishes incomplete Activity from no record', (
+  testWidgets('STATUS required validation rejects a missing body fat value', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DailyLogCard(
+            morningFact: _morning().copyWith(bodyFat: null),
+            foodSummary: _food(),
+            activitySummary: _activity(),
+            trainingSummary: null,
+            onReview: null,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.bySemanticsLabel('STATUS incomplete'), findsOneWidget);
+  });
+
+  testWidgets('DAILY LOG uses required error for incomplete Activity', (
     tester,
   ) async {
     await _pumpDailyLogCard(
@@ -78,14 +102,32 @@ void main() {
       ),
     );
 
-    expect(
-      find.bySemanticsLabel('ACTIVITY recorded incomplete optional'),
-      findsOneWidget,
+    expect(find.bySemanticsLabel('ACTIVITY incomplete'), findsOneWidget);
+    expect(find.byIcon(Icons.pending_outlined), findsNothing);
+  });
+
+  testWidgets('ACTIVITY completion follows valid official step calculation', (
+    tester,
+  ) async {
+    await _pumpDailyLogCard(
+      tester,
+      width: 800,
+      activity: const ActivitySummary(
+        steps: 0,
+        measuredSteps: 0,
+        isRecorded: true,
+        status: ActivitySummaryStatus.incomplete,
+        calculationBasis: ActivityCalculationBasis(
+          rawSteps: 0,
+          currentCarryOver: 0,
+          previousCarryOverDeduction: 0,
+          officialSteps: 0,
+        ),
+      ),
     );
-    expect(
-      find.bySemanticsLabel('ACTIVITY not recorded optional'),
-      findsNothing,
-    );
+
+    expect(find.bySemanticsLabel('ACTIVITY completed'), findsOneWidget);
+    expect(find.byIcon(Icons.pending_outlined), findsNothing);
   });
 
   testWidgets('DAILY LOG uses a two by two grid at desktop width', (
@@ -96,14 +138,12 @@ void main() {
     final status = tester.getTopLeft(
       find.bySemanticsLabel('STATUS incomplete'),
     );
-    final food = tester.getTopLeft(
-      find.bySemanticsLabel('FOOD not recorded optional'),
-    );
+    final food = tester.getTopLeft(find.bySemanticsLabel('FOOD incomplete'));
     final training = tester.getTopLeft(
       find.bySemanticsLabel('TRAINING not recorded optional'),
     );
     final activity = tester.getTopLeft(
-      find.bySemanticsLabel('ACTIVITY not recorded optional'),
+      find.bySemanticsLabel('ACTIVITY incomplete'),
     );
 
     expect(status.dy, food.dy);
@@ -172,10 +212,10 @@ void main() {
     expect(find.text('Work Time 8.0 h'), findsOneWidget);
     expect(find.text('Memo —'), findsOneWidget);
     expect(find.text('3 Meals'), findsOneWidget);
-    expect(find.text('· 2,130 kcal'), findsOneWidget);
+    expect(find.text('• 2,130 kcal'), findsOneWidget);
     expect(find.text('3,200 / 3,500 ml'), findsOneWidget);
     expect(find.text('EST. TOTAL BURN  2,850 kcal'), findsOneWidget);
-    expect(find.text('3 Exercises · 9 Sets'), findsOneWidget);
+    expect(find.text('3 Exercises • 9 Sets'), findsOneWidget);
     expect(find.text('Steps 8,900'), findsOneWidget);
     expect(find.text('Today 7,659'), findsOneWidget);
     expect(find.text('Carry Over +1,241'), findsOneWidget);
@@ -199,6 +239,10 @@ void main() {
 
     expect(find.text('Not recorded'), findsNWidgets(5));
     expect(find.text('EST. TOTAL BURN  Not available'), findsOneWidget);
+    expect(
+      find.text('Complete required records: STATUS, FOOD, ACTIVITY'),
+      findsOneWidget,
+    );
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(
       tester
@@ -234,6 +278,124 @@ void main() {
 
     expect(find.text('500 / 3,500 ml'), findsOneWidget);
     expect(find.text('0 Meals'), findsNothing);
+    expect(
+      find.text('Complete required records: FOOD, ACTIVITY'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Training remains optional for finalization', (tester) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+    );
+
+    expect(find.text('Complete required records:'), findsNothing);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.ancestor(
+              of: find.text('FINALIZE DAY'),
+              matching: find.byType(ElevatedButton),
+            ),
+          )
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('an invalid existing Training blocks finalization', (
+    tester,
+  ) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: const TrainingSummary(
+        completed: false,
+        exerciseCount: 1,
+        setCount: 1,
+        duration: null,
+        sessionName: null,
+      ),
+      estimatedTotalBurn: 2100,
+    );
+
+    expect(find.text('Complete required records: TRAINING'), findsOneWidget);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.ancestor(
+              of: find.text('FINALIZE DAY'),
+              matching: find.byType(ElevatedButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('confirmed detail uses the shared Snapshot-only review body', (
+    tester,
+  ) async {
+    final confirmation = completeConfirmation();
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(confirmation.toJson())],
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'DAILY REVIEW'), findsOneWidget);
+    for (final label in [
+      'STATUS review',
+      'FOOD review',
+      'WATER review',
+      'ENERGY review',
+      'TRAINING review',
+      'ACTIVITY review',
+    ]) {
+      expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
+    }
+    expect(find.text('EST. TOTAL BURN  2,876 kcal'), findsOneWidget);
+    expect(
+      find.textContaining('Confirmed at 2026-07-26 22:30'),
+      findsOneWidget,
+    );
+    expect(find.text('FINALIZE DAY'), findsNothing);
+    expect(find.text('BACK TO EDIT'), findsNothing);
+    expect(find.text('LOG CONFIRMATION'), findsNothing);
+    expect(find.text('MORNING'), findsNothing);
+  });
+
+  testWidgets('old confirmed detail does not backfill missing energy', (
+    tester,
+  ) async {
+    final confirmation = completeConfirmation();
+    final oldJson = confirmation.toJson()..remove('estimatedTotalBurnKcal');
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(oldJson)],
+    });
+    trainingCardioCaloriesNotifier.value = 9999;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('EST. TOTAL BURN  Not available'), findsOneWidget);
+    expect(find.textContaining('9,999'), findsNothing);
   });
 
   testWidgets('Daily Review shows no inferred carry over or bowel values', (
@@ -328,12 +490,12 @@ void main() {
 
     expect(
       find.text(
-        '確定後は本日の通常編集・削除がロックされます。\n'
-        '変更する場合は訂正処理が必要です。',
+        'Finalizing locks today’s normal edit and delete actions. '
+        'Use the correction flow if changes are needed later.',
       ),
       findsOneWidget,
     );
-    expect(find.text('本日の記録を確定'), findsOneWidget);
+    expect(find.text('Finalize today’s records'), findsOneWidget);
   });
 }
 

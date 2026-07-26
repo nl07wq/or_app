@@ -6,30 +6,59 @@ import '../models/daily_log_confirmation.dart';
 import '../models/daily_log_confirmation_status.dart';
 import '../repositories/daily_log_confirmation_repository.dart';
 import 'daily_log_confirmation_state.dart';
+import 'daily_log_confirmation_validation.dart';
+
+class DailyLogValidationException implements Exception {
+  final List<DailyLogModule> invalidModules;
+
+  const DailyLogValidationException(this.invalidModules);
+
+  @override
+  String toString() {
+    final labels = invalidModules
+        .map(DailyLogConfirmationValidation.moduleLabel)
+        .join(', ');
+    return 'Daily Log validation failed: $labels.';
+  }
+}
 
 class DailyLogConfirmationService {
   DailyLogConfirmationService._();
 
-  static Future<DailyLogConfirmation> confirmToday() async {
+  static Future<DailyLogConfirmation> confirmToday({
+    double? estimatedTotalBurnKcal,
+  }) async {
     await refreshMorningFact();
     await refreshFoodSummary();
     await refreshActivitySummary();
     await refreshTrainingSummary();
 
     final morning = morningFactNotifier.value;
-    if (morning == null) {
-      throw StateError('Morning record is required before confirmation.');
+    final food = foodSummaryNotifier.value;
+    final activity = activitySummaryNotifier.value;
+    final training = trainingSummaryNotifier.value;
+    final validation = DailyLogConfirmationValidation.validate(
+      morning: morning,
+      food: food,
+      activity: activity,
+      training: training,
+    );
+    if (!validation.canFinalize) {
+      throw DailyLogValidationException(validation.blockingModules);
+    }
+    if (estimatedTotalBurnKcal != null &&
+        (!estimatedTotalBurnKcal.isFinite || estimatedTotalBurnKcal < 0)) {
+      throw const FormatException('Invalid estimated total burn.');
     }
 
     final confirmation = DailyLogConfirmation(
       date: DateTime.now(),
       confirmedAt: DateTime.now(),
       morning: morning,
-      food: foodSummaryNotifier.value,
-      activity: activitySummaryNotifier.value.isRecorded
-          ? activitySummaryNotifier.value
-          : null,
-      training: trainingSummaryNotifier.value,
+      food: food,
+      activity: activity,
+      training: training,
+      estimatedTotalBurnKcal: estimatedTotalBurnKcal,
     );
 
     await DailyLogConfirmationRepository.save(confirmation);

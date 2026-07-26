@@ -158,7 +158,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     foodSummary: foodSummary,
                                     activitySummary: activitySummary,
                                     trainingSummary: trainingSummary,
-                                    onReview: morningFact == null || isReadOnly
+                                    onReview: isReadOnly
                                         ? null
                                         : () => Navigator.pushNamed(
                                             context,

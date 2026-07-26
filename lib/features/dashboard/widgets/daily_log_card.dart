@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
+import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -26,18 +27,24 @@ class DailyLogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusState = morningFact == null
-        ? _DailyLogEntryState.requiredMissing
-        : _DailyLogEntryState.completed;
-    final foodState = (foodSummary?.mealCount ?? 0) > 0
+    final validation = DailyLogConfirmationValidation.validate(
+      morning: morningFact,
+      food: foodSummary,
+      activity: activitySummary,
+      training: trainingSummary,
+    );
+    final statusState = validation.statusValid
         ? _DailyLogEntryState.completed
-        : _DailyLogEntryState.optionalMissing;
-    final activityState = !activitySummary.isRecorded
-        ? _DailyLogEntryState.optionalMissing
-        : activitySummary.status == ActivitySummaryStatus.confirmed
+        : _DailyLogEntryState.requiredInvalid;
+    final foodState = validation.foodValid
         ? _DailyLogEntryState.completed
-        : _DailyLogEntryState.optionalIncomplete;
-    final trainingState = trainingSummary?.completed == true
+        : _DailyLogEntryState.requiredInvalid;
+    final activityState = validation.activityValid
+        ? _DailyLogEntryState.completed
+        : _DailyLogEntryState.requiredInvalid;
+    final trainingState = !validation.trainingValid
+        ? _DailyLogEntryState.requiredInvalid
+        : validation.trainingRecorded
         ? _DailyLogEntryState.completed
         : _DailyLogEntryState.optionalMissing;
 
@@ -100,12 +107,7 @@ class DailyLogCard extends StatelessWidget {
   }
 }
 
-enum _DailyLogEntryState {
-  completed,
-  requiredMissing,
-  optionalMissing,
-  optionalIncomplete,
-}
+enum _DailyLogEntryState { completed, requiredInvalid, optionalMissing }
 
 class _DailyLogEntryStatus extends StatelessWidget {
   const _DailyLogEntryStatus({required this.label, required this.state});
@@ -122,7 +124,7 @@ class _DailyLogEntryStatus extends StatelessWidget {
         colorScheme.primary,
         'completed',
       ),
-      _DailyLogEntryState.requiredMissing => (
+      _DailyLogEntryState.requiredInvalid => (
         Icons.error_outline,
         colorScheme.error,
         'incomplete',
@@ -131,11 +133,6 @@ class _DailyLogEntryStatus extends StatelessWidget {
         Icons.circle_outlined,
         colorScheme.onSurfaceVariant,
         'not recorded optional',
-      ),
-      _DailyLogEntryState.optionalIncomplete => (
-        Icons.pending_outlined,
-        colorScheme.onSurfaceVariant,
-        'recorded incomplete optional',
       ),
     };
 

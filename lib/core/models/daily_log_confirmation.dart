@@ -10,6 +10,7 @@ class DailyLogConfirmation {
   final FoodSummary? food;
   final ActivitySummary? activity;
   final TrainingSummary? training;
+  final double? estimatedTotalBurnKcal;
 
   DailyLogConfirmation({
     required DateTime date,
@@ -18,6 +19,7 @@ class DailyLogConfirmation {
     required this.food,
     required this.activity,
     required this.training,
+    this.estimatedTotalBurnKcal,
   }) : date = DateTime(date.year, date.month, date.day);
 
   DailyLogConfirmation copyWith({
@@ -27,6 +29,7 @@ class DailyLogConfirmation {
     FoodSummary? food,
     ActivitySummary? activity,
     TrainingSummary? training,
+    double? estimatedTotalBurnKcal,
   }) => DailyLogConfirmation(
     date: date ?? this.date,
     confirmedAt: confirmedAt ?? this.confirmedAt,
@@ -34,6 +37,8 @@ class DailyLogConfirmation {
     food: food ?? this.food,
     activity: activity ?? this.activity,
     training: training ?? this.training,
+    estimatedTotalBurnKcal:
+        estimatedTotalBurnKcal ?? this.estimatedTotalBurnKcal,
   );
 
   Map<String, dynamic> toJson() => {
@@ -43,23 +48,28 @@ class DailyLogConfirmation {
     'food': food?.toJson(),
     'activity': activity?.toJson(),
     'training': training?.toJson(),
+    if (estimatedTotalBurnKcal != null)
+      'estimatedTotalBurnKcal': estimatedTotalBurnKcal,
   };
 
-  factory DailyLogConfirmation.fromJson(Map<String, dynamic> json) =>
-      DailyLogConfirmation(
-        date: DateTime.parse(json['date'] as String),
-        confirmedAt: DateTime.parse(json['confirmedAt'] as String),
-        morning: json['morning'] == null
-            ? null
-            : MorningFact.fromJson(Map<String, dynamic>.from(json['morning'])),
-        food: json['food'] == null
-            ? null
-            : FoodSummary.fromJson(Map<String, dynamic>.from(json['food'])),
-        activity: json['activity'] == null
-            ? null
-            : ActivitySummary.fromJson(Map<String, dynamic>.from(json['activity'])),
-        training: json['training'] == null
-            ? null
-            : TrainingSummary.fromJson(Map<String, dynamic>.from(json['training'])),
-      );
+  factory DailyLogConfirmation.fromJson(
+    Map<String, dynamic> json,
+  ) => DailyLogConfirmation(
+    date: DateTime.parse(json['date'] as String),
+    confirmedAt: DateTime.parse(json['confirmedAt'] as String),
+    morning: json['morning'] == null
+        ? null
+        : MorningFact.fromJson(Map<String, dynamic>.from(json['morning'])),
+    food: json['food'] == null
+        ? null
+        : FoodSummary.fromJson(Map<String, dynamic>.from(json['food'])),
+    activity: json['activity'] == null
+        ? null
+        : ActivitySummary.fromJson(Map<String, dynamic>.from(json['activity'])),
+    training: json['training'] == null
+        ? null
+        : TrainingSummary.fromJson(Map<String, dynamic>.from(json['training'])),
+    estimatedTotalBurnKcal: (json['estimatedTotalBurnKcal'] as num?)
+        ?.toDouble(),
+  );
 }
