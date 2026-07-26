@@ -28,6 +28,8 @@ class FoodInputForm extends StatefulWidget {
 }
 
 class _FoodInputFormState extends State<FoodInputForm> {
+  static const double _defaultMeasuredAmount = 100;
+
   final foodNameController = TextEditingController();
   final calorieController = TextEditingController();
   final proteinController = TextEditingController();
@@ -47,10 +49,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
   String? selectedTemplateId;
   String? inputError;
   FoodBaseUnit baseUnit = FoodBaseUnit.g;
+  double? _lastValidBaseAmount = _defaultMeasuredAmount;
 
   @override
   void initState() {
     super.initState();
+    _setDefaultMeasurementInputs();
 
     final meal = widget.initialMeal;
 
@@ -160,7 +164,46 @@ class _FoodInputFormState extends State<FoodInputForm> {
     baseAmountController.clear();
     amountController.clear();
     baseUnit = FoodBaseUnit.g;
+    _setDefaultMeasurementInputs();
     inputError = null;
+  }
+
+  void _setDefaultMeasurementInputs() {
+    baseAmountController.text = _formatAmount(_defaultMeasuredAmount);
+    amountController.text = _formatAmount(_defaultMeasuredAmount);
+    _lastValidBaseAmount = _defaultMeasuredAmount;
+  }
+
+  void _onBaseAmountChanged(String source) {
+    final nextBaseAmount = double.tryParse(source.trim());
+    setState(() {
+      inputError = null;
+      if (nextBaseAmount == null ||
+          !nextBaseAmount.isFinite ||
+          nextBaseAmount <= 0) {
+        return;
+      }
+
+      final previousBaseAmount = _lastValidBaseAmount;
+      if (previousBaseAmount != null &&
+          previousBaseAmount.isFinite &&
+          previousBaseAmount > 0 &&
+          previousBaseAmount != nextBaseAmount) {
+        final multiplier = nextBaseAmount / previousBaseAmount;
+        for (final controller in [
+          calorieController,
+          proteinController,
+          fatController,
+          carbohydrateController,
+        ]) {
+          final nutrition = double.tryParse(controller.text.trim());
+          if (nutrition != null && nutrition.isFinite && nutrition >= 0) {
+            controller.text = _formatAmount(nutrition * multiplier);
+          }
+        }
+      }
+      _lastValidBaseAmount = nextBaseAmount;
+    });
   }
 
   void _clearForm() {
@@ -223,6 +266,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           ? ''
           : _formatAmount(item.amount!);
       baseUnit = item.baseUnit ?? FoodBaseUnit.g;
+      _lastValidBaseAmount = item.baseAmount;
       inputError = null;
     });
   }
@@ -473,17 +517,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
               baseAmountController: baseAmountController,
               amountController: amountController,
               baseUnit: baseUnit,
+              onBaseAmountChanged: _onBaseAmountChanged,
               onChanged: (_) {
                 setState(() {
                   inputError = null;
-                  if (amountController.text.trim().isEmpty) {
-                    final parsed = double.tryParse(
-                      baseAmountController.text.trim(),
-                    );
-                    if (parsed != null && parsed.isFinite && parsed > 0) {
-                      amountController.text = _formatAmount(parsed);
-                    }
-                  }
                 });
               },
               onBaseUnitChanged: (unit) {
@@ -557,8 +594,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   static String _formatAmount(double value) {
-    return value == value.roundToDouble()
-        ? value.round().toString()
-        : value.toString();
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+    return value
+        .toStringAsFixed(12)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 }

@@ -95,6 +95,7 @@ void main() {
       expect(() => create(baseAmount: 0), throwsFormatException);
       expect(() => create(baseAmount: -1), throwsFormatException);
       expect(() => create(baseAmount: double.nan), throwsFormatException);
+      expect(() => create(baseAmount: double.infinity), throwsFormatException);
       expect(() => create(calories: -1), throwsFormatException);
       expect(() => create(calories: double.infinity), throwsFormatException);
       expect(
@@ -171,6 +172,28 @@ void main() {
       expect(rice.totalCalories, closeTo(249.6, 1e-12));
       expect(rice.name, isNot(contains('160')));
     });
+
+    test('normalizes measured beta template nutrition to 100 units', () {
+      final lunch = betaMealTemplates.singleWhere(
+        (template) => template.id == 'beta-lunch',
+      );
+      final resolution = BetaMealTemplateResolver.resolve(lunch);
+      final tenGramItem = resolution.items.singleWhere(
+        (item) => item.amount == 10 && item.baseUnit == FoodBaseUnit.g,
+      );
+
+      expect(tenGramItem.baseAmount, 100);
+      expect(tenGramItem.amount, 10);
+      expect(tenGramItem.calories, closeTo(258, 1e-12));
+      expect(tenGramItem.protein, closeTo(14, 1e-12));
+      expect(tenGramItem.fat, closeTo(11, 1e-12));
+      expect(tenGramItem.carbohydrate, closeTo(27, 1e-12));
+      expect(tenGramItem.totalCalories, closeTo(25.8, 1e-12));
+      expect(tenGramItem.totalProtein, closeTo(1.4, 1e-12));
+      expect(tenGramItem.totalFat, closeTo(1.1, 1e-12));
+      expect(tenGramItem.totalCarbohydrate, closeTo(2.7, 1e-12));
+      expect(tenGramItem.quantity, 1);
+    });
   });
 
   group('Food quantity entry UI', () {
@@ -188,6 +211,15 @@ void main() {
             ),
           ),
         ),
+      );
+
+      expect(
+        tester.widget<TextField>(_field('BASE AMOUNT')).controller!.text,
+        '100',
+      );
+      expect(
+        tester.widget<TextField>(_field('QUANTITY (g)')).controller!.text,
+        '100',
       );
 
       await tester.enterText(_field('Food Name'), 'Chicken Breast');
@@ -221,6 +253,76 @@ void main() {
       expect(item.totalCalories, 412.5);
     });
 
+    testWidgets(
+      'base amount changes rescale nutrition without changing quantity',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FoodInputForm(onSave: (_) async {}),
+              ),
+            ),
+          ),
+        );
+
+        await tester.enterText(_field('Calories'), '258');
+        await tester.enterText(_field('Protein'), '14');
+        await tester.enterText(_field('Fat'), '11');
+        await tester.enterText(_field('Carbohydrate'), '27');
+
+        await tester.enterText(_field('BASE AMOUNT'), '10');
+        await tester.pump();
+        expect(_controllerText(tester, 'Calories'), '25.8');
+        expect(_controllerText(tester, 'Protein'), '1.4');
+        expect(_controllerText(tester, 'Fat'), '1.1');
+        expect(_controllerText(tester, 'Carbohydrate'), '2.7');
+        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+        expect(find.text('NUTRITION PER 10g'), findsOneWidget);
+
+        await tester.enterText(_field('BASE AMOUNT'), '100');
+        await tester.pump();
+        expect(
+          double.parse(_controllerText(tester, 'Calories')),
+          closeTo(258, 1e-9),
+        );
+        expect(
+          double.parse(_controllerText(tester, 'Protein')),
+          closeTo(14, 1e-9),
+        );
+        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+
+        await tester.enterText(_field('BASE AMOUNT'), '1');
+        await tester.pump();
+        expect(
+          double.parse(_controllerText(tester, 'Calories')),
+          closeTo(2.58, 1e-12),
+        );
+        expect(
+          double.parse(_controllerText(tester, 'Protein')),
+          closeTo(0.14, 1e-12),
+        );
+        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+
+        await tester.enterText(_field('BASE AMOUNT'), '100');
+        await tester.pump();
+        expect(
+          double.parse(_controllerText(tester, 'Calories')),
+          closeTo(258, 1e-9),
+        );
+        expect(
+          double.parse(_controllerText(tester, 'Protein')),
+          closeTo(14, 1e-9),
+        );
+        expect(double.parse(_controllerText(tester, 'Fat')), closeTo(11, 1e-9));
+        expect(
+          double.parse(_controllerText(tester, 'Carbohydrate')),
+          closeTo(27, 1e-9),
+        );
+        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+      },
+    );
+
     testWidgets('rejects zero quantity and supports mL', (tester) async {
       MealData? saved;
       await tester.pumpWidget(
@@ -240,6 +342,9 @@ void main() {
       await tester.tap(unitDropdown);
       await tester.pumpAndSettle();
       await tester.tap(find.text('mL').last);
+      await tester.pump();
+      expect(_controllerText(tester, 'BASE AMOUNT'), '100');
+      expect(_controllerText(tester, 'QUANTITY (mL)'), '100');
       await tester.enterText(_field('Calories'), '0');
       await tester.enterText(_field('Protein'), '0');
       await tester.enterText(_field('Fat'), '0');
@@ -343,4 +448,8 @@ Finder _field(String label) {
     (widget) => widget is TextField && widget.decoration?.labelText == label,
     description: 'TextField with label $label',
   );
+}
+
+String _controllerText(WidgetTester tester, String label) {
+  return tester.widget<TextField>(_field(label)).controller!.text;
 }

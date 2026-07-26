@@ -16,6 +16,7 @@ class FoodInputFields extends StatelessWidget {
   final FoodBaseUnit baseUnit;
 
   final ValueChanged<String> onChanged;
+  final ValueChanged<String> onBaseAmountChanged;
   final ValueChanged<FoodBaseUnit> onBaseUnitChanged;
 
   const FoodInputFields({
@@ -29,6 +30,7 @@ class FoodInputFields extends StatelessWidget {
     required this.amountController,
     required this.baseUnit,
     required this.onChanged,
+    required this.onBaseAmountChanged,
     required this.onBaseUnitChanged,
   });
 
@@ -55,7 +57,7 @@ class FoodInputFields extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                onChanged: onChanged,
+                onChanged: onBaseAmountChanged,
               ),
             ),
             const SizedBox(width: 12),

@@ -17,6 +17,8 @@ class BetaMealTemplateResolution {
 class BetaMealTemplateResolver {
   const BetaMealTemplateResolver._();
 
+  static const double _measuredBaseAmount = 100;
+
   static BetaMealTemplateResolution resolve(MealTemplate template) {
     final items = <legacy.FoodItem>[];
     var skippedEntryCount = 0;
@@ -72,7 +74,7 @@ class BetaMealTemplateResolver {
     double amount,
     beta.FoodUnit unit,
   ) {
-    if (unit != foodItem.baseUnit) {
+    if (unit != foodItem.baseUnit || !amount.isFinite || amount <= 0) {
       return null;
     }
 
@@ -82,14 +84,20 @@ class BetaMealTemplateResolver {
       _ => null,
     };
     if (snapshotUnit != null) {
+      final normalizedNutrition = foodItem.nutritionAtBaseAmount.scale(
+        _measuredBaseAmount / foodItem.baseAmount,
+      );
+      if (!_isValidNutrition(normalizedNutrition)) {
+        return null;
+      }
       return legacy.FoodItem(
         name: foodItem.name,
-        calories: foodItem.nutritionAtBaseAmount.calories,
-        protein: foodItem.nutritionAtBaseAmount.protein,
-        fat: foodItem.nutritionAtBaseAmount.fat,
-        carbohydrate: foodItem.nutritionAtBaseAmount.carbs,
+        calories: normalizedNutrition.calories,
+        protein: normalizedNutrition.protein,
+        fat: normalizedNutrition.fat,
+        carbohydrate: normalizedNutrition.carbs,
         amount: amount,
-        baseAmount: foodItem.baseAmount,
+        baseAmount: _measuredBaseAmount,
         baseUnit: snapshotUnit,
       );
     }
@@ -102,6 +110,15 @@ class BetaMealTemplateResolver {
       fat: nutrition.fat,
       carbohydrate: nutrition.carbs,
     );
+  }
+
+  static bool _isValidNutrition(beta.FoodNutrition nutrition) {
+    return [
+      nutrition.calories,
+      nutrition.protein,
+      nutrition.fat,
+      nutrition.carbs,
+    ].every((value) => value.isFinite && value >= 0);
   }
 
   static String _formatAmount(double amount, beta.FoodUnit unit) {
