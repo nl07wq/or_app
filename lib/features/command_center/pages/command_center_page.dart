@@ -70,7 +70,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
                       );
 
                 return Scaffold(
-                  appBar: AppBar(title: const Text('Commander Center')),
+                  appBar: AppBar(title: const Text('COMMAND CENTER')),
                   body: Column(
                     children: [
                       _WorkspaceHeader(

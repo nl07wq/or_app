@@ -919,7 +919,7 @@ class _CommandCenterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.flag,
-      text: 'Command Center',
+      text: 'COMMAND CENTER',
       onPressed: () {
         Navigator.pushNamed(context, AppRoutes.commandCenter);
       },

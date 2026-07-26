@@ -11,7 +11,7 @@ class CommanderCenterPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('COMMANDER CENTER')),
+      appBar: AppBar(title: const Text('COMMAND CENTER')),
       body: ListView(
         padding: AppSpacing.cardPadding,
         children: const [

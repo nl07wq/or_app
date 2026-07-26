@@ -23,7 +23,7 @@ class CommanderCenterDebugPage extends StatelessWidget {
     final brief = const MorningBriefBuilder().build(result, fact);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Commander Center Debug')),
+      appBar: AppBar(title: const Text('COMMAND CENTER')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
