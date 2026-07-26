@@ -56,6 +56,17 @@ class MorningRepository {
     }
   }
 
+  static Future<MorningData?> loadLatest() async {
+    final records = await getAll();
+    if (records.isEmpty) return null;
+
+    return records.reduce((latest, record) {
+      final latestDate = DateTime.parse(latest.date);
+      final recordDate = DateTime.parse(record.date);
+      return recordDate.isAfter(latestDate) ? record : latest;
+    });
+  }
+
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
 

@@ -6,14 +6,15 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 
+import 'services/morning_fact_initializer.dart';
+import 'services/morning_submit_service.dart';
 import 'widgets/body_card.dart';
+import 'widgets/foot_card.dart';
 import 'widgets/memo_input_card.dart';
 import 'widgets/morning_submit_button.dart';
 import 'widgets/recovery_card.dart';
-import 'widgets/foot_card.dart';
 import 'widgets/work_card.dart';
 
-import 'services/morning_submit_service.dart';
 import '../../core/models/morning_data.dart';
 
 class MorningFactPage extends StatefulWidget {
@@ -28,6 +29,8 @@ class MorningFactPage extends StatefulWidget {
 }
 
 class _MorningFactPageState extends State<MorningFactPage> {
+  bool _initialValuesLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,12 +53,29 @@ class _MorningFactPageState extends State<MorningFactPage> {
       workBreakController.text = data.workBreak;
 
       memoController.text = data.memo;
+      _initialValuesLoaded = true;
     } else {
       // 新規入力時のデフォルト値
       workStartController.text = "11:00";
       workEndController.text = "18:00";
       workBreakController.text = "01:00";
+
+      _initializeNewMorning();
     }
+  }
+
+  Future<void> _initializeNewMorning() async {
+    final values = await const MorningFactInitializer().initialize();
+    if (!mounted) return;
+
+    weightController.text = values.weight;
+    bodyFatController.text = values.bodyFat;
+    sleepController.text = values.sleep;
+    sleepScoreController.text = values.sleepScore;
+
+    setState(() {
+      _initialValuesLoaded = true;
+    });
   }
 
   // Controllers
@@ -104,90 +124,92 @@ class _MorningFactPageState extends State<MorningFactPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Morning Fact')),
-      body: Padding(
-        padding: AppSpacing.cardPadding,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              BodyCard(
-                weightController: weightController,
-                bodyFatController: bodyFatController,
-              ),
+      body: !_initialValuesLoaded
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: AppSpacing.cardPadding,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    BodyCard(
+                      weightController: weightController,
+                      bodyFatController: bodyFatController,
+                    ),
 
-              AppSpacing.gapMD,
+                    AppSpacing.gapMD,
 
-              RecoveryCard(
-                sleepController: sleepController,
-                sleepScoreController: sleepScoreController,
-              ),
+                    RecoveryCard(
+                      sleepController: sleepController,
+                      sleepScoreController: sleepScoreController,
+                    ),
 
-              AppSpacing.gapMD,
+                    AppSpacing.gapMD,
 
-              FootCard(controller: footPainController),
+                    FootCard(controller: footPainController),
 
-              AppSpacing.gapMD,
+                    AppSpacing.gapMD,
 
-              WorkCard(
-                workType: selectedWorkType,
-                onChanged: (value) {
-                  setState(() {
-                    selectedWorkType = value;
-                  });
-                },
-                startController: workStartController,
-                endController: workEndController,
-                breakController: workBreakController,
-              ),
-
-              AppSpacing.gapMD,
-
-              MemoInputCard(controller: memoController),
-
-              AppSpacing.gapXL,
-
-              MorningSubmitButton(
-                isEdit: widget.isEdit,
-                onPressed: () async {
-                  String? error;
-                  try {
-                    error = await MorningSubmitService.submit(
-                      existingData: widget.data,
+                    WorkCard(
                       workType: selectedWorkType,
-                      weightText: weightController.text,
-                      bodyFatText: bodyFatController.text,
-                      sleepText: sleepController.text,
-                      sleepScoreText: sleepScoreController.text,
-                      footPainText: footPainController.text,
-                      workStart: workStartController.text,
-                      workEnd: workEndController.text,
-                      workBreak: workBreakController.text,
-                      memo: memoController.text,
-                    );
+                      onChanged: (value) {
+                        setState(() {
+                          selectedWorkType = value;
+                        });
+                      },
+                      startController: workStartController,
+                      endController: workEndController,
+                      breakController: workBreakController,
+                    ),
 
-                    if (!context.mounted) return;
+                    AppSpacing.gapMD,
 
-                    if (error != null) {
-                      _showError(error);
-                      return;
-                    }
+                    MemoInputCard(controller: memoController),
 
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                      AppRoutes.dashboard,
-                      (route) => false,
-                    );
-                  } on ConfirmedDailyLogException catch (exception) {
-                    if (context.mounted) {
-                      showConfirmedLogMessage(context, exception);
-                    }
-                    return;
-                  }
-                },
+                    AppSpacing.gapXL,
+
+                    MorningSubmitButton(
+                      isEdit: widget.isEdit,
+                      onPressed: () async {
+                        String? error;
+                        try {
+                          error = await MorningSubmitService.submit(
+                            existingData: widget.data,
+                            workType: selectedWorkType,
+                            weightText: weightController.text,
+                            bodyFatText: bodyFatController.text,
+                            sleepText: sleepController.text,
+                            sleepScoreText: sleepScoreController.text,
+                            footPainText: footPainController.text,
+                            workStart: workStartController.text,
+                            workEnd: workEndController.text,
+                            workBreak: workBreakController.text,
+                            memo: memoController.text,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (error != null) {
+                            _showError(error);
+                            return;
+                          }
+
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            AppRoutes.dashboard,
+                            (route) => false,
+                          );
+                        } on ConfirmedDailyLogException catch (exception) {
+                          if (context.mounted) {
+                            showConfirmedLogMessage(context, exception);
+                          }
+                          return;
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
