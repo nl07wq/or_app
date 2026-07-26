@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('starts collapsed and expands to two five-chip rows', (
+  testWidgets('starts expanded when no pain level has been entered', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 800);
@@ -30,17 +30,18 @@ void main() {
           .data,
       '—',
     );
-    expect(find.byKey(const Key('foot-pain-chip-1')), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
-
-    await _toggle(tester);
+    final emptyValue = tester.widget<Text>(
+      find.byKey(const Key('foot-pain-current-value')),
+    );
+    expect(emptyValue.style?.color, Colors.white70);
 
     final firstRow = find.byKey(const Key('foot-pain-levels-1-5'));
     final secondRow = find.byKey(const Key('foot-pain-levels-6-10'));
     expect(tester.widget(firstRow), isA<LayoutBuilder>());
     expect(tester.widget(secondRow), isA<LayoutBuilder>());
     expect(find.byType(ChoiceChip), findsNothing);
-    expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
 
     for (final value in [1, 2, 3, 4, 5]) {
       expect(
@@ -84,7 +85,25 @@ void main() {
 
     expect(find.byKey(const Key('foot-pain-chip-3')), findsNothing);
     expect(_currentValue(tester), '3');
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
+
+  testWidgets('collapsed value matches the Sleep Score accent style', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '5');
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(_testApp(controller));
+
+    final currentValue = tester.widget<Text>(
+      find.byKey(const Key('foot-pain-current-value')),
+    );
+    expect(currentValue.data, '5');
+    expect(currentValue.style?.fontSize, 20);
+    expect(currentValue.style?.fontWeight, FontWeight.w600);
+    expect(currentValue.style?.color, Colors.lightBlueAccent);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
   });
 
   testWidgets('PWA width distributes five chips across the full row', (
@@ -181,7 +200,7 @@ void main() {
     expect(controller.text, '8');
     expect(_currentValue(tester), '8');
     expect(chipFinder, findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
 
     await _toggle(tester);
     expect(_checkmarkFinder(8), findsOneWidget);
@@ -242,10 +261,6 @@ void main() {
     await tester.pumpWidget(_testApp(controller));
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pump();
-    expect(find.byKey(const Key('foot-pain-chip-1')), findsOneWidget);
-
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
@@ -294,7 +309,6 @@ void main() {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
-    await _toggle(tester);
 
     await tester.tap(find.byKey(const Key('foot-pain-chip-7')));
     await tester.pump();
@@ -318,7 +332,7 @@ void main() {
   });
 
   testWidgets('guidance is visible only while expanded', (tester) async {
-    final controller = TextEditingController();
+    final controller = TextEditingController(text: '3');
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 

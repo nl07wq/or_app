@@ -20,17 +20,23 @@ class _FootCardState extends State<FootCard> {
   static const _compactWidth = 280.0;
   static const _desktopWidth = 600.0;
 
-  bool _expanded = false;
+  late bool _expanded;
 
   int? get _selectedValue => int.tryParse(widget.controller.text);
+  bool get _hasSelectedValue {
+    final value = _selectedValue;
+    return value != null && value >= 1 && value <= 10;
+  }
+
   String get _currentValueLabel {
     final value = _selectedValue;
-    return value != null && value >= 1 && value <= 10 ? '$value' : '—';
+    return _hasSelectedValue ? '$value' : '—';
   }
 
   @override
   void initState() {
     super.initState();
+    _expanded = widget.controller.text.trim().isEmpty;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -40,6 +46,7 @@ class _FootCardState extends State<FootCard> {
     if (oldWidget.controller == widget.controller) return;
 
     oldWidget.controller.removeListener(_handleControllerChanged);
+    _expanded = widget.controller.text.trim().isEmpty;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -150,13 +157,17 @@ class _FootCardState extends State<FootCard> {
                     Text(
                       _currentValueLabel,
                       key: const Key('foot-pain-current-value'),
-                      style: Theme.of(context).textTheme.labelLarge,
+                      style: _hasSelectedValue
+                          ? const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.lightBlueAccent,
+                            )
+                          : Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white70,
+                            ),
                     ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      _expanded ? Icons.keyboard_arrow_up : Icons.chevron_right,
-                      key: const Key('foot-pain-expand-icon'),
-                    ),
+                    const SizedBox(width: 12),
                   ],
                 ),
               ),
