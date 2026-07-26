@@ -228,6 +228,11 @@ void main() {
         updatedAt: now,
         ownerId: 'other-tab',
         leaseExpiresAt: now.add(const Duration(minutes: 5)),
+        expectedRecordIds: const {
+          IndexedDbStoreNames.statusRecords: [],
+          IndexedDbStoreNames.migrationQuarantine: [],
+        },
+        sourceDigest: '811c9dc5',
       );
       await database.put(
         IndexedDbStoreNames.migrationMetadata,

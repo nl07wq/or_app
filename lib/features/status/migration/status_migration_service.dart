@@ -426,25 +426,13 @@ class StatusMigrationService {
   Future<StatusMigrationResult> _verifyCompleted(
     IndexedDbMigrationMetadata metadata,
   ) async {
+    _validateCompletedMetadata(metadata);
     final expectedStatusIds =
         metadata.expectedRecordIds[IndexedDbStoreNames.statusRecords] ??
         const [];
     final expectedQuarantineIds =
         metadata.expectedRecordIds[IndexedDbStoreNames.migrationQuarantine] ??
         const [];
-    final repository = IndexedDbStatusRepository(_database);
-    final result = await repository.findAllIncludingRevisions();
-    if (result.hasIssues) {
-      throw RepositoryException(
-        operation: 'status.migration.verifyCompleted',
-        code: RepositoryErrorCode.partialCorruption,
-        cause: result.issues,
-      );
-    }
-    final statusIds = {
-      for (final record in result.records)
-        if (record.migrationSource?.migrationId == migrationId) record.id,
-    };
     final quarantineValues = await _database.findAll(
       IndexedDbStoreNames.migrationQuarantine,
     );
@@ -454,14 +442,9 @@ class StatusMigrationService {
             migrationId)
           value['id'] as String,
     };
-    if (!_sameSet(statusIds, expectedStatusIds) ||
-        !_sameSet(quarantineIds, expectedQuarantineIds)) {
-      throw RepositoryException(
-        operation: 'status.migration.verifyCompleted',
-        code: RepositoryErrorCode.verificationFailed,
-        cause: const FormatException(
-          'Completed STATUS migration no longer matches metadata.',
-        ),
+    if (!_sameSet(quarantineIds, expectedQuarantineIds)) {
+      throw _completedVerificationFailure(
+        'Completed STATUS migration quarantine no longer matches metadata.',
       );
     }
     return StatusMigrationResult(
@@ -472,8 +455,83 @@ class StatusMigrationService {
           metadata.quarantinedCounts[StatusLegacyReader.sourceKey] ?? 0,
       canonicalCount: metadata.validCounts['canonical'] ?? 0,
       legacyRevisionCount: metadata.validCounts['legacyRevision'] ?? 0,
-      statusRecordIds: statusIds,
+      statusRecordIds: expectedStatusIds,
       quarantineRecordIds: quarantineIds,
+    );
+  }
+
+  static void _validateCompletedMetadata(IndexedDbMigrationMetadata metadata) {
+    final expectedStatusIds =
+        metadata.expectedRecordIds[IndexedDbStoreNames.statusRecords];
+    final expectedQuarantineIds =
+        metadata.expectedRecordIds[IndexedDbStoreNames.migrationQuarantine];
+    final sourceDigest = metadata.sourceDigest;
+    final completedAt = metadata.completedAt;
+    final timestampsAreOrdered =
+        completedAt != null &&
+        !metadata.updatedAt.isBefore(metadata.startedAt) &&
+        !completedAt.isBefore(metadata.startedAt) &&
+        !completedAt.isAfter(metadata.updatedAt);
+    if (metadata.id != migrationId ||
+        metadata.source != StatusLegacyReader.sourceSystem ||
+        metadata.targetDatabaseVersion != IndexedDbSchema.databaseVersion ||
+        metadata.status != IndexedDbMigrationStatus.completed ||
+        completedAt == null ||
+        metadata.attempt < 1 ||
+        !timestampsAreOrdered ||
+        sourceDigest == null ||
+        !RegExp(r'^[0-9a-f]{8}$').hasMatch(sourceDigest) ||
+        expectedStatusIds == null ||
+        expectedQuarantineIds == null ||
+        !_validExpectedIds(expectedStatusIds, _isStatusRecordId) ||
+        !_validExpectedIds(
+          expectedQuarantineIds,
+          _isStatusQuarantineRecordId,
+        )) {
+      throw _completedVerificationFailure(
+        'Completed STATUS migration metadata is invalid.',
+      );
+    }
+  }
+
+  static bool _validExpectedIds(
+    List<String> ids,
+    bool Function(String id) validates,
+  ) {
+    return ids.toSet().length == ids.length && ids.every(validates);
+  }
+
+  static bool _isStatusRecordId(String id) {
+    final canonical = RegExp(r'^status:(\d{4}-\d{2}-\d{2})$').firstMatch(id);
+    if (canonical != null) {
+      try {
+        PersistedStatusRecord.validateLocalDate(canonical.group(1)!);
+        return true;
+      } on FormatException {
+        return false;
+      }
+    }
+    final revision = RegExp(
+      r'^legacy-status:(\d{4}-\d{2}-\d{2}):\d{4}$',
+    ).firstMatch(id);
+    if (revision == null) return false;
+    try {
+      PersistedStatusRecord.validateLocalDate(revision.group(1)!);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  static bool _isStatusQuarantineRecordId(String id) {
+    return RegExp(r'^quarantine:status:\d{8,}$').hasMatch(id);
+  }
+
+  static RepositoryException _completedVerificationFailure(String message) {
+    return RepositoryException(
+      operation: 'status.migration.verifyCompleted',
+      code: RepositoryErrorCode.verificationFailed,
+      cause: FormatException(message),
     );
   }
 

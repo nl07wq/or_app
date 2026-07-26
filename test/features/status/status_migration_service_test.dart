@@ -233,6 +233,186 @@ void main() {
     },
   );
 
+  test('completed Migration permits normal STATUS Store changes', () async {
+    final rawRecords = [
+      jsonEncode(_morning('2026-07-25T08:00:00', weight: 69)),
+      jsonEncode(_morning('2026-07-26T08:00:00', weight: 70)),
+    ];
+    SharedPreferences.setMockInitialValues({legacyKey: rawRecords});
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    final first = await service.migrate();
+
+    await database.deleteById(
+      IndexedDbStoreNames.statusRecords,
+      'status:2026-07-25',
+    );
+    await IndexedDbStatusRepository(
+      database,
+      now: () => migrationTime.add(const Duration(days: 1)),
+    ).save(
+      MorningData.fromJson(
+        _morning('2026-07-26T08:00:00', weight: 71, memo: 'edited'),
+      ),
+    );
+
+    final result = await service.migrate();
+
+    expect(result.alreadyCompleted, isTrue);
+    expect(result.statusRecordIds, first.statusRecordIds);
+    expect(
+      (await IndexedDbStatusRepository(
+        database,
+      ).findByLocalDate('2026-07-26'))?.memo,
+      'edited',
+    );
+  });
+
+  test(
+    'completed Migration permits REPLACE ALL equivalent STATUS IDs',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        legacyKey: [jsonEncode(_morning('2026-07-26T08:00:00', weight: 70))],
+      });
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      final first = await service.migrate();
+
+      await database.clear(IndexedDbStoreNames.statusRecords);
+      await IndexedDbStatusRepository(
+        database,
+        now: () => migrationTime.add(const Duration(days: 1)),
+      ).save(MorningData.fromJson(_morning('2026-07-27T08:00:00', weight: 72)));
+
+      final replaced = await service.migrate();
+      expect(replaced.alreadyCompleted, isTrue);
+      expect(replaced.statusRecordIds, first.statusRecordIds);
+
+      await database.clear(IndexedDbStoreNames.statusRecords);
+      expect((await service.migrate()).alreadyCompleted, isTrue);
+    },
+  );
+
+  test('completed Migration rejects invalid metadata contract', () async {
+    final mutations = <void Function(Map<String, Object?>)>[
+      (record) => record['id'] = 'wrong-migration-id',
+      (record) => record['source'] = 'wrong-source',
+      (record) => record['targetDatabaseVersion'] = 99,
+      (record) => record['completedAt'] = null,
+      (record) => record['attempt'] = 0,
+      (record) => record['sourceDigest'] = 'not-a-digest',
+      (record) {
+        final expected = Map<String, Object?>.from(
+          record['expectedRecordIds']! as Map,
+        )..remove(IndexedDbStoreNames.statusRecords);
+        record['expectedRecordIds'] = expected;
+      },
+      (record) {
+        final expected = Map<String, Object?>.from(
+          record['expectedRecordIds']! as Map,
+        )..remove(IndexedDbStoreNames.migrationQuarantine);
+        record['expectedRecordIds'] = expected;
+      },
+      (record) {
+        final expected = Map<String, Object?>.from(
+          record['expectedRecordIds']! as Map,
+        )..[IndexedDbStoreNames.statusRecords] = ['not-a-status-record-id'];
+        record['expectedRecordIds'] = expected;
+      },
+      (record) {
+        final expected =
+            Map<String, Object?>.from(record['expectedRecordIds']! as Map)
+              ..[IndexedDbStoreNames.statusRecords] = [
+                'status:2026-07-26',
+                'status:2026-07-26',
+              ];
+        record['expectedRecordIds'] = expected;
+      },
+    ];
+
+    for (final mutate in mutations) {
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      await service.migrate();
+      final metadata = _metadata(database).toRecord();
+      mutate(metadata);
+      database.seed(
+        IndexedDbStoreNames.migrationMetadata,
+        StatusMigrationService.migrationId,
+        metadata,
+      );
+
+      await expectLater(
+        service.migrate(),
+        throwsA(
+          isA<RepositoryException>().having(
+            (error) => error.code,
+            'code',
+            RepositoryErrorCode.verificationFailed,
+          ),
+        ),
+      );
+    }
+  });
+
+  test(
+    'completed Migration rejects missing or added STATUS quarantine',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        legacyKey: ['{broken'],
+      });
+      final missingDatabase = FakeIndexedDbDatabase();
+      final missingService = _service(missingDatabase, migrationTime);
+      final missingFirst = await missingService.migrate();
+      await missingDatabase.deleteById(
+        IndexedDbStoreNames.migrationQuarantine,
+        missingFirst.quarantineRecordIds.single,
+      );
+
+      await expectLater(
+        missingService.migrate(),
+        throwsA(
+          isA<RepositoryException>().having(
+            (error) => error.code,
+            'code',
+            RepositoryErrorCode.verificationFailed,
+          ),
+        ),
+      );
+
+      final addedDatabase = FakeIndexedDbDatabase();
+      final addedService = _service(addedDatabase, migrationTime);
+      await addedService.migrate();
+      final unexpected = IndexedDbQuarantinedRecord(
+        id: 'quarantine:status:99999999',
+        migrationId: StatusMigrationService.migrationId,
+        sourceSystem: StatusLegacyReader.sourceSystem,
+        sourceKey: legacyKey,
+        sourceSection: legacyKey,
+        sourceIndex: 99999999,
+        rawPayload: 'unexpected',
+        errorCode: 'invalidJson',
+        errorMessage: 'unexpected',
+        quarantinedAt: migrationTime,
+      );
+      await addedDatabase.put(
+        IndexedDbStoreNames.migrationQuarantine,
+        unexpected.toRecord(),
+      );
+
+      await expectLater(
+        addedService.migrate(),
+        throwsA(
+          isA<RepositoryException>().having(
+            (error) => error.code,
+            'code',
+            RepositoryErrorCode.verificationFailed,
+          ),
+        ),
+      );
+    },
+  );
+
   test('transaction failure is not completed and can be retried', () async {
     final rawRecords = [
       jsonEncode(_morning('2026-07-26T08:00:00', weight: 70)),
