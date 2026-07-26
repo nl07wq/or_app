@@ -78,7 +78,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             : engine.estimateTDEE(input);
 
                         return Scaffold(
-                          appBar: AppBar(title: const Text('ORLO DASHBOARD')),
+                          appBar: AppBar(title: const Text('O.R.L.O.')),
                           body: ListView(
                             padding: AppSpacing.cardPadding,
                             children: [
@@ -316,16 +316,27 @@ class _ConfirmedLogConfirmationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "TODAY'S LOG CONFIRMED",
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Icon(
+                Icons.check_circle_outline,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'DAILY LOG FINALIZED',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
           ),
           AppSpacing.gapSM,
-          Text('Confirmed at $time'),
+          Text('Finalized at $time'),
           AppSpacing.gapMD,
           OperationButton(
-            icon: Icons.visibility_outlined,
-            text: 'View Confirmation',
+            icon: Icons.article_outlined,
+            text: 'VIEW DAILY LOG',
             onPressed: () => Navigator.pushNamed(
               context,
               AppRoutes.logConfirmationDetail,
@@ -335,7 +346,7 @@ class _ConfirmedLogConfirmationCard extends StatelessWidget {
           AppSpacing.gapSM,
           OperationButton(
             icon: Icons.edit_note_outlined,
-            text: 'Correct Log',
+            text: 'CORRECT LOG',
             onPressed: isReadOnly ? null : () => _showReopenDialog(context),
           ),
         ],

@@ -192,6 +192,74 @@ void main() {
     expect(find.widgetWithText(AppBar, 'DAILY REVIEW'), findsOneWidget);
   });
 
+  testWidgets('finalized Dashboard uses DAILY LOG terminology and route', (
+    tester,
+  ) async {
+    final confirmation = completeConfirmation();
+    RouteSettings? openedRoute;
+    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.confirmed(
+      confirmation,
+    );
+
+    await _pumpDashboard(
+      tester,
+      onGenerateRoute: (settings) {
+        openedRoute = settings;
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => const Scaffold(body: Text('DETAIL ROUTE')),
+        );
+      },
+    );
+    await tester.scrollUntilVisible(
+      find.text('VIEW DAILY LOG'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsOneWidget);
+    expect(find.text('DAILY LOG FINALIZED'), findsOneWidget);
+    expect(find.textContaining('Finalized at'), findsOneWidget);
+    expect(find.text('VIEW DAILY LOG'), findsOneWidget);
+    expect(find.bySemanticsLabel('VIEW DAILY LOG'), findsOneWidget);
+    expect(find.byIcon(Icons.article_outlined), findsOneWidget);
+    expect(find.text('CORRECT LOG'), findsOneWidget);
+    expect(find.bySemanticsLabel('CORRECT LOG'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_note_outlined), findsOneWidget);
+    expect(find.text("TODAY'S LOG CONFIRMED"), findsNothing);
+    expect(find.textContaining('Confirmed at'), findsNothing);
+    expect(find.text('View Confirmation'), findsNothing);
+    expect(find.text('Correct Log'), findsNothing);
+
+    await tester.tap(find.text('VIEW DAILY LOG'));
+    await tester.pumpAndSettle();
+
+    expect(openedRoute?.name, AppRoutes.logConfirmationDetail);
+    expect(openedRoute?.arguments, confirmation.date);
+    expect(find.text('DETAIL ROUTE'), findsOneWidget);
+  });
+
+  testWidgets('CORRECT LOG keeps the existing reopen confirmation flow', (
+    tester,
+  ) async {
+    final confirmation = completeConfirmation();
+    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.confirmed(
+      confirmation,
+    );
+
+    await _pumpDashboard(tester);
+    await tester.scrollUntilVisible(
+      find.text('CORRECT LOG'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('CORRECT LOG'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AlertDialog, 'Correct Log'), findsOneWidget);
+    expect(find.text('編集を再開'), findsOneWidget);
+  });
+
   testWidgets('Daily Review renders only available formal summary values', (
     tester,
   ) async {
@@ -355,7 +423,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(AppBar, 'DAILY REVIEW'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'DAILY LOG'), findsOneWidget);
+    expect(find.text('DAILY LOG FINALIZED'), findsOneWidget);
     for (final label in [
       'STATUS review',
       'FOOD review',
@@ -368,9 +437,11 @@ void main() {
     }
     expect(find.text('EST. TOTAL BURN  2,876 kcal'), findsOneWidget);
     expect(
-      find.textContaining('Confirmed at 2026-07-26 22:30'),
+      find.textContaining('Finalized at 2026-07-26 22:30'),
       findsOneWidget,
     );
+    expect(find.text('DAILY REVIEW'), findsNothing);
+    expect(find.textContaining('Confirmed at'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
     expect(find.text('BACK TO EDIT'), findsNothing);
     expect(find.text('LOG CONFIRMATION'), findsNothing);
@@ -396,6 +467,29 @@ void main() {
 
     expect(find.text('EST. TOTAL BURN  Not available'), findsOneWidget);
     expect(find.textContaining('9,999'), findsNothing);
+  });
+
+  testWidgets('confirmed detail remains overflow-free at 320 pixels', (
+    tester,
+  ) async {
+    final confirmation = completeConfirmation();
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(confirmation.toJson())],
+    });
+    tester.view.physicalSize = const Size(320, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('DAILY LOG FINALIZED'), findsOneWidget);
   });
 
   testWidgets('Daily Review shows no inferred carry over or bowel values', (
@@ -525,13 +619,18 @@ Future<void> _pumpDailyLogCard(
   await tester.pump();
 }
 
-Future<void> _pumpDashboard(WidgetTester tester) async {
+Future<void> _pumpDashboard(
+  WidgetTester tester, {
+  RouteFactory? onGenerateRoute,
+}) async {
   tester.view.physicalSize = const Size(800, 3000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
-  await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
+  await tester.pumpWidget(
+    MaterialApp(home: const DashboardPage(), onGenerateRoute: onGenerateRoute),
+  );
   await tester.pump();
 }
 

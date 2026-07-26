@@ -30,7 +30,7 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('DAILY REVIEW')),
+      appBar: AppBar(title: const Text('DAILY LOG')),
       body: FutureBuilder<DailyLogConfirmation?>(
         future: _confirmation,
         builder: (context, snapshot) {
@@ -57,6 +57,33 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: Colors.cyanAccent,
+                          size: 22,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'DAILY LOG FINALIZED',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.gapSM,
+                    Text(
+                      'Finalized at '
+                      '${_formatDateTime(confirmation.confirmedAt)}',
+                    ),
+                    AppSpacing.gapLG,
                     DailyReviewBody(
                       morning: confirmation.morning,
                       food: confirmation.food,
@@ -64,11 +91,6 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
                       training: confirmation.training,
                       estimatedTotalBurnKcal:
                           confirmation.estimatedTotalBurnKcal,
-                    ),
-                    AppSpacing.gapLG,
-                    Text(
-                      'Confirmed at '
-                      '${_formatDateTime(confirmation.confirmedAt)}',
                     ),
                   ],
                 ),
