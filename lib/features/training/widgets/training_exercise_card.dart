@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/models/training_set.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/section_header.dart';
 
 import '../models/training_exercise_controller.dart';
 import '../models/training_set_controller.dart';
+import '../services/exercise_name_localization.dart';
+import '../services/statistics_service.dart';
 import 'equipment_selector.dart';
 import 'exercise_selector.dart';
+import 'training_collapsible_card.dart';
+import 'training_metric_format.dart';
 import 'training_set_list.dart';
 import 'training_summary_section.dart';
 
@@ -21,6 +24,8 @@ class TrainingExerciseCard extends StatefulWidget {
   final int index;
   final TrainingSetController? activeSet;
   final ValueChanged<TrainingSetController?> onSetActivated;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
 
   const TrainingExerciseCard({
     super.key,
@@ -32,6 +37,8 @@ class TrainingExerciseCard extends StatefulWidget {
     required this.index,
     required this.activeSet,
     required this.onSetActivated,
+    required this.isExpanded,
+    required this.onToggleExpanded,
   });
 
   @override
@@ -41,14 +48,26 @@ class TrainingExerciseCard extends StatefulWidget {
 class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    final header = _buildHeader();
+
+    return TrainingCollapsibleCard(
+      icon: Icons.fitness_center,
+      title: header.title,
+      summary: header.summary,
+      isExpanded: widget.isExpanded,
+      onToggle: widget.onToggleExpanded,
+      headerKey: ValueKey(
+        'exercise-header-${identityHashCode(widget.controller)}',
+      ),
+      contentKey: ValueKey(
+        'exercise-content-${identityHashCode(widget.controller)}',
+      ),
+      semanticsLabel:
+          '${header.title}, '
+          '${widget.isExpanded ? 'expanded' : 'collapsed'}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(icon: Icons.fitness_center, title: 'EXERCISE'),
-
-          AppSpacing.gapMD,
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -144,4 +163,54 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
       ),
     );
   }
+
+  _ExerciseHeader _buildHeader() {
+    final exerciseName = widget.controller.exerciseController.text.trim();
+    if (exerciseName.isEmpty) {
+      return _ExerciseHeader(
+        title: 'EXERCISE ${widget.index + 1}',
+        summary: 'Not configured',
+      );
+    }
+
+    final sets = <TrainingSet>[];
+    for (var index = 0; index < widget.controller.sets.length; index++) {
+      final setController = widget.controller.sets[index];
+      final weight = double.tryParse(
+        setController.weightController.text.trim(),
+      );
+      final reps = int.tryParse(setController.repsController.text.trim());
+      if (weight == null ||
+          !weight.isFinite ||
+          weight < 0 ||
+          reps == null ||
+          reps <= 0) {
+        continue;
+      }
+      sets.add(TrainingSet(setNo: index + 1, weight: weight, reps: reps));
+    }
+
+    final statistics = StatisticsService.calculate(sets);
+    final summaryParts = <String>[
+      if (statistics.heaviestSet case final heaviestSet?)
+        '${formatTrainingNumber(heaviestSet.weight)} kg',
+      if (statistics.workingSets > 0)
+        '${statistics.workingSets} '
+            '${statistics.workingSets == 1 ? 'Set' : 'Sets'}',
+      if (statistics.totalRepetitions > 0)
+        '${statistics.totalRepetitions} Reps',
+    ];
+
+    return _ExerciseHeader(
+      title: exerciseDisplayName(exerciseName),
+      summary: summaryParts.isEmpty ? null : summaryParts.join(' · '),
+    );
+  }
+}
+
+class _ExerciseHeader {
+  const _ExerciseHeader({required this.title, required this.summary});
+
+  final String title;
+  final String? summary;
 }

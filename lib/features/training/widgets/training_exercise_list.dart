@@ -9,6 +9,8 @@ class TrainingExerciseList extends StatefulWidget {
   final bool isEditMode;
   final Function(TrainingExerciseController) onCopy;
   final Function(TrainingExerciseController) onDelete;
+  final TrainingExerciseController? expandedExercise;
+  final ValueChanged<TrainingExerciseController> onToggleExpanded;
 
   const TrainingExerciseList({
     super.key,
@@ -16,6 +18,8 @@ class TrainingExerciseList extends StatefulWidget {
     required this.isEditMode,
     required this.onCopy,
     required this.onDelete,
+    required this.expandedExercise,
+    required this.onToggleExpanded,
   });
 
   @override
@@ -33,6 +37,11 @@ class _TrainingExerciseListState extends State<TrainingExerciseList> {
         !widget.exercises.any(
           (exercise) => exercise.sets.contains(activeSet),
         )) {
+      _activeSet = null;
+    }
+    if (activeSet != null &&
+        (widget.expandedExercise == null ||
+            !widget.expandedExercise!.sets.contains(activeSet))) {
       _activeSet = null;
     }
   }
@@ -72,6 +81,8 @@ class _TrainingExerciseListState extends State<TrainingExerciseList> {
             canDelete: widget.exercises.length > 1,
             activeSet: _activeSet,
             onSetActivated: _activateSet,
+            isExpanded: identical(widget.expandedExercise, exercise),
+            onToggleExpanded: () => widget.onToggleExpanded(exercise),
 
             onCopy: () => widget.onCopy(exercise),
 

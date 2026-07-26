@@ -110,6 +110,8 @@ void main() {
           body: TrainingExerciseList(
             exercises: [controller],
             isEditMode: false,
+            expandedExercise: controller,
+            onToggleExpanded: (_) {},
             onCopy: (_) {},
             onDelete: (_) {},
           ),
@@ -210,6 +212,8 @@ void main() {
             index: 0,
             activeSet: null,
             onSetActivated: (_) {},
+            isExpanded: true,
+            onToggleExpanded: () {},
           ),
         ),
       ),
