@@ -14,6 +14,7 @@ class FoodInputFields extends StatelessWidget {
   final TextEditingController baseAmountController;
   final TextEditingController amountController;
   final FoodBaseUnit baseUnit;
+  final FoodAmountMode amountMode;
 
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onBaseAmountChanged;
@@ -29,6 +30,7 @@ class FoodInputFields extends StatelessWidget {
     required this.baseAmountController,
     required this.amountController,
     required this.baseUnit,
+    required this.amountMode,
     required this.onChanged,
     required this.onBaseAmountChanged,
     required this.onBaseUnitChanged,
@@ -37,6 +39,18 @@ class FoodInputFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseAmount = _formatAmount(baseAmountController.text);
+    final parsedBaseAmount = double.tryParse(baseAmountController.text.trim());
+    final parsedAmount = double.tryParse(amountController.text.trim());
+    final physicalAmount =
+        amountMode == FoodAmountMode.baseMultiplier &&
+            parsedBaseAmount != null &&
+            parsedBaseAmount.isFinite &&
+            parsedBaseAmount > 0 &&
+            parsedAmount != null &&
+            parsedAmount.isFinite &&
+            parsedAmount > 0
+        ? parsedBaseAmount * parsedAmount
+        : null;
 
     return Column(
       children: [
@@ -143,10 +157,35 @@ class FoodInputFields extends StatelessWidget {
 
         OperationTextField(
           controller: amountController,
-          label: 'QUANTITY (${baseUnit.label})',
+          label: amountMode == FoodAmountMode.baseMultiplier
+              ? 'AMOUNT'
+              : 'QUANTITY (${baseUnit.label})',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: onChanged,
         ),
+
+        if (amountMode == FoodAmountMode.baseMultiplier) ...[
+          AppSpacing.gapXS,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '1 AMOUNT = $baseAmount${baseUnit.label}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+
+        if (physicalAmount != null) ...[
+          AppSpacing.gapXS,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '実使用量: ${_formatNumber(physicalAmount)}'
+              '${baseUnit.label}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -154,6 +193,10 @@ class FoodInputFields extends StatelessWidget {
   static String _formatAmount(String source) {
     final value = double.tryParse(source.trim());
     if (value == null || !value.isFinite || value <= 0) return '—';
+    return _formatNumber(value);
+  }
+
+  static String _formatNumber(double value) {
     return value == value.roundToDouble()
         ? value.round().toString()
         : value.toString();

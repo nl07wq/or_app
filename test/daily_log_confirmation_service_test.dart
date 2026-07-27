@@ -78,9 +78,14 @@ void main() {
           'fat': 3.6,
           'carbohydrate': 0,
           'quantity': 1,
-          'amount': 250,
+          'amount': 2.5,
           'baseAmount': 100,
           'baseUnit': 'g',
+          'amountMode': 'baseMultiplier',
+          'calculatedCalories': 412.5,
+          'calculatedProtein': 77.5,
+          'calculatedFat': 9,
+          'calculatedCarbohydrate': 0,
         },
       ];
     SharedPreferences.setMockInitialValues(

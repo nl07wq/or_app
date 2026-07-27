@@ -79,7 +79,14 @@ class FoodItemList extends StatelessWidget {
                                       ).textTheme.titleMedium,
                                     ),
                                   ),
-                                  if (item.hasMeasuredAmount)
+                                  if (item.hasMeasuredAmount &&
+                                      item.amountMode ==
+                                          FoodAmountMode.baseMultiplier)
+                                    Text(
+                                      'AMOUNT '
+                                      '${FoodNutritionFormatter.amount(item.amount!)}',
+                                    )
+                                  else if (item.hasMeasuredAmount)
                                     Text(
                                       '${FoodNutritionFormatter.amount(item.amount!)}'
                                       '${item.baseUnit!.label}',
@@ -113,6 +120,15 @@ class FoodItemList extends StatelessWidget {
                                   '${FoodNutritionFormatter.amount(item.baseAmount!)}'
                                   '${item.baseUnit!.label}',
                                 ),
+                                if (item.amountMode ==
+                                    FoodAmountMode.baseMultiplier) ...[
+                                  AppSpacing.gapXS,
+                                  Text(
+                                    '実使用量 : '
+                                    '${FoodNutritionFormatter.amount(item.physicalAmount!)}'
+                                    '${item.baseUnit!.label}',
+                                  ),
+                                ],
                                 AppSpacing.gapXS,
                                 const Text('Calculated'),
                                 AppSpacing.gapXS,

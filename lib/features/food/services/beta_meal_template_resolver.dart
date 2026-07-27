@@ -96,9 +96,10 @@ class BetaMealTemplateResolver {
         protein: normalizedNutrition.protein,
         fat: normalizedNutrition.fat,
         carbohydrate: normalizedNutrition.carbs,
-        amount: amount,
+        amount: amount / _measuredBaseAmount,
         baseAmount: _measuredBaseAmount,
         baseUnit: snapshotUnit,
+        amountMode: legacy.FoodAmountMode.baseMultiplier,
       );
     }
 

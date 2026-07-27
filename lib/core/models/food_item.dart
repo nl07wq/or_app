@@ -15,6 +15,23 @@ enum FoodBaseUnit {
   }
 }
 
+enum FoodAmountMode {
+  physicalAmount('physicalAmount'),
+  baseMultiplier('baseMultiplier');
+
+  const FoodAmountMode(this.serializedValue);
+
+  final String serializedValue;
+
+  static FoodAmountMode parse(String source) {
+    return switch (source) {
+      'physicalAmount' => FoodAmountMode.physicalAmount,
+      'baseMultiplier' => FoodAmountMode.baseMultiplier,
+      _ => throw FormatException('Unsupported food amount mode: $source.'),
+    };
+  }
+}
+
 class FoodItem {
   final String name;
 
@@ -27,6 +44,7 @@ class FoodItem {
   final double? amount;
   final double? baseAmount;
   final FoodBaseUnit? baseUnit;
+  final FoodAmountMode? amountMode;
 
   const FoodItem({
     required this.name,
@@ -38,6 +56,7 @@ class FoodItem {
     this.amount,
     this.baseAmount,
     this.baseUnit,
+    this.amountMode,
   }) : assert(calories >= 0),
        assert(protein >= 0),
        assert(fat >= 0),
@@ -48,13 +67,30 @@ class FoodItem {
        ),
        assert(amount == null || amount > 0),
        assert(baseAmount == null || baseAmount > 0),
+       assert(amountMode == null || amount != null),
        quantity = quantity < 1 ? 1 : quantity;
 
   bool get hasMeasuredAmount =>
       amount != null && baseAmount != null && baseUnit != null;
 
-  double get multiplier =>
-      hasMeasuredAmount ? amount! / baseAmount! : quantity.toDouble();
+  FoodAmountMode get effectiveAmountMode =>
+      amountMode ?? FoodAmountMode.physicalAmount;
+
+  double get multiplier {
+    if (!hasMeasuredAmount) return quantity.toDouble();
+    return switch (effectiveAmountMode) {
+      FoodAmountMode.physicalAmount => amount! / baseAmount!,
+      FoodAmountMode.baseMultiplier => amount!,
+    };
+  }
+
+  double? get physicalAmount {
+    if (!hasMeasuredAmount) return null;
+    return switch (effectiveAmountMode) {
+      FoodAmountMode.physicalAmount => amount!,
+      FoodAmountMode.baseMultiplier => baseAmount! * amount!,
+    };
+  }
 
   double get totalCalories => calories.toDouble() * multiplier;
   double get totalProtein => protein * multiplier;
@@ -64,6 +100,7 @@ class FoodItem {
   factory FoodItem.fromJson(Map<String, dynamic> json) {
     final quantity = (json['quantity'] as num?)?.toInt() ?? 1;
     final baseUnitValue = json['baseUnit'];
+    final amountModeValue = json['amountMode'];
     final calories = json['calories'] as num;
     final protein = (json['protein'] as num).toDouble();
     final fat = (json['fat'] as num).toDouble();
@@ -73,6 +110,9 @@ class FoodItem {
     final baseUnit = baseUnitValue == null
         ? null
         : FoodBaseUnit.parse(baseUnitValue as String);
+    final amountMode = amountModeValue == null
+        ? null
+        : FoodAmountMode.parse(amountModeValue as String);
     _validateValues(
       calories: calories,
       protein: protein,
@@ -81,6 +121,7 @@ class FoodItem {
       amount: amount,
       baseAmount: baseAmount,
       baseUnit: baseUnit,
+      amountMode: amountMode,
     );
 
     final item = FoodItem(
@@ -93,6 +134,7 @@ class FoodItem {
       amount: amount,
       baseAmount: baseAmount,
       baseUnit: baseUnit,
+      amountMode: amountMode,
     );
     item._validateCalculatedSnapshot(json);
     return item;
@@ -108,6 +150,7 @@ class FoodItem {
     double? amount,
     double? baseAmount,
     FoodBaseUnit? baseUnit,
+    FoodAmountMode? amountMode,
   }) {
     return FoodItem(
       name: name ?? this.name,
@@ -119,6 +162,7 @@ class FoodItem {
       amount: amount ?? this.amount,
       baseAmount: baseAmount ?? this.baseAmount,
       baseUnit: baseUnit ?? this.baseUnit,
+      amountMode: amountMode ?? this.amountMode,
     );
   }
 
@@ -133,6 +177,7 @@ class FoodItem {
       if (amount != null) 'amount': amount,
       if (baseAmount != null) 'baseAmount': baseAmount,
       if (baseUnit != null) 'baseUnit': baseUnit!.label,
+      if (amountMode != null) 'amountMode': amountMode!.serializedValue,
       if (hasMeasuredAmount) ...{
         'calculatedCalories': totalCalories,
         'calculatedProtein': totalProtein,
@@ -153,7 +198,8 @@ class FoodItem {
         other.quantity == quantity &&
         other.amount == amount &&
         other.baseAmount == baseAmount &&
-        other.baseUnit == baseUnit;
+        other.baseUnit == baseUnit &&
+        other.amountMode == amountMode;
   }
 
   @override
@@ -167,6 +213,7 @@ class FoodItem {
     amount,
     baseAmount,
     baseUnit,
+    amountMode,
   );
 
   static void _validateValues({
@@ -177,6 +224,7 @@ class FoodItem {
     required double? amount,
     required double? baseAmount,
     required FoodBaseUnit? baseUnit,
+    required FoodAmountMode? amountMode,
   }) {
     final values = [calories.toDouble(), protein, fat, carbohydrate];
     if (values.any((value) => !value.isFinite || value < 0)) {
@@ -187,6 +235,11 @@ class FoodItem {
     if (populated != 0 && populated != fields.length) {
       throw const FormatException(
         'amount, baseAmount, and baseUnit must be provided together.',
+      );
+    }
+    if (amountMode != null && populated != fields.length) {
+      throw const FormatException(
+        'amountMode requires amount, baseAmount, and baseUnit.',
       );
     }
     if (amount != null && (!amount.isFinite || amount <= 0)) {

@@ -166,7 +166,7 @@ void main() {
     expect(restoredEnvelope.data.estimatedTotalBurnKcal, 2875.5);
   });
 
-  test('Schema 2.0 preserves measured FOOD Snapshot fields', () async {
+  test('Schema 2.0 preserves physical and multiplier FOOD Snapshots', () async {
     final timestamp = DateTime.utc(2026, 7, 26);
     final envelope = PersistedFoodRecord(
       id: 'food:meal-measured',
@@ -178,7 +178,7 @@ void main() {
         mealType: 'Lunch',
         items: const [
           FoodItem(
-            name: 'Chicken',
+            name: 'Physical Chicken',
             calories: 165,
             protein: 31,
             fat: 3.6,
@@ -186,6 +186,17 @@ void main() {
             amount: 250,
             baseAmount: 100,
             baseUnit: FoodBaseUnit.g,
+          ),
+          FoodItem(
+            name: 'Multiplier Chicken',
+            calories: 165,
+            protein: 31,
+            fat: 3.6,
+            carbohydrate: 0,
+            amount: 2.5,
+            baseAmount: 100,
+            baseUnit: FoodBaseUnit.g,
+            amountMode: FoodAmountMode.baseMultiplier,
           ),
         ],
         memo: '',
@@ -221,10 +232,17 @@ void main() {
     expect(package.schemaVersion, 2);
     expect(package.databaseVersion, 3);
     expect(restored.recordVersion, 1);
-    expect(restored.data.items.single.amount, 250);
-    expect(restored.data.items.single.baseAmount, 100);
-    expect(restored.data.items.single.baseUnit, FoodBaseUnit.g);
-    expect(restored.data.items.single.totalCalories, 412.5);
+    final physical = restored.data.items.first;
+    final multiplier = restored.data.items.last;
+    expect(physical.amount, 250);
+    expect(physical.amountMode, isNull);
+    expect(physical.totalCalories, 412.5);
+    expect(multiplier.amount, 2.5);
+    expect(multiplier.baseAmount, 100);
+    expect(multiplier.baseUnit, FoodBaseUnit.g);
+    expect(multiplier.amountMode, FoodAmountMode.baseMultiplier);
+    expect(multiplier.physicalAmount, 250);
+    expect(multiplier.totalCalories, 412.5);
   });
 
   test('Schema 1.0 converts STATUS and TRAINING only using exportedAt', () {

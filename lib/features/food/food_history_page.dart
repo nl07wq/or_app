@@ -5,6 +5,7 @@ import 'food_edit_page.dart';
 import 'services/food_submit_service.dart';
 
 import '../../core/models/meal_data.dart';
+import '../../core/models/food_item.dart';
 import '../../core/repositories/food_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
@@ -144,9 +145,14 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 leading: const Icon(Icons.restaurant_menu),
                 title: Text(
                   item.hasMeasuredAmount
-                      ? '${item.name}  '
-                            '${FoodNutritionFormatter.amount(item.amount!)}'
-                            '${item.baseUnit!.label}'
+                      ? item.amountMode == FoodAmountMode.baseMultiplier
+                            ? '${item.name}  AMOUNT '
+                                  '${FoodNutritionFormatter.amount(item.amount!)}'
+                                  ' (${FoodNutritionFormatter.amount(item.physicalAmount!)}'
+                                  '${item.baseUnit!.label})'
+                            : '${item.name}  '
+                                  '${FoodNutritionFormatter.amount(item.amount!)}'
+                                  '${item.baseUnit!.label}'
                       : item.quantity > 1
                       ? '${item.name} ×${item.quantity}'
                       : item.name,

@@ -28,7 +28,8 @@ class FoodInputForm extends StatefulWidget {
 }
 
 class _FoodInputFormState extends State<FoodInputForm> {
-  static const double _defaultMeasuredAmount = 100;
+  static const double _defaultBaseAmount = 100;
+  static const double _defaultAmount = 1;
 
   final foodNameController = TextEditingController();
   final calorieController = TextEditingController();
@@ -49,7 +50,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
   String? selectedTemplateId;
   String? inputError;
   FoodBaseUnit baseUnit = FoodBaseUnit.g;
-  double? _lastValidBaseAmount = _defaultMeasuredAmount;
+  double? _lastValidBaseAmount = _defaultBaseAmount;
+
+  FoodAmountMode get _inputAmountMode {
+    final index = editingIndex;
+    if (index != null && items[index].hasMeasuredAmount) {
+      return items[index].effectiveAmountMode;
+    }
+    return FoodAmountMode.baseMultiplier;
+  }
 
   @override
   void initState() {
@@ -127,6 +136,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
 
     try {
+      final amountMode = editingItem != null && editingItem.hasMeasuredAmount
+          ? editingItem.amountMode
+          : FoodAmountMode.baseMultiplier;
       return FoodItem(
         name: name,
         calories: calories!,
@@ -137,6 +149,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         amount: preservesLegacy ? null : amount,
         baseAmount: preservesLegacy ? null : baseAmount,
         baseUnit: preservesLegacy ? null : baseUnit,
+        amountMode: preservesLegacy ? null : amountMode,
       );
     } on ArgumentError {
       return null;
@@ -169,9 +182,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _setDefaultMeasurementInputs() {
-    baseAmountController.text = _formatAmount(_defaultMeasuredAmount);
-    amountController.text = _formatAmount(_defaultMeasuredAmount);
-    _lastValidBaseAmount = _defaultMeasuredAmount;
+    baseAmountController.text = _formatAmount(_defaultBaseAmount);
+    amountController.text = _formatAmount(_defaultAmount);
+    _lastValidBaseAmount = _defaultBaseAmount;
   }
 
   void _onBaseAmountChanged(String source) {
@@ -517,6 +530,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               baseAmountController: baseAmountController,
               amountController: amountController,
               baseUnit: baseUnit,
+              amountMode: _inputAmountMode,
               onBaseAmountChanged: _onBaseAmountChanged,
               onChanged: (_) {
                 setState(() {

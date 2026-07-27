@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
+import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/data/beta_meal_templates.dart';
+import 'package:or_app/features/food/food_history_page.dart';
+import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/food/services/beta_meal_template_resolver.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   group('Food base unit and amount calculation', () {
@@ -69,6 +76,63 @@ void main() {
       expect(legacy.toJson().containsKey('amount'), isFalse);
     });
 
+    test('uses explicit base multiplier without dividing by base amount', () {
+      final one = _multiplierItem(baseAmount: 100, amount: 1);
+      final twoPointFive = _multiplierItem(
+        baseAmount: 100,
+        amount: 2.5,
+        calories: 165,
+        protein: 31,
+        fat: 3.6,
+        carbohydrate: 0,
+      );
+      final pointOne = _multiplierItem(baseAmount: 100, amount: 0.1);
+      final thousand = _multiplierItem(baseAmount: 1, amount: 1000);
+      final milliliters = _multiplierItem(
+        baseAmount: 100,
+        amount: 7.5,
+        unit: FoodBaseUnit.ml,
+      );
+
+      expect(one.multiplier, 1);
+      expect(one.totalCalories, 100);
+      expect(twoPointFive.multiplier, 2.5);
+      expect(twoPointFive.totalCalories, 412.5);
+      expect(twoPointFive.totalProtein, 77.5);
+      expect(twoPointFive.totalFat, 9);
+      expect(twoPointFive.physicalAmount, 250);
+      expect(pointOne.totalCalories, 10);
+      expect(pointOne.physicalAmount, 10);
+      expect(thousand.totalCalories, 100000);
+      expect(thousand.physicalAmount, 1000);
+      expect(milliliters.totalCalories, 750);
+      expect(milliliters.physicalAmount, 750);
+    });
+
+    test('missing amountMode keeps deployed physical amount behavior', () {
+      final deployed = FoodItem.fromJson({
+        'name': 'Deployed',
+        'calories': 165,
+        'protein': 31,
+        'fat': 3.6,
+        'carbohydrate': 0,
+        'quantity': 1,
+        'amount': 250,
+        'baseAmount': 100,
+        'baseUnit': 'g',
+        'calculatedCalories': 412.5,
+        'calculatedProtein': 77.5,
+        'calculatedFat': 9,
+        'calculatedCarbohydrate': 0,
+      });
+
+      expect(deployed.amountMode, isNull);
+      expect(deployed.effectiveAmountMode, FoodAmountMode.physicalAmount);
+      expect(deployed.multiplier, 2.5);
+      expect(deployed.physicalAmount, 250);
+      expect(deployed.toJson().containsKey('amountMode'), isFalse);
+    });
+
     test('rejects invalid measurement and nutrition values', () {
       FoodItem create({
         double amount = 100,
@@ -112,7 +176,7 @@ void main() {
       );
     });
 
-    test('round trips new fields and decodes old JSON unchanged', () {
+    test('round trips amount mode and decodes old JSON unchanged', () {
       final measured = _measuredItem(baseAmount: 100, amount: 250);
       final measuredJson = measured.toJson();
       expect(measuredJson['calculatedCalories'], 250);
@@ -122,6 +186,12 @@ void main() {
         () => FoodItem.fromJson({...measuredJson, 'calculatedCalories': 999}),
         throwsFormatException,
       );
+
+      final multiplier = _multiplierItem(baseAmount: 100, amount: 2.5);
+      final multiplierJson = multiplier.toJson();
+      expect(multiplierJson['amountMode'], 'baseMultiplier');
+      expect(multiplierJson['calculatedCalories'], 250);
+      expect(FoodItem.fromJson(multiplierJson), multiplier);
 
       final oldJson = <String, dynamic>{
         'name': 'Legacy',
@@ -159,6 +229,29 @@ void main() {
       expect(meal.calories, 512.5);
     });
 
+    test('Meal totals combine multiplier, physical, and legacy items', () {
+      final meal = MealData(
+        date: '2026-07-27',
+        mealType: 'Lunch',
+        items: [
+          _multiplierItem(baseAmount: 100, amount: 2.5, calories: 100),
+          _measuredItem(baseAmount: 100, amount: 50, calories: 100),
+          const FoodItem(
+            name: 'Legacy',
+            calories: 100,
+            protein: 0,
+            fat: 0,
+            carbohydrate: 0,
+            quantity: 2,
+          ),
+        ],
+        memo: '',
+        id: 'all-contracts',
+      );
+
+      expect(meal.calories, 500);
+    });
+
     test('g beta templates retain base and amount snapshot fields', () {
       final dinner = betaMealTemplates.singleWhere(
         (template) => template.id == 'beta-dinner',
@@ -167,8 +260,10 @@ void main() {
       final rice = resolution.items.singleWhere((item) => item.name == '白米');
 
       expect(rice.baseAmount, 100);
-      expect(rice.amount, 160);
+      expect(rice.amount, 1.6);
       expect(rice.baseUnit, FoodBaseUnit.g);
+      expect(rice.amountMode, FoodAmountMode.baseMultiplier);
+      expect(rice.physicalAmount, 160);
       expect(rice.totalCalories, closeTo(249.6, 1e-12));
       expect(rice.name, isNot(contains('160')));
     });
@@ -179,11 +274,20 @@ void main() {
       );
       final resolution = BetaMealTemplateResolver.resolve(lunch);
       final tenGramItem = resolution.items.singleWhere(
-        (item) => item.amount == 10 && item.baseUnit == FoodBaseUnit.g,
+        (item) => item.amount == 0.1 && item.baseUnit == FoodBaseUnit.g,
       );
+      final dinner = betaMealTemplates.singleWhere(
+        (template) => template.id == 'beta-dinner',
+      );
+      final twoHundredGramItem = BetaMealTemplateResolver.resolve(dinner).items
+          .singleWhere(
+            (item) => item.amount == 2 && item.baseUnit == FoodBaseUnit.g,
+          );
 
       expect(tenGramItem.baseAmount, 100);
-      expect(tenGramItem.amount, 10);
+      expect(tenGramItem.amount, 0.1);
+      expect(tenGramItem.amountMode, FoodAmountMode.baseMultiplier);
+      expect(tenGramItem.physicalAmount, 10);
       expect(tenGramItem.calories, closeTo(258, 1e-12));
       expect(tenGramItem.protein, closeTo(14, 1e-12));
       expect(tenGramItem.fat, closeTo(11, 1e-12));
@@ -193,6 +297,8 @@ void main() {
       expect(tenGramItem.totalFat, closeTo(1.1, 1e-12));
       expect(tenGramItem.totalCarbohydrate, closeTo(2.7, 1e-12));
       expect(tenGramItem.quantity, 1);
+      expect(twoHundredGramItem.physicalAmount, 200);
+      expect(twoHundredGramItem.amountMode, FoodAmountMode.baseMultiplier);
     });
   });
 
@@ -217,10 +323,7 @@ void main() {
         tester.widget<TextField>(_field('BASE AMOUNT')).controller!.text,
         '100',
       );
-      expect(
-        tester.widget<TextField>(_field('QUANTITY (g)')).controller!.text,
-        '100',
-      );
+      expect(tester.widget<TextField>(_field('AMOUNT')).controller!.text, '1');
 
       await tester.enterText(_field('Food Name'), 'Chicken Breast');
       await tester.enterText(_field('BASE AMOUNT'), '100');
@@ -231,14 +334,14 @@ void main() {
       await tester.pump();
 
       expect(find.text('NUTRITION PER 100g'), findsOneWidget);
-      expect(
-        tester.widget<TextField>(_field('QUANTITY (g)')).controller!.text,
-        '100',
-      );
+      expect(tester.widget<TextField>(_field('AMOUNT')).controller!.text, '1');
+      expect(find.text('1 AMOUNT = 100g'), findsOneWidget);
+      expect(find.text('実使用量: 100g'), findsOneWidget);
 
-      await tester.enterText(_field('QUANTITY (g)'), '250');
+      await tester.enterText(_field('AMOUNT'), '2.5');
       await tester.pump();
-      expect(find.text('250g'), findsOneWidget);
+      expect(find.text('実使用量: 250g'), findsOneWidget);
+      expect(find.text('AMOUNT 2.5'), findsOneWidget);
       expect(find.text('Calories : 413 kcal'), findsOneWidget);
 
       await tester.ensureVisible(find.text('Save Meal'));
@@ -247,9 +350,11 @@ void main() {
 
       expect(saved, isNotNull);
       final item = saved!.items.single;
-      expect(item.amount, 250);
+      expect(item.amount, 2.5);
       expect(item.baseAmount, 100);
       expect(item.baseUnit, FoodBaseUnit.g);
+      expect(item.amountMode, FoodAmountMode.baseMultiplier);
+      expect(item.physicalAmount, 250);
       expect(item.totalCalories, 412.5);
     });
 
@@ -266,6 +371,7 @@ void main() {
           ),
         );
 
+        await tester.enterText(_field('Food Name'), 'Base Food');
         await tester.enterText(_field('Calories'), '258');
         await tester.enterText(_field('Protein'), '14');
         await tester.enterText(_field('Fat'), '11');
@@ -277,8 +383,11 @@ void main() {
         expect(_controllerText(tester, 'Protein'), '1.4');
         expect(_controllerText(tester, 'Fat'), '1.1');
         expect(_controllerText(tester, 'Carbohydrate'), '2.7');
-        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+        expect(_controllerText(tester, 'AMOUNT'), '1');
         expect(find.text('NUTRITION PER 10g'), findsOneWidget);
+        expect(find.text('1 AMOUNT = 10g'), findsOneWidget);
+        expect(find.text('実使用量: 10g'), findsOneWidget);
+        expect(find.text('Calories : 26 kcal'), findsOneWidget);
 
         await tester.enterText(_field('BASE AMOUNT'), '100');
         await tester.pump();
@@ -290,7 +399,8 @@ void main() {
           double.parse(_controllerText(tester, 'Protein')),
           closeTo(14, 1e-9),
         );
-        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+        expect(_controllerText(tester, 'AMOUNT'), '1');
+        expect(find.text('Calories : 258 kcal'), findsOneWidget);
 
         await tester.enterText(_field('BASE AMOUNT'), '1');
         await tester.pump();
@@ -302,7 +412,7 @@ void main() {
           double.parse(_controllerText(tester, 'Protein')),
           closeTo(0.14, 1e-12),
         );
-        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+        expect(_controllerText(tester, 'AMOUNT'), '1');
 
         await tester.enterText(_field('BASE AMOUNT'), '100');
         await tester.pump();
@@ -319,7 +429,7 @@ void main() {
           double.parse(_controllerText(tester, 'Carbohydrate')),
           closeTo(27, 1e-9),
         );
-        expect(_controllerText(tester, 'QUANTITY (g)'), '100');
+        expect(_controllerText(tester, 'AMOUNT'), '1');
       },
     );
 
@@ -344,27 +454,31 @@ void main() {
       await tester.tap(find.text('mL').last);
       await tester.pump();
       expect(_controllerText(tester, 'BASE AMOUNT'), '100');
-      expect(_controllerText(tester, 'QUANTITY (mL)'), '100');
+      expect(_controllerText(tester, 'AMOUNT'), '1');
       await tester.enterText(_field('Calories'), '0');
       await tester.enterText(_field('Protein'), '0');
       await tester.enterText(_field('Fat'), '0');
       await tester.enterText(_field('Carbohydrate'), '0');
-      await tester.enterText(_field('QUANTITY (mL)'), '0');
+      await tester.enterText(_field('AMOUNT'), '0');
       await tester.pump();
 
       expect(find.text('NUTRITION PER 100mL'), findsOneWidget);
       expect(find.text('Save Meal'), findsNothing);
       expect(saved, isNull);
 
-      await tester.enterText(_field('QUANTITY (mL)'), '750');
+      await tester.enterText(_field('AMOUNT'), '7.5');
       await tester.pump();
+      expect(find.text('1 AMOUNT = 100mL'), findsOneWidget);
+      expect(find.text('実使用量: 750mL'), findsOneWidget);
       await tester.ensureVisible(find.text('Save Meal'));
       await tester.tap(find.text('Save Meal'));
       await tester.pump();
 
-      expect(saved!.items.single.amount, 750);
+      expect(saved!.items.single.amount, 7.5);
       expect(saved!.items.single.baseAmount, 100);
       expect(saved!.items.single.baseUnit, FoodBaseUnit.ml);
+      expect(saved!.items.single.amountMode, FoodAmountMode.baseMultiplier);
+      expect(saved!.items.single.physicalAmount, 750);
       expect(saved!.items.single.toJson()['baseUnit'], 'mL');
     });
 
@@ -419,6 +533,98 @@ void main() {
       expect(saved!.items.single.quantity, 2);
       expect(saved!.items.single.totalCalories, 200);
     });
+
+    testWidgets('editing a deployed measured item preserves physical mode', (
+      tester,
+    ) async {
+      final physicalMeal = MealData(
+        date: '2026-07-27',
+        mealType: 'Dinner',
+        items: [_measuredItem(baseAmount: 100, amount: 10, calories: 258)],
+        memo: '',
+        id: 'physical',
+      );
+      MealData? saved;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                initialMeal: physicalMeal,
+                onSave: (meal) async => saved = meal,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.ensureVisible(find.text('Measured'));
+      await tester.tap(find.text('Measured'));
+      await tester.pump();
+      expect(_controllerText(tester, 'QUANTITY (g)'), '10');
+      expect(find.text('1 AMOUNT = 100g'), findsNothing);
+      expect(find.textContaining('実使用量:'), findsNothing);
+
+      await tester.ensureVisible(find.text('Update Food'));
+      await tester.tap(find.text('Update Food'));
+      await tester.ensureVisible(find.text('Update Meal'));
+      await tester.tap(find.text('Update Meal'));
+      await tester.pump();
+
+      final item = saved!.items.single;
+      expect(item.amountMode, isNull);
+      expect(item.effectiveAmountMode, FoodAmountMode.physicalAmount);
+      expect(item.amount, 10);
+      expect(item.totalCalories, 25.8);
+      expect(item.toJson().containsKey('amountMode'), isFalse);
+    });
+  });
+
+  group('Food history amount contracts', () {
+    late FakeIndexedDbDatabase database;
+
+    setUp(() {
+      database = FakeIndexedDbDatabase();
+      final controller = AppInitializationController()..markReady();
+      AppRepositoryRegistry.beginStartup(controller: controller);
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    });
+
+    tearDown(AppRepositoryRegistry.resetForTesting);
+
+    testWidgets('distinguishes physical and multiplier records', (
+      tester,
+    ) async {
+      final timestamp = DateTime.utc(2026, 7, 27);
+      final meal = MealData(
+        date: '2026-07-27',
+        mealType: 'Lunch',
+        items: [
+          _measuredItem(baseAmount: 100, amount: 10),
+          _multiplierItem(baseAmount: 100, amount: 0.1),
+        ],
+        memo: '',
+        id: 'history-contracts',
+      );
+      final envelope = PersistedFoodRecord(
+        id: 'food:history-contracts',
+        localDate: '2026-07-27',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        data: meal,
+      ).toRecord();
+      database.seed(
+        IndexedDbStoreNames.foodRecords,
+        envelope['id']! as String,
+        envelope,
+      );
+
+      await tester.pumpWidget(const MaterialApp(home: FoodHistoryPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Measured  10g'), findsOneWidget);
+      expect(find.text('Measured  AMOUNT 0.1 (10g)'), findsOneWidget);
+    });
   });
 }
 
@@ -440,6 +646,28 @@ FoodItem _measuredItem({
     amount: amount,
     baseAmount: baseAmount,
     baseUnit: unit,
+  );
+}
+
+FoodItem _multiplierItem({
+  double baseAmount = 100,
+  double amount = 1,
+  FoodBaseUnit unit = FoodBaseUnit.g,
+  double calories = 100,
+  double protein = 10,
+  double fat = 2,
+  double carbohydrate = 20,
+}) {
+  return FoodItem(
+    name: 'Measured',
+    calories: calories,
+    protein: protein,
+    fat: fat,
+    carbohydrate: carbohydrate,
+    amount: amount,
+    baseAmount: baseAmount,
+    baseUnit: unit,
+    amountMode: FoodAmountMode.baseMultiplier,
   );
 }
 
