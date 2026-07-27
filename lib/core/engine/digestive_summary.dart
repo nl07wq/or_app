@@ -26,7 +26,7 @@ class DigestiveSummary {
         (eventCount > 0 &&
             (latestShape != this.shapeTrend.last ||
                 latestRelief != this.reliefTrend.last)) ||
-        this.shapeTrend.any((value) => value < 1 || value > 7) ||
+        this.shapeTrend.any((value) => value < 1 || value > 3) ||
         this.reliefTrend.any((value) => value < 0 || value > 2)) {
       throw const FormatException('Invalid digestive summary.');
     }

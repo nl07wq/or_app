@@ -150,7 +150,7 @@ void main() {
         id: 'digestive:2026-07-26:1',
         sequence: 1,
         amount: 2,
-        shape: 4,
+        shape: 2,
         relief: 2,
         recordedAt: DateTime.utc(2026, 7, 26, 8),
       ),
@@ -297,7 +297,7 @@ void main() {
             id: 'digestive:2026-07-26:1',
             sequence: 1,
             amount: 2,
-            shape: 4,
+            shape: 2,
             relief: 1,
             recordedAt: timestamp,
           ),
@@ -307,7 +307,7 @@ void main() {
     final data = Map<String, Object?>.from(envelope['data']! as Map);
     final event = Map<String, Object?>.from(
       (data['digestiveEvents']! as List).single as Map,
-    )..['shape'] = 8;
+    )..['shape'] = 4;
     data['digestiveEvents'] = [event];
     envelope['data'] = data;
     database.seed(

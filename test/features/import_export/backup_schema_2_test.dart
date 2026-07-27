@@ -328,7 +328,7 @@ void main() {
               id: 'digestive:2026-07-27:1',
               sequence: 1,
               amount: 2,
-              shape: 4,
+              shape: 2,
               relief: 2,
               recordedAt: timestamp,
             ),

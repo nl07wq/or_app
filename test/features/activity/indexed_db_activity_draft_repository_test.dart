@@ -235,6 +235,20 @@ void main() {
     expect(controller.value.errorCode, RepositoryErrorCode.invalidRecord.name);
     expect(AppRepositoryRegistry.hasContainer, isFalse);
   });
+
+  test('rejects Shape values outside the formal 1 to 3 range', () {
+    expect(
+      () => ActivityDraftDigestiveEvent(
+        id: 'digestive:2026-07-27:1',
+        sequence: 1,
+        amount: 2,
+        shape: 4,
+        relief: 1,
+        recordedAt: DateTime.utc(2026, 7, 27, 8),
+      ),
+      throwsArgumentError,
+    );
+  });
 }
 
 Future<AppInitializationController> _initialize(

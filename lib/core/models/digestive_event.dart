@@ -112,13 +112,9 @@ class DigestiveEvent {
   };
 
   static String shapeLabel(int value) => switch (value) {
-    1 => 'コロコロ便',
-    2 => '硬い便',
-    3 => 'やや硬い便',
-    4 => '普通便',
-    5 => 'やや軟らかい便',
-    6 => '泥状便',
-    7 => '水様便',
+    1 => '硬便',
+    2 => '普通便',
+    3 => '軟便',
     _ => throw ArgumentError.value(value, 'value', 'Invalid shape.'),
   };
 
@@ -145,8 +141,8 @@ class DigestiveEvent {
     if (amount < 1 || amount > 3) {
       throw ArgumentError.value(amount, 'amount', 'Must be from 1 to 3.');
     }
-    if (shape < 1 || shape > 7) {
-      throw ArgumentError.value(shape, 'shape', 'Must be from 1 to 7.');
+    if (shape < 1 || shape > 3) {
+      throw ArgumentError.value(shape, 'shape', 'Must be from 1 to 3.');
     }
     if (relief < 0 || relief > 2) {
       throw ArgumentError.value(relief, 'relief', 'Must be from 0 to 2.');

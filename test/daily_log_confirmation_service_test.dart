@@ -84,7 +84,7 @@ void main() {
           'id': 'digestive:today:2',
           'sequence': 2,
           'amount': 3,
-          'shape': 5,
+          'shape': 3,
           'relief': 2,
           'recordedAt': today.add(const Duration(hours: 1)).toIso8601String(),
         },
@@ -97,9 +97,9 @@ void main() {
 
     expect(confirmation.activity?.digestiveSummary?.eventCount, 2);
     expect(confirmation.activity?.digestiveSummary?.totalAmount, 4);
-    expect(confirmation.activity?.digestiveSummary?.latestShape, 5);
+    expect(confirmation.activity?.digestiveSummary?.latestShape, 3);
     expect(confirmation.activity?.digestiveSummary?.latestRelief, 2);
-    expect(confirmation.activity?.digestiveSummary?.shapeTrend, [2, 5]);
+    expect(confirmation.activity?.digestiveSummary?.shapeTrend, [2, 3]);
     expect(confirmation.activity?.digestiveSummary?.reliefTrend, [0, 2]);
     expect(
       stored?.activity?.digestiveSummary?.toJson(),

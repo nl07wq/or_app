@@ -12,7 +12,7 @@ void main() {
       for (final amount in [1, 2, 3]) {
         expect(_event(amount: amount).amount, amount);
       }
-      for (final shape in [1, 7]) {
+      for (final shape in [1, 2, 3]) {
         expect(_event(shape: shape).shape, shape);
       }
       for (final relief in [0, 2]) {
@@ -22,9 +22,9 @@ void main() {
       expect(DigestiveEvent.amountLabel(1), '少量');
       expect(DigestiveEvent.amountLabel(2), '普通');
       expect(DigestiveEvent.amountLabel(3), '多量');
-      expect(DigestiveEvent.shapeLabel(1), 'コロコロ便');
-      expect(DigestiveEvent.shapeLabel(4), '普通便');
-      expect(DigestiveEvent.shapeLabel(7), '水様便');
+      expect(DigestiveEvent.shapeLabel(1), '硬便');
+      expect(DigestiveEvent.shapeLabel(2), '普通便');
+      expect(DigestiveEvent.shapeLabel(3), '軟便');
       expect(DigestiveEvent.reliefLabel(0), '残便感あり');
       expect(DigestiveEvent.reliefLabel(1), '普通');
       expect(DigestiveEvent.reliefLabel(2), 'スッキリ');
@@ -34,7 +34,7 @@ void main() {
       for (final amount in [0, 4]) {
         expect(() => _event(amount: amount), throwsArgumentError);
       }
-      for (final shape in [0, 8]) {
+      for (final shape in [0, 4]) {
         expect(() => _event(shape: shape), throwsArgumentError);
       }
       for (final relief in [-1, 3]) {
@@ -114,7 +114,7 @@ void main() {
       final json = _activity(events: [_event()]).toJson();
       (json['digestiveEvents']! as List).add({
         ..._event(id: 'bad', sequence: 2).toJson(),
-        'shape': 8,
+        'shape': 4,
       });
 
       expect(() => ActivityData.fromJson(json), throwsFormatException);
@@ -124,19 +124,19 @@ void main() {
   group('DigestiveSummary', () {
     test('uses sequence order for totals, latest values, and trends', () {
       final summary = DigestiveSummary.fromEvents([
-        _event(id: 'third', sequence: 3, amount: 1, shape: 5, relief: 2),
-        _event(id: 'first', sequence: 1, amount: 1, shape: 2, relief: 0),
-        _event(id: 'second', sequence: 2, amount: 2, shape: 4, relief: 1),
+        _event(id: 'third', sequence: 3, amount: 1, shape: 3, relief: 2),
+        _event(id: 'first', sequence: 1, amount: 1, shape: 1, relief: 0),
+        _event(id: 'second', sequence: 2, amount: 2, shape: 2, relief: 1),
       ]);
 
       expect(summary.eventCount, 3);
       expect(summary.totalAmount, 4);
-      expect(summary.latestShape, 5);
+      expect(summary.latestShape, 3);
       expect(summary.latestRelief, 2);
-      expect(summary.shapeTrend, [2, 4, 5]);
+      expect(summary.shapeTrend, [1, 2, 3]);
       expect(summary.reliefTrend, [0, 1, 2]);
       expect(summary.toJson().containsKey('average'), isFalse);
-      expect(() => summary.shapeTrend.add(7), throwsUnsupportedError);
+      expect(() => summary.shapeTrend.add(3), throwsUnsupportedError);
       expect(
         DigestiveSummary.fromJson(summary.toJson()).toJson(),
         summary.toJson(),
@@ -195,12 +195,12 @@ void main() {
     test('new events are authoritative over the legacy bowel field', () {
       final record = _activity(
         bowel: BowelMovementRecord.recorded(amount: 3, shape: 1),
-        events: [_event(amount: 1, shape: 7, relief: 2)],
+        events: [_event(amount: 1, shape: 3, relief: 2)],
       );
       final summary = const ActivitySummaryEngine().generate(record: record);
 
       expect(summary.digestiveSummary?.totalAmount, 1);
-      expect(summary.digestiveSummary?.latestShape, 7);
+      expect(summary.digestiveSummary?.latestShape, 3);
       expect(summary.digestiveSummary?.latestRelief, 2);
       expect(
         summary.warnings.map((warning) => warning.code),
@@ -232,7 +232,7 @@ DigestiveEvent _event({
   String id = 'digestive:2026-07-27:1',
   int sequence = 1,
   int amount = 2,
-  int shape = 4,
+  int shape = 2,
   int relief = 1,
 }) {
   return DigestiveEvent(
