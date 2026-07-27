@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
+import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/bowel_movement_record.dart';
+import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
@@ -305,6 +307,85 @@ void main() {
     expect(find.textContaining('ENERGY BALANCE'), findsNothing);
   });
 
+  testWidgets('Daily Review shows the new Digestive Summary without Legacy', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _digestiveActivity(
+        eventCount: 3,
+        totalAmount: 6,
+        latestShape: 3,
+        latestRelief: 2,
+      ),
+      training: null,
+      estimatedTotalBurn: 2100,
+    );
+
+    expect(find.text('排便回数 3回'), findsOneWidget);
+    expect(find.text('総量 6'), findsOneWidget);
+    expect(find.text('最新形状 軟便'), findsOneWidget);
+    expect(find.text('最新スッキリ感 スッキリ'), findsOneWidget);
+    expect(find.bySemanticsLabel('排便回数'), findsOneWidget);
+    expect(find.bySemanticsLabel('総量'), findsOneWidget);
+    expect(find.bySemanticsLabel('最新形状'), findsOneWidget);
+    expect(find.bySemanticsLabel('最新スッキリ感'), findsOneWidget);
+    expect(find.textContaining('便形状'), findsNothing);
+    expect(find.textContaining('便量'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('Digestive Summary maps every Shape and Relief label', (
+    tester,
+  ) async {
+    for (final values in [
+      (shape: 1, relief: 0, shapeLabel: '硬便', reliefLabel: '残便感あり'),
+      (shape: 2, relief: 1, shapeLabel: '普通便', reliefLabel: '普通'),
+      (shape: 3, relief: 2, shapeLabel: '軟便', reliefLabel: 'スッキリ'),
+    ]) {
+      await _pumpReview(
+        tester,
+        morning: _morning(),
+        food: _food(),
+        activity: _digestiveActivity(
+          eventCount: 1,
+          totalAmount: 2,
+          latestShape: values.shape,
+          latestRelief: values.relief,
+        ),
+        training: null,
+        estimatedTotalBurn: 2100,
+      );
+
+      expect(find.text('最新形状 ${values.shapeLabel}'), findsOneWidget);
+      expect(find.text('最新スッキリ感 ${values.reliefLabel}'), findsOneWidget);
+    }
+  });
+
+  testWidgets('zero Digestive Events show no bowel record', (tester) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _digestiveActivity(
+        eventCount: 0,
+        totalAmount: 0,
+        latestShape: null,
+        latestRelief: null,
+      ),
+      training: null,
+      estimatedTotalBurn: 2100,
+    );
+
+    expect(find.text('排便記録なし'), findsOneWidget);
+    expect(find.textContaining('便形状'), findsNothing);
+    expect(find.textContaining('便量'), findsNothing);
+    expect(find.textContaining('排便回数'), findsNothing);
+  });
+
   testWidgets('Daily Review uses neutral missing states and safe fallbacks', (
     tester,
   ) async {
@@ -451,6 +532,49 @@ void main() {
     expect(find.text('BACK TO EDIT'), findsNothing);
     expect(find.text('LOG CONFIRMATION'), findsNothing);
     expect(find.text('MORNING'), findsNothing);
+  });
+
+  testWidgets('confirmed detail displays its saved Digestive Snapshot only', (
+    tester,
+  ) async {
+    final base = completeConfirmation();
+    final confirmation = DailyLogConfirmation(
+      date: base.date,
+      confirmedAt: base.confirmedAt,
+      morning: base.morning,
+      food: base.food,
+      activity: _digestiveActivity(
+        eventCount: 2,
+        totalAmount: 4,
+        latestShape: 2,
+        latestRelief: 0,
+      ),
+      training: base.training,
+      estimatedTotalBurnKcal: base.estimatedTotalBurnKcal,
+    );
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(confirmation.toJson())],
+    });
+    activitySummaryNotifier.value = _digestiveActivity(
+      eventCount: 1,
+      totalAmount: 3,
+      latestShape: 3,
+      latestRelief: 2,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('排便回数 2回'), findsOneWidget);
+    expect(find.text('総量 4'), findsOneWidget);
+    expect(find.text('最新形状 普通便'), findsOneWidget);
+    expect(find.text('最新スッキリ感 残便感あり'), findsOneWidget);
+    expect(find.text('排便回数 1回'), findsNothing);
+    expect(find.text('最新形状 軟便'), findsNothing);
   });
 
   testWidgets('old confirmed detail does not backfill missing energy', (
@@ -704,6 +828,38 @@ ActivitySummary _activity() {
     carryOver: 1241,
     isRecorded: true,
     bowelMovement: BowelMovementRecord.recorded(amount: 1, shape: 2),
+    calculationBasis: const ActivityCalculationBasis(
+      rawSteps: 7659,
+      currentCarryOver: 1241,
+      previousCarryOverDeduction: 0,
+      officialSteps: 8900,
+    ),
+  );
+}
+
+ActivitySummary _digestiveActivity({
+  required int eventCount,
+  required int totalAmount,
+  required int? latestShape,
+  required int? latestRelief,
+}) {
+  return ActivitySummary(
+    steps: 8900,
+    measuredSteps: 7659,
+    carryOver: 1241,
+    isRecorded: true,
+    digestiveSummary: DigestiveSummary(
+      eventCount: eventCount,
+      totalAmount: totalAmount,
+      latestShape: latestShape,
+      latestRelief: latestRelief,
+      shapeTrend: eventCount == 0
+          ? const []
+          : List<int>.filled(eventCount, latestShape!),
+      reliefTrend: eventCount == 0
+          ? const []
+          : List<int>.filled(eventCount, latestRelief!),
+    ),
     calculationBasis: const ActivityCalculationBasis(
       rawSteps: 7659,
       currentCarryOver: 1241,

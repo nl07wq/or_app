@@ -59,6 +59,8 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
   bool get _isFormal => _mode == _EntryMode.formal;
 
+  bool get _isToday => _isSameDate(_date, AppClock.today());
+
   bool get _usesDigestiveEvents =>
       !_isFormal || _formalData?.digestiveEvents != null;
 
@@ -334,7 +336,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       return;
     }
     if (!AppRepositoryRegistry.hasContainer) {
-      _showMessage('本日のActivity記録を確定できませんでした');
+      _showMessage('${_formatDate(_date)}のActivity記録を確定できませんでした');
       return;
     }
 
@@ -357,11 +359,13 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         _draft = null;
         _mode = _EntryMode.formal;
       });
-      _showMessage('本日のActivity記録を確定しました');
+      _showMessage('${_formatDate(_date)}のActivity記録を確定しました');
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
     } catch (_) {
-      if (mounted) _showMessage('本日のActivity記録を確定できませんでした');
+      if (mounted) {
+        _showMessage('${_formatDate(_date)}のActivity記録を確定できませんでした');
+      }
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -561,7 +565,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           onRetry: () =>
               _initializeForDate(_date, suppliedRecord: widget.initialData),
         ),
-        _EntryMode.locked => const _ConfirmedActivityLock(),
+        _EntryMode.locked => _ConfirmedActivityLock(date: _date),
         _EntryMode.draft || _EntryMode.formal => _buildEntryBody(),
       },
     );
@@ -576,16 +580,26 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: SectionHeader(
                     icon: Icons.directions_walk_outlined,
-                    title: 'DAILY ACTIVITY',
+                    title: _isToday ? 'DAILY ACTIVITY' : 'PAST ACTIVITY',
                   ),
                 ),
               ),
+              if (!_isToday) ...[
+                AppSpacing.gapSM,
+                Semantics(
+                  label: '${_formatDate(_date)}のActivity入力',
+                  child: Text(
+                    '${_formatDate(_date)} のActivity入力',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
               if (_hasDraftConflict) ...[
                 AppSpacing.gapMD,
                 const MaterialBanner(
@@ -663,11 +677,11 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 ),
                 AppSpacing.gapMD,
                 Semantics(
-                  label: '本日のActivity記録を確定',
+                  label: '${_formatDate(_date)}のActivity記録を確定',
                   button: true,
                   child: OperationButton(
                     icon: Icons.task_alt,
-                    text: '本日の記録を確定',
+                    text: _isToday ? '本日の記録を確定' : 'この日の記録を確定',
                     onPressed: _isBusy ? null : _finalizeDraft,
                   ),
                 ),
@@ -721,10 +735,15 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 }
 
 class _ConfirmedActivityLock extends StatelessWidget {
-  const _ConfirmedActivityLock();
+  final DateTime date;
+
+  const _ConfirmedActivityLock({required this.date});
 
   @override
   Widget build(BuildContext context) {
+    final localDate =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
     return Center(
       child: Padding(
         padding: AppSpacing.cardPadding,
@@ -738,6 +757,8 @@ class _ConfirmedActivityLock extends StatelessWidget {
                 'この日のログは確定済みです。\n変更する場合は訂正処理を開始してください。',
                 textAlign: TextAlign.center,
               ),
+              AppSpacing.gapSM,
+              Text(localDate),
               AppSpacing.gapMD,
               OperationButton(
                 text: 'BACK TO DASHBOARD',

@@ -215,8 +215,7 @@ class _ActivityReviewSection extends StatelessWidget {
         ? '—'
         : '${netCarryOver > 0 ? '+' : ''}${_formatSteps(netCarryOver)}';
     final bowel = activity!.bowelMovement;
-    final bowelShape = _formatBowelShape(bowel.shape);
-    final bowelAmount = _formatBowelAmount(bowel.amount);
+    final digestive = activity!.digestiveSummary;
 
     return _ReviewSection(
       icon: Icons.directions_walk_outlined,
@@ -228,10 +227,48 @@ class _ActivityReviewSection extends StatelessWidget {
           Text('歩数 ${_formatSteps(activity!.officialSteps)}'),
           Text('実測歩数 ${_formatSteps(activity!.measuredSteps)}'),
           Text('繰越 $carryOver'),
-          Text('便形状 $bowelShape'),
-          Text('便量 $bowelAmount'),
+          if (digestive != null && digestive.eventCount == 0)
+            const Text('排便記録なし')
+          else if (digestive != null) ...[
+            _SemanticSummaryValue(
+              label: '排便回数',
+              value: '${digestive.eventCount}回',
+            ),
+            _SemanticSummaryValue(
+              label: '総量',
+              value: digestive.totalAmount.toString(),
+            ),
+            _SemanticSummaryValue(
+              label: '最新形状',
+              value: _formatBowelShape(digestive.latestShape),
+            ),
+            _SemanticSummaryValue(
+              label: '最新スッキリ感',
+              value: _formatRelief(digestive.latestRelief),
+            ),
+          ] else ...[
+            Text('便形状 ${_formatBowelShape(bowel.shape)}'),
+            Text('便量 ${_formatBowelAmount(bowel.amount)}'),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _SemanticSummaryValue extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SemanticSummaryValue({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      excludeSemantics: true,
+      label: label,
+      value: value,
+      child: Text('$label $value'),
     );
   }
 }
@@ -309,5 +346,12 @@ String _formatBowelAmount(int? value) => switch (value) {
   1 => '少量',
   2 => '普通',
   3 => '多量',
+  _ => '—',
+};
+
+String _formatRelief(int? value) => switch (value) {
+  0 => '残便感あり',
+  1 => '普通',
+  2 => 'スッキリ',
   _ => '—',
 };
