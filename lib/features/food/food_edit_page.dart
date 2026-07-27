@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/meal_data.dart';
+import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 
@@ -12,21 +13,33 @@ class FoodEditPage extends StatelessWidget {
 
   const FoodEditPage({super.key, required this.meal});
 
-  Future<void> _update(BuildContext context, MealData data) async {
+  Future<bool> _update(BuildContext context, MealData data) async {
     try {
       await FoodSubmitService.update(data);
     } on ConfirmedDailyLogException catch (error) {
       if (context.mounted) showConfirmedLogMessage(context, error);
-      return;
+      return false;
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('MEALの更新に失敗しました')));
+      }
+      return false;
     }
 
-    if (!context.mounted) return;
+    if (!context.mounted) return true;
 
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('MEALを更新しました')));
 
-    Navigator.pop(context, true);
+    if (data.isWaterEntry) {
+      Navigator.pop(context, true);
+    } else {
+      Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    }
+    return true;
   }
 
   @override

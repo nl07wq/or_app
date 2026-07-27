@@ -268,7 +268,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   }
 
   Future<void> _saveExisting() async {
-    if (!_validateSteps()) return;
+    if (_isBusy || !_validateSteps()) return;
     final validationMessage = _usesDigestiveEvents
         ? _digestiveValidationMessage()
         : null;
@@ -277,6 +277,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       return;
     }
 
+    setState(() => _isBusy = true);
     final initial = _formalData!;
     final updated = initial.copyWith(
       date: _date,
@@ -303,10 +304,16 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         'Official steps cannot be negative. Review Carry Over values.',
       );
       return;
+    } catch (_) {
+      if (mounted) _showMessage('ACTIVITYの保存に失敗しました');
+      return;
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
     }
 
     if (!mounted) return;
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.dashboard));
+    _showMessage('ACTIVITYを保存しました');
+    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.activity));
   }
 
   Future<void> _saveDraft() async {
@@ -365,6 +372,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         _mode = _EntryMode.formal;
       });
       _showMessage('${_formatDate(_date)}のActivity記録を確定しました');
+      Navigator.popUntil(context, ModalRoute.withName(AppRoutes.activity));
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
     } catch (_) {

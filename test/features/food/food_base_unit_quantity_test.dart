@@ -1,11 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
+import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/repositories/daily_log_confirmation_repository.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/data/beta_meal_templates.dart';
+import 'package:or_app/features/food/food_edit_page.dart';
+import 'package:or_app/features/food/food_entry_page.dart';
 import 'package:or_app/features/food/food_history_page.dart';
+import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/food/services/beta_meal_template_resolver.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
@@ -305,6 +313,48 @@ void main() {
   group('Food quantity entry UI', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
 
+    testWidgets('blocks repeated save submissions while save is pending', (
+      tester,
+    ) async {
+      final completion = Completer<bool>();
+      var saveCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                onSave: (_) {
+                  saveCount++;
+                  return completion.future;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(_field('Food Name'), 'Pending Meal');
+      await tester.enterText(_field('Calories'), '100');
+      await tester.enterText(_field('Protein'), '10');
+      await tester.enterText(_field('Fat'), '5');
+      await tester.enterText(_field('Carbohydrate'), '20');
+      await tester.pump();
+
+      final button = tester.widget<ElevatedButton>(
+        find.ancestor(
+          of: find.text('SAVE MEAL'),
+          matching: find.byType(ElevatedButton),
+        ),
+      );
+      button.onPressed!();
+      button.onPressed!();
+      await tester.pump();
+      expect(saveCount, 1);
+
+      completion.complete(true);
+      await tester.pump();
+    });
+
     testWidgets('shows base controls and saves calculated snapshot', (
       tester,
     ) async {
@@ -313,7 +363,12 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: FoodInputForm(onSave: (meal) async => saved = meal),
+              child: FoodInputForm(
+                onSave: (meal) async {
+                  saved = meal;
+                  return true;
+                },
+              ),
             ),
           ),
         ),
@@ -365,7 +420,7 @@ void main() {
           MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
-                child: FoodInputForm(onSave: (_) async {}),
+                child: FoodInputForm(onSave: (_) async => true),
               ),
             ),
           ),
@@ -439,7 +494,12 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: FoodInputForm(onSave: (meal) async => saved = meal),
+              child: FoodInputForm(
+                onSave: (meal) async {
+                  saved = meal;
+                  return true;
+                },
+              ),
             ),
           ),
         ),
@@ -509,7 +569,10 @@ void main() {
             body: SingleChildScrollView(
               child: FoodInputForm(
                 initialMeal: legacyMeal,
-                onSave: (meal) async => saved = meal,
+                onSave: (meal) async {
+                  saved = meal;
+                  return true;
+                },
               ),
             ),
           ),
@@ -552,7 +615,10 @@ void main() {
             body: SingleChildScrollView(
               child: FoodInputForm(
                 initialMeal: physicalMeal,
-                onSave: (meal) async => saved = meal,
+                onSave: (meal) async {
+                  saved = meal;
+                  return true;
+                },
               ),
             ),
           ),
@@ -626,6 +692,174 @@ void main() {
       expect(find.text('Measured  AMOUNT 0.1 (10g)'), findsOneWidget);
     });
   });
+
+  group('Food post-save navigation', () {
+    late FakeIndexedDbDatabase database;
+
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      appInitializationController.markReady();
+      database = FakeIndexedDbDatabase();
+      AppRepositoryRegistry.beginStartup(
+        controller: appInitializationController,
+      );
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    });
+
+    tearDown(AppRepositoryRegistry.resetForTesting);
+
+    testWidgets('SAVE MEAL returns once to the FOOD module after success', (
+      tester,
+    ) async {
+      final observer = _CountingNavigatorObserver();
+      await _pumpFoodModule(tester, observer: observer);
+      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.pumpAndSettle();
+
+      await _enterNavigationMeal(tester);
+      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await tester.tap(find.text('SAVE MEAL'));
+      await tester.pumpAndSettle();
+
+      _expectFoodModule();
+      expect(find.text('MEALを保存しました'), findsOneWidget);
+      expect(find.byType(FoodEntryPage), findsNothing);
+      expect(observer.popCount, 1);
+    });
+
+    testWidgets('UPDATE MEAL returns once to the FOOD module after success', (
+      tester,
+    ) async {
+      final observer = _CountingNavigatorObserver();
+      final navigatorKey = GlobalKey<NavigatorState>();
+      final meal = _existingNavigationMeal();
+      await AppRepositoryRegistry.container.food.save(meal);
+      await _pumpFoodModule(
+        tester,
+        observer: observer,
+        navigatorKey: navigatorKey,
+      );
+
+      navigatorKey.currentState!.push(
+        MaterialPageRoute<void>(builder: (_) => FoodEditPage(meal: meal)),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('UPDATE MEAL'));
+      await tester.tap(find.text('UPDATE MEAL'));
+      await tester.pumpAndSettle();
+
+      _expectFoodModule();
+      expect(find.text('MEALを更新しました'), findsOneWidget);
+      expect(find.byType(FoodEditPage), findsNothing);
+      expect(observer.popCount, 1);
+    });
+
+    testWidgets('validation failure keeps the FOOD input page', (tester) async {
+      await _pumpFoodModule(tester);
+      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SAVE MEAL'), findsNothing);
+      expect(find.byType(FoodEntryPage), findsOneWidget);
+      expect(find.text('REPORT SYNC'), findsNothing);
+    });
+
+    testWidgets('save failure keeps the FOOD input and its values', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      await DailyLogConfirmationRepository.save(
+        DailyLogConfirmation(
+          date: DateTime(now.year, now.month, now.day),
+          confirmedAt: now,
+          morning: null,
+          food: null,
+          activity: null,
+          training: null,
+        ),
+      );
+      await _pumpFoodModule(tester);
+      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.pumpAndSettle();
+
+      await _enterNavigationMeal(tester);
+      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await tester.tap(find.text('SAVE MEAL'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FoodEntryPage), findsOneWidget);
+      expect(find.text('REPORT SYNC'), findsNothing);
+      expect(find.textContaining('この日のログは確定済みです'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(_field('Food Name')).controller?.text,
+        'Navigation Meal',
+      );
+    });
+  });
+}
+
+Future<void> _pumpFoodModule(
+  WidgetTester tester, {
+  NavigatorObserver? observer,
+  GlobalKey<NavigatorState>? navigatorKey,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      navigatorKey: navigatorKey,
+      initialRoute: AppRoutes.food,
+      routes: {AppRoutes.food: (_) => const FoodPage()},
+      navigatorObservers: [?observer],
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _enterNavigationMeal(WidgetTester tester) async {
+  await tester.enterText(_field('Food Name'), 'Navigation Meal');
+  await tester.enterText(_field('Calories'), '100');
+  await tester.enterText(_field('Protein'), '10');
+  await tester.enterText(_field('Fat'), '5');
+  await tester.enterText(_field('Carbohydrate'), '20');
+  await tester.pump();
+}
+
+void _expectFoodModule() {
+  expect(find.text('REPORT SYNC'), findsOneWidget);
+  expect(find.text('MANUAL ENTRY'), findsOneWidget);
+  expect(find.text('RECORD'), findsWidgets);
+}
+
+MealData _existingNavigationMeal() {
+  final now = DateTime.now();
+  final date =
+      '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+  return MealData(
+    id: 'food-navigation-edit',
+    date: date,
+    mealType: 'Dinner',
+    items: [
+      FoodItem(
+        name: 'Existing Meal',
+        calories: 100,
+        protein: 10,
+        fat: 5,
+        carbohydrate: 20,
+      ),
+    ],
+    memo: '',
+  );
+}
+
+class _CountingNavigatorObserver extends NavigatorObserver {
+  int popCount = 0;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    popCount++;
+    super.didPop(route, previousRoute);
+  }
 }
 
 FoodItem _measuredItem({

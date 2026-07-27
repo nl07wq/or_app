@@ -18,7 +18,7 @@ import 'food_item_list.dart';
 import 'food_total_card.dart';
 
 class FoodInputForm extends StatefulWidget {
-  final Future<void> Function(MealData data) onSave;
+  final Future<bool> Function(MealData data) onSave;
   final MealData? initialMeal;
 
   const FoodInputForm({super.key, required this.onSave, this.initialMeal});
@@ -51,6 +51,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   String? inputError;
   FoodBaseUnit baseUnit = FoodBaseUnit.g;
   double? _lastValidBaseAmount = _defaultBaseAmount;
+  bool _isSaving = false;
 
   FoodAmountMode get _inputAmountMode {
     final index = editingIndex;
@@ -348,6 +349,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   Future<void> saveMeal() async {
+    if (_isSaving) return;
     final waterMl = double.tryParse(waterVolumeController.text.trim());
 
     if (isWaterEntry && (waterMl == null || waterMl <= 0)) {
@@ -380,10 +382,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
       waterMl: isWaterEntry ? waterMl : null,
     );
 
-    await widget.onSave(meal);
+    setState(() => _isSaving = true);
+    final saved = await widget.onSave(meal);
 
     if (!mounted) return;
 
+    setState(() => _isSaving = false);
+    if (!saved) return;
     _clearForm();
   }
 
@@ -455,7 +460,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
             OperationButton(
               icon: Icons.water_drop_outlined,
               text: widget.initialMeal == null ? 'Save Water' : 'Update Water',
-              onPressed: saveMeal,
+              onPressed: _isSaving ? null : saveMeal,
             ),
           ] else ...[
             const Align(
@@ -598,7 +603,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               OperationButton(
                 icon: Icons.save,
                 text: widget.initialMeal == null ? 'SAVE MEAL' : 'UPDATE MEAL',
-                onPressed: saveMeal,
+                onPressed: _isSaving ? null : saveMeal,
               ),
             ],
           ],

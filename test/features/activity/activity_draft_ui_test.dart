@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/activity_data.dart';
 import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/digestive_event.dart';
+import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/repositories/daily_log_confirmation_repository.dart';
 import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/features/activity/activity_entry_page.dart';
+import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,6 +73,13 @@ void main() {
     await tester.tap(find.text('SAVE DRAFT'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(ActivityEntryPage), findsOneWidget);
+    expect(find.text('SAVE DRAFT'), findsOneWidget);
+    expect(find.text('MANUAL ENTRY'), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(0)).controller?.text,
+      '4321',
+    );
     final draft = await AppRepositoryRegistry.container.activityDrafts
         .findByDate(today);
     expect(draft?.measuredStepsInput, '4321');
@@ -152,10 +161,10 @@ void main() {
     expect(find.text('DIGESTIVE 1のAmountを入力してください'), findsOneWidget);
   });
 
-  testWidgets('finalize saves Events, deletes Draft, and enters formal mode', (
+  testWidgets('finalize saves Events, deletes Draft, and returns to ACTIVITY', (
     tester,
   ) async {
-    await _pumpEntry(tester);
+    await _pumpEntryFromActivity(tester);
     await tester.enterText(find.byType(TextField).at(0), '5000');
     await _tapChip(tester, '多量');
     await _tapChip(tester, '普通便');
@@ -175,14 +184,18 @@ void main() {
       await AppRepositoryRegistry.container.activityDrafts.findByDate(today),
       isNull,
     );
-    expect(find.text('SAVE ACTIVITY'), findsOneWidget);
+    expect(find.text('REPORT SYNC'), findsOneWidget);
+    expect(find.text('MANUAL ENTRY'), findsOneWidget);
+    expect(find.text('RECORD'), findsWidgets);
+    expect(find.textContaining('Activity記録を確定しました'), findsOneWidget);
+    expect(find.byType(ActivityEntryPage), findsNothing);
     expect(find.text('SAVE DRAFT'), findsNothing);
   });
 
   testWidgets('zero Events can be finalized without a legacy bowel value', (
     tester,
   ) async {
-    await _pumpEntry(tester);
+    await _pumpEntryFromActivity(tester);
     await tester.enterText(find.byType(TextField).at(0), '2500');
     await tester.ensureVisible(find.text('SAVE ACTIVITY'));
     await tester.tap(find.text('SAVE ACTIVITY'));
@@ -193,6 +206,8 @@ void main() {
     );
     expect(saved?.digestiveEvents, isEmpty);
     expect(saved?.bowelMovement.hasMovement, isNull);
+    expect(find.byType(ActivityPage), findsOneWidget);
+    expect(find.byType(ActivityEntryPage), findsNothing);
   });
 
   testWidgets('formal Digestive Event records remain editable', (tester) async {
@@ -214,7 +229,7 @@ void main() {
       ),
     );
 
-    await _pumpEntry(tester);
+    await _pumpEntryFromActivity(tester);
     expect(find.text('SAVE ACTIVITY'), findsOneWidget);
     expect(find.text('SAVE DRAFT'), findsNothing);
     await _tapChip(tester, '多量');
@@ -228,6 +243,8 @@ void main() {
     expect(saved?.digestiveEvents?.single.amount, 3);
     expect(saved?.digestiveEvents?.single.id, 'digestive:2026-07-28:existing');
     expect(saved?.digestiveEvents?.single.recordedAt, eventTime);
+    expect(find.byType(ActivityPage), findsOneWidget);
+    expect(find.text('ACTIVITYを保存しました'), findsOneWidget);
   });
 
   testWidgets('Shape and Relief preserve the approved Material Symbols', (
@@ -327,6 +344,18 @@ void main() {
 
 Future<void> _pumpEntry(WidgetTester tester) async {
   await tester.pumpWidget(const MaterialApp(home: ActivityEntryPage()));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpEntryFromActivity(WidgetTester tester) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      initialRoute: AppRoutes.activity,
+      routes: {AppRoutes.activity: (_) => const ActivityPage()},
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('ACTIVITY ENTRY'));
   await tester.pumpAndSettle();
 }
 

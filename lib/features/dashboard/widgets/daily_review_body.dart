@@ -62,28 +62,42 @@ class _StatusReviewSection extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: AppSpacing.md,
-                  runSpacing: AppSpacing.xs,
+                _ResponsiveReviewRow(
+                  key: const ValueKey('status-weight-body-fat-row'),
                   children: [
                     Text('Weight ${morning!.weight.toStringAsFixed(1)} kg'),
                     Text(
                       'Body Fat '
                       '${morning!.bodyFat == null ? 'Not recorded' : '${morning!.bodyFat!.toStringAsFixed(1)}%'}',
                     ),
-                    Text('Sleep ${_formatSleep(morning!.sleepDuration)}'),
-                    Text('Sleep Score ${morning!.sleepScore}'),
-                    Text('Foot Pain ${morning!.footPain}'),
-                    Text(
-                      'Work Time ${morning!.workHours.toStringAsFixed(1)} h',
-                    ),
                   ],
                 ),
                 AppSpacing.gapXS,
-                Text(
-                  'Memo ${morning!.freeNotes?.trim().isNotEmpty == true ? morning!.freeNotes!.trim() : '—'}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                _ResponsiveReviewRow(
+                  key: const ValueKey('status-sleep-score-row'),
+                  children: [
+                    Text('Sleep ${_formatSleep(morning!.sleepDuration)}'),
+                    Text('Sleep Score ${morning!.sleepScore}'),
+                  ],
+                ),
+                AppSpacing.gapXS,
+                _ResponsiveReviewRow(
+                  key: const ValueKey('status-foot-pain-row'),
+                  children: [Text('Foot Pain ${morning!.footPain}')],
+                ),
+                AppSpacing.gapXS,
+                _ResponsiveReviewRow(
+                  key: const ValueKey('status-work-memo-row'),
+                  children: [
+                    Text(
+                      'Work Time ${morning!.workHours.toStringAsFixed(1)} h',
+                    ),
+                    Text(
+                      'Memo ${morning!.freeNotes?.trim().isNotEmpty == true ? morning!.freeNotes!.trim() : '—'}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -103,17 +117,27 @@ class _FoodReviewSection extends StatelessWidget {
       icon: Icons.restaurant_outlined,
       title: 'FOOD',
       child: hasMeal
-          ? Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.xs,
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${food!.mealCount} ${food!.mealCount == 1 ? 'Meal' : 'Meals'}',
+                _ResponsiveReviewRow(
+                  key: const ValueKey('food-meals-calories-row'),
+                  children: [
+                    Text(
+                      '${food!.mealCount} ${food!.mealCount == 1 ? 'Meal' : 'Meals'}',
+                    ),
+                    Text('${_formatWhole(food!.calories)} kcal'),
+                  ],
                 ),
-                Text('${_formatWhole(food!.calories)} kcal'),
-                Text('P ${food!.protein.toStringAsFixed(1)} g'),
-                Text('F ${food!.fat.toStringAsFixed(1)} g'),
-                Text('C ${food!.carbohydrates.toStringAsFixed(1)} g'),
+                AppSpacing.gapXS,
+                _ResponsiveReviewRow(
+                  key: const ValueKey('food-macros-row'),
+                  children: [
+                    Text('P ${food!.protein.toStringAsFixed(1)} g'),
+                    Text('F ${food!.fat.toStringAsFixed(1)} g'),
+                    Text('C ${food!.carbohydrates.toStringAsFixed(1)} g'),
+                  ],
+                ),
               ],
             )
           : const Text('Not recorded'),
@@ -152,6 +176,9 @@ class _EnergyReviewSection extends StatelessWidget {
     final balance = food == null || estimatedTotalBurnKcal == null
         ? null
         : food!.calories - estimatedTotalBurnKcal!;
+    final balanceText = balance == null
+        ? '—'
+        : '${_formatSignedWhole(balance)} kcal';
     return _ReviewSection(
       icon: Icons.local_fire_department_outlined,
       title: 'ENERGY',
@@ -164,10 +191,19 @@ class _EnergyReviewSection extends StatelessWidget {
                 ? 'Est. Total Burn —'
                 : 'Est. Total Burn ${_formatWhole(estimatedTotalBurnKcal!)} kcal',
           ),
-          Text(
-            balance == null
-                ? 'Calorie Balance —'
-                : 'Calorie Balance ${_formatSignedWhole(balance)} kcal',
+          Text.rich(
+            key: const ValueKey('calorie-balance'),
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Calorie Balance '),
+                TextSpan(
+                  text: balanceText,
+                  style: TextStyle(
+                    color: _calorieBalanceColor(context, balance),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -327,6 +363,40 @@ class _ReviewDivider extends StatelessWidget {
   }
 }
 
+class _ResponsiveReviewRow extends StatelessWidget {
+  const _ResponsiveReviewRow({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => Wrap(
+        spacing: AppSpacing.md,
+        runSpacing: AppSpacing.xs,
+        children: [
+          for (final child in children)
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: child,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+Color? _calorieBalanceColor(BuildContext context, double? balance) {
+  if (balance == null || (balance >= -150 && balance <= 150)) {
+    return null;
+  }
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  if (balance >= 151) {
+    return isDark ? Colors.amberAccent : Colors.amber.shade800;
+  }
+  return isDark ? Colors.cyanAccent : Colors.cyan.shade700;
+}
+
 String _formatSleep(Duration duration) {
   final minutes = duration.inMinutes.remainder(60);
   return '${duration.inHours}h ${minutes.toString().padLeft(2, '0')}m';
@@ -341,7 +411,11 @@ String _formatWhole(double value) => _formatSteps(value.round());
 
 String _formatSignedWhole(double value) {
   final rounded = value.round();
-  final sign = rounded < 0 ? '-' : '';
+  final sign = rounded > 0
+      ? '+'
+      : rounded < 0
+      ? '-'
+      : '';
   return '$sign${_formatSteps(rounded.abs())}';
 }
 

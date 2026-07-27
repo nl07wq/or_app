@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/meal_data.dart';
+import '../../core/navigation/app_routes.dart';
 import '../../core/repositories/food_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
@@ -35,23 +36,34 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     }
   }
 
-  Future<void> save(MealData data) async {
+  Future<bool> save(MealData data) async {
     try {
       await FoodSubmitService.save(data);
+      await loadRecords();
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
-      return;
+      return false;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('MEALの保存に失敗しました')));
+      }
+      return false;
     }
 
-    await loadRecords();
-
-    if (!mounted) return;
+    if (!mounted) return true;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(data.isWaterEntry ? 'Water saved' : 'MEALを保存しました'),
       ),
     );
+
+    if (!data.isWaterEntry) {
+      Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    }
+    return true;
   }
 
   @override

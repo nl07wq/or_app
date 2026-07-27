@@ -327,6 +327,137 @@ void main() {
     expect(find.textContaining('ENERGY BALANCE'), findsNothing);
   });
 
+  testWidgets('STATUS and FOOD use the approved semantic row groups', (
+    tester,
+  ) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: _training(),
+      estimatedTotalBurn: 2850,
+    );
+
+    _expectRow('status-weight-body-fat-row', [
+      'Weight 96.8 kg',
+      'Body Fat 32.4%',
+    ]);
+    _expectRow('status-sleep-score-row', ['Sleep 4h 16m', 'Sleep Score 61']);
+    _expectRow('status-foot-pain-row', ['Foot Pain 1']);
+    _expectRow('status-work-memo-row', ['Work Time 8.0 h', 'Memo Ready']);
+    _expectRow('food-meals-calories-row', ['3 Meals', '2,130 kcal']);
+    _expectRow('food-macros-row', ['P 142.5 g', 'F 61.2 g', 'C 238.4 g']);
+
+    expect(
+      tester.getTopLeft(find.text('Weight 96.8 kg')).dy,
+      tester.getTopLeft(find.text('Body Fat 32.4%')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.text('Sleep 4h 16m')).dy,
+      tester.getTopLeft(find.text('Sleep Score 61')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.text('Work Time 8.0 h')).dy,
+      tester.getTopLeft(find.text('Memo Ready')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.text('3 Meals')).dy,
+      tester.getTopLeft(find.text('2,130 kcal')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.text('P 142.5 g')).dy,
+      tester.getTopLeft(find.text('F 61.2 g')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.text('F 61.2 g')).dy,
+      tester.getTopLeft(find.text('C 238.4 g')).dy,
+    );
+  });
+
+  testWidgets('Calorie Balance uses the approved inclusive neutral band', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+
+    Future<void> expectBalance(double balance, Object? expectedColor) async {
+      await _pumpReview(
+        tester,
+        morning: _morning(),
+        food: _foodWithCalories(2000 + balance),
+        activity: _activity(),
+        training: null,
+        estimatedTotalBurn: 2000,
+      );
+      final sign = balance > 0 ? '+' : '';
+      expect(
+        find.text('Calorie Balance $sign${balance.round()} kcal'),
+        findsOneWidget,
+      );
+      expect(_balanceValueColor(tester), expectedColor);
+    }
+
+    await expectBalance(151, Colors.amber.shade800);
+    await expectBalance(150, isNull);
+    await expectBalance(0, isNull);
+    await expectBalance(-150, isNull);
+    await expectBalance(-151, Colors.cyan.shade700);
+    expect(
+      find.bySemanticsLabel(RegExp(r'Calorie Balance -151 kcal')),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('FOOD keeps the singular Meal label in its first row', (
+    tester,
+  ) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: const FoodSummary(
+        calories: 500,
+        protein: 20,
+        fat: 15,
+        carbohydrates: 70,
+        hydrationMl: 500,
+        mealCount: 1,
+      ),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2000,
+    );
+
+    _expectRow('food-meals-calories-row', ['1 Meal', '500 kcal']);
+    expect(find.text('1 Meals'), findsNothing);
+  });
+
+  testWidgets('Calorie Balance remains readable with dark theme colors', (
+    tester,
+  ) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _foodWithCalories(2151),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2000,
+      theme: ThemeData.dark(),
+    );
+    expect(_balanceValueColor(tester), Colors.amberAccent);
+
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _foodWithCalories(1849),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2000,
+      theme: ThemeData.dark(),
+    );
+    expect(_balanceValueColor(tester), Colors.cyanAccent);
+  });
+
   testWidgets('Daily Review shows the new Digestive Summary without Legacy', (
     tester,
   ) async {
@@ -547,8 +678,14 @@ void main() {
     ]) {
       expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
     }
+    _expectRow('status-weight-body-fat-row', [
+      'Weight 88.3 kg',
+      'Body Fat 24.8%',
+    ]);
+    _expectRow('food-meals-calories-row', ['4 Meals', '2,346 kcal']);
     expect(find.text('Est. Total Burn 2,876 kcal'), findsOneWidget);
     expect(find.text('Calorie Balance -530 kcal'), findsOneWidget);
+    expect(_balanceValueColor(tester), Colors.cyan.shade700);
     expect(find.textContaining('確定日時 2026-07-26 22:30'), findsOneWidget);
     expect(find.text('DAILY REVIEW'), findsNothing);
     expect(find.textContaining('Confirmed at'), findsNothing);
@@ -620,6 +757,7 @@ void main() {
 
     expect(find.text('Est. Total Burn —'), findsOneWidget);
     expect(find.text('Calorie Balance —'), findsOneWidget);
+    expect(_balanceValueColor(tester), isNull);
     expect(find.textContaining('9,999'), findsNothing);
   });
 
@@ -1029,9 +1167,11 @@ Future<void> _pumpReview(
   required double? estimatedTotalBurn,
   BackupFileExportService? backupExportService,
   ConfirmDailyLog? confirmDailyLog,
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      theme: theme,
       home: LogConfirmationReviewPage(
         morning: morning,
         food: food,
@@ -1044,6 +1184,25 @@ Future<void> _pumpReview(
     ),
   );
   await tester.pump();
+}
+
+void _expectRow(String key, List<String> values) {
+  final row = find.byKey(ValueKey(key));
+  expect(row, findsOneWidget);
+  for (final value in values) {
+    expect(
+      find.descendant(of: row, matching: find.text(value)),
+      findsOneWidget,
+    );
+  }
+}
+
+Color? _balanceValueColor(WidgetTester tester) {
+  final text = tester.widget<Text>(
+    find.byKey(const ValueKey('calorie-balance')),
+  );
+  final root = text.textSpan! as TextSpan;
+  return (root.children![1] as TextSpan).style?.color;
 }
 
 BackupFileExportService _backupService(_RecordingBackupGateway gateway) {
@@ -1102,6 +1261,17 @@ MorningFact _morning({String? memo = 'Ready'}) {
 FoodSummary _food() {
   return const FoodSummary(
     calories: 2130,
+    protein: 142.5,
+    fat: 61.2,
+    carbohydrates: 238.4,
+    hydrationMl: 3200,
+    mealCount: 3,
+  );
+}
+
+FoodSummary _foodWithCalories(double calories) {
+  return FoodSummary(
+    calories: calories,
     protein: 142.5,
     fat: 61.2,
     carbohydrates: 238.4,
