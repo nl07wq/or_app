@@ -546,49 +546,98 @@ class _ProgressCard extends StatelessWidget {
                 ],
               ),
               AppSpacing.gapLG,
-              _ProgressRow(
-                label: 'MORNING ROUTINE',
-                status: morningComplete ? '完了' : '未完了',
-                progress: morningComplete ? 1.0 : 0.0,
-              ),
-              AppSpacing.gapMD,
-              _ProgressRow(
-                label: 'FOOD',
-                status: '$mealCount / 3',
-                progress: (mealCount / 3).clamp(0.0, 1.0).toDouble(),
-              ),
-              AppSpacing.gapMD,
-              _ProgressRow(
-                label: 'CALORIES',
-                status: '${calories.toStringAsFixed(0)} / 2200 kcal',
-                progress: (calories / 2200).clamp(0.0, 1.0).toDouble(),
-              ),
-              AppSpacing.gapMD,
-              _ProgressRow(
-                label: 'PROTEIN',
-                status: '${protein.toStringAsFixed(1)} / 100 g',
-                progress: (protein / 100).clamp(0.0, 1.0).toDouble(),
-              ),
-              AppSpacing.gapMD,
-              _ProgressRow(
-                label: 'WATER',
-                status: '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
-                progress: (hydrationMl / 3500).clamp(0.0, 1.0).toDouble(),
-                onTap: onWaterTap,
-              ),
-              AppSpacing.gapMD,
-              _ProgressRow(
-                label: 'ACTIVITY',
-                status: activitySummary.isRecorded
-                    ? '${_formatSteps(activitySummary.steps)} steps'
-                    : 'Not recorded',
-                progress: 0,
-              ),
-              AppSpacing.gapMD,
-              _ProgressRow(
-                label: 'TRAINING',
-                status: trainingSummary?.completed == true ? '実施' : '未実施',
-                progress: trainingSummary?.completed == true ? 1.0 : 0.0,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final useTwoColumns = constraints.maxWidth >= 280;
+                      final tileWidth = useTwoColumns
+                          ? (constraints.maxWidth - AppSpacing.md) / 2
+                          : constraints.maxWidth;
+
+                      Widget tile({
+                        required String label,
+                        required String status,
+                        required double progress,
+                        VoidCallback? onTap,
+                        bool fullWidth = false,
+                      }) {
+                        return SizedBox(
+                          key: ValueKey('operation-progress-$label'),
+                          width: fullWidth ? constraints.maxWidth : tileWidth,
+                          child: _ProgressRow(
+                            label: label,
+                            status: status,
+                            progress: progress,
+                            onTap: onTap,
+                          ),
+                        );
+                      }
+
+                      return Wrap(
+                        spacing: AppSpacing.md,
+                        runSpacing: AppSpacing.md,
+                        children: [
+                          tile(
+                            label: 'STATUS',
+                            status: morningComplete ? '完了' : '未完了',
+                            progress: morningComplete ? 1.0 : 0.0,
+                          ),
+                          tile(
+                            label: 'FOOD',
+                            status: '$mealCount / 3',
+                            progress: (mealCount / 3)
+                                .clamp(0.0, 1.0)
+                                .toDouble(),
+                          ),
+                          tile(
+                            label: 'CALORIES',
+                            status:
+                                '${calories.toStringAsFixed(0)} / 2200 kcal',
+                            progress: (calories / 2200)
+                                .clamp(0.0, 1.0)
+                                .toDouble(),
+                          ),
+                          tile(
+                            label: 'PROTEIN',
+                            status: '${protein.toStringAsFixed(1)} / 100 g',
+                            progress: (protein / 100)
+                                .clamp(0.0, 1.0)
+                                .toDouble(),
+                          ),
+                          tile(
+                            label: 'WATER',
+                            status:
+                                '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
+                            progress: (hydrationMl / 3500)
+                                .clamp(0.0, 1.0)
+                                .toDouble(),
+                            onTap: onWaterTap,
+                          ),
+                          tile(
+                            label: 'TRAINING',
+                            status: trainingSummary?.completed == true
+                                ? '実施'
+                                : '未実施',
+                            progress: trainingSummary?.completed == true
+                                ? 1.0
+                                : 0.0,
+                          ),
+                          tile(
+                            label: 'ACTIVITY',
+                            status: activitySummary.isRecorded
+                                ? '${_formatSteps(activitySummary.steps)} steps'
+                                : 'Not recorded',
+                            progress: 0,
+                            fullWidth: true,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -641,27 +690,23 @@ class _ProgressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        AppSpacing.gapXS,
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(status),
-                if (onTap != null) ...[
-                  SizedBox(width: AppSpacing.sm),
-                  Icon(
-                    Icons.add_circle_outline,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ],
-              ],
-            ),
+            Expanded(child: Text(status)),
+            if (onTap != null) ...[
+              SizedBox(width: AppSpacing.sm),
+              Icon(
+                Icons.add_circle_outline,
+                size: 18,
+                color: colorScheme.primary,
+              ),
+            ],
           ],
         ),
         AppSpacing.gapXS,
@@ -669,16 +714,21 @@ class _ProgressRow extends StatelessWidget {
       ],
     );
 
-    if (onTap == null) {
-      return content;
-    }
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: content,
+    return Material(
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: content,
+        ),
       ),
     );
   }
