@@ -583,7 +583,9 @@ class FoodMigrationService {
         );
     if (metadata.id != migrationId ||
         metadata.source != FoodLegacyReader.sourceSystem ||
-        metadata.targetDatabaseVersion != IndexedDbSchema.databaseVersion ||
+        !IndexedDbSchema.supportsMigrationMetadataVersion(
+          metadata.targetDatabaseVersion,
+        ) ||
         metadata.status != IndexedDbMigrationStatus.completed ||
         metadata.completedAt == null ||
         targetDigest == null ||

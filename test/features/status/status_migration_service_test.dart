@@ -356,6 +356,27 @@ void main() {
   });
 
   test(
+    'completed v3 Migration metadata remains valid after v4 upgrade',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        legacyKey: [jsonEncode(_morning('2026-07-26T08:00:00', weight: 70))],
+      });
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      await service.migrate();
+      final metadata = _metadata(database).toRecord()
+        ..['targetDatabaseVersion'] = 3;
+      database.seed(
+        IndexedDbStoreNames.migrationMetadata,
+        StatusMigrationService.migrationId,
+        metadata,
+      );
+
+      expect((await service.migrate()).alreadyCompleted, isTrue);
+    },
+  );
+
+  test(
     'completed Migration rejects missing or added STATUS quarantine',
     () async {
       SharedPreferences.setMockInitialValues({

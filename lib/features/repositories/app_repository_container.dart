@@ -1,6 +1,8 @@
 import '../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../core/state/app_initialization_state.dart';
 import '../activity/repository/activity_repository.dart';
+import '../activity/repository/activity_draft_repository.dart';
+import '../activity/repository/indexed_db_activity_draft_repository.dart';
 import '../activity/repository/indexed_db_activity_repository.dart';
 import '../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
@@ -17,6 +19,7 @@ class AppRepositoryContainer {
   final IndexedDbDatabase database;
   final StatusRepository status;
   final ActivityRepository activity;
+  final ActivityDraftRepository activityDrafts;
   final FoodRepository food;
   final TrainingSessionRepository training;
   final CustomTrainingExerciseRepository customTrainingExercises;
@@ -26,6 +29,7 @@ class AppRepositoryContainer {
     required this.database,
     required this.status,
     required this.activity,
+    required this.activityDrafts,
     required this.food,
     required this.training,
     required this.customTrainingExercises,
@@ -37,6 +41,7 @@ class AppRepositoryContainer {
       database: database,
       status: IndexedDbStatusRepository(database),
       activity: IndexedDbActivityRepository(database),
+      activityDrafts: IndexedDbActivityDraftRepository(database),
       food: IndexedDbFoodRepository(database),
       training: IndexedDbTrainingSessionRepository(database),
       customTrainingExercises: IndexedDbCustomTrainingExerciseRepository(

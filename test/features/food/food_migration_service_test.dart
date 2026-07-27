@@ -52,7 +52,7 @@ void main() {
     expect(result.foodRecordIds, isEmpty);
     final metadata = _metadata(database);
     expect(metadata.status, IndexedDbMigrationStatus.completed);
-    expect(metadata.targetDatabaseVersion, 3);
+    expect(metadata.targetDatabaseVersion, 4);
     expect(metadata.targetDigest, isNotNull);
     expect(metadata.validCounts['verifiedRecordCount'], 0);
   });
@@ -411,6 +411,24 @@ void main() {
       );
     }
   });
+
+  test(
+    'completed v3 Migration metadata remains valid after v4 upgrade',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      await service.migrate();
+      final metadata = _metadata(database).toRecord()
+        ..['targetDatabaseVersion'] = 3;
+      database.seed(
+        IndexedDbStoreNames.migrationMetadata,
+        FoodMigrationService.migrationId,
+        metadata,
+      );
+
+      expect((await service.migrate()).alreadyCompleted, isTrue);
+    },
+  );
 
   test('completed Migration rejects quarantine mismatch', () async {
     SharedPreferences.setMockInitialValues({

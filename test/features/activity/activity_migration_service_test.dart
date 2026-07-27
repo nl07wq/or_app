@@ -44,7 +44,7 @@ void main() {
     );
   });
 
-  test('migrates zero records and completes v3 metadata', () async {
+  test('migrates zero records and completes v4 metadata', () async {
     final database = FakeIndexedDbDatabase();
 
     final result = await _service(database, migrationTime).migrate();
@@ -56,7 +56,8 @@ void main() {
       _metadata(database).targetDatabaseVersion,
       IndexedDbSchema.databaseVersion,
     );
-    expect(IndexedDbSchema.databaseVersion, 3);
+    expect(IndexedDbSchema.databaseVersion, 4);
+    expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
   test('migrates one record with all Activity fields intact', () async {
@@ -281,6 +282,24 @@ void main() {
       migrationTime,
     ).migrate();
     expect(independent.activityRecordIds, first.activityRecordIds);
+  });
+
+  test('completed v3 metadata stays complete after v4 Store upgrade', () async {
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    await service.migrate();
+    final metadata = _metadata(database).toRecord()
+      ..['targetDatabaseVersion'] = 3;
+    database.seed(
+      IndexedDbStoreNames.migrationMetadata,
+      ActivityMigrationService.migrationId,
+      metadata,
+    );
+
+    final result = await service.migrate();
+
+    expect(result.alreadyCompleted, isTrue);
+    expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
   test('transaction failure remains incomplete and retries cleanly', () async {

@@ -474,7 +474,9 @@ class StatusMigrationService {
         !completedAt.isAfter(metadata.updatedAt);
     if (metadata.id != migrationId ||
         metadata.source != StatusLegacyReader.sourceSystem ||
-        metadata.targetDatabaseVersion != IndexedDbSchema.databaseVersion ||
+        !IndexedDbSchema.supportsMigrationMetadataVersion(
+          metadata.targetDatabaseVersion,
+        ) ||
         metadata.status != IndexedDbMigrationStatus.completed ||
         completedAt == null ||
         metadata.attempt < 1 ||

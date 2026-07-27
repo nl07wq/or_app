@@ -65,7 +65,9 @@ class BackupPackageCodec {
     }
     final exportId = _string(json, 'exportId');
     final exportedAt = _date(json, 'exportedAt');
-    if (json['databaseVersion'] != IndexedDbSchema.databaseVersion) {
+    final databaseVersion = json['databaseVersion'];
+    if (databaseVersion is! int ||
+        !IndexedDbSchema.supportsBackupDatabaseVersion(databaseVersion)) {
       throw const BackupException(
         'unsupported_database_version',
         'Backup databaseVersion is not supported.',
@@ -135,7 +137,7 @@ class BackupPackageCodec {
       'exportId': exportId,
       'exportedAt': exportedAt.toUtc().toIso8601String(),
       if (json['appVersion'] case final String version) 'appVersion': version,
-      'databaseVersion': IndexedDbSchema.databaseVersion,
+      'databaseVersion': databaseVersion,
       'source': source.toJson(),
       'recordCounts': counts,
       'digests': sectionDigests,
@@ -151,7 +153,7 @@ class BackupPackageCodec {
       exportId: exportId,
       exportedAt: exportedAt,
       appVersion: json['appVersion'] as String?,
-      databaseVersion: IndexedDbSchema.databaseVersion,
+      databaseVersion: databaseVersion,
       source: source,
       recordCounts: BackupRecordCounts(counts),
       digests: BackupDigests(package: packageDigest, sections: sectionDigests),

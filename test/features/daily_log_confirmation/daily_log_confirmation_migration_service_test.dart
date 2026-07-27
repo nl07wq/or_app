@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
 import 'package:or_app/data/indexed_db/indexed_db_migration_metadata.dart';
 import 'package:or_app/data/indexed_db/indexed_db_quarantined_record.dart';
+import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/daily_log_confirmation/migration/daily_log_confirmation_legacy_reader.dart';
 import 'package:or_app/features/daily_log_confirmation/migration/daily_log_confirmation_migration_service.dart';
@@ -91,11 +92,15 @@ void main() {
       expect(result.sourceCount, 0);
       final metadata = _metadata(database);
       expect(metadata.status, IndexedDbMigrationStatus.completed);
-      expect(metadata.targetDatabaseVersion, 3);
+      expect(metadata.targetDatabaseVersion, IndexedDbSchema.databaseVersion);
       expect(metadata.sourceCounts['sourceKeyPresent'], 0);
       expect(metadata.sourceIdDigest, isNotNull);
       expect(metadata.targetIdDigest, isNotNull);
       expect(metadata.targetDigest, isNotNull);
+      expect(
+        await database.findAll(IndexedDbStoreNames.activityDrafts),
+        isEmpty,
+      );
     },
   );
 
@@ -353,6 +358,24 @@ void main() {
       await database.findAll(IndexedDbStoreNames.dailyLogConfirmations),
       hasLength(1),
     );
+  });
+
+  test('completed v3 metadata stays complete after v4 Store upgrade', () async {
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    await service.migrate();
+    final metadata = _metadata(database).toRecord()
+      ..['targetDatabaseVersion'] = 3;
+    database.seed(
+      IndexedDbStoreNames.migrationMetadata,
+      DailyLogConfirmationMigrationService.migrationId,
+      metadata,
+    );
+
+    final result = await service.migrate();
+
+    expect(result.alreadyCompleted, isTrue);
+    expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
   test('transaction failure stays incomplete and retry is clean', () async {

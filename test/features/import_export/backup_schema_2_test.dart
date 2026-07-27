@@ -10,9 +10,11 @@ import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
+import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
+import 'package:or_app/features/import_export/services/backup_canonical_codec.dart';
 import 'package:or_app/features/import_export/services/backup_import_service.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
 import 'package:or_app/features/training/models/custom_training_exercise.dart';
@@ -230,7 +232,7 @@ void main() {
     );
 
     expect(package.schemaVersion, 2);
-    expect(package.databaseVersion, 3);
+    expect(package.databaseVersion, 4);
     expect(restored.recordVersion, 1);
     final physical = restored.data.items.first;
     final multiplier = restored.data.items.last;
@@ -244,6 +246,65 @@ void main() {
     expect(multiplier.physicalAmount, 250);
     expect(multiplier.totalCalories, 412.5);
   });
+
+  test(
+    'Schema 2.0 accepts v3 packages and never replaces Activity Drafts',
+    () async {
+      final timestamp = DateTime.utc(2026, 7, 27, 8);
+      final draft = ActivityDraft(
+        localDate: '2026-07-27',
+        measuredStepsInput: '1234',
+        carryOverInput: '0',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      );
+      database.seed(
+        IndexedDbStoreNames.activityDrafts,
+        draft.id,
+        draft.toRecord(),
+      );
+      final package = await BackupExportService(
+        database: database,
+        controller: controller,
+      ).create();
+      final json =
+          jsonDecode(BackupExportService.encode(package))
+              as Map<String, dynamic>;
+      json['databaseVersion'] = 3;
+      final sectionDigests = Map<String, dynamic>.from(json['digests'] as Map)
+        ..remove('package');
+      final digestPayload = Map<String, dynamic>.from(json)
+        ..['digests'] = sectionDigests;
+      (json['digests'] as Map<String, dynamic>)['package'] =
+          BackupCanonicalCodec.digest(digestPayload);
+
+      final decoded = const BackupPackageCodec().decode(jsonEncode(json));
+      final service = BackupImportService(
+        database: database,
+        controller: controller,
+        restore: () async {},
+      );
+      expect(decoded.databaseVersion, 3);
+      expect(decoded.data.containsKey('activity_drafts'), isFalse);
+
+      final mergePlan = await service.dryRun(decoded, BackupImportMode.merge);
+      expect((await service.execute(mergePlan)).success, isTrue);
+      expect(
+        await database.findById(IndexedDbStoreNames.activityDrafts, draft.id),
+        isNotNull,
+      );
+
+      final replacePlan = await service.dryRun(
+        decoded,
+        BackupImportMode.replaceAll,
+      );
+      expect((await service.execute(replacePlan)).success, isTrue);
+      expect(
+        await database.findById(IndexedDbStoreNames.activityDrafts, draft.id),
+        isNotNull,
+      );
+    },
+  );
 
   test('Schema 1.0 converts STATUS and TRAINING only using exportedAt', () {
     final exportedAt = DateTime.utc(2026, 1, 2, 3, 4, 5);

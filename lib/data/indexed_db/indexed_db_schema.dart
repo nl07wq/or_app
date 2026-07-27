@@ -84,8 +84,15 @@ abstract final class IndexedDbIndexNames {
 
 abstract final class IndexedDbSchema {
   static const databaseName = 'operation_reboot_db';
-  static const databaseVersion = 3;
+  static const databaseVersion = 4;
+  static const oldestCompatibleDatabaseVersion = 3;
   static const keyPath = 'id';
+
+  static bool supportsMigrationMetadataVersion(int version) =>
+      version >= oldestCompatibleDatabaseVersion && version <= databaseVersion;
+
+  static bool supportsBackupDatabaseVersion(int version) =>
+      version >= oldestCompatibleDatabaseVersion && version <= databaseVersion;
 
   static const storeDefinitions = [
     IndexedDbStoreDefinition(
@@ -179,6 +186,16 @@ abstract final class IndexedDbSchema {
         IndexedDbIndexDefinition(
           name: IndexedDbIndexNames.byNormalizedName,
           keyPath: 'normalizedName',
+          unique: true,
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.activityDrafts,
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byLocalDate,
+          keyPath: 'localDate',
           unique: true,
         ),
       ],

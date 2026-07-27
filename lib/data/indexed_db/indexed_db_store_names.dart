@@ -8,6 +8,7 @@ abstract final class IndexedDbStoreNames {
   static const foodRecords = 'food_records';
   static const trainingRecords = 'training_records';
   static const activityRecords = 'activity_records';
+  static const activityDrafts = 'activity_drafts';
   static const dailyLogConfirmations = 'daily_log_confirmations';
   static const migrationMetadata = 'migration_metadata';
   static const migrationQuarantine = 'migration_quarantine';
@@ -26,5 +27,7 @@ abstract final class IndexedDbStoreNames {
     customTrainingExercises,
   ];
 
-  static const all = [...legacy, ...canonical];
+  static const drafts = [activityDrafts];
+
+  static const all = [...legacy, ...canonical, ...drafts];
 }

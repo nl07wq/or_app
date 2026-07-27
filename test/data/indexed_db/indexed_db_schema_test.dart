@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v3 canonical and compatibility stores', () {
+  test('defines IndexedDB v4 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 3);
+    expect(IndexedDbSchema.databaseVersion, 4);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -30,6 +30,7 @@ void main() {
       IndexedDbSchema.storeDefinitions.map((definition) => definition.name),
       IndexedDbStoreNames.all,
     );
+    expect(IndexedDbStoreNames.drafts, [IndexedDbStoreNames.activityDrafts]);
   });
 
   test('defines date and migration indexes with required uniqueness', () {
@@ -71,6 +72,12 @@ void main() {
     );
     expect(
       definitions[IndexedDbStoreNames.dailyLogConfirmations]!.indexes
+          .singleWhere((index) => index.name == IndexedDbIndexNames.byLocalDate)
+          .unique,
+      isTrue,
+    );
+    expect(
+      definitions[IndexedDbStoreNames.activityDrafts]!.indexes
           .singleWhere((index) => index.name == IndexedDbIndexNames.byLocalDate)
           .unique,
       isTrue,
@@ -208,5 +215,32 @@ void main() {
     expect(deleted, 0);
     expect(created, 0);
     expect(records, hasLength(1));
+  });
+
+  test('v3 to v4 upgrade adds only the Activity Draft store', () {
+    final v3Stores = IndexedDbStoreNames.all
+        .where((name) => name != IndexedDbStoreNames.activityDrafts)
+        .toSet();
+    final addedStores = IndexedDbSchema.storeDefinitions
+        .map((definition) => definition.name)
+        .where((name) => !v3Stores.contains(name))
+        .toList();
+    final draft = IndexedDbSchema.storeDefinitions.singleWhere(
+      (definition) => definition.name == IndexedDbStoreNames.activityDrafts,
+    );
+    final existingRecord = <String, Object?>{
+      'id': 'activity:2026-07-27',
+      'localDate': '2026-07-27',
+      'recordVersion': 1,
+    };
+    final beforeUpgrade = Map<String, Object?>.from(existingRecord);
+
+    expect(addedStores, [IndexedDbStoreNames.activityDrafts]);
+    expect(draft.keyPath, 'id');
+    expect(draft.indexes, hasLength(1));
+    expect(draft.indexes.single.name, IndexedDbIndexNames.byLocalDate);
+    expect(draft.indexes.single.keyPath, 'localDate');
+    expect(draft.indexes.single.unique, isTrue);
+    expect(existingRecord, beforeUpgrade);
   });
 }

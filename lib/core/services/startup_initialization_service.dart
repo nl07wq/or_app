@@ -117,11 +117,11 @@ class StartupInitializationService {
     try {
       final database = await _openDatabase();
       controller.updateStage(InitializationStage.upgradingSchema);
-      if (IndexedDbSchema.databaseVersion != 3) {
+      if (IndexedDbSchema.databaseVersion != 4) {
         throw RepositoryException(
           operation: 'startup.schema',
           code: RepositoryErrorCode.verificationFailed,
-          cause: StateError('IndexedDB Schema Version 3 is required.'),
+          cause: StateError('IndexedDB Schema Version 4 is required.'),
         );
       }
 
@@ -264,7 +264,9 @@ class StartupInitializationService {
     ]) {
       final metadata = await _readMetadata(database, id);
       if (metadata?.status != IndexedDbMigrationStatus.completed ||
-          metadata?.targetDatabaseVersion != 3) {
+          !IndexedDbSchema.supportsMigrationMetadataVersion(
+            metadata!.targetDatabaseVersion,
+          )) {
         throw RepositoryException(
           operation: 'startup.verifyMetadata',
           code: RepositoryErrorCode.verificationFailed,
@@ -280,6 +282,7 @@ class StartupInitializationService {
       throw _verificationFailure('STATUS contains unreadable records.');
     }
     await container.activity.findAll();
+    await container.activityDrafts.findAll();
     await container.food.findAll();
     await container.training.findAll();
     controller.updateStage(

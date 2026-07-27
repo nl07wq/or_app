@@ -8,6 +8,7 @@ import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
 import 'package:or_app/data/indexed_db/indexed_db_migration_metadata.dart';
 import 'package:or_app/data/indexed_db/indexed_db_quarantined_record.dart';
+import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/repositories/repository_exception.dart';
 import 'package:or_app/features/training/migration/training_legacy_reader.dart';
@@ -58,11 +59,12 @@ void main() {
     expect(result.trainingRecordIds, isEmpty);
     final metadata = _metadata(database);
     expect(metadata.status, IndexedDbMigrationStatus.completed);
-    expect(metadata.targetDatabaseVersion, 3);
+    expect(metadata.targetDatabaseVersion, IndexedDbSchema.databaseVersion);
     expect(metadata.sourceIdDigest, isNotNull);
     expect(metadata.targetIdDigest, isNotNull);
     expect(metadata.targetDigest, isNotNull);
     expect(metadata.validCounts['verifiedRecordCount'], 0);
+    expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
   test('migrates complete Domain data without recalculation', () async {
@@ -359,6 +361,24 @@ void main() {
       await database.findAll(IndexedDbStoreNames.trainingRecords),
       hasLength(1),
     );
+  });
+
+  test('completed v3 metadata stays complete after v4 Store upgrade', () async {
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    await service.migrate();
+    final metadata = _metadata(database).toRecord()
+      ..['targetDatabaseVersion'] = 3;
+    database.seed(
+      IndexedDbStoreNames.migrationMetadata,
+      TrainingMigrationService.migrationId,
+      metadata,
+    );
+
+    final result = await service.migrate();
+
+    expect(result.alreadyCompleted, isTrue);
+    expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
   test(
