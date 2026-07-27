@@ -32,7 +32,7 @@ class TrainingDetailPage extends StatelessWidget {
             (v, set) => v + (set.weight * set.reps),
           ),
     );
-    
+
     final totalRep = session.exercises.fold<int>(
       0,
       (sum, exercise) =>

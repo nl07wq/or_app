@@ -24,9 +24,7 @@ class CommanderPanel extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: const [
-          SituationCard(
-            situation: 'Morning Routineを完了するとCommander分析を開始できます。',
-          ),
+          SituationCard(situation: 'Morning Routineを完了するとCommander分析を開始できます。'),
         ],
       );
     }

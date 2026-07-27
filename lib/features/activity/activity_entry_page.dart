@@ -281,9 +281,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     final officialSteps = _officialSteps;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('ACTIVITY'),
-      ),
+      appBar: AppBar(title: const Text('ACTIVITY')),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: SingleChildScrollView(

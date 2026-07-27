@@ -3,7 +3,7 @@ import '../models/training_template.dart';
 const defaultTrainingTemplates = [
   TrainingTemplate(
     name: 'Upper Body',
-    exercises: ['ベンチプレス', 'ラットプルダウン','レッグプレス', 'ショルダープレス'],
+    exercises: ['ベンチプレス', 'ラットプルダウン', 'レッグプレス', 'ショルダープレス'],
   ),
 
   TrainingTemplate(

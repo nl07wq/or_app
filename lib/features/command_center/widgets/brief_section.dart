@@ -51,15 +51,9 @@ class _DailyCommandCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'DAILY COMMAND',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
+          Text('DAILY COMMAND', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 12),
-          Text(
-            'SITUATION',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
+          Text('SITUATION', style: Theme.of(context).textTheme.labelSmall),
           const SizedBox(height: 4),
           Text(analysis.situation),
           const Divider(height: 24),

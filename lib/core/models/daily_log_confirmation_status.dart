@@ -6,12 +6,12 @@ class DailyLogConfirmationStatus {
   final DateTime date;
 
   DailyLogConfirmationStatus.unconfirmed(DateTime date)
-      : isConfirmed = false,
-        confirmedAt = null,
-        date = DateTime(date.year, date.month, date.day);
+    : isConfirmed = false,
+      confirmedAt = null,
+      date = DateTime(date.year, date.month, date.day);
 
   DailyLogConfirmationStatus.confirmed(DailyLogConfirmation confirmation)
-      : isConfirmed = true,
-        confirmedAt = confirmation.confirmedAt,
-        date = confirmation.date;
+    : isConfirmed = true,
+      confirmedAt = confirmation.confirmedAt,
+      date = confirmation.date;
 }

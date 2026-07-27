@@ -6,9 +6,7 @@ class CommandCycleEngine {
   final TrainingSummary? _trainingSummary;
   final MorningFact? _morningFact;
 
-  const CommandCycleEngine()
-    : _trainingSummary = null,
-      _morningFact = null;
+  const CommandCycleEngine() : _trainingSummary = null, _morningFact = null;
 
   const CommandCycleEngine._({this._trainingSummary, this._morningFact});
 

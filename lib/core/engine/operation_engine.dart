@@ -273,10 +273,7 @@ class OperationEngine {
     return '水分目標を達成しています。';
   }
 
-  String _trainingAnalysis(
-    TrainingSummary? training,
-    OperationStatus status,
-  ) {
+  String _trainingAnalysis(TrainingSummary? training, OperationStatus status) {
     if (training?.completed == true) {
       return '本日のトレーニングは完了しています。回復を整えましょう。';
     }

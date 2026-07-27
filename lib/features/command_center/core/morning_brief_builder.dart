@@ -6,7 +6,6 @@ import '../models/morning_fact.dart';
 import '../models/commander_message.dart';
 import '../models/commander_warning.dart';
 
-
 class MorningBriefBuilder {
   const MorningBriefBuilder();
 

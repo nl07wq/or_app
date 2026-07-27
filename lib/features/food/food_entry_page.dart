@@ -36,15 +36,18 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   }
 
   Future<void> save(MealData data) async {
-    try { await FoodSubmitService.save(data); } on ConfirmedDailyLogException catch (error) { if (mounted) showConfirmedLogMessage(context, error); return; }
+    try {
+      await FoodSubmitService.save(data);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return;
+    }
 
     await loadRecords();
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(data.isWaterEntry ? 'Water saved' : 'Meal saved')),
     );
   }

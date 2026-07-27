@@ -21,13 +21,14 @@ class TrainingSummary {
     'sessionName': sessionName,
   };
 
-  factory TrainingSummary.fromJson(Map<String, dynamic> json) => TrainingSummary(
-    completed: json['completed'] as bool,
-    exerciseCount: json['exerciseCount'] as int,
-    setCount: json['setCount'] as int,
-    duration: (json['duration'] as int?) == null
-        ? null
-        : Duration(microseconds: json['duration'] as int),
-    sessionName: json['sessionName'] as String?,
-  );
+  factory TrainingSummary.fromJson(Map<String, dynamic> json) =>
+      TrainingSummary(
+        completed: json['completed'] as bool,
+        exerciseCount: json['exerciseCount'] as int,
+        setCount: json['setCount'] as int,
+        duration: (json['duration'] as int?) == null
+            ? null
+            : Duration(microseconds: json['duration'] as int),
+        sessionName: json['sessionName'] as String?,
+      );
 }

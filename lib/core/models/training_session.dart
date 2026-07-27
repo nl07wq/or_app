@@ -33,7 +33,9 @@ class TrainingSession {
           .map((e) => TrainingExercise.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
       cardioEntries: (json['cardioEntries'] as List? ?? const [])
-          .map((entry) => CardioEntry.fromJson(Map<String, dynamic>.from(entry)))
+          .map(
+            (entry) => CardioEntry.fromJson(Map<String, dynamic>.from(entry)),
+          )
           .toList(),
     );
   }

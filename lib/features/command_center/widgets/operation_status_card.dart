@@ -51,7 +51,6 @@ class OperationStatusCard extends StatelessWidget {
           const SizedBox(height: 8),
 
           Text(description, style: const TextStyle(color: Colors.white70)),
-
         ],
       ),
     );

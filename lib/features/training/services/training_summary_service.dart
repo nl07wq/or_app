@@ -20,7 +20,11 @@ class TrainingSummaryService {
       setCount: dailySessions.fold(
         0,
         (sum, session) =>
-            sum + session.exercises.fold(0, (setSum, exercise) => setSum + exercise.sets.length),
+            sum +
+            session.exercises.fold(
+              0,
+              (setSum, exercise) => setSum + exercise.sets.length,
+            ),
       ),
       duration: null,
       sessionName: latestSession.memo.isNotEmpty
@@ -32,17 +36,16 @@ class TrainingSummaryService {
   }
 
   static double todayCardioCalories(Iterable<TrainingSession> sessions) {
-    return _todaySessions(sessions)
-        .fold<double>(
-          0,
-          (total, session) =>
-              total +
-              session.cardioEntries.fold<double>(
-                0,
-                (sessionTotal, entry) =>
-                    sessionTotal + (entry.estimatedCalories ?? 0),
-              ),
-        );
+    return _todaySessions(sessions).fold<double>(
+      0,
+      (total, session) =>
+          total +
+          session.cardioEntries.fold<double>(
+            0,
+            (sessionTotal, entry) =>
+                sessionTotal + (entry.estimatedCalories ?? 0),
+          ),
+    );
   }
 
   static List<TrainingSession> _todaySessions(
@@ -50,11 +53,13 @@ class TrainingSummaryService {
   ) {
     final now = DateTime.now();
 
-    return sessions.where((session) {
-      final date = DateTime.parse(session.date).toLocal();
-      return date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    }).toList(growable: false);
+    return sessions
+        .where((session) {
+          final date = DateTime.parse(session.date).toLocal();
+          return date.year == now.year &&
+              date.month == now.month &&
+              date.day == now.day;
+        })
+        .toList(growable: false);
   }
 }

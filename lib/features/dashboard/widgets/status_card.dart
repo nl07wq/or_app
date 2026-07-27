@@ -9,11 +9,7 @@ class StatusCard extends StatelessWidget {
   final bool isReady;
   final OperationStatus? status;
 
-  const StatusCard({
-    super.key,
-    required this.isReady,
-    required this.status,
-  });
+  const StatusCard({super.key, required this.isReady, required this.status});
 
   @override
   Widget build(BuildContext context) {

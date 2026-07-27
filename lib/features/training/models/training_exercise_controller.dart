@@ -23,7 +23,7 @@ class TrainingExerciseController {
       sets: sets.map((set) => set.clone()).toList(),
     );
   }
-            
+
   void addSet() {
     sets.add(TrainingSetController());
   }

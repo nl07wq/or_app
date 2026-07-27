@@ -17,21 +17,16 @@ class CommanderCenterPage extends StatelessWidget {
         children: const [
           SectionHeader(icon: Icons.radar, title: 'COMMAND OVERVIEW'),
           AppSpacing.gapLG,
-          SectionHeader(
-            icon: Icons.shield_outlined,
-            title: 'OPERATION STATUS',
-          ),
+          SectionHeader(icon: Icons.shield_outlined, title: 'OPERATION STATUS'),
           AppSpacing.gapSM,
           _InfoCard(
             icon: Icons.check_circle_outline,
             title: 'STANDBY',
-            message: 'All placeholder systems are ready for today\'s operation.',
+            message:
+                'All placeholder systems are ready for today\'s operation.',
           ),
           AppSpacing.gapXL,
-          SectionHeader(
-            icon: Icons.flag_outlined,
-            title: 'COMMANDER INTENT',
-          ),
+          SectionHeader(icon: Icons.flag_outlined, title: 'COMMANDER INTENT'),
           AppSpacing.gapSM,
           _InfoCard(
             icon: Icons.track_changes_outlined,
@@ -40,10 +35,7 @@ class CommanderCenterPage extends StatelessWidget {
                 'Maintain steady progress through meals, training, and recovery.',
           ),
           AppSpacing.gapLG,
-          SectionHeader(
-            icon: Icons.wb_sunny_outlined,
-            title: 'MORNING BRIEF',
-          ),
+          SectionHeader(icon: Icons.wb_sunny_outlined, title: 'MORNING BRIEF'),
           AppSpacing.gapSM,
           _InfoCard(
             icon: Icons.lightbulb_outline,
@@ -108,10 +100,7 @@ class _InfoCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
                 AppSpacing.gapSM,
                 Text(message),
               ],
@@ -134,13 +123,21 @@ class _MetricsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: _Metric(label: 'MEALS', value: '0')),
-              Expanded(child: _Metric(label: 'TRAINING', value: '0 min')),
-              Expanded(child: _Metric(label: 'WATER', value: '0 L')),
+              Expanded(
+                child: _Metric(label: 'MEALS', value: '0'),
+              ),
+              Expanded(
+                child: _Metric(label: 'TRAINING', value: '0 min'),
+              ),
+              Expanded(
+                child: _Metric(label: 'WATER', value: '0 L'),
+              ),
             ],
           ),
           AppSpacing.gapMD,
-          const Text('Placeholder metrics will update after future integration.'),
+          const Text(
+            'Placeholder metrics will update after future integration.',
+          ),
         ],
       ),
     );

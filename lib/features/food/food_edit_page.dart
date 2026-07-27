@@ -13,7 +13,12 @@ class FoodEditPage extends StatelessWidget {
   const FoodEditPage({super.key, required this.meal});
 
   Future<void> _update(BuildContext context, MealData data) async {
-    try { await FoodSubmitService.update(data); } on ConfirmedDailyLogException catch (error) { if (context.mounted) showConfirmedLogMessage(context, error); return; }
+    try {
+      await FoodSubmitService.update(data);
+    } on ConfirmedDailyLogException catch (error) {
+      if (context.mounted) showConfirmedLogMessage(context, error);
+      return;
+    }
 
     if (!context.mounted) return;
 
