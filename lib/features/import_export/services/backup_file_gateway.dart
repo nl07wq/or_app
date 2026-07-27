@@ -9,10 +9,15 @@ class BackupSelectedFile {
     : bytes = List.unmodifiable(bytes);
 }
 
+enum BackupFileDelivery { shared, downloaded, cancelled }
+
 abstract interface class BackupFileGateway {
   String? get origin;
 
-  Future<void> save({required String fileName, required String content});
+  Future<BackupFileDelivery> shareOrSave({
+    required String fileName,
+    required String content,
+  });
 
   Future<BackupSelectedFile?> selectJson();
 

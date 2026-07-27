@@ -1,20 +1,93 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'backup_file_gateway.dart';
 
-BackupFileGateway createBackupFileGateway() => _WebBackupFileGateway();
+BackupFileGateway createBackupFileGateway() => WebBackupFileGateway();
 
-class _WebBackupFileGateway implements BackupFileGateway {
+@JS('navigator')
+external JSObject get _navigator;
+
+@JS('File')
+extension type _ShareFile._(JSObject _) implements JSObject {
+  external factory _ShareFile(
+    JSArray<JSAny?> bits,
+    JSString fileName,
+    JSObject options,
+  );
+}
+
+typedef WebBackupShare =
+    Future<BackupFileDelivery?> Function(String fileName, Uint8List bytes);
+typedef WebBackupDownload = void Function(String fileName, Uint8List bytes);
+
+class WebBackupFileGateway implements BackupFileGateway {
+  WebBackupFileGateway({WebBackupShare? share, WebBackupDownload? download})
+    : _shareOverride = share,
+      _downloadOverride = download;
+
+  final WebBackupShare? _shareOverride;
+  final WebBackupDownload? _downloadOverride;
+
   @override
   String? get origin => html.window.location.origin;
 
   @override
-  Future<void> save({required String fileName, required String content}) async {
-    final blob = html.Blob([content], 'application/json;charset=utf-8');
+  Future<BackupFileDelivery> shareOrSave({
+    required String fileName,
+    required String content,
+  }) async {
+    final bytes = Uint8List.fromList(utf8.encode(content));
+    final shareOverride = _shareOverride;
+    if (shareOverride != null) {
+      final delivery = await shareOverride(fileName, bytes);
+      if (delivery != null) return delivery;
+    } else if (_navigator.has('share') && _navigator.has('canShare')) {
+      final options = JSObject()
+        ..['type'] = 'application/json;charset=utf-8'.toJS;
+      final file = _ShareFile(
+        <JSAny?>[bytes.toJS].toJS,
+        fileName.toJS,
+        options,
+      );
+      final shareData = JSObject()
+        ..['files'] = <JSAny?>[file].toJS
+        ..['title'] = 'BACKUP'.toJS;
+      final canShare = _navigator
+          .callMethod<JSBoolean>('canShare'.toJS, shareData)
+          .toDart;
+      if (canShare) {
+        try {
+          await _navigator
+              .callMethod<JSPromise<JSAny?>>('share'.toJS, shareData)
+              .toDart;
+          return BackupFileDelivery.shared;
+        } catch (error) {
+          if (_isShareCancellation(error)) {
+            return BackupFileDelivery.cancelled;
+          }
+          rethrow;
+        }
+      }
+    }
+
+    final downloadOverride = _downloadOverride;
+    if (downloadOverride == null) {
+      _download(fileName: fileName, bytes: bytes);
+    } else {
+      downloadOverride(fileName, bytes);
+    }
+    return BackupFileDelivery.downloaded;
+  }
+
+  static void _download({required String fileName, required Uint8List bytes}) {
+    final blob = html.Blob([bytes], 'application/json;charset=utf-8');
     final url = html.Url.createObjectUrlFromBlob(blob);
     try {
       final anchor = html.AnchorElement(href: url)
@@ -25,6 +98,19 @@ class _WebBackupFileGateway implements BackupFileGateway {
       anchor.remove();
     } finally {
       html.Url.revokeObjectUrl(url);
+    }
+  }
+
+  static bool _isShareCancellation(Object error) {
+    if (error is html.DomException) {
+      return error.name == 'AbortError';
+    }
+    try {
+      final jsError = error as JSObject;
+      if (!jsError.has('name')) return false;
+      return (jsError['name'] as JSString).toDart == 'AbortError';
+    } catch (_) {
+      return false;
     }
   }
 

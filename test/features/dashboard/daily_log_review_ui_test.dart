@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -18,11 +19,15 @@ import 'package:or_app/features/dashboard/log_confirmation_detail_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_review_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
+import 'package:or_app/features/import_export/services/backup_export_service.dart';
+import 'package:or_app/features/import_export/services/backup_file_export_service.dart';
+import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
 
 void main() {
@@ -740,6 +745,238 @@ void main() {
     );
     expect(find.text('本日の記録を確定'), findsOneWidget);
   });
+
+  testWidgets('Finalize success shows BACKUP prompt after confirmation', (
+    tester,
+  ) async {
+    var confirmed = false;
+    final gateway = _RecordingBackupGateway();
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(gateway),
+      confirmDailyLog: (_) async => confirmed = true,
+    );
+
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+
+    expect(confirmed, isTrue);
+    expect(find.text('BACKUP'), findsOneWidget);
+    expect(find.text('本日の記録を確定しました。\n最新のBACKUPを出力しますか？'), findsOneWidget);
+    expect(find.text('EXPORT BACKUP'), findsOneWidget);
+    expect(find.text('NOT NOW'), findsOneWidget);
+    expect(gateway.exportCount, 0);
+  });
+
+  testWidgets('NOT NOW skips BACKUP and keeps completed finalization', (
+    tester,
+  ) async {
+    var confirmationCount = 0;
+    final gateway = _RecordingBackupGateway();
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(gateway),
+      confirmDailyLog: (_) async => confirmationCount++,
+    );
+
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('NOT NOW'));
+    await tester.pumpAndSettle();
+
+    expect(confirmationCount, 1);
+    expect(gateway.exportCount, 0);
+    expect(find.text('BACKUP'), findsNothing);
+  });
+
+  testWidgets('EXPORT BACKUP reports handoff without claiming iCloud save', (
+    tester,
+  ) async {
+    var confirmationCount = 0;
+    final gateway = _RecordingBackupGateway();
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(gateway),
+      confirmDailyLog: (_) async => confirmationCount++,
+    );
+
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXPORT BACKUP'));
+    await tester.pumpAndSettle();
+
+    expect(confirmationCount, 1);
+    expect(gateway.exportCount, 1);
+    expect(find.text('Backup exported'), findsOneWidget);
+    expect(
+      find.text(
+        'BACKUPファイルを共有画面へ出力しました。\n'
+        '保存先は端末側で確認してください。',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('iCloudへ保存'), findsNothing);
+    expect(find.textContaining('iCloud Sync'), findsNothing);
+  });
+
+  testWidgets('share cancellation is neutral and preserves finalization', (
+    tester,
+  ) async {
+    var confirmationCount = 0;
+    final gateway = _RecordingBackupGateway(
+      delivery: BackupFileDelivery.cancelled,
+    );
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(gateway),
+      confirmDailyLog: (_) async => confirmationCount++,
+    );
+
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXPORT BACKUP'));
+    await tester.pumpAndSettle();
+
+    expect(confirmationCount, 1);
+    expect(find.text('BACKUPの保存をキャンセルしました。'), findsOneWidget);
+    expect(find.text('RETRY'), findsNothing);
+  });
+
+  testWidgets('export failure offers retry without rolling back finalization', (
+    tester,
+  ) async {
+    var confirmationCount = 0;
+    final gateway = _RecordingBackupGateway(failure: StateError('failed'));
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(gateway),
+      confirmDailyLog: (_) async => confirmationCount++,
+    );
+
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXPORT BACKUP'));
+    await tester.pumpAndSettle();
+
+    expect(confirmationCount, 1);
+    expect(find.text('BACKUPの出力に失敗しました。'), findsOneWidget);
+    expect(find.text('RETRY'), findsOneWidget);
+
+    gateway.failure = null;
+    await tester.tap(find.text('RETRY'));
+    await tester.pumpAndSettle();
+    expect(confirmationCount, 1);
+    expect(gateway.exportCount, 2);
+    expect(find.text('Backup exported'), findsOneWidget);
+  });
+
+  testWidgets('Finalize failure never shows BACKUP prompt', (tester) async {
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(_RecordingBackupGateway()),
+      confirmDailyLog: (_) async => throw StateError('confirmation failed'),
+    );
+
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('BACKUP'), findsNothing);
+    expect(find.text('DAILY LOGのデータを準備できませんでした。'), findsOneWidget);
+  });
+
+  testWidgets('Finalize blocks repeated taps and shows one BACKUP dialog', (
+    tester,
+  ) async {
+    var confirmationCount = 0;
+    final confirmation = Completer<void>();
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(_RecordingBackupGateway()),
+      confirmDailyLog: (_) async {
+        confirmationCount++;
+        await confirmation.future;
+      },
+    );
+
+    final button = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('FINALIZE DAY'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    button.onPressed!();
+    button.onPressed!();
+    await tester.pump();
+    expect(confirmationCount, 1);
+
+    confirmation.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('BACKUP'), findsOneWidget);
+  });
+
+  testWidgets('BACKUP prompt remains overflow-free at 320 pixels', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: null,
+      estimatedTotalBurn: 2100,
+      backupExportService: _backupService(_RecordingBackupGateway()),
+      confirmDailyLog: (_) async {},
+    );
+    await tester.ensureVisible(find.text('FINALIZE DAY'));
+    await tester.tap(find.text('FINALIZE DAY'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.bySemanticsLabel(RegExp('EXPORT BACKUP')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('NOT NOW')), findsOneWidget);
+    semantics.dispose();
+  });
 }
 
 Future<void> _pumpDailyLogCard(
@@ -790,6 +1027,8 @@ Future<void> _pumpReview(
   required ActivitySummary activity,
   required TrainingSummary? training,
   required double? estimatedTotalBurn,
+  BackupFileExportService? backupExportService,
+  ConfirmDailyLog? confirmDailyLog,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -799,10 +1038,51 @@ Future<void> _pumpReview(
         activity: activity,
         training: training,
         estimatedTotalBurn: estimatedTotalBurn,
+        backupExportService: backupExportService,
+        confirmDailyLog: confirmDailyLog,
       ),
     ),
   );
   await tester.pump();
+}
+
+BackupFileExportService _backupService(_RecordingBackupGateway gateway) {
+  return BackupFileExportService(
+    exportService: BackupExportService(
+      database: FakeIndexedDbDatabase(),
+      controller: AppInitializationController()..markReady(),
+      clock: () => DateTime(2026, 7, 27, 21, 35),
+    ),
+    fileGateway: gateway,
+  );
+}
+
+class _RecordingBackupGateway implements BackupFileGateway {
+  _RecordingBackupGateway({
+    this.delivery = BackupFileDelivery.shared,
+    this.failure,
+  });
+
+  BackupFileDelivery delivery;
+  Object? failure;
+  int exportCount = 0;
+
+  @override
+  String get origin => 'https://example.test';
+
+  @override
+  Future<BackupFileDelivery> shareOrSave({
+    required String fileName,
+    required String content,
+  }) async {
+    exportCount++;
+    final failure = this.failure;
+    if (failure != null) throw failure;
+    return delivery;
+  }
+
+  @override
+  Future<BackupSelectedFile?> selectJson() async => null;
 }
 
 MorningFact _morning({String? memo = 'Ready'}) {

@@ -9,7 +9,11 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../morning/models/morning_fact.dart';
+import '../import_export/services/backup_file_export_service.dart';
+import 'widgets/backup_prompt_dialog.dart';
 import 'widgets/daily_review_body.dart';
+
+typedef ConfirmDailyLog = Future<void> Function(double? estimatedTotalBurnKcal);
 
 class LogConfirmationReviewPage extends StatefulWidget {
   const LogConfirmationReviewPage({
@@ -19,6 +23,8 @@ class LogConfirmationReviewPage extends StatefulWidget {
     required this.activity,
     required this.training,
     required this.estimatedTotalBurn,
+    this.backupExportService,
+    this.confirmDailyLog,
   });
 
   final MorningFact? morning;
@@ -26,6 +32,8 @@ class LogConfirmationReviewPage extends StatefulWidget {
   final ActivitySummary activity;
   final TrainingSummary? training;
   final double? estimatedTotalBurn;
+  final BackupFileExportService? backupExportService;
+  final ConfirmDailyLog? confirmDailyLog;
 
   @override
   State<LogConfirmationReviewPage> createState() =>
@@ -51,10 +59,24 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
     setState(() => _isConfirming = true);
 
     try {
-      await DailyLogConfirmationService.confirmToday(
-        estimatedTotalBurnKcal: widget.estimatedTotalBurn,
-      );
+      final confirmDailyLog = widget.confirmDailyLog;
+      if (confirmDailyLog == null) {
+        await DailyLogConfirmationService.confirmToday(
+          estimatedTotalBurnKcal: widget.estimatedTotalBurn,
+        );
+      } else {
+        await confirmDailyLog(widget.estimatedTotalBurn);
+      }
 
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => BackupPromptDialog(
+          exportService:
+              widget.backupExportService ?? BackupFileExportService(),
+        ),
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
     } on DailyLogValidationException catch (error) {

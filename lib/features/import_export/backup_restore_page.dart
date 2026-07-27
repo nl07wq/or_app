@@ -7,7 +7,7 @@ import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import 'models/backup_package.dart';
-import 'services/backup_export_service.dart';
+import 'services/backup_file_export_service.dart';
 import 'services/backup_file_gateway.dart';
 import 'services/backup_import_service.dart';
 import 'services/backup_package_codec.dart';
@@ -44,13 +44,16 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       _message = null;
     });
     try {
-      final package = await BackupExportService().create(
-        origin: _fileGateway.origin,
-      );
-      await _fileGateway.save(
-        fileName: _fileName(package),
-        content: BackupExportService.prettyEncode(package),
-      );
+      final result = await BackupFileExportService(
+        fileGateway: _fileGateway,
+      ).export();
+      if (result.delivery == BackupFileDelivery.cancelled) {
+        if (mounted) {
+          setState(() => _message = 'BACKUPの保存をキャンセルしました。');
+        }
+        return;
+      }
+      final package = result.package;
       if (mounted) {
         setState(() {
           _message =
@@ -245,16 +248,6 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         ],
       ),
     );
-  }
-
-  static String _fileName(BackupPackage package) {
-    final local = package.exportedAt.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    final stamp =
-        '${local.year}${two(local.month)}${two(local.day)}-'
-        '${two(local.hour)}${two(local.minute)}${two(local.second)}';
-    return 'operation-reboot-backup-$stamp-'
-        '${package.exportId.substring(0, 8)}.json';
   }
 
   static String _errorMessage(Object error) => error is BackupException
