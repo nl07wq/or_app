@@ -38,16 +38,12 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return const Center(
-              child: Text('Failed to load the confirmed daily review.'),
-            );
+            return const Center(child: Text('確定済みのDAILY LOGを読み込めませんでした。'));
           }
 
           final confirmation = snapshot.data;
           if (confirmation == null) {
-            return const Center(
-              child: Text('Confirmed daily review is not available.'),
-            );
+            return const Center(child: Text('確定済みのDAILY LOGは表示できません。'));
           }
 
           return ListView(
@@ -80,7 +76,7 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
                     ),
                     AppSpacing.gapSM,
                     Text(
-                      'Finalized at '
+                      '確定日時 '
                       '${_formatDateTime(confirmation.confirmedAt)}',
                     ),
                     AppSpacing.gapLG,

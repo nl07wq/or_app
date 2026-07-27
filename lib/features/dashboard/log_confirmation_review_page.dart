@@ -63,21 +63,21 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       final labels = error.invalidModules
           .map(DailyLogConfirmationValidation.moduleLabel)
           .join(', ');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Complete required records: $labels')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('必須記録を完了してください: $labels')));
     } on StateError {
       if (!mounted) return;
       setState(() => _isConfirming = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Daily Log data is not ready.')),
+        const SnackBar(content: Text('DAILY LOGのデータを準備できませんでした。')),
       );
     } catch (_) {
       if (!mounted) return;
       setState(() => _isConfirming = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to finalize the daily log.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('DAILY LOGの確定に失敗しました。')));
     }
   }
 
@@ -106,14 +106,14 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
               if (!validation.canFinalize) ...[
                 AppSpacing.gapLG,
                 Text(
-                  'Complete required records: $invalidLabels',
+                  '必須記録を完了してください: $invalidLabels',
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
               AppSpacing.gapLG,
               const Text(
-                'Finalizing locks today’s normal edit and delete actions. '
-                'Use the correction flow if changes are needed later.',
+                '確定後は本日の通常編集・削除がロックされます。'
+                '変更が必要な場合は訂正フローを使用してください。',
               ),
             ],
           ),
@@ -134,10 +134,7 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
                     : _confirmLog,
               ),
               AppSpacing.gapXS,
-              const Text(
-                'Finalize today’s records',
-                textAlign: TextAlign.center,
-              ),
+              const Text('本日の記録を確定', textAlign: TextAlign.center),
               TextButton(
                 onPressed: _isConfirming ? null : () => Navigator.pop(context),
                 child: const Text('BACK TO EDIT'),

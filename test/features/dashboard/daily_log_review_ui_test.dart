@@ -272,23 +272,35 @@ void main() {
       estimatedTotalBurn: 2850,
     );
 
-    expect(find.text('Weight 96.8 kg'), findsOneWidget);
-    expect(find.text('Body Fat 32.4%'), findsOneWidget);
-    expect(find.text('Sleep 4h 16m'), findsOneWidget);
-    expect(find.text('Sleep Score 61'), findsOneWidget);
-    expect(find.text('Foot Pain 1'), findsOneWidget);
-    expect(find.text('Work Time 8.0 h'), findsOneWidget);
-    expect(find.text('Memo —'), findsOneWidget);
-    expect(find.text('3 Meals'), findsOneWidget);
-    expect(find.text('• 2,130 kcal'), findsOneWidget);
+    expect(find.text('体重 96.8 kg'), findsOneWidget);
+    expect(find.text('体脂肪率 32.4%'), findsOneWidget);
+    expect(find.text('睡眠 4h 16m'), findsOneWidget);
+    expect(find.text('睡眠スコア 61'), findsOneWidget);
+    expect(find.text('足の痛み 1'), findsOneWidget);
+    expect(find.text('勤務時間 8.0 h'), findsOneWidget);
+    expect(find.text('メモ —'), findsOneWidget);
+    expect(find.text('3食'), findsOneWidget);
+    expect(find.text('2,130 kcal'), findsOneWidget);
     expect(find.text('3,200 / 3,500 ml'), findsOneWidget);
-    expect(find.text('EST. TOTAL BURN  2,850 kcal'), findsOneWidget);
-    expect(find.text('3 Exercises • 9 Sets'), findsOneWidget);
-    expect(find.text('Steps 8,900'), findsOneWidget);
-    expect(find.text('Today 7,659'), findsOneWidget);
-    expect(find.text('Carry Over +1,241'), findsOneWidget);
-    expect(find.text('Bowel Shape 2'), findsOneWidget);
-    expect(find.text('Bowel Amount 1'), findsOneWidget);
+    expect(find.text('推定総消費 2,850 kcal'), findsOneWidget);
+    expect(find.text('カロリー収支 -720 kcal'), findsOneWidget);
+    expect(find.text('3種目'), findsOneWidget);
+    expect(find.text('9セット'), findsOneWidget);
+    expect(find.text('歩数 8,900'), findsOneWidget);
+    expect(find.text('実測歩数 7,659'), findsOneWidget);
+    expect(find.text('繰越 +1,241'), findsOneWidget);
+    expect(find.text('便形状 普通便'), findsOneWidget);
+    expect(find.text('便量 少量'), findsOneWidget);
+    expect(find.textContaining('•'), findsNothing);
+    for (final section in ['FOOD review', 'TRAINING review']) {
+      expect(
+        find.descendant(
+          of: find.bySemanticsLabel(RegExp(section)),
+          matching: find.textContaining('・'),
+        ),
+        findsNothing,
+      );
+    }
     expect(find.textContaining('Cardio'), findsNothing);
     expect(find.textContaining('ENERGY BALANCE'), findsNothing);
   });
@@ -305,12 +317,10 @@ void main() {
       estimatedTotalBurn: null,
     );
 
-    expect(find.text('Not recorded'), findsNWidgets(5));
-    expect(find.text('EST. TOTAL BURN  Not available'), findsOneWidget);
-    expect(
-      find.text('Complete required records: STATUS, FOOD, ACTIVITY'),
-      findsOneWidget,
-    );
+    expect(find.text('未記録'), findsNWidgets(5));
+    expect(find.text('推定総消費 表示不可'), findsOneWidget);
+    expect(find.text('カロリー収支 —'), findsOneWidget);
+    expect(find.text('必須記録を完了してください: STATUS, FOOD, ACTIVITY'), findsOneWidget);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(
       tester
@@ -345,11 +355,8 @@ void main() {
     );
 
     expect(find.text('500 / 3,500 ml'), findsOneWidget);
-    expect(find.text('0 Meals'), findsNothing);
-    expect(
-      find.text('Complete required records: FOOD, ACTIVITY'),
-      findsOneWidget,
-    );
+    expect(find.text('0食'), findsNothing);
+    expect(find.text('必須記録を完了してください: FOOD, ACTIVITY'), findsOneWidget);
   });
 
   testWidgets('Training remains optional for finalization', (tester) async {
@@ -362,7 +369,7 @@ void main() {
       estimatedTotalBurn: 2100,
     );
 
-    expect(find.text('Complete required records:'), findsNothing);
+    expect(find.textContaining('必須記録を完了してください:'), findsNothing);
     expect(
       tester
           .widget<ElevatedButton>(
@@ -394,7 +401,7 @@ void main() {
       estimatedTotalBurn: 2100,
     );
 
-    expect(find.text('Complete required records: TRAINING'), findsOneWidget);
+    expect(find.text('必須記録を完了してください: TRAINING'), findsOneWidget);
     expect(
       tester
           .widget<ElevatedButton>(
@@ -435,11 +442,9 @@ void main() {
     ]) {
       expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
     }
-    expect(find.text('EST. TOTAL BURN  2,876 kcal'), findsOneWidget);
-    expect(
-      find.textContaining('Finalized at 2026-07-26 22:30'),
-      findsOneWidget,
-    );
+    expect(find.text('推定総消費 2,876 kcal'), findsOneWidget);
+    expect(find.text('カロリー収支 -530 kcal'), findsOneWidget);
+    expect(find.textContaining('確定日時 2026-07-26 22:30'), findsOneWidget);
     expect(find.text('DAILY REVIEW'), findsNothing);
     expect(find.textContaining('Confirmed at'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
@@ -465,7 +470,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('EST. TOTAL BURN  Not available'), findsOneWidget);
+    expect(find.text('推定総消費 表示不可'), findsOneWidget);
+    expect(find.text('カロリー収支 —'), findsOneWidget);
     expect(find.textContaining('9,999'), findsNothing);
   });
 
@@ -514,9 +520,9 @@ void main() {
       estimatedTotalBurn: 2100,
     );
 
-    expect(find.text('Carry Over —'), findsOneWidget);
-    expect(find.text('Bowel Shape —'), findsOneWidget);
-    expect(find.text('Bowel Amount —'), findsOneWidget);
+    expect(find.text('繰越 —'), findsOneWidget);
+    expect(find.text('便形状 —'), findsOneWidget);
+    expect(find.text('便量 —'), findsOneWidget);
   });
 
   testWidgets('Daily Review remains overflow-free on a narrow screen', (
@@ -584,12 +590,12 @@ void main() {
 
     expect(
       find.text(
-        'Finalizing locks today’s normal edit and delete actions. '
-        'Use the correction flow if changes are needed later.',
+        '確定後は本日の通常編集・削除がロックされます。'
+        '変更が必要な場合は訂正フローを使用してください。',
       ),
       findsOneWidget,
     );
-    expect(find.text('Finalize today’s records'), findsOneWidget);
+    expect(find.text('本日の記録を確定'), findsOneWidget);
   });
 }
 

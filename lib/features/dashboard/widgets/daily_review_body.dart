@@ -34,7 +34,10 @@ class DailyReviewBody extends StatelessWidget {
         const _ReviewDivider(),
         _WaterReviewSection(food: food),
         const _ReviewDivider(),
-        _EnergyReviewSection(estimatedTotalBurnKcal: estimatedTotalBurnKcal),
+        _EnergyReviewSection(
+          food: food,
+          estimatedTotalBurnKcal: estimatedTotalBurnKcal,
+        ),
         const _ReviewDivider(),
         _TrainingReviewSection(training: training),
         const _ReviewDivider(),
@@ -55,43 +58,32 @@ class _StatusReviewSection extends StatelessWidget {
       icon: Icons.monitor_heart_outlined,
       title: 'STATUS',
       child: morning == null
-          ? const Text('Not recorded')
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final itemWidth = constraints.maxWidth >= 560
-                    ? (constraints.maxWidth - AppSpacing.md) / 2
-                    : constraints.maxWidth;
-                final items = [
-                  'Weight ${morning!.weight.toStringAsFixed(1)} kg',
-                  'Body Fat ${morning!.bodyFat == null ? 'Not recorded' : '${morning!.bodyFat!.toStringAsFixed(1)}%'}',
-                  'Sleep ${_formatSleep(morning!.sleepDuration)}',
-                  'Sleep Score ${morning!.sleepScore}',
-                  'Foot Pain ${morning!.footPain}',
-                  'Work Time ${morning!.workHours.toStringAsFixed(1)} h',
-                ];
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ? const Text('未記録')
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.xs,
                   children: [
-                    Wrap(
-                      spacing: AppSpacing.md,
-                      runSpacing: AppSpacing.xs,
-                      children: items
-                          .map(
-                            (item) =>
-                                SizedBox(width: itemWidth, child: Text(item)),
-                          )
-                          .toList(growable: false),
-                    ),
-                    AppSpacing.gapXS,
+                    Text('体重 ${morning!.weight.toStringAsFixed(1)} kg'),
                     Text(
-                      'Memo ${morning!.freeNotes?.trim().isNotEmpty == true ? morning!.freeNotes!.trim() : '—'}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      '体脂肪率 '
+                      '${morning!.bodyFat == null ? '未記録' : '${morning!.bodyFat!.toStringAsFixed(1)}%'}',
                     ),
+                    Text('睡眠 ${_formatSleep(morning!.sleepDuration)}'),
+                    Text('睡眠スコア ${morning!.sleepScore}'),
+                    Text('足の痛み ${morning!.footPain}'),
+                    Text('勤務時間 ${morning!.workHours.toStringAsFixed(1)} h'),
                   ],
-                );
-              },
+                ),
+                AppSpacing.gapXS,
+                Text(
+                  'メモ ${morning!.freeNotes?.trim().isNotEmpty == true ? morning!.freeNotes!.trim() : '—'}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
     );
   }
@@ -110,17 +102,17 @@ class _FoodReviewSection extends StatelessWidget {
       title: 'FOOD',
       child: hasMeal
           ? Wrap(
-              spacing: AppSpacing.sm,
+              spacing: AppSpacing.md,
               runSpacing: AppSpacing.xs,
               children: [
-                Text('${food!.mealCount} Meals'),
-                Text('• ${_formatWhole(food!.calories)} kcal'),
-                Text('• P ${food!.protein.toStringAsFixed(1)} g'),
-                Text('• F ${food!.fat.toStringAsFixed(1)} g'),
-                Text('• C ${food!.carbohydrates.toStringAsFixed(1)} g'),
+                Text('${food!.mealCount}食'),
+                Text('${_formatWhole(food!.calories)} kcal'),
+                Text('P ${food!.protein.toStringAsFixed(1)} g'),
+                Text('F ${food!.fat.toStringAsFixed(1)} g'),
+                Text('C ${food!.carbohydrates.toStringAsFixed(1)} g'),
               ],
             )
-          : const Text('Not recorded'),
+          : const Text('未記録'),
     );
   }
 }
@@ -136,28 +128,44 @@ class _WaterReviewSection extends StatelessWidget {
       icon: Icons.water_drop_outlined,
       title: 'WATER',
       child: Text(
-        food == null
-            ? 'Not recorded'
-            : '${_formatWhole(food!.hydrationMl)} / 3,500 ml',
+        food == null ? '未記録' : '${_formatWhole(food!.hydrationMl)} / 3,500 ml',
       ),
     );
   }
 }
 
 class _EnergyReviewSection extends StatelessWidget {
-  const _EnergyReviewSection({required this.estimatedTotalBurnKcal});
+  const _EnergyReviewSection({
+    required this.food,
+    required this.estimatedTotalBurnKcal,
+  });
 
+  final FoodSummary? food;
   final double? estimatedTotalBurnKcal;
 
   @override
   Widget build(BuildContext context) {
+    final balance = food == null || estimatedTotalBurnKcal == null
+        ? null
+        : food!.calories - estimatedTotalBurnKcal!;
     return _ReviewSection(
       icon: Icons.local_fire_department_outlined,
       title: 'ENERGY',
-      child: Text(
-        estimatedTotalBurnKcal == null
-            ? 'EST. TOTAL BURN  Not available'
-            : 'EST. TOTAL BURN  ${_formatWhole(estimatedTotalBurnKcal!)} kcal',
+      child: Wrap(
+        spacing: AppSpacing.md,
+        runSpacing: AppSpacing.xs,
+        children: [
+          Text(
+            estimatedTotalBurnKcal == null
+                ? '推定総消費 表示不可'
+                : '推定総消費 ${_formatWhole(estimatedTotalBurnKcal!)} kcal',
+          ),
+          Text(
+            balance == null
+                ? 'カロリー収支 —'
+                : 'カロリー収支 ${_formatSignedWhole(balance)} kcal',
+          ),
+        ],
       ),
     );
   }
@@ -174,10 +182,14 @@ class _TrainingReviewSection extends StatelessWidget {
       icon: Icons.fitness_center_outlined,
       title: 'TRAINING',
       child: training == null
-          ? const Text('Not recorded')
-          : Text(
-              '${training!.exerciseCount} Exercises • '
-              '${training!.setCount} Sets',
+          ? const Text('未記録')
+          : Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.xs,
+              children: [
+                Text('${training!.exerciseCount}種目'),
+                Text('${training!.setCount}セット'),
+              ],
             ),
     );
   }
@@ -194,7 +206,7 @@ class _ActivityReviewSection extends StatelessWidget {
       return const _ReviewSection(
         icon: Icons.directions_walk_outlined,
         title: 'ACTIVITY',
-        child: Text('Not recorded'),
+        child: Text('未記録'),
       );
     }
 
@@ -203,8 +215,8 @@ class _ActivityReviewSection extends StatelessWidget {
         ? '—'
         : '${netCarryOver > 0 ? '+' : ''}${_formatSteps(netCarryOver)}';
     final bowel = activity!.bowelMovement;
-    final bowelShape = bowel.shape?.toString() ?? '—';
-    final bowelAmount = bowel.amount?.toString() ?? '—';
+    final bowelShape = _formatBowelShape(bowel.shape);
+    final bowelAmount = _formatBowelAmount(bowel.amount);
 
     return _ReviewSection(
       icon: Icons.directions_walk_outlined,
@@ -213,11 +225,11 @@ class _ActivityReviewSection extends StatelessWidget {
         spacing: AppSpacing.md,
         runSpacing: AppSpacing.xs,
         children: [
-          Text('Steps ${_formatSteps(activity!.officialSteps)}'),
-          Text('Today ${_formatSteps(activity!.measuredSteps)}'),
-          Text('Carry Over $carryOver'),
-          Text('Bowel Shape $bowelShape'),
-          Text('Bowel Amount $bowelAmount'),
+          Text('歩数 ${_formatSteps(activity!.officialSteps)}'),
+          Text('実測歩数 ${_formatSteps(activity!.measuredSteps)}'),
+          Text('繰越 $carryOver'),
+          Text('便形状 $bowelShape'),
+          Text('便量 $bowelAmount'),
         ],
       ),
     );
@@ -279,3 +291,23 @@ String _formatSteps(int steps) => steps.toString().replaceAllMapped(
 );
 
 String _formatWhole(double value) => _formatSteps(value.round());
+
+String _formatSignedWhole(double value) {
+  final rounded = value.round();
+  final sign = rounded < 0 ? '-' : '';
+  return '$sign${_formatSteps(rounded.abs())}';
+}
+
+String _formatBowelShape(int? value) => switch (value) {
+  1 => '硬便',
+  2 => '普通便',
+  3 => '軟便',
+  _ => '—',
+};
+
+String _formatBowelAmount(int? value) => switch (value) {
+  1 => '少量',
+  2 => '普通',
+  3 => '多量',
+  _ => '—',
+};
