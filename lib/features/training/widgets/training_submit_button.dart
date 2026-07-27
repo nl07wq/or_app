@@ -11,7 +11,7 @@ class TrainingSubmitButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.save,
-      text: 'Save Training',
+      text: 'SAVE TRAINING',
       onPressed: onPressed,
     );
   }

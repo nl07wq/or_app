@@ -33,7 +33,7 @@ class DigestiveEventCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'DIGESTIVE EVENT ${event.sequence}',
+                    'DIGESTIVE ${event.sequence}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -112,7 +112,7 @@ class DigestiveEventCard extends StatelessWidget {
                 _EventChoiceChip(
                   key: ValueKey('digestive-${event.id}-relief-0'),
                   icon: Icons.sentiment_dissatisfied,
-                  label: DigestiveEvent.reliefLabel(0),
+                  label: '残便感',
                   selected: event.relief == 0,
                   enabled: enabled,
                   onSelected: () => onChanged(_copyEvent(event, relief: 0)),

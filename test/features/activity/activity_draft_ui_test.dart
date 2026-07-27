@@ -32,15 +32,30 @@ void main() {
     AppRepositoryRegistry.resetForTesting();
   });
 
-  testWidgets('new entry starts with zero Events and Draft actions', (
+  testWidgets('new entry starts with an expanded display-only Event', (
     tester,
   ) async {
     await _pumpEntry(tester);
 
-    expect(find.text('排便イベントはありません'), findsOneWidget);
+    expect(find.text('DIGESTIVE 1'), findsOneWidget);
     expect(find.text('DIGESTIVE EVENT 1'), findsNothing);
-    expect(find.text('一時保存'), findsOneWidget);
-    expect(find.text('本日の記録を確定'), findsOneWidget);
+    expect(find.text('Amount'), findsOneWidget);
+    expect(find.text('Shape'), findsOneWidget);
+    expect(find.text('Relief'), findsOneWidget);
+    expect(find.text('No record'), findsNothing);
+    expect(find.text('ADD DIGESTIVE'), findsOneWidget);
+    expect(find.text('排便を追加'), findsNothing);
+    expect(find.text('SAVE DRAFT'), findsOneWidget);
+    expect(find.text('SAVE ACTIVITY'), findsOneWidget);
+    expect(find.text('入力途中の内容を一時保存'), findsOneWidget);
+    expect(find.text('本日のActivity記録を確定'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('SAVE DRAFT'));
+    await tester.tap(find.text('SAVE DRAFT'));
+    await tester.pumpAndSettle();
+    final draft = await AppRepositoryRegistry.container.activityDrafts
+        .findByDate(today);
+    expect(draft?.digestiveEvents, isEmpty);
   });
 
   testWidgets('incomplete Event is saved and restored as a Draft', (
@@ -49,12 +64,11 @@ void main() {
     await _pumpEntry(tester);
     await tester.enterText(find.byType(TextField).at(0), '4321');
     await tester.enterText(find.byType(TextField).at(1), '120');
-    await _addEvent(tester);
     // Event IDs include the clock's microsecond value. Select by visible chip.
     await _tapChip(tester, '普通', first: true);
 
-    await tester.ensureVisible(find.text('一時保存'));
-    await tester.tap(find.text('一時保存'));
+    await tester.ensureVisible(find.text('SAVE DRAFT'));
+    await tester.tap(find.text('SAVE DRAFT'));
     await tester.pumpAndSettle();
 
     final draft = await AppRepositoryRegistry.container.activityDrafts
@@ -74,7 +88,7 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).at(0)).controller?.text,
       '4321',
     );
-    expect(find.text('DIGESTIVE EVENT 1'), findsOneWidget);
+    expect(find.text('DIGESTIVE 1'), findsOneWidget);
     final selectedAmount = tester.widget<ChoiceChip>(
       find.widgetWithText(ChoiceChip, '普通').first,
     );
@@ -86,9 +100,8 @@ void main() {
   ) async {
     await _pumpEntry(tester);
     await _addEvent(tester);
-    await _addEvent(tester);
-    expect(find.text('DIGESTIVE EVENT 1'), findsOneWidget);
-    expect(find.text('DIGESTIVE EVENT 2'), findsOneWidget);
+    expect(find.text('DIGESTIVE 1'), findsOneWidget);
+    expect(find.text('DIGESTIVE 2'), findsOneWidget);
 
     final delete = find.byTooltip('排便イベント1を削除');
     await tester.ensureVisible(delete);
@@ -98,8 +111,8 @@ void main() {
     await tester.tap(find.text('削除'));
     await tester.pumpAndSettle();
 
-    expect(find.text('DIGESTIVE EVENT 1'), findsOneWidget);
-    expect(find.text('DIGESTIVE EVENT 2'), findsNothing);
+    expect(find.text('DIGESTIVE 1'), findsOneWidget);
+    expect(find.text('DIGESTIVE 2'), findsNothing);
   });
 
   testWidgets('finalize validates Amount, Shape, and Relief in order', (
@@ -107,23 +120,36 @@ void main() {
   ) async {
     await _pumpEntry(tester);
     await tester.enterText(find.byType(TextField).at(0), '5000');
-    await _addEvent(tester);
-    await tester.ensureVisible(find.text('本日の記録を確定'));
-    await tester.tap(find.text('本日の記録を確定'));
-    await tester.pump();
-    expect(find.text('排便イベント1の量を入力してください'), findsOneWidget);
-
     await _tapChip(tester, '少量');
-    await tester.ensureVisible(find.text('本日の記録を確定'));
-    await tester.tap(find.text('本日の記録を確定'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pump();
-    expect(find.text('排便イベント1の形状を入力してください'), findsOneWidget);
+    expect(find.text('DIGESTIVE 1のShapeを入力してください'), findsOneWidget);
 
     await _tapChip(tester, '硬便');
-    await tester.ensureVisible(find.text('本日の記録を確定'));
-    await tester.tap(find.text('本日の記録を確定'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pump();
-    expect(find.text('排便イベント1のスッキリ感を入力してください'), findsOneWidget);
+    expect(find.text('DIGESTIVE 1のReliefを入力してください'), findsOneWidget);
+  });
+
+  testWidgets('partial Event with only Shape selected requires Amount', (
+    tester,
+  ) async {
+    await _pumpEntry(tester);
+    await tester.enterText(find.byType(TextField).at(0), '5000');
+    await _tapChip(tester, '硬便');
+
+    final saveButton = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('SAVE ACTIVITY'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    saveButton.onPressed!();
+    await tester.pump();
+
+    expect(find.text('DIGESTIVE 1のAmountを入力してください'), findsOneWidget);
   });
 
   testWidgets('finalize saves Events, deletes Draft, and enters formal mode', (
@@ -131,12 +157,11 @@ void main() {
   ) async {
     await _pumpEntry(tester);
     await tester.enterText(find.byType(TextField).at(0), '5000');
-    await _addEvent(tester);
     await _tapChip(tester, '多量');
     await _tapChip(tester, '普通便');
     await _tapChip(tester, 'スッキリ');
-    await tester.ensureVisible(find.text('本日の記録を確定'));
-    await tester.tap(find.text('本日の記録を確定'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pumpAndSettle();
 
     final saved = await AppRepositoryRegistry.container.activity.findByDate(
@@ -150,8 +175,8 @@ void main() {
       await AppRepositoryRegistry.container.activityDrafts.findByDate(today),
       isNull,
     );
-    expect(find.text('Save Activity'), findsOneWidget);
-    expect(find.text('一時保存'), findsNothing);
+    expect(find.text('SAVE ACTIVITY'), findsOneWidget);
+    expect(find.text('SAVE DRAFT'), findsNothing);
   });
 
   testWidgets('zero Events can be finalized without a legacy bowel value', (
@@ -159,8 +184,8 @@ void main() {
   ) async {
     await _pumpEntry(tester);
     await tester.enterText(find.byType(TextField).at(0), '2500');
-    await tester.ensureVisible(find.text('本日の記録を確定'));
-    await tester.tap(find.text('本日の記録を確定'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pumpAndSettle();
 
     final saved = await AppRepositoryRegistry.container.activity.findByDate(
@@ -190,11 +215,11 @@ void main() {
     );
 
     await _pumpEntry(tester);
-    expect(find.text('Save Activity'), findsOneWidget);
-    expect(find.text('一時保存'), findsNothing);
+    expect(find.text('SAVE ACTIVITY'), findsOneWidget);
+    expect(find.text('SAVE DRAFT'), findsNothing);
     await _tapChip(tester, '多量');
-    await tester.ensureVisible(find.text('Save Activity'));
-    await tester.tap(find.text('Save Activity'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pumpAndSettle();
 
     final saved = await AppRepositoryRegistry.container.activity.findByDate(
@@ -210,7 +235,6 @@ void main() {
   ) async {
     final semantics = tester.ensureSemantics();
     await _pumpEntry(tester);
-    await _addEvent(tester);
 
     expect(find.byIcon(Icons.hexagon), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -221,6 +245,8 @@ void main() {
     expect(find.bySemanticsLabel('硬便'), findsOneWidget);
     expect(find.bySemanticsLabel('普通便'), findsOneWidget);
     expect(find.bySemanticsLabel('軟便'), findsOneWidget);
+    expect(find.bySemanticsLabel('残便感'), findsOneWidget);
+    expect(find.text('残便感あり'), findsNothing);
     semantics.dispose();
   });
 
@@ -242,8 +268,8 @@ void main() {
     await _pumpEntry(tester);
 
     expect(find.textContaining('正式Recordを優先して表示しています'), findsOneWidget);
-    expect(find.text('Save Activity'), findsOneWidget);
-    expect(find.text('一時保存'), findsNothing);
+    expect(find.text('SAVE ACTIVITY'), findsOneWidget);
+    expect(find.text('SAVE DRAFT'), findsNothing);
     expect(
       await AppRepositoryRegistry.container.activityDrafts.findByDate(today),
       isNotNull,
@@ -267,8 +293,8 @@ void main() {
     await _pumpEntry(tester);
 
     expect(find.textContaining('この日のログは確定済みです'), findsOneWidget);
-    expect(find.text('一時保存'), findsNothing);
-    expect(find.text('本日の記録を確定'), findsNothing);
+    expect(find.text('SAVE DRAFT'), findsNothing);
+    expect(find.text('SAVE ACTIVITY'), findsNothing);
     expect(find.byType(TextField), findsNothing);
   });
 
@@ -293,7 +319,6 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await _pumpEntry(tester);
-    await _addEvent(tester);
 
     final exception = tester.takeException();
     expect(exception, isNull);

@@ -344,8 +344,8 @@ void main() {
       expect(find.text('AMOUNT 2.5'), findsOneWidget);
       expect(find.text('Calories : 413 kcal'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Save Meal'));
-      await tester.tap(find.text('Save Meal'));
+      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await tester.tap(find.text('SAVE MEAL'));
       await tester.pump();
 
       expect(saved, isNotNull);
@@ -463,15 +463,15 @@ void main() {
       await tester.pump();
 
       expect(find.text('NUTRITION PER 100mL'), findsOneWidget);
-      expect(find.text('Save Meal'), findsNothing);
+      expect(find.text('SAVE MEAL'), findsNothing);
       expect(saved, isNull);
 
       await tester.enterText(_field('AMOUNT'), '7.5');
       await tester.pump();
       expect(find.text('1 AMOUNT = 100mL'), findsOneWidget);
       expect(find.text('実使用量: 750mL'), findsOneWidget);
-      await tester.ensureVisible(find.text('Save Meal'));
-      await tester.tap(find.text('Save Meal'));
+      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await tester.tap(find.text('SAVE MEAL'));
       await tester.pump();
 
       expect(saved!.items.single.amount, 7.5);
@@ -525,8 +525,8 @@ void main() {
 
       await tester.ensureVisible(find.text('Update Food'));
       await tester.tap(find.text('Update Food'));
-      await tester.ensureVisible(find.text('Update Meal'));
-      await tester.tap(find.text('Update Meal'));
+      await tester.ensureVisible(find.text('UPDATE MEAL'));
+      await tester.tap(find.text('UPDATE MEAL'));
       await tester.pump();
 
       expect(saved!.items.single.hasMeasuredAmount, isFalse);
@@ -567,8 +567,8 @@ void main() {
 
       await tester.ensureVisible(find.text('Update Food'));
       await tester.tap(find.text('Update Food'));
-      await tester.ensureVisible(find.text('Update Meal'));
-      await tester.tap(find.text('Update Meal'));
+      await tester.ensureVisible(find.text('UPDATE MEAL'));
+      await tester.tap(find.text('UPDATE MEAL'));
       await tester.pump();
 
       final item = saved!.items.single;

@@ -24,7 +24,7 @@ class FoodEditPage extends StatelessWidget {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Meal updated')));
+    ).showSnackBar(const SnackBar(content: Text('MEALを更新しました')));
 
     Navigator.pop(context, true);
   }

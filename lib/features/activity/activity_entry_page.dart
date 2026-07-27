@@ -13,6 +13,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
 import '../repositories/app_repository_container.dart';
@@ -192,7 +193,9 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     _carryOverController.text = draft.carryOverInput;
     _bowelAmountController.clear();
     _bowelShapeController.clear();
-    _digestiveEvents = draft.digestiveEvents.toList();
+    _digestiveEvents = draft.digestiveEvents.isEmpty
+        ? [_createDigestiveEvent(sequence: 1)]
+        : draft.digestiveEvents.toList();
   }
 
   void _resetInput() {
@@ -200,7 +203,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     _carryOverController.text = '0';
     _bowelAmountController.clear();
     _bowelShapeController.clear();
-    _digestiveEvents = [];
+    _digestiveEvents = [_createDigestiveEvent(sequence: 1)];
     _draft = null;
   }
 
@@ -249,15 +252,16 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   }
 
   String? _digestiveValidationMessage() {
+    if (_digestiveEvents.every(_isEmptyDigestiveEvent)) return null;
     for (final event in _digestiveEvents) {
       if (event.amount == null) {
-        return '排便イベント${event.sequence}の量を入力してください';
+        return 'DIGESTIVE ${event.sequence}のAmountを入力してください';
       }
       if (event.shape == null) {
-        return '排便イベント${event.sequence}の形状を入力してください';
+        return 'DIGESTIVE ${event.sequence}のShapeを入力してください';
       }
       if (event.relief == null) {
-        return '排便イベント${event.sequence}のスッキリ感を入力してください';
+        return 'DIGESTIVE ${event.sequence}のReliefを入力してください';
       }
     }
     return null;
@@ -355,6 +359,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       await refreshActivitySummary();
       if (!mounted) return;
       setState(() {
+        _applyFormalRecord(saved);
         _formalData = saved;
         _draft = null;
         _mode = _EntryMode.formal;
@@ -377,7 +382,9 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       localDate: _formatDate(_date),
       measuredStepsInput: _measuredStepsController.text,
       carryOverInput: _carryOverController.text,
-      digestiveEvents: _digestiveEvents,
+      digestiveEvents: _digestiveEvents.every(_isEmptyDigestiveEvent)
+          ? const []
+          : _digestiveEvents,
       createdAt: _draft?.createdAt ?? now,
       updatedAt: now,
     );
@@ -386,14 +393,15 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   List<DigestiveEvent> _buildFormalDigestiveEvents() {
     return DigestiveEvent.normalizeAndValidate([
       for (final event in _digestiveEvents)
-        DigestiveEvent(
-          id: event.id,
-          sequence: event.sequence,
-          amount: event.amount!,
-          shape: event.shape!,
-          relief: event.relief!,
-          recordedAt: event.recordedAt,
-        ),
+        if (!_isEmptyDigestiveEvent(event))
+          DigestiveEvent(
+            id: event.id,
+            sequence: event.sequence,
+            amount: event.amount!,
+            shape: event.shape!,
+            relief: event.relief!,
+            recordedAt: event.recordedAt,
+          ),
     ]);
   }
 
@@ -429,21 +437,25 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   }
 
   void _addDigestiveEvent() {
+    setState(() {
+      _digestiveEvents = [..._digestiveEvents, _createDigestiveEvent()];
+    });
+  }
+
+  ActivityDraftDigestiveEvent _createDigestiveEvent({int? sequence}) {
     final now = DateTime.now();
     final id =
         'digestive:${_formatDate(_date)}:'
         '${now.microsecondsSinceEpoch}:${_eventIdSuffix++}';
-    setState(() {
-      _digestiveEvents = [
-        ..._digestiveEvents,
-        ActivityDraftDigestiveEvent(
-          id: id,
-          sequence: _digestiveEvents.length + 1,
-          recordedAt: now,
-        ),
-      ];
-    });
+    return ActivityDraftDigestiveEvent(
+      id: id,
+      sequence: sequence ?? _digestiveEvents.length + 1,
+      recordedAt: now,
+    );
   }
+
+  static bool _isEmptyDigestiveEvent(ActivityDraftDigestiveEvent event) =>
+      event.amount == null && event.shape == null && event.relief == null;
 
   void _updateDigestiveEvent(ActivityDraftDigestiveEvent updated) {
     setState(() {
@@ -660,30 +672,41 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 ),
               AppSpacing.gapLG,
               if (_isFormal)
-                OperationButton(
-                  icon: Icons.save_outlined,
-                  text: 'Save Activity',
-                  onPressed: _isBusy ? null : _saveExisting,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OperationButton(
+                      text: 'SAVE ACTIVITY',
+                      onPressed: _isBusy ? null : _saveExisting,
+                    ),
+                    AppSpacing.gapSM,
+                    const OperationDescription(text: 'Activity記録を更新'),
+                  ],
                 )
               else ...[
                 Semantics(
-                  label: '一時保存',
+                  label: '入力途中の内容を一時保存',
                   button: true,
                   child: OperationButton(
                     icon: Icons.save_outlined,
-                    text: '一時保存',
+                    text: 'SAVE DRAFT',
                     onPressed: _isBusy ? null : _saveDraft,
                   ),
                 ),
+                AppSpacing.gapSM,
+                const OperationDescription(text: '入力途中の内容を一時保存'),
                 AppSpacing.gapMD,
                 Semantics(
                   label: '${_formatDate(_date)}のActivity記録を確定',
                   button: true,
                   child: OperationButton(
-                    icon: Icons.task_alt,
-                    text: _isToday ? '本日の記録を確定' : 'この日の記録を確定',
+                    text: 'SAVE ACTIVITY',
                     onPressed: _isBusy ? null : _finalizeDraft,
                   ),
+                ),
+                AppSpacing.gapSM,
+                OperationDescription(
+                  text: _isToday ? '本日のActivity記録を確定' : 'この日のActivity記録を確定',
                 ),
               ],
             ],
@@ -700,7 +723,13 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         const SectionHeader(icon: Icons.monitor_heart, title: 'DIGESTIVE'),
         if (_digestiveEvents.isEmpty) ...[
           AppSpacing.gapMD,
-          Text('排便イベントはありません', style: Theme.of(context).textTheme.bodySmall),
+          Semantics(
+            label: '排便記録なし',
+            child: Text(
+              'No record',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         ],
         for (final event in _digestiveEvents) ...[
           AppSpacing.gapMD,
@@ -713,13 +742,13 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         ],
         AppSpacing.gapMD,
         Semantics(
-          label: '排便を追加',
+          label: '排便記録を追加',
           button: true,
           child: OutlinedButton.icon(
             key: const ValueKey('add-digestive-event'),
             onPressed: _isBusy ? null : _addDigestiveEvent,
             icon: const Icon(Icons.add),
-            label: const Text('排便を追加'),
+            label: const Text('ADD DIGESTIVE'),
           ),
         ),
       ],

@@ -463,7 +463,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
     await tester.pumpAndSettle();
 
-    await _tapVisible(tester, find.text('Save Training'));
+    await _tapVisible(tester, find.text('SAVE TRAINING'));
     await tester.pump(const Duration(milliseconds: 500));
 
     final preferences = await SharedPreferences.getInstance();

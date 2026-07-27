@@ -259,9 +259,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to save training. Please try again.'),
-          ),
+          const SnackBar(content: Text('トレーニングの保存に失敗しました。もう一度お試しください。')),
         );
       }
       return;
@@ -273,7 +271,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _isEditingExistingSession ? 'Training Updated' : 'Training Saved',
+          _isEditingExistingSession ? 'TRAININGを更新しました' : 'TRAININGを保存しました',
         ),
       ),
     );

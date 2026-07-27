@@ -81,7 +81,8 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).at(1)).controller?.text,
       '123',
     );
-    expect(find.text('この日の記録を確定'), findsOneWidget);
+    expect(find.text('SAVE ACTIVITY'), findsOneWidget);
+    expect(find.text('この日のActivity記録を確定'), findsOneWidget);
     expect(
       await AppRepositoryRegistry.container.activityDrafts.findByDate(today),
       isNotNull,
@@ -265,7 +266,7 @@ void main() {
       await tester.tap(find.text('正式Recordを表示'));
       await tester.pumpAndSettle();
       expect(find.textContaining('正式Recordを優先して表示しています'), findsOneWidget);
-      expect(find.text('Save Activity'), findsOneWidget);
+      expect(find.text('SAVE ACTIVITY'), findsOneWidget);
     },
   );
 

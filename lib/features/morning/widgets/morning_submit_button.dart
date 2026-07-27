@@ -15,7 +15,7 @@ class MorningSubmitButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.save,
-      text: isEdit ? 'Update Morning' : 'Save Morning',
+      text: isEdit ? 'UPDATE STATUS' : 'SAVE STATUS',
       onPressed: onPressed,
     );
   }

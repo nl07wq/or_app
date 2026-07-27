@@ -102,8 +102,8 @@ void main() {
     await tester.ensureVisible(hardChip);
     await tester.tap(hardChip);
     await tester.pump();
-    await tester.ensureVisible(find.text('Save Activity'));
-    await tester.tap(find.text('Save Activity'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pumpAndSettle();
 
     final saved = await const LocalActivityRepository().findByDate(date);
@@ -129,8 +129,8 @@ void main() {
     await tester.ensureVisible(noneChip);
     await tester.tap(noneChip);
     await tester.pump();
-    await tester.ensureVisible(find.text('Save Activity'));
-    await tester.tap(find.text('Save Activity'));
+    await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+    await tester.tap(find.text('SAVE ACTIVITY'));
     await tester.pumpAndSettle();
 
     final saved = await const LocalActivityRepository().findByDate(date);

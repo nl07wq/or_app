@@ -597,7 +597,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
               OperationButton(
                 icon: Icons.save,
-                text: widget.initialMeal == null ? 'Save Meal' : 'Update Meal',
+                text: widget.initialMeal == null ? 'SAVE MEAL' : 'UPDATE MEAL',
                 onPressed: saveMeal,
               ),
             ],
