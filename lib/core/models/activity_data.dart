@@ -1,4 +1,5 @@
 import 'bowel_movement_record.dart';
+import 'digestive_event.dart';
 
 enum ActivityTrainingStatus { unconfirmed, planned, completed, skipped }
 
@@ -19,6 +20,7 @@ class ActivityData {
   final String? actualWork;
   final ActivityTrainingStatus trainingStatus;
   final BowelMovementRecord bowelMovement;
+  final List<DigestiveEvent>? digestiveEvents;
   final String? note;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -36,6 +38,7 @@ class ActivityData {
     this.actualWork,
     this.trainingStatus = ActivityTrainingStatus.unconfirmed,
     this.bowelMovement = const BowelMovementRecord.unconfirmed(),
+    Iterable<DigestiveEvent>? digestiveEvents,
     this.note,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -44,6 +47,9 @@ class ActivityData {
        measuredSteps = measuredSteps ?? steps ?? 0,
        stepsEntered = stepsEntered ?? (measuredSteps != null || steps != null),
        carryOverEntered = carryOverEntered ?? true,
+       digestiveEvents = digestiveEvents == null
+           ? null
+           : DigestiveEvent.normalizeAndValidate(digestiveEvents),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? createdAt ?? DateTime.now() {
     if (steps != null && measuredSteps != null) {
@@ -89,6 +95,7 @@ class ActivityData {
     Object? actualWork = _unset,
     ActivityTrainingStatus? trainingStatus,
     BowelMovementRecord? bowelMovement,
+    Object? digestiveEvents = _unset,
     Object? note = _unset,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -115,6 +122,9 @@ class ActivityData {
           : actualWork as String?,
       trainingStatus: trainingStatus ?? this.trainingStatus,
       bowelMovement: bowelMovement ?? this.bowelMovement,
+      digestiveEvents: digestiveEvents == _unset
+          ? this.digestiveEvents
+          : digestiveEvents as Iterable<DigestiveEvent>?,
       note: note == _unset ? this.note : note as String?,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -137,6 +147,8 @@ class ActivityData {
     if (actualWork != null) 'actualWork': actualWork,
     'trainingStatus': trainingStatus.name,
     'bowelMovement': bowelMovement.toJson(),
+    if (digestiveEvents != null)
+      'digestiveEvents': [for (final event in digestiveEvents!) event.toJson()],
     if (note != null) 'note': note,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
@@ -156,6 +168,7 @@ class ActivityData {
       throw const FormatException('Activity data is missing measured steps.');
     }
 
+    final digestiveEvents = _decodeDigestiveEvents(json);
     return ActivityData(
       id: json['id'] as String?,
       date: DateTime.parse(json['date'] as String),
@@ -182,6 +195,7 @@ class ActivityData {
               Map<String, dynamic>.from(json['bowelMovement'] as Map),
             )
           : const BowelMovementRecord.unconfirmed(),
+      digestiveEvents: digestiveEvents,
       note: json['note'] as String?,
       createdAt:
           _optionalDate(json['createdAt']) ?? DateTime.parse(json['date']),
@@ -204,4 +218,27 @@ class ActivityData {
 
   static DateTime? _optionalDate(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
+
+  static List<DigestiveEvent>? _decodeDigestiveEvents(
+    Map<String, dynamic> json,
+  ) {
+    if (!json.containsKey('digestiveEvents')) return null;
+    final value = json['digestiveEvents'];
+    if (value is! List) {
+      throw const FormatException('Invalid digestive event list.');
+    }
+    try {
+      return DigestiveEvent.normalizeAndValidate([
+        for (final event in value)
+          if (event is Map)
+            DigestiveEvent.fromJson(Map<String, dynamic>.from(event))
+          else
+            throw const FormatException('Invalid digestive event.'),
+      ]);
+    } on FormatException {
+      rethrow;
+    } on Object {
+      throw const FormatException('Invalid digestive event list.');
+    }
+  }
 }

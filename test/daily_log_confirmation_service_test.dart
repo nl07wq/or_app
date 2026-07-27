@@ -67,6 +67,57 @@ void main() {
     },
   );
 
+  test('confirmation snapshots the formal digestive summary', () async {
+    final today = DateTime.now();
+    final values = _validSourceValues(today);
+    final activity = _activityJson(today)
+      ..['digestiveEvents'] = [
+        {
+          'id': 'digestive:today:1',
+          'sequence': 1,
+          'amount': 1,
+          'shape': 2,
+          'relief': 0,
+          'recordedAt': today.toIso8601String(),
+        },
+        {
+          'id': 'digestive:today:2',
+          'sequence': 2,
+          'amount': 3,
+          'shape': 5,
+          'relief': 2,
+          'recordedAt': today.add(const Duration(hours: 1)).toIso8601String(),
+        },
+      ];
+    values['activity_records'] = [jsonEncode(activity)];
+    SharedPreferences.setMockInitialValues(values);
+
+    final confirmation = await DailyLogConfirmationService.confirmToday();
+    final stored = await DailyLogConfirmationRepository.findByDate(today);
+
+    expect(confirmation.activity?.digestiveSummary?.eventCount, 2);
+    expect(confirmation.activity?.digestiveSummary?.totalAmount, 4);
+    expect(confirmation.activity?.digestiveSummary?.latestShape, 5);
+    expect(confirmation.activity?.digestiveSummary?.latestRelief, 2);
+    expect(confirmation.activity?.digestiveSummary?.shapeTrend, [2, 5]);
+    expect(confirmation.activity?.digestiveSummary?.reliefTrend, [0, 2]);
+    expect(
+      stored?.activity?.digestiveSummary?.toJson(),
+      confirmation.activity?.digestiveSummary?.toJson(),
+    );
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList('activity_records', [
+      jsonEncode(_activityJson(today)),
+    ]);
+    expect(
+      (await DailyLogConfirmationRepository.findByDate(
+        today,
+      ))?.activity?.digestiveSummary?.toJson(),
+      confirmation.activity?.digestiveSummary?.toJson(),
+    );
+  });
+
   test('confirmation snapshots calculated FOOD amount nutrition', () async {
     final today = DateTime.now();
     final meal = _mealJson(today)

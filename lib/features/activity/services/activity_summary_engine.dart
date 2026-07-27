@@ -1,4 +1,5 @@
 import '../../../core/engine/activity_summary.dart';
+import '../../../core/engine/digestive_summary.dart';
 import '../../../core/models/activity_data.dart';
 import '../../../core/models/morning_data.dart';
 import 'bowel_movement_resolver.dart';
@@ -49,12 +50,15 @@ class ActivitySummaryEngine {
       warn('trainingStatus', ActivitySummaryWarningCode.trainingUnconfirmed);
     }
 
-    final bowelMovement = _bowelResolver.resolve(
-      activity: record,
-      legacyMorning: legacyMorning,
-      legacyMorningBowel: legacyMorningBowel,
-    );
-    if (!bowelMovement.isConfirmed) {
+    final hasDigestiveEventsContract = record.digestiveEvents != null;
+    final bowelMovement = hasDigestiveEventsContract
+        ? record.bowelMovement
+        : _bowelResolver.resolve(
+            activity: record,
+            legacyMorning: legacyMorning,
+            legacyMorningBowel: legacyMorningBowel,
+          );
+    if (!hasDigestiveEventsContract && !bowelMovement.isConfirmed) {
       warn('bowelMovement', ActivitySummaryWarningCode.bowelUnconfirmed);
     }
 
@@ -86,6 +90,9 @@ class ActivitySummaryEngine {
       actualWork: record.actualWork,
       trainingStatus: record.trainingStatus,
       bowelMovement: bowelMovement,
+      digestiveSummary: hasDigestiveEventsContract
+          ? DigestiveSummary.fromEvents(record.digestiveEvents!)
+          : null,
       status: warnings.isEmpty
           ? ActivitySummaryStatus.confirmed
           : ActivitySummaryStatus.incomplete,

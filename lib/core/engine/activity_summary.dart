@@ -1,5 +1,6 @@
 import '../models/activity_data.dart';
 import '../models/bowel_movement_record.dart';
+import 'digestive_summary.dart';
 
 enum ActivitySummaryStatus { unrecorded, incomplete, confirmed }
 
@@ -74,6 +75,7 @@ class ActivitySummary {
   final String? actualWork;
   final ActivityTrainingStatus trainingStatus;
   final BowelMovementRecord bowelMovement;
+  final DigestiveSummary? digestiveSummary;
   final ActivitySummaryStatus status;
   final List<String> unconfirmedFields;
   final List<ActivitySummaryWarning> warnings;
@@ -91,6 +93,7 @@ class ActivitySummary {
     this.actualWork,
     this.trainingStatus = ActivityTrainingStatus.unconfirmed,
     this.bowelMovement = const BowelMovementRecord.unconfirmed(),
+    this.digestiveSummary,
     this.status = ActivitySummaryStatus.confirmed,
     this.unconfirmedFields = const [],
     this.warnings = const [],
@@ -117,6 +120,7 @@ class ActivitySummary {
       actualWork = null,
       trainingStatus = ActivityTrainingStatus.unconfirmed,
       bowelMovement = const BowelMovementRecord.unconfirmed(),
+      digestiveSummary = null,
       status = ActivitySummaryStatus.unrecorded,
       unconfirmedFields = const [],
       warnings = const [],
@@ -139,6 +143,9 @@ class ActivitySummary {
     actualWork: data.actualWork,
     trainingStatus: data.trainingStatus,
     bowelMovement: data.bowelMovement,
+    digestiveSummary: data.digestiveEvents == null
+        ? null
+        : DigestiveSummary.fromEvents(data.digestiveEvents!),
     calculationBasis: ActivityCalculationBasis(
       rawSteps: data.rawSteps,
       currentCarryOver: data.carryoverSteps,
@@ -160,6 +167,8 @@ class ActivitySummary {
     if (actualWork != null) 'actualWork': actualWork,
     'trainingStatus': trainingStatus.name,
     'bowelMovement': bowelMovement.toJson(),
+    if (digestiveSummary != null)
+      'digestiveSummary': digestiveSummary!.toJson(),
     'status': status.name,
     'unconfirmedFields': unconfirmedFields,
     'warnings': warnings.map((warning) => warning.toJson()).toList(),
@@ -205,6 +214,11 @@ class ActivitySummary {
               Map<String, dynamic>.from(json['bowelMovement'] as Map),
             )
           : const BowelMovementRecord.unconfirmed(),
+      digestiveSummary: json['digestiveSummary'] is Map
+          ? DigestiveSummary.fromJson(
+              Map<String, dynamic>.from(json['digestiveSummary'] as Map),
+            )
+          : null,
       status: ActivitySummaryStatus.values.firstWhere(
         (value) => value.name == json['status'],
         orElse: () => json['isRecorded'] == true

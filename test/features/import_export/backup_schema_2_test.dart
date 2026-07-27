@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/food_item.dart';
+import 'package:or_app/core/models/activity_data.dart';
+import 'package:or_app/core/models/digestive_event.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session.dart';
@@ -11,6 +13,7 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
+import 'package:or_app/features/activity/models/persisted_activity_record.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
@@ -303,6 +306,89 @@ void main() {
         await database.findById(IndexedDbStoreNames.activityDrafts, draft.id),
         isNotNull,
       );
+    },
+  );
+
+  test(
+    'Schema 2.0 round trips digestive events and preserves Activity Drafts',
+    () async {
+      final timestamp = DateTime.utc(2026, 7, 27, 8);
+      final activity = PersistedActivityRecord(
+        id: 'activity:2026-07-27',
+        localDate: '2026-07-27',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        canonicalDate: '2026-07-27',
+        recordKind: ActivityRecordKind.canonical,
+        data: ActivityData(
+          date: DateTime(2026, 7, 27),
+          measuredSteps: 1000,
+          digestiveEvents: [
+            DigestiveEvent(
+              id: 'digestive:2026-07-27:1',
+              sequence: 1,
+              amount: 2,
+              shape: 4,
+              relief: 2,
+              recordedAt: timestamp,
+            ),
+          ],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
+      );
+      final draft = ActivityDraft(
+        localDate: '2026-07-27',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      );
+      database.seed(
+        IndexedDbStoreNames.activityRecords,
+        activity.id,
+        activity.toRecord(),
+      );
+      database.seed(
+        IndexedDbStoreNames.activityDrafts,
+        draft.id,
+        draft.toRecord(),
+      );
+      final package = await BackupExportService(
+        database: database,
+        controller: controller,
+      ).create();
+      final restoredDatabase = FakeIndexedDbDatabase()
+        ..seed(IndexedDbStoreNames.activityDrafts, draft.id, draft.toRecord());
+      final service = BackupImportService(
+        database: restoredDatabase,
+        controller: AppInitializationController()..markReady(),
+        restore: () async {},
+      );
+
+      final plan = await service.dryRun(
+        const BackupPackageCodec().decode(BackupExportService.encode(package)),
+        BackupImportMode.replaceAll,
+      );
+      expect((await service.execute(plan)).success, isTrue);
+      final restored = PersistedActivityRecord.fromRecord(
+        (await restoredDatabase.findById(
+          IndexedDbStoreNames.activityRecords,
+          activity.id,
+        ))!,
+      );
+
+      expect(package.schemaVersion, 2);
+      expect(restored.recordVersion, 1);
+      expect(restored.data.digestiveEvents?.single.sequence, 1);
+      expect(restored.data.digestiveEvents?.single.relief, 2);
+      expect(restored.data.digestiveEvents?.single.recordedAt, timestamp);
+      expect(
+        await restoredDatabase.findById(
+          IndexedDbStoreNames.activityDrafts,
+          draft.id,
+        ),
+        isNotNull,
+      );
+      expect(package.data.containsKey('activity_drafts'), isFalse);
     },
   );
 

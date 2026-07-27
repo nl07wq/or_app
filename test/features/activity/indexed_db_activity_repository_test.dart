@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/activity_data.dart';
 import 'package:or_app/core/models/bowel_movement_record.dart';
+import 'package:or_app/core/models/digestive_event.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/persisted_activity_record.dart';
 import 'package:or_app/features/activity/repository/indexed_db_activity_repository.dart';
@@ -143,6 +144,31 @@ void main() {
     expect(envelope.localDate, '2026-07-26');
   });
 
+  test('persists immutable digestive events across recreation', () async {
+    final events = [
+      DigestiveEvent(
+        id: 'digestive:2026-07-26:1',
+        sequence: 1,
+        amount: 2,
+        shape: 4,
+        relief: 2,
+        recordedAt: DateTime.utc(2026, 7, 26, 8),
+      ),
+    ];
+    await repository.save(
+      _activity(DateTime(2026, 7, 26), steps: 5000, digestiveEvents: events),
+    );
+
+    final recreated = IndexedDbActivityRepository(database);
+    final restored = await recreated.findByDate(DateTime(2026, 7, 26));
+    expect(restored?.digestiveEvents, events);
+    expect(() => restored!.digestiveEvents!.clear(), throwsUnsupportedError);
+    final envelope = PersistedActivityRecord.fromRecord(
+      (await database.findAll(IndexedDbStoreNames.activityRecords)).single,
+    );
+    expect(envelope.recordVersion, 1);
+  });
+
   test('canonical reads exclude revisions and audit includes them', () async {
     await repository.save(_activity(DateTime(2026, 7, 26), steps: 6000));
     final revision = _revision(
@@ -253,6 +279,54 @@ void main() {
       ),
     );
   });
+
+  test('surfaces a malformed digestive event as partial corruption', () async {
+    final timestamp = DateTime.utc(2026, 7, 26);
+    final envelope = PersistedActivityRecord(
+      id: 'activity:2026-07-26',
+      localDate: '2026-07-26',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      canonicalDate: '2026-07-26',
+      recordKind: ActivityRecordKind.canonical,
+      data: _activity(
+        DateTime(2026, 7, 26),
+        steps: 5000,
+        digestiveEvents: [
+          DigestiveEvent(
+            id: 'digestive:2026-07-26:1',
+            sequence: 1,
+            amount: 2,
+            shape: 4,
+            relief: 1,
+            recordedAt: timestamp,
+          ),
+        ],
+      ),
+    ).toRecord();
+    final data = Map<String, Object?>.from(envelope['data']! as Map);
+    final event = Map<String, Object?>.from(
+      (data['digestiveEvents']! as List).single as Map,
+    )..['shape'] = 8;
+    data['digestiveEvents'] = [event];
+    envelope['data'] = data;
+    database.seed(
+      IndexedDbStoreNames.activityRecords,
+      envelope['id']! as String,
+      envelope,
+    );
+
+    await expectLater(
+      repository.findAll(),
+      throwsA(
+        isA<RepositoryException>().having(
+          (error) => error.code,
+          'code',
+          RepositoryErrorCode.partialCorruption,
+        ),
+      ),
+    );
+  });
 }
 
 ActivityData _activity(
@@ -260,12 +334,14 @@ ActivityData _activity(
   required int steps,
   int carryOver = 0,
   BowelMovementRecord bowel = const BowelMovementRecord.unconfirmed(),
+  Iterable<DigestiveEvent>? digestiveEvents,
 }) {
   return ActivityData(
     date: date,
     measuredSteps: steps,
     carryOver: carryOver,
     bowelMovement: bowel,
+    digestiveEvents: digestiveEvents,
     createdAt: DateTime.utc(date.year, date.month, date.day, 6),
     updatedAt: DateTime.utc(date.year, date.month, date.day, 7),
   );
