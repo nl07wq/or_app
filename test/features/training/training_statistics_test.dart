@@ -102,9 +102,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Statistics'), findsOneWidget);
+    expect(find.text('STATISTICS'), findsOneWidget);
+    expect(find.text('Statistics'), findsNothing);
+    expect(find.text('総重量'), findsOneWidget);
+    expect(find.text('セット数'), findsOneWidget);
+    expect(find.text('総レップ数'), findsOneWidget);
+    expect(find.text('平均重量'), findsOneWidget);
+    expect(find.text('最高重量'), findsOneWidget);
+    expect(find.text('PERSONAL RECORD'), findsOneWidget);
+    expect(find.text('自己ベスト'), findsOneWidget);
     expect(find.text('720 kg'), findsOneWidget);
-    expect(find.text('New PR'), findsOneWidget);
+    expect(find.text('New PR'), findsNothing);
+    expect(find.text('Current PR'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const Key('personal-record-result')),
@@ -117,7 +126,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('560 kg'), findsOneWidget);
-    expect(find.text('Current PR'), findsOneWidget);
+    expect(find.text('自己ベスト'), findsOneWidget);
+    expect(find.text('Current PR'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const Key('personal-record-result')),
@@ -125,6 +135,45 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('empty localized statistics and PR fit at 320px', (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final exerciseController = TextEditingController(text: 'No History');
+    final equipmentController = ValueNotifier<String?>(null);
+    final setController = TrainingSetController();
+    addTearDown(exerciseController.dispose);
+    addTearDown(equipmentController.dispose);
+    addTearDown(setController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: TrainingSummarySection(
+              exerciseController: exerciseController,
+              equipmentController: equipmentController,
+              sets: [setController],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('STATISTICS'), findsOneWidget);
+    expect(find.text('PERSONAL RECORD'), findsOneWidget);
+    expect(find.text('自己ベスト'), findsOneWidget);
+    expect(find.text('記録なし'), findsNWidgets(2));
+    expect(find.text('Volume'), findsNothing);
+    expect(find.text('Working Sets'), findsNothing);
+    expect(find.text('Total Reps'), findsNothing);
+    expect(find.text('Average Weight'), findsNothing);
+    expect(find.text('Heaviest'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }
 

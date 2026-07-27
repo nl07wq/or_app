@@ -24,36 +24,32 @@ class TrainingStatisticsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Statistics', style: Theme.of(context).textTheme.titleSmall),
+          Text('STATISTICS', style: Theme.of(context).textTheme.titleSmall),
           AppSpacing.gapSM,
           _metricRow(
             context,
-            label: 'Volume',
+            label: '総重量',
             value:
                 '${formatTrainingNumberWithThousands(result.totalVolume)} kg',
           ),
           AppSpacing.gapXS,
-          _metricRow(
-            context,
-            label: 'Working Sets',
-            value: '${result.workingSets}',
-          ),
+          _metricRow(context, label: 'セット数', value: '${result.workingSets}'),
           AppSpacing.gapXS,
           _metricRow(
             context,
-            label: 'Total Reps',
+            label: '総レップ数',
             value: '${result.totalRepetitions}',
           ),
           AppSpacing.gapXS,
           _metricRow(
             context,
-            label: 'Average Weight',
+            label: '平均重量',
             value: '${formatTrainingNumber(result.averageWeight)} kg',
           ),
           AppSpacing.gapXS,
           _metricRow(
             context,
-            label: 'Heaviest',
+            label: '最高重量',
             value: heaviestSet == null
                 ? '—'
                 : '${formatTrainingNumber(heaviestSet.weight)} kg '

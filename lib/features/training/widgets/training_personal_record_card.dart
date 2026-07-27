@@ -13,7 +13,6 @@ class TrainingPersonalRecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final secondaryColor = Theme.of(context).colorScheme.onSurfaceVariant;
     final record = summary.personalRecordResult;
     return Container(
       width: double.infinity,
@@ -26,31 +25,21 @@ class TrainingPersonalRecordCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Personal Record',
+            'PERSONAL RECORD',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           AppSpacing.gapSM,
-          if (record == null)
-            Text(
-              'No previous personal records.',
-              key: const Key('personal-record-empty'),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: secondaryColor),
-            )
-          else
-            _recordRow(context, record),
+          _recordRow(context, record),
         ],
       ),
     );
   }
 
-  Widget _recordRow(BuildContext context, PersonalRecordResult record) {
-    final status = record.status == PersonalRecordStatus.newRecord
-        ? 'New PR'
-        : 'Current PR';
+  Widget _recordRow(BuildContext context, PersonalRecordResult? record) {
     return Row(
-      key: const Key('personal-record-result'),
+      key: record == null
+          ? const Key('personal-record-empty')
+          : const Key('personal-record-result'),
       children: [
         Icon(
           Icons.emoji_events_outlined,
@@ -58,13 +47,19 @@ class TrainingPersonalRecordCard extends StatelessWidget {
           color: Theme.of(context).colorScheme.primary,
         ),
         const SizedBox(width: AppSpacing.sm),
-        Text(status, style: Theme.of(context).textTheme.labelMedium),
+        Text('自己ベスト', style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(
-            '${formatTrainingNumber(record.highestWeight)} kg '
-            '×${record.highestRepetitions}',
-            style: Theme.of(context).textTheme.bodySmall,
+            record == null
+                ? '記録なし'
+                : '${formatTrainingNumber(record.highestWeight)} kg '
+                      '×${record.highestRepetitions}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: record == null
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : null,
+            ),
           ),
         ),
       ],

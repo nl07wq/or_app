@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../models/progression_result.dart';
 import '../models/training_summary.dart';
 
 class TrainingProgressionCard extends StatelessWidget {
@@ -23,15 +24,24 @@ class TrainingProgressionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Progression', style: Theme.of(context).textTheme.titleSmall),
+          Text('PROGRESSION', style: Theme.of(context).textTheme.titleSmall),
           AppSpacing.gapSM,
           if (result == null)
-            Text(
-              'No previous progression data.',
+            Column(
               key: const Key('progression-empty'),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: secondaryColor),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _resultRow(context, label: '前回', value: '記録なし'),
+                AppSpacing.gapXS,
+                _resultRow(context, label: '今回', value: '提案なし'),
+                AppSpacing.gapXS,
+                _resultRow(
+                  context,
+                  label: '理由',
+                  value: '比較できる前回記録がありません',
+                  valueColor: secondaryColor,
+                ),
+              ],
             )
           else
             Column(
@@ -40,24 +50,24 @@ class TrainingProgressionCard extends StatelessWidget {
               children: [
                 _resultRow(
                   context,
-                  label: 'Last',
+                  label: '前回',
                   value:
                       '${_formatWeight(result.lastWeight)}kg ×${result.lastReps}',
                 ),
                 AppSpacing.gapXS,
                 _resultRow(
                   context,
-                  label: 'Suggested',
+                  label: '今回',
                   value:
                       '${_formatWeight(result.suggestedWeight)}kg '
                       '×${result.suggestedRepsMin}〜${result.suggestedRepsMax}',
                 ),
                 AppSpacing.gapXS,
-                Text(
-                  'Reason  ${result.reason}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: secondaryColor),
+                _resultRow(
+                  context,
+                  label: '理由',
+                  value: _reasonLabel(result.recommendation),
+                  valueColor: secondaryColor,
                 ),
               ],
             ),
@@ -70,6 +80,7 @@ class TrainingProgressionCard extends StatelessWidget {
     BuildContext context, {
     required String label,
     required String value,
+    Color? valueColor,
   }) {
     return Row(
       children: [
@@ -78,7 +89,12 @@ class TrainingProgressionCard extends StatelessWidget {
           child: Text(label, style: Theme.of(context).textTheme.labelSmall),
         ),
         Expanded(
-          child: Text(value, style: Theme.of(context).textTheme.bodySmall),
+          child: Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: valueColor),
+          ),
         ),
       ],
     );
@@ -88,5 +104,13 @@ class TrainingProgressionCard extends StatelessWidget {
     return weight == weight.truncateToDouble()
         ? weight.toInt().toString()
         : weight.toString();
+  }
+
+  String _reasonLabel(ProgressionRecommendation recommendation) {
+    return switch (recommendation) {
+      ProgressionRecommendation.increaseWeight => '前回目標達成済みのため',
+      ProgressionRecommendation.maintainWeight => '現重量でレップ数を伸ばすため',
+      ProgressionRecommendation.repeatWeight => '前回目標未達のため重量を維持',
+    };
   }
 }

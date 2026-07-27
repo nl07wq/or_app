@@ -200,6 +200,55 @@ void main() {
   );
 
   testWidgets(
+    'cardio title updates immediately after explicit type selection',
+    (tester) async {
+      await _pumpEntry(tester);
+      await _tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Add Cardio'),
+      );
+
+      final header = find.byKey(const ValueKey('cardio-header-0'));
+      expect(
+        find.descendant(of: header, matching: find.text('CARDIO 1')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, '運動時間（分）'))
+            .controller!
+            .text,
+        isEmpty,
+      );
+
+      final typeDropdown = find.byType(DropdownButtonFormField<CardioType>);
+      await tester.tap(typeDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ウォーキング').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: header, matching: find.text('ウォーキング')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header, matching: find.text('CARDIO 1')),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel('ウォーキング, expanded'), findsOneWidget);
+
+      await tester.tap(typeDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ランニング').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: header, matching: find.text('ランニング')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'cardio summary omits missing values and inputs survive collapse',
     (tester) async {
       await _pumpEntry(tester);
@@ -216,7 +265,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
       await tester.pumpAndSettle();
 
-      expect(find.text('エアロバイク'), findsOneWidget);
+      expect(find.text('CARDIO 1'), findsOneWidget);
       expect(find.text('2.82 km · 40 min'), findsOneWidget);
       expect(find.textContaining('kcal'), findsNothing);
       expect(find.byTooltip('Delete cardio'), findsNothing);

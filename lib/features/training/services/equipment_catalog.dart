@@ -115,3 +115,30 @@ Equipment? equipmentById(String? id) {
   }
   return null;
 }
+
+String equipmentDisplayNameJa(Equipment equipment) {
+  return switch (equipment.id) {
+    'power_rack' => 'パワーラック',
+    'bench_press_rack' => 'ベンチプレスラック',
+    'smith_machine' => 'スミスマシン',
+    'hammer_strength_bench' => 'ハンマーストレングス・ベンチ',
+    'leg_press_45' => '45°レッグプレス',
+    'horizontal_leg_press' => 'ホリゾンタルレッグプレス',
+    'plate_loaded_leg_press' => 'プレートロード・レッグプレス',
+    'linear_leg_press' => 'リニアレッグプレス',
+    'squat_press' => 'スクワットプレス',
+    'lat_pulldown' => 'ラットプルダウン',
+    'technogym_lat_pulldown' => 'テクノジム・ラットプルダウン',
+    'life_fitness_lat_pulldown' => 'ライフフィットネス・ラットプルダウン',
+    'cable_machine' => 'ケーブルマシン',
+    'cable_station' => 'ケーブルステーション',
+    'hack_squat_machine' => 'ハックスクワットマシン',
+    'shoulder_press_machine' => 'ショルダープレスマシン',
+    'incline_bench_machine' => 'インクラインベンチマシン',
+    'chest_press_machine' => 'チェストプレスマシン',
+    'seated_row_machine' => 'シーテッドロウマシン',
+    'leg_curl_machine' => 'レッグカールマシン',
+    'dumbbells' => 'ダンベル',
+    _ => equipment.displayName,
+  };
+}

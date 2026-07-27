@@ -106,17 +106,64 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Progression'), findsOneWidget);
+    expect(find.text('PROGRESSION'), findsOneWidget);
+    expect(find.text('Progression'), findsNothing);
+    expect(find.text('前回'), findsOneWidget);
+    expect(find.text('今回'), findsOneWidget);
+    expect(find.text('理由'), findsOneWidget);
     expect(find.text('65kg ×10'), findsOneWidget);
     expect(find.text('67.5kg ×8〜10'), findsOneWidget);
-    expect(find.text('Reason  Previous target achieved.'), findsOneWidget);
+    expect(find.text('前回目標達成済みのため'), findsOneWidget);
+    expect(find.text('Last'), findsNothing);
+    expect(find.text('Suggested'), findsNothing);
+    expect(find.textContaining('Reason'), findsNothing);
 
     equipmentController.value = 'smith_machine';
     await tester.pumpAndSettle();
 
-    expect(find.text('No previous progression data.'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('progression-empty')),
+        matching: find.text('記録なし'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('提案なし'), findsOneWidget);
+    expect(find.text('比較できる前回記録がありません'), findsOneWidget);
     expect(exerciseController.text, 'BenchPress');
     expect(equipmentController.value, 'smith_machine');
+  });
+
+  testWidgets('progression localization does not overflow at 320px', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final exerciseController = TextEditingController(text: 'No History');
+    final equipmentController = ValueNotifier<String?>(null);
+    final setController = TrainingSetController();
+    addTearDown(exerciseController.dispose);
+    addTearDown(equipmentController.dispose);
+    addTearDown(setController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TrainingSummarySection(
+            exerciseController: exerciseController,
+            equipmentController: equipmentController,
+            sets: [setController],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('PROGRESSION'), findsOneWidget);
+    expect(find.text('比較できる前回記録がありません'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

@@ -89,6 +89,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     for (final entry in session.cardioEntries) {
       final cardio = _CardioPlaceholder(_nextCardioPlaceholderId++)
         ..type = entry.type
+        ..hasSelectedType = true
         ..intensity = entry.intensity
         ..durationController.text = entry.durationMinutes.toString()
         ..distanceController.text = entry.distanceKm?.toString() ?? ''
@@ -460,15 +461,14 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     int index,
   ) {
     final duration = int.tryParse(cardio.durationController.text.trim());
-    final isConfigured = duration != null && duration > 0;
-    final title = isConfigured
+    final title = cardio.hasSelectedType
         ? _cardioTypeLabel(cardio.type)
         : 'CARDIO ${index + 1}';
 
     return TrainingCollapsibleCard(
       icon: Icons.directions_run,
       title: title,
-      summary: isConfigured
+      summary: duration != null && duration > 0
           ? _buildCardioSummary(morningFact, cardio, duration)
           : 'Not configured',
       isExpanded: identical(_expandedItem, cardio),
@@ -505,6 +505,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
               if (value == null) return;
               setState(() {
                 cardio.type = value;
+                cardio.hasSelectedType = true;
                 cardio.estimatedCalories = null;
               });
             },
@@ -660,6 +661,7 @@ class _CardioPlaceholder {
   String? distanceError;
   double? estimatedCalories;
   CardioType type = CardioType.exerciseBike;
+  bool hasSelectedType = false;
   CardioIntensity intensity = CardioIntensity.moderate;
   void dispose() {
     durationController.dispose();

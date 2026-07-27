@@ -60,6 +60,48 @@ void main() {
     expect(equipmentById('cable_machine')?.category, EquipmentCategory.cable);
   });
 
+  test('every built-in equipment has a Japanese display name', () {
+    expect(
+      {
+        for (final equipment in builtInEquipment)
+          equipment.id: equipmentDisplayNameJa(equipment),
+      },
+      {
+        'power_rack': 'パワーラック',
+        'bench_press_rack': 'ベンチプレスラック',
+        'smith_machine': 'スミスマシン',
+        'hammer_strength_bench': 'ハンマーストレングス・ベンチ',
+        'leg_press_45': '45°レッグプレス',
+        'horizontal_leg_press': 'ホリゾンタルレッグプレス',
+        'plate_loaded_leg_press': 'プレートロード・レッグプレス',
+        'linear_leg_press': 'リニアレッグプレス',
+        'squat_press': 'スクワットプレス',
+        'lat_pulldown': 'ラットプルダウン',
+        'technogym_lat_pulldown': 'テクノジム・ラットプルダウン',
+        'life_fitness_lat_pulldown': 'ライフフィットネス・ラットプルダウン',
+        'cable_machine': 'ケーブルマシン',
+        'cable_station': 'ケーブルステーション',
+        'hack_squat_machine': 'ハックスクワットマシン',
+        'shoulder_press_machine': 'ショルダープレスマシン',
+        'incline_bench_machine': 'インクラインベンチマシン',
+        'chest_press_machine': 'チェストプレスマシン',
+        'seated_row_machine': 'シーテッドロウマシン',
+        'leg_curl_machine': 'レッグカールマシン',
+        'dumbbells': 'ダンベル',
+      },
+    );
+    expect(
+      equipmentDisplayNameJa(
+        const Equipment(
+          id: 'future_equipment',
+          displayName: 'Future Equipment',
+          category: EquipmentCategory.machine,
+        ),
+      ),
+      'Future Equipment',
+    );
+  });
+
   test('every built-in exercise references catalog equipment', () {
     for (final exercise in const [
       'BenchPress',
@@ -118,32 +160,32 @@ void main() {
     );
 
     expect(find.text('Equipment'), findsOneWidget);
-    expect(find.text('None'), findsOneWidget);
+    expect(find.text('なし'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('equipment-selector')));
     await tester.pumpAndSettle();
-    expect(find.text('Power Rack'), findsOneWidget);
-    expect(find.text('Hammer Strength Bench'), findsOneWidget);
-    expect(find.text('45° Leg Press'), findsNothing);
-    await tester.tap(find.text('Smith Machine'));
+    expect(find.text('パワーラック'), findsOneWidget);
+    expect(find.text('ハンマーストレングス・ベンチ'), findsOneWidget);
+    expect(find.text('45°レッグプレス'), findsNothing);
+    await tester.tap(find.text('スミスマシン'));
     await tester.pumpAndSettle();
 
     expect(controller.value, 'smith_machine');
-    expect(find.text('Smith Machine'), findsOneWidget);
+    expect(find.text('スミスマシン'), findsOneWidget);
 
     exerciseController.text = 'LegPress';
     await tester.pump();
 
     expect(controller.value, isNull);
-    expect(find.text('None'), findsOneWidget);
+    expect(find.text('なし'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('equipment-selector')));
     await tester.pumpAndSettle();
-    expect(find.text('45° Leg Press'), findsOneWidget);
-    expect(find.text('Linear Leg Press'), findsOneWidget);
-    expect(find.text('Squat Press'), findsOneWidget);
-    expect(find.text('Smith Machine'), findsNothing);
-    await tester.tap(find.text('45° Leg Press'));
+    expect(find.text('45°レッグプレス'), findsOneWidget);
+    expect(find.text('リニアレッグプレス'), findsOneWidget);
+    expect(find.text('スクワットプレス'), findsOneWidget);
+    expect(find.text('スミスマシン'), findsNothing);
+    await tester.tap(find.text('45°レッグプレス'));
     await tester.pumpAndSettle();
 
     expect(controller.value, 'leg_press_45');
@@ -152,12 +194,39 @@ void main() {
     await tester.pump();
 
     expect(controller.value, isNull);
-    expect(find.text('None'), findsOneWidget);
+    expect(find.text('なし'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('equipment-selector')));
     await tester.pumpAndSettle();
-    expect(find.text('Power Rack'), findsNothing);
-    expect(find.text('45° Leg Press'), findsNothing);
-    expect(find.text('None'), findsNWidgets(2));
+    expect(find.text('パワーラック'), findsNothing);
+    expect(find.text('45°レッグプレス'), findsNothing);
+    expect(find.text('なし'), findsNWidgets(2));
+  });
+
+  testWidgets('selected equipment remains Japanese at 320px', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final exerciseController = TextEditingController(text: 'LatPulldown');
+    final controller = ValueNotifier<String?>('technogym_lat_pulldown');
+    addTearDown(exerciseController.dispose);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EquipmentSelector(
+            exerciseController: exerciseController,
+            controller: controller,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('テクノジム・ラットプルダウン'), findsOneWidget);
+    expect(controller.value, 'technogym_lat_pulldown');
+    expect(tester.takeException(), isNull);
   });
 }

@@ -52,6 +52,9 @@ class _EquipmentSelectorState extends State<EquipmentSelector> {
           valueListenable: widget.controller,
           builder: (context, equipmentId, _) {
             final selectedEquipment = equipmentById(equipmentId);
+            final selectedName = selectedEquipment == null
+                ? 'なし'
+                : equipmentDisplayNameJa(selectedEquipment);
             return InkWell(
               key: const Key('equipment-selector'),
               onTap: () => _openSelector(context, equipment),
@@ -61,7 +64,11 @@ class _EquipmentSelectorState extends State<EquipmentSelector> {
                   suffixIcon: Icon(Icons.arrow_drop_down),
                   constraints: BoxConstraints(minHeight: 56),
                 ),
-                child: Text(selectedEquipment?.displayName ?? 'None'),
+                child: Text(
+                  selectedName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             );
           },
@@ -108,13 +115,13 @@ class _EquipmentPickerSheet extends StatelessWidget {
         shrinkWrap: true,
         children: [
           ListTile(
-            title: const Text('None'),
+            title: const Text('なし'),
             onTap: () => Navigator.pop(context, ''),
           ),
           const Divider(height: 1),
           for (final item in equipment)
             ListTile(
-              title: Text(item.displayName),
+              title: Text(equipmentDisplayNameJa(item)),
               onTap: () => Navigator.pop(context, item.id),
             ),
         ],
