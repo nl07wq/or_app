@@ -405,7 +405,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     });
                   },
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Exercise'),
+                  label: const Text('ADD EXERCISE'),
                 ),
 
                 AppSpacing.gapXL,
@@ -439,7 +439,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     });
                   },
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Cardio'),
+                  label: const Text('ADD CARDIO'),
                 ),
 
                 AppSpacing.gapXL,

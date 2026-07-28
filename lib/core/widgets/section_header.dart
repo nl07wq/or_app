@@ -8,22 +8,29 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.cyanAccent, size: 22),
+    final titleWidget = Text(
+      title,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
 
-        const SizedBox(width: 8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final children = <Widget>[
+          Icon(icon, color: Colors.cyanAccent, size: 22),
+          const SizedBox(width: 8),
+          if (constraints.maxWidth.isFinite)
+            Expanded(child: titleWidget)
+          else
+            titleWidget,
+        ];
 
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ],
+        return Row(children: children);
+      },
     );
   }
 }

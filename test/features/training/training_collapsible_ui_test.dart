@@ -39,13 +39,13 @@ void main() {
     expect(find.bySemanticsLabel('EXERCISE 1, expanded'), findsOneWidget);
   });
 
-  testWidgets('empty cardio section shows only Add Cardio below its header', (
+  testWidgets('empty cardio section shows only ADD CARDIO below its header', (
     tester,
   ) async {
     await _pumpEntry(tester);
 
     final header = find.text('CARDIO');
-    final addButton = find.widgetWithText(OutlinedButton, 'Add Cardio');
+    final addButton = find.widgetWithText(OutlinedButton, 'ADD CARDIO');
     expect(find.text('CARDIO 1'), findsNothing);
     expect(
       tester.getTopLeft(header).dy,
@@ -53,10 +53,10 @@ void main() {
     );
   });
 
-  testWidgets('Add Cardio remains after every cardio card', (tester) async {
+  testWidgets('ADD CARDIO remains after every cardio card', (tester) async {
     await _pumpEntry(tester);
 
-    final addButton = find.widgetWithText(OutlinedButton, 'Add Cardio');
+    final addButton = find.widgetWithText(OutlinedButton, 'ADD CARDIO');
     await _tapVisible(tester, addButton);
     expect(
       tester.getTopLeft(find.text('CARDIO 1')).dy,
@@ -82,7 +82,7 @@ void main() {
     await _pumpEntry(tester);
     await _tapVisible(
       tester,
-      find.widgetWithText(OutlinedButton, 'Add Cardio'),
+      find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
     );
 
     await tester.tap(find.byTooltip('Delete cardio'));
@@ -93,7 +93,7 @@ void main() {
     expect(
       tester.getTopLeft(find.text('CARDIO')).dy,
       lessThan(
-        tester.getTopLeft(find.widgetWithText(OutlinedButton, 'Add Cardio')).dy,
+        tester.getTopLeft(find.widgetWithText(OutlinedButton, 'ADD CARDIO')).dy,
       ),
     );
   });
@@ -161,7 +161,7 @@ void main() {
 
     await _tapVisible(
       tester,
-      find.widgetWithText(OutlinedButton, 'Add Exercise'),
+      find.widgetWithText(OutlinedButton, 'ADD EXERCISE'),
     );
 
     expect(find.byType(ExerciseSelector), findsOneWidget);
@@ -183,7 +183,7 @@ void main() {
 
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Add Cardio'),
+        find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
 
       expect(find.byType(ExerciseSelector), findsNothing);
@@ -205,7 +205,7 @@ void main() {
       await _pumpEntry(tester);
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Add Cardio'),
+        find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
 
       final header = find.byKey(const ValueKey('cardio-header-0'));
@@ -254,7 +254,7 @@ void main() {
       await _pumpEntry(tester);
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Add Cardio'),
+        find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
 
       await tester.enterText(find.widgetWithText(TextField, '運動時間（分）'), '40');
@@ -407,7 +407,7 @@ void main() {
       await _pumpEntry(tester);
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Add Exercise'),
+        find.widgetWithText(OutlinedButton, 'ADD EXERCISE'),
       );
       await tester.tap(find.byTooltip('Delete exercise'));
       await tester.pumpAndSettle();
@@ -418,11 +418,11 @@ void main() {
 
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Add Cardio'),
+        find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Add Cardio'),
+        find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
       await tester.tap(find.byTooltip('Delete cardio'));
       await tester.pumpAndSettle();
@@ -456,7 +456,7 @@ void main() {
 
     await _tapVisible(
       tester,
-      find.widgetWithText(OutlinedButton, 'Add Cardio'),
+      find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
     );
     await tester.enterText(find.widgetWithText(TextField, '運動時間（分）'), '30');
     await tester.enterText(find.widgetWithText(TextField, '距離（km）'), '3.5');

@@ -171,6 +171,10 @@ void main() {
   testWidgets('DAILY REVIEW button keeps the existing named route', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     morningFactNotifier.value = _morning();
 
     await tester.pumpWidget(
@@ -193,6 +197,11 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await Scrollable.ensureVisible(
+      tester.element(find.text('DAILY REVIEW')),
+      alignment: 0.5,
+    );
+    await tester.pump();
     await tester.tap(find.text('DAILY REVIEW'));
     await tester.pumpAndSettle();
 

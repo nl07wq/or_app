@@ -254,7 +254,8 @@ void main() {
     await _pumpEntry(tester);
 
     expect(find.byIcon(Icons.hexagon), findsOneWidget);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.water_drop), findsOneWidget);
     expect(find.byIcon(Icons.sentiment_dissatisfied), findsOneWidget);
     expect(find.byIcon(Icons.sentiment_neutral), findsOneWidget);

@@ -151,7 +151,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
             height: 56,
             child: OperationButton(
               icon: Icons.add,
-              text: 'Add Set',
+              text: 'ADD SET',
               onPressed: () {
                 setState(() {
                   widget.controller.addSet();

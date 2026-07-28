@@ -233,7 +233,7 @@ void main() {
         .getSize(find.widgetWithText(TextField, 'Reps'))
         .height;
     final addSetButtonHeight = tester
-        .getSize(find.widgetWithText(ElevatedButton, 'Add Set'))
+        .getSize(find.widgetWithText(ElevatedButton, 'ADD SET'))
         .height;
     expect(selectorHeight, weightFieldHeight);
     expect(selectorHeight, equipmentSelectorHeight);

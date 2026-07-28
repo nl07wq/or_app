@@ -580,9 +580,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 actionIcon: editingIndex == null
                     ? Icons.add_circle_outline
                     : Icons.edit_outlined,
-                actionText: editingIndex == null
-                    ? 'Add Another Food'
-                    : 'Update Food',
+                actionText: editingIndex == null ? 'ADD FOOD' : 'Update Food',
                 onAction: editingIndex == null ? addFood : updateFood,
               ),
 

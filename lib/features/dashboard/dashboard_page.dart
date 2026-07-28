@@ -563,6 +563,7 @@ class _ProgressCard extends StatelessWidget {
                         required double progress,
                         VoidCallback? onTap,
                         bool fullWidth = false,
+                        List<String> details = const [],
                       }) {
                         return SizedBox(
                           key: ValueKey('operation-progress-$label'),
@@ -572,6 +573,7 @@ class _ProgressCard extends StatelessWidget {
                             status: status,
                             progress: progress,
                             onTap: onTap,
+                            details: details,
                           ),
                         );
                       }
@@ -619,8 +621,8 @@ class _ProgressCard extends StatelessWidget {
                           tile(
                             label: 'TRAINING',
                             status: trainingSummary?.completed == true
-                                ? '実施'
-                                : '未実施',
+                                ? 'Recorded'
+                                : 'Not recorded',
                             progress: trainingSummary?.completed == true
                                 ? 1.0
                                 : 0.0,
@@ -630,8 +632,12 @@ class _ProgressCard extends StatelessWidget {
                             status: activitySummary.isRecorded
                                 ? '${_formatSteps(activitySummary.steps)} steps'
                                 : 'Not recorded',
-                            progress: 0,
+                            progress: activitySummary.isRecorded ? 1.0 : 0.0,
                             fullWidth: true,
+                            details: [
+                              'Count ${activitySummary.digestiveSummary?.eventCount ?? 0}',
+                              'Total Amount ${activitySummary.digestiveSummary?.totalAmount ?? 0}',
+                            ],
                           ),
                         ],
                       );
@@ -680,12 +686,14 @@ class _ProgressRow extends StatelessWidget {
   final String status;
   final double progress;
   final VoidCallback? onTap;
+  final List<String> details;
 
   const _ProgressRow({
     required this.label,
     required this.status,
     required this.progress,
     this.onTap,
+    this.details = const [],
   });
 
   @override
@@ -709,6 +717,16 @@ class _ProgressRow extends StatelessWidget {
             ],
           ],
         ),
+        if (details.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          Text('Digestive', style: Theme.of(context).textTheme.labelMedium),
+          AppSpacing.gapXS,
+          Wrap(
+            spacing: AppSpacing.lg,
+            runSpacing: AppSpacing.xs,
+            children: [for (final detail in details) Text(detail)],
+          ),
+        ],
         AppSpacing.gapXS,
         LinearProgressIndicator(value: progress),
       ],

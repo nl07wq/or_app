@@ -88,7 +88,7 @@ class DigestiveEventCard extends StatelessWidget {
                 ),
                 _EventChoiceChip(
                   key: ValueKey('digestive-${event.id}-shape-2'),
-                  icon: Icons.check_circle,
+                  icon: Icons.circle,
                   label: DigestiveEvent.shapeLabel(2),
                   selected: event.shape == 2,
                   enabled: enabled,

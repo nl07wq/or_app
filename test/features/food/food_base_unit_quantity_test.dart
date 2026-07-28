@@ -398,6 +398,10 @@ void main() {
       expect(find.text('実使用量: 250g'), findsOneWidget);
       expect(find.text('AMOUNT 2.5'), findsOneWidget);
       expect(find.text('Calories : 413 kcal'), findsOneWidget);
+      expect(find.text('ADD FOOD'), findsOneWidget);
+      expect(find.text('Add Another Food'), findsNothing);
+      expect(find.text('+ ADD FOOD'), findsNothing);
+      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
 
       await tester.ensureVisible(find.text('SAVE MEAL'));
       await tester.tap(find.text('SAVE MEAL'));

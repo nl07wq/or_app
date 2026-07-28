@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
+import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
@@ -36,8 +37,14 @@ void main() {
     await _pumpDashboard(tester, width: 800);
 
     expect(find.text('OPERATION PROGRESS'), findsOneWidget);
+    expect(find.text('DAILY LOG'), findsOneWidget);
+    expect(find.byIcon(Icons.timeline_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.fact_check_outlined), findsWidgets);
     expect(find.text('MORNING ROUTINE'), findsNothing);
     expect(find.text('Morning Routine'), findsNothing);
+    final header = tester.widget<Text>(find.text('OPERATION PROGRESS'));
+    expect(header.style?.fontSize, 18);
+    expect(header.style?.fontWeight, FontWeight.bold);
 
     final status = _tile('STATUS');
     final food = _tile('FOOD');
@@ -111,8 +118,10 @@ void main() {
     _expectTileText('CALORIES', '1100 / 2200 kcal');
     _expectTileText('PROTEIN', '50.0 / 100 g');
     _expectTileText('WATER', '1750 / 3500 ml');
-    _expectTileText('TRAINING', '実施');
+    _expectTileText('TRAINING', 'Recorded');
     _expectTileText('ACTIVITY', '12,345 steps');
+    _expectTileText('ACTIVITY', 'Count 0');
+    _expectTileText('ACTIVITY', 'Total Amount 0');
 
     expect(_progress(tester, 'STATUS'), 1);
     expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
@@ -120,7 +129,7 @@ void main() {
     expect(_progress(tester, 'PROTEIN'), 0.5);
     expect(_progress(tester, 'WATER'), 0.5);
     expect(_progress(tester, 'TRAINING'), 1);
-    expect(_progress(tester, 'ACTIVITY'), 0);
+    expect(_progress(tester, 'ACTIVITY'), 1);
   });
 
   testWidgets('keeps missing STATUS, FOOD, TRAINING, and ACTIVITY contracts', (
@@ -130,10 +139,47 @@ void main() {
 
     _expectTileText('STATUS', '未完了');
     _expectTileText('FOOD', '0 / 3');
-    _expectTileText('TRAINING', '未実施');
+    _expectTileText('TRAINING', 'Not recorded');
     _expectTileText('ACTIVITY', 'Not recorded');
+    _expectTileText('ACTIVITY', 'Count 0');
+    _expectTileText('ACTIVITY', 'Total Amount 0');
+    expect(find.text('実施'), findsNothing);
+    expect(find.text('未実施'), findsNothing);
     expect(_progress(tester, 'TRAINING'), 0);
     expect(_progress(tester, 'ACTIVITY'), 0);
+  });
+
+  testWidgets('shows one formal Digestive Event in ACTIVITY', (tester) async {
+    activitySummaryNotifier.value = ActivitySummary(
+      steps: 6000,
+      isRecorded: true,
+      digestiveSummary: _digestiveSummary(amounts: const [2]),
+    );
+
+    await _pumpDashboard(tester, width: 800);
+
+    _expectTileText('ACTIVITY', '6,000 steps');
+    _expectTileText('ACTIVITY', 'Digestive');
+    _expectTileText('ACTIVITY', 'Count 1');
+    _expectTileText('ACTIVITY', 'Total Amount 2');
+    expect(_progress(tester, 'ACTIVITY'), 1);
+  });
+
+  testWidgets('totals multiple formal Digestive Events in ACTIVITY', (
+    tester,
+  ) async {
+    activitySummaryNotifier.value = ActivitySummary(
+      steps: 0,
+      isRecorded: true,
+      digestiveSummary: _digestiveSummary(amounts: const [2, 3]),
+    );
+
+    await _pumpDashboard(tester, width: 800);
+
+    _expectTileText('ACTIVITY', '0 steps');
+    _expectTileText('ACTIVITY', 'Count 2');
+    _expectTileText('ACTIVITY', 'Total Amount 5');
+    expect(_progress(tester, 'ACTIVITY'), 1);
   });
 
   testWidgets('does not complete ACTIVITY from a Draft alone', (tester) async {
@@ -171,6 +217,7 @@ void main() {
       tester.getTopLeft(_tile('TRAINING')).dy,
     );
     _expectProgressTilesFit(tester);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('falls back to one column without overflow at 320 pixels', (
@@ -186,6 +233,7 @@ void main() {
       expect(positions[index].dy, greaterThan(positions[index - 1].dy));
     }
     _expectProgressTilesFit(tester);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('caps the grid width on PC displays', (tester) async {
@@ -279,20 +327,21 @@ Future<void> _pumpDashboard(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
-  final originalOnError = FlutterError.onError;
-  FlutterError.onError = (details) {
-    if (!details.toString().contains('core/widgets/section_header.dart')) {
-      originalOnError?.call(details);
-    }
-  };
-  try {
-    await tester.pumpWidget(
-      MaterialApp(theme: theme, home: const DashboardPage()),
-    );
-    await tester.pump();
-  } finally {
-    FlutterError.onError = originalOnError;
-  }
+  await tester.pumpWidget(
+    MaterialApp(theme: theme, home: const DashboardPage()),
+  );
+  await tester.pump();
+}
+
+DigestiveSummary _digestiveSummary({required List<int> amounts}) {
+  return DigestiveSummary(
+    eventCount: amounts.length,
+    totalAmount: amounts.fold(0, (total, amount) => total + amount),
+    latestShape: amounts.isEmpty ? null : 2,
+    latestRelief: amounts.isEmpty ? null : 1,
+    shapeTrend: [for (final _ in amounts) 2],
+    reliefTrend: [for (final _ in amounts) 1],
+  );
 }
 
 MorningFact _morning() {
