@@ -75,6 +75,53 @@ void main() {
     );
   });
 
+  test(
+    'saves and restores an explicit zero report without optional values',
+    () async {
+      await repository.save(
+        draft(
+          '2026-07-27',
+          events: [
+            ActivityDraftDigestiveEvent(
+              id: 'event-zero',
+              sequence: 1,
+              amount: 0,
+              recordedAt: createdAt,
+            ),
+          ],
+        ),
+      );
+
+      final restored = await repository.findByDate(DateTime(2026, 7, 27));
+      expect(restored?.digestiveEvents.single.amount, 0);
+      expect(restored?.digestiveEvents.single.shape, isNull);
+      expect(restored?.digestiveEvents.single.relief, isNull);
+    },
+  );
+
+  test('rejects optional values attached to a zero report', () {
+    expect(
+      () => ActivityDraftDigestiveEvent(
+        id: 'event-zero',
+        sequence: 1,
+        amount: 0,
+        shape: 1,
+        recordedAt: createdAt,
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => ActivityDraftDigestiveEvent.fromJson({
+        'id': 'event-zero',
+        'sequence': 1,
+        'amount': 0,
+        'relief': 0,
+        'recordedAt': createdAt.toIso8601String(),
+      }),
+      throwsFormatException,
+    );
+  });
+
   test('overwrites the same date while preserving createdAt', () async {
     await repository.save(draft('2026-07-27', steps: '100'));
     final laterRepository = IndexedDbActivityDraftRepository(

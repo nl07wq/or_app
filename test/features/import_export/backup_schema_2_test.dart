@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/engine/activity_summary.dart';
+import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/activity_data.dart';
 import 'package:or_app/core/models/digestive_event.dart';
@@ -101,14 +103,25 @@ void main() {
   });
 
   test('Schema 2.0 accepts old Confirmation without energy field', () async {
+    final legacySummary = DigestiveSummary.fromEvents(const []);
     final envelope = PersistedDailyLogConfirmationRecord(
       id: 'confirmation:2026-07-26',
       localDate: '2026-07-26',
       createdAt: DateTime.utc(2026, 7, 26),
       updatedAt: DateTime.utc(2026, 7, 26),
-      data: completeConfirmation(),
+      data: completeConfirmation().copyWith(
+        activity: ActivitySummary(
+          steps: 1000,
+          isRecorded: true,
+          digestiveSummary: legacySummary,
+        ),
+      ),
     ).toRecord();
-    (envelope['data']! as Map).remove('estimatedTotalBurnKcal');
+    final data = envelope['data']! as Map;
+    data.remove('estimatedTotalBurnKcal');
+    final activity = data['activity']! as Map;
+    final digestive = activity['digestiveSummary']! as Map;
+    digestive.remove('hasExplicitNoMovement');
     database.seed(
       IndexedDbStoreNames.dailyLogConfirmations,
       envelope['id']! as String,
@@ -126,6 +139,13 @@ void main() {
     expect(
       (decoded.data[BackupSections.confirmations]!.single['data']! as Map)
           .containsKey('estimatedTotalBurnKcal'),
+      isFalse,
+    );
+    final restored = PersistedDailyLogConfirmationRecord.fromRecord(
+      decoded.data[BackupSections.confirmations]!.single,
+    );
+    expect(
+      restored.data.activity?.digestiveSummary?.hasExplicitNoMovement,
       isFalse,
     );
   });
@@ -325,11 +345,11 @@ void main() {
           measuredSteps: 1000,
           digestiveEvents: [
             DigestiveEvent(
-              id: 'digestive:2026-07-27:1',
+              id: 'digestive:2026-07-27:none',
               sequence: 1,
-              amount: 2,
-              shape: 2,
-              relief: 2,
+              amount: 0,
+              shape: null,
+              relief: null,
               recordedAt: timestamp,
             ),
           ],
@@ -352,6 +372,35 @@ void main() {
         draft.id,
         draft.toRecord(),
       );
+      final confirmation = PersistedDailyLogConfirmationRecord(
+        id: 'confirmation:2026-07-27',
+        localDate: '2026-07-27',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        data: completeConfirmation().copyWith(
+          date: DateTime(2026, 7, 27),
+          confirmedAt: timestamp,
+          activity: ActivitySummary(
+            steps: 1000,
+            isRecorded: true,
+            digestiveSummary: DigestiveSummary.fromEvents([
+              DigestiveEvent(
+                id: 'digestive:2026-07-27:none',
+                sequence: 1,
+                amount: 0,
+                shape: null,
+                relief: null,
+                recordedAt: timestamp,
+              ),
+            ]),
+          ),
+        ),
+      );
+      database.seed(
+        IndexedDbStoreNames.dailyLogConfirmations,
+        confirmation.id,
+        confirmation.toRecord(),
+      );
       final package = await BackupExportService(
         database: database,
         controller: controller,
@@ -363,6 +412,12 @@ void main() {
         controller: AppInitializationController()..markReady(),
         restore: () async {},
       );
+
+      final mergePlan = await service.dryRun(
+        const BackupPackageCodec().decode(BackupExportService.encode(package)),
+        BackupImportMode.merge,
+      );
+      expect((await service.execute(mergePlan)).success, isTrue);
 
       final plan = await service.dryRun(
         const BackupPackageCodec().decode(BackupExportService.encode(package)),
@@ -379,8 +434,25 @@ void main() {
       expect(package.schemaVersion, 2);
       expect(restored.recordVersion, 1);
       expect(restored.data.digestiveEvents?.single.sequence, 1);
-      expect(restored.data.digestiveEvents?.single.relief, 2);
+      expect(restored.data.digestiveEvents?.single.amount, 0);
+      expect(restored.data.digestiveEvents?.single.shape, isNull);
+      expect(restored.data.digestiveEvents?.single.relief, isNull);
       expect(restored.data.digestiveEvents?.single.recordedAt, timestamp);
+      final restoredConfirmation =
+          PersistedDailyLogConfirmationRecord.fromRecord(
+            (await restoredDatabase.findById(
+              IndexedDbStoreNames.dailyLogConfirmations,
+              confirmation.id,
+            ))!,
+          );
+      expect(
+        restoredConfirmation
+            .data
+            .activity
+            ?.digestiveSummary
+            ?.hasExplicitNoMovement,
+        isTrue,
+      );
       expect(
         await restoredDatabase.findById(
           IndexedDbStoreNames.activityDrafts,

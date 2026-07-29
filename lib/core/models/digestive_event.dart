@@ -1,9 +1,11 @@
 class DigestiveEvent {
+  static const Object _unset = Object();
+
   final String id;
   final int sequence;
   final int amount;
-  final int shape;
-  final int relief;
+  final int? shape;
+  final int? relief;
   final DateTime recordedAt;
 
   DigestiveEvent({
@@ -27,16 +29,16 @@ class DigestiveEvent {
     String? id,
     int? sequence,
     int? amount,
-    int? shape,
-    int? relief,
+    Object? shape = _unset,
+    Object? relief = _unset,
     DateTime? recordedAt,
   }) {
     return DigestiveEvent(
       id: id ?? this.id,
       sequence: sequence ?? this.sequence,
       amount: amount ?? this.amount,
-      shape: shape ?? this.shape,
-      relief: relief ?? this.relief,
+      shape: shape == _unset ? this.shape : shape as int?,
+      relief: relief == _unset ? this.relief : relief as int?,
       recordedAt: recordedAt ?? this.recordedAt,
     );
   }
@@ -64,8 +66,8 @@ class DigestiveEvent {
     if (id is! String ||
         sequence is! int ||
         amount is! int ||
-        shape is! int ||
-        relief is! int ||
+        (shape != null && shape is! int) ||
+        (relief != null && relief is! int) ||
         parsedRecordedAt == null) {
       throw const FormatException('Invalid digestive event.');
     }
@@ -75,8 +77,8 @@ class DigestiveEvent {
         id: id,
         sequence: sequence,
         amount: amount,
-        shape: shape,
-        relief: relief,
+        shape: shape as int?,
+        relief: relief as int?,
         recordedAt: parsedRecordedAt,
       );
     } on ArgumentError {
@@ -105,6 +107,7 @@ class DigestiveEvent {
   }
 
   static String amountLabel(int value) => switch (value) {
+    0 => 'なし',
     1 => '少量',
     2 => '普通',
     3 => '多量',
@@ -129,8 +132,8 @@ class DigestiveEvent {
     required String id,
     required int sequence,
     required int amount,
-    required int shape,
-    required int relief,
+    required int? shape,
+    required int? relief,
   }) {
     if (id.trim().isEmpty) {
       throw ArgumentError.value(id, 'id', 'ID must not be empty.');
@@ -138,13 +141,21 @@ class DigestiveEvent {
     if (sequence < 1) {
       throw ArgumentError.value(sequence, 'sequence', 'Must be at least 1.');
     }
-    if (amount < 1 || amount > 3) {
-      throw ArgumentError.value(amount, 'amount', 'Must be from 1 to 3.');
+    if (amount < 0 || amount > 3) {
+      throw ArgumentError.value(amount, 'amount', 'Must be from 0 to 3.');
     }
-    if (shape < 1 || shape > 3) {
+    if (amount == 0) {
+      if (shape != null || relief != null) {
+        throw ArgumentError(
+          'Shape and relief must be null when amount is zero.',
+        );
+      }
+      return;
+    }
+    if (shape == null || shape < 1 || shape > 3) {
       throw ArgumentError.value(shape, 'shape', 'Must be from 1 to 3.');
     }
-    if (relief < 0 || relief > 2) {
+    if (relief == null || relief < 0 || relief > 2) {
       throw ArgumentError.value(relief, 'relief', 'Must be from 0 to 2.');
     }
   }

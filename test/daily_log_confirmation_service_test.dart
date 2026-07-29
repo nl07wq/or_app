@@ -118,6 +118,44 @@ void main() {
     );
   });
 
+  test(
+    'confirmation distinguishes and freezes an explicit zero report',
+    () async {
+      final today = DateTime.now();
+      final values = _validSourceValues(today);
+      final activity = _activityJson(today)
+        ..['digestiveEvents'] = [
+          {
+            'id': 'digestive:today:none',
+            'sequence': 1,
+            'amount': 0,
+            'shape': null,
+            'relief': null,
+            'recordedAt': today.toIso8601String(),
+          },
+        ];
+      values['activity_records'] = [jsonEncode(activity)];
+      SharedPreferences.setMockInitialValues(values);
+
+      final confirmation = await DailyLogConfirmationService.confirmToday();
+      expect(
+        confirmation.activity?.digestiveSummary?.hasExplicitNoMovement,
+        isTrue,
+      );
+
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setStringList('activity_records', [
+        jsonEncode(_activityJson(today)..['digestiveEvents'] = []),
+      ]);
+      final stored = await DailyLogConfirmationRepository.findByDate(today);
+      expect(stored?.activity?.digestiveSummary?.eventCount, 0);
+      expect(stored?.activity?.digestiveSummary?.totalAmount, 0);
+      expect(stored?.activity?.digestiveSummary?.latestShape, isNull);
+      expect(stored?.activity?.digestiveSummary?.latestRelief, isNull);
+      expect(stored?.activity?.digestiveSummary?.hasExplicitNoMovement, isTrue);
+    },
+  );
+
   test('confirmation snapshots calculated FOOD amount nutrition', () async {
     final today = DateTime.now();
     final meal = _mealJson(today)

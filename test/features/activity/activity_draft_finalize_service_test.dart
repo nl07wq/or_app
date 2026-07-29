@@ -85,6 +85,42 @@ void main() {
     );
   });
 
+  test('atomically finalizes an explicit zero report', () async {
+    final draft = ActivityDraft(
+      localDate: '2026-07-28',
+      measuredStepsInput: '5000',
+      carryOverInput: '0',
+      digestiveEvents: [
+        ActivityDraftDigestiveEvent(
+          id: 'digestive:2026-07-28:none',
+          sequence: 1,
+          amount: 0,
+          recordedAt: now,
+        ),
+      ],
+      createdAt: now,
+      updatedAt: now,
+    );
+    await IndexedDbActivityDraftRepository(
+      database,
+      now: () => now,
+    ).save(draft);
+
+    final saved = await ActivityDraftFinalizeService(
+      database,
+      now: () => now.add(const Duration(minutes: 1)),
+    ).finalize(draft: draft);
+
+    expect(saved.digestiveEvents?.single.amount, 0);
+    expect(saved.digestiveEvents?.single.shape, isNull);
+    expect(saved.digestiveEvents?.single.relief, isNull);
+    expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
+    final restored = await AppRepositoryRegistry.container.activity.findByDate(
+      now,
+    );
+    expect(restored?.digestiveEvents?.single.amount, 0);
+  });
+
   test('incomplete Event is rejected before either Store is changed', () async {
     final draft = ActivityDraft(
       localDate: '2026-07-28',

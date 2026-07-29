@@ -257,6 +257,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       if (event.amount == null) {
         return 'DIGESTIVE ${event.sequence}のAmountを入力してください';
       }
+      if (event.amount == 0) continue;
       if (event.shape == null) {
         return 'DIGESTIVE ${event.sequence}のShapeを入力してください';
       }
@@ -406,8 +407,8 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
             id: event.id,
             sequence: event.sequence,
             amount: event.amount!,
-            shape: event.shape!,
-            relief: event.relief!,
+            shape: event.shape,
+            relief: event.relief,
             recordedAt: event.recordedAt,
           ),
     ]);

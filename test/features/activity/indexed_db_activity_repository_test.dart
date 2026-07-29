@@ -169,6 +169,49 @@ void main() {
     expect(envelope.recordVersion, 1);
   });
 
+  test(
+    'persists an explicit zero report without changing envelope version',
+    () async {
+      final event = DigestiveEvent(
+        id: 'digestive:2026-07-26:none',
+        sequence: 1,
+        amount: 0,
+        shape: null,
+        relief: null,
+        recordedAt: DateTime.utc(2026, 7, 26, 8),
+      );
+      await repository.save(
+        _activity(DateTime(2026, 7, 26), steps: 5000, digestiveEvents: [event]),
+      );
+
+      final restored = await IndexedDbActivityRepository(
+        database,
+      ).findByDate(DateTime(2026, 7, 26));
+      expect(restored?.digestiveEvents, [event]);
+      final envelope = PersistedActivityRecord.fromRecord(
+        (await database.findAll(IndexedDbStoreNames.activityRecords)).single,
+      );
+      expect(envelope.recordVersion, 1);
+
+      await repository.save(
+        _activity(
+          DateTime(2026, 7, 26),
+          steps: 5000,
+          digestiveEvents: [event.copyWith(amount: 1, shape: 1, relief: 0)],
+        ),
+      );
+      expect(
+        (await repository.findByDate(
+          DateTime(2026, 7, 26),
+        ))?.digestiveEvents?.single.amount,
+        1,
+      );
+
+      await repository.delete('2026-07-26');
+      expect(await repository.findByDate(DateTime(2026, 7, 26)), isNull);
+    },
+  );
+
   test('canonical reads exclude revisions and audit includes them', () async {
     await repository.save(_activity(DateTime(2026, 7, 26), steps: 6000));
     final revision = _revision(

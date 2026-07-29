@@ -16,9 +16,10 @@ class ActivityDraftDigestiveEvent {
   }) {
     if (id.isEmpty ||
         sequence < 1 ||
-        (amount != null && (amount! < 1 || amount! > 3)) ||
+        (amount != null && (amount! < 0 || amount! > 3)) ||
         (shape != null && (shape! < 1 || shape! > 3)) ||
-        (relief != null && (relief! < 0 || relief! > 2))) {
+        (relief != null && (relief! < 0 || relief! > 2)) ||
+        (amount == 0 && (shape != null || relief != null))) {
       throw ArgumentError('Invalid ACTIVITY Draft digestive event.');
     }
   }
@@ -43,9 +44,10 @@ class ActivityDraftDigestiveEvent {
         id.isEmpty ||
         sequence is! int ||
         sequence < 1 ||
-        (amount != null && (amount is! int || amount < 1 || amount > 3)) ||
+        (amount != null && (amount is! int || amount < 0 || amount > 3)) ||
         (shape != null && (shape is! int || shape < 1 || shape > 3)) ||
-        (relief != null && (relief is! int || relief < 0 || relief > 2))) {
+        (relief != null && (relief is! int || relief < 0 || relief > 2)) ||
+        (amount == 0 && (shape != null || relief != null))) {
       throw const FormatException('Invalid ACTIVITY Draft digestive event.');
     }
     return ActivityDraftDigestiveEvent(

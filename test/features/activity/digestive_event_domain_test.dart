@@ -9,6 +9,10 @@ import 'package:or_app/features/activity/services/activity_summary_engine.dart';
 void main() {
   group('DigestiveEvent', () {
     test('accepts every boundary value and formats Japanese labels', () {
+      final noMovement = _event(amount: 0, shape: null, relief: null);
+      expect(noMovement.amount, 0);
+      expect(noMovement.shape, isNull);
+      expect(noMovement.relief, isNull);
       for (final amount in [1, 2, 3]) {
         expect(_event(amount: amount).amount, amount);
       }
@@ -19,6 +23,7 @@ void main() {
         expect(_event(relief: relief).relief, relief);
       }
 
+      expect(DigestiveEvent.amountLabel(0), 'なし');
       expect(DigestiveEvent.amountLabel(1), '少量');
       expect(DigestiveEvent.amountLabel(2), '普通');
       expect(DigestiveEvent.amountLabel(3), '多量');
@@ -31,7 +36,7 @@ void main() {
     });
 
     test('rejects values outside the formal ranges', () {
-      for (final amount in [0, 4]) {
+      for (final amount in [-1, 4]) {
         expect(() => _event(amount: amount), throwsArgumentError);
       }
       for (final shape in [0, 4]) {
@@ -42,6 +47,19 @@ void main() {
       }
       expect(() => _event(id: ''), throwsArgumentError);
       expect(() => _event(sequence: 0), throwsArgumentError);
+    });
+
+    test('rejects amount and optional value contract mismatches', () {
+      expect(
+        () => _event(amount: 0, shape: 1, relief: null),
+        throwsArgumentError,
+      );
+      expect(
+        () => _event(amount: 0, shape: null, relief: 0),
+        throwsArgumentError,
+      );
+      expect(() => _event(amount: 1, shape: null), throwsArgumentError);
+      expect(() => _event(amount: 1, relief: null), throwsArgumentError);
     });
 
     test('JSON round trip, equality, and copyWith preserve the event', () {
@@ -59,6 +77,16 @@ void main() {
         }),
         throwsFormatException,
       );
+    });
+
+    test('amount zero JSON round trip preserves null shape and relief', () {
+      final event = _event(amount: 0, shape: null, relief: null);
+      final decoded = DigestiveEvent.fromJson(event.toJson());
+
+      expect(decoded, event);
+      expect(decoded.toJson(), containsPair('shape', null));
+      expect(decoded.toJson(), containsPair('relief', null));
+      expect(_event().copyWith(amount: 0, shape: null, relief: null), event);
     });
   });
 
@@ -135,6 +163,7 @@ void main() {
       expect(summary.latestRelief, 2);
       expect(summary.shapeTrend, [1, 2, 3]);
       expect(summary.reliefTrend, [0, 1, 2]);
+      expect(summary.hasExplicitNoMovement, isFalse);
       expect(summary.toJson().containsKey('average'), isFalse);
       expect(() => summary.shapeTrend.add(3), throwsUnsupportedError);
       expect(
@@ -152,6 +181,48 @@ void main() {
       expect(summary.latestRelief, isNull);
       expect(summary.shapeTrend, isEmpty);
       expect(summary.reliefTrend, isEmpty);
+      expect(summary.hasExplicitNoMovement, isFalse);
+    });
+
+    test('distinguishes explicit no movement from no input', () {
+      final summary = DigestiveSummary.fromEvents([
+        _event(amount: 0, shape: null, relief: null),
+      ]);
+
+      expect(summary.eventCount, 0);
+      expect(summary.totalAmount, 0);
+      expect(summary.latestShape, isNull);
+      expect(summary.latestRelief, isNull);
+      expect(summary.shapeTrend, isEmpty);
+      expect(summary.reliefTrend, isEmpty);
+      expect(summary.hasExplicitNoMovement, isTrue);
+      expect(
+        DigestiveSummary.fromJson(summary.toJson()).hasExplicitNoMovement,
+        isTrue,
+      );
+    });
+
+    test('zero events are excluded when real movements are present', () {
+      final summary = DigestiveSummary.fromEvents([
+        _event(id: 'zero-1', sequence: 1, amount: 0, shape: null, relief: null),
+        _event(id: 'movement', sequence: 2, amount: 2, shape: 3, relief: 2),
+        _event(id: 'zero-2', sequence: 3, amount: 0, shape: null, relief: null),
+      ]);
+
+      expect(summary.eventCount, 1);
+      expect(summary.totalAmount, 2);
+      expect(summary.latestShape, 3);
+      expect(summary.latestRelief, 2);
+      expect(summary.shapeTrend, [3]);
+      expect(summary.reliefTrend, [2]);
+      expect(summary.hasExplicitNoMovement, isFalse);
+    });
+
+    test('old snapshot without zero-report field defaults to false', () {
+      final json = DigestiveSummary.fromEvents(const []).toJson()
+        ..remove('hasExplicitNoMovement');
+
+      expect(DigestiveSummary.fromJson(json).hasExplicitNoMovement, isFalse);
     });
   });
 
@@ -175,6 +246,22 @@ void main() {
         isNull,
       );
       expect(newRecord.copyWith(digestiveEvents: null).digestiveEvents, isNull);
+    });
+
+    test('round trips an explicit no-movement formal record', () {
+      final event = _event(amount: 0, shape: null, relief: null);
+      final decoded = ActivityData.fromJson(
+        _activity(events: [event]).toJson(),
+      );
+
+      expect(decoded.digestiveEvents, [event]);
+      expect(
+        const ActivitySummaryEngine()
+            .generate(record: decoded)
+            .digestiveSummary
+            ?.hasExplicitNoMovement,
+        isTrue,
+      );
     });
 
     for (final shape in [1, 2, 3]) {
@@ -232,8 +319,8 @@ DigestiveEvent _event({
   String id = 'digestive:2026-07-27:1',
   int sequence = 1,
   int amount = 2,
-  int shape = 2,
-  int relief = 1,
+  int? shape = 2,
+  int? relief = 1,
 }) {
   return DigestiveEvent(
     id: id,

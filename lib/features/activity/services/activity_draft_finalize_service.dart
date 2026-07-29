@@ -135,10 +135,10 @@ class ActivityDraftFinalizeService {
       if (event.amount == null) {
         throw FormatException('排便イベント${event.sequence}の量を入力してください');
       }
-      if (event.shape == null) {
+      if (event.amount! > 0 && event.shape == null) {
         throw FormatException('排便イベント${event.sequence}の形状を入力してください');
       }
-      if (event.relief == null) {
+      if (event.amount! > 0 && event.relief == null) {
         throw FormatException('排便イベント${event.sequence}のスッキリ感を入力してください');
       }
       events.add(
@@ -146,8 +146,8 @@ class ActivityDraftFinalizeService {
           id: event.id,
           sequence: event.sequence,
           amount: event.amount!,
-          shape: event.shape!,
-          relief: event.relief!,
+          shape: event.shape,
+          relief: event.relief,
           recordedAt: event.recordedAt,
         ),
       );
