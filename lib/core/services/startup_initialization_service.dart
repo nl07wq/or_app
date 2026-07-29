@@ -15,7 +15,9 @@ import '../../features/repositories/repository_exception.dart';
 import '../../features/status/migration/status_legacy_reader.dart';
 import '../../features/status/migration/status_migration_service.dart';
 import '../../features/training/migration/training_legacy_reader.dart';
+import '../../features/training/migration/legacy_trainings_migration_service.dart';
 import '../../features/training/migration/training_migration_service.dart';
+import '../../features/training/migration/training_record_shadow_migration_service.dart';
 import '../../features/training/migration/custom_training_exercise_legacy_reader.dart';
 import '../../features/training/migration/custom_training_exercise_migration_service.dart';
 import '../../features/training/repository/indexed_db_custom_training_exercise_repository.dart';
@@ -152,6 +154,18 @@ class StartupInitializationService {
       );
       await _runMigration(
         database,
+        TrainingRecordShadowMigrationService.migrationId,
+        InitializationStage.migratingTraining,
+        () => TrainingRecordShadowMigrationService(database).migrate(),
+      );
+      await _runMigration(
+        database,
+        LegacyTrainingsMigrationService.migrationId,
+        InitializationStage.migratingTraining,
+        () => LegacyTrainingsMigrationService(database).migrate(),
+      );
+      await _runMigration(
+        database,
         CustomTrainingExerciseMigrationService.migrationId,
         InitializationStage.migratingCustomTrainingExercises,
         () => CustomTrainingExerciseMigrationService(database).migrate(),
@@ -259,6 +273,8 @@ class StartupInitializationService {
       ActivityMigrationService.migrationId,
       FoodMigrationService.migrationId,
       TrainingMigrationService.migrationId,
+      TrainingRecordShadowMigrationService.migrationId,
+      LegacyTrainingsMigrationService.migrationId,
       CustomTrainingExerciseMigrationService.migrationId,
       DailyLogConfirmationMigrationService.migrationId,
     ]) {

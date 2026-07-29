@@ -2,6 +2,7 @@ import '../../../core/models/training_session.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
+import '../migration/training_record_lineage.dart';
 import '../models/persisted_training_record.dart';
 import 'training_record_id_generator.dart';
 import 'training_session_repository.dart';
@@ -102,8 +103,15 @@ class IndexedDbTrainingSessionRepository
           final existing = existingValue == null
               ? null
               : PersistedTrainingRecord.fromRecord(existingValue);
-          if (existing != null && existing.recordVersion != 1) {
-            _requireEditable(_toReadModel(existing), operation: operation);
+          if (existing != null) {
+            final superseded = await _isSupersededInTransaction(
+              transaction,
+              existing,
+            );
+            _requireEditable(
+              _toReadModel(existing, isSuperseded: superseded),
+              operation: operation,
+            );
           }
           final timestamp = _now().toUtc();
           saved = PersistedTrainingRecord(
@@ -154,7 +162,8 @@ class IndexedDbTrainingSessionRepository
       );
       if (value == null) return null;
       final record = PersistedTrainingRecord.fromRecord(value);
-      return _toReadModel(record);
+      final superseded = await _isSuperseded(record);
+      return _toReadModel(record, isSuperseded: superseded);
     } on FormatException catch (error) {
       throw RepositoryException(
         operation: 'training.findById',
@@ -174,7 +183,7 @@ class IndexedDbTrainingSessionRepository
 
   @override
   Future<List<TrainingRecordReadModel>> findAllRecords() async {
-    final result = await findAllWithIssues();
+    final result = await _readAllWithIssues();
     if (result.hasIssues) {
       throw RepositoryException(
         operation: 'training.findAll',
@@ -182,15 +191,31 @@ class IndexedDbTrainingSessionRepository
         cause: result.issues,
       );
     }
-    return List.unmodifiable(result.records.map(_toReadModel));
+    final models = _toReadModelsWithLineage(result.records);
+    return List.unmodifiable(
+      models.where((record) => record is! _SupersededTrainingRecordReadModel),
+    );
+  }
+
+  Future<List<TrainingRecordReadModel>>
+  findAllRecordsIncludingSuperseded() async {
+    final result = await _readAllWithIssues();
+    if (result.hasIssues) {
+      throw RepositoryException(
+        operation: 'training.findAllIncludingSuperseded',
+        code: RepositoryErrorCode.partialCorruption,
+        cause: result.issues,
+      );
+    }
+    return List.unmodifiable(_toReadModelsWithLineage(result.records));
   }
 
   @override
   Future<List<TrainingSession>> findAllSessions() async {
-    final records = await findAllRecords();
+    final records = await findAllRecordsIncludingSuperseded();
     return List.unmodifiable(
       records
-          .where((record) => record.isEditable)
+          .where((record) => record.recordVersion == 1)
           .map((record) => PersistedTrainingRecord.copySession(record.v1Data!)),
     );
   }
@@ -214,6 +239,21 @@ class IndexedDbTrainingSessionRepository
 
   @override
   Future<TrainingReadResult> findAllWithIssues() async {
+    final result = await _readAllWithIssues();
+    final superseded = _supersededSourceIds(result.records);
+    return TrainingReadResult(
+      records: result.records.where(
+        (record) => !superseded.contains(record.id),
+      ),
+      issues: result.issues,
+    );
+  }
+
+  Future<TrainingReadResult> findAllWithIssuesIncludingSuperseded() {
+    return _readAllWithIssues();
+  }
+
+  Future<TrainingReadResult> _readAllWithIssues() async {
     try {
       final stored = await _database.findAll(
         IndexedDbStoreNames.trainingRecords,
@@ -222,7 +262,13 @@ class IndexedDbTrainingSessionRepository
       final issues = <TrainingReadIssue>[];
       for (final value in stored) {
         try {
-          records.add(PersistedTrainingRecord.fromRecord(value));
+          final record = PersistedTrainingRecord.fromRecord(value);
+          if (!TrainingRecordLineage.hasValidKnownLineage(record)) {
+            throw const FormatException(
+              'TRAINING migration lineage is inconsistent.',
+            );
+          }
+          records.add(record);
         } catch (error) {
           issues.add(
             TrainingReadIssue(
@@ -284,9 +330,22 @@ class IndexedDbTrainingSessionRepository
     }
   }
 
-  static TrainingRecordReadModel _toReadModel(PersistedTrainingRecord record) {
+  static TrainingRecordReadModel _toReadModel(
+    PersistedTrainingRecord record, {
+    bool isSuperseded = false,
+  }) {
     final source = record.migrationSource?.toJson();
     if (record.recordVersion == 1) {
+      if (isSuperseded) {
+        return _SupersededTrainingRecordReadModel(
+          id: record.id,
+          localDate: record.localDate,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+          migrationSource: source,
+          data: record.data,
+        );
+      }
       return TrainingRecordReadModel.v1(
         id: record.id,
         localDate: record.localDate,
@@ -306,6 +365,68 @@ class IndexedDbTrainingSessionRepository
     );
   }
 
+  static List<TrainingRecordReadModel> _toReadModelsWithLineage(
+    Iterable<PersistedTrainingRecord> records,
+  ) {
+    final values = records.toList();
+    final superseded = _supersededSourceIds(values);
+    return [
+      for (final record in values)
+        _toReadModel(record, isSuperseded: superseded.contains(record.id)),
+    ];
+  }
+
+  static Set<String> _supersededSourceIds(
+    Iterable<PersistedTrainingRecord> records,
+  ) {
+    final sourceIds = <String>{};
+    for (final record in records) {
+      final sourceId = TrainingRecordLineage.supersededV1Id(record);
+      if (sourceId != null) {
+        sourceIds.add(sourceId);
+      }
+    }
+    return sourceIds;
+  }
+
+  Future<bool> _isSuperseded(PersistedTrainingRecord record) async {
+    if (record.recordVersion != 1) return false;
+    final targetId = TrainingRecordLineage.shadowIdForV1(record.id);
+    final value = await _database.findById(
+      IndexedDbStoreNames.trainingRecords,
+      targetId,
+    );
+    if (value == null) return false;
+    try {
+      return TrainingRecordLineage.isShadowOf(
+        PersistedTrainingRecord.fromRecord(value),
+        record.id,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> _isSupersededInTransaction(
+    IndexedDbTransaction transaction,
+    PersistedTrainingRecord record,
+  ) async {
+    if (record.recordVersion != 1) return false;
+    final value = await transaction.findById(
+      IndexedDbStoreNames.trainingRecords,
+      TrainingRecordLineage.shadowIdForV1(record.id),
+    );
+    if (value == null) return false;
+    try {
+      return TrainingRecordLineage.isShadowOf(
+        PersistedTrainingRecord.fromRecord(value),
+        record.id,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   static void _requireEditable(
     TrainingRecordReadModel record, {
     required String operation,
@@ -320,4 +441,18 @@ class IndexedDbTrainingSessionRepository
       );
     }
   }
+}
+
+class _SupersededTrainingRecordReadModel extends TrainingRecordReadModel {
+  _SupersededTrainingRecordReadModel({
+    required super.id,
+    required super.localDate,
+    required super.createdAt,
+    required super.updatedAt,
+    required super.migrationSource,
+    required super.data,
+  }) : super.v1();
+
+  @override
+  bool get isEditable => false;
 }

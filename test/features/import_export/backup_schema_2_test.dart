@@ -26,6 +26,9 @@ import 'package:or_app/features/import_export/services/backup_package_codec.dart
 import 'package:or_app/features/training/models/custom_training_exercise.dart';
 import 'package:or_app/features/training/models/persisted_custom_training_exercise_record.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
+import 'package:or_app/features/training/migration/training_record_lineage.dart';
+import 'package:or_app/features/training/migration/training_v2_migration_mapper.dart';
+import 'package:or_app/features/training/repository/indexed_db_training_repository.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
@@ -380,6 +383,78 @@ void main() {
     expect(restored.recordVersion, 2);
     expect(restored.dataV2.sessionName, 'Upper Body');
     expect(restored.dataV2.sessionGrade, TrainingSessionGrade.sMinus);
+  });
+
+  test('Schema 2.0 preserves v1 shadow lineage and preferred read', () async {
+    final timestamp = DateTime.utc(2026, 7, 29, 9);
+    const sourceId = 'training:00112233-4455-4677-8899-aabbccddeeff';
+    final source = PersistedTrainingRecord(
+      id: sourceId,
+      localDate: '2026-07-29',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      data: TrainingSession(
+        date: '2026-07-29T18:00:00+09:00',
+        memo: 'legacy',
+        exercises: const [],
+      ),
+    );
+    final shadow = TrainingV2MigrationMapper.map(
+      targetId: TrainingRecordLineage.shadowIdForV1(sourceId),
+      localDate: source.localDate,
+      createdAt: source.createdAt,
+      updatedAt: source.updatedAt,
+      migrationSource: TrainingRecordLineage.shadowSource(
+        sourceRecordId: sourceId,
+        sourceIndex: 0,
+      ),
+      source: source.data,
+    );
+    database.seed(
+      IndexedDbStoreNames.trainingRecords,
+      source.id,
+      source.toRecord(),
+    );
+    database.seed(
+      IndexedDbStoreNames.trainingRecords,
+      shadow.id,
+      shadow.toRecord(),
+    );
+
+    final package = await BackupExportService(
+      database: database,
+      controller: controller,
+    ).create();
+    final restoredDatabase = FakeIndexedDbDatabase();
+    final service = BackupImportService(
+      database: restoredDatabase,
+      controller: AppInitializationController()..markReady(),
+      restore: () async {},
+    );
+    final plan = await service.dryRun(
+      const BackupPackageCodec().decode(BackupExportService.encode(package)),
+      BackupImportMode.replaceAll,
+    );
+    expect((await service.execute(plan)).success, isTrue);
+
+    expect(
+      await restoredDatabase.findById(
+        IndexedDbStoreNames.trainingRecords,
+        source.id,
+      ),
+      source.toRecord(),
+    );
+    expect(
+      await restoredDatabase.findById(
+        IndexedDbStoreNames.trainingRecords,
+        shadow.id,
+      ),
+      shadow.toRecord(),
+    );
+    final repository = IndexedDbTrainingSessionRepository(restoredDatabase);
+    expect(await repository.findAllRecords(), hasLength(1));
+    expect((await repository.findAllRecords()).single.id, shadow.id);
+    expect(await repository.findAllRecordsIncludingSuperseded(), hasLength(2));
   });
 
   test('Schema 2.0 rejects unknown Training record versions', () async {

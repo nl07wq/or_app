@@ -95,6 +95,10 @@ class TrainingRepository {
   }
 
   static Future<List<TrainingSession>> getAll() async {
+    PersistenceAccess.requireReadable('training.getAll');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.training.findAllSessions();
+    }
     final records = await getReadModels();
     return List.unmodifiable(
       records

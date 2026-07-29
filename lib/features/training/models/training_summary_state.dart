@@ -10,6 +10,7 @@ final ValueNotifier<double> trainingCardioCaloriesNotifier = ValueNotifier(0);
 
 Future<void> refreshTrainingSummary() async {
   final records = await TrainingRepository.getReadModels();
+  final calculationSessions = await TrainingRepository.getAll();
   final now = DateTime.now();
   final dailyRecords = records
       .where((record) {
@@ -40,10 +41,14 @@ Future<void> refreshTrainingSummary() async {
                   ? dailyRecords.last.v1Data!.exercises.first.exerciseName
                   : null),
         );
-  final sessions = [
-    for (final record in dailyRecords)
-      if (record.isEditable) record.v1Data!,
-  ];
+  final sessions = calculationSessions
+      .where((session) {
+        final date = DateTime.parse(session.date).toLocal();
+        return date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day;
+      })
+      .toList(growable: false);
   trainingCardioCaloriesNotifier.value =
       TrainingSummaryService.todayCardioCalories(sessions);
 }

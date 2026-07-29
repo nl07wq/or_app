@@ -23,6 +23,10 @@ import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/migration/status_migration_service.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
+import 'package:or_app/features/training/migration/legacy_trainings_migration_service.dart';
+import 'package:or_app/features/training/migration/training_record_lineage.dart';
+import 'package:or_app/features/training/migration/training_record_shadow_migration_service.dart';
+import 'package:or_app/features/training/migration/training_v2_migration_mapper.dart';
 import 'package:or_app/features/training/services/exercise_catalog_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,13 +65,15 @@ void main() {
         InitializationStage.migratingActivity,
         InitializationStage.migratingFood,
         InitializationStage.migratingTraining,
+        InitializationStage.migratingTraining,
+        InitializationStage.migratingTraining,
         InitializationStage.migratingCustomTrainingExercises,
         InitializationStage.migratingConfirmation,
       ]);
       final metadata = await database.findAll(
         IndexedDbStoreNames.migrationMetadata,
       );
-      expect(metadata, hasLength(6));
+      expect(metadata, hasLength(8));
       expect(
         (await SharedPreferences.getInstance()).getString('unrelated'),
         'keep',
@@ -267,6 +273,73 @@ void main() {
     );
     expect(AppRepositoryRegistry.hasContainer, isFalse);
   });
+
+  test(
+    'shadow migration failure prevents legacy trainings migration',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      const sourceId = 'training:00112233-4455-4677-8899-aabbccddeeff';
+      final timestamp = DateTime.utc(2026, 7, 26);
+      final source = PersistedTrainingRecord(
+        id: sourceId,
+        localDate: '2026-07-26',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        data: _training('source'),
+      );
+      final targetId = TrainingRecordLineage.shadowIdForV1(sourceId);
+      final conflict = TrainingV2MigrationMapper.map(
+        targetId: targetId,
+        localDate: source.localDate,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        migrationSource: TrainingRecordLineage.shadowSource(
+          sourceRecordId: sourceId,
+          sourceIndex: 0,
+        ),
+        source: _training('different'),
+      );
+      database.seed(
+        IndexedDbStoreNames.trainingRecords,
+        sourceId,
+        source.toRecord(),
+      );
+      database.seed(
+        IndexedDbStoreNames.trainingRecords,
+        targetId,
+        conflict.toRecord(),
+      );
+      database.seed(IndexedDbStoreNames.trainings, 'old', {
+        'id': 'old',
+        'data': _training('legacy store').toJson(),
+      });
+      final controller = AppInitializationController();
+
+      await StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+
+      expect(controller.value.mode, PersistenceMode.failed);
+      expect(
+        controller.value.failedMigrationId,
+        TrainingRecordShadowMigrationService.migrationId,
+      );
+      expect(
+        await database.findById(
+          IndexedDbStoreNames.migrationMetadata,
+          LegacyTrainingsMigrationService.migrationId,
+        ),
+        isNull,
+      );
+      expect(
+        await database.findById(IndexedDbStoreNames.trainings, 'old'),
+        isNotNull,
+      );
+    },
+  );
 
   test(
     'completed migrations are verified without increasing attempts',
