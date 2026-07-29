@@ -299,13 +299,154 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('caps the grid width on PC displays', (tester) async {
-    await _pumpDashboard(tester, width: 1440);
+  testWidgets('switches tile columns at 280 pixels of available tile width', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 343);
+    expect(tester.getSize(_progressTiles()).width, 279);
+    expect(
+      tester.getTopLeft(_tile('STATUS')).dx,
+      tester.getTopLeft(_tile('FOOD')).dx,
+    );
 
-    expect(tester.getSize(_tile('ACTIVITY')).width, 800);
-    expect(tester.getSize(_tile('STATUS')).width, 394);
+    await _pumpDashboard(tester, width: 344);
+    expect(tester.getSize(_progressTiles()).width, 280);
+    expect(
+      tester.getTopLeft(_tile('STATUS')).dy,
+      tester.getTopLeft(_tile('FOOD')).dy,
+    );
+    _expectProgressTilesFit(tester);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('keeps Medium layout through 899 pixels and centers content', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 899);
+
+    expect(
+      find.byKey(const ValueKey('operation-progress-compact-layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('operation-progress-large-layout')),
+      findsNothing,
+    );
+    expect(find.text('OPERATION SUMMARY'), findsNothing);
+    expect(tester.getCenter(_mainContent()).dx, closeTo(899 / 2, 0.1));
+    expect(
+      tester.getTopLeft(_tile('STATUS')).dy,
+      tester.getTopLeft(_tile('FOOD')).dy,
+    );
+    _expectProgressTilesFit(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses Large summary and two-column Progress at 900 pixels', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 900);
+
+    expect(
+      find.byKey(const ValueKey('operation-progress-large-layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('operation-progress-compact-layout')),
+      findsNothing,
+    );
+    expect(find.text('OPERATION SUMMARY'), findsOneWidget);
+    expect(
+      tester.getTopLeft(_operationSummary()).dx,
+      lessThan(tester.getTopLeft(_progressTiles()).dx),
+    );
+    expect(
+      tester.getSize(_operationSummary()).width,
+      lessThan(tester.getSize(_progressTiles()).width),
+    );
+    expect(
+      tester.getTopLeft(_tile('STATUS')).dy,
+      tester.getTopLeft(_tile('FOOD')).dy,
+    );
+    expect(
+      tester.getSize(_tile('ACTIVITY')).width,
+      closeTo(tester.getSize(_progressTiles()).width, 0.1),
+    );
+    _expectProgressTilesFit(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps Large layout stable at 1024 and 1280 pixels', (
+    tester,
+  ) async {
+    for (final width in [1024.0, 1280.0]) {
+      await _pumpDashboard(tester, width: width);
+
+      expect(tester.getCenter(_mainContent()).dx, closeTo(width / 2, 0.1));
+      expect(
+        tester.getTopLeft(_operationSummary()).dx,
+        lessThan(tester.getTopLeft(_progressTiles()).dx),
+      );
+      expect(
+        tester.getTopLeft(_tile('STATUS')).dy,
+        tester.getTopLeft(_tile('FOOD')).dy,
+      );
+      expect(
+        tester.getSize(_tile('ACTIVITY')).width,
+        closeTo(tester.getSize(_progressTiles()).width, 0.1),
+      );
+      _expectProgressTilesFit(tester);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('caps and centers Main Content on 1440 and 1920 displays', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 1440);
+
+    expect(tester.getSize(_mainContent()).width, 1280);
+    expect(tester.getCenter(_mainContent()).dx, 720);
+    expect(tester.getSize(_tile('ACTIVITY')).width, closeTo(734.4, 0.1));
+    expect(tester.takeException(), isNull);
+
+    await _pumpDashboard(tester, width: 1920);
+
+    expect(tester.getSize(_mainContent()).width, 1280);
+    expect(tester.getCenter(_mainContent()).dx, 960);
+    expect(tester.getTopLeft(_mainContent()).dx, 320);
+    _expectProgressTilesFit(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Large DAILY LOG stays two-column with full-width review action',
+    (tester) async {
+      for (final width in [900.0, 1280.0, 1920.0]) {
+        await _pumpDashboard(tester, width: width);
+
+        final status = find.bySemanticsLabel('STATUS incomplete');
+        final food = find.bySemanticsLabel('FOOD incomplete');
+        final training = find.bySemanticsLabel(
+          'TRAINING not recorded optional',
+        );
+        final activity = find.bySemanticsLabel('ACTIVITY incomplete');
+        final reviewButton = find.text('DAILY REVIEW');
+
+        expect(tester.getTopLeft(status).dy, tester.getTopLeft(food).dy);
+        expect(tester.getTopLeft(training).dy, tester.getTopLeft(activity).dy);
+        expect(
+          tester.getTopLeft(training).dy,
+          greaterThan(tester.getTopLeft(status).dy),
+        );
+        expect(
+          tester.getTopLeft(reviewButton).dy,
+          greaterThan(tester.getTopLeft(training).dy),
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets('keeps WATER tile tap behavior', (tester) async {
     await _pumpDashboard(tester, width: 800);
@@ -340,6 +481,13 @@ const _labels = [
 ];
 
 Finder _tile(String label) => find.byKey(ValueKey('operation-progress-$label'));
+
+Finder _mainContent() => find.byKey(const ValueKey('dashboard-main-content'));
+
+Finder _operationSummary() => find.byKey(const ValueKey('operation-summary'));
+
+Finder _progressTiles() =>
+    find.byKey(const ValueKey('operation-progress-tiles'));
 
 void _expectTileText(String label, String text) {
   expect(

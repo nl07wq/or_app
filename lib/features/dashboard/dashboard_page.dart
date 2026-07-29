@@ -79,123 +79,161 @@ class _DashboardPageState extends State<DashboardPage> {
 
                         return Scaffold(
                           appBar: AppBar(title: const Text('O.R.L.O.')),
-                          body: ListView(
-                            padding: AppSpacing.cardPadding,
-                            children: [
-                              if (kDebugMode) ...[
-                                _DebugDateCard(
-                                  onPreviousDay: () => _changeDebugDate(-1),
-                                  onToday: _resetDebugDate,
-                                  onNextDay: () => _changeDebugDate(1),
-                                ),
-                                AppSpacing.gapLG,
-                              ],
-                              SectionHeader(
-                                icon: Icons.dashboard_outlined,
-                                title: 'DAILY COMMAND',
-                              ),
-                              AppSpacing.gapLG,
-                              SectionHeader(
-                                icon: Icons.flag_outlined,
-                                title: 'COMMANDER INTENT',
-                              ),
-                              AppSpacing.gapSM,
-                              _CommanderIntentCard(snapshot: snapshot),
-                              AppSpacing.gapXL,
-                              StatusCard(
-                                isReady: morningFact != null,
-                                status: snapshot?.status,
-                              ),
-                              AppSpacing.gapXL,
-                              SectionHeader(
-                                icon: Icons.wb_sunny_outlined,
-                                title: 'MORNING BRIEF SUMMARY',
-                              ),
-                              AppSpacing.gapSM,
-                              _InfoCard(
-                                icon: Icons.lightbulb_outline,
-                                title: 'BRIEFING',
-                                message: snapshot?.summary ?? '--',
-                              ),
-                              AppSpacing.gapXL,
-                              SectionHeader(
-                                icon: Icons.timeline_outlined,
-                                title: 'OPERATION PROGRESS',
-                              ),
-                              AppSpacing.gapSM,
-                              _ProgressCard(
-                                morningFact: morningFact,
-                                estimatedTDEE: estimatedTDEE,
-                                foodSummary: foodSummary,
-                                trainingSummary: trainingSummary,
-                                activitySummary: activitySummary,
-                                onWaterTap: isReadOnly
-                                    ? null
-                                    : () => _showQuickWaterInput(context),
-                              ),
-                              AppSpacing.gapXL,
-                              SectionHeader(
-                                icon: Icons.fact_check_outlined,
-                                title: 'DAILY LOG',
-                              ),
-                              AppSpacing.gapSM,
-                              ValueListenableBuilder<
-                                DailyLogConfirmationStatus
-                              >(
-                                valueListenable: dailyLogConfirmationNotifier,
-                                builder: (context, confirmationStatus, _) {
-                                  if (confirmationStatus.isConfirmed) {
-                                    return _ConfirmedLogConfirmationCard(
-                                      confirmedAt:
-                                          confirmationStatus.confirmedAt!,
-                                      date: confirmationStatus.date,
-                                      isReadOnly: isReadOnly,
-                                    );
-                                  }
-
-                                  return DailyLogCard(
-                                    morningFact: morningFact,
-                                    foodSummary: foodSummary,
-                                    activitySummary: activitySummary,
-                                    trainingSummary: trainingSummary,
-                                    onReview: isReadOnly
-                                        ? null
-                                        : () => Navigator.pushNamed(
-                                            context,
-                                            AppRoutes.logConfirmationReview,
-                                            arguments: LogConfirmationReviewPage(
-                                              morning: morningFact,
-                                              food: foodSummary,
-                                              activity: activitySummary,
-                                              training: trainingSummary,
-                                              estimatedTotalBurn:
-                                                  estimatedTDEE == null
-                                                  ? null
-                                                  : estimatedTDEE +
-                                                        trainingCardioCaloriesNotifier
-                                                            .value,
+                          body: LayoutBuilder(
+                            builder: (context, dashboardConstraints) {
+                              final useLargeLayout =
+                                  dashboardConstraints.maxWidth >= 900;
+                              return ListView(
+                                padding: AppSpacing.cardPadding,
+                                children: [
+                                  Center(
+                                    child: ConstrainedBox(
+                                      key: const ValueKey(
+                                        'dashboard-main-content',
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 1280,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          if (kDebugMode) ...[
+                                            _DebugDateCard(
+                                              onPreviousDay: () =>
+                                                  _changeDebugDate(-1),
+                                              onToday: _resetDebugDate,
+                                              onNextDay: () =>
+                                                  _changeDebugDate(1),
                                             ),
+                                            AppSpacing.gapLG,
+                                          ],
+                                          SectionHeader(
+                                            icon: Icons.dashboard_outlined,
+                                            title: 'DAILY COMMAND',
                                           ),
-                                  );
-                                },
-                              ),
-                              AppSpacing.gapXL,
-                              SectionHeader(
-                                icon: Icons.bolt_outlined,
-                                title: 'QUICK ACCESS',
-                              ),
-                              AppSpacing.gapSM,
-                              _MorningButton(),
-                              AppSpacing.gapMD,
-                              _FoodButton(),
-                              AppSpacing.gapMD,
-                              _TrainingButton(),
-                              AppSpacing.gapMD,
-                              _ActivityButton(),
-                              AppSpacing.gapMD,
-                              _CommandCenterButton(),
-                              AppSpacing.gapMD,
-                            ],
+                                          AppSpacing.gapLG,
+                                          SectionHeader(
+                                            icon: Icons.flag_outlined,
+                                            title: 'COMMANDER INTENT',
+                                          ),
+                                          AppSpacing.gapSM,
+                                          _CommanderIntentCard(
+                                            snapshot: snapshot,
+                                          ),
+                                          AppSpacing.gapXL,
+                                          StatusCard(
+                                            isReady: morningFact != null,
+                                            status: snapshot?.status,
+                                          ),
+                                          AppSpacing.gapXL,
+                                          SectionHeader(
+                                            icon: Icons.wb_sunny_outlined,
+                                            title: 'MORNING BRIEF SUMMARY',
+                                          ),
+                                          AppSpacing.gapSM,
+                                          _InfoCard(
+                                            icon: Icons.lightbulb_outline,
+                                            title: 'BRIEFING',
+                                            message: snapshot?.summary ?? '--',
+                                          ),
+                                          AppSpacing.gapXL,
+                                          SectionHeader(
+                                            icon: Icons.timeline_outlined,
+                                            title: 'OPERATION PROGRESS',
+                                          ),
+                                          AppSpacing.gapSM,
+                                          _ProgressCard(
+                                            morningFact: morningFact,
+                                            estimatedTDEE: estimatedTDEE,
+                                            foodSummary: foodSummary,
+                                            trainingSummary: trainingSummary,
+                                            activitySummary: activitySummary,
+                                            useLargeLayout: useLargeLayout,
+                                            onWaterTap: isReadOnly
+                                                ? null
+                                                : () => _showQuickWaterInput(
+                                                    context,
+                                                  ),
+                                          ),
+                                          AppSpacing.gapXL,
+                                          SectionHeader(
+                                            icon: Icons.fact_check_outlined,
+                                            title: 'DAILY LOG',
+                                          ),
+                                          AppSpacing.gapSM,
+                                          ValueListenableBuilder<
+                                            DailyLogConfirmationStatus
+                                          >(
+                                            valueListenable:
+                                                dailyLogConfirmationNotifier,
+                                            builder: (context, confirmationStatus, _) {
+                                              if (confirmationStatus
+                                                  .isConfirmed) {
+                                                return _ConfirmedLogConfirmationCard(
+                                                  confirmedAt:
+                                                      confirmationStatus
+                                                          .confirmedAt!,
+                                                  date: confirmationStatus.date,
+                                                  isReadOnly: isReadOnly,
+                                                );
+                                              }
+
+                                              return DailyLogCard(
+                                                morningFact: morningFact,
+                                                foodSummary: foodSummary,
+                                                activitySummary:
+                                                    activitySummary,
+                                                trainingSummary:
+                                                    trainingSummary,
+                                                onReview: isReadOnly
+                                                    ? null
+                                                    : () => Navigator.pushNamed(
+                                                        context,
+                                                        AppRoutes
+                                                            .logConfirmationReview,
+                                                        arguments: LogConfirmationReviewPage(
+                                                          morning: morningFact,
+                                                          food: foodSummary,
+                                                          activity:
+                                                              activitySummary,
+                                                          training:
+                                                              trainingSummary,
+                                                          estimatedTotalBurn:
+                                                              estimatedTDEE ==
+                                                                  null
+                                                              ? null
+                                                              : estimatedTDEE +
+                                                                    trainingCardioCaloriesNotifier
+                                                                        .value,
+                                                        ),
+                                                      ),
+                                              );
+                                            },
+                                          ),
+                                          AppSpacing.gapXL,
+                                          SectionHeader(
+                                            icon: Icons.bolt_outlined,
+                                            title: 'QUICK ACCESS',
+                                          ),
+                                          AppSpacing.gapSM,
+                                          _MorningButton(),
+                                          AppSpacing.gapMD,
+                                          _FoodButton(),
+                                          AppSpacing.gapMD,
+                                          _TrainingButton(),
+                                          AppSpacing.gapMD,
+                                          _ActivityButton(),
+                                          AppSpacing.gapMD,
+                                          _CommandCenterButton(),
+                                          AppSpacing.gapMD,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         );
                       },
@@ -469,6 +507,7 @@ class _ProgressCard extends StatelessWidget {
   final FoodSummary? foodSummary;
   final TrainingSummary? trainingSummary;
   final ActivitySummary activitySummary;
+  final bool useLargeLayout;
   final VoidCallback? onWaterTap;
 
   const _ProgressCard({
@@ -477,6 +516,7 @@ class _ProgressCard extends StatelessWidget {
     required this.foodSummary,
     required this.trainingSummary,
     required this.activitySummary,
+    required this.useLargeLayout,
     required this.onWaterTap,
   });
 
@@ -507,154 +547,230 @@ class _ProgressCard extends StatelessWidget {
             : estimatedTDEE! + cardioCalories;
 
         return OperationCard(
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _ProgressSummaryMetric(
-                      label: 'WEIGHT',
-                      value: morningFact == null
-                          ? '--'
-                          : '${morningFact!.weight.toStringAsFixed(1)} kg',
+          child: useLargeLayout
+              ? Row(
+                  key: const ValueKey('operation-progress-large-layout'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _buildSummary(
+                        context,
+                        cardioCalories: cardioCalories,
+                        estimatedTotalBurn: estimatedTotalBurn,
+                        large: true,
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: _ProgressSummaryMetric(
-                      label: 'SLEEP',
-                      value: morningFact == null
-                          ? '--'
-                          : _formatSleep(morningFact!.sleepDuration),
+                    SizedBox(width: AppSpacing.xl),
+                    Expanded(
+                      flex: 3,
+                      child: _buildProgressTiles(
+                        morningComplete: morningComplete,
+                        mealCount: mealCount,
+                        calories: calories,
+                        protein: protein,
+                        hydrationMl: hydrationMl,
+                        activityDetails: activityDetails,
+                        forceTwoColumns: true,
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: _ProgressSummaryMetric(
-                      label: 'BASE BURN',
-                      value: estimatedTDEE == null
-                          ? '--'
-                          : '${estimatedTDEE!.toStringAsFixed(0)} kcal',
+                  ],
+                )
+              : Column(
+                  key: const ValueKey('operation-progress-compact-layout'),
+                  children: [
+                    _buildSummary(
+                      context,
+                      cardioCalories: cardioCalories,
+                      estimatedTotalBurn: estimatedTotalBurn,
+                      large: false,
                     ),
-                  ),
-                ],
-              ),
-              AppSpacing.gapMD,
-              Row(
-                children: [
-                  Expanded(
-                    child: _ProgressSummaryMetric(
-                      label: 'EXERCISE\nCARDIO ONLY',
-                      value: '${cardioCalories.toStringAsFixed(0)} kcal',
+                    AppSpacing.gapLG,
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: _buildProgressTiles(
+                          morningComplete: morningComplete,
+                          mealCount: mealCount,
+                          calories: calories,
+                          protein: protein,
+                          hydrationMl: hydrationMl,
+                          activityDetails: activityDetails,
+                        ),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: _ProgressSummaryMetric(
-                      label: 'EST. TOTAL BURN',
-                      value: estimatedTotalBurn == null
-                          ? '--'
-                          : '${estimatedTotalBurn.toStringAsFixed(0)} kcal',
-                    ),
-                  ),
-                ],
-              ),
-              AppSpacing.gapLG,
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final useTwoColumns = constraints.maxWidth >= 280;
-                      final tileWidth = useTwoColumns
-                          ? (constraints.maxWidth - AppSpacing.md) / 2
-                          : constraints.maxWidth;
-
-                      Widget tile({
-                        required String label,
-                        required String status,
-                        required double progress,
-                        VoidCallback? onTap,
-                        bool fullWidth = false,
-                        List<String> details = const [],
-                      }) {
-                        return SizedBox(
-                          key: ValueKey('operation-progress-$label'),
-                          width: fullWidth ? constraints.maxWidth : tileWidth,
-                          child: _ProgressRow(
-                            label: label,
-                            status: status,
-                            progress: progress,
-                            onTap: onTap,
-                            details: details,
-                          ),
-                        );
-                      }
-
-                      return Wrap(
-                        spacing: AppSpacing.md,
-                        runSpacing: AppSpacing.md,
-                        children: [
-                          tile(
-                            label: 'STATUS',
-                            status: morningComplete ? '完了' : '未完了',
-                            progress: morningComplete ? 1.0 : 0.0,
-                          ),
-                          tile(
-                            label: 'FOOD',
-                            status: '$mealCount / 3',
-                            progress: (mealCount / 3)
-                                .clamp(0.0, 1.0)
-                                .toDouble(),
-                          ),
-                          tile(
-                            label: 'CALORIES',
-                            status:
-                                '${calories.toStringAsFixed(0)} / 2200 kcal',
-                            progress: (calories / 2200)
-                                .clamp(0.0, 1.0)
-                                .toDouble(),
-                          ),
-                          tile(
-                            label: 'PROTEIN',
-                            status: '${protein.toStringAsFixed(1)} / 100 g',
-                            progress: (protein / 100)
-                                .clamp(0.0, 1.0)
-                                .toDouble(),
-                          ),
-                          tile(
-                            label: 'WATER',
-                            status:
-                                '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
-                            progress: (hydrationMl / 3500)
-                                .clamp(0.0, 1.0)
-                                .toDouble(),
-                            onTap: onWaterTap,
-                          ),
-                          tile(
-                            label: 'TRAINING',
-                            status: trainingSummary?.completed == true
-                                ? 'Recorded'
-                                : 'Not recorded',
-                            progress: trainingSummary?.completed == true
-                                ? 1.0
-                                : 0.0,
-                          ),
-                          tile(
-                            label: 'ACTIVITY',
-                            status: activitySummary.isRecorded
-                                ? '${_formatSteps(activitySummary.steps)} steps'
-                                : 'Not recorded',
-                            progress: activitySummary.isRecorded ? 1.0 : 0.0,
-                            fullWidth: true,
-                            details: activityDetails,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                  ],
                 ),
-              ),
-            ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSummary(
+    BuildContext context, {
+    required double cardioCalories,
+    required double? estimatedTotalBurn,
+    required bool large,
+  }) {
+    final metrics = [
+      _ProgressSummaryMetric(
+        label: 'WEIGHT',
+        value: morningFact == null
+            ? '--'
+            : '${morningFact!.weight.toStringAsFixed(1)} kg',
+        labelFirst: large,
+      ),
+      _ProgressSummaryMetric(
+        label: 'SLEEP',
+        value: morningFact == null
+            ? '--'
+            : _formatSleep(morningFact!.sleepDuration),
+        labelFirst: large,
+      ),
+      _ProgressSummaryMetric(
+        label: 'BASE BURN',
+        value: estimatedTDEE == null
+            ? '--'
+            : '${estimatedTDEE!.toStringAsFixed(0)} kcal',
+        labelFirst: large,
+      ),
+      _ProgressSummaryMetric(
+        label: 'EXERCISE\nCARDIO ONLY',
+        value: '${cardioCalories.toStringAsFixed(0)} kcal',
+        labelFirst: large,
+      ),
+      _ProgressSummaryMetric(
+        label: 'EST. TOTAL BURN',
+        value: estimatedTotalBurn == null
+            ? '--'
+            : '${estimatedTotalBurn.toStringAsFixed(0)} kcal',
+        labelFirst: large,
+      ),
+    ];
+
+    if (large) {
+      return Column(
+        key: const ValueKey('operation-summary'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'OPERATION SUMMARY',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
+          AppSpacing.gapMD,
+          for (var index = 0; index < metrics.length; index++) ...[
+            metrics[index],
+            if (index != metrics.length - 1) AppSpacing.gapMD,
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      key: const ValueKey('operation-summary'),
+      children: [
+        Row(
+          children: [
+            for (final metric in metrics.take(3)) Expanded(child: metric),
+          ],
+        ),
+        AppSpacing.gapMD,
+        Row(
+          children: [
+            for (final metric in metrics.skip(3)) Expanded(child: metric),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressTiles({
+    required bool morningComplete,
+    required int mealCount,
+    required double calories,
+    required double protein,
+    required double hydrationMl,
+    required List<String> activityDetails,
+    bool forceTwoColumns = false,
+  }) {
+    return LayoutBuilder(
+      key: const ValueKey('operation-progress-tiles'),
+      builder: (context, constraints) {
+        final useTwoColumns = forceTwoColumns || constraints.maxWidth >= 280;
+        final tileWidth = useTwoColumns
+            ? (constraints.maxWidth - AppSpacing.md) / 2
+            : constraints.maxWidth;
+
+        Widget tile({
+          required String label,
+          required String status,
+          required double progress,
+          VoidCallback? onTap,
+          bool fullWidth = false,
+          List<String> details = const [],
+        }) {
+          return SizedBox(
+            key: ValueKey('operation-progress-$label'),
+            width: fullWidth ? constraints.maxWidth : tileWidth,
+            child: _ProgressRow(
+              label: label,
+              status: status,
+              progress: progress,
+              onTap: onTap,
+              details: details,
+            ),
+          );
+        }
+
+        return Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.md,
+          children: [
+            tile(
+              label: 'STATUS',
+              status: morningComplete ? '完了' : '未完了',
+              progress: morningComplete ? 1.0 : 0.0,
+            ),
+            tile(
+              label: 'FOOD',
+              status: '$mealCount / 3',
+              progress: (mealCount / 3).clamp(0.0, 1.0).toDouble(),
+            ),
+            tile(
+              label: 'CALORIES',
+              status: '${calories.toStringAsFixed(0)} / 2200 kcal',
+              progress: (calories / 2200).clamp(0.0, 1.0).toDouble(),
+            ),
+            tile(
+              label: 'PROTEIN',
+              status: '${protein.toStringAsFixed(1)} / 100 g',
+              progress: (protein / 100).clamp(0.0, 1.0).toDouble(),
+            ),
+            tile(
+              label: 'WATER',
+              status: '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
+              progress: (hydrationMl / 3500).clamp(0.0, 1.0).toDouble(),
+              onTap: onWaterTap,
+            ),
+            tile(
+              label: 'TRAINING',
+              status: trainingSummary?.completed == true
+                  ? 'Recorded'
+                  : 'Not recorded',
+              progress: trainingSummary?.completed == true ? 1.0 : 0.0,
+            ),
+            tile(
+              label: 'ACTIVITY',
+              status: activitySummary.isRecorded
+                  ? '${_formatSteps(activitySummary.steps)} steps'
+                  : 'Not recorded',
+              progress: activitySummary.isRecorded ? 1.0 : 0.0,
+              fullWidth: true,
+              details: activityDetails,
+            ),
+          ],
         );
       },
     );
@@ -674,16 +790,30 @@ class _ProgressCard extends StatelessWidget {
 class _ProgressSummaryMetric extends StatelessWidget {
   final String label;
   final String value;
+  final bool labelFirst;
 
-  const _ProgressSummaryMetric({required this.label, required this.value});
+  const _ProgressSummaryMetric({
+    required this.label,
+    required this.value,
+    this.labelFirst = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: labelFirst
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
-        Text(value, style: Theme.of(context).textTheme.titleSmall),
+        if (labelFirst)
+          Text(label, style: Theme.of(context).textTheme.labelSmall)
+        else
+          Text(value, style: Theme.of(context).textTheme.titleSmall),
         AppSpacing.gapXS,
-        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        if (labelFirst)
+          Text(value, style: Theme.of(context).textTheme.titleSmall)
+        else
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
       ],
     );
   }
