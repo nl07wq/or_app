@@ -120,8 +120,13 @@ void main() {
     _expectTileText('WATER', '1750 / 3500 ml');
     _expectTileText('TRAINING', 'Recorded');
     _expectTileText('ACTIVITY', '12,345 steps');
-    _expectTileText('ACTIVITY', 'Count 0');
-    _expectTileText('ACTIVITY', 'Total Amount 0');
+    expect(
+      find.descendant(
+        of: _tile('ACTIVITY'),
+        matching: find.textContaining('Digestive'),
+      ),
+      findsNothing,
+    );
 
     expect(_progress(tester, 'STATUS'), 1);
     expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
@@ -141,8 +146,17 @@ void main() {
     _expectTileText('FOOD', '0 / 3');
     _expectTileText('TRAINING', 'Not recorded');
     _expectTileText('ACTIVITY', 'Not recorded');
-    _expectTileText('ACTIVITY', 'Count 0');
-    _expectTileText('ACTIVITY', 'Total Amount 0');
+    expect(
+      find.descendant(
+        of: _tile('ACTIVITY'),
+        matching: find.textContaining('Digestive'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: _tile('ACTIVITY'), matching: find.text('0 steps')),
+      findsNothing,
+    );
     expect(find.text('実施'), findsNothing);
     expect(find.text('未実施'), findsNothing);
     expect(_progress(tester, 'TRAINING'), 0);
@@ -159,8 +173,7 @@ void main() {
     await _pumpDashboard(tester, width: 800);
 
     _expectTileText('ACTIVITY', '6,000 steps');
-    _expectTileText('ACTIVITY', 'Digestive');
-    _expectTileText('ACTIVITY', 'Count 1');
+    _expectTileText('ACTIVITY', 'Digestive Count 1');
     _expectTileText('ACTIVITY', 'Total Amount 2');
     expect(_progress(tester, 'ACTIVITY'), 1);
   });
@@ -177,7 +190,7 @@ void main() {
     await _pumpDashboard(tester, width: 800);
 
     _expectTileText('ACTIVITY', '0 steps');
-    _expectTileText('ACTIVITY', 'Count 2');
+    _expectTileText('ACTIVITY', 'Digestive Count 2');
     _expectTileText('ACTIVITY', 'Total Amount 5');
     expect(_progress(tester, 'ACTIVITY'), 1);
   });
@@ -202,7 +215,57 @@ void main() {
     await _pumpDashboard(tester, width: 800);
 
     _expectTileText('ACTIVITY', 'Not recorded');
+    expect(
+      find.descendant(
+        of: _tile('ACTIVITY'),
+        matching: find.textContaining('Digestive'),
+      ),
+      findsNothing,
+    );
     expect(_progress(tester, 'ACTIVITY'), 0);
+  });
+
+  testWidgets('shows explicit no movement only for a formal Record', (
+    tester,
+  ) async {
+    activitySummaryNotifier.value = ActivitySummary(
+      steps: 4000,
+      isRecorded: true,
+      digestiveSummary: _digestiveSummary(
+        amounts: const [],
+        hasExplicitNoMovement: true,
+      ),
+    );
+
+    await _pumpDashboard(tester, width: 800);
+
+    _expectTileText('ACTIVITY', '4,000 steps');
+    _expectTileText('ACTIVITY', 'Digestive None');
+    expect(find.textContaining('Count 0'), findsNothing);
+    expect(find.textContaining('Total Amount 0'), findsNothing);
+    expect(_progress(tester, 'ACTIVITY'), 1);
+  });
+
+  testWidgets('omits Digestive details when a formal Record has no input', (
+    tester,
+  ) async {
+    activitySummaryNotifier.value = ActivitySummary(
+      steps: 0,
+      isRecorded: true,
+      digestiveSummary: _digestiveSummary(amounts: const []),
+    );
+
+    await _pumpDashboard(tester, width: 800);
+
+    _expectTileText('ACTIVITY', '0 steps');
+    expect(
+      find.descendant(
+        of: _tile('ACTIVITY'),
+        matching: find.textContaining('Digestive'),
+      ),
+      findsNothing,
+    );
+    expect(_progress(tester, 'ACTIVITY'), 1);
   });
 
   testWidgets('uses two columns at a normal smartphone width', (tester) async {
@@ -333,7 +396,10 @@ Future<void> _pumpDashboard(
   await tester.pump();
 }
 
-DigestiveSummary _digestiveSummary({required List<int> amounts}) {
+DigestiveSummary _digestiveSummary({
+  required List<int> amounts,
+  bool hasExplicitNoMovement = false,
+}) {
   return DigestiveSummary(
     eventCount: amounts.length,
     totalAmount: amounts.fold(0, (total, amount) => total + amount),
@@ -341,6 +407,7 @@ DigestiveSummary _digestiveSummary({required List<int> amounts}) {
     latestRelief: amounts.isEmpty ? null : 1,
     shapeTrend: [for (final _ in amounts) 2],
     reliefTrend: [for (final _ in amounts) 1],
+    hasExplicitNoMovement: hasExplicitNoMovement,
   );
 }
 

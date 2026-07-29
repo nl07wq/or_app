@@ -487,6 +487,17 @@ class _ProgressCard extends StatelessWidget {
     final calories = foodSummary?.calories ?? 0;
     final protein = foodSummary?.protein ?? 0;
     final hydrationMl = foodSummary?.hydrationMl ?? 0;
+    final digestiveSummary = activitySummary.digestiveSummary;
+    final activityDetails = !activitySummary.isRecorded
+        ? const <String>[]
+        : digestiveSummary?.hasExplicitNoMovement == true
+        ? const ['Digestive None']
+        : (digestiveSummary?.eventCount ?? 0) > 0
+        ? [
+            'Digestive Count ${digestiveSummary!.eventCount}',
+            'Total Amount ${digestiveSummary.totalAmount}',
+          ]
+        : const <String>[];
 
     return ValueListenableBuilder<double>(
       valueListenable: trainingCardioCaloriesNotifier,
@@ -634,10 +645,7 @@ class _ProgressCard extends StatelessWidget {
                                 : 'Not recorded',
                             progress: activitySummary.isRecorded ? 1.0 : 0.0,
                             fullWidth: true,
-                            details: [
-                              'Count ${activitySummary.digestiveSummary?.eventCount ?? 0}',
-                              'Total Amount ${activitySummary.digestiveSummary?.totalAmount ?? 0}',
-                            ],
+                            details: activityDetails,
                           ),
                         ],
                       );
@@ -719,8 +727,6 @@ class _ProgressRow extends StatelessWidget {
         ),
         if (details.isNotEmpty) ...[
           AppSpacing.gapSM,
-          Text('Digestive', style: Theme.of(context).textTheme.labelMedium),
-          AppSpacing.gapXS,
           Wrap(
             spacing: AppSpacing.lg,
             runSpacing: AppSpacing.xs,

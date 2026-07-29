@@ -273,9 +273,9 @@ class _ActivityReviewSection extends StatelessWidget {
           Text('Steps ${_formatSteps(activity!.officialSteps)}'),
           Text('Today ${_formatSteps(activity!.measuredSteps)}'),
           Text('Carry Over $carryOver'),
-          if (digestive != null && digestive.eventCount == 0)
-            Semantics(label: '排便記録なし', child: const Text('No record'))
-          else if (digestive != null) ...[
+          if (digestive?.hasExplicitNoMovement == true)
+            Semantics(label: '排便なしを報告済み', child: const Text('Digestive None'))
+          else if (digestive != null && digestive.eventCount > 0) ...[
             _SemanticSummaryValue(
               label: 'Digestive Count',
               value: digestive.eventCount.toString(),
@@ -292,7 +292,7 @@ class _ActivityReviewSection extends StatelessWidget {
               label: 'Latest Relief',
               value: _formatRelief(digestive.latestRelief),
             ),
-          ] else ...[
+          ] else if (digestive == null) ...[
             Text('Bowel Shape ${_formatBowelShape(bowel.shape)}'),
             Text('Bowel Amount ${_formatBowelAmount(bowel.amount)}'),
           ],

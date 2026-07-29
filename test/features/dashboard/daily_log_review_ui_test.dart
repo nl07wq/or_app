@@ -525,7 +525,9 @@ void main() {
     }
   });
 
-  testWidgets('zero Digestive Events show no bowel record', (tester) async {
+  testWidgets('zero Digestive Events without a report stay unshown', (
+    tester,
+  ) async {
     final semantics = tester.ensureSemantics();
     await _pumpReview(
       tester,
@@ -541,11 +543,39 @@ void main() {
       estimatedTotalBurn: 2100,
     );
 
-    expect(find.text('No record'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('排便記録なし')), findsOneWidget);
+    expect(find.text('Digestive None'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('排便なしを報告済み')), findsNothing);
     expect(find.textContaining('Bowel Shape'), findsNothing);
     expect(find.textContaining('Bowel Amount'), findsNothing);
     expect(find.textContaining('Digestive Count'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('Daily Review distinguishes an explicit no-movement report', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _digestiveActivity(
+        eventCount: 0,
+        totalAmount: 0,
+        latestShape: null,
+        latestRelief: null,
+        hasExplicitNoMovement: true,
+      ),
+      training: null,
+      estimatedTotalBurn: 2100,
+    );
+
+    expect(find.text('Digestive None'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('排便なしを報告済み')), findsOneWidget);
+    expect(find.textContaining('Digestive Count'), findsNothing);
+    expect(find.textContaining('Total Amount'), findsNothing);
+    expect(find.textContaining('Latest Shape'), findsNothing);
+    expect(find.textContaining('Latest Relief'), findsNothing);
     semantics.dispose();
   });
 
@@ -745,6 +775,89 @@ void main() {
     expect(find.text('Latest Relief 残便感'), findsOneWidget);
     expect(find.text('Digestive Count 1'), findsNothing);
     expect(find.text('Latest Shape 軟便'), findsNothing);
+  });
+
+  testWidgets('confirmed detail shows explicit no movement from Snapshot', (
+    tester,
+  ) async {
+    final base = completeConfirmation();
+    final confirmation = DailyLogConfirmation(
+      date: base.date,
+      confirmedAt: base.confirmedAt,
+      morning: base.morning,
+      food: base.food,
+      activity: _digestiveActivity(
+        eventCount: 0,
+        totalAmount: 0,
+        latestShape: null,
+        latestRelief: null,
+        hasExplicitNoMovement: true,
+      ),
+      training: base.training,
+      estimatedTotalBurnKcal: base.estimatedTotalBurnKcal,
+    );
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(confirmation.toJson())],
+    });
+    activitySummaryNotifier.value = _digestiveActivity(
+      eventCount: 1,
+      totalAmount: 3,
+      latestShape: 3,
+      latestRelief: 2,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Digestive None'), findsOneWidget);
+    expect(find.text('Digestive Count 1'), findsNothing);
+    expect(find.text('Latest Shape 軟便'), findsNothing);
+  });
+
+  testWidgets('old Snapshot without zero-report field stays unreported', (
+    tester,
+  ) async {
+    final base = completeConfirmation();
+    final confirmation = DailyLogConfirmation(
+      date: base.date,
+      confirmedAt: base.confirmedAt,
+      morning: base.morning,
+      food: base.food,
+      activity: _digestiveActivity(
+        eventCount: 0,
+        totalAmount: 0,
+        latestShape: null,
+        latestRelief: null,
+        hasExplicitNoMovement: true,
+      ),
+      training: base.training,
+      estimatedTotalBurnKcal: base.estimatedTotalBurnKcal,
+    );
+    final oldJson = confirmation.toJson();
+    final activityJson = Map<String, dynamic>.from(oldJson['activity'] as Map);
+    final digestiveJson = Map<String, dynamic>.from(
+      activityJson['digestiveSummary'] as Map,
+    )..remove('hasExplicitNoMovement');
+    activityJson['digestiveSummary'] = digestiveJson;
+    oldJson['activity'] = activityJson;
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(oldJson)],
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Digestive None'), findsNothing);
+    expect(find.textContaining('Digestive Count'), findsNothing);
+    expect(find.textContaining('Latest Shape'), findsNothing);
   });
 
   testWidgets('old confirmed detail does not backfill missing energy', (
@@ -1320,6 +1433,7 @@ ActivitySummary _digestiveActivity({
   required int totalAmount,
   required int? latestShape,
   required int? latestRelief,
+  bool hasExplicitNoMovement = false,
 }) {
   return ActivitySummary(
     steps: 8900,
@@ -1337,6 +1451,7 @@ ActivitySummary _digestiveActivity({
       reliefTrend: eventCount == 0
           ? const []
           : List<int>.filled(eventCount, latestRelief!),
+      hasExplicitNoMovement: hasExplicitNoMovement,
     ),
     calculationBasis: const ActivityCalculationBasis(
       rawSteps: 7659,

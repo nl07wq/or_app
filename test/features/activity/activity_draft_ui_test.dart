@@ -10,6 +10,7 @@ import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/features/activity/activity_entry_page.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
+import 'package:or_app/features/activity/widgets/digestive_event_card.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -42,6 +43,7 @@ void main() {
     expect(find.text('DIGESTIVE 1'), findsOneWidget);
     expect(find.text('DIGESTIVE EVENT 1'), findsNothing);
     expect(find.text('Amount'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'なし'), findsOneWidget);
     expect(find.text('Shape'), findsOneWidget);
     expect(find.text('Relief'), findsOneWidget);
     expect(find.text('No record'), findsNothing);
@@ -58,6 +60,71 @@ void main() {
     final draft = await AppRepositoryRegistry.container.activityDrafts
         .findByDate(today);
     expect(draft?.digestiveEvents, isEmpty);
+  });
+
+  testWidgets('Amount none hides and clears Shape and Relief', (tester) async {
+    await _pumpEntry(tester);
+    await _tapChip(tester, '普通', first: true);
+    await _tapChip(tester, '普通便');
+    await _tapChip(tester, 'スッキリ');
+
+    await _tapChip(tester, 'なし');
+
+    expect(find.text('Shape'), findsNothing);
+    expect(find.text('Relief'), findsNothing);
+    expect(find.byIcon(Icons.hexagon), findsNothing);
+    expect(find.byIcon(Icons.sentiment_satisfied), findsNothing);
+
+    await tester.ensureVisible(find.text('SAVE DRAFT'));
+    await tester.tap(find.text('SAVE DRAFT'));
+    await tester.pumpAndSettle();
+
+    final saved = await AppRepositoryRegistry.container.activityDrafts
+        .findByDate(today);
+    expect(saved?.digestiveEvents.single.amount, 0);
+    expect(saved?.digestiveEvents.single.shape, isNull);
+    expect(saved?.digestiveEvents.single.relief, isNull);
+
+    await _pumpEntry(tester);
+    expect(
+      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'なし')).selected,
+      isTrue,
+    );
+    expect(find.text('Shape'), findsNothing);
+    expect(find.text('Relief'), findsNothing);
+
+    await _tapChip(tester, '少量');
+    expect(find.text('Shape'), findsOneWidget);
+    expect(find.text('Relief'), findsOneWidget);
+    expect(
+      tester
+          .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+          .where((chip) => chip.selected)
+          .length,
+      1,
+    );
+  });
+
+  testWidgets('positive Amount changes preserve Shape and Relief', (
+    tester,
+  ) async {
+    await _pumpEntry(tester);
+    await _tapChip(tester, '少量');
+    await _tapChip(tester, '硬便');
+    await _tapChip(tester, '残便感');
+
+    await _tapChip(tester, '多量');
+
+    expect(
+      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '硬便')).selected,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '残便感'))
+          .selected,
+      isTrue,
+    );
   });
 
   testWidgets('incomplete Event is saved and restored as a Draft', (
@@ -122,6 +189,49 @@ void main() {
 
     expect(find.text('DIGESTIVE 1'), findsOneWidget);
     expect(find.text('DIGESTIVE 2'), findsNothing);
+  });
+
+  testWidgets('multiple Events keep independent zero and positive states', (
+    tester,
+  ) async {
+    await _pumpEntry(tester);
+    await _addEvent(tester);
+
+    await _tapEventChip(tester, eventIndex: 0, field: 'amount', value: 0);
+    await _tapEventChip(tester, eventIndex: 1, field: 'amount', value: 0);
+    expect(find.text('Shape'), findsNothing);
+    expect(find.text('Relief'), findsNothing);
+
+    await _tapEventChip(tester, eventIndex: 1, field: 'amount', value: 2);
+    await _tapEventChip(tester, eventIndex: 1, field: 'shape', value: 2);
+    await _tapEventChip(tester, eventIndex: 1, field: 'relief', value: 2);
+
+    final first = find.byType(DigestiveEventCard).at(0);
+    final second = find.byType(DigestiveEventCard).at(1);
+    expect(
+      find.descendant(of: first, matching: find.text('Shape')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: second, matching: find.text('Shape')),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.text('SAVE DRAFT'));
+    await tester.tap(find.text('SAVE DRAFT'));
+    await tester.pumpAndSettle();
+
+    final events =
+        (await AppRepositoryRegistry.container.activityDrafts.findByDate(
+          today,
+        ))!.digestiveEvents;
+    expect(events, hasLength(2));
+    expect(events[0].amount, 0);
+    expect(events[0].shape, isNull);
+    expect(events[0].relief, isNull);
+    expect(events[1].amount, 2);
+    expect(events[1].shape, 2);
+    expect(events[1].relief, 2);
   });
 
   testWidgets('finalize validates Amount, Shape, and Relief in order', (
@@ -208,6 +318,45 @@ void main() {
     expect(saved?.bowelMovement.hasMovement, isNull);
     expect(find.byType(ActivityPage), findsOneWidget);
     expect(find.byType(ActivityEntryPage), findsNothing);
+  });
+
+  testWidgets('explicit no movement finalizes and restores as Amount none', (
+    tester,
+  ) async {
+    await _pumpEntryFromActivity(tester);
+    await tester.enterText(find.byType(TextField).at(0), '2500');
+    await _tapChip(tester, 'なし');
+    tester
+        .widget<ElevatedButton>(
+          find.ancestor(
+            of: find.text('SAVE ACTIVITY'),
+            matching: find.byType(ElevatedButton),
+          ),
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+
+    final saved = await AppRepositoryRegistry.container.activity.findByDate(
+      today,
+    );
+    expect(saved?.digestiveEvents, hasLength(1));
+    expect(saved?.digestiveEvents?.single.amount, 0);
+    expect(saved?.digestiveEvents?.single.shape, isNull);
+    expect(saved?.digestiveEvents?.single.relief, isNull);
+    expect(
+      await AppRepositoryRegistry.container.activityDrafts.findByDate(today),
+      isNull,
+    );
+
+    await tester.tap(find.text('ACTIVITY ENTRY'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'なし')).selected,
+      isTrue,
+    );
+    expect(find.text('Shape'), findsNothing);
+    expect(find.text('Relief'), findsNothing);
   });
 
   testWidgets('formal Digestive Event records remain editable', (tester) async {
@@ -374,6 +523,21 @@ Future<void> _tapChip(
 }) async {
   final matches = find.widgetWithText(ChoiceChip, label);
   final chip = first ? matches.first : matches;
+  await tester.ensureVisible(chip);
+  await tester.tap(chip);
+  await tester.pump();
+}
+
+Future<void> _tapEventChip(
+  WidgetTester tester, {
+  required int eventIndex,
+  required String field,
+  required int value,
+}) async {
+  final card = tester.widget<DigestiveEventCard>(
+    find.byType(DigestiveEventCard).at(eventIndex),
+  );
+  final chip = find.byKey(ValueKey('digestive-${card.event.id}-$field-$value'));
   await tester.ensureVisible(chip);
   await tester.tap(chip);
   await tester.pump();
