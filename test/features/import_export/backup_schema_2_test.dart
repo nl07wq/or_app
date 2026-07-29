@@ -9,6 +9,7 @@ import 'package:or_app/core/models/digestive_event.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
@@ -24,6 +25,7 @@ import 'package:or_app/features/import_export/services/backup_import_service.dar
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
 import 'package:or_app/features/training/models/custom_training_exercise.dart';
 import 'package:or_app/features/training/models/persisted_custom_training_exercise_record.dart';
+import 'package:or_app/features/training/models/persisted_training_record.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
@@ -328,6 +330,82 @@ void main() {
       );
     },
   );
+
+  test('Schema 2.0 exports and imports Training record v2 unchanged', () async {
+    final timestamp = DateTime.utc(2026, 7, 29, 9);
+    final envelope = PersistedTrainingRecord.v2(
+      id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+      localDate: '2026-07-29',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      data: TrainingSessionV2(
+        date: '2026-07-29T18:00:00+09:00',
+        sessionName: 'Upper Body',
+        sessionGrade: TrainingSessionGrade.sMinus,
+        dynamicStretchCompleted: true,
+        cooldownStretchCompleted: false,
+        overallEvaluation: 'Complete',
+      ),
+    ).toRecord();
+    database.seed(
+      IndexedDbStoreNames.trainingRecords,
+      envelope['id']! as String,
+      envelope,
+    );
+    final package = await BackupExportService(
+      database: database,
+      controller: controller,
+    ).create();
+    final restoredDatabase = FakeIndexedDbDatabase();
+    final service = BackupImportService(
+      database: restoredDatabase,
+      controller: AppInitializationController()..markReady(),
+      restore: () async {},
+    );
+
+    final plan = await service.dryRun(
+      const BackupPackageCodec().decode(BackupExportService.encode(package)),
+      BackupImportMode.replaceAll,
+    );
+    expect((await service.execute(plan)).success, isTrue);
+    final restoredEnvelope = await restoredDatabase.findById(
+      IndexedDbStoreNames.trainingRecords,
+      envelope['id']! as String,
+    );
+
+    expect(package.schemaVersion, 2);
+    expect(package.databaseVersion, 4);
+    expect(restoredEnvelope, envelope);
+    final restored = PersistedTrainingRecord.fromRecord(restoredEnvelope!);
+    expect(restored.recordVersion, 2);
+    expect(restored.dataV2.sessionName, 'Upper Body');
+    expect(restored.dataV2.sessionGrade, TrainingSessionGrade.sMinus);
+  });
+
+  test('Schema 2.0 rejects unknown Training record versions', () async {
+    final timestamp = DateTime.utc(2026, 7, 29, 9).toIso8601String();
+    database.seed(
+      IndexedDbStoreNames.trainingRecords,
+      'training:00112233-4455-4677-8899-aabbccddeeff',
+      {
+        'id': 'training:00112233-4455-4677-8899-aabbccddeeff',
+        'recordVersion': 3,
+        'localDate': '2026-07-29',
+        'createdAt': timestamp,
+        'updatedAt': timestamp,
+        'data': const {
+          'date': '2026-07-29',
+          'exercises': <Object?>[],
+          'cardioEntries': <Object?>[],
+        },
+      },
+    );
+
+    await expectLater(
+      BackupExportService(database: database, controller: controller).create(),
+      throwsA(isA<FormatException>()),
+    );
+  });
 
   test(
     'Schema 2.0 round trips digestive events and preserves Activity Drafts',
