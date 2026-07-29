@@ -8,6 +8,7 @@ import 'models/persisted_training_record.dart';
 import 'widgets/training_summary_card.dart';
 import 'widgets/training_exercise_detail_card.dart';
 import 'widgets/training_session_summary_card.dart';
+import 'widgets/training_v2_record_detail.dart';
 
 class TrainingDetailPage extends StatelessWidget {
   final TrainingRecord record;
@@ -16,6 +17,12 @@ class TrainingDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (record.readModel.v2Data != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('TRAINING')),
+        body: ListView(children: [TrainingV2RecordDetail(record: record)]),
+      );
+    }
     final session = record.session;
     final exerciseCount = session.exercises.length;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/cardio_entry_v2.dart';
+import 'package:or_app/core/models/training_equipment_snapshot.dart';
 import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
@@ -51,15 +52,45 @@ void main() {
   testWidgets('v2 detail is visibly read-only and renders common data', (
     tester,
   ) async {
+    final database = FakeIndexedDbDatabase();
+    final persisted = PersistedTrainingRecord.v2(
+      id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+      localDate: '2026-07-30',
+      createdAt: DateTime.utc(2026, 7, 30, 9),
+      updatedAt: DateTime.utc(2026, 7, 30, 10),
+      data: _v2Session(),
+    );
+    database.seed(
+      IndexedDbStoreNames.trainingRecords,
+      persisted.id,
+      persisted.toRecord(),
+    );
+    final before = database.rawRecord(
+      IndexedDbStoreNames.trainingRecords,
+      persisted.id,
+    );
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     final record = TrainingRecord.fromReadModel(_readModel(_v2Session()));
 
     await tester.pumpWidget(
       MaterialApp(home: TrainingDetailPage(record: record)),
     );
+    await tester.pumpAndSettle();
 
     expect(find.text('READ ONLY — Training Record v2'), findsOneWidget);
     expect(find.text('Bench Press'), findsOneWidget);
     expect(find.textContaining('v2 memo'), findsWidgets);
+    expect(find.text('Equipment Power Rack'), findsOneWidget);
+    expect(find.text('Grade A'), findsOneWidget);
+    expect(find.textContaining('Main Sets 1'), findsOneWidget);
+    expect(find.textContaining('Personal Record 82.5 kg x 8'), findsOneWidget);
+    expect(find.textContaining('Next Target 85 kg'), findsOneWidget);
+    expect(
+      database.rawRecord(IndexedDbStoreNames.trainingRecords, persisted.id),
+      before,
+    );
   });
 
   test('v2 contributes common counts but not cardio calories', () async {
@@ -190,11 +221,21 @@ TrainingSessionV2 _v2Session() {
   return TrainingSessionV2(
     date: '2026-07-30T18:30:00+09:00',
     sessionName: 'Upper',
+    sessionGrade: TrainingSessionGrade.a,
     memo: 'v2 memo',
     exercises: [
       TrainingExerciseV2(
         exerciseName: 'Bench Press',
         order: 1,
+        equipment: TrainingEquipmentSnapshot(
+          catalogId: 'power_rack',
+          name: 'Power Rack',
+        ),
+        nextTarget: TrainingNextTarget(
+          targetWeightKg: 85,
+          targetReps: const [8],
+          notes: 'Stay controlled',
+        ),
         sets: [
           TrainingSetV2(
             setNo: 1,
