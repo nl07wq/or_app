@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/cardio_entry.dart';
-import '../../core/models/training_session.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import 'models/persisted_training_record.dart';
 import 'widgets/training_summary_card.dart';
 import 'widgets/training_exercise_detail_card.dart';
 import 'widgets/training_session_summary_card.dart';
 
 class TrainingDetailPage extends StatelessWidget {
-  final TrainingSession session;
+  final TrainingRecord record;
 
-  const TrainingDetailPage({super.key, required this.session});
+  const TrainingDetailPage({super.key, required this.record});
 
   @override
   Widget build(BuildContext context) {
+    final session = record.session;
     final exerciseCount = session.exercises.length;
 
     final setCount = session.exercises.fold<int>(
@@ -50,11 +51,24 @@ class TrainingDetailPage extends StatelessWidget {
             setCount: setCount,
             totalVolume: totalVolume,
           ),
+          if (!record.isEditable)
+            OperationCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('READ ONLY — Training Record v2'),
+                  if (record.readModel.displaySessionName != null)
+                    Text(record.readModel.displaySessionName!),
+                  if (record.readModel.cardioEntryCount > 0)
+                    Text('Cardio: ${record.readModel.cardioEntryCount}'),
+                ],
+              ),
+            ),
 
           ...session.exercises.map(
             (exercise) => TrainingExerciseDetailCard(exercise: exercise),
           ),
-          if (session.cardioEntries.isNotEmpty)
+          if (record.isEditable && session.cardioEntries.isNotEmpty)
             _CardioDetailCard(entries: session.cardioEntries),
           TrainingSessionSummaryCard(
             exerciseCount: exerciseCount,

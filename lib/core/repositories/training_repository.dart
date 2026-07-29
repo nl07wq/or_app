@@ -84,9 +84,23 @@ class TrainingRepository {
     ]);
   }
 
+  static Future<List<TrainingRecordReadModel>> getReadModels() async {
+    PersistenceAccess.requireReadable('training.getReadModels');
+    if (PersistenceAccess.canReadIndexedDb) {
+      return AppRepositoryRegistry.container.training.findAllRecords();
+    }
+    return List.unmodifiable(
+      (await getRecords()).map((record) => record.readModel),
+    );
+  }
+
   static Future<List<TrainingSession>> getAll() async {
-    final records = await getRecords();
-    return List.unmodifiable(records.map((record) => record.session));
+    final records = await getReadModels();
+    return List.unmodifiable(
+      records
+          .where((record) => record.isEditable)
+          .map((record) => PersistedTrainingRecord.copySession(record.v1Data!)),
+    );
   }
 
   static Future<void> deleteById(String id) async {

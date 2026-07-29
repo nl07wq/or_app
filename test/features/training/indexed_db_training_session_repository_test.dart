@@ -1,8 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/training_exercise.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/core/models/training_session.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
+import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/repositories/repository_exception.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
@@ -214,6 +218,156 @@ void main() {
       ),
     );
   });
+
+  test('reads v1 and v2 records through every mixed read API', () async {
+    const v1Id = 'training:00112233-4455-4677-8899-aabbccddeeff';
+    const v2Id = 'training:10112233-4455-4677-8899-aabbccddeeff';
+    await repository.saveWithId(
+      v1Id,
+      _session(date: '2026-07-26T08:00:00+09:00', memo: 'v1'),
+    );
+    _seedV2(database, id: v2Id);
+
+    final all = await repository.findAll();
+    expect(all.map((record) => record.id), [v2Id, v1Id]);
+    expect(all.first.recordVersion, 2);
+    expect(all.first.isEditable, isFalse);
+    expect(all.last.recordVersion, 1);
+    expect((await repository.findById(v2Id))?.recordVersion, 2);
+    expect(
+      (await repository.findByLocalDate(
+        '2026-07-26',
+      )).map((record) => record.id),
+      [v2Id, v1Id],
+    );
+    expect(
+      (await repository.findAllRecords()).map((record) => record.recordVersion),
+      [2, 1],
+    );
+  });
+
+  test('mixed read issues do not hide valid v1 and v2 records', () async {
+    const v1Id = 'training:00112233-4455-4677-8899-aabbccddeeff';
+    const v2Id = 'training:10112233-4455-4677-8899-aabbccddeeff';
+    await repository.saveWithId(v1Id, _session());
+    _seedV2(database, id: v2Id);
+    database.seed(IndexedDbStoreNames.trainingRecords, 'unknown', {
+      'id': 'unknown',
+      'recordVersion': 99,
+    });
+    const invalidV2Id = 'training:20112233-4455-4677-8899-aabbccddeeff';
+    final invalidV2 = PersistedTrainingRecord.v2(
+      id: invalidV2Id,
+      localDate: '2026-07-26',
+      createdAt: DateTime.utc(2026, 7, 26, 9),
+      updatedAt: DateTime.utc(2026, 7, 26, 10),
+      data: TrainingSessionV2(date: '2026-07-26'),
+    ).toRecord();
+    invalidV2['data'] = {
+      ...Map<String, Object?>.from(invalidV2['data']! as Map),
+      'exercises': 'bad',
+    };
+    database.seed(IndexedDbStoreNames.trainingRecords, invalidV2Id, invalidV2);
+
+    final result = await repository.findAllWithIssues();
+
+    expect(result.records.map((record) => record.id), [v2Id, v1Id]);
+    expect(
+      result.issues.map((issue) => issue.recordId),
+      unorderedEquals(['unknown', invalidV2Id]),
+    );
+  });
+
+  test('v2 projection is read-only and cannot overwrite source JSON', () async {
+    const id = 'training:10112233-4455-4677-8899-aabbccddeeff';
+    _seedV2(database, id: id);
+    final before = Map<String, Object?>.from(
+      (await database.findById(IndexedDbStoreNames.trainingRecords, id))!,
+    );
+    final projection = (await repository.findById(id))!;
+
+    expect(projection.session.memo, 'v2 memo');
+    expect(projection.session.exercises.single.sets.single.weight, 90);
+    expect(projection.session.cardioEntries, isEmpty);
+    expect(projection.readModel.cardioEntryCount, 1);
+    await expectLater(
+      repository.updateById(id, projection.session),
+      throwsA(isA<RepositoryException>()),
+    );
+    await expectLater(
+      repository.saveWithId(id, projection.session),
+      throwsA(isA<RepositoryException>()),
+    );
+    await expectLater(
+      repository.saveNew(projection.session),
+      throwsA(isA<RepositoryException>()),
+    );
+    await expectLater(
+      repository.deleteById(id),
+      throwsA(isA<RepositoryException>()),
+    );
+    await expectLater(repository.clear(), throwsA(isA<RepositoryException>()));
+    expect(
+      await database.findById(IndexedDbStoreNames.trainingRecords, id),
+      before,
+    );
+  });
+
+  test('findAllSessions excludes v2 from v1 calculations', () async {
+    const v1Id = 'training:00112233-4455-4677-8899-aabbccddeeff';
+    const v2Id = 'training:10112233-4455-4677-8899-aabbccddeeff';
+    await repository.saveWithId(v1Id, _session(memo: 'v1'));
+    _seedV2(database, id: v2Id);
+
+    final sessions = await repository.findAllSessions();
+
+    expect(sessions, hasLength(1));
+    expect(sessions.single.memo, 'v1');
+  });
+}
+
+void _seedV2(
+  FakeIndexedDbDatabase database, {
+  required String id,
+  String date = '2026-07-26T18:00:00+09:00',
+}) {
+  database.seed(
+    IndexedDbStoreNames.trainingRecords,
+    id,
+    PersistedTrainingRecord.v2(
+      id: id,
+      localDate: date.substring(0, 10),
+      createdAt: DateTime.utc(2026, 7, 26, 9),
+      updatedAt: DateTime.utc(2026, 7, 26, 10),
+      data: TrainingSessionV2(
+        date: date,
+        sessionName: 'Evening',
+        memo: 'v2 memo',
+        exercises: [
+          TrainingExerciseV2(
+            exerciseName: 'Squat',
+            order: 1,
+            sets: [
+              TrainingSetV2(
+                setNo: 1,
+                setType: TrainingSetType.main,
+                weightKg: 90,
+                reps: 5,
+              ),
+            ],
+          ),
+        ],
+        cardioEntries: [
+          CardioEntryV2(
+            purpose: CardioPurpose.main,
+            type: CardioType.running,
+            durationSeconds: 90,
+            estimatedCaloriesKcal: 20,
+          ),
+        ],
+      ),
+    ).toRecord(),
+  );
 }
 
 TrainingSession _session({

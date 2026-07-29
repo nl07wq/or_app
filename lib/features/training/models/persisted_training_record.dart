@@ -1,6 +1,9 @@
 import '../../../core/models/training_session.dart';
 import '../../../core/models/training_session_v2.dart';
 
+export 'training_record_read_model.dart'
+    show TrainingRecord, TrainingRecordReadModel;
+
 class TrainingMigrationSource {
   final String migrationId;
   final String sourceSystem;
@@ -50,13 +53,6 @@ class TrainingMigrationSource {
       duplicateOrdinal: duplicateOrdinal,
     );
   }
-}
-
-class TrainingRecord {
-  final String id;
-  final TrainingSession session;
-
-  const TrainingRecord({required this.id, required this.session});
 }
 
 class PersistedTrainingRecord {

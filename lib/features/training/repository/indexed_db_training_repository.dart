@@ -60,7 +60,7 @@ class IndexedDbTrainingSessionRepository
 
   @override
   Future<TrainingRecord> updateById(String id, TrainingSession session) async {
-    final existing = await findById(id);
+    final existing = await findRecordById(id);
     if (existing == null) {
       throw RepositoryException(
         operation: 'training.updateById',
@@ -68,6 +68,7 @@ class IndexedDbTrainingSessionRepository
         cause: StateError('TRAINING record does not exist: $id'),
       );
     }
+    _requireEditable(existing, operation: 'training.updateById');
     return _put(id, session, operation: 'training.updateById');
   }
 
@@ -77,6 +78,15 @@ class IndexedDbTrainingSessionRepository
     required String operation,
   }) async {
     try {
+      if (TrainingRecordReadModel.isReadOnlyProjection(session)) {
+        throw RepositoryException(
+          operation: operation,
+          code: RepositoryErrorCode.invalidRecord,
+          cause: StateError(
+            'TRAINING v2 compatibility projection is read-only.',
+          ),
+        );
+      }
       PersistedTrainingRecord.validateId(id);
       final copied = PersistedTrainingRecord.copySession(session);
       final localDate = PersistedTrainingRecord.localDateFromSession(copied);
@@ -92,6 +102,9 @@ class IndexedDbTrainingSessionRepository
           final existing = existingValue == null
               ? null
               : PersistedTrainingRecord.fromRecord(existingValue);
+          if (existing != null && existing.recordVersion != 1) {
+            _requireEditable(_toReadModel(existing), operation: operation);
+          }
           final timestamp = _now().toUtc();
           saved = PersistedTrainingRecord(
             id: id,
@@ -107,10 +120,7 @@ class IndexedDbTrainingSessionRepository
           );
         },
       );
-      return TrainingRecord(
-        id: saved.id,
-        session: PersistedTrainingRecord.copySession(saved.data),
-      );
+      return TrainingRecord.fromReadModel(_toReadModel(saved));
     } on RepositoryException {
       rethrow;
     } on FormatException catch (error) {
@@ -130,6 +140,12 @@ class IndexedDbTrainingSessionRepository
 
   @override
   Future<TrainingRecord?> findById(String id) async {
+    final record = await findRecordById(id);
+    return record == null ? null : TrainingRecord.fromReadModel(record);
+  }
+
+  @override
+  Future<TrainingRecordReadModel?> findRecordById(String id) async {
     try {
       PersistedTrainingRecord.validateId(id);
       final value = await _database.findById(
@@ -138,7 +154,7 @@ class IndexedDbTrainingSessionRepository
       );
       if (value == null) return null;
       final record = PersistedTrainingRecord.fromRecord(value);
-      return _toTrainingRecord(record);
+      return _toReadModel(record);
     } on FormatException catch (error) {
       throw RepositoryException(
         operation: 'training.findById',
@@ -152,6 +168,12 @@ class IndexedDbTrainingSessionRepository
 
   @override
   Future<List<TrainingRecord>> findAll() async {
+    final records = await findAllRecords();
+    return List.unmodifiable(records.map(TrainingRecord.fromReadModel));
+  }
+
+  @override
+  Future<List<TrainingRecordReadModel>> findAllRecords() async {
     final result = await findAllWithIssues();
     if (result.hasIssues) {
       throw RepositoryException(
@@ -160,25 +182,33 @@ class IndexedDbTrainingSessionRepository
         cause: result.issues,
       );
     }
-    return List.unmodifiable(result.records.map(_toTrainingRecord));
+    return List.unmodifiable(result.records.map(_toReadModel));
   }
 
   @override
   Future<List<TrainingSession>> findAllSessions() async {
-    final records = await findAll();
-    return List.unmodifiable(records.map((record) => record.session));
+    final records = await findAllRecords();
+    return List.unmodifiable(
+      records
+          .where((record) => record.isEditable)
+          .map((record) => PersistedTrainingRecord.copySession(record.v1Data!)),
+    );
   }
 
   @override
   Future<List<TrainingRecord>> findByLocalDate(String localDate) async {
+    final records = await findRecordsByLocalDate(localDate);
+    return List.unmodifiable(records.map(TrainingRecord.fromReadModel));
+  }
+
+  @override
+  Future<List<TrainingRecordReadModel>> findRecordsByLocalDate(
+    String localDate,
+  ) async {
     PersistedTrainingRecord.validateLocalDate(localDate);
-    final records = await findAll();
+    final records = await findAllRecords();
     return List.unmodifiable(
-      records.where(
-        (record) =>
-            PersistedTrainingRecord.localDateFromSession(record.session) ==
-            localDate,
-      ),
+      records.where((record) => record.localDate == localDate),
     );
   }
 
@@ -204,10 +234,18 @@ class IndexedDbTrainingSessionRepository
         }
       }
       records.sort((first, second) {
-        final firstDate = DateTime.parse(first.data.date);
-        final secondDate = DateTime.parse(second.data.date);
+        final firstDate =
+            DateTime.tryParse(first.sessionDate) ??
+            DateTime.tryParse(first.localDate) ??
+            first.createdAt;
+        final secondDate =
+            DateTime.tryParse(second.sessionDate) ??
+            DateTime.tryParse(second.localDate) ??
+            second.createdAt;
         final byDate = secondDate.compareTo(firstDate);
-        return byDate != 0 ? byDate : first.id.compareTo(second.id);
+        if (byDate != 0) return byDate;
+        final byUpdatedAt = second.updatedAt.compareTo(first.updatedAt);
+        return byUpdatedAt != 0 ? byUpdatedAt : first.id.compareTo(second.id);
       });
       return TrainingReadResult(records: records, issues: issues);
     } catch (error) {
@@ -219,7 +257,13 @@ class IndexedDbTrainingSessionRepository
   Future<void> deleteById(String id) async {
     try {
       PersistedTrainingRecord.validateId(id);
+      final record = await findRecordById(id);
+      if (record != null) {
+        _requireEditable(record, operation: 'training.deleteById');
+      }
       await _database.deleteById(IndexedDbStoreNames.trainingRecords, id);
+    } on RepositoryException {
+      rethrow;
     } catch (error) {
       throw RepositoryException(operation: 'training.deleteById', cause: error);
     }
@@ -228,16 +272,52 @@ class IndexedDbTrainingSessionRepository
   @override
   Future<void> clear() async {
     try {
+      final records = await findAllRecords();
+      if (records.any((record) => !record.isEditable)) {
+        throw StateError('TRAINING v2 records are read-only.');
+      }
       await _database.clear(IndexedDbStoreNames.trainingRecords);
+    } on RepositoryException {
+      rethrow;
     } catch (error) {
       throw RepositoryException(operation: 'training.clear', cause: error);
     }
   }
 
-  static TrainingRecord _toTrainingRecord(PersistedTrainingRecord record) {
-    return TrainingRecord(
+  static TrainingRecordReadModel _toReadModel(PersistedTrainingRecord record) {
+    final source = record.migrationSource?.toJson();
+    if (record.recordVersion == 1) {
+      return TrainingRecordReadModel.v1(
+        id: record.id,
+        localDate: record.localDate,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        migrationSource: source,
+        data: record.data,
+      );
+    }
+    return TrainingRecordReadModel.v2(
       id: record.id,
-      session: PersistedTrainingRecord.copySession(record.data),
+      localDate: record.localDate,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      migrationSource: source,
+      data: record.dataV2,
     );
+  }
+
+  static void _requireEditable(
+    TrainingRecordReadModel record, {
+    required String operation,
+  }) {
+    if (!record.isEditable) {
+      throw RepositoryException(
+        operation: operation,
+        code: RepositoryErrorCode.invalidRecord,
+        cause: StateError(
+          'TRAINING recordVersion ${record.recordVersion} is read-only.',
+        ),
+      );
+    }
   }
 }

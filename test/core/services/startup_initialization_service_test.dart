@@ -8,6 +8,7 @@ import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/repositories/daily_log_confirmation_repository.dart';
 import 'package:or_app/core/repositories/food_repository.dart';
@@ -21,6 +22,7 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/migration/status_migration_service.dart';
+import 'package:or_app/features/training/models/persisted_training_record.dart';
 import 'package:or_app/features/training/services/exercise_catalog_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -100,6 +102,87 @@ void main() {
       expect(await TrainingRepository.getRecords(), hasLength(1));
     },
   );
+
+  test('completed startup accepts a mixed v1 and v2 training store', () async {
+    final database = FakeIndexedDbDatabase();
+    final firstController = AppInitializationController();
+    await StartupInitializationService(
+      controller: firstController,
+      openDatabase: () async => database,
+      restore: () async {},
+      isWeb: true,
+    ).initialize();
+    expect(firstController.value.mode, PersistenceMode.indexedDbReadWrite);
+
+    await database.put(
+      IndexedDbStoreNames.trainingRecords,
+      PersistedTrainingRecord.v2(
+        id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+        localDate: '2026-07-30',
+        createdAt: DateTime.utc(2026, 7, 30, 9),
+        updatedAt: DateTime.utc(2026, 7, 30, 10),
+        data: TrainingSessionV2(
+          date: '2026-07-30T18:00:00+09:00',
+          sessionName: 'Read only',
+        ),
+      ).toRecord(),
+    );
+
+    final secondController = AppInitializationController();
+    await StartupInitializationService(
+      controller: secondController,
+      openDatabase: () async => database,
+      restore: () async {},
+      isWeb: true,
+    ).initialize();
+
+    expect(secondController.value.mode, PersistenceMode.indexedDbReadWrite);
+    expect(
+      (await AppRepositoryRegistry.container.training.findAll())
+          .single
+          .recordVersion,
+      2,
+    );
+  });
+
+  for (final variant in ['unknown version', 'invalid v2']) {
+    test('startup rejects a training record with $variant', () async {
+      final database = FakeIndexedDbDatabase();
+      await StartupInitializationService(
+        controller: AppInitializationController(),
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+      final persisted = PersistedTrainingRecord.v2(
+        id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+        localDate: '2026-07-30',
+        createdAt: DateTime.utc(2026, 7, 30, 9),
+        updatedAt: DateTime.utc(2026, 7, 30, 10),
+        data: TrainingSessionV2(date: '2026-07-30'),
+      ).toRecord();
+      if (variant == 'unknown version') {
+        persisted['recordVersion'] = 99;
+      } else {
+        persisted['data'] = {
+          ...Map<String, Object?>.from(persisted['data']! as Map),
+          'cardioEntries': 'bad',
+        };
+      }
+      await database.put(IndexedDbStoreNames.trainingRecords, persisted);
+      final controller = AppInitializationController();
+
+      await StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+
+      expect(controller.value.mode, PersistenceMode.failed);
+      expect(controller.value.errorCode, 'partialCorruption');
+    });
+  }
 
   test('does not expose ready when database open fails', () async {
     final controller = AppInitializationController();

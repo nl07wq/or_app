@@ -34,6 +34,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
   }
 
   Future<void> _deleteRecord(TrainingRecord record) async {
+    if (!record.isEditable) return;
     final result = await showHistoryDeleteDialog(
       context,
       title: 'Training Session',
@@ -78,15 +79,11 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
 
             return ListView.separated(
               itemCount: sessions.length,
-              separatorBuilder: (_, __) => AppSpacing.gapMD,
+              separatorBuilder: (_, _) => AppSpacing.gapMD,
               itemBuilder: (context, index) {
                 final record = sessions[index];
+                final readModel = record.readModel;
                 final session = record.session;
-
-                final setCount = session.exercises.fold<int>(
-                  0,
-                  (sum, exercise) => sum + exercise.sets.length,
-                );
 
                 return OperationCard(
                   selectable: true,
@@ -94,7 +91,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => TrainingDetailPage(session: session),
+                        builder: (_) => TrainingDetailPage(record: record),
                       ),
                     );
                   },
@@ -112,7 +109,8 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                             AppSpacing.gapSM,
 
                             Text(
-                              '${session.exercises.length} Ex   ${setCount} Sets',
+                              '${readModel.exerciseCount} Ex   '
+                              '${readModel.setCount} Sets',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
 
@@ -125,15 +123,23 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
-                            if (session.cardioEntries.isNotEmpty) ...[
+                            if (readModel.cardioEntryCount > 0) ...[
                               AppSpacing.gapMD,
                               Text(
-                                'Cardio: ${session.cardioEntries.length}',
+                                'Cardio: ${readModel.cardioEntryCount}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
+                              if (readModel.isEditable)
+                                Text(
+                                  'Cardio Time: ${session.cardioEntries.fold<int>(0, (sum, entry) => sum + entry.durationMinutes)} min',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                            ],
+                            if (!record.isEditable) ...[
+                              AppSpacing.gapSM,
                               Text(
-                                'Cardio Time: ${session.cardioEntries.fold<int>(0, (sum, entry) => sum + entry.durationMinutes)} min',
-                                style: Theme.of(context).textTheme.bodyMedium,
+                                'READ ONLY',
+                                style: Theme.of(context).textTheme.labelMedium,
                               ),
                             ],
                           ],
@@ -143,7 +149,9 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
                         tooltip: 'Edit',
-                        onPressed: appInitializationController.value.isReadOnly
+                        onPressed:
+                            appInitializationController.value.isReadOnly ||
+                                !record.isEditable
                             ? null
                             : () async {
                                 final updated = await Navigator.push<bool>(
@@ -169,7 +177,9 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                           color: Theme.of(context).colorScheme.error,
                         ),
                         tooltip: 'Delete',
-                        onPressed: appInitializationController.value.isReadOnly
+                        onPressed:
+                            appInitializationController.value.isReadOnly ||
+                                !record.isEditable
                             ? null
                             : () {
                                 _deleteRecord(record);

@@ -1,5 +1,6 @@
 import '../../../core/models/training_session.dart';
 import '../models/persisted_training_record.dart';
+import '../models/training_record_read_model.dart';
 
 abstract interface class TrainingSessionRepository {
   Future<TrainingRecord> saveNew(TrainingSession session);
@@ -11,6 +12,14 @@ abstract interface class TrainingSessionRepository {
   Future<List<TrainingRecord>> findAll();
 
   Future<List<TrainingRecord>> findByLocalDate(String localDate);
+
+  Future<TrainingRecordReadModel?> findRecordById(String id);
+
+  Future<List<TrainingRecordReadModel>> findAllRecords();
+
+  Future<List<TrainingRecordReadModel>> findRecordsByLocalDate(
+    String localDate,
+  );
 
   Future<TrainingRecord> updateById(String id, TrainingSession session);
 
