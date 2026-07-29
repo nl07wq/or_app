@@ -576,23 +576,13 @@ class TrainingMigrationService {
   Future<TrainingMigrationResult> _verifyCompleted(
     IndexedDbMigrationMetadata metadata,
   ) async {
+    _validateCompletedMetadata(metadata);
     final expectedTrainingIds =
         metadata.expectedRecordIds[IndexedDbStoreNames.trainingRecords] ??
         const [];
     final expectedQuarantineIds =
         metadata.expectedRecordIds[IndexedDbStoreNames.migrationQuarantine] ??
         const [];
-    final actualRecords = <PersistedTrainingRecord>[];
-    for (final id in expectedTrainingIds) {
-      final value = await _database.findById(
-        IndexedDbStoreNames.trainingRecords,
-        id,
-      );
-      if (value != null) {
-        actualRecords.add(PersistedTrainingRecord.fromRecord(value));
-      }
-    }
-    final actualTrainingIds = actualRecords.map((record) => record.id).toSet();
     final quarantineValues = await _database.findAll(
       IndexedDbStoreNames.migrationQuarantine,
     );
@@ -602,17 +592,9 @@ class TrainingMigrationService {
             migrationId)
           value['id'] as String,
     };
-    final sortedIds = actualTrainingIds.toList()..sort();
-    if (!_sameSet(actualTrainingIds, expectedTrainingIds) ||
-        !_sameSet(actualQuarantineIds, expectedQuarantineIds) ||
-        metadata.targetIdDigest != _digest(sortedIds) ||
-        metadata.targetDigest != _recordsDigest(actualRecords)) {
-      throw RepositoryException(
-        operation: 'training.migration.verifyCompleted',
-        code: RepositoryErrorCode.verificationFailed,
-        cause: const FormatException(
-          'Completed TRAINING migration no longer matches metadata.',
-        ),
+    if (!_sameSet(actualQuarantineIds, expectedQuarantineIds)) {
+      throw _completedVerificationFailure(
+        'Completed TRAINING migration quarantine no longer matches metadata.',
       );
     }
     return TrainingMigrationResult(
@@ -623,8 +605,110 @@ class TrainingMigrationService {
       conflictCount: metadata.validCounts['conflictRecordCount'] ?? 0,
       writtenCount: metadata.validCounts['writtenRecordCount'] ?? 0,
       existingMatchCount: metadata.validCounts['existingMatchCount'] ?? 0,
-      trainingRecordIds: actualTrainingIds,
+      trainingRecordIds: expectedTrainingIds,
       quarantineRecordIds: actualQuarantineIds,
+    );
+  }
+
+  static void _validateCompletedMetadata(IndexedDbMigrationMetadata metadata) {
+    final expectedTrainingIds =
+        metadata.expectedRecordIds[IndexedDbStoreNames.trainingRecords];
+    final expectedQuarantineIds =
+        metadata.expectedRecordIds[IndexedDbStoreNames.migrationQuarantine];
+    final sourceCount = metadata.sourceCounts[TrainingLegacyReader.sourceKey];
+    final validCount = metadata.validCounts['validRecordCount'];
+    final invalidCount = metadata.validCounts['invalidRecordCount'];
+    final conflictCount = metadata.validCounts['conflictRecordCount'];
+    final writtenCount = metadata.validCounts['writtenRecordCount'];
+    final verifiedCount = metadata.validCounts['verifiedRecordCount'];
+    final existingMatchCount = metadata.validCounts['existingMatchCount'];
+    final quarantinedInvalid = metadata.quarantinedCounts['invalid'];
+    final quarantinedConflict = metadata.quarantinedCounts['conflict'];
+    final completedAt = metadata.completedAt;
+    final timestampsAreOrdered =
+        completedAt != null &&
+        !metadata.updatedAt.isBefore(metadata.startedAt) &&
+        !completedAt.isBefore(metadata.startedAt) &&
+        !completedAt.isAfter(metadata.updatedAt);
+    final counts = [
+      sourceCount,
+      validCount,
+      invalidCount,
+      conflictCount,
+      writtenCount,
+      verifiedCount,
+      existingMatchCount,
+      quarantinedInvalid,
+      quarantinedConflict,
+    ];
+    final countsAreValid =
+        counts.every((count) => count != null && count >= 0) &&
+        validCount! + invalidCount! + conflictCount! == sourceCount &&
+        writtenCount! + existingMatchCount! == validCount &&
+        verifiedCount! == validCount &&
+        quarantinedInvalid == invalidCount &&
+        quarantinedConflict == conflictCount &&
+        expectedTrainingIds != null &&
+        expectedTrainingIds.length == validCount &&
+        expectedQuarantineIds != null &&
+        expectedQuarantineIds.length == invalidCount + conflictCount;
+    final digests = [
+      metadata.sourceDigest,
+      metadata.sourceIdDigest,
+      metadata.targetIdDigest,
+      metadata.targetDigest,
+    ];
+    if (metadata.id != migrationId ||
+        metadata.source != TrainingLegacyReader.sourceSystem ||
+        !IndexedDbSchema.supportsMigrationMetadataVersion(
+          metadata.targetDatabaseVersion,
+        ) ||
+        metadata.status != IndexedDbMigrationStatus.completed ||
+        completedAt == null ||
+        metadata.attempt < 1 ||
+        !timestampsAreOrdered ||
+        expectedTrainingIds == null ||
+        expectedQuarantineIds == null ||
+        !_validExpectedIds(expectedTrainingIds, _isTrainingRecordId) ||
+        !_validExpectedIds(
+          expectedQuarantineIds,
+          _isTrainingQuarantineRecordId,
+        ) ||
+        !countsAreValid ||
+        !digests.every(_isDigest) ||
+        metadata.targetIdDigest != _digest(expectedTrainingIds)) {
+      throw _completedVerificationFailure(
+        'Completed TRAINING migration metadata is invalid.',
+      );
+    }
+  }
+
+  static bool _validExpectedIds(
+    List<String> ids,
+    bool Function(String id) validates,
+  ) {
+    return ids.toSet().length == ids.length && ids.every(validates);
+  }
+
+  static bool _isTrainingRecordId(String id) {
+    return RegExp(r'^legacy-training:[0-9a-f]{8}:\d{4}$').hasMatch(id);
+  }
+
+  static bool _isTrainingQuarantineRecordId(String id) {
+    return RegExp(
+      r'^quarantine:training:(invalid|legacy-conflict|target-conflict):\d{8}$',
+    ).hasMatch(id);
+  }
+
+  static bool _isDigest(String? value) {
+    return value != null && RegExp(r'^[0-9a-f]{8}$').hasMatch(value);
+  }
+
+  static RepositoryException _completedVerificationFailure(String message) {
+    return RepositoryException(
+      operation: 'training.migration.verifyCompleted',
+      code: RepositoryErrorCode.verificationFailed,
+      cause: FormatException(message),
     );
   }
 

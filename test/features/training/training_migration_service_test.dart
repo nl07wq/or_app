@@ -381,6 +381,172 @@ void main() {
     expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
+  test('completed Migration permits normal TRAINING Store changes', () async {
+    SharedPreferences.setMockInitialValues({
+      legacyKey: [
+        jsonEncode(_session(memo: 'edit')),
+        jsonEncode(_session(date: '2026-07-27T10:15:00+09:00', memo: 'delete')),
+      ],
+    });
+    final database = FakeIndexedDbDatabase();
+    final service = _service(database, migrationTime);
+    final first = await service.migrate();
+    final ids = first.trainingRecordIds.toList()..sort();
+    final repository = IndexedDbTrainingSessionRepository(
+      database,
+      now: () => migrationTime.add(const Duration(days: 1)),
+    );
+
+    await repository.updateById(ids.first, _session(memo: 'edited'));
+    await repository.deleteById(ids.last);
+    const addedId = 'training:00000000-0000-4000-8000-000000000001';
+    await repository.saveWithId(
+      addedId,
+      _session(date: '2026-07-28T10:15:00+09:00', memo: 'added'),
+    );
+
+    final result = await service.migrate();
+
+    expect(result.alreadyCompleted, isTrue);
+    expect(result.trainingRecordIds, first.trainingRecordIds);
+    expect((await repository.findById(ids.first))?.session.memo, 'edited');
+    expect(await repository.findById(ids.last), isNull);
+    expect((await repository.findById(addedId))?.session.memo, 'added');
+  });
+
+  test(
+    'completed Migration permits REPLACE ALL equivalent and empty Store',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        legacyKey: [jsonEncode(_session(memo: 'legacy'))],
+      });
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      final first = await service.migrate();
+
+      await database.clear(IndexedDbStoreNames.trainingRecords);
+      const replacementId = 'training:00000000-0000-4000-8000-000000000002';
+      await IndexedDbTrainingSessionRepository(
+        database,
+        now: () => migrationTime.add(const Duration(days: 1)),
+      ).saveWithId(
+        replacementId,
+        _session(date: '2026-07-29T10:15:00+09:00', memo: 'replacement'),
+      );
+
+      final replaced = await service.migrate();
+      expect(replaced.alreadyCompleted, isTrue);
+      expect(replaced.trainingRecordIds, first.trainingRecordIds);
+      expect(
+        await database.findById(
+          IndexedDbStoreNames.trainingRecords,
+          replacementId,
+        ),
+        isNotNull,
+      );
+
+      await database.clear(IndexedDbStoreNames.trainingRecords);
+      expect((await service.migrate()).alreadyCompleted, isTrue);
+      expect(
+        await database.findAll(IndexedDbStoreNames.trainingRecords),
+        isEmpty,
+      );
+    },
+  );
+
+  test('completed Migration rejects invalid metadata contract', () async {
+    final mutations = <void Function(Map<String, Object?>)>[
+      (record) => record['id'] = 'wrong-migration-id',
+      (record) => record['source'] = 'wrong-source',
+      (record) => record['targetDatabaseVersion'] = 99,
+      (record) => record['completedAt'] = null,
+      (record) => record['attempt'] = 0,
+      (record) => record['sourceDigest'] = 'not-a-digest',
+      (record) => record['targetDigest'] = 'not-a-digest',
+      (record) => record['targetIdDigest'] = '00000000',
+      (record) {
+        final expected = Map<String, Object?>.from(
+          record['expectedRecordIds']! as Map,
+        )..remove(IndexedDbStoreNames.trainingRecords);
+        record['expectedRecordIds'] = expected;
+      },
+      (record) {
+        final expected = Map<String, Object?>.from(
+          record['expectedRecordIds']! as Map,
+        )..remove(IndexedDbStoreNames.migrationQuarantine);
+        record['expectedRecordIds'] = expected;
+      },
+      (record) {
+        final expected = Map<String, Object?>.from(
+          record['expectedRecordIds']! as Map,
+        )..[IndexedDbStoreNames.trainingRecords] = ['not-a-training-id'];
+        record['expectedRecordIds'] = expected;
+      },
+      (record) {
+        final counts = Map<String, Object?>.from(record['validCounts']! as Map)
+          ..['verifiedRecordCount'] = -1;
+        record['validCounts'] = counts;
+      },
+    ];
+
+    for (final mutate in mutations) {
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      SharedPreferences.setMockInitialValues({
+        legacyKey: [jsonEncode(_session())],
+      });
+      await service.migrate();
+      final metadata = _metadata(database).toRecord();
+      mutate(metadata);
+      database.seed(
+        IndexedDbStoreNames.migrationMetadata,
+        TrainingMigrationService.migrationId,
+        metadata,
+      );
+
+      await expectLater(service.migrate(), _isCompletedVerificationFailure);
+    }
+  });
+
+  test('completed Migration keeps strict quarantine verification', () async {
+    for (final addUnexpected in [false, true]) {
+      SharedPreferences.setMockInitialValues({
+        legacyKey: [jsonEncode(_session()), '{invalid'],
+      });
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      await service.migrate();
+      final quarantine = await _trainingQuarantine(database);
+      expect(quarantine, hasLength(1));
+
+      if (addUnexpected) {
+        final extra = IndexedDbQuarantinedRecord(
+          id: 'quarantine:training:invalid:99999999',
+          migrationId: TrainingMigrationService.migrationId,
+          sourceSystem: TrainingLegacyReader.sourceSystem,
+          sourceKey: TrainingLegacyReader.sourceKey,
+          sourceSection: TrainingLegacyReader.sourceKey,
+          sourceIndex: 99999999,
+          rawPayload: '{invalid',
+          errorCode: 'invalidJson',
+          errorMessage: 'unexpected audit record',
+          quarantinedAt: migrationTime,
+        );
+        await database.put(
+          IndexedDbStoreNames.migrationQuarantine,
+          extra.toRecord(),
+        );
+      } else {
+        await database.deleteById(
+          IndexedDbStoreNames.migrationQuarantine,
+          quarantine.single.id,
+        );
+      }
+
+      await expectLater(service.migrate(), _isCompletedVerificationFailure);
+    }
+  });
+
   test(
     'transaction failure remains incomplete and retry is idempotent',
     () async {
@@ -544,6 +710,20 @@ Future<List<IndexedDbQuarantinedRecord>> _trainingQuarantine(
       )
       .toList();
 }
+
+final _isCompletedVerificationFailure = throwsA(
+  isA<RepositoryException>()
+      .having(
+        (error) => error.operation,
+        'operation',
+        'training.migration.verifyCompleted',
+      )
+      .having(
+        (error) => error.code,
+        'code',
+        RepositoryErrorCode.verificationFailed,
+      ),
+);
 
 TrainingSession _session({
   String date = '2026-07-26T10:15:00+09:00',
