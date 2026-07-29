@@ -3,19 +3,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
-import 'package:or_app/core/models/training_exercise.dart';
-import 'package:or_app/core/models/training_session.dart';
-import 'package:or_app/core/models/training_set.dart';
-import 'package:or_app/features/morning/models/morning_fact.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
+import 'package:or_app/core/models/training_set_v2.dart';
+import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/training/models/training_exercise_controller.dart';
+import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/models/training_set_controller.dart';
 import 'package:or_app/features/training/training_entry_page.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
 import 'package:or_app/features/training/widgets/training_exercise_card.dart';
 import 'package:or_app/features/training/widgets/training_exercise_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   setUp(() {
@@ -101,57 +106,56 @@ void main() {
   testWidgets('history edit starts with every exercise and cardio collapsed', (
     tester,
   ) async {
-    morningFactNotifier.value = MorningFact(
-      date: DateTime(2026, 7, 26),
-      weight: 80,
-      bodyFat: null,
-      sleepDuration: const Duration(hours: 8),
-      sleepScore: 80,
-      workHours: 8,
-      footPain: 1,
-      medications: const [],
-      freeNotes: null,
-    );
     await _pumpEntry(
       tester,
-      existingSession: TrainingSession(
-        date: '2026-07-26T08:00:00.000',
-        memo: 'existing',
-        exercises: const [
-          TrainingExercise(
-            exerciseName: 'BenchPress',
-            order: 1,
-            sets: [TrainingSet(setNo: 1, weight: 65, reps: 10)],
-          ),
-        ],
-        cardioEntries: [
-          CardioEntry(
-            type: CardioType.running,
-            intensity: CardioIntensity.moderate,
-            durationMinutes: 40,
-            distanceKm: 2.82,
-            estimatedCalories: 226,
-          ),
-        ],
+      existingRecord: TrainingRecordReadModel.v2(
+        id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+        localDate: '2026-07-26',
+        createdAt: DateTime.utc(2026, 7, 26, 8),
+        updatedAt: DateTime.utc(2026, 7, 26, 9),
+        data: TrainingSessionV2(
+          date: '2026-07-26T08:00:00.000',
+          memo: 'existing',
+          exercises: [
+            TrainingExerciseV2(
+              exerciseName: 'BenchPress',
+              order: 1,
+              sets: [
+                TrainingSetV2(
+                  setNo: 1,
+                  setType: TrainingSetType.main,
+                  weightKg: 65,
+                  reps: 10,
+                ),
+              ],
+            ),
+          ],
+          cardioEntries: [
+            CardioEntryV2(
+              purpose: CardioPurpose.main,
+              type: CardioType.running,
+              durationSeconds: 2400,
+              distanceKm: 2.82,
+            ),
+          ],
+        ),
       ),
-      recordId: 'training:existing',
     );
 
     expect(find.byType(ExerciseSelector), findsNothing);
-    expect(find.byType(DropdownButtonFormField<CardioType>), findsNothing);
+    expect(find.byType(DropdownButtonFormField<CardioType?>), findsNothing);
     expect(find.text('ベンチプレス'), findsOneWidget);
-    expect(find.text('65 kg · 1 Set · 10 Reps'), findsOneWidget);
+    expect(find.textContaining('65 kg'), findsOneWidget);
     expect(find.text('ランニング'), findsOneWidget);
-    expect(find.text('2.82 km · 40 min · 226 kcal'), findsOneWidget);
+    expect(find.textContaining('40m 0s'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
+    await tester.tap(find.bySemanticsLabel('ランニング, collapsed'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, '運動時間（分）'), '20');
-    await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
+    await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '20');
+    await tester.tap(find.bySemanticsLabel('ランニング, expanded'));
     await tester.pumpAndSettle();
 
-    expect(find.text('2.82 km · 20 min · 232 kcal'), findsOneWidget);
-    expect(find.textContaining('226 kcal'), findsNothing);
+    expect(find.textContaining('20m 0s'), findsOneWidget);
   });
 
   testWidgets('adding and opening exercises keeps only one card expanded', (
@@ -187,14 +191,14 @@ void main() {
       );
 
       expect(find.byType(ExerciseSelector), findsNothing);
-      expect(find.byType(DropdownButtonFormField<CardioType>), findsOneWidget);
+      expect(find.byType(DropdownButtonFormField<CardioType?>), findsOneWidget);
       expect(find.text('CARDIO 1'), findsOneWidget);
       expect(find.byTooltip('Delete cardio'), findsOneWidget);
 
       await _tapVisible(tester, find.text('EXERCISE 1'));
 
       expect(find.byType(ExerciseSelector), findsOneWidget);
-      expect(find.byType(DropdownButtonFormField<CardioType>), findsNothing);
+      expect(find.byType(DropdownButtonFormField<CardioType?>), findsNothing);
       expect(find.byTooltip('Delete cardio'), findsNothing);
     },
   );
@@ -208,43 +212,30 @@ void main() {
         find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
 
-      final header = find.byKey(const ValueKey('cardio-header-0'));
-      expect(
-        find.descendant(of: header, matching: find.text('CARDIO 1')),
-        findsOneWidget,
-      );
+      expect(find.text('CARDIO 1'), findsOneWidget);
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, '運動時間（分）'))
+            .widget<TextField>(find.widgetWithText(TextField, 'Minutes'))
             .controller!
             .text,
         isEmpty,
       );
 
-      final typeDropdown = find.byType(DropdownButtonFormField<CardioType>);
+      final typeDropdown = find.byType(DropdownButtonFormField<CardioType?>);
       await tester.tap(typeDropdown);
       await tester.pumpAndSettle();
       await tester.tap(find.text('ウォーキング').last);
       await tester.pumpAndSettle();
 
-      expect(
-        find.descendant(of: header, matching: find.text('ウォーキング')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: header, matching: find.text('CARDIO 1')),
-        findsNothing,
-      );
+      expect(find.text('ウォーキング'), findsWidgets);
+      expect(find.text('CARDIO 1'), findsNothing);
       expect(find.bySemanticsLabel('ウォーキング, expanded'), findsOneWidget);
 
       await tester.tap(typeDropdown);
       await tester.pumpAndSettle();
       await tester.tap(find.text('ランニング').last);
       await tester.pumpAndSettle();
-      expect(
-        find.descendant(of: header, matching: find.text('ランニング')),
-        findsOneWidget,
-      );
+      expect(find.text('ランニング'), findsWidgets);
     },
   );
 
@@ -257,39 +248,42 @@ void main() {
         find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
 
-      await tester.enterText(find.widgetWithText(TextField, '運動時間（分）'), '40');
-      await tester.enterText(find.widgetWithText(TextField, '距離（km）'), '2.82');
-      await tester.enterText(find.widgetWithText(TextField, 'メモ'), 'steady');
+      await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '40');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Distance'),
+        '2.82',
+      );
+      await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'steady');
       await tester.pump();
 
-      await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
+      await tester.tap(find.text('CARDIO 1'));
       await tester.pumpAndSettle();
 
       expect(find.text('CARDIO 1'), findsOneWidget);
-      expect(find.text('2.82 km · 40 min'), findsOneWidget);
-      expect(find.textContaining('kcal'), findsNothing);
+      expect(find.textContaining('40m 0s'), findsOneWidget);
+      expect(find.textContaining('2.82 km'), findsOneWidget);
       expect(find.byTooltip('Delete cardio'), findsNothing);
 
-      await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
+      await tester.tap(find.text('CARDIO 1'));
       await tester.pumpAndSettle();
 
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, '運動時間（分）'))
+            .widget<TextField>(find.widgetWithText(TextField, 'Minutes'))
             .controller!
             .text,
         '40',
       );
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, '距離（km）'))
+            .widget<TextField>(find.widgetWithText(TextField, 'Distance'))
             .controller!
             .text,
         '2.82',
       );
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, 'メモ'))
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
             .controller!
             .text,
         'steady',
@@ -429,47 +423,50 @@ void main() {
 
       expect(find.text('CARDIO 1'), findsOneWidget);
       expect(find.text('CARDIO 2'), findsNothing);
-      expect(find.byType(DropdownButtonFormField<CardioType>), findsNothing);
+      expect(find.byType(DropdownButtonFormField<CardioType?>), findsNothing);
     },
   );
 
   testWidgets('collapsed exercise and cardio remain in saved JSON', (
     tester,
   ) async {
-    await _pumpEntry(tester);
+    final database = await _pumpEntry(tester);
 
     final exerciseController = tester
         .widget<ExerciseSelector>(find.byType(ExerciseSelector))
         .controller;
-    final exerciseCardController = tester
-        .widget<TrainingExerciseCard>(find.byType(TrainingExerciseCard))
-        .controller;
     exerciseController.text = 'BenchPress';
     await tester.enterText(find.widgetWithText(TextField, 'Weight'), '65');
     await tester.enterText(find.widgetWithText(TextField, 'Reps'), '10');
-    await tester.tap(
-      find.byKey(
-        ValueKey('exercise-header-${identityHashCode(exerciseCardController)}'),
-      ),
-    );
+    await tester.tap(find.bySemanticsLabel('ベンチプレス, expanded'));
     await tester.pumpAndSettle();
 
     await _tapVisible(
       tester,
       find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
     );
-    await tester.enterText(find.widgetWithText(TextField, '運動時間（分）'), '30');
-    await tester.enterText(find.widgetWithText(TextField, '距離（km）'), '3.5');
-    await tester.tap(find.byKey(const ValueKey('cardio-header-0')));
+    tester
+        .widget<DropdownButtonFormField<CardioPurpose?>>(
+          find.byType(DropdownButtonFormField<CardioPurpose?>),
+        )
+        .onChanged!(CardioPurpose.main);
+    tester
+        .widget<DropdownButtonFormField<CardioType?>>(
+          find.byType(DropdownButtonFormField<CardioType?>),
+        )
+        .onChanged!(CardioType.running);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '30');
+    await tester.enterText(find.widgetWithText(TextField, 'Distance'), '3.5');
+    await tester.tap(find.bySemanticsLabel('ランニング, expanded'));
     await tester.pumpAndSettle();
 
     await _tapVisible(tester, find.text('SAVE TRAINING'));
     await tester.pump(const Duration(milliseconds: 500));
 
-    final preferences = await SharedPreferences.getInstance();
-    final stored = preferences.getStringList('training_sessions');
+    final stored = await database.findAll(IndexedDbStoreNames.trainingRecords);
     expect(stored, hasLength(1));
-    final json = jsonDecode(stored!.single) as Map<String, dynamic>;
+    final json = stored.single['data']! as Map<String, Object?>;
     expect(json['exercises'], hasLength(1));
     expect(json['cardioEntries'], hasLength(1));
     expect(jsonEncode(json), isNot(contains('expanded')));
@@ -507,24 +504,23 @@ void main() {
   });
 }
 
-Future<void> _pumpEntry(
+Future<FakeIndexedDbDatabase> _pumpEntry(
   WidgetTester tester, {
-  TrainingSession? existingSession,
-  String? recordId,
+  TrainingRecordReadModel? existingRecord,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  final database = FakeIndexedDbDatabase();
+  final initialization = AppInitializationController()..markReady();
+  AppRepositoryRegistry.beginStartup(controller: initialization);
+  AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
   await tester.pumpWidget(
-    MaterialApp(
-      home: TrainingEntryPage(
-        existingSession: existingSession,
-        recordId: recordId,
-      ),
-    ),
+    MaterialApp(home: TrainingEntryPage(existingRecord: existingRecord)),
   );
   await tester.pumpAndSettle();
+  return database;
 }
 
 Future<void> _pumpExerciseCard(

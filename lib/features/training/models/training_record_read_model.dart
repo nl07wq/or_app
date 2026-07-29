@@ -63,7 +63,7 @@ class TrainingRecordReadModel {
 
   bool get isLegacy => migrationSource != null;
 
-  bool get isEditable => recordVersion == 1;
+  bool get isEditable => recordVersion == 2 && migrationSource == null;
 
   DateTime get sortDateTime =>
       DateTime.tryParse(sessionDate) ??

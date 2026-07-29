@@ -92,11 +92,11 @@ void main() {
       await MorningRepository.save(_morning());
       expect((await MorningRepository.getAll()).single.weight, 70);
 
-      final first = await TrainingRepository.saveNew(_training('first'));
-      final second = await TrainingRepository.saveNew(_training('second'));
+      final first = await TrainingRepository.saveNewV2(_trainingV2('first'));
+      final second = await TrainingRepository.saveNewV2(_trainingV2('second'));
       expect(first.id, isNot(second.id));
       expect(await TrainingRepository.getRecords(), hasLength(2));
-      await TrainingRepository.updateById(first.id, _training('updated'));
+      await TrainingRepository.updateV2ById(first.id, _trainingV2('updated'));
       expect(
         (await TrainingRepository.getRecords())
             .singleWhere((record) => record.id == first.id)
@@ -452,12 +452,12 @@ void main() {
       final morning = _morning();
       final meal = _meal();
       final activity = _activity();
-      final training = _training('indexed');
+      final training = _trainingV2('indexed');
       final confirmation = _confirmation();
       await MorningRepository.save(morning);
       await FoodRepository.save(meal);
       await const LocalActivityRepository().save(activity);
-      final trainingRecord = await TrainingRepository.saveNew(training);
+      final trainingRecord = await TrainingRepository.saveNewV2(training);
       await DailyLogConfirmationRepository.save(confirmation);
       await ExerciseCatalogService.registerCustom('Custom Press');
 
@@ -688,7 +688,7 @@ Future<void> _expectAllWritesRejected() async {
     () => FoodRepository.save(_meal()),
     () => const LocalActivityRepository().save(_activity()),
     () async {
-      await TrainingRepository.saveNew(_training('rejected'));
+      await TrainingRepository.saveNewV2(_trainingV2('rejected'));
     },
     () => DailyLogConfirmationRepository.save(_confirmation()),
     () => ExerciseCatalogService.registerCustom('Rejected Custom Exercise'),
@@ -722,6 +722,10 @@ TrainingSession _training(String memo) {
     memo: memo,
     exercises: const [],
   );
+}
+
+TrainingSessionV2 _trainingV2(String memo) {
+  return TrainingSessionV2(date: '2026-07-30T12:00:00', memo: memo);
 }
 
 MealData _meal() {

@@ -1,0 +1,242 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/models/training_set_v2.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/operation_button.dart';
+import '../models/training_v2_form_controller.dart';
+
+class TrainingSetV2Editor extends StatelessWidget {
+  final TrainingV2ExerciseFormController controller;
+  final VoidCallback onChanged;
+
+  const TrainingSetV2Editor({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final (index, set) in controller.sets.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _SetEditor(
+              index: index,
+              set: set,
+              previous: index == 0 ? null : controller.sets[index - 1],
+              canDelete: controller.sets.length > 1,
+              onDelete: () {
+                controller.removeSet(set);
+                onChanged();
+              },
+              onChanged: onChanged,
+            ),
+          ),
+        SizedBox(
+          height: 56,
+          child: OperationButton(
+            icon: Icons.add,
+            text: 'ADD SET',
+            onPressed: () {
+              controller.addSet();
+              onChanged();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SetEditor extends StatelessWidget {
+  final int index;
+  final TrainingV2SetFormController set;
+  final TrainingV2SetFormController? previous;
+  final bool canDelete;
+  final VoidCallback onDelete;
+  final VoidCallback onChanged;
+
+  const _SetEditor({
+    required this.index,
+    required this.set,
+    required this.previous,
+    required this.canDelete,
+    required this.onDelete,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'SET ${index + 1}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (previous != null)
+                      IconButton(
+                        icon: const Icon(Icons.monitor_weight_outlined),
+                        tooltip: 'Copy previous weight',
+                        onPressed: () => _copy(previous!.weight, set.weight),
+                      ),
+                    if (previous != null)
+                      IconButton(
+                        icon: const Icon(Icons.repeat),
+                        tooltip: 'Copy previous reps',
+                        onPressed: () => _copy(previous!.reps, set.reps),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Delete set',
+                      onPressed: canDelete ? onDelete : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            DropdownButtonFormField<TrainingSetType>(
+              key: Key('v2-set-$index-type'),
+              initialValue: set.setType,
+              decoration: const InputDecoration(labelText: 'Set Type'),
+              items: const [
+                DropdownMenuItem(
+                  value: TrainingSetType.warmUp,
+                  child: Text('Warm-up'),
+                ),
+                DropdownMenuItem(
+                  value: TrainingSetType.main,
+                  child: Text('Main'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                set.setType = value;
+                onChanged();
+              },
+            ),
+            AppSpacing.gapSM,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final fields = [
+                  _numberField(
+                    key: Key('v2-set-$index-weight'),
+                    controller: set.weight,
+                    label: 'Weight',
+                    suffix: 'kg',
+                    decimal: true,
+                  ),
+                  _numberField(
+                    key: Key('v2-set-$index-reps'),
+                    controller: set.reps,
+                    label: 'Reps',
+                  ),
+                ];
+                return constraints.maxWidth < 340
+                    ? Column(
+                        children: [fields.first, AppSpacing.gapSM, fields.last],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: fields.first),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(child: fields.last),
+                        ],
+                      );
+              },
+            ),
+            AppSpacing.gapSM,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final rpe = DropdownButtonFormField<int?>(
+                  initialValue: set.rpe,
+                  decoration: const InputDecoration(labelText: 'RPE'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Not recorded'),
+                    ),
+                    for (var value = 1; value <= 10; value++)
+                      DropdownMenuItem(value: value, child: Text('$value')),
+                  ],
+                  onChanged: (value) {
+                    set.rpe = value;
+                    onChanged();
+                  },
+                );
+                final rest = _numberField(
+                  key: Key('v2-set-$index-rest'),
+                  controller: set.rest,
+                  label: 'Rest',
+                  suffix: 'sec',
+                );
+                return constraints.maxWidth < 340
+                    ? Column(children: [rpe, AppSpacing.gapSM, rest])
+                    : Row(
+                        children: [
+                          Expanded(child: rpe),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(child: rest),
+                        ],
+                      );
+              },
+            ),
+            AppSpacing.gapXS,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final seconds in const [30, 45, 60, 90, 120])
+                  ActionChip(
+                    label: Text('$seconds sec'),
+                    onPressed: () {
+                      set.rest.text = '$seconds';
+                      onChanged();
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _numberField({
+    required Key key,
+    required TextEditingController controller,
+    required String label,
+    String? suffix,
+    bool decimal = false,
+  }) {
+    return TextField(
+      key: key,
+      controller: controller,
+      decoration: InputDecoration(labelText: label, suffixText: suffix),
+      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+      onChanged: (_) => onChanged(),
+    );
+  }
+
+  void _copy(TextEditingController source, TextEditingController target) {
+    target.text = source.text;
+    target.selection = TextSelection.collapsed(offset: target.text.length);
+    onChanged();
+  }
+}

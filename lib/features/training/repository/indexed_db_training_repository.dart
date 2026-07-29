@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import '../../../core/models/training_session.dart';
+import '../../../core/models/training_session_v2.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
@@ -55,6 +58,16 @@ class IndexedDbTrainingSessionRepository
   }
 
   @override
+  Future<TrainingRecord> saveNewV2(TrainingSessionV2 session) {
+    return _putV2(
+      _idGenerator.generate(),
+      session,
+      operation: 'training.saveNewV2',
+      requireExisting: false,
+    );
+  }
+
+  @override
   Future<TrainingRecord> saveWithId(String id, TrainingSession session) {
     return _put(id, session, operation: 'training.saveWithId');
   }
@@ -71,6 +84,92 @@ class IndexedDbTrainingSessionRepository
     }
     _requireEditable(existing, operation: 'training.updateById');
     return _put(id, session, operation: 'training.updateById');
+  }
+
+  @override
+  Future<TrainingRecord> updateV2ById(String id, TrainingSessionV2 session) {
+    return _putV2(
+      id,
+      session,
+      operation: 'training.updateV2ById',
+      requireExisting: true,
+    );
+  }
+
+  Future<TrainingRecord> _putV2(
+    String id,
+    TrainingSessionV2 session, {
+    required String operation,
+    required bool requireExisting,
+  }) async {
+    try {
+      PersistedTrainingRecord.validateId(id);
+      final localDate = PersistedTrainingRecord.localDateFromV2Session(session);
+      late PersistedTrainingRecord saved;
+      await _database.runTransaction<void>(
+        storeNames: const [IndexedDbStoreNames.trainingRecords],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          final existingValue = await transaction.findById(
+            IndexedDbStoreNames.trainingRecords,
+            id,
+          );
+          final existing = existingValue == null
+              ? null
+              : PersistedTrainingRecord.fromRecord(existingValue);
+          if (requireExisting) {
+            if (existing == null) {
+              throw StateError('TRAINING record does not exist: $id');
+            }
+            _requireEditable(_toReadModel(existing), operation: operation);
+            if (existing.recordVersion != 2) {
+              throw StateError('TRAINING v1 records cannot be updated as v2.');
+            }
+            if (existing.localDate != localDate) {
+              throw StateError('TRAINING localDate cannot be changed.');
+            }
+          } else if (existing != null) {
+            throw StateError('TRAINING record already exists: $id');
+          }
+
+          final timestamp = _now().toUtc();
+          saved = PersistedTrainingRecord.v2(
+            id: id,
+            localDate: localDate,
+            createdAt: existing?.createdAt ?? timestamp,
+            updatedAt: timestamp,
+            data: session,
+          );
+          await transaction.put(
+            IndexedDbStoreNames.trainingRecords,
+            saved.toRecord(),
+          );
+          final readBack = await transaction.findById(
+            IndexedDbStoreNames.trainingRecords,
+            id,
+          );
+          if (readBack == null ||
+              jsonEncode(readBack) != jsonEncode(saved.toRecord())) {
+            throw StateError('TRAINING v2 read-back verification failed.');
+          }
+        },
+      );
+      return TrainingRecord.fromReadModel(_toReadModel(saved));
+    } on RepositoryException {
+      rethrow;
+    } on FormatException catch (error) {
+      throw RepositoryException(
+        operation: operation,
+        code: RepositoryErrorCode.invalidRecord,
+        cause: error,
+      );
+    } catch (error) {
+      throw RepositoryException(
+        operation: operation,
+        code: RepositoryErrorCode.transactionFailed,
+        cause: error,
+      );
+    }
   }
 
   Future<TrainingRecord> _put(

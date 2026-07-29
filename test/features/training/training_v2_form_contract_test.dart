@@ -1,0 +1,244 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/cardio_entry.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
+import 'package:or_app/core/models/training_equipment_snapshot.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
+import 'package:or_app/core/models/training_set_v2.dart';
+import 'package:or_app/features/training/models/training_record_read_model.dart';
+import 'package:or_app/features/training/models/training_v2_form_controller.dart';
+import 'package:or_app/features/training/services/training_v2_form_mapper.dart';
+import 'package:or_app/features/training/widgets/training_equipment_field.dart';
+
+void main() {
+  test('new form starts with one Main set and no cardio', () {
+    final form = TrainingV2FormController.newSession(
+      now: DateTime(2026, 7, 30, 12),
+    );
+    addTearDown(form.dispose);
+
+    expect(form.exercises, hasLength(1));
+    expect(form.exercises.single.sets.single.setType, TrainingSetType.main);
+    expect(form.cardioEntries, isEmpty);
+    expect(form.sessionGrade, isNull);
+    expect(form.dynamicStretchCompleted, isNull);
+    expect(form.cooldownStretchCompleted, isNull);
+  });
+
+  test('ADD SET inherits only set type and rest', () {
+    final exercise = TrainingV2ExerciseFormController();
+    addTearDown(exercise.dispose);
+    exercise.sets.single
+      ..setType = TrainingSetType.warmUp
+      ..weight.text = '40'
+      ..reps.text = '10'
+      ..rpe = 7
+      ..rest.text = '60';
+
+    exercise.addSet();
+
+    final added = exercise.sets.last;
+    expect(added.setType, TrainingSetType.warmUp);
+    expect(added.rest.text, '60');
+    expect(added.weight.text, isEmpty);
+    expect(added.reps.text, isEmpty);
+    expect(added.rpe, isNull);
+  });
+
+  test('edit form restores every v2 field without inference', () {
+    final source = _session();
+    final form = TrainingV2FormController.fromSession(source);
+    addTearDown(form.dispose);
+
+    expect(form.sessionName.text, 'Upper');
+    expect(form.sessionGrade, TrainingSessionGrade.a);
+    expect(form.sessionMemo.text, 'Quality first');
+    expect(form.dynamicStretchCompleted, isTrue);
+    expect(form.cooldownStretchCompleted, isFalse);
+    expect(form.overallEvaluation.text, 'Stable');
+    final exercise = form.exercises.single;
+    expect(exercise.equipment?.catalogId, 'power_rack');
+    expect(exercise.sets.single.setType, TrainingSetType.main);
+    expect(exercise.sets.single.rpe, 8);
+    expect(exercise.sets.single.rest.text, '90');
+    expect(exercise.evaluation.text, 'Good');
+    expect(exercise.targetWeight.text, '85');
+    expect(exercise.targetReps.map((value) => value.text), ['8', '8']);
+    final cardio = form.cardioEntries.single;
+    expect(cardio.minutes.text, '1');
+    expect(cardio.seconds.text, '30');
+    expect(cardio.mets.text, '6.5');
+    expect(cardio.averageHeartRate.text, '120');
+    expect(cardio.maximumHeartRate.text, '145');
+  });
+
+  test('mapper creates complete normal v2 data and keeps calories null', () {
+    final form = TrainingV2FormController.fromSession(_session());
+    addTearDown(form.dispose);
+
+    final result = TrainingV2FormMapper.toDomain(form);
+
+    expect(result.toJson(), _session().toJson());
+    final cardio = result.cardioEntries.single;
+    expect(cardio.estimatedCaloriesKcal, isNull);
+    expect(cardio.weightSnapshotKg, isNull);
+    expect(cardio.calculationMethod, isNull);
+    expect(cardio.calculationVersion, isNull);
+    expect(cardio.legacyIntensity, isNull);
+    expect(cardio.legacyReferenceCaloriesKcal, isNull);
+    expect(result.hasLegacyUnknown, isFalse);
+  });
+
+  test('mapper skips untouched exercise when valid cardio exists', () {
+    final form = TrainingV2FormController.newSession();
+    addTearDown(form.dispose);
+    final cardio = TrainingV2CardioFormController()
+      ..purpose = CardioPurpose.cooldown
+      ..type = CardioType.walking
+      ..seconds.text = '30';
+    form.cardioEntries.add(cardio);
+
+    final result = TrainingV2FormMapper.toDomain(form);
+
+    expect(result.exercises, isEmpty);
+    expect(result.cardioEntries.single.durationSeconds, 30);
+  });
+
+  test('mapper rejects invalid set and target values', () {
+    final form = TrainingV2FormController.newSession();
+    addTearDown(form.dispose);
+    final exercise = form.exercises.single
+      ..exerciseName.text = 'Squat'
+      ..targetReps.addAll([]);
+    exercise.sets.single
+      ..weight.text = '80'
+      ..reps.text = '0';
+
+    expect(
+      () => TrainingV2FormMapper.toDomain(form),
+      throwsA(isA<TrainingV2FormValidationException>()),
+    );
+
+    exercise.sets.single.reps.text = '5';
+    exercise.addTargetRep();
+    exercise.targetReps.single.text = '-1';
+    expect(
+      () => TrainingV2FormMapper.toDomain(form),
+      throwsA(isA<TrainingV2FormValidationException>()),
+    );
+  });
+
+  test('mapper rejects invalid rest, RPE, and heart-rate order', () {
+    final form = TrainingV2FormController.fromSession(_session());
+    addTearDown(form.dispose);
+
+    form.exercises.single.sets.single.rest.text = '-1';
+    expect(
+      () => TrainingV2FormMapper.toDomain(form),
+      throwsA(isA<TrainingV2FormValidationException>()),
+    );
+
+    form.exercises.single.sets.single.rest.text = '90';
+    form.exercises.single.sets.single.rpe = 11;
+    expect(
+      () => TrainingV2FormMapper.toDomain(form),
+      throwsA(isA<TrainingV2FormValidationException>()),
+    );
+
+    form.exercises.single.sets.single.rpe = 8;
+    form.cardioEntries.single.maximumHeartRate.text = '100';
+    expect(
+      () => TrainingV2FormMapper.toDomain(form),
+      throwsA(isA<TrainingV2FormValidationException>()),
+    );
+  });
+
+  test('equipment candidates merge catalog and history deterministically', () {
+    final custom = TrainingEquipmentSnapshot(name: 'Custom Handle');
+    final record = TrainingRecordReadModel.v2(
+      id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+      localDate: '2026-07-30',
+      createdAt: DateTime.utc(2026, 7, 30),
+      updatedAt: DateTime.utc(2026, 7, 30),
+      data: TrainingSessionV2(
+        date: '2026-07-30T12:00:00',
+        exercises: [
+          TrainingExerciseV2(
+            exerciseName: 'Press',
+            order: 1,
+            equipment: custom,
+            sets: const [],
+          ),
+        ],
+        cardioEntries: [
+          CardioEntryV2(
+            purpose: CardioPurpose.main,
+            type: CardioType.running,
+            equipment: custom,
+            durationSeconds: 60,
+          ),
+        ],
+      ),
+    );
+
+    final values = TrainingEquipmentCandidates.fromRecords([record]).values;
+
+    expect(
+      values.where((value) => value.name == 'Custom Handle'),
+      hasLength(1),
+    );
+    expect(values.any((value) => value.catalogId != null), isTrue);
+  });
+}
+
+TrainingSessionV2 _session() {
+  return TrainingSessionV2(
+    date: '2026-07-30T18:00:00+09:00',
+    sessionName: 'Upper',
+    sessionGrade: TrainingSessionGrade.a,
+    memo: 'Quality first',
+    dynamicStretchCompleted: true,
+    cooldownStretchCompleted: false,
+    overallEvaluation: 'Stable',
+    exercises: [
+      TrainingExerciseV2(
+        exerciseName: 'Bench Press',
+        order: 1,
+        equipment: TrainingEquipmentSnapshot(
+          catalogId: 'power_rack',
+          name: 'Power Rack',
+        ),
+        sets: [
+          TrainingSetV2(
+            setNo: 1,
+            setType: TrainingSetType.main,
+            weightKg: 82.5,
+            reps: 8,
+            rpe: 8,
+            restAfterSeconds: 90,
+          ),
+        ],
+        evaluation: 'Good',
+        nextTarget: TrainingNextTarget(
+          targetWeightKg: 85,
+          targetReps: const [8, 8],
+          notes: 'Control',
+        ),
+      ),
+    ],
+    cardioEntries: [
+      CardioEntryV2(
+        purpose: CardioPurpose.cooldown,
+        type: CardioType.running,
+        equipment: TrainingEquipmentSnapshot(name: 'Custom Treadmill'),
+        durationSeconds: 90,
+        distanceKm: 0.3,
+        mets: 6.5,
+        averageHeartRateBpm: 120,
+        maximumHeartRateBpm: 145,
+        averageSpeedKmh: 12,
+        notes: 'Easy',
+      ),
+    ],
+  );
+}

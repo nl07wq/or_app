@@ -31,7 +31,7 @@ void main() {
     expect(model.exerciseCount, 1);
     expect(model.setCount, 1);
     expect(model.cardioEntryCount, 1);
-    expect(model.isEditable, isFalse);
+    expect(model.isEditable, isTrue);
     expect(model.v1Data, isNull);
     expect(model.v2Data, same(session));
   });
@@ -49,49 +49,56 @@ void main() {
     expect(model.v2Data?.cardioEntries.single.durationSeconds, 90);
   });
 
-  testWidgets('v2 detail is visibly read-only and renders common data', (
-    tester,
-  ) async {
-    final database = FakeIndexedDbDatabase();
-    final persisted = PersistedTrainingRecord.v2(
-      id: 'training:00112233-4455-4677-8899-aabbccddeeff',
-      localDate: '2026-07-30',
-      createdAt: DateTime.utc(2026, 7, 30, 9),
-      updatedAt: DateTime.utc(2026, 7, 30, 10),
-      data: _v2Session(),
-    );
-    database.seed(
-      IndexedDbStoreNames.trainingRecords,
-      persisted.id,
-      persisted.toRecord(),
-    );
-    final before = database.rawRecord(
-      IndexedDbStoreNames.trainingRecords,
-      persisted.id,
-    );
-    final controller = AppInitializationController()..markReady();
-    AppRepositoryRegistry.beginStartup(controller: controller);
-    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
-    final record = TrainingRecord.fromReadModel(_readModel(_v2Session()));
+  testWidgets(
+    'migration v2 detail is visibly read-only and renders common data',
+    (tester) async {
+      final database = FakeIndexedDbDatabase();
+      final persisted = PersistedTrainingRecord.v2ForMigration(
+        id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+        localDate: '2026-07-30',
+        createdAt: DateTime.utc(2026, 7, 30, 9),
+        updatedAt: DateTime.utc(2026, 7, 30, 10),
+        migrationSource: _migrationSource,
+        data: _v2Session(),
+      );
+      database.seed(
+        IndexedDbStoreNames.trainingRecords,
+        persisted.id,
+        persisted.toRecord(),
+      );
+      final before = database.rawRecord(
+        IndexedDbStoreNames.trainingRecords,
+        persisted.id,
+      );
+      final controller = AppInitializationController()..markReady();
+      AppRepositoryRegistry.beginStartup(controller: controller);
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      final record = TrainingRecord.fromReadModel(
+        _readModel(_v2Session(), migrated: true),
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(home: TrainingDetailPage(record: record)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(home: TrainingDetailPage(record: record)),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('READ ONLY — Training Record v2'), findsOneWidget);
-    expect(find.text('Bench Press'), findsOneWidget);
-    expect(find.textContaining('v2 memo'), findsWidgets);
-    expect(find.text('Equipment Power Rack'), findsOneWidget);
-    expect(find.text('Grade A'), findsOneWidget);
-    expect(find.textContaining('Main Sets 1'), findsOneWidget);
-    expect(find.textContaining('Personal Record 82.5 kg x 8'), findsOneWidget);
-    expect(find.textContaining('Next Target 85 kg'), findsOneWidget);
-    expect(
-      database.rawRecord(IndexedDbStoreNames.trainingRecords, persisted.id),
-      before,
-    );
-  });
+      expect(find.text('READ ONLY — Training Record v2'), findsOneWidget);
+      expect(find.text('Bench Press'), findsOneWidget);
+      expect(find.textContaining('v2 memo'), findsWidgets);
+      expect(find.text('Equipment Power Rack'), findsOneWidget);
+      expect(find.text('Grade A'), findsOneWidget);
+      expect(find.textContaining('Main Sets 1'), findsOneWidget);
+      expect(
+        find.textContaining('Personal Record 82.5 kg x 8'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Next Target 85 kg'), findsOneWidget);
+      expect(
+        database.rawRecord(IndexedDbStoreNames.trainingRecords, persisted.id),
+        before,
+      );
+    },
+  );
 
   test('v2 contributes common counts but not cardio calories', () async {
     final now = DateTime.now();
@@ -129,9 +136,7 @@ void main() {
     expect(trainingCardioCaloriesNotifier.value, 0);
   });
 
-  testWidgets('history shows v2 and disables edit and delete actions', (
-    tester,
-  ) async {
+  testWidgets('history enables edit and delete for normal v2', (tester) async {
     final database = FakeIndexedDbDatabase();
     final persisted = PersistedTrainingRecord.v2(
       id: 'training:00112233-4455-4677-8899-aabbccddeeff',
@@ -152,14 +157,14 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: TrainingHistoryPage()));
     await tester.pumpAndSettle();
 
-    expect(find.text('READ ONLY'), findsOneWidget);
+    expect(find.text('READ ONLY'), findsNothing);
     expect(
       tester
           .widget<IconButton>(
             find.widgetWithIcon(IconButton, Icons.edit_outlined),
           )
           .onPressed,
-      isNull,
+      isNotNull,
     );
     expect(
       tester
@@ -167,11 +172,11 @@ void main() {
             find.widgetWithIcon(IconButton, Icons.delete_outline),
           )
           .onPressed,
-      isNull,
+      isNotNull,
     );
   });
 
-  testWidgets('history keeps v1 edit action enabled', (tester) async {
+  testWidgets('history keeps v1 read-only', (tester) async {
     final database = FakeIndexedDbDatabase();
     final persisted = PersistedTrainingRecord(
       id: 'training:00112233-4455-4677-8899-aabbccddeeff',
@@ -202,17 +207,30 @@ void main() {
             find.widgetWithIcon(IconButton, Icons.edit_outlined),
           )
           .onPressed,
-      isNotNull,
+      isNull,
     );
+    expect(find.text('READ ONLY'), findsOneWidget);
   });
 }
 
-TrainingRecordReadModel _readModel(TrainingSessionV2 session) {
+const _migrationSource = TrainingMigrationSource(
+  migrationId: 'test_migration',
+  sourceSystem: 'test',
+  sourceKey: 'training',
+  sourceIndex: 0,
+  duplicateOrdinal: 0,
+);
+
+TrainingRecordReadModel _readModel(
+  TrainingSessionV2 session, {
+  bool migrated = false,
+}) {
   return TrainingRecordReadModel.v2(
     id: 'training:00112233-4455-4677-8899-aabbccddeeff',
     localDate: '2026-07-30',
     createdAt: DateTime.utc(2026, 7, 30, 9),
     updatedAt: DateTime.utc(2026, 7, 30, 10),
+    migrationSource: migrated ? _migrationSource.toJson() : null,
     data: session,
   );
 }

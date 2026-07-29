@@ -1,9 +1,12 @@
 import '../../../core/models/training_session.dart';
+import '../../../core/models/training_session_v2.dart';
 import '../models/persisted_training_record.dart';
 import '../models/training_record_read_model.dart';
 
 abstract interface class TrainingSessionRepository {
   Future<TrainingRecord> saveNew(TrainingSession session);
+
+  Future<TrainingRecord> saveNewV2(TrainingSessionV2 session);
 
   Future<TrainingRecord> saveWithId(String id, TrainingSession session);
 
@@ -22,6 +25,8 @@ abstract interface class TrainingSessionRepository {
   );
 
   Future<TrainingRecord> updateById(String id, TrainingSession session);
+
+  Future<TrainingRecord> updateV2ById(String id, TrainingSessionV2 session);
 
   Future<void> deleteById(String id);
 

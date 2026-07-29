@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/cardio_entry.dart';
+import '../../core/state/app_initialization_state.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import 'models/persisted_training_record.dart';
+import 'training_entry_page.dart';
 import 'widgets/training_summary_card.dart';
 import 'widgets/training_exercise_detail_card.dart';
 import 'widgets/training_session_summary_card.dart';
@@ -19,7 +21,29 @@ class TrainingDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (record.readModel.v2Data != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('TRAINING')),
+        appBar: AppBar(
+          title: const Text('TRAINING'),
+          actions: [
+            if (record.isEditable &&
+                !appInitializationController.value.isReadOnly)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit',
+                onPressed: () async {
+                  final updated = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          TrainingEntryPage(existingRecord: record.readModel),
+                    ),
+                  );
+                  if (updated == true && context.mounted) {
+                    Navigator.pop(context, true);
+                  }
+                },
+              ),
+          ],
+        ),
         body: ListView(children: [TrainingV2RecordDetail(record: record)]),
       );
     }

@@ -62,21 +62,19 @@ void main() {
     },
   );
 
-  test(
-    'specified ID update preserves createdAt and changes updatedAt',
-    () async {
-      const id = 'training:00112233-4455-4677-8899-aabbccddeeff';
-      await repository.saveWithId(id, _session(memo: 'first'));
-      await repository.saveWithId(id, _session(memo: 'updated'));
+  test('v2 update preserves ID and createdAt and changes updatedAt', () async {
+    final saved = await repository.saveNewV2(_v2Session(memo: 'first'));
+    await repository.updateV2ById(saved.id, _v2Session(memo: 'updated'));
 
-      final envelope = PersistedTrainingRecord.fromRecord(
-        (await database.findById(IndexedDbStoreNames.trainingRecords, id))!,
-      );
-      expect(envelope.data.memo, 'updated');
-      expect(envelope.createdAt, DateTime.utc(2026, 7, 26));
-      expect(envelope.updatedAt, DateTime.utc(2026, 7, 26, 1));
-    },
-  );
+    final envelope = PersistedTrainingRecord.fromRecord(
+      (await database.findById(IndexedDbStoreNames.trainingRecords, saved.id))!,
+    );
+    expect(envelope.dataV2.memo, 'updated');
+    expect(envelope.createdAt, DateTime.utc(2026, 7, 26));
+    expect(envelope.updatedAt, DateTime.utc(2026, 7, 26, 1));
+    expect(envelope.recordVersion, 2);
+    expect(envelope.migrationSource, isNull);
+  });
 
   test('updateById requires an existing ID', () async {
     const id = 'training:00112233-4455-4677-8899-aabbccddeeff';
@@ -150,10 +148,10 @@ void main() {
   );
 
   test('delete and clear affect only training_records', () async {
-    const firstId = 'training:00112233-4455-4677-8899-aabbccddeeff';
-    const secondId = 'training:10112233-4455-4677-8899-aabbccddeeff';
-    await repository.saveWithId(firstId, _session());
-    await repository.saveWithId(secondId, _session());
+    final first = await repository.saveNewV2(_v2Session());
+    final second = await repository.saveNewV2(
+      _v2Session(date: '2026-07-27T10:15:00+09:00'),
+    );
     database.seed(IndexedDbStoreNames.trainings, 'v1', {
       'id': 'v1',
       'data': const {},
@@ -162,11 +160,12 @@ void main() {
       'id': 'status',
     });
 
-    await repository.deleteById(firstId);
-    expect(await repository.findById(firstId), isNull);
+    await repository.deleteById(first.id);
+    expect(await repository.findById(first.id), isNull);
     await repository.clear();
 
     expect(await repository.findAll(), isEmpty);
+    expect(await repository.findById(second.id), isNull);
     expect(
       await database.findById(IndexedDbStoreNames.trainings, 'v1'),
       isNotNull,
@@ -231,8 +230,9 @@ void main() {
     final all = await repository.findAll();
     expect(all.map((record) => record.id), [v2Id, v1Id]);
     expect(all.first.recordVersion, 2);
-    expect(all.first.isEditable, isFalse);
+    expect(all.first.isEditable, isTrue);
     expect(all.last.recordVersion, 1);
+    expect(all.last.isEditable, isFalse);
     expect((await repository.findById(v2Id))?.recordVersion, 2);
     expect(
       (await repository.findByLocalDate(
@@ -278,9 +278,9 @@ void main() {
     );
   });
 
-  test('v2 projection is read-only and cannot overwrite source JSON', () async {
+  test('migration v2 is read-only and cannot overwrite source JSON', () async {
     const id = 'training:10112233-4455-4677-8899-aabbccddeeff';
-    _seedV2(database, id: id);
+    _seedV2(database, id: id, migrationSource: true);
     final before = Map<String, Object?>.from(
       (await database.findById(IndexedDbStoreNames.trainingRecords, id))!,
     );
@@ -313,6 +313,44 @@ void main() {
     );
   });
 
+  test('normal v2 rejects a localDate-changing update', () async {
+    final saved = await repository.saveNewV2(_v2Session());
+
+    await expectLater(
+      repository.updateV2ById(
+        saved.id,
+        _v2Session(date: '2026-07-27T10:15:00+09:00'),
+      ),
+      throwsA(isA<RepositoryException>()),
+    );
+    expect((await repository.findById(saved.id))?.localDate, '2026-07-26');
+  });
+
+  test('v2 update changes only the target record', () async {
+    final target = await repository.saveNewV2(_v2Session(memo: 'target'));
+    final sibling = await repository.saveNewV2(
+      _v2Session(date: '2026-07-27T10:15:00+09:00', memo: 'sibling'),
+    );
+    final siblingBefore = await database.findById(
+      IndexedDbStoreNames.trainingRecords,
+      sibling.id,
+    );
+
+    await repository.updateV2ById(
+      target.id,
+      _v2Session(memo: 'updated target'),
+    );
+
+    expect(
+      (await repository.findById(target.id))?.readModel.v2Data?.memo,
+      'updated target',
+    );
+    expect(
+      await database.findById(IndexedDbStoreNames.trainingRecords, sibling.id),
+      siblingBefore,
+    );
+  });
+
   test('findAllSessions excludes v2 from v1 calculations', () async {
     const v1Id = 'training:00112233-4455-4677-8899-aabbccddeeff';
     const v2Id = 'training:10112233-4455-4677-8899-aabbccddeeff';
@@ -330,43 +368,68 @@ void _seedV2(
   FakeIndexedDbDatabase database, {
   required String id,
   String date = '2026-07-26T18:00:00+09:00',
+  bool migrationSource = false,
 }) {
+  final data = _v2Session(date: date);
   database.seed(
     IndexedDbStoreNames.trainingRecords,
     id,
-    PersistedTrainingRecord.v2(
-      id: id,
-      localDate: date.substring(0, 10),
-      createdAt: DateTime.utc(2026, 7, 26, 9),
-      updatedAt: DateTime.utc(2026, 7, 26, 10),
-      data: TrainingSessionV2(
-        date: date,
-        sessionName: 'Evening',
-        memo: 'v2 memo',
-        exercises: [
-          TrainingExerciseV2(
-            exerciseName: 'Squat',
-            order: 1,
-            sets: [
-              TrainingSetV2(
-                setNo: 1,
-                setType: TrainingSetType.main,
-                weightKg: 90,
-                reps: 5,
-              ),
-            ],
-          ),
-        ],
-        cardioEntries: [
-          CardioEntryV2(
-            purpose: CardioPurpose.main,
-            type: CardioType.running,
-            durationSeconds: 90,
-            estimatedCaloriesKcal: 20,
+    (migrationSource
+            ? PersistedTrainingRecord.v2ForMigration(
+                id: id,
+                localDate: date.substring(0, 10),
+                createdAt: DateTime.utc(2026, 7, 26, 9),
+                updatedAt: DateTime.utc(2026, 7, 26, 10),
+                migrationSource: const TrainingMigrationSource(
+                  migrationId: 'test_migration',
+                  sourceSystem: 'test',
+                  sourceKey: 'training',
+                  sourceIndex: 0,
+                  duplicateOrdinal: 0,
+                ),
+                data: data,
+              )
+            : PersistedTrainingRecord.v2(
+                id: id,
+                localDate: date.substring(0, 10),
+                createdAt: DateTime.utc(2026, 7, 26, 9),
+                updatedAt: DateTime.utc(2026, 7, 26, 10),
+                data: data,
+              ))
+        .toRecord(),
+  );
+}
+
+TrainingSessionV2 _v2Session({
+  String date = '2026-07-26T18:00:00+09:00',
+  String memo = 'v2 memo',
+}) {
+  return TrainingSessionV2(
+    date: date,
+    sessionName: 'Evening',
+    memo: memo,
+    exercises: [
+      TrainingExerciseV2(
+        exerciseName: 'Squat',
+        order: 1,
+        sets: [
+          TrainingSetV2(
+            setNo: 1,
+            setType: TrainingSetType.main,
+            weightKg: 90,
+            reps: 5,
           ),
         ],
       ),
-    ).toRecord(),
+    ],
+    cardioEntries: [
+      CardioEntryV2(
+        purpose: CardioPurpose.main,
+        type: CardioType.running,
+        durationSeconds: 90,
+        estimatedCaloriesKcal: 20,
+      ),
+    ],
   );
 }
 

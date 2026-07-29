@@ -139,7 +139,12 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                       MaterialPageRoute(
                         builder: (_) => TrainingDetailPage(record: record),
                       ),
-                    );
+                    ).then((updated) {
+                      if (updated == true && mounted) {
+                        _loadRecords();
+                        setState(() {});
+                      }
+                    });
                   },
                   child: Row(
                     children: [
@@ -199,9 +204,10 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                                 'Cardio: ${readModel.cardioEntryCount}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                              if (readModel.isEditable)
+                              if (v2 != null)
                                 Text(
-                                  'Cardio Time: ${session.cardioEntries.fold<int>(0, (sum, entry) => sum + entry.durationMinutes)} min',
+                                  'Cardio Time: '
+                                  '${v2.cardioEntries.fold<int>(0, (sum, entry) => sum + entry.durationSeconds)} sec',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                             ],
@@ -228,8 +234,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => TrainingEntryPage(
-                                      existingSession: session,
-                                      recordId: record.id,
+                                      existingRecord: readModel,
                                     ),
                                   ),
                                 );

@@ -7,6 +7,7 @@ import '../../features/training/migration/training_legacy_reader.dart';
 import '../../features/training/models/persisted_training_record.dart';
 import '../../features/training/repository/training_record_id_generator.dart';
 import '../models/training_session.dart';
+import '../models/training_session_v2.dart';
 import '../services/persistence_access.dart';
 
 class TrainingRepository {
@@ -28,6 +29,14 @@ class TrainingRepository {
       id: _legacyId(session, records.length - 1),
       session: session,
     );
+  }
+
+  static Future<TrainingRecord> saveNewV2(TrainingSessionV2 session) async {
+    PersistenceAccess.requireWrite('training.saveNewV2');
+    if (!PersistenceAccess.canReadIndexedDb) {
+      throw StateError('TRAINING v2 writes require IndexedDB.');
+    }
+    return AppRepositoryRegistry.container.training.saveNewV2(session);
   }
 
   static Future<void> replaceForLocalDate(TrainingSession session) async {
@@ -53,6 +62,17 @@ class TrainingRepository {
       return AppRepositoryRegistry.container.training.updateById(id, session);
     }
     throw StateError('Legacy TRAINING does not support persistent IDs.');
+  }
+
+  static Future<TrainingRecord> updateV2ById(
+    String id,
+    TrainingSessionV2 session,
+  ) async {
+    PersistenceAccess.requireWrite('training.updateV2ById');
+    if (!PersistenceAccess.canReadIndexedDb) {
+      throw StateError('TRAINING v2 writes require IndexedDB.');
+    }
+    return AppRepositoryRegistry.container.training.updateV2ById(id, session);
   }
 
   static Future<List<TrainingRecord>> getRecords() async {
@@ -102,7 +122,7 @@ class TrainingRepository {
     final records = await getReadModels();
     return List.unmodifiable(
       records
-          .where((record) => record.isEditable)
+          .where((record) => record.v1Data != null)
           .map((record) => PersistedTrainingRecord.copySession(record.v1Data!)),
     );
   }

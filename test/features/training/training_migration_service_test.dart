@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/training_exercise.dart';
 import 'package:or_app/core/models/training_session.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
 import 'package:or_app/data/indexed_db/indexed_db_migration_metadata.dart';
@@ -381,38 +382,43 @@ void main() {
     expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 
-  test('completed Migration permits normal TRAINING Store changes', () async {
-    SharedPreferences.setMockInitialValues({
-      legacyKey: [
-        jsonEncode(_session(memo: 'edit')),
-        jsonEncode(_session(date: '2026-07-27T10:15:00+09:00', memo: 'delete')),
-      ],
-    });
-    final database = FakeIndexedDbDatabase();
-    final service = _service(database, migrationTime);
-    final first = await service.migrate();
-    final ids = first.trainingRecordIds.toList()..sort();
-    final repository = IndexedDbTrainingSessionRepository(
-      database,
-      now: () => migrationTime.add(const Duration(days: 1)),
-    );
+  test(
+    'completed Migration permits normal v2 and formal Store changes',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        legacyKey: [
+          jsonEncode(_session(memo: 'edit')),
+          jsonEncode(
+            _session(date: '2026-07-27T10:15:00+09:00', memo: 'delete'),
+          ),
+        ],
+      });
+      final database = FakeIndexedDbDatabase();
+      final service = _service(database, migrationTime);
+      final first = await service.migrate();
+      final ids = first.trainingRecordIds.toList()..sort();
+      final repository = IndexedDbTrainingSessionRepository(
+        database,
+        now: () => migrationTime.add(const Duration(days: 1)),
+      );
 
-    await repository.updateById(ids.first, _session(memo: 'edited'));
-    await repository.deleteById(ids.last);
-    const addedId = 'training:00000000-0000-4000-8000-000000000001';
-    await repository.saveWithId(
-      addedId,
-      _session(date: '2026-07-28T10:15:00+09:00', memo: 'added'),
-    );
+      await database.deleteById(IndexedDbStoreNames.trainingRecords, ids.last);
+      final added = await repository.saveNewV2(
+        TrainingSessionV2(date: '2026-07-28T10:15:00+09:00', memo: 'added'),
+      );
 
-    final result = await service.migrate();
+      final result = await service.migrate();
 
-    expect(result.alreadyCompleted, isTrue);
-    expect(result.trainingRecordIds, first.trainingRecordIds);
-    expect((await repository.findById(ids.first))?.session.memo, 'edited');
-    expect(await repository.findById(ids.last), isNull);
-    expect((await repository.findById(addedId))?.session.memo, 'added');
-  });
+      expect(result.alreadyCompleted, isTrue);
+      expect(result.trainingRecordIds, first.trainingRecordIds);
+      expect(await repository.findById(ids.first), isNotNull);
+      expect(await repository.findById(ids.last), isNull);
+      expect(
+        (await repository.findById(added.id))?.readModel.v2Data?.memo,
+        'added',
+      );
+    },
+  );
 
   test(
     'completed Migration permits REPLACE ALL equivalent and empty Store',
