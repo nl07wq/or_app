@@ -52,39 +52,41 @@ class TrainingCardioV2Editor extends StatelessWidget {
               onPressed: onDelete,
             ),
           ),
-          DropdownButtonFormField<CardioPurpose?>(
-            initialValue: controller.purpose,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: '目的'),
-            items: const [
-              DropdownMenuItem(value: null, child: Text('目的を選択')),
-              DropdownMenuItem(
-                value: CardioPurpose.warmUp,
-                child: Text('ウォームアップ'),
-              ),
-              DropdownMenuItem(value: CardioPurpose.main, child: Text('メイン')),
-              DropdownMenuItem(
-                value: CardioPurpose.cooldown,
-                child: Text('クールダウン'),
-              ),
-            ],
-            onChanged: (value) {
-              controller.purpose = value;
-              onChanged();
-            },
-          ),
-          AppSpacing.gapSM,
           DropdownButtonFormField<CardioType?>(
+            key: Key('v2-cardio-$index-type'),
             initialValue: controller.type,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: '種目'),
+            decoration: const InputDecoration(),
             items: [
-              const DropdownMenuItem(value: null, child: Text('種目を選択')),
+              const DropdownMenuItem(value: null, child: Text('Select Cardio')),
               for (final type in CardioType.values)
                 DropdownMenuItem(value: type, child: Text(_typeLabel(type))),
             ],
             onChanged: (value) {
               controller.type = value;
+              onChanged();
+            },
+          ),
+          AppSpacing.gapSM,
+          DropdownButtonFormField<CardioPurpose?>(
+            key: Key('v2-cardio-$index-purpose'),
+            initialValue: controller.purpose,
+            isExpanded: true,
+            decoration: const InputDecoration(),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('Select Purpose')),
+              DropdownMenuItem(
+                value: CardioPurpose.warmUp,
+                child: Text('Warm-up'),
+              ),
+              DropdownMenuItem(value: CardioPurpose.main, child: Text('Main')),
+              DropdownMenuItem(
+                value: CardioPurpose.cooldown,
+                child: Text('Cool-down'),
+              ),
+            ],
+            onChanged: (value) {
+              controller.purpose = value;
               onChanged();
             },
           ),

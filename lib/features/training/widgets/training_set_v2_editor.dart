@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/training_set_v2.dart';
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../models/training_v2_form_controller.dart';
@@ -133,48 +134,59 @@ class _SetEditor extends StatelessWidget {
             ),
             AppSpacing.gapSM,
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _numberField(
-                    key: Key('v2-set-$index-weight'),
-                    controller: set.weight,
-                    label: 'Weight',
-                    suffix: 'kg',
-                    decimal: true,
+                  child: Column(
+                    children: [
+                      _numberField(
+                        key: Key('v2-set-$index-weight'),
+                        controller: set.weight,
+                        label: 'Weight',
+                        suffix: 'kg',
+                        decimal: true,
+                      ),
+                      AppSpacing.gapXS,
+                      _AdjustmentGrid(
+                        key: Key('v2-set-$index-weight-adjustments'),
+                        values: const [-10, -5, -2.5, 2.5, 5, 10],
+                        onSelected: (value) {
+                          final current =
+                              double.tryParse(set.weight.text.trim()) ?? 0;
+                          set.weight.text = _formatDouble(
+                            (current + value).clamp(0, double.infinity),
+                          );
+                          onChanged();
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: _numberField(
-                    key: Key('v2-set-$index-reps'),
-                    controller: set.reps,
-                    label: 'Reps',
+                  child: Column(
+                    children: [
+                      _numberField(
+                        key: Key('v2-set-$index-reps'),
+                        controller: set.reps,
+                        label: 'Reps',
+                      ),
+                      AppSpacing.gapXS,
+                      _AdjustmentGrid(
+                        key: Key('v2-set-$index-reps-adjustments'),
+                        values: const [-10, -5, -1, 1, 5, 10],
+                        onSelected: (value) {
+                          final current =
+                              int.tryParse(set.reps.text.trim()) ?? 0;
+                          set.reps.text =
+                              '${(current + value.toInt()).clamp(0, 1 << 31)}';
+                          onChanged();
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-            AppSpacing.gapXS,
-            _AdjustmentRow(
-              key: Key('v2-set-$index-weight-adjustments'),
-              values: const [-10, -5, -2.5, 2.5, 5, 10],
-              onSelected: (value) {
-                final current = double.tryParse(set.weight.text.trim()) ?? 0;
-                set.weight.text = _formatDouble(
-                  (current + value).clamp(0, double.infinity),
-                );
-                onChanged();
-              },
-            ),
-            AppSpacing.gapXS,
-            _AdjustmentRow(
-              key: Key('v2-set-$index-reps-adjustments'),
-              values: const [-10, -5, -1, 1, 5, 10],
-              onSelected: (value) {
-                final current = int.tryParse(set.reps.text.trim()) ?? 0;
-                set.reps.text =
-                    '${(current + value.toInt()).clamp(0, 1 << 31)}';
-                onChanged();
-              },
             ),
             AppSpacing.gapSM,
             LayoutBuilder(
@@ -222,9 +234,9 @@ class _SetEditor extends StatelessWidget {
                         horizontal: AppSpacing.xs / 2,
                       ),
                       child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          padding: EdgeInsets.zero,
+                        style: _controlButtonStyle(
+                          context,
+                          selected: set.rest.text.trim() == '$seconds',
                         ),
                         onPressed: () {
                           set.rest.text = '$seconds';
@@ -265,11 +277,11 @@ class _SetEditor extends StatelessWidget {
   }
 }
 
-class _AdjustmentRow extends StatelessWidget {
+class _AdjustmentGrid extends StatelessWidget {
   final List<double> values;
   final ValueChanged<double> onSelected;
 
-  const _AdjustmentRow({
+  const _AdjustmentGrid({
     super.key,
     required this.values,
     required this.onSelected,
@@ -277,36 +289,47 @@ class _AdjustmentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        for (final value in values)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xs / 2,
-              ),
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(0, 32),
-                  padding: EdgeInsets.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => onSelected(value),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    value > 0
-                        ? '+${_formatDouble(value)}'
-                        : _formatDouble(value),
+        for (var row = 0; row < 2; row++) ...[
+          if (row > 0) AppSpacing.gapXS,
+          Row(
+            children: [
+              for (var column = 0; column < 3; column++) ...[
+                if (column > 0) const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: OutlinedButton(
+                    style: _controlButtonStyle(context),
+                    onPressed: () => onSelected(values[(row * 3) + column]),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(_adjustmentLabel(values[(row * 3) + column])),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              ],
+            ],
           ),
+        ],
       ],
     );
   }
 }
+
+ButtonStyle _controlButtonStyle(BuildContext context, {bool selected = false}) {
+  final colors = Theme.of(context).colorScheme;
+  return OutlinedButton.styleFrom(
+    minimumSize: const Size(0, 48),
+    padding: EdgeInsets.zero,
+    backgroundColor: selected ? colors.primaryContainer : null,
+    foregroundColor: selected ? colors.onPrimaryContainer : null,
+    side: BorderSide(color: selected ? colors.primary : colors.outline),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.small),
+  );
+}
+
+String _adjustmentLabel(double value) =>
+    value > 0 ? '+${_formatDouble(value)}' : _formatDouble(value);
 
 String _formatDouble(double value) {
   return value == value.roundToDouble()

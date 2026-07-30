@@ -35,6 +35,10 @@ void main() {
     expect(find.text('Overall Evaluation'), findsNothing);
     expect(find.text('Evaluation'), findsNothing);
     expect(find.text('Next Target'), findsNothing);
+    expect(find.text('PROGRESSION'), findsNothing);
+    expect(find.text('PERSONAL RECORD'), findsNothing);
+    expect(find.text('Select Exercise'), findsOneWidget);
+    expect(find.text('Equipment'), findsOneWidget);
     expect(find.text('Set Type'), findsOneWidget);
     expect(find.text('RPE'), findsOneWidget);
     expect(find.text('Rest'), findsOneWidget);
@@ -89,10 +93,24 @@ void main() {
           rowTop ??= rect.top;
           expect(rect.top, rowTop);
           expect(rect.height, greaterThanOrEqualTo(48));
+          final outlined = tester.widget<OutlinedButton>(button);
+          final shape = outlined.style!.shape!.resolve({});
+          expect(shape, isA<RoundedRectangleBorder>());
+          final radius = (shape! as RoundedRectangleBorder).borderRadius
+              .resolve(TextDirection.ltr)
+              .topLeft
+              .x;
+          expect(radius, lessThan(rect.height / 2));
           await tester.tapAt(Offset(rect.center.dx, rect.bottom - 1));
+          await tester.pump();
           expect(
             tester.widget<TextField>(restField).controller!.text,
             '$seconds',
+          );
+          final selectedButton = tester.widget<OutlinedButton>(button);
+          expect(
+            selectedButton.style!.backgroundColor!.resolve({}),
+            Theme.of(tester.element(button)).colorScheme.primaryContainer,
           );
         }
 
@@ -101,6 +119,34 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+  }
+
+  for (final width in <double>[320, 390]) {
+    testWidgets('weight and reps controls stay paired in framed 48px grids at '
+        '${width.toInt()}px', (tester) async {
+      await _pump(tester, width: width);
+      final weightGrid = find.byKey(const Key('v2-set-0-weight-adjustments'));
+      final repsGrid = find.byKey(const Key('v2-set-0-reps-adjustments'));
+      final weightRect = tester.getRect(weightGrid);
+      final repsRect = tester.getRect(repsGrid);
+
+      expect(weightRect.right, lessThan(repsRect.left));
+      expect(
+        tester.getTopLeft(find.byKey(const Key('v2-set-0-weight'))).dx,
+        lessThan(tester.getTopLeft(find.byKey(const Key('v2-set-0-reps'))).dx),
+      );
+      _expectAdjustmentGrid(
+        tester,
+        grid: weightGrid,
+        labels: const ['-10', '-5', '-2.5', '+2.5', '+5', '+10'],
+      );
+      _expectAdjustmentGrid(
+        tester,
+        grid: repsGrid,
+        labels: const ['-10', '-5', '-1', '+1', '+5', '+10'],
+      );
+      expect(tester.takeException(), isNull);
+    });
   }
 
   for (final brightness in Brightness.values) {
@@ -113,8 +159,8 @@ void main() {
           await tester.tap(find.text('ADD CARDIO'));
           await tester.pumpAndSettle();
 
-          expect(find.text('目的'), findsOneWidget);
-          expect(find.text('種目'), findsOneWidget);
+          expect(find.text('Select Cardio'), findsOneWidget);
+          expect(find.text('Select Purpose'), findsOneWidget);
           expect(find.text('時間'), findsOneWidget);
           expect(find.text('距離'), findsOneWidget);
           expect(find.text('METs'), findsOneWidget);
@@ -131,6 +177,47 @@ void main() {
       );
     }
   }
+
+  testWidgets('cardio selectors keep separate stable values and copy', (
+    tester,
+  ) async {
+    final database = await _pump(tester);
+    await tester.tap(find.text('ADD CARDIO'));
+    await tester.pumpAndSettle();
+
+    final typeField = find.byKey(const Key('v2-cardio-0-type'));
+    final purposeField = find.byKey(const Key('v2-cardio-0-purpose'));
+    expect(typeField, findsOneWidget);
+    expect(purposeField, findsOneWidget);
+
+    await tester.tap(typeField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ランニング').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(purposeField);
+    await tester.pumpAndSettle();
+    expect(find.text('Warm-up'), findsOneWidget);
+    expect(find.text('Main'), findsOneWidget);
+    expect(find.text('Cool-down'), findsOneWidget);
+    await tester.tap(find.text('Main'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('v2-cardio-0-duration')),
+      '5:00',
+    );
+    await tester.tap(find.text('SAVE TRAINING'));
+    await tester.pumpAndSettle();
+
+    final records = await database.findAll(IndexedDbStoreNames.trainingRecords);
+    final data = records.single['data'] as Map<String, dynamic>;
+    final cardio =
+        (data['cardioEntries'] as List).single as Map<String, dynamic>;
+    expect(cardio['type'], CardioType.running.name);
+    expect(cardio['purpose'], CardioPurpose.main.stableId);
+    expect(cardio['durationSeconds'], 300);
+  });
 
   testWidgets('ADD SET preserves copy actions and rest presets', (
     tester,
@@ -426,7 +513,8 @@ void main() {
     expect(find.text('Equipment'), findsNothing);
     expect(find.text('Minutes'), findsNothing);
     expect(find.text('Seconds'), findsNothing);
-    expect(find.text('種目'), findsOneWidget);
+    expect(find.text('Select Cardio'), findsNothing);
+    expect(find.text('Select Purpose'), findsNothing);
     expect(find.text('距離'), findsOneWidget);
     expect(find.text('平均心拍'), findsOneWidget);
     expect(find.text('最大心拍'), findsOneWidget);
@@ -538,6 +626,42 @@ void main() {
     );
     expect(find.widgetWithText(TextField, '推定消費カロリー'), findsNothing);
   });
+}
+
+void _expectAdjustmentGrid(
+  WidgetTester tester, {
+  required Finder grid,
+  required List<String> labels,
+}) {
+  final buttons = find.descendant(
+    of: grid,
+    matching: find.byType(OutlinedButton),
+  );
+  expect(buttons, findsNWidgets(6));
+  final rowTops = <double>[];
+
+  for (final label in labels) {
+    final button = find.descendant(
+      of: grid,
+      matching: find.widgetWithText(OutlinedButton, label),
+    );
+    expect(button, findsOneWidget);
+    final rect = tester.getRect(button);
+    expect(rect.height, greaterThanOrEqualTo(48));
+    rowTops.add(rect.top);
+
+    final outlined = tester.widget<OutlinedButton>(button);
+    final shape = outlined.style!.shape!.resolve({});
+    expect(shape, isA<RoundedRectangleBorder>());
+    final radius = (shape! as RoundedRectangleBorder).borderRadius
+        .resolve(TextDirection.ltr)
+        .topLeft
+        .x;
+    expect(radius, lessThan(rect.height / 2));
+  }
+
+  expect(rowTops.toSet(), hasLength(2));
+  expect(rowTops.where((top) => top == rowTops.first), hasLength(3));
 }
 
 void _setExercise(WidgetTester tester, String name) {
