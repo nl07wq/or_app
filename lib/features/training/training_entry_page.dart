@@ -10,12 +10,12 @@ import '../../core/widgets/section_header.dart';
 import 'models/training_record_read_model.dart';
 import 'models/training_summary_state.dart';
 import 'models/training_v2_form_controller.dart';
-import 'services/training_v2_form_mapper.dart';
 import 'services/training_cardio_calorie_calculator.dart';
+import 'services/training_equipment_candidates.dart';
 import 'services/training_status_weight_resolver.dart';
+import 'services/training_v2_form_mapper.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
-import 'widgets/training_equipment_field.dart';
 import 'widgets/training_exercise_v2_editor.dart';
 import 'widgets/training_session_v2_form.dart';
 
@@ -30,7 +30,8 @@ class TrainingEntryPage extends StatefulWidget {
 
 class _TrainingEntryPageState extends State<TrainingEntryPage> {
   late TrainingV2FormController _form;
-  late TrainingEquipmentCandidates _equipmentCandidates;
+  List<TrainingRecordReadModel> _preferredRecords = const [];
+  late TrainingEquipmentCandidates _cardioEquipmentCandidates;
   Object? _expandedItem;
   bool _isSaving = false;
   double? _statusWeightKg;
@@ -50,19 +51,22 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     if (existing == null && _form.exercises.isNotEmpty) {
       _expandedItem = _form.exercises.first;
     }
-    _equipmentCandidates = TrainingEquipmentCandidates.fromRecords(
+    _cardioEquipmentCandidates = TrainingEquipmentCandidates.forCardio(
       const <TrainingRecordReadModel>[],
     );
-    _loadEquipmentCandidates();
+    _loadTrainingContext();
     _loadStatusWeight();
   }
 
-  Future<void> _loadEquipmentCandidates() async {
+  Future<void> _loadTrainingContext() async {
     try {
       final records = await TrainingRepository.getReadModels();
       if (!mounted) return;
       setState(() {
-        _equipmentCandidates = TrainingEquipmentCandidates.fromRecords(records);
+        _preferredRecords = List.unmodifiable(records);
+        _cardioEquipmentCandidates = TrainingEquipmentCandidates.forCardio(
+          records,
+        );
       });
     } catch (_) {
       // Built-in candidates remain available; persistence errors surface on save.
@@ -224,7 +228,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     child: TrainingExerciseV2Editor(
                       index: index,
                       controller: exercise,
-                      equipmentCandidates: _equipmentCandidates,
+                      preferredRecords: _preferredRecords,
+                      targetRecord: widget.existingRecord,
+                      sessionDate: _form.date,
                       expanded: identical(_expandedItem, exercise),
                       onToggle: () => _toggle(exercise),
                       onDelete: () {
@@ -258,7 +264,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     child: TrainingCardioV2Editor(
                       index: index,
                       controller: cardio,
-                      equipmentCandidates: _equipmentCandidates,
+                      equipmentCandidates: _cardioEquipmentCandidates,
                       expanded: identical(_expandedItem, cardio),
                       calorieResult: _cardioPreview(cardio),
                       onToggle: () => _toggle(cardio),

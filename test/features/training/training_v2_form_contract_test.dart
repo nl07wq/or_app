@@ -7,8 +7,8 @@ import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/models/training_v2_form_controller.dart';
+import 'package:or_app/features/training/services/training_equipment_candidates.dart';
 import 'package:or_app/features/training/services/training_v2_form_mapper.dart';
-import 'package:or_app/features/training/widgets/training_equipment_field.dart';
 
 void main() {
   test('new form starts with one Main set and no cardio', () {
@@ -23,6 +23,9 @@ void main() {
     expect(form.sessionGrade, isNull);
     expect(form.dynamicStretchCompleted, isNull);
     expect(form.cooldownStretchCompleted, isNull);
+    expect(form.overallEvaluation.text, isEmpty);
+    expect(form.exercises.single.evaluation.text, isEmpty);
+    expect(form.exercises.single.targetReps, isEmpty);
   });
 
   test('ADD SET inherits only set type and rest', () {
@@ -87,6 +90,21 @@ void main() {
     expect(cardio.legacyIntensity, isNull);
     expect(cardio.legacyReferenceCaloriesKcal, isNull);
     expect(result.hasLegacyUnknown, isFalse);
+  });
+
+  test('set-only edit preserves hidden evaluation and next target values', () {
+    final form = TrainingV2FormController.fromSession(_session());
+    addTearDown(form.dispose);
+    form.exercises.single.sets.single.reps.text = '9';
+
+    final result = TrainingV2FormMapper.toDomain(form);
+
+    expect(result.overallEvaluation, 'Stable');
+    expect(result.exercises.single.evaluation, 'Good');
+    expect(result.exercises.single.nextTarget?.targetWeightKg, 85);
+    expect(result.exercises.single.nextTarget?.targetReps, [8, 8]);
+    expect(result.exercises.single.nextTarget?.notes, 'Control');
+    expect(result.exercises.single.sets.single.reps, 9);
   });
 
   test('mapper skips untouched exercise when valid cardio exists', () {
@@ -210,13 +228,16 @@ void main() {
       ),
     );
 
-    final values = TrainingEquipmentCandidates.fromRecords([record]).values;
+    final values = TrainingEquipmentCandidates.forExercise(
+      exerciseName: 'Press',
+      preferredRecords: [record],
+    ).values;
 
     expect(
       values.where((value) => value.name == 'Custom Handle'),
       hasLength(1),
     );
-    expect(values.any((value) => value.catalogId != null), isTrue);
+    expect(values.any((value) => value.catalogId != null), isFalse);
   });
 }
 

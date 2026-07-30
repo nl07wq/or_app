@@ -69,6 +69,7 @@ class TrainingV2FormController {
 class TrainingV2ExerciseFormController {
   final exerciseName = TextEditingController();
   TrainingEquipmentSnapshot? equipment;
+  bool equipmentSelectionMade;
   final List<TrainingV2SetFormController> sets;
   final evaluation = TextEditingController();
   final targetWeight = TextEditingController();
@@ -76,11 +77,13 @@ class TrainingV2ExerciseFormController {
   final targetNotes = TextEditingController();
 
   TrainingV2ExerciseFormController()
-    : sets = [TrainingV2SetFormController()],
+    : equipmentSelectionMade = false,
+      sets = [TrainingV2SetFormController()],
       targetReps = [];
 
   TrainingV2ExerciseFormController.fromDomain(TrainingExerciseV2 exercise)
     : equipment = exercise.equipment,
+      equipmentSelectionMade = true,
       sets = exercise.sets.map(TrainingV2SetFormController.fromDomain).toList(),
       targetReps =
           exercise.nextTarget?.targetReps

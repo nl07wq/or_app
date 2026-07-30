@@ -5,6 +5,7 @@ import '../../../core/models/cardio_entry_v2.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../models/training_v2_form_controller.dart';
 import '../services/training_cardio_calorie_calculator.dart';
+import '../services/training_equipment_candidates.dart';
 import 'training_collapsible_card.dart';
 import 'training_equipment_field.dart';
 

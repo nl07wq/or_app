@@ -2,18 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/training_set_v2.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/section_header.dart';
+import '../models/training_record_read_model.dart';
 import '../models/training_v2_form_controller.dart';
 import '../services/exercise_name_localization.dart';
+import '../services/training_equipment_candidates.dart';
 import 'exercise_selector.dart';
 import 'training_collapsible_card.dart';
 import 'training_equipment_field.dart';
 import 'training_set_v2_editor.dart';
+import 'training_v2_entry_insight_panel.dart';
 
-class TrainingExerciseV2Editor extends StatelessWidget {
+class TrainingExerciseV2Editor extends StatefulWidget {
   final int index;
   final TrainingV2ExerciseFormController controller;
-  final TrainingEquipmentCandidates equipmentCandidates;
+  final List<TrainingRecordReadModel> preferredRecords;
+  final TrainingRecordReadModel? targetRecord;
+  final String sessionDate;
   final bool expanded;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
@@ -23,7 +27,9 @@ class TrainingExerciseV2Editor extends StatelessWidget {
     super.key,
     required this.index,
     required this.controller,
-    required this.equipmentCandidates,
+    required this.preferredRecords,
+    required this.targetRecord,
+    required this.sessionDate,
     required this.expanded,
     required this.onToggle,
     required this.onDelete,
@@ -31,22 +37,59 @@ class TrainingExerciseV2Editor extends StatelessWidget {
   });
 
   @override
+  State<TrainingExerciseV2Editor> createState() =>
+      _TrainingExerciseV2EditorState();
+}
+
+class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
+  late String _previousExerciseKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousExerciseKey = exerciseIdentityKey(
+      widget.controller.exerciseName.text,
+    );
+    widget.controller.exerciseName.addListener(_handleExerciseChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant TrainingExerciseV2Editor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      oldWidget.controller.exerciseName.removeListener(_handleExerciseChange);
+      _previousExerciseKey = exerciseIdentityKey(
+        widget.controller.exerciseName.text,
+      );
+      widget.controller.exerciseName.addListener(_handleExerciseChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.exerciseName.removeListener(_handleExerciseChange);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     final name = controller.exerciseName.text.trim();
     final title = name.isEmpty
-        ? 'EXERCISE ${index + 1}'
+        ? 'EXERCISE ${widget.index + 1}'
         : exerciseDisplayName(name);
+    final equipmentCandidates = _equipmentCandidates();
     return TrainingCollapsibleCard(
       icon: Icons.fitness_center,
       title: title,
       summary: _summary(),
-      isExpanded: expanded,
-      onToggle: onToggle,
+      isExpanded: widget.expanded,
+      onToggle: widget.onToggle,
       headerKey: ValueKey('v2-exercise-header-${identityHashCode(controller)}'),
       contentKey: ValueKey(
         'v2-exercise-content-${identityHashCode(controller)}',
       ),
-      semanticsLabel: '$title, ${expanded ? 'expanded' : 'collapsed'}',
+      semanticsLabel: '$title, ${widget.expanded ? 'expanded' : 'collapsed'}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -58,86 +101,62 @@ class TrainingExerciseV2Editor extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.delete_outline),
                 tooltip: 'Delete exercise',
-                onPressed: onDelete,
+                onPressed: widget.onDelete,
               ),
             ],
           ),
           AppSpacing.gapSM,
           TrainingEquipmentField(
-            fieldKey: 'v2-exercise-$index-equipment',
+            fieldKey: 'v2-exercise-${widget.index}-equipment',
             value: controller.equipment,
             candidates: equipmentCandidates,
+            hasSelection: controller.equipmentSelectionMade,
+            allowCustom: name.isNotEmpty,
             onChanged: (value) {
-              controller.equipment = value;
-              onChanged();
+              setState(() {
+                controller.equipment = value;
+                controller.equipmentSelectionMade = true;
+              });
+              widget.onChanged();
             },
           ),
-          AppSpacing.gapMD,
-          TrainingSetV2Editor(controller: controller, onChanged: onChanged),
-          AppSpacing.gapMD,
-          TextField(
-            controller: controller.evaluation,
-            decoration: const InputDecoration(labelText: 'Evaluation'),
-            minLines: 3,
-            maxLines: 5,
-          ),
-          AppSpacing.gapMD,
-          const SectionHeader(icon: Icons.flag_outlined, title: 'NEXT TARGET'),
-          AppSpacing.gapSM,
-          TextField(
-            controller: controller.targetWeight,
-            decoration: const InputDecoration(
-              labelText: 'Target Weight',
-              suffixText: 'kg',
+          if (name.isNotEmpty && controller.equipmentSelectionMade) ...[
+            AppSpacing.gapMD,
+            TrainingV2EntryInsightPanel(
+              controller: controller,
+              preferredRecords: widget.preferredRecords,
+              targetRecord: widget.targetRecord,
+              sessionDate: widget.sessionDate,
             ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          ),
-          AppSpacing.gapSM,
-          for (final (targetIndex, reps) in controller.targetReps.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: Key('v2-target-reps-$index-$targetIndex'),
-                      controller: reps,
-                      decoration: InputDecoration(
-                        labelText: 'Target Set ${targetIndex + 1}',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Delete target reps',
-                    onPressed: () {
-                      controller.removeTargetRep(reps);
-                      onChanged();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('ADD TARGET REP'),
-              onPressed: () {
-                controller.addTargetRep();
-                onChanged();
-              },
-            ),
-          ),
-          TextField(
-            controller: controller.targetNotes,
-            decoration: const InputDecoration(labelText: 'Target Notes'),
-            minLines: 2,
-            maxLines: 4,
+          ],
+          AppSpacing.gapMD,
+          TrainingSetV2Editor(
+            controller: controller,
+            onChanged: widget.onChanged,
           ),
         ],
       ),
+    );
+  }
+
+  void _handleExerciseChange() {
+    final currentKey = exerciseIdentityKey(widget.controller.exerciseName.text);
+    if (currentKey == _previousExerciseKey) return;
+    _previousExerciseKey = currentKey;
+    final selected = widget.controller.equipment;
+    setState(() {
+      if (selected != null && !_equipmentCandidates().contains(selected)) {
+        widget.controller.equipment = null;
+        widget.controller.equipmentSelectionMade = false;
+      }
+    });
+    widget.onChanged();
+  }
+
+  TrainingEquipmentCandidates _equipmentCandidates() {
+    return TrainingEquipmentCandidates.forExercise(
+      exerciseName: widget.controller.exerciseName.text,
+      preferredRecords: widget.preferredRecords,
     );
   }
 
@@ -145,7 +164,7 @@ class TrainingExerciseV2Editor extends StatelessWidget {
     var mainSets = 0;
     var reps = 0;
     double? heaviest;
-    for (final set in controller.sets) {
+    for (final set in widget.controller.sets) {
       if (set.setType != TrainingSetType.main) continue;
       final weight = double.tryParse(set.weight.text.trim());
       final valueReps = int.tryParse(set.reps.text.trim());

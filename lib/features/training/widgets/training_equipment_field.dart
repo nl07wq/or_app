@@ -1,65 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/training_equipment_snapshot.dart';
-import '../models/training_record_read_model.dart';
-import '../services/equipment_catalog.dart';
-
-class TrainingEquipmentCandidates {
-  final List<TrainingEquipmentSnapshot> values;
-
-  const TrainingEquipmentCandidates._(this.values);
-
-  factory TrainingEquipmentCandidates.fromRecords(
-    Iterable<TrainingRecordReadModel> records,
-  ) {
-    final candidates = <TrainingEquipmentSnapshot>[
-      for (final value in builtInEquipment)
-        TrainingEquipmentSnapshot(catalogId: value.id, name: value.displayName),
-    ];
-    for (final record in records) {
-      final v2 = record.v2Data;
-      if (v2 != null) {
-        candidates.addAll(
-          v2.exercises.map((exercise) => exercise.equipment).nonNulls,
-        );
-        candidates.addAll(
-          v2.cardioEntries.map((entry) => entry.equipment).nonNulls,
-        );
-      }
-      final v1 = record.v1Data;
-      if (v1 != null) {
-        for (final exercise in v1.exercises) {
-          final catalog = equipmentById(exercise.equipmentId);
-          if (catalog != null) {
-            candidates.add(
-              TrainingEquipmentSnapshot(
-                catalogId: catalog.id,
-                name: catalog.displayName,
-              ),
-            );
-          }
-        }
-      }
-    }
-    final seen = <String>{};
-    return TrainingEquipmentCandidates._(
-      List.unmodifiable(
-        candidates.where((value) {
-          final key = value.catalogId == null
-              ? 'name:${_normalize(value.name)}'
-              : 'catalog:${_normalize(value.catalogId!)}';
-          return seen.add(key);
-        }),
-      ),
-    );
-  }
-}
+import '../services/training_equipment_candidates.dart';
 
 class TrainingEquipmentField extends StatelessWidget {
   final TrainingEquipmentSnapshot? value;
   final TrainingEquipmentCandidates candidates;
   final ValueChanged<TrainingEquipmentSnapshot?> onChanged;
   final String fieldKey;
+  final bool hasSelection;
+  final bool allowCustom;
 
   const TrainingEquipmentField({
     super.key,
@@ -67,6 +17,8 @@ class TrainingEquipmentField extends StatelessWidget {
     required this.candidates,
     required this.onChanged,
     required this.fieldKey,
+    this.hasSelection = true,
+    this.allowCustom = true,
   });
 
   @override
@@ -75,12 +27,20 @@ class TrainingEquipmentField extends StatelessWidget {
       key: Key(fieldKey),
       onTap: () => _select(context),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Equipment',
+        decoration: InputDecoration(
+          labelText: hasSelection ? 'Equipment' : null,
           suffixIcon: Icon(Icons.arrow_drop_down),
         ),
-        isEmpty: value == null,
-        child: Text(value?.name ?? 'None'),
+        isEmpty: !hasSelection,
+        child: Text(
+          !hasSelection
+              ? 'Equipment'
+              : value == null
+              ? 'なし'
+              : trainingEquipmentDisplayLabel(value!),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
@@ -89,7 +49,10 @@ class TrainingEquipmentField extends StatelessWidget {
     final selected = await showModalBottomSheet<_EquipmentSelection>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _EquipmentSheet(candidates: candidates.values),
+      builder: (context) => _EquipmentSheet(
+        candidates: candidates.values,
+        allowCustom: allowCustom,
+      ),
     );
     if (selected == null) return;
     onChanged(selected.value);
@@ -98,8 +61,9 @@ class TrainingEquipmentField extends StatelessWidget {
 
 class _EquipmentSheet extends StatelessWidget {
   final List<TrainingEquipmentSnapshot> candidates;
+  final bool allowCustom;
 
-  const _EquipmentSheet({required this.candidates});
+  const _EquipmentSheet({required this.candidates, required this.allowCustom});
 
   @override
   Widget build(BuildContext context) {
@@ -113,14 +77,14 @@ class _EquipmentSheet extends StatelessWidget {
                 children: [
                   ListTile(
                     leading: const Icon(Icons.block),
-                    title: const Text('None'),
+                    title: const Text('なし'),
                     onTap: () =>
                         Navigator.pop(context, const _EquipmentSelection(null)),
                   ),
                   for (final candidate in candidates)
                     ListTile(
                       leading: const Icon(Icons.fitness_center_outlined),
-                      title: Text(candidate.name),
+                      title: Text(trainingEquipmentDisplayLabel(candidate)),
                       subtitle: candidate.catalogId == null
                           ? const Text('Saved / custom')
                           : null,
@@ -132,12 +96,14 @@ class _EquipmentSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.add),
-              title: const Text('Custom Equipment'),
-              onTap: () => _custom(context),
-            ),
+            if (allowCustom) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.add),
+                title: const Text('Custom Equipment'),
+                onTap: () => _custom(context),
+              ),
+            ],
           ],
         ),
       ),
@@ -184,6 +150,3 @@ class _EquipmentSelection {
 
   const _EquipmentSelection(this.value);
 }
-
-String _normalize(String value) =>
-    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

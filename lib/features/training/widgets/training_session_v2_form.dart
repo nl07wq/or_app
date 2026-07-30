@@ -67,13 +67,6 @@ class TrainingSessionV2Form extends StatelessWidget {
               onChanged();
             },
           ),
-          AppSpacing.gapSM,
-          TextField(
-            controller: controller.overallEvaluation,
-            decoration: const InputDecoration(labelText: 'Overall Evaluation'),
-            minLines: 3,
-            maxLines: 5,
-          ),
         ],
       ),
     );

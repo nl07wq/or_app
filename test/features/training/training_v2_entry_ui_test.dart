@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/morning_data.dart';
+import 'package:or_app/core/models/training_equipment_snapshot.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
+import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
@@ -29,7 +32,9 @@ void main() {
     expect(find.text('Session Memo'), findsOneWidget);
     expect(find.text('Dynamic Stretch'), findsOneWidget);
     expect(find.text('Cooldown Stretch'), findsOneWidget);
-    expect(find.text('Overall Evaluation'), findsOneWidget);
+    expect(find.text('Overall Evaluation'), findsNothing);
+    expect(find.text('Evaluation'), findsNothing);
+    expect(find.text('Next Target'), findsNothing);
     expect(find.text('Set Type'), findsOneWidget);
     expect(find.text('RPE'), findsOneWidget);
     expect(find.text('Rest'), findsOneWidget);
@@ -101,14 +106,19 @@ void main() {
   ) async {
     await _pump(tester);
 
+    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('なし'), findsNothing);
+    _setExercise(tester, 'BenchPress');
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
     await tester.pumpAndSettle();
-    expect(find.text('None'), findsWidgets);
+    expect(find.text('なし'), findsOneWidget);
     expect(find.text('Custom Equipment'), findsOneWidget);
-    final builtIn = find.text('Power Rack').first;
+    expect(find.text('45°レッグプレス'), findsNothing);
+    final builtIn = find.text('パワーラック').first;
     await tester.tap(builtIn);
     await tester.pumpAndSettle();
-    expect(find.text('Power Rack'), findsOneWidget);
+    expect(find.text('パワーラック'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
     await tester.pumpAndSettle();
@@ -124,9 +134,123 @@ void main() {
 
     await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('None').last);
+    await tester.tap(find.text('なし').last);
     await tester.pumpAndSettle();
-    expect(find.text('None'), findsOneWidget);
+    expect(find.text('なし'), findsOneWidget);
+  });
+
+  testWidgets('exercise change preserves only compatible equipment', (
+    tester,
+  ) async {
+    await _pump(tester);
+    _setExercise(tester, 'BenchPress');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('スミスマシン'));
+    await tester.pumpAndSettle();
+
+    _setExercise(tester, 'ShoulderPress');
+    await tester.pumpAndSettle();
+    expect(find.text('スミスマシン'), findsOneWidget);
+
+    _setExercise(tester, 'LegPress');
+    await tester.pumpAndSettle();
+    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('なし'), findsNothing);
+  });
+
+  testWidgets('insight panels precede sets and omit responsibility fields', (
+    tester,
+  ) async {
+    await _pump(tester, width: 320);
+    _setExercise(tester, 'BenchPress');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('なし'));
+    await tester.pumpAndSettle();
+
+    final progression = tester.getTopLeft(find.text('PROGRESSION')).dy;
+    final statistics = tester.getTopLeft(find.text('STATISTICS')).dy;
+    final personalRecord = tester.getTopLeft(find.text('PERSONAL RECORD')).dy;
+    final firstSet = tester.getTopLeft(find.text('SET 1')).dy;
+    expect(progression, lessThan(statistics));
+    expect(statistics, lessThan(personalRecord));
+    expect(personalRecord, lessThan(firstSet));
+    expect(find.text('前回　記録なし'), findsOneWidget);
+    expect(find.text('今回　提案なし'), findsOneWidget);
+    expect(find.text('自己ベスト'), findsOneWidget);
+    expect(find.text('Overall Evaluation'), findsNothing);
+    expect(find.text('Evaluation'), findsNothing);
+    expect(find.text('Next Target'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('editing sets preserves hidden evaluation and next target', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    final existing = TrainingRecordReadModel.v2(
+      id: 'training:11112222-3333-4444-8555-666677778888',
+      localDate: '2026-07-30',
+      createdAt: DateTime.utc(2026, 7, 30),
+      updatedAt: DateTime.utc(2026, 7, 30),
+      data: TrainingSessionV2(
+        date: '2026-07-30T12:00:00',
+        overallEvaluation: 'Keep session evaluation',
+        exercises: [
+          TrainingExerciseV2(
+            exerciseName: 'BenchPress',
+            order: 1,
+            equipment: TrainingEquipmentSnapshot(
+              catalogId: 'power_rack',
+              name: 'Power Rack',
+            ),
+            sets: [
+              TrainingSetV2(
+                setNo: 1,
+                setType: TrainingSetType.main,
+                weightKg: 80,
+                reps: 5,
+              ),
+            ],
+            evaluation: 'Keep exercise evaluation',
+            nextTarget: TrainingNextTarget(
+              targetWeightKg: 82.5,
+              targetReps: [5],
+              notes: 'Keep target',
+            ),
+          ),
+        ],
+      ),
+    );
+    database.seed(IndexedDbStoreNames.trainingRecords, existing.id, {
+      'id': existing.id,
+      'recordVersion': 2,
+      'localDate': existing.localDate,
+      'createdAt': existing.createdAt.toIso8601String(),
+      'updatedAt': existing.updatedAt.toIso8601String(),
+      'data': existing.v2Data!.toJson(),
+    });
+    await _pump(tester, existingRecord: existing, database: database);
+
+    await tester.tap(find.bySemanticsLabel('ベンチプレス, collapsed'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '6');
+    await tester.tap(find.text('UPDATE TRAINING'));
+    await tester.pumpAndSettle();
+
+    final stored = await database.findById(
+      IndexedDbStoreNames.trainingRecords,
+      existing.id,
+    );
+    final data = stored!['data'] as Map<String, dynamic>;
+    final exercise = (data['exercises'] as List).single as Map<String, dynamic>;
+    expect(data['overallEvaluation'], 'Keep session evaluation');
+    expect(exercise['evaluation'], 'Keep exercise evaluation');
+    expect(exercise['nextTarget'], containsPair('targetWeightKg', 82.5));
+    expect(exercise['nextTarget'], containsPair('notes', 'Keep target'));
   });
 
   testWidgets('editable v2 restores fields and cardio calories stay disabled', (
@@ -208,6 +332,29 @@ void main() {
     expect(records.single['recordVersion'], 2);
   });
 
+  testWidgets('built-in equipment display keeps stable saved identity', (
+    tester,
+  ) async {
+    final database = await _pump(tester);
+    _setExercise(tester, 'BenchPress');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('パワーラック'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+
+    await tester.tap(find.text('SAVE TRAINING'));
+    await tester.pumpAndSettle();
+
+    final records = await database.findAll(IndexedDbStoreNames.trainingRecords);
+    final data = records.single['data'] as Map<String, dynamic>;
+    final exercise = (data['exercises'] as List).single as Map<String, dynamic>;
+    expect(exercise['equipment'], containsPair('catalogId', 'power_rack'));
+    expect(exercise['equipment'], containsPair('name', 'Power Rack'));
+  });
+
   testWidgets('cardio preview uses same-date STATUS without calories input', (
     tester,
   ) async {
@@ -259,6 +406,14 @@ void main() {
     );
     expect(find.widgetWithText(TextField, 'Estimated Calories'), findsNothing);
   });
+}
+
+void _setExercise(WidgetTester tester, String name) {
+  tester
+          .widget<ExerciseSelector>(find.byType(ExerciseSelector))
+          .controller
+          .text =
+      name;
 }
 
 Future<FakeIndexedDbDatabase> _pump(
