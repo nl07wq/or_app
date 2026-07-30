@@ -28,7 +28,6 @@ void main() {
     foodSummaryNotifier.value = null;
     activitySummaryNotifier.value = const ActivitySummary.empty();
     trainingSummaryNotifier.value = null;
-    trainingCardioCaloriesNotifier.value = 0;
   });
 
   testWidgets('uses the approved two-column order and full-width ACTIVITY', (
@@ -467,6 +466,58 @@ void main() {
 
     await _pumpDashboard(tester, width: 390, theme: ThemeData.dark());
     _expectProgressTilesFit(tester);
+  });
+
+  testWidgets('distinguishes complete, partial, and uncomputed cardio energy', (
+    tester,
+  ) async {
+    morningFactNotifier.value = _morning();
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 0,
+      setCount: 0,
+      duration: null,
+      sessionName: null,
+      trainingCardioCaloriesKcal: 32,
+      computedCardioCount: 1,
+      uncomputedCardioCount: 0,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.complete,
+      energyCalculationVersion: 1,
+    );
+    await _pumpDashboard(tester, width: 800);
+    expect(find.text('32 kcal'), findsOneWidget);
+    expect(find.text('2812 kcal'), findsOneWidget);
+
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 0,
+      setCount: 0,
+      duration: null,
+      sessionName: null,
+      trainingCardioCaloriesKcal: 32,
+      computedCardioCount: 1,
+      uncomputedCardioCount: 1,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.partial,
+      energyCalculationVersion: 1,
+    );
+    await tester.pump();
+    expect(find.text('32 kcal\nPartial'), findsOneWidget);
+    expect(find.text('2812 kcal\nPartial'), findsOneWidget);
+
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 0,
+      setCount: 0,
+      duration: null,
+      sessionName: null,
+      computedCardioCount: 0,
+      uncomputedCardioCount: 1,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.notCalculated,
+      energyCalculationVersion: 1,
+    );
+    await tester.pump();
+    expect(find.text('Not calculated'), findsNWidgets(2));
+    expect(find.text('0 kcal'), findsNothing);
   });
 }
 

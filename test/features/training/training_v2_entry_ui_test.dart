@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/cardio_entry_v2.dart';
+import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
+import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/status/models/persisted_status_record.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/training_entry_page.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
@@ -204,6 +207,58 @@ void main() {
     expect(records, hasLength(1));
     expect(records.single['recordVersion'], 2);
   });
+
+  testWidgets('cardio preview uses same-date STATUS without calories input', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final localDate =
+        '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    final database = FakeIndexedDbDatabase();
+    final status = PersistedStatusRecord(
+      id: PersistedStatusRecord.canonicalId(localDate),
+      localDate: localDate,
+      createdAt: now.toUtc(),
+      updatedAt: now.toUtc(),
+      canonicalDate: localDate,
+      recordKind: StatusRecordKind.canonical,
+      data: MorningData(
+        date: '${localDate}T07:00:00',
+        weight: 96.8,
+        bodyFat: 20,
+        sleepHours: 7,
+        sleepScore: 80,
+        footPain: 0,
+        workType: WorkType.work,
+        workStart: '09:00',
+        workEnd: '18:00',
+        workBreak: '01:00',
+        workHours: 8,
+        memo: '',
+      ),
+    );
+    database.seed(
+      IndexedDbStoreNames.statusRecords,
+      status.id,
+      status.toRecord(),
+    );
+    await _pump(tester, database: database);
+
+    await tester.tap(find.text('ADD CARDIO'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'METs'), '4');
+    await tester.pump();
+
+    expect(find.text('34 kcal'), findsOneWidget);
+    expect(
+      find.text('Calculated from METs, duration, and STATUS weight'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(TextField, 'Estimated Calories'), findsNothing);
+  });
 }
 
 Future<FakeIndexedDbDatabase> _pump(
@@ -211,6 +266,7 @@ Future<FakeIndexedDbDatabase> _pump(
   double width = 900,
   Brightness brightness = Brightness.light,
   TrainingRecordReadModel? existingRecord,
+  FakeIndexedDbDatabase? database,
 }) async {
   tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
@@ -218,8 +274,10 @@ Future<FakeIndexedDbDatabase> _pump(
   addTearDown(tester.view.resetDevicePixelRatio);
   final initialization = AppInitializationController()..markReady();
   AppRepositoryRegistry.beginStartup(controller: initialization);
-  final database = FakeIndexedDbDatabase();
-  AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+  final targetDatabase = database ?? FakeIndexedDbDatabase();
+  AppRepositoryRegistry.install(
+    AppRepositoryContainer.indexedDb(targetDatabase),
+  );
   await tester.pumpWidget(
     MaterialApp(
       theme: brightness == Brightness.dark
@@ -229,5 +287,5 @@ Future<FakeIndexedDbDatabase> _pump(
     ),
   );
   await tester.pumpAndSettle();
-  return database;
+  return targetDatabase;
 }

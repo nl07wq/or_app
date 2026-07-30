@@ -1,5 +1,7 @@
 import '../../../core/engine/training_summary.dart';
 import '../models/training_record_read_model.dart';
+import 'training_cardio_calorie_calculator.dart';
+import 'training_cardio_energy_service.dart';
 import 'training_v2_statistics_service.dart';
 
 class TrainingDailySummary {
@@ -11,6 +13,10 @@ class TrainingDailySummary {
   final int cardioEntryCount;
   final List<String> sessionNames;
   final List<String> sessionGrades;
+  final double? trainingCardioCaloriesKcal;
+  final int computedCardioCount;
+  final int uncomputedCardioCount;
+  final TrainingEnergyCalculationStatus energyCalculationStatus;
 
   const TrainingDailySummary({
     required this.sessionCount,
@@ -21,10 +27,16 @@ class TrainingDailySummary {
     required this.cardioEntryCount,
     required this.sessionNames,
     required this.sessionGrades,
+    required this.trainingCardioCaloriesKcal,
+    required this.computedCardioCount,
+    required this.uncomputedCardioCount,
+    required this.energyCalculationStatus,
   });
 
   bool get recorded => sessionCount > 0;
   bool get hasV2 => v2SessionCount > 0;
+  bool get hasPartialCardioCalculation =>
+      energyCalculationStatus == TrainingEnergyCalculationStatus.partial;
   int get displaySetCount => hasV2 ? mainSetCount : legacySetCount;
 
   TrainingSummary? toDashboardSummary() {
@@ -37,6 +49,11 @@ class TrainingDailySummary {
       sessionName: sessionCount > 1
           ? '$sessionCount sessions'
           : sessionNames.firstOrNull,
+      trainingCardioCaloriesKcal: trainingCardioCaloriesKcal,
+      computedCardioCount: computedCardioCount,
+      uncomputedCardioCount: uncomputedCardioCount,
+      energyCalculationStatus: energyCalculationStatus,
+      energyCalculationVersion: TrainingCardioCalorieCalculator.version,
     );
   }
 }
@@ -86,6 +103,10 @@ abstract final class TrainingDailySummaryService {
           : v1.exercises.firstOrNull?.exerciseName;
       if (name != null && name.isNotEmpty) names.add(name);
     }
+    final energy = TrainingCardioEnergyService.summarize(
+      preferredRecords: records,
+      localDate: localDate,
+    );
     return TrainingDailySummary(
       sessionCount: records.length,
       v2SessionCount: v2SessionCount,
@@ -95,6 +116,10 @@ abstract final class TrainingDailySummaryService {
       cardioEntryCount: cardioCount,
       sessionNames: List.unmodifiable(names),
       sessionGrades: List.unmodifiable(grades),
+      trainingCardioCaloriesKcal: energy.trainingCardioCaloriesKcal,
+      computedCardioCount: energy.computedCardioCount,
+      uncomputedCardioCount: energy.uncomputedCardioCount,
+      energyCalculationStatus: energy.status,
     );
   }
 }

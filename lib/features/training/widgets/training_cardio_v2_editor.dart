@@ -4,6 +4,7 @@ import '../../../core/models/cardio_entry.dart';
 import '../../../core/models/cardio_entry_v2.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../models/training_v2_form_controller.dart';
+import '../services/training_cardio_calorie_calculator.dart';
 import 'training_collapsible_card.dart';
 import 'training_equipment_field.dart';
 
@@ -12,6 +13,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
   final TrainingV2CardioFormController controller;
   final TrainingEquipmentCandidates equipmentCandidates;
   final bool expanded;
+  final TrainingCardioCalorieResult calorieResult;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback onChanged;
@@ -22,6 +24,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
     required this.controller,
     required this.equipmentCandidates,
     required this.expanded,
+    required this.calorieResult,
     required this.onToggle,
     required this.onDelete,
     required this.onChanged,
@@ -144,9 +147,20 @@ class TrainingCardioV2Editor extends StatelessWidget {
             ),
           ),
           AppSpacing.gapSM,
-          const InputDecorator(
-            decoration: InputDecoration(labelText: 'Estimated Calories'),
-            child: Text('Not calculated'),
+          InputDecorator(
+            decoration: const InputDecoration(labelText: 'Estimated Calories'),
+            child: Text(
+              calorieResult.isComputed
+                  ? '${calorieResult.estimatedCaloriesKcal!.round()} kcal'
+                  : 'Not calculated',
+            ),
+          ),
+          AppSpacing.gapXS,
+          Text(
+            calorieResult.isComputed
+                ? 'Calculated from METs, duration, and STATUS weight'
+                : _calculationHelp(calorieResult.failureReason),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           AppSpacing.gapSM,
           TextField(
@@ -194,6 +208,19 @@ class TrainingCardioV2Editor extends StatelessWidget {
     return '${minutes}m ${seconds}s'
         '${controller.distance.text.trim().isEmpty ? '' : '   ${controller.distance.text.trim()} km'}';
   }
+}
+
+String _calculationHelp(TrainingCardioCalculationFailure? reason) {
+  return switch (reason) {
+    TrainingCardioCalculationFailure.missingMets ||
+    TrainingCardioCalculationFailure.invalidMets => 'METs is required',
+    TrainingCardioCalculationFailure.missingDuration ||
+    TrainingCardioCalculationFailure.invalidDuration => 'Duration is required',
+    TrainingCardioCalculationFailure.missingStatusWeight ||
+    TrainingCardioCalculationFailure.invalidWeight =>
+      'STATUS Weight is required',
+    null => 'Not calculated',
+  };
 }
 
 String _typeLabel(CardioType type) => switch (type) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
+import '../../../core/engine/operation_engine.dart';
+import '../../../core/engine/operation_input.dart';
 import '../../../core/engine/training_summary.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/section_header.dart';
@@ -35,7 +37,10 @@ class DailyReviewBody extends StatelessWidget {
         _WaterReviewSection(food: food),
         const _ReviewDivider(),
         _EnergyReviewSection(
+          morning: morning,
           food: food,
+          activity: activity,
+          training: training,
           estimatedTotalBurnKcal: estimatedTotalBurnKcal,
         ),
         const _ReviewDivider(),
@@ -164,15 +169,39 @@ class _WaterReviewSection extends StatelessWidget {
 
 class _EnergyReviewSection extends StatelessWidget {
   const _EnergyReviewSection({
+    required this.morning,
     required this.food,
+    required this.activity,
+    required this.training,
     required this.estimatedTotalBurnKcal,
   });
 
+  final MorningFact? morning;
   final FoodSummary? food;
+  final ActivitySummary? activity;
+  final TrainingSummary? training;
   final double? estimatedTotalBurnKcal;
 
   @override
   Widget build(BuildContext context) {
+    final baseBurn = morning == null
+        ? null
+        : const OperationEngine().estimateTDEE(
+            OperationInput(
+              morning: morning!,
+              food: food,
+              activity: activity,
+              training: training,
+            ),
+          );
+    final isLegacyEnergySnapshot =
+        training != null && training!.energyCalculationStatus == null;
+    final energyStatus = training == null
+        ? TrainingEnergyCalculationStatus.complete
+        : training!.energyCalculationStatus;
+    final cardioCalories = training == null
+        ? 0.0
+        : training!.trainingCardioCaloriesKcal;
     final balance = food == null || estimatedTotalBurnKcal == null
         ? null
         : food!.calories - estimatedTotalBurnKcal!;
@@ -187,10 +216,35 @@ class _EnergyReviewSection extends StatelessWidget {
         runSpacing: AppSpacing.xs,
         children: [
           Text(
+            baseBurn == null
+                ? 'Base Burn Not calculated'
+                : 'Base Burn ${_formatWhole(baseBurn)} kcal',
+          ),
+          Text(
+            cardioCalories == null || isLegacyEnergySnapshot
+                ? 'Training Cardio Not calculated'
+                : 'Training Cardio ${_formatWhole(cardioCalories)} kcal',
+          ),
+          Text(
             estimatedTotalBurnKcal == null
                 ? 'Est. Total Burn —'
                 : 'Est. Total Burn ${_formatWhole(estimatedTotalBurnKcal!)} kcal',
           ),
+          Text(
+            'Calculation Status ${switch (energyStatus) {
+              TrainingEnergyCalculationStatus.complete => 'Complete',
+              TrainingEnergyCalculationStatus.partial => 'Partial',
+              TrainingEnergyCalculationStatus.notCalculated => 'Not calculated',
+              null => 'Not available',
+            }}',
+          ),
+          if ((training?.uncomputedCardioCount ?? 0) > 0)
+            Text('Uncomputed Cardio ${training!.uncomputedCardioCount}'),
+          if (training?.energyCalculationVersion != null)
+            Text(
+              'Energy Calculation Version '
+              '${training!.energyCalculationVersion}',
+            ),
           Text.rich(
             key: const ValueKey('calorie-balance'),
             TextSpan(

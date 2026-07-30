@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/training_equipment_snapshot.dart';
@@ -93,6 +94,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Next Target 85 kg'), findsOneWidget);
+      expect(find.text('Estimated Calories Not calculated'), findsOneWidget);
+      expect(find.text('Weight Snapshot Not available'), findsOneWidget);
+      expect(find.text('Calculation Not available'), findsOneWidget);
+      expect(find.textContaining('25 kcal'), findsNothing);
       expect(
         database.rawRecord(IndexedDbStoreNames.trainingRecords, persisted.id),
         before,
@@ -133,7 +138,10 @@ void main() {
     expect(trainingSummaryNotifier.value?.completed, isTrue);
     expect(trainingSummaryNotifier.value?.exerciseCount, 1);
     expect(trainingSummaryNotifier.value?.setCount, 1);
-    expect(trainingCardioCaloriesNotifier.value, 0);
+    expect(
+      trainingSummaryNotifier.value?.energyCalculationStatus,
+      TrainingEnergyCalculationStatus.notCalculated,
+    );
   });
 
   testWidgets('history enables edit and delete for normal v2', (tester) async {

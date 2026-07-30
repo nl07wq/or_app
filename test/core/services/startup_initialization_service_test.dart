@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/activity_data.dart';
+import 'package:or_app/core/models/cardio_entry.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
@@ -150,6 +152,69 @@ void main() {
       2,
     );
   });
+
+  test(
+    'v2 facade snapshots same-date STATUS weight on save and edit',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final controller = AppInitializationController();
+      await StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+      await MorningRepository.save(_morningOn('2026-07-30', weight: 96.8));
+
+      final saved = await TrainingRepository.saveNewV2(
+        _trainingV2WithCardio(mets: 4, durationSeconds: 300),
+      );
+      final first = (await TrainingRepository.getReadModels())
+          .singleWhere((record) => record.id == saved.id)
+          .v2Data!
+          .cardioEntries
+          .single;
+      expect(first.weightSnapshotKg, 96.8);
+      expect(first.estimatedCaloriesKcal, closeTo(33.88, 1e-12));
+      expect(first.calculationMethod, 'metsAcsmV1');
+      expect(first.calculationVersion, 1);
+
+      await MorningRepository.update(_morningOn('2026-07-30', weight: 120));
+      await TrainingRepository.updateV2ById(
+        saved.id,
+        _trainingV2WithCardio(
+          mets: 5,
+          durationSeconds: 300,
+          weightSnapshotKg: first.weightSnapshotKg,
+        ),
+      );
+      final updated = (await TrainingRepository.getReadModels())
+          .singleWhere((record) => record.id == saved.id)
+          .v2Data!
+          .cardioEntries
+          .single;
+      expect(updated.weightSnapshotKg, 96.8);
+      expect(updated.estimatedCaloriesKcal, closeTo(42.35, 1e-12));
+
+      await AppRepositoryRegistry.container.status.deleteByLocalDate(
+        '2026-07-30',
+      );
+      final uncomputedRecord = await TrainingRepository.saveNewV2(
+        _trainingV2WithCardio(mets: 4, durationSeconds: 300),
+      );
+      final uncomputed = (await TrainingRepository.getReadModels())
+          .singleWhere((record) => record.id == uncomputedRecord.id)
+          .v2Data!
+          .cardioEntries
+          .single;
+      expect(uncomputed.mets, 4);
+      expect(uncomputed.durationSeconds, 300);
+      expect(uncomputed.weightSnapshotKg, isNull);
+      expect(uncomputed.estimatedCaloriesKcal, isNull);
+      expect(uncomputed.calculationMethod, isNull);
+      expect(uncomputed.calculationVersion, isNull);
+    },
+  );
 
   for (final variant in ['unknown version', 'invalid v2']) {
     test('startup rejects a training record with $variant', () async {
@@ -699,9 +764,13 @@ Future<void> _expectAllWritesRejected() async {
 }
 
 MorningData _morning() {
+  return _morningOn('2026-07-26', weight: 70);
+}
+
+MorningData _morningOn(String localDate, {required double weight}) {
   return MorningData(
-    date: '2026-07-26T08:00:00',
-    weight: 70,
+    date: '${localDate}T08:00:00',
+    weight: weight,
     bodyFat: 20,
     sleepHours: 7,
     sleepScore: 80,
@@ -726,6 +795,25 @@ TrainingSession _training(String memo) {
 
 TrainingSessionV2 _trainingV2(String memo) {
   return TrainingSessionV2(date: '2026-07-30T12:00:00', memo: memo);
+}
+
+TrainingSessionV2 _trainingV2WithCardio({
+  required double mets,
+  required int durationSeconds,
+  double? weightSnapshotKg,
+}) {
+  return TrainingSessionV2(
+    date: '2026-07-30T12:00:00',
+    cardioEntries: [
+      CardioEntryV2(
+        purpose: CardioPurpose.main,
+        type: CardioType.running,
+        durationSeconds: durationSeconds,
+        mets: mets,
+        weightSnapshotKg: weightSnapshotKg,
+      ),
+    ],
+  );
 }
 
 MealData _meal() {

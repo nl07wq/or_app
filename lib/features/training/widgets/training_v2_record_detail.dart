@@ -9,6 +9,7 @@ import '../../../core/widgets/section_header.dart';
 import '../models/persisted_training_record.dart';
 import '../models/progression_result.dart';
 import '../services/training_exercise_identity.dart';
+import '../services/training_cardio_energy_service.dart';
 import '../services/training_v2_personal_record_service.dart';
 import '../services/training_v2_previous_service.dart';
 import '../services/training_v2_progression_service.dart';
@@ -194,18 +195,52 @@ class _CardioCard extends StatelessWidget {
             title: 'CARDIO',
           ),
           AppSpacing.gapSM,
-          for (final entry in entries)
-            Text(
-              '${entry.purpose.displayLabel} ${entry.type.name}   '
-              '${entry.durationSeconds}s'
-              '${entry.equipment == null ? '' : '   ${entry.equipment!.name}'}'
-              '${entry.estimatedCaloriesKcal == null ? '' : '   ${_number(entry.estimatedCaloriesKcal!)} kcal'}'
-              '${entry.legacyReferenceCaloriesKcal == null ? '' : '   Legacy Reference ${_number(entry.legacyReferenceCaloriesKcal!)} kcal'}',
-            ),
+          for (final entry in entries) ...[
+            if (TrainingCardioEnergyService.isFormalCalculation(entry))
+              ..._formalEnergyDetails(entry)
+            else
+              ..._uncomputedEnergyDetails(entry),
+            if (entry.legacyReferenceCaloriesKcal != null)
+              Text(
+                'Legacy Reference '
+                '${_number(entry.legacyReferenceCaloriesKcal!)} kcal',
+              ),
+            AppSpacing.gapSM,
+          ],
         ],
       ),
     );
   }
+
+  List<Widget> _formalEnergyDetails(CardioEntryV2 entry) => [
+    Text(
+      '${entry.purpose.displayLabel} ${entry.type.name}   '
+      '${entry.durationSeconds}s'
+      '${entry.equipment == null ? '' : '   ${entry.equipment!.name}'}',
+    ),
+    Text('METs ${entry.mets == null ? 'Not recorded' : _number(entry.mets!)}'),
+    Text(
+      'Estimated Calories '
+      '${_number(entry.estimatedCaloriesKcal!)} kcal',
+    ),
+    Text(
+      'Weight Snapshot '
+      '${_number(entry.weightSnapshotKg!)} kg',
+    ),
+    Text('Calculation ${_calculationLabel(entry)}'),
+  ];
+
+  List<Widget> _uncomputedEnergyDetails(CardioEntryV2 entry) => [
+    Text(
+      '${entry.purpose.displayLabel} ${entry.type.name}   '
+      '${entry.durationSeconds}s'
+      '${entry.equipment == null ? '' : '   ${entry.equipment!.name}'}',
+    ),
+    Text('METs ${entry.mets == null ? 'Not recorded' : _number(entry.mets!)}'),
+    const Text('Estimated Calories Not calculated'),
+    const Text('Weight Snapshot Not available'),
+    const Text('Calculation Not available'),
+  ];
 }
 
 class _ExerciseAnalysis {
@@ -232,4 +267,12 @@ String _number(double value) {
   return value == value.roundToDouble()
       ? value.round().toString()
       : value.toStringAsFixed(1);
+}
+
+String _calculationLabel(CardioEntryV2 entry) {
+  if (entry.calculationMethod == 'metsAcsmV1' &&
+      entry.calculationVersion == 1) {
+    return 'METs ACSM v1';
+  }
+  return '${entry.calculationMethod} v${entry.calculationVersion}';
 }

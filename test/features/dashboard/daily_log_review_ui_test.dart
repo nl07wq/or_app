@@ -41,7 +41,6 @@ void main() {
     foodSummaryNotifier.value = null;
     activitySummaryNotifier.value = const ActivitySummary.empty();
     trainingSummaryNotifier.value = null;
-    trainingCardioCaloriesNotifier.value = 0;
   });
 
   testWidgets('DAILY LOG distinguishes required and optional states', (
@@ -332,8 +331,70 @@ void main() {
         findsNothing,
       );
     }
-    expect(find.textContaining('Cardio'), findsNothing);
+    expect(find.text('Training Cardio Not calculated'), findsOneWidget);
     expect(find.textContaining('ENERGY BALANCE'), findsNothing);
+  });
+
+  testWidgets('Daily Review shows formal energy breakdown and partial status', (
+    tester,
+  ) async {
+    const training = TrainingSummary(
+      completed: true,
+      exerciseCount: 1,
+      setCount: 1,
+      duration: null,
+      sessionName: null,
+      trainingCardioCaloriesKcal: 32,
+      computedCardioCount: 1,
+      uncomputedCardioCount: 1,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.partial,
+      energyCalculationVersion: 1,
+    );
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: training,
+      estimatedTotalBurn: 2961.6,
+    );
+
+    expect(find.text('Base Burn 2,930 kcal'), findsOneWidget);
+    expect(find.text('Training Cardio 32 kcal'), findsOneWidget);
+    expect(find.text('Est. Total Burn 2,962 kcal'), findsOneWidget);
+    expect(find.text('Calculation Status Partial'), findsOneWidget);
+    expect(find.text('Uncomputed Cardio 1'), findsOneWidget);
+    expect(find.text('Energy Calculation Version 1'), findsOneWidget);
+    expect(find.text('Calorie Balance -832 kcal'), findsOneWidget);
+  });
+
+  testWidgets('Daily Review does not turn uncomputed cardio into zero', (
+    tester,
+  ) async {
+    const training = TrainingSummary(
+      completed: true,
+      exerciseCount: 0,
+      setCount: 0,
+      duration: null,
+      sessionName: null,
+      computedCardioCount: 0,
+      uncomputedCardioCount: 1,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.notCalculated,
+      energyCalculationVersion: 1,
+    );
+    await _pumpReview(
+      tester,
+      morning: _morning(),
+      food: _food(),
+      activity: _activity(),
+      training: training,
+      estimatedTotalBurn: null,
+    );
+
+    expect(find.text('Training Cardio Not calculated'), findsOneWidget);
+    expect(find.text('Est. Total Burn —'), findsOneWidget);
+    expect(find.text('Calculation Status Not calculated'), findsOneWidget);
+    expect(find.text('Calorie Balance —'), findsOneWidget);
   });
 
   testWidgets('STATUS and FOOD use the approved semantic row groups', (
@@ -847,6 +908,19 @@ void main() {
     SharedPreferences.setMockInitialValues({
       'daily_log_confirmations': [jsonEncode(oldJson)],
     });
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 1,
+      setCount: 1,
+      duration: null,
+      sessionName: null,
+      trainingCardioCaloriesKcal: 9999,
+      computedCardioCount: 1,
+      uncomputedCardioCount: 0,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.complete,
+      energyCalculationVersion: 1,
+    );
+    morningFactNotifier.value = _morning().copyWith(weight: 200);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -868,8 +942,6 @@ void main() {
     SharedPreferences.setMockInitialValues({
       'daily_log_confirmations': [jsonEncode(oldJson)],
     });
-    trainingCardioCaloriesNotifier.value = 9999;
-
     await tester.pumpWidget(
       MaterialApp(
         home: LogConfirmationDetailPage(targetDate: confirmation.date),
@@ -880,6 +952,55 @@ void main() {
     expect(find.text('Est. Total Burn —'), findsOneWidget);
     expect(find.text('Calorie Balance —'), findsOneWidget);
     expect(_balanceValueColor(tester), isNull);
+    expect(find.textContaining('9,999'), findsNothing);
+  });
+
+  testWidgets('confirmed detail renders saved formal energy only', (
+    tester,
+  ) async {
+    final confirmation = completeConfirmation().copyWith(
+      training: const TrainingSummary(
+        completed: true,
+        exerciseCount: 1,
+        setCount: 1,
+        duration: null,
+        sessionName: null,
+        trainingCardioCaloriesKcal: 32,
+        computedCardioCount: 1,
+        uncomputedCardioCount: 1,
+        energyCalculationStatus: TrainingEnergyCalculationStatus.partial,
+        energyCalculationVersion: 1,
+      ),
+      estimatedTotalBurnKcal: 2900,
+    );
+    SharedPreferences.setMockInitialValues({
+      'daily_log_confirmations': [jsonEncode(confirmation.toJson())],
+    });
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 0,
+      setCount: 0,
+      duration: null,
+      sessionName: null,
+      trainingCardioCaloriesKcal: 9999,
+      computedCardioCount: 1,
+      uncomputedCardioCount: 0,
+      energyCalculationStatus: TrainingEnergyCalculationStatus.complete,
+      energyCalculationVersion: 99,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogConfirmationDetailPage(targetDate: confirmation.date),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Training Cardio 32 kcal'), findsOneWidget);
+    expect(find.text('Est. Total Burn 2,900 kcal'), findsOneWidget);
+    expect(find.text('Calculation Status Partial'), findsOneWidget);
+    expect(find.text('Uncomputed Cardio 1'), findsOneWidget);
+    expect(find.text('Energy Calculation Version 1'), findsOneWidget);
     expect(find.textContaining('9,999'), findsNothing);
   });
 

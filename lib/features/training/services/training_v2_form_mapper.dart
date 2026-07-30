@@ -162,6 +162,10 @@ abstract final class TrainingV2FormMapper {
         'Maximum HRはAverage HR以上で入力してください。',
       );
     }
+    final mets = _optionalDouble(value.mets.text, 'METs');
+    final calculationInputsUnchanged =
+        value.initialDurationSeconds == durationSeconds &&
+        value.initialMets == mets;
     try {
       return CardioEntryV2(
         purpose: purpose,
@@ -169,14 +173,20 @@ abstract final class TrainingV2FormMapper {
         equipment: value.equipment,
         durationSeconds: durationSeconds,
         distanceKm: _optionalDouble(value.distance.text, 'Distance'),
-        mets: _optionalDouble(value.mets.text, 'METs'),
+        mets: mets,
         averageHeartRateBpm: average,
         maximumHeartRateBpm: maximum,
         averageSpeedKmh: _optionalDouble(value.averageSpeed.text, 'Speed'),
-        estimatedCaloriesKcal: null,
-        weightSnapshotKg: null,
-        calculationMethod: null,
-        calculationVersion: null,
+        estimatedCaloriesKcal: calculationInputsUnchanged
+            ? value.estimatedCaloriesKcal
+            : null,
+        weightSnapshotKg: value.weightSnapshotKg,
+        calculationMethod: calculationInputsUnchanged
+            ? value.calculationMethod
+            : null,
+        calculationVersion: calculationInputsUnchanged
+            ? value.calculationVersion
+            : null,
         notes: value.notes.text,
         legacyIntensity: null,
         legacyReferenceCaloriesKcal: null,

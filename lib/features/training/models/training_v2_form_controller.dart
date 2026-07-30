@@ -171,13 +171,25 @@ class TrainingV2CardioFormController {
   final maximumHeartRate = TextEditingController();
   final averageSpeed = TextEditingController();
   final notes = TextEditingController();
+  double? weightSnapshotKg;
+  double? estimatedCaloriesKcal;
+  String? calculationMethod;
+  int? calculationVersion;
+  double? initialMets;
+  int? initialDurationSeconds;
 
   TrainingV2CardioFormController();
 
   TrainingV2CardioFormController.fromDomain(CardioEntryV2 entry)
     : purpose = entry.purpose,
       type = entry.type,
-      equipment = entry.equipment {
+      equipment = entry.equipment,
+      weightSnapshotKg = entry.weightSnapshotKg,
+      estimatedCaloriesKcal = entry.estimatedCaloriesKcal,
+      calculationMethod = entry.calculationMethod,
+      calculationVersion = entry.calculationVersion,
+      initialMets = entry.mets,
+      initialDurationSeconds = entry.durationSeconds {
     minutes.text = '${entry.durationSeconds ~/ 60}';
     seconds.text = '${entry.durationSeconds % 60}';
     distance.text = _number(entry.distanceKm);

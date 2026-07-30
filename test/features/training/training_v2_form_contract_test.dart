@@ -104,6 +104,35 @@ void main() {
     expect(result.cardioEntries.single.durationSeconds, 30);
   });
 
+  test(
+    'mapper preserves formal snapshot when calculation inputs are unchanged',
+    () {
+      final form = TrainingV2FormController.fromSession(_calculatedSession());
+      addTearDown(form.dispose);
+      form.cardioEntries.single.averageHeartRate.text = '130';
+
+      final cardio = TrainingV2FormMapper.toDomain(form).cardioEntries.single;
+
+      expect(cardio.weightSnapshotKg, 96.8);
+      expect(cardio.estimatedCaloriesKcal, closeTo(33.88, 1e-12));
+      expect(cardio.calculationMethod, 'metsAcsmV1');
+      expect(cardio.calculationVersion, 1);
+    },
+  );
+
+  test('mapper clears stale calories but retains weight when METs changes', () {
+    final form = TrainingV2FormController.fromSession(_calculatedSession());
+    addTearDown(form.dispose);
+    form.cardioEntries.single.mets.text = '5';
+
+    final cardio = TrainingV2FormMapper.toDomain(form).cardioEntries.single;
+
+    expect(cardio.weightSnapshotKg, 96.8);
+    expect(cardio.estimatedCaloriesKcal, isNull);
+    expect(cardio.calculationMethod, isNull);
+    expect(cardio.calculationVersion, isNull);
+  });
+
   test('mapper rejects invalid set and target values', () {
     final form = TrainingV2FormController.newSession();
     addTearDown(form.dispose);
@@ -238,6 +267,25 @@ TrainingSessionV2 _session() {
         maximumHeartRateBpm: 145,
         averageSpeedKmh: 12,
         notes: 'Easy',
+      ),
+    ],
+  );
+}
+
+TrainingSessionV2 _calculatedSession() {
+  return TrainingSessionV2(
+    date: '2026-07-30T18:00:00+09:00',
+    cardioEntries: [
+      CardioEntryV2(
+        purpose: CardioPurpose.main,
+        type: CardioType.running,
+        durationSeconds: 300,
+        mets: 4,
+        averageHeartRateBpm: 120,
+        weightSnapshotKg: 96.8,
+        estimatedCaloriesKcal: 33.88,
+        calculationMethod: 'metsAcsmV1',
+        calculationVersion: 1,
       ),
     ],
   );

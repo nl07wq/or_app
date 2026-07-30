@@ -6,6 +6,8 @@ import '../../features/repositories/app_repository_container.dart';
 import '../../features/training/migration/training_legacy_reader.dart';
 import '../../features/training/models/persisted_training_record.dart';
 import '../../features/training/repository/training_record_id_generator.dart';
+import '../../features/training/services/training_cardio_energy_service.dart';
+import '../../features/training/services/training_status_weight_resolver.dart';
 import '../models/training_session.dart';
 import '../models/training_session_v2.dart';
 import '../services/persistence_access.dart';
@@ -36,7 +38,9 @@ class TrainingRepository {
     if (!PersistenceAccess.canReadIndexedDb) {
       throw StateError('TRAINING v2 writes require IndexedDB.');
     }
-    return AppRepositoryRegistry.container.training.saveNewV2(session);
+    return AppRepositoryRegistry.container.training.saveNewV2(
+      await _prepareV2(session),
+    );
   }
 
   static Future<void> replaceForLocalDate(TrainingSession session) async {
@@ -72,7 +76,10 @@ class TrainingRepository {
     if (!PersistenceAccess.canReadIndexedDb) {
       throw StateError('TRAINING v2 writes require IndexedDB.');
     }
-    return AppRepositoryRegistry.container.training.updateV2ById(id, session);
+    return AppRepositoryRegistry.container.training.updateV2ById(
+      id,
+      await _prepareV2(session),
+    );
   }
 
   static Future<List<TrainingRecord>> getRecords() async {
@@ -178,6 +185,18 @@ class TrainingRepository {
       sessionJson: session.toJson(),
       sourceIndex: sourceIndex,
       duplicateOrdinal: 0,
+    );
+  }
+
+  static Future<TrainingSessionV2> _prepareV2(TrainingSessionV2 session) async {
+    double? statusWeight;
+    if (TrainingCardioEnergyService.requiresStatusWeight(session)) {
+      final localDate = PersistedTrainingRecord.localDateFromV2Session(session);
+      statusWeight = await TrainingStatusWeightResolver().resolve(localDate);
+    }
+    return TrainingCardioEnergyService.applyForSave(
+      session: session,
+      statusWeightKg: statusWeight,
     );
   }
 }

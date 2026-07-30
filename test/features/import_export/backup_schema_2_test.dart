@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/digestive_summary.dart';
+import 'package:or_app/core/engine/training_summary.dart';
+import 'package:or_app/core/models/cardio_entry.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/activity_data.dart';
 import 'package:or_app/core/models/digestive_event.dart';
@@ -161,7 +164,20 @@ void main() {
       localDate: '2026-07-26',
       createdAt: DateTime.utc(2026, 7, 26),
       updatedAt: DateTime.utc(2026, 7, 26),
-      data: completeConfirmation(),
+      data: completeConfirmation().copyWith(
+        training: const TrainingSummary(
+          completed: true,
+          exerciseCount: 1,
+          setCount: 1,
+          duration: null,
+          sessionName: 'Cardio',
+          trainingCardioCaloriesKcal: 33.88,
+          computedCardioCount: 1,
+          uncomputedCardioCount: 0,
+          energyCalculationStatus: TrainingEnergyCalculationStatus.complete,
+          energyCalculationVersion: 1,
+        ),
+      ),
     ).toRecord();
     database.seed(
       IndexedDbStoreNames.dailyLogConfirmations,
@@ -194,6 +210,13 @@ void main() {
 
     expect(result.success, isTrue);
     expect(restoredEnvelope.data.estimatedTotalBurnKcal, 2875.5);
+    expect(restoredEnvelope.data.training?.trainingCardioCaloriesKcal, 33.88);
+    expect(restoredEnvelope.data.training?.computedCardioCount, 1);
+    expect(
+      restoredEnvelope.data.training?.energyCalculationStatus,
+      TrainingEnergyCalculationStatus.complete,
+    );
+    expect(restoredEnvelope.data.training?.energyCalculationVersion, 1);
   });
 
   test('Schema 2.0 preserves physical and multiplier FOOD Snapshots', () async {
@@ -348,6 +371,18 @@ void main() {
         dynamicStretchCompleted: true,
         cooldownStretchCompleted: false,
         overallEvaluation: 'Complete',
+        cardioEntries: [
+          CardioEntryV2(
+            purpose: CardioPurpose.main,
+            type: CardioType.running,
+            durationSeconds: 300,
+            mets: 4,
+            weightSnapshotKg: 96.8,
+            estimatedCaloriesKcal: 33.88,
+            calculationMethod: 'metsAcsmV1',
+            calculationVersion: 1,
+          ),
+        ],
       ),
     ).toRecord();
     database.seed(
@@ -383,6 +418,11 @@ void main() {
     expect(restored.recordVersion, 2);
     expect(restored.dataV2.sessionName, 'Upper Body');
     expect(restored.dataV2.sessionGrade, TrainingSessionGrade.sMinus);
+    final cardio = restored.dataV2.cardioEntries.single;
+    expect(cardio.weightSnapshotKg, 96.8);
+    expect(cardio.estimatedCaloriesKcal, 33.88);
+    expect(cardio.calculationMethod, 'metsAcsmV1');
+    expect(cardio.calculationVersion, 1);
   });
 
   test('Schema 2.0 preserves v1 shadow lineage and preferred read', () async {

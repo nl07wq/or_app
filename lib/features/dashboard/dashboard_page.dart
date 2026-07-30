@@ -200,12 +200,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           training:
                                                               trainingSummary,
                                                           estimatedTotalBurn:
-                                                              estimatedTDEE ==
-                                                                  null
-                                                              ? null
-                                                              : estimatedTDEE +
-                                                                    trainingCardioCaloriesNotifier
-                                                                        .value,
+                                                              _estimatedTotalBurn(
+                                                                estimatedTDEE,
+                                                                trainingSummary,
+                                                              ),
                                                         ),
                                                       ),
                                               );
@@ -268,11 +266,6 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (_) => _QuickWaterSheet(dashboardContext: context),
     );
   }
-
-  String _formatSteps(int steps) => steps.toString().replaceAllMapped(
-    RegExp(r'(?<!^)(?=(\d{3})+$)'),
-    (_) => ',',
-  );
 }
 
 class _DebugDateCard extends StatelessWidget {
@@ -539,76 +532,79 @@ class _ProgressCard extends StatelessWidget {
           ]
         : const <String>[];
 
-    return ValueListenableBuilder<double>(
-      valueListenable: trainingCardioCaloriesNotifier,
-      builder: (context, cardioCalories, _) {
-        final estimatedTotalBurn = estimatedTDEE == null
-            ? null
-            : estimatedTDEE! + cardioCalories;
+    final energyStatus =
+        trainingSummary?.energyCalculationStatus ??
+        TrainingEnergyCalculationStatus.complete;
+    final cardioCalories = trainingSummary?.trainingCardioCaloriesKcal ?? 0;
+    final estimatedTotalBurn = _estimatedTotalBurn(
+      estimatedTDEE,
+      trainingSummary,
+    );
 
-        return OperationCard(
-          child: useLargeLayout
-              ? Row(
-                  key: const ValueKey('operation-progress-large-layout'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: _buildSummary(
-                        context,
-                        cardioCalories: cardioCalories,
-                        estimatedTotalBurn: estimatedTotalBurn,
-                        large: true,
-                      ),
-                    ),
-                    SizedBox(width: AppSpacing.xl),
-                    Expanded(
-                      flex: 3,
-                      child: _buildProgressTiles(
-                        morningComplete: morningComplete,
-                        mealCount: mealCount,
-                        calories: calories,
-                        protein: protein,
-                        hydrationMl: hydrationMl,
-                        activityDetails: activityDetails,
-                        forceTwoColumns: true,
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  key: const ValueKey('operation-progress-compact-layout'),
-                  children: [
-                    _buildSummary(
-                      context,
-                      cardioCalories: cardioCalories,
-                      estimatedTotalBurn: estimatedTotalBurn,
-                      large: false,
-                    ),
-                    AppSpacing.gapLG,
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 800),
-                        child: _buildProgressTiles(
-                          morningComplete: morningComplete,
-                          mealCount: mealCount,
-                          calories: calories,
-                          protein: protein,
-                          hydrationMl: hydrationMl,
-                          activityDetails: activityDetails,
-                        ),
-                      ),
-                    ),
-                  ],
+    return OperationCard(
+      child: useLargeLayout
+          ? Row(
+              key: const ValueKey('operation-progress-large-layout'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _buildSummary(
+                    context,
+                    cardioCalories: cardioCalories,
+                    energyStatus: energyStatus,
+                    estimatedTotalBurn: estimatedTotalBurn,
+                    large: true,
+                  ),
                 ),
-        );
-      },
+                SizedBox(width: AppSpacing.xl),
+                Expanded(
+                  flex: 3,
+                  child: _buildProgressTiles(
+                    morningComplete: morningComplete,
+                    mealCount: mealCount,
+                    calories: calories,
+                    protein: protein,
+                    hydrationMl: hydrationMl,
+                    activityDetails: activityDetails,
+                    forceTwoColumns: true,
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              key: const ValueKey('operation-progress-compact-layout'),
+              children: [
+                _buildSummary(
+                  context,
+                  cardioCalories: cardioCalories,
+                  energyStatus: energyStatus,
+                  estimatedTotalBurn: estimatedTotalBurn,
+                  large: false,
+                ),
+                AppSpacing.gapLG,
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: _buildProgressTiles(
+                      morningComplete: morningComplete,
+                      mealCount: mealCount,
+                      calories: calories,
+                      protein: protein,
+                      hydrationMl: hydrationMl,
+                      activityDetails: activityDetails,
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
   Widget _buildSummary(
     BuildContext context, {
     required double cardioCalories,
+    required TrainingEnergyCalculationStatus energyStatus,
     required double? estimatedTotalBurn,
     required bool large,
   }) {
@@ -636,13 +632,21 @@ class _ProgressCard extends StatelessWidget {
       ),
       _ProgressSummaryMetric(
         label: 'EXERCISE\nCARDIO ONLY',
-        value: '${cardioCalories.toStringAsFixed(0)} kcal',
+        value: switch (energyStatus) {
+          TrainingEnergyCalculationStatus.complete =>
+            '${cardioCalories.toStringAsFixed(0)} kcal',
+          TrainingEnergyCalculationStatus.partial =>
+            '${cardioCalories.toStringAsFixed(0)} kcal\nPartial',
+          TrainingEnergyCalculationStatus.notCalculated => 'Not calculated',
+        },
         labelFirst: large,
       ),
       _ProgressSummaryMetric(
         label: 'EST. TOTAL BURN',
         value: estimatedTotalBurn == null
-            ? '--'
+            ? 'Not calculated'
+            : energyStatus == TrainingEnergyCalculationStatus.partial
+            ? '${estimatedTotalBurn.toStringAsFixed(0)} kcal\nPartial'
             : '${estimatedTotalBurn.toStringAsFixed(0)} kcal',
         labelFirst: large,
       ),
@@ -785,6 +789,18 @@ class _ProgressCard extends StatelessWidget {
     RegExp(r'(?<!^)(?=(\d{3})+$)'),
     (_) => ',',
   );
+}
+
+double? _estimatedTotalBurn(
+  double? baseBurn,
+  TrainingSummary? trainingSummary,
+) {
+  if (baseBurn == null) return null;
+  final status =
+      trainingSummary?.energyCalculationStatus ??
+      TrainingEnergyCalculationStatus.complete;
+  if (status == TrainingEnergyCalculationStatus.notCalculated) return null;
+  return baseBurn + (trainingSummary?.trainingCardioCaloriesKcal ?? 0);
 }
 
 class _ProgressSummaryMetric extends StatelessWidget {

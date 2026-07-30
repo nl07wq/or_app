@@ -11,6 +11,8 @@ import 'models/training_record_read_model.dart';
 import 'models/training_summary_state.dart';
 import 'models/training_v2_form_controller.dart';
 import 'services/training_v2_form_mapper.dart';
+import 'services/training_cardio_calorie_calculator.dart';
+import 'services/training_status_weight_resolver.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_equipment_field.dart';
@@ -31,6 +33,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   late TrainingEquipmentCandidates _equipmentCandidates;
   Object? _expandedItem;
   bool _isSaving = false;
+  double? _statusWeightKg;
 
   bool get _isEditing => widget.existingRecord != null;
 
@@ -51,6 +54,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       const <TrainingRecordReadModel>[],
     );
     _loadEquipmentCandidates();
+    _loadStatusWeight();
   }
 
   Future<void> _loadEquipmentCandidates() async {
@@ -62,6 +66,17 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       });
     } catch (_) {
       // Built-in candidates remain available; persistence errors surface on save.
+    }
+  }
+
+  Future<void> _loadStatusWeight() async {
+    try {
+      final localDate = _form.date.substring(0, 10);
+      final weight = await TrainingStatusWeightResolver().resolve(localDate);
+      if (!mounted) return;
+      setState(() => _statusWeightKg = weight);
+    } catch (_) {
+      // Missing STATUS remains an explicit uncomputed Cardio state.
     }
   }
 
@@ -144,7 +159,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     _form.dispose();
     _form = TrainingV2FormController.newSession();
     _expandedItem = _form.exercises.first;
+    _statusWeightKg = null;
     setState(() {});
+    _loadStatusWeight();
   }
 
   @override
@@ -243,6 +260,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                       controller: cardio,
                       equipmentCandidates: _equipmentCandidates,
                       expanded: identical(_expandedItem, cardio),
+                      calorieResult: _cardioPreview(cardio),
                       onToggle: () => _toggle(cardio),
                       onDelete: () {
                         if (identical(_expandedItem, cardio)) {
@@ -284,5 +302,20 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     setState(() {
       _expandedItem = identical(_expandedItem, value) ? null : value;
     });
+  }
+
+  TrainingCardioCalorieResult _cardioPreview(
+    TrainingV2CardioFormController cardio,
+  ) {
+    final minutes = int.tryParse(cardio.minutes.text.trim());
+    final seconds = int.tryParse(cardio.seconds.text.trim());
+    final duration = minutes == null && seconds == null
+        ? null
+        : (minutes ?? 0) * 60 + (seconds ?? 0);
+    return TrainingCardioCalorieCalculator.calculate(
+      mets: double.tryParse(cardio.mets.text.trim()),
+      durationSeconds: duration,
+      weightKg: cardio.weightSnapshotKg ?? _statusWeightKg,
+    );
   }
 }

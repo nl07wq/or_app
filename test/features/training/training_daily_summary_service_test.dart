@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
@@ -32,6 +33,11 @@ void main() {
     expect(summary.mainSetCount, 0);
     expect(summary.displaySetCount, 2);
     expect(summary.cardioEntryCount, 1);
+    expect(summary.trainingCardioCaloriesKcal, isNull);
+    expect(
+      summary.energyCalculationStatus,
+      TrainingEnergyCalculationStatus.notCalculated,
+    );
   });
 
   test('counts only Main Sets for v2 daily summary', () {
@@ -83,6 +89,7 @@ void main() {
     expect(summary.displaySetCount, 1);
     expect(summary.cardioEntryCount, 1);
     expect(summary.sessionNames, ['Upper']);
+    expect(summary.uncomputedCardioCount, 1);
   });
 
   test('aggregates multiple preferred sessions without lineage guessing', () {
@@ -137,5 +144,42 @@ void main() {
 
     expect(summary.recorded, isFalse);
     expect(summary.toDashboardSummary(), isNull);
+  });
+
+  test('aggregates formal cardio across preferred same-day sessions', () {
+    CardioEntryV2 cardio(double calories) => CardioEntryV2(
+      purpose: CardioPurpose.main,
+      type: CardioType.running,
+      durationSeconds: 300,
+      mets: calories / 7,
+      weightSnapshotKg: 80,
+      estimatedCaloriesKcal: calories,
+      calculationMethod: 'metsAcsmV1',
+      calculationVersion: 1,
+    );
+    final summary = TrainingDailySummaryService.calculate(
+      preferredRecords: [
+        v2Record(
+          id: 'first',
+          createdAt: DateTime.utc(2026, 7, 30, 9),
+          cardioEntries: [cardio(28)],
+        ),
+        v2Record(
+          id: 'second',
+          createdAt: DateTime.utc(2026, 7, 30, 11),
+          cardioEntries: [cardio(35)],
+        ),
+      ],
+      localDate: '2026-07-30',
+    );
+
+    expect(summary.trainingCardioCaloriesKcal, 63);
+    expect(summary.computedCardioCount, 2);
+    expect(summary.uncomputedCardioCount, 0);
+    expect(
+      summary.energyCalculationStatus,
+      TrainingEnergyCalculationStatus.complete,
+    );
+    expect(summary.toDashboardSummary()?.energyCalculationVersion, 1);
   });
 }
