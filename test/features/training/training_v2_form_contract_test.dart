@@ -68,8 +68,7 @@ void main() {
     expect(exercise.targetWeight.text, '85');
     expect(exercise.targetReps.map((value) => value.text), ['8', '8']);
     final cardio = form.cardioEntries.single;
-    expect(cardio.minutes.text, '1');
-    expect(cardio.seconds.text, '30');
+    expect(cardio.duration.text, '1:30');
     expect(cardio.mets.text, '6.5');
     expect(cardio.averageHeartRate.text, '120');
     expect(cardio.maximumHeartRate.text, '145');
@@ -113,13 +112,41 @@ void main() {
     final cardio = TrainingV2CardioFormController()
       ..purpose = CardioPurpose.cooldown
       ..type = CardioType.walking
-      ..seconds.text = '30';
+      ..duration.text = '0:30';
     form.cardioEntries.add(cardio);
 
     final result = TrainingV2FormMapper.toDomain(form);
 
     expect(result.exercises, isEmpty);
     expect(result.cardioEntries.single.durationSeconds, 30);
+  });
+
+  test('duration accepts mm:ss and hh:mm:ss then rejects invalid formats', () {
+    expect(TrainingV2FormMapper.parseDurationSeconds('12:34'), 754);
+    expect(TrainingV2FormMapper.parseDurationSeconds('1:02:03'), 3723);
+    for (final value in ['', '90', '1:60', '1:60:00', 'abc:10', '-1:10']) {
+      expect(
+        () => TrainingV2FormMapper.parseDurationSeconds(value),
+        throwsA(isA<TrainingV2FormValidationException>()),
+        reason: value,
+      );
+    }
+  });
+
+  test('average speed accepts decimal text and maps it before save', () {
+    final form = TrainingV2FormController.newSession();
+    addTearDown(form.dispose);
+    final cardio = TrainingV2CardioFormController()
+      ..purpose = CardioPurpose.main
+      ..type = CardioType.running
+      ..duration.text = '10:00'
+      ..averageSpeed.text = '12.75';
+    form.cardioEntries.add(cardio);
+
+    final result = TrainingV2FormMapper.toDomain(form);
+
+    expect(result.cardioEntries.single.durationSeconds, 600);
+    expect(result.cardioEntries.single.averageSpeedKmh, 12.75);
   });
 
   test(

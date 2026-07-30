@@ -11,7 +11,6 @@ import 'models/training_record_read_model.dart';
 import 'models/training_summary_state.dart';
 import 'models/training_v2_form_controller.dart';
 import 'services/training_cardio_calorie_calculator.dart';
-import 'services/training_equipment_candidates.dart';
 import 'services/training_status_weight_resolver.dart';
 import 'services/training_v2_form_mapper.dart';
 import 'training_plan_page.dart';
@@ -31,7 +30,6 @@ class TrainingEntryPage extends StatefulWidget {
 class _TrainingEntryPageState extends State<TrainingEntryPage> {
   late TrainingV2FormController _form;
   List<TrainingRecordReadModel> _preferredRecords = const [];
-  late TrainingEquipmentCandidates _cardioEquipmentCandidates;
   Object? _expandedItem;
   bool _isSaving = false;
   double? _statusWeightKg;
@@ -51,9 +49,6 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     if (existing == null && _form.exercises.isNotEmpty) {
       _expandedItem = _form.exercises.first;
     }
-    _cardioEquipmentCandidates = TrainingEquipmentCandidates.forCardio(
-      const <TrainingRecordReadModel>[],
-    );
     _loadTrainingContext();
     _loadStatusWeight();
   }
@@ -64,9 +59,6 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       if (!mounted) return;
       setState(() {
         _preferredRecords = List.unmodifiable(records);
-        _cardioEquipmentCandidates = TrainingEquipmentCandidates.forCardio(
-          records,
-        );
       });
     } catch (_) {
       // Built-in candidates remain available; persistence errors surface on save.
@@ -264,7 +256,6 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     child: TrainingCardioV2Editor(
                       index: index,
                       controller: cardio,
-                      equipmentCandidates: _cardioEquipmentCandidates,
                       expanded: identical(_expandedItem, cardio),
                       calorieResult: _cardioPreview(cardio),
                       onToggle: () => _toggle(cardio),
@@ -313,11 +304,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   TrainingCardioCalorieResult _cardioPreview(
     TrainingV2CardioFormController cardio,
   ) {
-    final minutes = int.tryParse(cardio.minutes.text.trim());
-    final seconds = int.tryParse(cardio.seconds.text.trim());
-    final duration = minutes == null && seconds == null
-        ? null
-        : (minutes ?? 0) * 60 + (seconds ?? 0);
+    final duration = TrainingV2FormMapper.tryParseDurationSeconds(
+      cardio.duration.text,
+    );
     return TrainingCardioCalorieCalculator.calculate(
       mets: double.tryParse(cardio.mets.text.trim()),
       durationSeconds: duration,

@@ -5,15 +5,18 @@ import '../models/progression_result.dart';
 import '../models/training_record_read_model.dart';
 import 'training_exercise_identity.dart';
 import 'training_v2_personal_record_service.dart';
+import 'training_v2_previous_service.dart';
 import 'training_v2_progression_service.dart';
 import 'training_v2_statistics_service.dart';
 
 class TrainingV2EntryInsights {
+  final TrainingV2PreviousResult? previous;
   final ProgressionResult? progression;
   final TrainingV2Statistics statistics;
   final PersonalRecordResult? personalRecord;
 
   const TrainingV2EntryInsights({
+    required this.previous,
     required this.progression,
     required this.statistics,
     required this.personalRecord,
@@ -30,12 +33,18 @@ abstract final class TrainingV2EntryInsightService {
     final identity = TrainingExerciseIdentity.v2(currentExercise);
     if (!identity.isValid) {
       return const TrainingV2EntryInsights(
+        previous: null,
         progression: null,
         statistics: TrainingV2Statistics.empty,
         personalRecord: null,
       );
     }
     final target = targetRecord ?? _previewRecord(sessionDate, currentExercise);
+    final previous = TrainingV2PreviousService.find(
+      preferredRecords: preferredRecords,
+      targetRecord: target,
+      identity: identity,
+    );
     final progression = TrainingV2ProgressionService.forRecord(
       preferredRecords: preferredRecords,
       targetRecord: target,
@@ -46,6 +55,7 @@ abstract final class TrainingV2EntryInsightService {
       identity: identity,
     );
     return TrainingV2EntryInsights(
+      previous: previous,
       progression: progression,
       statistics: TrainingV2StatisticsService.calculate(currentExercise),
       personalRecord: personalRecord == null

@@ -147,15 +147,15 @@ void main() {
     expect(find.text('ベンチプレス'), findsOneWidget);
     expect(find.textContaining('65 kg'), findsOneWidget);
     expect(find.text('ランニング'), findsOneWidget);
-    expect(find.textContaining('40m 0s'), findsOneWidget);
+    expect(find.textContaining('40:00'), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('ランニング, collapsed'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '20');
+    await tester.enterText(find.widgetWithText(TextField, '時間'), '20:00');
     await tester.tap(find.bySemanticsLabel('ランニング, expanded'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('20m 0s'), findsOneWidget);
+    expect(find.textContaining('20:00'), findsOneWidget);
   });
 
   testWidgets('adding and opening exercises keeps only one card expanded', (
@@ -215,7 +215,7 @@ void main() {
       expect(find.text('CARDIO 1'), findsOneWidget);
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, 'Minutes'))
+            .widget<TextField>(find.widgetWithText(TextField, '時間'))
             .controller!
             .text,
         isEmpty,
@@ -248,19 +248,16 @@ void main() {
         find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
 
-      await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '40');
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Distance'),
-        '2.82',
-      );
-      await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'steady');
+      await tester.enterText(find.widgetWithText(TextField, '時間'), '40:00');
+      await tester.enterText(find.widgetWithText(TextField, '距離'), '2.82');
+      await tester.enterText(find.widgetWithText(TextField, 'メモ'), 'steady');
       await tester.pump();
 
       await tester.tap(find.text('CARDIO 1'));
       await tester.pumpAndSettle();
 
       expect(find.text('CARDIO 1'), findsOneWidget);
-      expect(find.textContaining('40m 0s'), findsOneWidget);
+      expect(find.textContaining('40:00'), findsOneWidget);
       expect(find.textContaining('2.82 km'), findsOneWidget);
       expect(find.byTooltip('Delete cardio'), findsNothing);
 
@@ -269,21 +266,21 @@ void main() {
 
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, 'Minutes'))
+            .widget<TextField>(find.widgetWithText(TextField, '時間'))
             .controller!
             .text,
-        '40',
+        '40:00',
       );
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, 'Distance'))
+            .widget<TextField>(find.widgetWithText(TextField, '距離'))
             .controller!
             .text,
         '2.82',
       );
       expect(
         tester
-            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .widget<TextField>(find.widgetWithText(TextField, 'メモ'))
             .controller!
             .text,
         'steady',
@@ -456,8 +453,8 @@ void main() {
         )
         .onChanged!(CardioType.running);
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '30');
-    await tester.enterText(find.widgetWithText(TextField, 'Distance'), '3.5');
+    await tester.enterText(find.widgetWithText(TextField, '時間'), '30:00');
+    await tester.enterText(find.widgetWithText(TextField, '距離'), '3.5');
     await tester.tap(find.bySemanticsLabel('ランニング, expanded'));
     await tester.pumpAndSettle();
 

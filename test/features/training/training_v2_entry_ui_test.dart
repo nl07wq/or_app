@@ -38,8 +38,19 @@ void main() {
     expect(find.text('Set Type'), findsOneWidget);
     expect(find.text('RPE'), findsOneWidget);
     expect(find.text('Rest'), findsOneWidget);
-    expect(find.text('30 sec'), findsOneWidget);
-    expect(find.text('120 sec'), findsOneWidget);
+    expect(find.text('30'), findsOneWidget);
+    expect(find.text('120'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('30')).dy,
+      tester.getTopLeft(find.text('120')).dy,
+    );
+    final weightTop = tester
+        .getTopLeft(find.byKey(const Key('v2-set-0-weight')))
+        .dy;
+    final repsTop = tester
+        .getTopLeft(find.byKey(const Key('v2-set-0-reps')))
+        .dy;
+    expect(weightTop, repsTop);
     expect(find.text('SAVE TRAINING'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -62,6 +73,65 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final width in <double>[320, 390]) {
+    testWidgets(
+      'rest presets keep one 48px hit row and seconds at ${width.toInt()}px',
+      (tester) async {
+        await _pump(tester, width: width);
+        final restField = find.byKey(const Key('v2-set-0-rest'));
+        const presets = [30, 45, 60, 90, 120];
+        double? rowTop;
+
+        for (final seconds in presets) {
+          final button = find.widgetWithText(OutlinedButton, '$seconds');
+          expect(button, findsOneWidget);
+          final rect = tester.getRect(button);
+          rowTop ??= rect.top;
+          expect(rect.top, rowTop);
+          expect(rect.height, greaterThanOrEqualTo(48));
+          await tester.tapAt(Offset(rect.center.dx, rect.bottom - 1));
+          expect(
+            tester.widget<TextField>(restField).controller!.text,
+            '$seconds',
+          );
+        }
+
+        await tester.enterText(restField, '75');
+        expect(tester.widget<TextField>(restField).controller!.text, '75');
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final brightness in Brightness.values) {
+    for (final width in <double>[320, 390, 900, 1280]) {
+      testWidgets(
+        'cardio editor has localized single inputs without overflow at '
+        '${width.toInt()}px ${brightness.name}',
+        (tester) async {
+          await _pump(tester, width: width, brightness: brightness);
+          await tester.tap(find.text('ADD CARDIO'));
+          await tester.pumpAndSettle();
+
+          expect(find.text('目的'), findsOneWidget);
+          expect(find.text('種目'), findsOneWidget);
+          expect(find.text('時間'), findsOneWidget);
+          expect(find.text('距離'), findsOneWidget);
+          expect(find.text('METs'), findsOneWidget);
+          expect(find.text('平均心拍'), findsOneWidget);
+          expect(find.text('最大心拍'), findsOneWidget);
+          expect(find.text('平均速度'), findsOneWidget);
+          expect(find.text('推定消費カロリー'), findsOneWidget);
+          expect(find.text('メモ'), findsOneWidget);
+          expect(find.text('Minutes'), findsNothing);
+          expect(find.text('Seconds'), findsNothing);
+          expect(find.byKey(const Key('v2-cardio-0-equipment')), findsNothing);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets('ADD SET preserves copy actions and rest presets', (
     tester,
   ) async {
@@ -69,7 +139,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
     await tester.enterText(find.widgetWithText(TextField, 'Reps'), '8');
-    await tester.tap(find.text('90 sec'));
+    await tester.tap(find.text('90'));
     await tester.tap(find.text('ADD SET'));
     await tester.pumpAndSettle();
 
@@ -99,6 +169,41 @@ void main() {
           .text,
       '90',
     );
+  });
+
+  testWidgets('weight and reps adjustment buttons update safely', (
+    tester,
+  ) async {
+    await _pump(tester, width: 320);
+    await tester.enterText(find.byKey(const Key('v2-set-0-weight')), '80');
+    await tester.enterText(find.byKey(const Key('v2-set-0-reps')), '5');
+
+    final weightAdjustments = find.byKey(
+      const Key('v2-set-0-weight-adjustments'),
+    );
+    final repsAdjustments = find.byKey(const Key('v2-set-0-reps-adjustments'));
+    await tester.tap(
+      find.descendant(of: weightAdjustments, matching: find.text('+2.5')),
+    );
+    await tester.tap(
+      find.descendant(of: repsAdjustments, matching: find.text('-10')),
+    );
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('v2-set-0-weight')))
+          .controller!
+          .text,
+      '82.5',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('v2-set-0-reps')))
+          .controller!
+          .text,
+      '0',
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('equipment accepts built-in, none, and custom snapshots', (
@@ -171,19 +276,38 @@ void main() {
     await tester.tap(find.text('なし'));
     await tester.pumpAndSettle();
 
+    final previous = tester.getTopLeft(find.text('Previous')).dy;
     final progression = tester.getTopLeft(find.text('PROGRESSION')).dy;
-    final statistics = tester.getTopLeft(find.text('STATISTICS')).dy;
     final personalRecord = tester.getTopLeft(find.text('PERSONAL RECORD')).dy;
     final firstSet = tester.getTopLeft(find.text('SET 1')).dy;
-    expect(progression, lessThan(statistics));
-    expect(statistics, lessThan(personalRecord));
+    expect(previous, lessThan(progression));
+    expect(progression, lessThan(personalRecord));
     expect(personalRecord, lessThan(firstSet));
+    expect(find.text('STATISTICS'), findsNothing);
     expect(find.text('前回　記録なし'), findsOneWidget);
     expect(find.text('今回　提案なし'), findsOneWidget);
     expect(find.text('自己ベスト'), findsOneWidget);
     expect(find.text('Overall Evaluation'), findsNothing);
     expect(find.text('Evaluation'), findsNothing);
     expect(find.text('Next Target'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('statistics results stay outside entry for valid main sets', (
+    tester,
+  ) async {
+    await _pump(tester, width: 320);
+    _setExercise(tester, 'BenchPress');
+    await tester.enterText(find.byKey(const Key('v2-set-0-weight')), '80');
+    await tester.enterText(find.byKey(const Key('v2-set-0-reps')), '8');
+    await tester.pump();
+
+    expect(find.text('STATISTICS'), findsNothing);
+    expect(find.text('総重量 640 kg'), findsNothing);
+    expect(find.text('セット数 1'), findsNothing);
+    expect(find.text('総レップ数 8'), findsNothing);
+    expect(find.text('平均重量 80 kg'), findsNothing);
+    expect(find.text('最高重量 80 kg × 8'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -293,19 +417,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<TextField>(find.widgetWithText(TextField, 'Minutes'))
+          .widget<TextField>(find.widgetWithText(TextField, '時間'))
           .controller!
           .text,
-      '2',
+      '2:05',
     );
+    expect(find.text('推定消費カロリー'), findsOneWidget);
+    expect(find.text('Equipment'), findsNothing);
+    expect(find.text('Minutes'), findsNothing);
+    expect(find.text('Seconds'), findsNothing);
+    expect(find.text('種目'), findsOneWidget);
+    expect(find.text('距離'), findsOneWidget);
+    expect(find.text('平均心拍'), findsOneWidget);
+    expect(find.text('最大心拍'), findsOneWidget);
+    expect(find.text('平均速度'), findsOneWidget);
+    expect(find.text('メモ'), findsOneWidget);
     expect(
       tester
-          .widget<TextField>(find.widgetWithText(TextField, 'Seconds'))
-          .controller!
-          .text,
-      '5',
+          .widget<TextField>(find.widgetWithText(TextField, '平均速度'))
+          .keyboardType,
+      TextInputType.text,
     );
-    expect(find.text('Estimated Calories'), findsOneWidget);
     expect(find.text('Not calculated'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -395,7 +527,7 @@ void main() {
 
     await tester.tap(find.text('ADD CARDIO'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Minutes'), '5');
+    await tester.enterText(find.widgetWithText(TextField, '時間'), '5:00');
     await tester.enterText(find.widgetWithText(TextField, 'METs'), '4');
     await tester.pump();
 
@@ -404,7 +536,7 @@ void main() {
       find.text('Calculated from METs, duration, and STATUS weight'),
       findsOneWidget,
     );
-    expect(find.widgetWithText(TextField, 'Estimated Calories'), findsNothing);
+    expect(find.widgetWithText(TextField, '推定消費カロリー'), findsNothing);
   });
 }
 

@@ -37,34 +37,26 @@ class TrainingV2EntryInsightPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _InsightCard(
-          title: 'PROGRESSION',
-          child: _ProgressionContent(result: insights.progression),
-        ),
-        AppSpacing.gapXS,
-        _InsightCard(
-          title: 'STATISTICS',
-          child: insights.statistics.mainSetCount == 0
+          title: 'Previous',
+          child: insights.previous == null
               ? const Text('記録なし')
               : Wrap(
                   spacing: AppSpacing.md,
                   runSpacing: AppSpacing.xs,
                   children: [
-                    Text('${insights.statistics.mainSetCount} Sets'),
-                    Text('${insights.statistics.totalReps} Reps'),
-                    Text(
-                      '${formatTrainingNumberWithThousands(insights.statistics.totalVolume)} kg',
-                    ),
-                    if (insights.statistics.averageWeight != null)
-                      Text(
-                        '平均 ${formatTrainingNumber(insights.statistics.averageWeight!)} kg',
-                      ),
-                    if (insights.statistics.heaviestSet != null)
-                      Text(
-                        '最高 ${formatTrainingNumber(insights.statistics.heaviestSet!.weightKg)} kg'
-                        ' × ${insights.statistics.heaviestSet!.reps}',
-                      ),
+                    for (final set in insights.previous!.exercise.sets)
+                      if (set.setType == TrainingSetType.main)
+                        Text(
+                          '${formatTrainingNumber(set.weightKg)} kg'
+                          ' × ${set.reps}',
+                        ),
                   ],
                 ),
+        ),
+        AppSpacing.gapXS,
+        _InsightCard(
+          title: 'PROGRESSION',
+          child: _ProgressionContent(result: insights.progression),
         ),
         AppSpacing.gapXS,
         _InsightCard(

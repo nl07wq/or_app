@@ -132,33 +132,48 @@ class _SetEditor extends StatelessWidget {
               },
             ),
             AppSpacing.gapSM,
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final fields = [
-                  _numberField(
+            Row(
+              children: [
+                Expanded(
+                  child: _numberField(
                     key: Key('v2-set-$index-weight'),
                     controller: set.weight,
                     label: 'Weight',
                     suffix: 'kg',
                     decimal: true,
                   ),
-                  _numberField(
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _numberField(
                     key: Key('v2-set-$index-reps'),
                     controller: set.reps,
                     label: 'Reps',
                   ),
-                ];
-                return constraints.maxWidth < 340
-                    ? Column(
-                        children: [fields.first, AppSpacing.gapSM, fields.last],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(child: fields.first),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(child: fields.last),
-                        ],
-                      );
+                ),
+              ],
+            ),
+            AppSpacing.gapXS,
+            _AdjustmentRow(
+              key: Key('v2-set-$index-weight-adjustments'),
+              values: const [-10, -5, -2.5, 2.5, 5, 10],
+              onSelected: (value) {
+                final current = double.tryParse(set.weight.text.trim()) ?? 0;
+                set.weight.text = _formatDouble(
+                  (current + value).clamp(0, double.infinity),
+                );
+                onChanged();
+              },
+            ),
+            AppSpacing.gapXS,
+            _AdjustmentRow(
+              key: Key('v2-set-$index-reps-adjustments'),
+              values: const [-10, -5, -1, 1, 5, 10],
+              onSelected: (value) {
+                final current = int.tryParse(set.reps.text.trim()) ?? 0;
+                set.reps.text =
+                    '${(current + value.toInt()).clamp(0, 1 << 31)}';
+                onChanged();
               },
             ),
             AppSpacing.gapSM,
@@ -198,17 +213,26 @@ class _SetEditor extends StatelessWidget {
               },
             ),
             AppSpacing.gapXS,
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
+            Row(
               children: [
                 for (final seconds in const [30, 45, 60, 90, 120])
-                  ActionChip(
-                    label: Text('$seconds sec'),
-                    onPressed: () {
-                      set.rest.text = '$seconds';
-                      onChanged();
-                    },
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs / 2,
+                      ),
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          padding: EdgeInsets.zero,
+                        ),
+                        onPressed: () {
+                          set.rest.text = '$seconds';
+                          onChanged();
+                        },
+                        child: Text('$seconds'),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -239,4 +263,53 @@ class _SetEditor extends StatelessWidget {
     target.selection = TextSelection.collapsed(offset: target.text.length);
     onChanged();
   }
+}
+
+class _AdjustmentRow extends StatelessWidget {
+  final List<double> values;
+  final ValueChanged<double> onSelected;
+
+  const _AdjustmentRow({
+    super.key,
+    required this.values,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final value in values)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs / 2,
+              ),
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(0, 32),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () => onSelected(value),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value > 0
+                        ? '+${_formatDouble(value)}'
+                        : _formatDouble(value),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+String _formatDouble(double value) {
+  return value == value.roundToDouble()
+      ? value.round().toString()
+      : value.toStringAsFixed(1);
 }

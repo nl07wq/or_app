@@ -5,14 +5,11 @@ import '../../../core/models/cardio_entry_v2.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../models/training_v2_form_controller.dart';
 import '../services/training_cardio_calorie_calculator.dart';
-import '../services/training_equipment_candidates.dart';
 import 'training_collapsible_card.dart';
-import 'training_equipment_field.dart';
 
 class TrainingCardioV2Editor extends StatelessWidget {
   final int index;
   final TrainingV2CardioFormController controller;
-  final TrainingEquipmentCandidates equipmentCandidates;
   final bool expanded;
   final TrainingCardioCalorieResult calorieResult;
   final VoidCallback onToggle;
@@ -23,7 +20,6 @@ class TrainingCardioV2Editor extends StatelessWidget {
     super.key,
     required this.index,
     required this.controller,
-    required this.equipmentCandidates,
     required this.expanded,
     required this.calorieResult,
     required this.onToggle,
@@ -58,17 +54,18 @@ class TrainingCardioV2Editor extends StatelessWidget {
           ),
           DropdownButtonFormField<CardioPurpose?>(
             initialValue: controller.purpose,
-            decoration: const InputDecoration(labelText: 'Purpose'),
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: '目的'),
             items: const [
-              DropdownMenuItem(value: null, child: Text('Select Purpose')),
+              DropdownMenuItem(value: null, child: Text('目的を選択')),
               DropdownMenuItem(
                 value: CardioPurpose.warmUp,
-                child: Text('Warm-up'),
+                child: Text('ウォームアップ'),
               ),
-              DropdownMenuItem(value: CardioPurpose.main, child: Text('Main')),
+              DropdownMenuItem(value: CardioPurpose.main, child: Text('メイン')),
               DropdownMenuItem(
                 value: CardioPurpose.cooldown,
-                child: Text('Cooldown'),
+                child: Text('クールダウン'),
               ),
             ],
             onChanged: (value) {
@@ -79,12 +76,10 @@ class TrainingCardioV2Editor extends StatelessWidget {
           AppSpacing.gapSM,
           DropdownButtonFormField<CardioType?>(
             initialValue: controller.type,
-            decoration: const InputDecoration(labelText: 'Cardio Type'),
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: '種目'),
             items: [
-              const DropdownMenuItem(
-                value: null,
-                child: Text('Select Cardio Type'),
-              ),
+              const DropdownMenuItem(value: null, child: Text('種目を選択')),
               for (final type in CardioType.values)
                 DropdownMenuItem(value: type, child: Text(_typeLabel(type))),
             ],
@@ -94,14 +89,15 @@ class TrainingCardioV2Editor extends StatelessWidget {
             },
           ),
           AppSpacing.gapSM,
-          TrainingEquipmentField(
-            fieldKey: 'v2-cardio-$index-equipment',
-            value: controller.equipment,
-            candidates: equipmentCandidates,
-            onChanged: (value) {
-              controller.equipment = value;
-              onChanged();
-            },
+          TextField(
+            key: Key('v2-cardio-$index-duration'),
+            controller: controller.duration,
+            decoration: const InputDecoration(
+              labelText: '時間',
+              hintText: 'mm:ss',
+            ),
+            keyboardType: TextInputType.text,
+            onChanged: (_) => onChanged(),
           ),
           AppSpacing.gapSM,
           LayoutBuilder(
@@ -109,15 +105,9 @@ class TrainingCardioV2Editor extends StatelessWidget {
               children: [
                 _pair(
                   constraints.maxWidth,
-                  _numberField(controller.minutes, 'Minutes', suffix: 'min'),
-                  _numberField(controller.seconds, 'Seconds', suffix: 'sec'),
-                ),
-                AppSpacing.gapSM,
-                _pair(
-                  constraints.maxWidth,
                   _numberField(
                     controller.distance,
-                    'Distance',
+                    '距離',
                     suffix: 'km',
                     decimal: true,
                   ),
@@ -128,28 +118,31 @@ class TrainingCardioV2Editor extends StatelessWidget {
                   constraints.maxWidth,
                   _numberField(
                     controller.averageHeartRate,
-                    'Average HR',
+                    '平均心拍',
                     suffix: 'bpm',
                   ),
                   _numberField(
                     controller.maximumHeartRate,
-                    'Maximum HR',
+                    '最大心拍',
                     suffix: 'bpm',
                   ),
                 ),
                 AppSpacing.gapSM,
-                _numberField(
-                  controller.averageSpeed,
-                  'Average Speed',
-                  suffix: 'km/h',
-                  decimal: true,
+                TextField(
+                  controller: controller.averageSpeed,
+                  decoration: const InputDecoration(
+                    labelText: '平均速度',
+                    suffixText: 'km/h',
+                  ),
+                  keyboardType: TextInputType.text,
+                  onChanged: (_) => onChanged(),
                 ),
               ],
             ),
           ),
           AppSpacing.gapSM,
           InputDecorator(
-            decoration: const InputDecoration(labelText: 'Estimated Calories'),
+            decoration: const InputDecoration(labelText: '推定消費カロリー'),
             child: Text(
               calorieResult.isComputed
                   ? '${calorieResult.estimatedCaloriesKcal!.round()} kcal'
@@ -166,7 +159,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
           AppSpacing.gapSM,
           TextField(
             controller: controller.notes,
-            decoration: const InputDecoration(labelText: 'Notes'),
+            decoration: const InputDecoration(labelText: 'メモ'),
             minLines: 2,
             maxLines: 4,
           ),
@@ -203,10 +196,9 @@ class TrainingCardioV2Editor extends StatelessWidget {
   }
 
   String? _summary() {
-    final minutes = int.tryParse(controller.minutes.text.trim()) ?? 0;
-    final seconds = int.tryParse(controller.seconds.text.trim()) ?? 0;
-    if (minutes == 0 && seconds == 0) return 'Not configured';
-    return '${minutes}m ${seconds}s'
+    final duration = controller.duration.text.trim();
+    if (duration.isEmpty) return 'Not configured';
+    return '$duration'
         '${controller.distance.text.trim().isEmpty ? '' : '   ${controller.distance.text.trim()} km'}';
   }
 }

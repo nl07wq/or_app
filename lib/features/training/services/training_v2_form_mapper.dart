@@ -141,17 +141,7 @@ abstract final class TrainingV2FormMapper {
     if (type == null) {
       throw const TrainingV2FormValidationException('Cardio Typeを選択してください。');
     }
-    final minutes = _optionalInt(value.minutes.text, 'Minutes') ?? 0;
-    final seconds = _optionalInt(value.seconds.text, 'Seconds') ?? 0;
-    if (minutes < 0 || seconds < 0 || seconds > 59) {
-      throw const TrainingV2FormValidationException(
-        'Cardio時間の分・秒を正しく入力してください。',
-      );
-    }
-    final durationSeconds = minutes * 60 + seconds;
-    if (durationSeconds < 1) {
-      throw const TrainingV2FormValidationException('Cardio時間は1秒以上で入力してください。');
-    }
+    final durationSeconds = parseDurationSeconds(value.duration.text);
     final average = _optionalInt(value.averageHeartRate.text, 'Average HR');
     final maximum = _optionalInt(value.maximumHeartRate.text, 'Maximum HR');
     if (average != null && average < 1 || maximum != null && maximum < 1) {
@@ -220,5 +210,41 @@ abstract final class TrainingV2FormMapper {
   static int? _optionalInt(String source, String label) {
     if (source.trim().isEmpty) return null;
     return _requiredInt(source, label);
+  }
+
+  static int parseDurationSeconds(String source) {
+    final parts = source.trim().split(':');
+    if (parts.length != 2 && parts.length != 3) {
+      throw const TrainingV2FormValidationException(
+        '時間はmm:ssまたはhh:mm:ss形式で入力してください。',
+      );
+    }
+    final values = parts.map(int.tryParse).toList(growable: false);
+    if (values.any((value) => value == null || value < 0)) {
+      throw const TrainingV2FormValidationException(
+        '時間はmm:ssまたはhh:mm:ss形式で入力してください。',
+      );
+    }
+    final hours = parts.length == 3 ? values[0]! : 0;
+    final minutes = parts.length == 3 ? values[1]! : values[0]!;
+    final seconds = parts.length == 3 ? values[2]! : values[1]!;
+    if (seconds > 59 || parts.length == 3 && minutes > 59) {
+      throw const TrainingV2FormValidationException(
+        '時間はmm:ssまたはhh:mm:ss形式で入力してください。',
+      );
+    }
+    final total = hours * 3600 + minutes * 60 + seconds;
+    if (total < 1) {
+      throw const TrainingV2FormValidationException('Cardio時間は1秒以上で入力してください。');
+    }
+    return total;
+  }
+
+  static int? tryParseDurationSeconds(String source) {
+    try {
+      return parseDurationSeconds(source);
+    } on TrainingV2FormValidationException {
+      return null;
+    }
   }
 }

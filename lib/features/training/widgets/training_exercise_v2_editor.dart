@@ -120,7 +120,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
               widget.onChanged();
             },
           ),
-          if (name.isNotEmpty && controller.equipmentSelectionMade) ...[
+          if (name.isNotEmpty) ...[
             AppSpacing.gapMD,
             TrainingV2EntryInsightPanel(
               controller: controller,

@@ -166,8 +166,7 @@ class TrainingV2CardioFormController {
   CardioPurpose? purpose;
   CardioType? type;
   TrainingEquipmentSnapshot? equipment;
-  final minutes = TextEditingController();
-  final seconds = TextEditingController();
+  final duration = TextEditingController();
   final distance = TextEditingController();
   final mets = TextEditingController();
   final averageHeartRate = TextEditingController();
@@ -193,8 +192,7 @@ class TrainingV2CardioFormController {
       calculationVersion = entry.calculationVersion,
       initialMets = entry.mets,
       initialDurationSeconds = entry.durationSeconds {
-    minutes.text = '${entry.durationSeconds ~/ 60}';
-    seconds.text = '${entry.durationSeconds % 60}';
+    duration.text = _duration(entry.durationSeconds);
     distance.text = _number(entry.distanceKm);
     mets.text = _number(entry.mets);
     averageHeartRate.text = entry.averageHeartRateBpm?.toString() ?? '';
@@ -204,8 +202,7 @@ class TrainingV2CardioFormController {
   }
 
   void dispose() {
-    minutes.dispose();
-    seconds.dispose();
+    duration.dispose();
     distance.dispose();
     mets.dispose();
     averageHeartRate.dispose();
@@ -213,6 +210,17 @@ class TrainingV2CardioFormController {
     averageSpeed.dispose();
     notes.dispose();
   }
+}
+
+String _duration(int seconds) {
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  final remainingSeconds = seconds % 60;
+  if (hours > 0) {
+    return '$hours:${minutes.toString().padLeft(2, '0')}:'
+        '${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+  return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
 }
 
 String _number(double? value) {

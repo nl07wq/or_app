@@ -68,6 +68,8 @@ void main() {
     expect(insights.statistics.mainSetCount, 1);
     expect(insights.statistics.totalReps, 8);
     expect(insights.statistics.totalVolume, 660);
+    expect(insights.previous?.record.id, previous.id);
+    expect(insights.previous?.statistics.mainSetCount, 1);
     expect(insights.progression?.lastWeight, 80);
     expect(insights.progression?.lastReps, 10);
     expect(
@@ -88,6 +90,7 @@ void main() {
     );
 
     expect(insights.statistics.mainSetCount, 0);
+    expect(insights.previous, isNull);
     expect(insights.progression, isNull);
     expect(insights.personalRecord, isNull);
   });
