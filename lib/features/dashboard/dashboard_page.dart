@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/engine/commander_snapshot.dart';
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
 import '../../core/engine/operation_engine.dart';
@@ -29,8 +28,10 @@ import '../food/models/food_summary_state.dart';
 import '../activity/models/activity_summary_state.dart';
 
 import '../training/models/training_summary_state.dart';
+import '../command_center/models/daily_command_read_model.dart';
+import '../command_center/services/daily_command_read_model_builder.dart';
+import '../repositories/app_repository_container.dart';
 
-import 'widgets/status_card.dart';
 import 'widgets/daily_log_card.dart';
 import 'log_confirmation_review_page.dart';
 import 'package:flutter/foundation.dart';
@@ -70,9 +71,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                 activity: activitySummary,
                               );
                         final engine = const OperationEngine();
-                        final snapshot = input == null
-                            ? null
-                            : engine.generateCommanderSnapshot(input);
                         final estimatedTDEE = input == null
                             ? null
                             : engine.estimateTDEE(input);
@@ -112,30 +110,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                             icon: Icons.dashboard_outlined,
                                             title: 'DAILY COMMAND',
                                           ),
-                                          AppSpacing.gapLG,
-                                          SectionHeader(
-                                            icon: Icons.flag_outlined,
-                                            title: 'COMMANDER INTENT',
-                                          ),
                                           AppSpacing.gapSM,
-                                          _CommanderIntentCard(
-                                            snapshot: snapshot,
-                                          ),
-                                          AppSpacing.gapXL,
-                                          StatusCard(
-                                            isReady: morningFact != null,
-                                            status: snapshot?.status,
-                                          ),
-                                          AppSpacing.gapXL,
-                                          SectionHeader(
-                                            icon: Icons.wb_sunny_outlined,
-                                            title: 'MORNING BRIEF SUMMARY',
-                                          ),
-                                          AppSpacing.gapSM,
-                                          _InfoCard(
-                                            icon: Icons.lightbulb_outline,
-                                            title: 'BRIEFING',
-                                            message: snapshot?.summary ?? '--',
+                                          _DailyCommandSummary(
+                                            morningFact: morningFact,
+                                            foodSummary: foodSummary,
+                                            trainingSummary: trainingSummary,
+                                            activitySummary: activitySummary,
                                           ),
                                           AppSpacing.gapXL,
                                           SectionHeader(
@@ -427,74 +407,113 @@ class _ConfirmedLogConfirmationCard extends StatelessWidget {
   }
 }
 
-class _CommanderIntentCard extends StatelessWidget {
-  final CommanderSnapshot? snapshot;
+class _DailyCommandSummary extends StatelessWidget {
+  const _DailyCommandSummary({
+    required this.morningFact,
+    required this.foodSummary,
+    required this.trainingSummary,
+    required this.activitySummary,
+  });
 
-  const _CommanderIntentCard({required this.snapshot});
+  final MorningFact? morningFact;
+  final FoodSummary? foodSummary;
+  final TrainingSummary? trainingSummary;
+  final ActivitySummary activitySummary;
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return FutureBuilder<DailyCommandReadModel>(
+      future: _load(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const OperationCard(
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return const OperationCard(
+            child: Text('Current Operationを読み込めませんでした。'),
+          );
+        }
+        final model = snapshot.requireData;
+        return OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.track_changes_outlined,
-                size: 32,
-                color: Theme.of(context).colorScheme.primary,
+              _DashboardCommandLine(
+                icon: model.operationStatus == null
+                    ? Icons.cancel_outlined
+                    : Icons.check_circle_outline,
+                label: 'OPERATION STATUS',
+                value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
               ),
-              SizedBox(width: AppSpacing.md),
-              Text('最優先目標', style: Theme.of(context).textTheme.labelLarge),
+              Text(model.statusReason),
+              if (model.commanderIntent != null) ...[
+                AppSpacing.gapMD,
+                _DashboardCommandLine(
+                  icon: Icons.flag_outlined,
+                  label: 'COMMANDER INTENT',
+                  value: model.commanderIntent!,
+                ),
+              ],
+              if (model.morningBriefSummary != null) ...[
+                AppSpacing.gapMD,
+                _DashboardCommandLine(
+                  icon: Icons.wb_sunny_outlined,
+                  label: 'MORNING BRIEF SUMMARY',
+                  value: model.morningBriefSummary!,
+                ),
+              ],
+              AppSpacing.gapMD,
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.commandCenter),
+                  icon: const Icon(Icons.chevron_right),
+                  label: const Text('COMMAND CENTER'),
+                ),
+              ),
             ],
           ),
-          AppSpacing.gapLG,
-          Text(
-            snapshot?.commanderIntent ?? '--',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          AppSpacing.gapSM,
-          Text(snapshot?.summary ?? '--'),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Future<DailyCommandReadModel> _load() async {
+    final state = await AppRepositoryRegistry.container.operationState
+        .requireCurrent();
+    return DailyCommandReadModelBuilder.build(
+      operationState: state,
+      status: morningFact,
+      food: foodSummary,
+      training: trainingSummary,
+      activity: activitySummary,
     );
   }
 }
 
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-
-  const _InfoCard({
+class _DashboardCommandLine extends StatelessWidget {
+  const _DashboardCommandLine({
     required this.icon,
-    required this.title,
-    required this.message,
+    required this.label,
+    required this.value,
   });
 
+  final IconData icon;
+  final String label;
+  final String value;
+
   @override
-  Widget build(BuildContext context) {
-    return OperationCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
-          SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                AppSpacing.gapSM,
-                Text(message),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, color: Theme.of(context).colorScheme.primary),
+      SizedBox(width: AppSpacing.sm),
+      Expanded(child: Text('$label\n$value')),
+    ],
+  );
 }
 
 class _ProgressCard extends StatelessWidget {

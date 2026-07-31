@@ -11,6 +11,7 @@ import '../../core/widgets/operation_card.dart';
 import '../morning/models/morning_fact.dart';
 import '../import_export/services/backup_file_export_service.dart';
 import '../operation_date/models/operation_local_date.dart';
+import '../operation_date/models/daily_finalize_result.dart';
 import '../operation_date/services/daily_finalize_coordinator_factory.dart';
 import 'widgets/backup_prompt_dialog.dart';
 import 'widgets/daily_review_body.dart';
@@ -95,6 +96,12 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('必須記録を完了してください: $labels')));
+    } on DailyFinalizeException catch (error) {
+      if (!mounted) return;
+      setState(() => _isConfirming = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('DAILY LOGの確定に失敗しました: ${error.code.name}')),
+      );
     } on StateError {
       if (!mounted) return;
       setState(() => _isConfirming = false);

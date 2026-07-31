@@ -1,0 +1,170 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/engine/activity_summary.dart';
+import 'package:or_app/core/engine/food_summary.dart';
+import 'package:or_app/core/engine/training_summary.dart';
+import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
+import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
+import 'package:or_app/features/command_center/services/daily_command_read_model_builder.dart';
+import 'package:or_app/features/morning/models/morning_fact.dart';
+import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
+
+void main() {
+  group('DailyCommandReadModelBuilder', () {
+    test('derives STANDBY and required module states without STATUS', () {
+      final model = _build();
+
+      expect(model.cycleState, DailyCommandCycleState.standby);
+      expect(model.operationStatus, isNull);
+      expect(model.statusModuleState, DailyCommandModuleState.missing);
+      expect(model.foodModuleState, DailyCommandModuleState.missing);
+      expect(
+        model.trainingModuleState,
+        DailyCommandModuleState.optionalMissing,
+      );
+      expect(model.activityModuleState, DailyCommandModuleState.missing);
+      expect(model.canFinalize, isFalse);
+    });
+
+    test('derives ACTIVE from the shared validation result', () {
+      final model = _build(status: _status());
+
+      expect(model.cycleState, DailyCommandCycleState.active);
+      expect(model.statusModuleState, DailyCommandModuleState.recorded);
+      expect(model.finalizeBlockingReasons, [
+        DailyLogModule.food,
+        DailyLogModule.activity,
+      ]);
+    });
+
+    test('derives REVIEW READY when required modules are valid', () {
+      final model = _build(
+        status: _status(),
+        food: _food(),
+        activity: _activity(),
+      );
+
+      expect(model.cycleState, DailyCommandCycleState.reviewReady);
+      expect(model.canFinalize, isTrue);
+      expect(model.finalizeBlockingReasons, isEmpty);
+      expect(model.estimatedTotalBurnKcal, 1760);
+    });
+
+    test('keeps invalid optional TRAINING as a blocker', () {
+      final model = _build(
+        status: _status(),
+        food: _food(),
+        activity: _activity(),
+        training: const TrainingSummary(
+          completed: false,
+          exerciseCount: 0,
+          setCount: 0,
+          duration: null,
+          sessionName: null,
+        ),
+      );
+
+      expect(model.trainingModuleState, DailyCommandModuleState.invalid);
+      expect(model.finalizeBlockingReasons, [DailyLogModule.training]);
+    });
+
+    test('maps finalizing to FINALIZING', () {
+      final model = _build(phase: OperationPhase.finalizing);
+      expect(model.cycleState, DailyCommandCycleState.finalizing);
+      expect(model.canFinalize, isFalse);
+    });
+
+    for (final phase in [
+      OperationPhase.finalizedPendingBackup,
+      OperationPhase.advancing,
+    ]) {
+      test('maps ${phase.name} to RECOVERY REQUIRED', () {
+        final model = _build(phase: phase);
+        expect(model.cycleState, DailyCommandCycleState.recoveryRequired);
+        expect(model.recoveryRequired, isTrue);
+      });
+    }
+
+    test('historical view disables finalization', () {
+      final model = _build(
+        status: _status(),
+        food: _food(),
+        activity: _activity(),
+        isHistoricalView: true,
+      );
+      expect(model.cycleState, DailyCommandCycleState.reviewReady);
+      expect(model.canFinalize, isFalse);
+    });
+  });
+}
+
+DailyCommandReadModel _build({
+  MorningFact? status,
+  FoodSummary? food,
+  TrainingSummary? training,
+  ActivitySummary activity = const ActivitySummary.empty(),
+  OperationPhase phase = OperationPhase.open,
+  bool isHistoricalView = false,
+}) {
+  final date = OperationLocalDate.parse('2026-08-01');
+  final now = DateTime.utc(2026, 8, 1);
+  final attempt = phase == OperationPhase.open
+      ? null
+      : OperationActiveAttempt(
+          idempotencyKey: 'daily-finalize:${date.value}',
+          targetLocalDate: date,
+          startedAt: now,
+          confirmationId: phase == OperationPhase.finalizing ? null : 'c1',
+          confirmationDigest: phase == OperationPhase.finalizing ? null : 'd1',
+          backupPackageDigest: phase == OperationPhase.advancing ? 'b1' : null,
+          backupGeneratedAt: phase == OperationPhase.advancing ? now : null,
+        );
+  return DailyCommandReadModelBuilder.build(
+    operationState: OperationState(
+      operationDate: date,
+      phase: phase,
+      activeAttempt: attempt,
+      createdAt: now,
+      updatedAt: now,
+    ),
+    status: status,
+    food: food,
+    training: training,
+    activity: activity,
+    isHistoricalView: isHistoricalView,
+  );
+}
+
+MorningFact _status() => MorningFact(
+  date: DateTime(2026, 8, 1),
+  weight: 80,
+  bodyFat: 20,
+  sleepDuration: const Duration(hours: 8),
+  sleepScore: 80,
+  workHours: 0,
+  footPain: 0,
+  medications: const [],
+  freeNotes: null,
+);
+
+FoodSummary _food() => const FoodSummary(
+  calories: 1800,
+  protein: 100,
+  fat: 60,
+  carbohydrates: 200,
+  hydrationMl: 2000,
+  mealCount: 3,
+);
+
+ActivitySummary _activity() => const ActivitySummary(
+  steps: 5000,
+  measuredSteps: 5000,
+  isRecorded: true,
+  calculationBasis: ActivityCalculationBasis(
+    rawSteps: 5000,
+    currentCarryOver: 0,
+    previousCarryOverDeduction: 0,
+    officialSteps: 5000,
+  ),
+);
