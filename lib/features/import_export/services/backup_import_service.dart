@@ -2,6 +2,7 @@ import '../../../core/services/daily_state_restore_service.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../operation_date/models/operation_state.dart';
 import '../models/backup_package.dart';
 import 'backup_import_planner.dart';
 import 'backup_store_registry.dart';
@@ -71,7 +72,7 @@ class BackupImportService {
         mode: IndexedDbTransactionMode.readWrite,
         action: (transaction) async {
           if (approvedPlan.mode == BackupImportMode.replaceAll) {
-            for (final section in BackupSections.all) {
+            for (final section in approvedPlan.package.includedSections) {
               await transaction.clear(BackupStoreRegistry.stores[section]!);
             }
           }
@@ -101,8 +102,29 @@ class BackupImportService {
       committed = true;
       await _verifyApplied(approvedPlan);
       await _restore();
+      if (!await _validateCurrentDatabase(
+        requireOperationState:
+            approvedPlan.package.schemaVersion ==
+            BackupPackage.currentSchemaVersion,
+      )) {
+        throw const BackupException(
+          'post_import_validation_failed',
+          'Restored database failed startup-equivalent validation.',
+        );
+      }
       _controller.markReady();
-      return const BackupImportResult.success();
+      final restoresOperationState =
+          approvedPlan.package.schemaVersion ==
+          BackupPackage.currentSchemaVersion;
+      final recoveryRequired = restoresOperationState
+          ? OperationState.fromRecord(
+              approvedPlan.package.data[BackupSections.operationState]!.single,
+            ).requiresRecovery
+          : false;
+      return BackupImportResult.success(
+        operationStateRestored: restoresOperationState,
+        recoveryRequired: recoveryRequired,
+      );
     } catch (error) {
       final healthy = await _validateCurrentDatabase();
       final backupError = error is BackupException ? error : null;
@@ -162,14 +184,25 @@ class BackupImportService {
     }
   }
 
-  Future<bool> _validateCurrentDatabase() async {
+  Future<bool> _validateCurrentDatabase({
+    bool requireOperationState = false,
+  }) async {
     try {
-      for (final section in BackupSections.all) {
+      for (final section in BackupSections.schema2) {
         BackupStoreRegistry.validateAndSort(
           section,
           await _database.findAll(BackupStoreRegistry.stores[section]!),
         );
       }
+      final operationRecords = await _database.findAll(
+        BackupStoreRegistry.stores[BackupSections.operationState]!,
+      );
+      if (operationRecords.isEmpty) return !requireOperationState;
+      if (operationRecords.length != 1) return false;
+      BackupStoreRegistry.validateAndSort(
+        BackupSections.operationState,
+        operationRecords,
+      );
       return true;
     } catch (_) {
       return false;

@@ -215,6 +215,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('IMPORT PLAN', style: Theme.of(context).textTheme.titleMedium),
+          Text('BACKUP SCHEMA ${plan.package.schemaVersion}.0'),
           AppSpacing.gapMD,
           SegmentedButton<BackupImportMode>(
             segments: const [

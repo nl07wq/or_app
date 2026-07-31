@@ -37,6 +37,7 @@ import 'package:or_app/features/training/repository/indexed_db_training_reposito
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   late FakeIndexedDbDatabase database;
@@ -45,10 +46,11 @@ void main() {
   setUp(() {
     database = FakeIndexedDbDatabase();
     controller = AppInitializationController()..markReady();
+    seedOperationState(database, '2026-08-01');
   });
 
   test(
-    'exports deterministic Schema 2.0 package with all six sections',
+    'exports deterministic Schema 3.0 package with all seven sections',
     () async {
       final package = await BackupExportService(
         database: database,
@@ -57,14 +59,11 @@ void main() {
       ).create(origin: 'https://example.test');
 
       expect(package.schema, BackupPackage.schemaName);
-      expect(package.schemaVersion, 2);
+      expect(package.schemaVersion, 3);
       expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
       expect(package.data.keys, containsAll(BackupSections.all));
-      expect(package.data.containsKey('operation_state'), isFalse);
-      expect(
-        package.recordCounts.values.values.every((count) => count == 0),
-        isTrue,
-      );
+      expect(package.data[BackupSections.operationState], hasLength(1));
+      expect(package.recordCounts[BackupSections.operationState], 1);
 
       final decoded = const BackupPackageCodec().decode(
         BackupExportService.encode(package),
@@ -73,40 +72,52 @@ void main() {
     },
   );
 
-  test('Schema 2.0 REPLACE ALL excludes and preserves operation_state',
-      () async {
-    final timestamp = DateTime.utc(2026, 7, 31);
-    final state = OperationState(
-      operationDate: OperationLocalDate.parse('2026-07-31'),
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    );
-    database.seed(
-      IndexedDbStoreNames.operationState,
-      OperationState.canonicalId,
-      state.toRecord(),
-    );
-    final package = await BackupExportService(
-      database: database,
-      controller: controller,
-    ).create();
-    final service = BackupImportService(
-      database: database,
-      controller: controller,
-      restore: () async {},
-    );
-
-    final plan = await service.dryRun(package, BackupImportMode.replaceAll);
-    expect((await service.execute(plan)).success, isTrue);
-    expect(package.data.containsKey('operation_state'), isFalse);
-    expect(
-      await database.findById(
+  test(
+    'Schema 2.0 REPLACE ALL excludes and preserves operation_state',
+    () async {
+      final timestamp = DateTime.utc(2026, 7, 31);
+      final state = OperationState(
+        operationDate: OperationLocalDate.parse('2026-07-31'),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      );
+      database.seed(
         IndexedDbStoreNames.operationState,
         OperationState.canonicalId,
-      ),
-      state.toRecord(),
-    );
-  });
+        state.toRecord(),
+      );
+      final package = BackupExportService.buildPackage(
+        exportId: 'schema-2-preserve-state',
+        exportedAt: timestamp,
+        source: const BackupSource(platform: 'test'),
+        schemaVersion: BackupPackage.previousSchemaVersion,
+        data: {for (final section in BackupSections.schema2) section: []},
+      );
+      final service = BackupImportService(
+        database: database,
+        controller: controller,
+        restore: () async {},
+      );
+
+      final decoded = const BackupPackageCodec().decode(
+        BackupExportService.encode(package),
+      );
+      expect(decoded.schemaVersion, 2);
+      expect(decoded.data.keys, BackupSections.schema2);
+      expect(decoded.data.containsKey(BackupSections.operationState), isFalse);
+
+      final plan = await service.dryRun(decoded, BackupImportMode.replaceAll);
+      expect((await service.execute(plan)).success, isTrue);
+      expect(package.data.containsKey('operation_state'), isFalse);
+      expect(
+        await database.findById(
+          IndexedDbStoreNames.operationState,
+          OperationState.canonicalId,
+        ),
+        state.toRecord(),
+      );
+    },
+  );
 
   test('rejects changed section content and invalid package digest', () async {
     final package = await BackupExportService(
@@ -135,7 +146,7 @@ void main() {
       ...utf8.encode(BackupExportService.encode(package)),
     ];
 
-    expect(const BackupPackageCodec().decodeUtf8(bytes).schemaVersion, 2);
+    expect(const BackupPackageCodec().decodeUtf8(bytes).schemaVersion, 3);
     expect(
       () => const BackupPackageCodec().decodeUtf8(const []),
       throwsA(
@@ -320,7 +331,7 @@ void main() {
       ))!,
     );
 
-    expect(package.schemaVersion, 2);
+    expect(package.schemaVersion, 3);
     expect(package.databaseVersion, 5);
     expect(restored.recordVersion, 1);
     final physical = restored.data.items.first;
@@ -352,10 +363,20 @@ void main() {
         draft.id,
         draft.toRecord(),
       );
-      final package = await BackupExportService(
+      final currentPackage = await BackupExportService(
         database: database,
         controller: controller,
       ).create();
+      final package = BackupExportService.buildPackage(
+        schemaVersion: BackupPackage.previousSchemaVersion,
+        exportId: currentPackage.exportId,
+        exportedAt: currentPackage.exportedAt,
+        source: currentPackage.source,
+        data: {
+          for (final section in BackupSections.schema2)
+            section: currentPackage.data[section]!,
+        },
+      );
       final json =
           jsonDecode(BackupExportService.encode(package))
               as Map<String, dynamic>;
@@ -449,7 +470,7 @@ void main() {
       envelope['id']! as String,
     );
 
-    expect(package.schemaVersion, 2);
+    expect(package.schemaVersion, 3);
     expect(package.databaseVersion, 5);
     expect(restoredEnvelope, envelope);
     final restored = PersistedTrainingRecord.fromRecord(restoredEnvelope!);
@@ -632,10 +653,20 @@ void main() {
         confirmation.id,
         confirmation.toRecord(),
       );
-      final package = await BackupExportService(
+      final currentPackage = await BackupExportService(
         database: database,
         controller: controller,
       ).create();
+      final package = BackupExportService.buildPackage(
+        schemaVersion: BackupPackage.previousSchemaVersion,
+        exportId: currentPackage.exportId,
+        exportedAt: currentPackage.exportedAt,
+        source: currentPackage.source,
+        data: {
+          for (final section in BackupSections.schema2)
+            section: currentPackage.data[section]!,
+        },
+      );
       final restoredDatabase = FakeIndexedDbDatabase()
         ..seed(IndexedDbStoreNames.activityDrafts, draft.id, draft.toRecord());
       final service = BackupImportService(
@@ -780,6 +811,7 @@ void main() {
       'custom-exercise:00000000-0000-4000-8000-000000000001',
     );
     final package = BackupExportService.buildPackage(
+      schemaVersion: BackupPackage.previousSchemaVersion,
       exportId: '00000000-0000-4000-8000-000000000002',
       exportedAt: DateTime.utc(2026, 7, 26),
       source: const BackupSource(platform: 'web'),
@@ -809,6 +841,7 @@ void main() {
     final changed = Map<String, Object?>.from(existing)
       ..['updatedAt'] = DateTime.utc(2026, 7, 27).toIso8601String();
     final package = BackupExportService.buildPackage(
+      schemaVersion: BackupPackage.previousSchemaVersion,
       exportId: '00000000-0000-4000-8000-000000000006',
       exportedAt: DateTime.utc(2026, 7, 27),
       source: const BackupSource(platform: 'web'),
@@ -834,6 +867,7 @@ void main() {
     'maintenance mode is active only while approved import executes',
     () async {
       final package = BackupExportService.buildPackage(
+        schemaVersion: BackupPackage.previousSchemaVersion,
         exportId: '00000000-0000-4000-8000-000000000007',
         exportedAt: DateTime.utc(2026, 7, 27),
         source: const BackupSource(platform: 'web'),
@@ -870,6 +904,7 @@ void main() {
         existing,
       );
       final package = BackupExportService.buildPackage(
+        schemaVersion: BackupPackage.previousSchemaVersion,
         exportId: '00000000-0000-4000-8000-000000000004',
         exportedAt: DateTime.utc(2026, 7, 26),
         source: const BackupSource(platform: 'web'),

@@ -8,6 +8,9 @@ import 'package:or_app/features/import_export/services/backup_file_export_servic
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway_stub.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -20,10 +23,21 @@ void main() {
     database = FakeIndexedDbDatabase();
     controller = AppInitializationController()..markReady();
     gateway = _RecordingGateway();
+    final timestamp = DateTime.utc(2026, 8, 1);
+    final state = OperationState(
+      operationDate: OperationLocalDate.parse('2026-08-01'),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    database.seed(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+      state.toRecord(),
+    );
   });
 
   test(
-    'exports Schema 2.0 UTF-8 JSON through the shared file gateway',
+    'exports Schema 3.0 UTF-8 JSON through the shared file gateway',
     () async {
       final result = await _service(
         database: database,
@@ -38,7 +52,7 @@ void main() {
       expect(utf8.decode(utf8.encode(gateway.content!)), gateway.content);
 
       final package = const BackupPackageCodec().decode(gateway.content!);
-      expect(package.schemaVersion, 2);
+      expect(package.schemaVersion, 3);
       expect(package.data.keys, containsAll(BackupSections.all));
       expect(package.data, isNot(contains('activity_drafts')));
       expect(package.data, isNot(contains('migration_metadata')));
@@ -59,7 +73,7 @@ void main() {
       ).export();
 
       expect(result.delivery, BackupFileDelivery.cancelled);
-      expect(result.package.schemaVersion, 2);
+      expect(result.package.schemaVersion, 3);
       expect(database.transactionCount, 1);
     },
   );

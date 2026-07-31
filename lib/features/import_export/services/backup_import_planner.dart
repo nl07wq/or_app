@@ -1,6 +1,7 @@
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../models/backup_package.dart';
 import 'backup_store_registry.dart';
+import 'backup_operation_state_integrity.dart';
 
 class BackupImportPlanner {
   final IndexedDbDatabase _database;
@@ -11,6 +12,9 @@ class BackupImportPlanner {
     BackupPackage package,
     BackupImportMode mode,
   ) async {
+    if (package.schemaVersion == BackupPackage.currentSchemaVersion) {
+      BackupOperationStateIntegrity.validate(package.data);
+    }
     if (package.isLegacyConverted && mode != BackupImportMode.merge) {
       throw const BackupException(
         'legacy_replace_forbidden',
@@ -55,6 +59,24 @@ class BackupImportPlanner {
         skip: skip,
         conflicts: conflicts,
       );
+    }
+    if (package.schemaVersion == BackupPackage.currentSchemaVersion &&
+        mode == BackupImportMode.merge) {
+      final current = plans[BackupSections.operationState]!;
+      final conflicts = [...current.conflicts];
+      if (current.skip != 1) conflicts.add('operationState:must-match-current');
+      if (BackupOperationStateIntegrity.isProcessing(package.data)) {
+        conflicts.add('operationState:processing');
+      }
+      if (conflicts.length != current.conflicts.length) {
+        plans[BackupSections.operationState] = BackupSectionPlan(
+          existing: current.existing,
+          add: current.add,
+          skip: current.skip,
+          replace: current.replace,
+          conflicts: conflicts,
+        );
+      }
     }
     return BackupImportPlan(package: package, mode: mode, sections: plans);
   }

@@ -8,6 +8,7 @@ import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 import 'backup_id_generator.dart';
 import 'backup_store_registry.dart';
+import 'backup_operation_state_integrity.dart';
 
 class BackupExportService {
   final IndexedDbDatabase _database;
@@ -37,7 +38,7 @@ class BackupExportService {
       mode: IndexedDbTransactionMode.readOnly,
       action: (transaction) async {
         final snapshot = <String, List<Map<String, Object?>>>{};
-        for (final section in BackupSections.all) {
+        for (final section in BackupSections.schema3) {
           final records = await transaction.findAll(
             BackupStoreRegistry.stores[section]!,
           );
@@ -49,6 +50,7 @@ class BackupExportService {
         return snapshot;
       },
     );
+    BackupOperationStateIntegrity.validate(data);
     return buildPackage(
       exportId: _idGenerator.generate(),
       exportedAt: _clock().toUtc(),
@@ -64,11 +66,13 @@ class BackupExportService {
     String? appVersion,
     required BackupSource source,
     required Map<String, List<Map<String, Object?>>> data,
+    int schemaVersion = BackupPackage.currentSchemaVersion,
   }) {
     final normalized = <String, List<Map<String, Object?>>>{};
     final counts = <String, int>{};
     final sectionDigests = <String, String>{};
-    for (final section in BackupSections.all) {
+    final sections = BackupSections.forSchema(schemaVersion);
+    for (final section in sections) {
       final records = BackupStoreRegistry.validateAndSort(
         section,
         data[section] ?? const [],
@@ -77,9 +81,12 @@ class BackupExportService {
       counts[section] = records.length;
       sectionDigests[section] = BackupCanonicalCodec.digest(records);
     }
+    if (schemaVersion == BackupPackage.currentSchemaVersion) {
+      BackupOperationStateIntegrity.validate(normalized);
+    }
     final packagePayload = <String, Object?>{
       'schema': BackupPackage.schemaName,
-      'schemaVersion': BackupPackage.currentSchemaVersion,
+      'schemaVersion': schemaVersion,
       'exportId': exportId,
       'exportedAt': exportedAt.toUtc().toIso8601String(),
       'appVersion': ?appVersion,
@@ -92,6 +99,7 @@ class BackupExportService {
     final packageDigest = BackupCanonicalCodec.digest(packagePayload);
     return BackupPackage(
       exportId: exportId,
+      schemaVersion: schemaVersion,
       exportedAt: exportedAt,
       appVersion: appVersion,
       databaseVersion: IndexedDbSchema.databaseVersion,

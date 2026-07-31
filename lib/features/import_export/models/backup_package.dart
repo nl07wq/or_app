@@ -35,7 +35,8 @@ class BackupDigests {
 
 class BackupPackage {
   static const schemaName = 'operation-reboot-backup';
-  static const currentSchemaVersion = 2;
+  static const currentSchemaVersion = 3;
+  static const previousSchemaVersion = 2;
 
   final String schema;
   final int schemaVersion;
@@ -72,7 +73,9 @@ class BackupPackage {
        includedSections = Set.unmodifiable(includedSections ?? data.keys);
 
   bool get isLegacyConverted => schemaVersion == 1;
-  bool get permitsReplaceAll => schemaVersion == currentSchemaVersion;
+  bool get permitsReplaceAll =>
+      schemaVersion == previousSchemaVersion ||
+      schemaVersion == currentSchemaVersion;
 
   Map<String, Object?> toJson() => {
     'schema': schema,
@@ -95,8 +98,9 @@ abstract final class BackupSections {
   static const training = 'training';
   static const confirmations = 'dailyLogConfirmations';
   static const customExercises = 'customTrainingExercises';
+  static const operationState = 'operationState';
 
-  static const all = [
+  static const schema2 = [
     status,
     activity,
     food,
@@ -104,6 +108,12 @@ abstract final class BackupSections {
     confirmations,
     customExercises,
   ];
+
+  static const schema3 = [...schema2, operationState];
+  static const all = schema3;
+
+  static List<String> forSchema(int schemaVersion) =>
+      schemaVersion == BackupPackage.currentSchemaVersion ? schema3 : schema2;
 }
 
 enum BackupImportMode { merge, replaceAll }
@@ -143,16 +153,22 @@ class BackupImportResult {
   final bool success;
   final String? errorCode;
   final String? message;
+  final bool operationStateRestored;
+  final bool recoveryRequired;
 
-  const BackupImportResult.success()
-    : success = true,
-      errorCode = null,
-      message = null;
+  const BackupImportResult.success({
+    this.operationStateRestored = false,
+    this.recoveryRequired = false,
+  }) : success = true,
+       errorCode = null,
+       message = null;
 
   const BackupImportResult.failure({
     required this.errorCode,
     required this.message,
-  }) : success = false;
+  }) : success = false,
+       operationStateRestored = false,
+       recoveryRequired = false;
 }
 
 class BackupException implements Exception {

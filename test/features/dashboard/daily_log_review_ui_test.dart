@@ -13,6 +13,7 @@ import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_detail_page.dart';
@@ -22,6 +23,8 @@ import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_file_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
@@ -1462,9 +1465,21 @@ Color? _balanceValueColor(WidgetTester tester) {
 }
 
 BackupFileExportService _backupService(_RecordingBackupGateway gateway) {
+  final database = FakeIndexedDbDatabase();
+  final timestamp = DateTime.utc(2026, 7, 27);
+  final state = OperationState(
+    operationDate: OperationLocalDate.parse('2026-07-27'),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
+  database.seed(
+    IndexedDbStoreNames.operationState,
+    OperationState.canonicalId,
+    state.toRecord(),
+  );
   return BackupFileExportService(
     exportService: BackupExportService(
-      database: FakeIndexedDbDatabase(),
+      database: database,
       controller: AppInitializationController()..markReady(),
       clock: () => DateTime(2026, 7, 27, 21, 35),
     ),

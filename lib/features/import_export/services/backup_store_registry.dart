@@ -5,6 +5,7 @@ import '../../food/models/persisted_food_record.dart';
 import '../../status/models/persisted_status_record.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
+import '../../operation_date/models/operation_state.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 
@@ -16,6 +17,7 @@ abstract final class BackupStoreRegistry {
     BackupSections.training: IndexedDbStoreNames.trainingRecords,
     BackupSections.confirmations: IndexedDbStoreNames.dailyLogConfirmations,
     BackupSections.customExercises: IndexedDbStoreNames.customTrainingExercises,
+    BackupSections.operationState: IndexedDbStoreNames.operationState,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -32,6 +34,8 @@ abstract final class BackupStoreRegistry {
         PersistedDailyLogConfirmationRecord.fromRecord(record);
       case BackupSections.customExercises:
         PersistedCustomTrainingExerciseRecord.fromRecord(record);
+      case BackupSections.operationState:
+        OperationState.fromRecord(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -94,6 +98,7 @@ abstract final class BackupStoreRegistry {
             '${(record['data'] as Map)['date']}\u0000$id',
       BackupSections.confirmations => '${record['localDate']}\u0000$id',
       BackupSections.customExercises => '${record['normalizedName']}\u0000$id',
+      BackupSections.operationState => id.toString(),
       _ => id.toString(),
     };
   }

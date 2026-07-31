@@ -9,6 +9,7 @@ import '../../training/repository/training_record_id_generator.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 import 'backup_store_registry.dart';
+import 'backup_operation_state_integrity.dart';
 
 class BackupPackageCodec {
   static const maxFileBytes = 50 * 1024 * 1024;
@@ -50,14 +51,21 @@ class BackupPackageCodec {
       );
     }
     final json = Map<String, Object?>.from(decoded);
-    return json['schemaVersion'] == '1.0'
-        ? _decodeSchema1(json)
-        : _decodeSchema2(json);
+    if (json['schemaVersion'] == '1.0') return _decodeSchema1(json);
+    final version = json['schemaVersion'];
+    if (version == BackupPackage.previousSchemaVersion ||
+        version == BackupPackage.currentSchemaVersion) {
+      return _decodeCurrent(json, version as int);
+    }
+    throw const BackupException(
+      'unsupported_schema',
+      'Backup schema is not supported.',
+    );
   }
 
-  BackupPackage _decodeSchema2(Map<String, Object?> json) {
+  BackupPackage _decodeCurrent(Map<String, Object?> json, int schemaVersion) {
     if (json['schema'] != BackupPackage.schemaName ||
-        json['schemaVersion'] != BackupPackage.currentSchemaVersion) {
+        json['schemaVersion'] != schemaVersion) {
       throw const BackupException(
         'unsupported_schema',
         'Backup schema is not supported.',
@@ -85,7 +93,7 @@ class BackupPackageCodec {
     final data = <String, List<Map<String, Object?>>>{};
     final counts = <String, int>{};
     final sectionDigests = <String, String>{};
-    for (final section in BackupSections.all) {
+    for (final section in BackupSections.forSchema(schemaVersion)) {
       final rawRecords = dataJson[section];
       if (rawRecords is! List) {
         throw BackupException(
@@ -133,7 +141,7 @@ class BackupPackageCodec {
     }
     final digestPayload = <String, Object?>{
       'schema': BackupPackage.schemaName,
-      'schemaVersion': BackupPackage.currentSchemaVersion,
+      'schemaVersion': schemaVersion,
       'exportId': exportId,
       'exportedAt': exportedAt.toUtc().toIso8601String(),
       if (json['appVersion'] case final String version) 'appVersion': version,
@@ -149,8 +157,12 @@ class BackupPackageCodec {
         'Package digest does not match.',
       );
     }
+    if (schemaVersion == BackupPackage.currentSchemaVersion) {
+      BackupOperationStateIntegrity.validate(data);
+    }
     return BackupPackage(
       exportId: exportId,
+      schemaVersion: schemaVersion,
       exportedAt: exportedAt,
       appVersion: json['appVersion'] as String?,
       databaseVersion: databaseVersion,
