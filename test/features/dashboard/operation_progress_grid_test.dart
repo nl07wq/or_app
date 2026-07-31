@@ -159,6 +159,10 @@ void main() {
         find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
         findsOneWidget,
       );
+      final lamp = tester.widget<Icon>(
+        find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
+      );
+      expect(lamp.size, 18);
       expect(find.text(statusCase.name.toUpperCase()), findsOneWidget);
       expect(find.text('ARGO COMMENT'), findsOneWidget);
       expect(find.text('MORNING BRIEF SUMMARY'), findsNothing);

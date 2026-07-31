@@ -43,6 +43,14 @@ void main() {
     expect(find.text('COMMANDER INTENT'), findsNothing);
     expect(find.text('ARGO COMMENT'), findsNothing);
     await _scrollDailyCommand(tester, -900);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('daily-review-finalize-blocked')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('daily-review-blockers')), findsOneWidget);
+    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
+    expect(find.textContaining('不足:'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -95,7 +103,39 @@ void main() {
     await _scrollDailyCommand(tester, -900);
     expect(find.text('Recorded'), findsNWidgets(3));
     expect(find.text('Optional'), findsOneWidget);
-    expect(find.text('BACKUP & RESTORE'), findsOneWidget);
+    expect(find.text('FINALIZE READY'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('daily-review-finalize-ready')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('daily-command-list')),
+        matching: find.text('DATA CENTER'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('daily-command-list')),
+        matching: find.text('BACKUP & RESTORE'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('uses uppercase tabs and approved BRIEF description', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+
+    expect(find.text('BRIEF / DEBRIEF'), findsWidgets);
+    expect(find.text('DAILY COMMAND'), findsWidgets);
+    expect(find.text('DATA CENTER'), findsWidgets);
+    await tester.tap(find.text('BRIEF / DEBRIEF').first);
+    await tester.pumpAndSettle();
+    expect(find.text('MORNING BRIEFとDAILY DEBRIEFの履歴を確認できます。'), findsOneWidget);
+    expect(find.textContaining('施設'), findsNothing);
   });
 
   for (final statusCase in [
@@ -114,6 +154,10 @@ void main() {
         find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
         findsOneWidget,
       );
+      final lamp = tester.widget<Icon>(
+        find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
+      );
+      expect(lamp.size, 18);
       expect(find.text(statusCase.name.toUpperCase()), findsOneWidget);
     });
   }

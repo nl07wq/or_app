@@ -42,7 +42,7 @@ class DailyCommandItem extends StatelessWidget {
                 child: Icon(
                   Icons.circle,
                   key: ValueKey('daily-command-status-lamp-${status!.name}'),
-                  size: 14,
+                  size: 18,
                   color: lampColor,
                   semanticLabel: '${status!.name} status lamp',
                 ),

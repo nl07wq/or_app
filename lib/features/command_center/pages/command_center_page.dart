@@ -208,15 +208,6 @@ class _DailyCommandContent extends StatelessWidget {
         ),
         AppSpacing.gapSM,
         _reviewCard(context),
-        AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.storage_outlined, title: 'DATA CENTER'),
-        AppSpacing.gapSM,
-        OperationButton(
-          icon: Icons.backup_outlined,
-          text: 'BACKUP & RESTORE',
-          onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.backupRestore),
-        ),
         AppSpacing.gapLG,
       ],
     );
@@ -285,8 +276,42 @@ class _DailyCommandContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(model.canFinalize ? 'Finalize可能' : 'Finalize不可'),
-          if (blockers.isNotEmpty) ...[AppSpacing.gapSM, Text('不足: $blockers')],
+          Row(
+            children: [
+              Icon(
+                model.canFinalize
+                    ? Icons.check_circle_outline
+                    : Icons.cancel_outlined,
+                key: ValueKey(
+                  model.canFinalize
+                      ? 'daily-review-finalize-ready'
+                      : 'daily-review-finalize-blocked',
+                ),
+                color: model.canFinalize
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                model.canFinalize ? 'FINALIZE READY' : 'FINALIZE BLOCKED',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ],
+          ),
+          if (blockers.isNotEmpty) ...[
+            AppSpacing.gapSM,
+            Row(
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  key: const ValueKey('daily-review-blockers'),
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(blockers)),
+              ],
+            ),
+          ],
           AppSpacing.gapMD,
           OperationButton(
             icon: Icons.preview_outlined,
@@ -407,7 +432,7 @@ class _WorkspaceHeader extends StatelessWidget {
   final ValueChanged<int> onSelectPage;
   @override
   Widget build(BuildContext context) {
-    const labels = ['Brief / Debrief', 'Daily Command', 'Data Center'];
+    const labels = ['BRIEF / DEBRIEF', 'DAILY COMMAND', 'DATA CENTER'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -438,7 +463,7 @@ class _BriefDebriefPage extends StatelessWidget {
       SectionHeader(icon: Icons.article_outlined, title: 'BRIEF / DEBRIEF'),
       AppSpacing.gapMD,
       _WorkspacePlaceholderCard(
-        message: 'Morning BriefとDaily Debriefの履歴を表示する施設です。',
+        message: 'MORNING BRIEFとDAILY DEBRIEFの履歴を確認できます。',
       ),
     ],
   );
