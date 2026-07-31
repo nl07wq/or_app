@@ -123,7 +123,7 @@ void main() {
   );
 
   test(
-    'startup preserves in-flight operation state and reports recovery',
+    'startup invokes recovery connection for in-flight operation state',
     () async {
       final database = FakeIndexedDbDatabase();
       final date = OperationLocalDate.parse('2026-07-31');
@@ -144,17 +144,20 @@ void main() {
         ).toRecord(),
       );
       final controller = AppInitializationController();
+      var recoveryCalls = 0;
 
       await StartupInitializationService(
         controller: controller,
         openDatabase: () async => database,
         restore: () async {},
+        recoverDailyFinalize: () async => recoveryCalls++,
         isWeb: true,
       ).initialize();
 
       expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
       expect(controller.value.operationRecoveryRequired, isTrue);
       expect(controller.value.operationPhase, OperationPhase.finalizing.name);
+      expect(recoveryCalls, 1);
       expect(
         (await AppRepositoryRegistry.container.operationState.requireCurrent())
             .phase,

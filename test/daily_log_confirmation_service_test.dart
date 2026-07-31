@@ -67,6 +67,28 @@ void main() {
   });
 
   test(
+    'explicit local date builds a snapshot without using device date',
+    () async {
+      final target = DateTime(2026, 6, 15, 8);
+      SharedPreferences.setMockInitialValues(_validSourceValues(target));
+
+      final confirmation = await DailyLogConfirmationService.buildForLocalDate(
+        '2026-06-15',
+        confirmedAt: DateTime.utc(2026, 7, 31, 12),
+      );
+
+      expect(confirmation.date, DateTime(2026, 6, 15));
+      expect(confirmation.morning?.date.day, 15);
+      expect(confirmation.food?.mealCount, 1);
+      expect(confirmation.activity?.isRecorded, isTrue);
+      expect(
+        await DailyLogConfirmationRepository.findByDate(DateTime(2026, 6, 15)),
+        isNull,
+      );
+    },
+  );
+
+  test(
     'confirmation persists required snapshots and optional Training',
     () async {
       final today = DateTime.now();

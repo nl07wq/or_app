@@ -11,6 +11,8 @@ import '../../features/daily_log_confirmation/migration/daily_log_confirmation_m
 import '../../features/food/migration/food_legacy_reader.dart';
 import '../../features/food/migration/food_migration_service.dart';
 import '../../features/operation_date/services/operation_state_bootstrap_service.dart';
+import '../../features/operation_date/services/daily_finalize_coordinator_factory.dart';
+import '../../features/operation_date/services/daily_finalize_recovery_service.dart';
 import '../../features/repositories/app_repository_container.dart';
 import '../../features/repositories/repository_exception.dart';
 import '../../features/status/migration/status_legacy_reader.dart';
@@ -27,11 +29,13 @@ import 'daily_state_restore_service.dart';
 
 typedef DatabaseOpener = Future<IndexedDbDatabase> Function();
 typedef RestoreDailyState = Future<void> Function();
+typedef RecoverDailyFinalize = Future<void> Function();
 
 class StartupInitializationService {
   final AppInitializationController controller;
   final DatabaseOpener _openDatabase;
   final RestoreDailyState _restore;
+  final RecoverDailyFinalize? recoverDailyFinalize;
   final bool _isWeb;
   final Future<void> Function(Duration duration) _delay;
 
@@ -42,6 +46,7 @@ class StartupInitializationService {
     AppInitializationController? controller,
     DatabaseOpener? openDatabase,
     RestoreDailyState? restore,
+    this.recoverDailyFinalize,
     bool? isWeb,
     Future<void> Function(Duration duration)? delay,
   }) : controller = controller ?? appInitializationController,
@@ -189,10 +194,29 @@ class StartupInitializationService {
       AppRepositoryRegistry.install(container);
 
       controller.updateStage(InitializationStage.restoringDailyState);
-      await _restore();
+      if (operationState.recoveryRequired) {
+        controller.markReady(
+          operationRecoveryRequired: true,
+          operationPhase: operationState.state.phase.name,
+        );
+        final recover =
+            recoverDailyFinalize ??
+            () {
+              final coordinator = DailyFinalizeCoordinatorFactory.production();
+              return DailyFinalizeRecoveryService(
+                container.operationState,
+                coordinator,
+              ).recoverIfRequired().then((_) {});
+            };
+        await recover();
+      } else {
+        await _restore();
+      }
+      final finalOperationState = await container.operationState
+          .requireCurrent();
       controller.markReady(
-        operationRecoveryRequired: operationState.recoveryRequired,
-        operationPhase: operationState.state.phase.name,
+        operationRecoveryRequired: finalOperationState.requiresRecovery,
+        operationPhase: finalOperationState.phase.name,
       );
     } catch (error) {
       AppRepositoryRegistry.clear();

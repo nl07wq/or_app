@@ -10,6 +10,8 @@ import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../morning/models/morning_fact.dart';
 import '../import_export/services/backup_file_export_service.dart';
+import '../operation_date/models/operation_local_date.dart';
+import '../operation_date/services/daily_finalize_coordinator_factory.dart';
 import 'widgets/backup_prompt_dialog.dart';
 import 'widgets/daily_review_body.dart';
 
@@ -63,7 +65,10 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
     try {
       final confirmDailyLog = widget.confirmDailyLog;
       if (confirmDailyLog == null) {
-        await DailyLogConfirmationService.confirmToday(
+        await DailyFinalizeCoordinatorFactory.production().finalize(
+          targetLocalDate: OperationLocalDate.parse(
+            _formatLocalDate(widget.targetDate),
+          ),
           estimatedTotalBurnKcal: widget.estimatedTotalBurn,
         );
       } else {
@@ -104,6 +109,11 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       ).showSnackBar(const SnackBar(content: Text('DAILY LOGの確定に失敗しました。')));
     }
   }
+
+  String _formatLocalDate(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {

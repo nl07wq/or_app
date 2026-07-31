@@ -28,10 +28,33 @@ class DailyLogConfirmationService {
   static Future<DailyLogConfirmation> confirmToday({
     double? estimatedTotalBurnKcal,
   }) async {
-    await refreshMorningFact();
-    await refreshFoodSummary();
-    await refreshActivitySummary();
-    await refreshTrainingSummary();
+    final now = DateTime.now();
+    final confirmation = await buildForLocalDate(
+      _formatLocalDate(now),
+      estimatedTotalBurnKcal: estimatedTotalBurnKcal,
+      confirmedAt: now,
+    );
+
+    await DailyLogConfirmationRepository.save(confirmation);
+    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.confirmed(
+      confirmation,
+    );
+    return confirmation;
+  }
+
+  static Future<DailyLogConfirmation> buildForLocalDate(
+    String localDate, {
+    double? estimatedTotalBurnKcal,
+    DateTime? confirmedAt,
+  }) async {
+    final targetDate = DateTime.parse(localDate);
+    if (_formatLocalDate(targetDate) != localDate) {
+      throw const FormatException('Invalid confirmation local date.');
+    }
+    await refreshMorningFact(localDate: localDate);
+    await refreshFoodSummary(localDate: localDate);
+    await refreshActivitySummary(localDate: localDate);
+    await refreshTrainingSummary(localDate: localDate);
 
     final morning = morningFactNotifier.value;
     final food = foodSummaryNotifier.value;
@@ -52,8 +75,8 @@ class DailyLogConfirmationService {
     }
 
     final confirmation = DailyLogConfirmation(
-      date: DateTime.now(),
-      confirmedAt: DateTime.now(),
+      date: targetDate,
+      confirmedAt: confirmedAt ?? DateTime.now(),
       morning: morning,
       food: food,
       activity: activity,
@@ -61,10 +84,6 @@ class DailyLogConfirmationService {
       estimatedTotalBurnKcal: estimatedTotalBurnKcal,
     );
 
-    await DailyLogConfirmationRepository.save(confirmation);
-    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.confirmed(
-      confirmation,
-    );
     return confirmation;
   }
 
@@ -84,4 +103,9 @@ class DailyLogConfirmationService {
           DailyLogConfirmationStatus.unconfirmed(normalizedDate);
     }
   }
+
+  static String _formatLocalDate(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }
