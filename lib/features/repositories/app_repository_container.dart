@@ -8,6 +8,8 @@ import '../daily_log_confirmation/repository/daily_log_confirmation_repository.d
 import '../daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import '../food/repository/food_repository.dart';
 import '../food/repository/indexed_db_food_repository.dart';
+import '../operation_date/repository/indexed_db_operation_state_repository.dart';
+import '../operation_date/repository/operation_state_repository.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
@@ -24,6 +26,7 @@ class AppRepositoryContainer {
   final TrainingSessionRepository training;
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
+  final OperationStateRepository operationState;
 
   AppRepositoryContainer._({
     required this.database,
@@ -34,6 +37,7 @@ class AppRepositoryContainer {
     required this.training,
     required this.customTrainingExercises,
     required this.confirmation,
+    required this.operationState,
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
@@ -48,6 +52,7 @@ class AppRepositoryContainer {
         database,
       ),
       confirmation: IndexedDbDailyLogConfirmationRepository(database),
+      operationState: IndexedDbOperationStateRepository(database),
     );
   }
 }

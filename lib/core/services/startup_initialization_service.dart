@@ -10,6 +10,7 @@ import '../../features/daily_log_confirmation/migration/daily_log_confirmation_l
 import '../../features/daily_log_confirmation/migration/daily_log_confirmation_migration_service.dart';
 import '../../features/food/migration/food_legacy_reader.dart';
 import '../../features/food/migration/food_migration_service.dart';
+import '../../features/operation_date/services/operation_state_bootstrap_service.dart';
 import '../../features/repositories/app_repository_container.dart';
 import '../../features/repositories/repository_exception.dart';
 import '../../features/status/migration/status_legacy_reader.dart';
@@ -119,11 +120,11 @@ class StartupInitializationService {
     try {
       final database = await _openDatabase();
       controller.updateStage(InitializationStage.upgradingSchema);
-      if (IndexedDbSchema.databaseVersion != 4) {
+      if (IndexedDbSchema.databaseVersion != 5) {
         throw RepositoryException(
           operation: 'startup.schema',
           code: RepositoryErrorCode.verificationFailed,
-          cause: StateError('IndexedDB Schema Version 4 is required.'),
+          cause: StateError('IndexedDB Schema Version 5 is required.'),
         );
       }
 
@@ -181,11 +182,18 @@ class StartupInitializationService {
       await _verifyMetadata(database);
       final container = AppRepositoryContainer.indexedDb(database);
       await _verifyRepositories(container);
+      final operationState = await OperationStateBootstrapService(
+        container.operationState,
+        container.confirmation,
+      ).bootstrap();
       AppRepositoryRegistry.install(container);
 
       controller.updateStage(InitializationStage.restoringDailyState);
       await _restore();
-      controller.markReady();
+      controller.markReady(
+        operationRecoveryRequired: operationState.recoveryRequired,
+        operationPhase: operationState.state.phase.name,
+      );
     } catch (error) {
       AppRepositoryRegistry.clear();
       final repositoryError = error is RepositoryException ? error : null;

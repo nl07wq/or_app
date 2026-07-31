@@ -31,6 +31,8 @@ class AppInitializationState {
   final String? errorMessage;
   final String? failedMigrationId;
   final bool retryAllowed;
+  final bool operationRecoveryRequired;
+  final String? operationPhase;
 
   const AppInitializationState({
     required this.mode,
@@ -39,6 +41,8 @@ class AppInitializationState {
     this.errorMessage,
     this.failedMigrationId,
     this.retryAllowed = false,
+    this.operationRecoveryRequired = false,
+    this.operationPhase,
   });
 
   const AppInitializationState.initializing({
@@ -47,7 +51,9 @@ class AppInitializationState {
        errorCode = null,
        errorMessage = null,
        failedMigrationId = null,
-       retryAllowed = false;
+       retryAllowed = false,
+       operationRecoveryRequired = false,
+       operationPhase = null;
 
   bool get isReadOnly => mode == PersistenceMode.legacyReadOnly;
   bool get canWrite => mode == PersistenceMode.indexedDbReadWrite;
@@ -59,6 +65,8 @@ class AppInitializationState {
     String? errorMessage,
     String? failedMigrationId,
     bool? retryAllowed,
+    bool? operationRecoveryRequired,
+    String? operationPhase,
   }) {
     return AppInitializationState(
       mode: mode ?? this.mode,
@@ -67,6 +75,9 @@ class AppInitializationState {
       errorMessage: errorMessage,
       failedMigrationId: failedMigrationId,
       retryAllowed: retryAllowed ?? this.retryAllowed,
+      operationRecoveryRequired:
+          operationRecoveryRequired ?? this.operationRecoveryRequired,
+      operationPhase: operationPhase ?? this.operationPhase,
     );
   }
 }
@@ -80,10 +91,15 @@ class AppInitializationController
     value = AppInitializationState.initializing(currentStage: stage);
   }
 
-  void markReady() {
-    value = const AppInitializationState(
+  void markReady({
+    bool operationRecoveryRequired = false,
+    String? operationPhase,
+  }) {
+    value = AppInitializationState(
       mode: PersistenceMode.indexedDbReadWrite,
       currentStage: InitializationStage.complete,
+      operationRecoveryRequired: operationRecoveryRequired,
+      operationPhase: operationPhase,
     );
   }
 

@@ -23,6 +23,10 @@ import 'package:or_app/data/indexed_db/indexed_db_migration_metadata.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/repositories/repository_exception.dart';
+import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/status/migration/status_migration_service.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
 import 'package:or_app/features/training/migration/legacy_trainings_migration_service.dart';
@@ -90,6 +94,13 @@ void main() {
           ),
         ),
       );
+      final operationState = await AppRepositoryRegistry
+          .container
+          .operationState
+          .requireCurrent();
+      expect(operationState.id, OperationState.canonicalId);
+      expect(operationState.phase, OperationPhase.open);
+      expect(controller.value.operationRecoveryRequired, isFalse);
 
       await MorningRepository.save(_morning());
       expect((await MorningRepository.getAll()).single.weight, 70);
@@ -108,6 +119,113 @@ void main() {
       );
       await TrainingRepository.deleteById(second.id);
       expect(await TrainingRepository.getRecords(), hasLength(1));
+    },
+  );
+
+  test(
+    'startup preserves in-flight operation state and reports recovery',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final date = OperationLocalDate.parse('2026-07-31');
+      final timestamp = DateTime.utc(2026, 7, 31, 1);
+      database.seed(
+        IndexedDbStoreNames.operationState,
+        OperationState.canonicalId,
+        OperationState(
+          operationDate: date,
+          phase: OperationPhase.finalizing,
+          activeAttempt: OperationActiveAttempt(
+            idempotencyKey: 'attempt-1',
+            targetLocalDate: date,
+            startedAt: timestamp,
+          ),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ).toRecord(),
+      );
+      final controller = AppInitializationController();
+
+      await StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+
+      expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
+      expect(controller.value.operationRecoveryRequired, isTrue);
+      expect(controller.value.operationPhase, OperationPhase.finalizing.name);
+      expect(
+        (await AppRepositoryRegistry.container.operationState.requireCurrent())
+            .phase,
+        OperationPhase.finalizing,
+      );
+    },
+  );
+
+  test('startup fails instead of repairing corrupt operation state', () async {
+    final database = FakeIndexedDbDatabase();
+    database.seed(IndexedDbStoreNames.operationState, 'wrong', {
+      'id': 'wrong',
+      'recordVersion': 1,
+      'operationDate': '2026-07-31',
+      'phase': 'open',
+      'revision': 0,
+      'lastFinalizedDate': null,
+      'activeAttempt': null,
+      'createdAt': '2026-07-31T00:00:00.000Z',
+      'updatedAt': '2026-07-31T00:00:00.000Z',
+    });
+    final controller = AppInitializationController();
+
+    await StartupInitializationService(
+      controller: controller,
+      openDatabase: () async => database,
+      restore: () async {},
+      isWeb: true,
+    ).initialize();
+
+    expect(controller.value.mode, PersistenceMode.failed);
+    expect(controller.value.errorCode, RepositoryErrorCode.invalidRecord.name);
+    expect(AppRepositoryRegistry.hasContainer, isFalse);
+    expect(
+      await database.findById(IndexedDbStoreNames.operationState, 'wrong'),
+      isNotNull,
+    );
+  });
+
+  test(
+    'startup does not fall back to device date for corrupt confirmation',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      database.seed(
+        IndexedDbStoreNames.dailyLogConfirmations,
+        'confirmation:broken',
+        {
+          'id': 'confirmation:broken',
+          'recordVersion': 1,
+          'snapshotVersion': 1,
+          'localDate': 'broken',
+          'createdAt': '2026-07-31T00:00:00.000Z',
+          'updatedAt': '2026-07-31T00:00:00.000Z',
+          'data': <String, Object?>{},
+        },
+      );
+      final controller = AppInitializationController();
+
+      await StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+
+      expect(controller.value.mode, PersistenceMode.failed);
+      expect(
+        await database.findAll(IndexedDbStoreNames.operationState),
+        isEmpty,
+      );
+      expect(AppRepositoryRegistry.hasContainer, isFalse);
     },
   );
 

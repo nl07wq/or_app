@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v4 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v5 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 4);
+    expect(IndexedDbSchema.databaseVersion, 5);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -18,6 +18,7 @@ void main() {
         IndexedDbStoreNames.migrationMetadata,
         IndexedDbStoreNames.migrationQuarantine,
         IndexedDbStoreNames.customTrainingExercises,
+        IndexedDbStoreNames.operationState,
       ]),
     );
     expect(
@@ -219,10 +220,15 @@ void main() {
 
   test('v3 to v4 upgrade adds only the Activity Draft store', () {
     final v3Stores = IndexedDbStoreNames.all
-        .where((name) => name != IndexedDbStoreNames.activityDrafts)
+        .where(
+          (name) =>
+              name != IndexedDbStoreNames.activityDrafts &&
+              name != IndexedDbStoreNames.operationState,
+        )
         .toSet();
     final addedStores = IndexedDbSchema.storeDefinitions
         .map((definition) => definition.name)
+        .where((name) => name != IndexedDbStoreNames.operationState)
         .where((name) => !v3Stores.contains(name))
         .toList();
     final draft = IndexedDbSchema.storeDefinitions.singleWhere(
@@ -241,6 +247,30 @@ void main() {
     expect(draft.indexes.single.name, IndexedDbIndexNames.byLocalDate);
     expect(draft.indexes.single.keyPath, 'localDate');
     expect(draft.indexes.single.unique, isTrue);
+    expect(existingRecord, beforeUpgrade);
+  });
+
+  test('v4 to v5 upgrade adds only operation_state without indexes', () {
+    final v4Stores = IndexedDbStoreNames.all
+        .where((name) => name != IndexedDbStoreNames.operationState)
+        .toSet();
+    final addedStores = IndexedDbSchema.storeDefinitions
+        .map((definition) => definition.name)
+        .where((name) => !v4Stores.contains(name))
+        .toList();
+    final operationState = IndexedDbSchema.storeDefinitions.singleWhere(
+      (definition) => definition.name == IndexedDbStoreNames.operationState,
+    );
+    final existingRecord = <String, Object?>{
+      'id': 'activity:2026-07-31',
+      'localDate': '2026-07-31',
+      'recordVersion': 1,
+    };
+    final beforeUpgrade = Map<String, Object?>.from(existingRecord);
+
+    expect(addedStores, [IndexedDbStoreNames.operationState]);
+    expect(operationState.keyPath, 'id');
+    expect(operationState.indexes, isEmpty);
     expect(existingRecord, beforeUpgrade);
   });
 }

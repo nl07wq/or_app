@@ -26,6 +26,8 @@ import 'package:or_app/features/import_export/services/backup_export_service.dar
 import 'package:or_app/features/import_export/services/backup_canonical_codec.dart';
 import 'package:or_app/features/import_export/services/backup_import_service.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/training/models/custom_training_exercise.dart';
 import 'package:or_app/features/training/models/persisted_custom_training_exercise_record.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
@@ -58,6 +60,7 @@ void main() {
       expect(package.schemaVersion, 2);
       expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
       expect(package.data.keys, containsAll(BackupSections.all));
+      expect(package.data.containsKey('operation_state'), isFalse);
       expect(
         package.recordCounts.values.values.every((count) => count == 0),
         isTrue,
@@ -69,6 +72,41 @@ void main() {
       expect(decoded.digests.package, package.digests.package);
     },
   );
+
+  test('Schema 2.0 REPLACE ALL excludes and preserves operation_state',
+      () async {
+    final timestamp = DateTime.utc(2026, 7, 31);
+    final state = OperationState(
+      operationDate: OperationLocalDate.parse('2026-07-31'),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    database.seed(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+      state.toRecord(),
+    );
+    final package = await BackupExportService(
+      database: database,
+      controller: controller,
+    ).create();
+    final service = BackupImportService(
+      database: database,
+      controller: controller,
+      restore: () async {},
+    );
+
+    final plan = await service.dryRun(package, BackupImportMode.replaceAll);
+    expect((await service.execute(plan)).success, isTrue);
+    expect(package.data.containsKey('operation_state'), isFalse);
+    expect(
+      await database.findById(
+        IndexedDbStoreNames.operationState,
+        OperationState.canonicalId,
+      ),
+      state.toRecord(),
+    );
+  });
 
   test('rejects changed section content and invalid package digest', () async {
     final package = await BackupExportService(
@@ -283,7 +321,7 @@ void main() {
     );
 
     expect(package.schemaVersion, 2);
-    expect(package.databaseVersion, 4);
+    expect(package.databaseVersion, 5);
     expect(restored.recordVersion, 1);
     final physical = restored.data.items.first;
     final multiplier = restored.data.items.last;
@@ -412,7 +450,7 @@ void main() {
     );
 
     expect(package.schemaVersion, 2);
-    expect(package.databaseVersion, 4);
+    expect(package.databaseVersion, 5);
     expect(restoredEnvelope, envelope);
     final restored = PersistedTrainingRecord.fromRecord(restoredEnvelope!);
     expect(restored.recordVersion, 2);
