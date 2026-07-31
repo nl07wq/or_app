@@ -6,9 +6,29 @@ import 'package:or_app/core/services/daily_log_confirmation_service.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
 import 'package:or_app/core/services/daily_state_restore_service.dart';
+import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'features/operation_date/operation_date_test_fixture.dart';
+import 'repositories/indexed_db/fake_indexed_db_database.dart';
+
 void main() {
+  setUp(() {
+    final database = FakeIndexedDbDatabase();
+    final now = DateTime.now();
+    final localDate =
+        '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    seedOperationState(database, localDate);
+    AppRepositoryRegistry.controller = AppInitializationController()
+      ..markLegacyReadOnly();
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+  });
+
+  tearDown(AppRepositoryRegistry.resetForTesting);
+
   test('confirmation reports every missing required module', () async {
     SharedPreferences.setMockInitialValues({});
 

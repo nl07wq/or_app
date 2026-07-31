@@ -15,6 +15,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   late FakeIndexedDbDatabase database;
@@ -25,6 +26,7 @@ void main() {
     today = DateTime(2026, 7, 28);
     AppClock.setSystemNowForTesting(() => today);
     database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
     final controller = AppInitializationController()..markReady();
     AppRepositoryRegistry.beginStartup(controller: controller);
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));

@@ -8,6 +8,7 @@ import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'features/operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() {
@@ -139,7 +140,13 @@ void main() {
   testWidgets('Activity menu uses three sections and sync is coming soon', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ActivityPage(
+          operationDateService: await operationDateServiceFor('2026-07-22'),
+        ),
+      ),
+    );
 
     expect(find.text('REPORT SYNC'), findsOneWidget);
     expect(find.text('MANUAL ENTRY'), findsOneWidget);
@@ -153,7 +160,7 @@ void main() {
     expect(find.text('Coming Soon'), findsOneWidget);
   });
 
-  testWidgets('new entry uses the current Debug Date and prior Carry Over', (
+  testWidgets('new entry uses the Operation Date and prior Carry Over', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 1000);
@@ -170,7 +177,13 @@ void main() {
     });
     AppClock.setDebugDate(DateTime(2026, 7, 23));
 
-    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ActivityPage(
+          operationDateService: await operationDateServiceFor('2026-07-23'),
+        ),
+      ),
+    );
     await tester.tap(find.text('ACTIVITY ENTRY'));
     await tester.pumpAndSettle();
 
@@ -204,7 +217,13 @@ void main() {
     });
     AppClock.setDebugDate(DateTime(2026, 7, 23));
 
-    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ActivityPage(
+          operationDateService: await operationDateServiceFor('2026-07-23'),
+        ),
+      ),
+    );
     await tester.tap(find.text('ACTIVITY ENTRY'));
     await tester.pumpAndSettle();
 

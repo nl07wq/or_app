@@ -174,6 +174,10 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    final operationDate = DateTime(2026, 7, 31);
+    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.unconfirmed(
+      operationDate,
+    );
     morningFactNotifier.value = _morning();
 
     await tester.pumpWidget(
@@ -205,6 +209,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(AppBar, 'DAILY REVIEW'), findsOneWidget);
+    expect(
+      tester
+          .widget<LogConfirmationReviewPage>(
+            find.byType(LogConfirmationReviewPage),
+          )
+          .targetDate,
+      operationDate,
+    );
   });
 
   testWidgets('finalized Dashboard uses DAILY LOG terminology and route', (
@@ -1416,6 +1428,7 @@ Future<void> _pumpReview(
     MaterialApp(
       theme: theme,
       home: LogConfirmationReviewPage(
+        targetDate: morning?.date ?? DateTime(2026, 7, 28),
         morning: morning,
         food: food,
         activity: activity,

@@ -92,7 +92,7 @@ void main() {
         ),
       ];
 
-      final summary = FoodSummaryService.today(records);
+      final summary = FoodSummaryService.forLocalDate(records, today);
 
       expect(summary.calories, 500);
       expect(summary.protein, 30);

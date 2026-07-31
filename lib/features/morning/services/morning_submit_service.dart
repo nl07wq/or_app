@@ -3,6 +3,7 @@ import '../../../core/models/work_type.dart';
 import '../../../core/repositories/morning_repository.dart';
 import '../../../core/services/daily_log_mutation_guard.dart';
 import '../../../core/services/work_calculator.dart';
+import '../../operation_date/services/operation_date_service.dart';
 
 import '../models/morning_fact_state.dart';
 
@@ -40,6 +41,8 @@ class MorningSubmitService {
     required String workBreak,
 
     required String memo,
+    OperationDateService? operationDateService,
+    String? operationLocalDate,
   }) async {
     // 必須入力チェック
 
@@ -95,7 +98,12 @@ class MorningSubmitService {
         : 0.0;
 
     final date = existingData == null
-        ? DateTime.now()
+        ? DateTime.parse(
+            operationLocalDate ??
+                (await (operationDateService ?? const OperationDateService())
+                        .current())
+                    .value,
+          )
         : DateTime.parse(existingData.date);
 
     final morningData = MorningData(
@@ -147,7 +155,7 @@ class MorningSubmitService {
       await MorningRepository.update(morningData);
     }
 
-    await refreshMorningFact();
+    await refreshMorningFact(localDate: morningData.date.substring(0, 10));
 
     return null;
   }

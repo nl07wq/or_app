@@ -13,6 +13,7 @@ import 'models/training_v2_form_controller.dart';
 import 'services/training_cardio_calorie_calculator.dart';
 import 'services/training_status_weight_resolver.dart';
 import 'services/training_v2_form_mapper.dart';
+import '../operation_date/services/operation_date_service.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_exercise_v2_editor.dart';
@@ -32,7 +33,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   List<TrainingRecordReadModel> _preferredRecords = const [];
   Object? _expandedItem;
   bool _isSaving = false;
+  bool _hasSaved = false;
   double? _statusWeightKg;
+  String? _operationLocalDate;
+  Object? _dateLoadError;
+  bool _isLoadingDate = false;
 
   bool get _isEditing => widget.existingRecord != null;
 
@@ -44,13 +49,35 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       throw StateError('This TRAINING record is read-only.');
     }
     _form = existing == null
-        ? TrainingV2FormController.newSession()
+        ? TrainingV2FormController.newSession(now: DateTime(1970))
         : TrainingV2FormController.fromSession(existing.v2Data!);
-    if (existing == null && _form.exercises.isNotEmpty) {
-      _expandedItem = _form.exercises.first;
+    if (existing == null) {
+      _isLoadingDate = true;
+      _initializeNewSession();
+    } else {
+      _loadTrainingContext();
+      _loadStatusWeight();
     }
-    _loadTrainingContext();
-    _loadStatusWeight();
+  }
+
+  Future<void> _initializeNewSession() async {
+    try {
+      final localDate = (await const OperationDateService().current()).value;
+      if (!mounted) return;
+      _form.dispose();
+      _form = TrainingV2FormController.newSession(localDate: localDate);
+      _operationLocalDate = localDate;
+      _expandedItem = _form.exercises.first;
+      setState(() => _isLoadingDate = false);
+      _loadTrainingContext();
+      _loadStatusWeight();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _dateLoadError = error;
+        _isLoadingDate = false;
+      });
+    }
   }
 
   Future<void> _loadTrainingContext() async {
@@ -77,7 +104,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   }
 
   Future<void> _save() async {
-    if (_isSaving) return;
+    if (_isSaving || _hasSaved) return;
     setState(() => _isSaving = true);
     var saved = false;
     try {
@@ -94,6 +121,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         await TrainingRepository.saveNewV2(session);
       }
       await refreshTrainingSummary();
+      _hasSaved = true;
       saved = true;
     } on TrainingV2FormValidationException catch (error) {
       _showError(error.message);
@@ -152,8 +180,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   }
 
   void _clearSession() {
+    final localDate = _isEditing
+        ? _form.date.substring(0, 10)
+        : _operationLocalDate;
     _form.dispose();
-    _form = TrainingV2FormController.newSession();
+    _form = TrainingV2FormController.newSession(localDate: localDate);
     _expandedItem = _form.exercises.first;
     _statusWeightKg = null;
     setState(() {});
@@ -168,6 +199,15 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingDate) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_dateLoadError != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('TRAINING')),
+        body: const Center(child: Text('Operation Dateを取得できませんでした。')),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('TRAINING'),

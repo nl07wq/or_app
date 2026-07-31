@@ -204,6 +204,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 estimatedTDEE,
                                                                 trainingSummary,
                                                               ),
+                                                          targetDate:
+                                                              confirmationStatus
+                                                                  .date,
                                                         ),
                                                       ),
                                               );

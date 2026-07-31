@@ -4,6 +4,7 @@ import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/repositories/morning_repository.dart';
 import 'package:or_app/features/morning/services/morning_submit_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -20,6 +21,7 @@ void main() {
       workEnd: '',
       workBreak: '',
       memo: '',
+      operationLocalDate: '2026-07-31',
     );
 
     expect(error, isNull);
@@ -61,6 +63,7 @@ void main() {
         workEnd: '',
         workBreak: '',
         memo: '',
+        operationDateService: await operationDateServiceFor('2026-08-01'),
       );
 
       expect(error, isNull);

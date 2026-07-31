@@ -133,7 +133,7 @@ void main() {
     AppRepositoryRegistry.beginStartup(controller: controller);
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
 
-    await refreshTrainingSummary();
+    await refreshTrainingSummary(localDate: localDate);
 
     expect(trainingSummaryNotifier.value?.completed, isTrue);
     expect(trainingSummaryNotifier.value?.exerciseCount, 1);

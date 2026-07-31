@@ -18,8 +18,11 @@ class TrainingV2FormController {
   final List<TrainingV2ExerciseFormController> exercises;
   final List<TrainingV2CardioFormController> cardioEntries;
 
-  TrainingV2FormController.newSession({DateTime? now})
-    : date = (now ?? DateTime.now()).toIso8601String(),
+  TrainingV2FormController.newSession({DateTime? now, String? localDate})
+    : assert(now == null || localDate == null),
+      date = localDate == null
+          ? (now ?? DateTime.now()).toIso8601String()
+          : '${localDate}T00:00:00.000',
       exercises = [TrainingV2ExerciseFormController()],
       cardioEntries = [];
 

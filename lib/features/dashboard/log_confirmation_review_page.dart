@@ -23,6 +23,7 @@ class LogConfirmationReviewPage extends StatefulWidget {
     required this.activity,
     required this.training,
     required this.estimatedTotalBurn,
+    required this.targetDate,
     this.backupExportService,
     this.confirmDailyLog,
   });
@@ -32,6 +33,7 @@ class LogConfirmationReviewPage extends StatefulWidget {
   final ActivitySummary activity;
   final TrainingSummary? training;
   final double? estimatedTotalBurn;
+  final DateTime targetDate;
   final BackupFileExportService? backupExportService;
   final ConfirmDailyLog? confirmDailyLog;
 

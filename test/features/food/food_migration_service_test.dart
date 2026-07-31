@@ -52,7 +52,7 @@ void main() {
     expect(result.foodRecordIds, isEmpty);
     final metadata = _metadata(database);
     expect(metadata.status, IndexedDbMigrationStatus.completed);
-    expect(metadata.targetDatabaseVersion, 4);
+    expect(metadata.targetDatabaseVersion, 5);
     expect(metadata.targetDigest, isNotNull);
     expect(metadata.validCounts['verifiedRecordCount'], 0);
   });

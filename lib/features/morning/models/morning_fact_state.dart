@@ -2,18 +2,20 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/models/morning_data.dart';
 import '../../../core/repositories/morning_repository.dart';
+import '../../operation_date/services/operation_date_service.dart';
 import 'morning_fact.dart';
 
 final ValueNotifier<MorningFact?> morningFactNotifier =
     ValueNotifier<MorningFact?>(null);
 
-Future<void> refreshMorningFact() async {
+Future<void> refreshMorningFact({String? localDate}) async {
   final records = await MorningRepository.getAll();
-  final today = DateTime.now().toIso8601String().split('T').first;
+  final targetLocalDate =
+      localDate ?? (await const OperationDateService().current()).value;
   MorningData? latestRecord;
 
   for (final record in records) {
-    if (record.date.split('T').first != today) {
+    if (record.date.split('T').first != targetLocalDate) {
       continue;
     }
 

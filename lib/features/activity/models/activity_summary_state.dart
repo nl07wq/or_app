@@ -4,7 +4,7 @@ import '../../../core/engine/activity_summary.dart';
 import '../../../core/models/activity_data.dart';
 import '../../../core/models/morning_data.dart';
 import '../../../core/repositories/morning_repository.dart';
-import '../../../core/services/app_clock.dart';
+import '../../operation_date/services/operation_date_service.dart';
 import '../repository/activity_repository.dart';
 import '../services/activity_summary_engine.dart';
 import '../../../core/services/daily_log_mutation_guard.dart';
@@ -16,11 +16,13 @@ final ValueNotifier<ActivitySummary> activitySummaryNotifier = ValueNotifier(
 const _repository = LocalActivityRepository();
 const _summaryEngine = ActivitySummaryEngine();
 
-Future<void> refreshActivitySummary() async {
-  final today = AppClock.today();
-  final record = await _repository.findByDate(today);
-  final previous = await loadPreviousActivity(today);
-  final legacyMorning = await _loadMorning(today);
+Future<void> refreshActivitySummary({String? localDate}) async {
+  final targetLocalDate =
+      localDate ?? (await const OperationDateService().current()).value;
+  final targetDate = DateTime.parse(targetLocalDate);
+  final record = await _repository.findByDate(targetDate);
+  final previous = await loadPreviousActivity(targetDate);
+  final legacyMorning = await _loadMorning(targetDate);
   activitySummaryNotifier.value = record == null
       ? const ActivitySummary.empty()
       : _summaryEngine.generate(
@@ -48,7 +50,7 @@ Future<void> saveActivity(ActivityData data) async {
   );
   await DailyLogMutationGuard.assertDateMutable(data.date);
   await _repository.save(data);
-  if (_isToday(data.date)) {
+  if (await _isCurrentOperationDate(data.date)) {
     activitySummaryNotifier.value = summary;
   }
 }
@@ -57,17 +59,20 @@ Future<void> deleteActivity(DateTime date) async {
   await DailyLogMutationGuard.assertDateMutable(date);
   await _repository.deleteByDate(date);
 
-  if (_isToday(date)) {
+  if (await _isCurrentOperationDate(date)) {
     activitySummaryNotifier.value = const ActivitySummary.empty();
   }
 }
 
-bool _isToday(DateTime date) {
-  final today = AppClock.today();
-  return date.year == today.year &&
-      date.month == today.month &&
-      date.day == today.day;
+Future<bool> _isCurrentOperationDate(DateTime date) async {
+  final current = await const OperationDateService().current();
+  return current.value == _formatLocalDate(date);
 }
+
+String _formatLocalDate(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-'
+    '${date.month.toString().padLeft(2, '0')}-'
+    '${date.day.toString().padLeft(2, '0')}';
 
 Future<MorningData?> _loadMorning(DateTime date) async {
   final records = await MorningRepository.getAll();

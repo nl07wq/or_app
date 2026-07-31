@@ -7,6 +7,7 @@ import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/features/morning/services/morning_submit_service.dart';
 import 'package:or_app/features/morning/widgets/foot_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -345,6 +346,7 @@ void main() {
       workEnd: '',
       workBreak: '',
       memo: '',
+      operationDateService: await operationDateServiceFor('2026-07-31'),
     );
 
     expect(error, isNull);

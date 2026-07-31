@@ -21,6 +21,7 @@ import 'package:or_app/features/training/widgets/training_exercise_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() {
@@ -510,6 +511,7 @@ Future<FakeIndexedDbDatabase> _pumpEntry(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final database = FakeIndexedDbDatabase();
+  seedOperationState(database, '2026-07-31');
   final initialization = AppInitializationController()..markReady();
   AppRepositoryRegistry.beginStartup(controller: initialization);
   AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));

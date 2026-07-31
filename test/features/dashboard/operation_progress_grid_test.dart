@@ -17,6 +17,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() {
@@ -456,6 +457,24 @@ void main() {
     expect(find.text('QUICK WATER LOG'), findsOneWidget);
     expect(find.text('250 ml'), findsOneWidget);
     expect(find.text('Save Water'), findsOneWidget);
+  });
+
+  testWidgets('Quick Water saves to the Operation Date', (tester) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 800);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('250 ml'));
+    await tester.pumpAndSettle();
+
+    final records = await AppRepositoryRegistry.container.food.findAll();
+    expect(records.single.date, '2026-07-31');
   });
 
   testWidgets('renders the grid without overflow in light and dark themes', (

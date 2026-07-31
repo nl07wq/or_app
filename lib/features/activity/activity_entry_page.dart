@@ -6,7 +6,6 @@ import '../../core/models/digestive_event.dart';
 import '../../core/models/morning_data.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../core/repositories/morning_repository.dart';
-import '../../core/services/app_clock.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/theme/app_spacing.dart';
@@ -17,6 +16,7 @@ import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
 import '../repositories/app_repository_container.dart';
+import '../operation_date/services/operation_date_service.dart';
 import 'models/activity_draft.dart';
 import 'models/activity_summary_state.dart';
 import 'repository/activity_repository.dart';
@@ -57,10 +57,12 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   bool _hasDraftConflict = false;
   bool _isBusy = false;
   int _eventIdSuffix = 0;
+  DateTime? _operationDate;
 
   bool get _isFormal => _mode == _EntryMode.formal;
 
-  bool get _isToday => _isSameDate(_date, AppClock.today());
+  bool get _isToday =>
+      _operationDate != null && _isSameDate(_date, _operationDate!);
 
   bool get _usesDigestiveEvents =>
       !_isFormal || _formalData?.digestiveEvents != null;
@@ -68,7 +70,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   @override
   void initState() {
     super.initState();
-    _date = widget.initialData?.date ?? widget.targetDate ?? AppClock.today();
+    _date = widget.initialData?.date ?? widget.targetDate ?? DateTime(1970);
     _measuredStepsController = TextEditingController();
     _carryOverController = TextEditingController(text: '0');
     _measuredStepsFocusNode = FocusNode();
@@ -87,7 +89,35 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         _EditableStepField.carryOver,
       ),
     );
-    _initializeForDate(_date, suppliedRecord: widget.initialData);
+    _initializeDateContext();
+  }
+
+  Future<void> _initializeDateContext() async {
+    final suppliedDate = widget.initialData?.date ?? widget.targetDate;
+    if (suppliedDate != null && !AppRepositoryRegistry.hasContainer) {
+      _date = suppliedDate;
+      await _initializeForDate(
+        suppliedDate,
+        suppliedRecord: widget.initialData,
+      );
+      return;
+    }
+    try {
+      final operationDate = DateTime.parse(
+        (await const OperationDateService().current()).value,
+      );
+      final targetDate = suppliedDate ?? operationDate;
+      if (!mounted) return;
+      _operationDate = operationDate;
+      _date = targetDate;
+      await _initializeForDate(targetDate, suppliedRecord: widget.initialData);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error;
+        _mode = _EntryMode.error;
+      });
+    }
   }
 
   @override

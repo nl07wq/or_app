@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
-import '../../core/services/app_clock.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/state/app_initialization_state.dart';
@@ -10,6 +9,7 @@ import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/section_header.dart';
 import '../repositories/app_repository_container.dart';
 import '../repositories/repository_exception.dart';
+import '../operation_date/services/operation_date_service.dart';
 import 'activity_entry_page.dart';
 import 'activity_history_page.dart';
 import 'models/activity_draft.dart';
@@ -18,7 +18,12 @@ import 'services/activity_draft_finalize_service.dart';
 import 'widgets/activity_draft_recovery_dialog.dart';
 
 class ActivityPage extends StatefulWidget {
-  const ActivityPage({super.key});
+  final OperationDateService operationDateService;
+
+  const ActivityPage({
+    super.key,
+    this.operationDateService = const OperationDateService(),
+  });
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -36,19 +41,26 @@ class _ActivityPageState extends State<ActivityPage> {
   }
 
   Future<void> _openEntry([DateTime? date]) async {
-    final targetDate = date ?? AppClock.today();
-    final existing = await const LocalActivityRepository().findByDate(
-      targetDate,
-    );
-    if (!mounted) return;
+    try {
+      final targetDate =
+          date ??
+          DateTime.parse((await widget.operationDateService.current()).value);
+      final existing = await const LocalActivityRepository().findByDate(
+        targetDate,
+      );
+      if (!mounted) return;
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            ActivityEntryPage(initialData: existing, targetDate: targetDate),
-      ),
-    );
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ActivityEntryPage(initialData: existing, targetDate: targetDate),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Operation Dateを取得できませんでした。');
+    }
   }
 
   Future<void> _showPastDraftsOnce() async {
@@ -56,10 +68,15 @@ class _ActivityPageState extends State<ActivityPage> {
     _draftNoticeShown = true;
 
     try {
-      final today = _dateOnly(AppClock.today());
+      final operationDate = DateTime.parse(
+        (await widget.operationDateService.current()).value,
+      );
       final drafts =
           (await AppRepositoryRegistry.container.activityDrafts.findAll())
-              .where((draft) => DateTime.parse(draft.localDate).isBefore(today))
+              .where(
+                (draft) =>
+                    DateTime.parse(draft.localDate).isBefore(operationDate),
+              )
               .toList();
       if (drafts.isEmpty || !mounted) return;
 
@@ -224,7 +241,4 @@ class _ActivityPageState extends State<ActivityPage> {
       ),
     ),
   );
-
-  static DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
 }

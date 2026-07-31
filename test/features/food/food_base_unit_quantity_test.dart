@@ -17,10 +17,12 @@ import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/food/services/beta_meal_template_resolver.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   group('Food base unit and amount calculation', () {
@@ -704,6 +706,12 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       appInitializationController.markReady();
       database = FakeIndexedDbDatabase();
+      final now = DateTime.now();
+      final localDate =
+          '${now.year.toString().padLeft(4, '0')}-'
+          '${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+      seedOperationState(database, localDate);
       AppRepositoryRegistry.beginStartup(
         controller: appInitializationController,
       );
@@ -711,6 +719,51 @@ void main() {
     });
 
     tearDown(AppRepositoryRegistry.resetForTesting);
+
+    testWidgets('Operation Date gate hides FOOD form until resolved', (
+      tester,
+    ) async {
+      final operationState = Completer<OperationState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodEntryPage(
+            operationDateService: operationDateServiceFromFuture(
+              operationState.future,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(FoodInputForm), findsNothing);
+
+      operationState.complete(operationStateForTest('2026-07-31'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(FoodInputForm), findsOneWidget);
+    });
+
+    testWidgets('Operation Date failure shows only FOOD error', (tester) async {
+      final operationState = Completer<OperationState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodEntryPage(
+            operationDateService: operationDateServiceFromFuture(
+              operationState.future,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      operationState.completeError(StateError('missing operation state'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Operation Dateを取得できませんでした。'), findsOneWidget);
+      expect(find.byType(FoodInputForm), findsNothing);
+      expect(find.text('SAVE MEAL'), findsNothing);
+    });
 
     testWidgets('SAVE MEAL returns once to the FOOD module after success', (
       tester,

@@ -7,9 +7,11 @@ class FoodSummaryService {
 
   static const _nutritionSummaryEngine = NutritionSummaryEngine();
 
-  static FoodSummary today(Iterable<MealData> records) {
-    final today = DateTime.now().toIso8601String().split('T').first;
-    final dailyRecords = records.where((meal) => meal.date == today);
+  static FoodSummary forLocalDate(
+    Iterable<MealData> records,
+    String localDate,
+  ) {
+    final dailyRecords = records.where((meal) => meal.date == localDate);
     final meals = dailyRecords.where((record) => !record.isWaterEntry);
     final waterEntries = dailyRecords.where((record) => record.isWaterEntry);
     final nutrition = _nutritionSummaryEngine.generate(meals);

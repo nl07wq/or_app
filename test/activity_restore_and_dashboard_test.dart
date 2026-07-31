@@ -8,6 +8,7 @@ import 'package:or_app/core/services/daily_state_restore_service.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'features/operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() {
@@ -22,7 +23,11 @@ void main() {
       'activity_records': [jsonEncode(record.toJson())],
     });
 
-    await DailyStateRestoreService.restore();
+    await DailyStateRestoreService.restore(
+      operationDateService: await operationDateServiceFor(
+        today.toIso8601String().split('T').first,
+      ),
+    );
 
     expect(activitySummaryNotifier.value.isRecorded, isTrue);
     expect(activitySummaryNotifier.value.steps, 0);
@@ -33,7 +38,11 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
 
-      await DailyStateRestoreService.restore();
+      await DailyStateRestoreService.restore(
+        operationDateService: await operationDateServiceFor(
+          DateTime.now().toIso8601String().split('T').first,
+        ),
+      );
 
       expect(activitySummaryNotifier.value.isRecorded, isFalse);
       expect(activitySummaryNotifier.value.steps, 0);

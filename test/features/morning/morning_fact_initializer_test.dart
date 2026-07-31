@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -13,7 +14,10 @@ import 'package:or_app/features/morning/widgets/foot_card.dart';
 import 'package:or_app/features/morning/widgets/memo_input_card.dart';
 import 'package:or_app/features/morning/widgets/recovery_card.dart';
 import 'package:or_app/features/morning/widgets/work_card.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -112,7 +116,13 @@ void main() {
       ),
     );
 
-    await tester.pumpWidget(const MaterialApp(home: MorningFactPage()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MorningFactPage(
+          operationDateService: await operationDateServiceFor('2026-07-31'),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     final body = tester.widget<BodyCard>(find.byType(BodyCard));
@@ -131,6 +141,51 @@ void main() {
     expect(work.endController.text, '18:00');
     expect(work.breakController.text, '01:00');
     expect(memo.controller.text, isEmpty);
+  });
+
+  testWidgets('Operation Date gate hides new STATUS form until resolved', (
+    tester,
+  ) async {
+    final operationState = Completer<OperationState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MorningFactPage(
+          operationDateService: operationDateServiceFromFuture(
+            operationState.future,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(BodyCard), findsNothing);
+
+    operationState.complete(operationStateForTest('2026-07-31'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(BodyCard), findsOneWidget);
+  });
+
+  testWidgets('Operation Date failure shows only STATUS error', (tester) async {
+    final operationState = Completer<OperationState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MorningFactPage(
+          operationDateService: operationDateServiceFromFuture(
+            operationState.future,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    operationState.completeError(StateError('missing operation state'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Operation Dateを取得できませんでした。'), findsOneWidget);
+    expect(find.byType(BodyCard), findsNothing);
+    expect(find.text('SAVE STATUS'), findsNothing);
   });
 
   testWidgets('edit page uses existing data instead of latest record', (

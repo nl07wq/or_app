@@ -5,6 +5,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
+import '../operation_date/services/operation_date_service.dart';
 
 import 'services/morning_fact_initializer.dart';
 import 'services/morning_submit_service.dart';
@@ -18,9 +19,14 @@ import 'widgets/work_card.dart';
 import '../../core/models/morning_data.dart';
 
 class MorningFactPage extends StatefulWidget {
-  const MorningFactPage({super.key, this.data});
+  const MorningFactPage({
+    super.key,
+    this.data,
+    this.operationDateService = const OperationDateService(),
+  });
 
   final MorningData? data;
+  final OperationDateService operationDateService;
 
   bool get isEdit => data != null;
 
@@ -30,6 +36,8 @@ class MorningFactPage extends StatefulWidget {
 
 class _MorningFactPageState extends State<MorningFactPage> {
   bool _initialValuesLoaded = false;
+  String? _operationLocalDate;
+  Object? _operationDateError;
 
   @override
   void initState() {
@@ -65,17 +73,25 @@ class _MorningFactPageState extends State<MorningFactPage> {
   }
 
   Future<void> _initializeNewMorning() async {
-    final values = await const MorningFactInitializer().initialize();
-    if (!mounted) return;
+    try {
+      final operationLocalDate =
+          (await widget.operationDateService.current()).value;
+      final values = await const MorningFactInitializer().initialize();
+      if (!mounted) return;
 
-    weightController.text = values.weight;
-    bodyFatController.text = values.bodyFat;
-    sleepController.text = values.sleep;
-    sleepScoreController.text = values.sleepScore;
+      weightController.text = values.weight;
+      bodyFatController.text = values.bodyFat;
+      sleepController.text = values.sleep;
+      sleepScoreController.text = values.sleepScore;
 
-    setState(() {
-      _initialValuesLoaded = true;
-    });
+      setState(() {
+        _operationLocalDate = operationLocalDate;
+        _initialValuesLoaded = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _operationDateError = error);
+    }
   }
 
   // Controllers
@@ -124,7 +140,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('STATUS')),
-      body: !_initialValuesLoaded
+      body: _operationDateError != null
+          ? const Center(child: Text('Operation Dateを取得できませんでした。'))
+          : !_initialValuesLoaded
           ? const Center(child: CircularProgressIndicator())
           : Padding(
               padding: AppSpacing.cardPadding,
@@ -185,6 +203,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
                             workEnd: workEndController.text,
                             workBreak: workBreakController.text,
                             memo: memoController.text,
+                            operationLocalDate: _operationLocalDate,
                           );
 
                           if (!context.mounted) return;
@@ -201,6 +220,11 @@ class _MorningFactPageState extends State<MorningFactPage> {
                         } on ConfirmedDailyLogException catch (exception) {
                           if (context.mounted) {
                             showConfirmedLogMessage(context, exception);
+                          }
+                          return;
+                        } catch (_) {
+                          if (context.mounted) {
+                            _showError('Operation Dateを取得できませんでした。');
                           }
                           return;
                         }
