@@ -16,6 +16,7 @@ import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
 import '../services/daily_command_read_model_builder.dart';
+import '../widgets/daily_command_item.dart';
 
 class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({super.key});
@@ -330,45 +331,33 @@ class _CommandSummary extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SummaryLine(
+        DailyCommandItem(
           icon: model.operationStatus == null
               ? Icons.cancel_outlined
               : Icons.check_circle_outline,
           label: 'OPERATION STATUS',
           value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
+          status: model.operationStatus,
         ),
         Text(model.statusReason),
         if (model.commanderIntent != null) ...[
           AppSpacing.gapMD,
-          _SummaryLine(
+          DailyCommandItem(
+            icon: Icons.flag_outlined,
             label: 'COMMANDER INTENT',
             value: model.commanderIntent!,
           ),
         ],
         if (model.morningBriefSummary != null) ...[
           AppSpacing.gapMD,
-          _SummaryLine(
-            label: 'MORNING BRIEF SUMMARY',
+          DailyCommandItem(
+            icon: Icons.lightbulb_outline,
+            label: 'ARGO COMMENT',
             value: model.morningBriefSummary!,
           ),
         ],
       ],
     ),
-  );
-}
-
-class _SummaryLine extends StatelessWidget {
-  const _SummaryLine({this.icon, required this.label, required this.value});
-  final IconData? icon;
-  final String label;
-  final String value;
-  @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      if (icon != null) ...[Icon(icon), const SizedBox(width: 8)],
-      Expanded(child: Text('$label\n$value')),
-    ],
   );
 }
 

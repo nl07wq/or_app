@@ -41,7 +41,7 @@ void main() {
     expect(find.textContaining('STANDBY'), findsWidgets);
     expect(find.textContaining('STATUSを入力'), findsOneWidget);
     expect(find.text('COMMANDER INTENT'), findsNothing);
-    expect(find.text('MORNING BRIEF SUMMARY'), findsNothing);
+    expect(find.text('ARGO COMMENT'), findsNothing);
     await _scrollDailyCommand(tester, -900);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -75,7 +75,9 @@ void main() {
     await _scrollDailyCommand(tester, -350);
     expect(find.textContaining('OPERATION STATUS'), findsOneWidget);
     expect(find.textContaining('COMMANDER INTENT'), findsOneWidget);
-    expect(find.textContaining('MORNING BRIEF SUMMARY'), findsOneWidget);
+    expect(find.text('ARGO COMMENT'), findsOneWidget);
+    expect(find.byIcon(Icons.flag_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
     final labels = tester
         .widgetList<Text>(find.byType(Text))
         .map((widget) => widget.data)
@@ -87,9 +89,7 @@ void main() {
     final intentIndex = labels.indexWhere(
       (value) => value.startsWith('COMMANDER INTENT'),
     );
-    final briefIndex = labels.indexWhere(
-      (value) => value.startsWith('MORNING BRIEF SUMMARY'),
-    );
+    final briefIndex = labels.indexOf('ARGO COMMENT');
     expect(statusIndex, lessThan(intentIndex));
     expect(intentIndex, lessThan(briefIndex));
     await _scrollDailyCommand(tester, -900);
@@ -97,6 +97,26 @@ void main() {
     expect(find.text('Optional'), findsOneWidget);
     expect(find.text('BACKUP & RESTORE'), findsOneWidget);
   });
+
+  for (final statusCase in [
+    (hours: 8, name: 'green'),
+    (hours: 6, name: 'yellow'),
+    (hours: 4, name: 'red'),
+  ]) {
+    testWidgets('shows ${statusCase.name} status lamp', (tester) async {
+      morningFactNotifier.value = _status().copyWith(
+        sleepDuration: Duration(hours: statusCase.hours),
+      );
+      await _pump(tester, width: 390);
+      await _scrollDailyCommand(tester, -350);
+
+      expect(
+        find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
+        findsOneWidget,
+      );
+      expect(find.text(statusCase.name.toUpperCase()), findsOneWidget);
+    });
+  }
 
   testWidgets('shows recovery action instead of normal finalize', (
     tester,

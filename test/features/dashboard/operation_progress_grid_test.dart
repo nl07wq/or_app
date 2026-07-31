@@ -137,6 +137,34 @@ void main() {
     expect(_progress(tester, 'ACTIVITY'), 1);
   });
 
+  for (final statusCase in [
+    (hours: 8, name: 'green'),
+    (hours: 6, name: 'yellow'),
+    (hours: 4, name: 'red'),
+  ]) {
+    testWidgets('DAILY COMMAND shows ${statusCase.name} status lamp', (
+      tester,
+    ) async {
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-28');
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+      morningFactNotifier.value = _morning().copyWith(
+        sleepDuration: Duration(hours: statusCase.hours),
+      );
+      await _pumpDashboard(tester, width: 390);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
+        findsOneWidget,
+      );
+      expect(find.text(statusCase.name.toUpperCase()), findsOneWidget);
+      expect(find.text('ARGO COMMENT'), findsOneWidget);
+      expect(find.text('MORNING BRIEF SUMMARY'), findsNothing);
+    });
+  }
+
   testWidgets('keeps missing STATUS, FOOD, TRAINING, and ACTIVITY contracts', (
     tester,
   ) async {

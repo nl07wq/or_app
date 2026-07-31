@@ -30,6 +30,7 @@ import '../activity/models/activity_summary_state.dart';
 import '../training/models/training_summary_state.dart';
 import '../command_center/models/daily_command_read_model.dart';
 import '../command_center/services/daily_command_read_model_builder.dart';
+import '../command_center/widgets/daily_command_item.dart';
 import '../repositories/app_repository_container.dart';
 
 import 'widgets/daily_log_card.dart';
@@ -440,17 +441,18 @@ class _DailyCommandSummary extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DashboardCommandLine(
+              DailyCommandItem(
                 icon: model.operationStatus == null
                     ? Icons.cancel_outlined
                     : Icons.check_circle_outline,
                 label: 'OPERATION STATUS',
                 value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
+                status: model.operationStatus,
               ),
               Text(model.statusReason),
               if (model.commanderIntent != null) ...[
                 AppSpacing.gapMD,
-                _DashboardCommandLine(
+                DailyCommandItem(
                   icon: Icons.flag_outlined,
                   label: 'COMMANDER INTENT',
                   value: model.commanderIntent!,
@@ -458,9 +460,9 @@ class _DailyCommandSummary extends StatelessWidget {
               ],
               if (model.morningBriefSummary != null) ...[
                 AppSpacing.gapMD,
-                _DashboardCommandLine(
-                  icon: Icons.wb_sunny_outlined,
-                  label: 'MORNING BRIEF SUMMARY',
+                DailyCommandItem(
+                  icon: Icons.lightbulb_outline,
+                  label: 'ARGO COMMENT',
                   value: model.morningBriefSummary!,
                 ),
               ],
@@ -492,28 +494,6 @@ class _DailyCommandSummary extends StatelessWidget {
       activity: activitySummary,
     );
   }
-}
-
-class _DashboardCommandLine extends StatelessWidget {
-  const _DashboardCommandLine({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(icon, color: Theme.of(context).colorScheme.primary),
-      SizedBox(width: AppSpacing.sm),
-      Expanded(child: Text('$label\n$value')),
-    ],
-  );
 }
 
 class _ProgressCard extends StatelessWidget {
