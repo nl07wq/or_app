@@ -62,7 +62,17 @@ void main() {
     }
     expect(find.text('COMING LATER'), findsNWidgets(6));
     expect(find.textContaining('OPERATION SYNC'), findsNothing);
-    expect(find.byType(ElevatedButton), findsOneWidget);
+    expect(find.text('OPEN ORLO SYNC'), findsOneWidget);
+    expect(find.byType(ElevatedButton), findsNWidgets(2));
+
+    await tester.scrollUntilVisible(
+      find.text('OPEN ORLO SYNC'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('OPEN ORLO SYNC'));
+    await tester.pumpAndSettle();
+    expect(find.text('SYNC ROUTE'), findsOneWidget);
   });
 
   testWidgets('keeps loading, error, and content mutually exclusive', (
@@ -121,6 +131,7 @@ Future<void> _pump(
       routes: {
         AppRoutes.backupRestore: (_) =>
             const Scaffold(body: Text('BACKUP ROUTE')),
+        AppRoutes.orloSync: (_) => const Scaffold(body: Text('SYNC ROUTE')),
       },
     ),
   );

@@ -18,4 +18,6 @@ class AppRoutes {
   static const commandCenter = '/command-center';
 
   static const backupRestore = '/backup-restore';
+
+  static const orloSync = '/orlo-sync';
 }

@@ -83,6 +83,10 @@ class _DataCenterContent extends StatelessWidget {
         AppSpacing.gapXL,
         const SectionHeader(icon: Icons.sync, title: 'NORMAL SYNC'),
         AppSpacing.gapSM,
+        _SyncCoreCard(
+          onOpen: () => Navigator.pushNamed(context, AppRoutes.orloSync),
+        ),
+        AppSpacing.gapSM,
         const _ComingLaterCard(
           description: 'ChatGPTで整えた正式SYNCデータを読み込む機能を今後追加します。',
           items: ['TRAINING SYNC', 'FOOD SYNC', 'DAILY LOG SYNC'],
@@ -101,6 +105,31 @@ class _DataCenterContent extends StatelessWidget {
       ],
     );
   }
+}
+
+class _SyncCoreCard extends StatelessWidget {
+  const _SyncCoreCard({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ORLO Sync FormatのParse・Validation・Previewを実行します。'),
+        AppSpacing.gapSM,
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: onOpen,
+            icon: const Icon(Icons.sync),
+            label: const Text('OPEN ORLO SYNC'),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SystemStateCard extends StatelessWidget {
