@@ -17,6 +17,7 @@ import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
 import '../services/daily_command_read_model_builder.dart';
 import '../widgets/daily_command_item.dart';
+import '../widgets/data_center_page.dart';
 
 class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({super.key});
@@ -73,7 +74,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
                   onRefresh: _refresh,
                   onRecover: _recover,
                 ),
-                const _DataCenterPage(),
+                const DataCenterPage(),
               ],
             ),
           ),
@@ -464,25 +465,6 @@ class _BriefDebriefPage extends StatelessWidget {
       AppSpacing.gapMD,
       _WorkspacePlaceholderCard(
         message: 'MORNING BRIEFとDAILY DEBRIEFの履歴を確認できます。',
-      ),
-    ],
-  );
-}
-
-class _DataCenterPage extends StatelessWidget {
-  const _DataCenterPage();
-  @override
-  Widget build(BuildContext context) => ListView(
-    padding: AppSpacing.cardPadding,
-    children: [
-      const SectionHeader(icon: Icons.storage_outlined, title: 'DATA CENTER'),
-      AppSpacing.gapMD,
-      const _WorkspacePlaceholderCard(message: '正式なBACKUPとRESTOREを管理します。'),
-      AppSpacing.gapMD,
-      OperationButton(
-        icon: Icons.backup_outlined,
-        text: 'BACKUP & RESTORE',
-        onPressed: () => Navigator.pushNamed(context, AppRoutes.backupRestore),
       ),
     ],
   );

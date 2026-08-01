@@ -138,6 +138,31 @@ void main() {
     expect(find.textContaining('施設'), findsNothing);
   });
 
+  testWidgets('keeps Data Center inside Command Center tabs', (tester) async {
+    await _pump(tester, width: 390);
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(-250, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DATA CENTER').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('SYSTEM STATE'), findsOneWidget);
+    expect(find.text('2026-08-01'), findsOneWidget);
+    expect(find.text('BACKUP SCHEMA 3.0'), findsOneWidget);
+    await tester.drag(
+      find.byKey(const ValueKey('data-center-content')),
+      const Offset(0, -1000),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('NORMAL SYNC'), findsOneWidget);
+    expect(find.text('SYSTEM MONITORING'), findsOneWidget);
+    expect(find.textContaining('OPERATION SYNC'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final statusCase in [
     (hours: 8, name: 'green'),
     (hours: 6, name: 'yellow'),
