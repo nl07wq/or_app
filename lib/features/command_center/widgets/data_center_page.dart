@@ -89,7 +89,7 @@ class _DataCenterContent extends StatelessWidget {
         AppSpacing.gapSM,
         const _ComingLaterCard(
           description: 'ChatGPTで整えた正式SYNCデータを読み込む機能を今後追加します。',
-          items: ['TRAINING SYNC', 'FOOD SYNC', 'DAILY LOG SYNC'],
+          items: ['FOOD SYNC', 'DAILY LOG SYNC'],
         ),
         AppSpacing.gapXL,
         const SectionHeader(
@@ -118,6 +118,15 @@ class _SyncCoreCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('ORLO Sync FormatのParse・Validation・Previewを実行します。'),
+        AppSpacing.gapSM,
+        const Row(
+          children: [
+            Icon(Icons.check_circle_outline),
+            SizedBox(width: 8),
+            Expanded(child: Text('TRAINING SYNC')),
+            Text('AVAILABLE'),
+          ],
+        ),
         AppSpacing.gapSM,
         SizedBox(
           width: double.infinity,

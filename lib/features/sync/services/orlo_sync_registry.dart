@@ -1,4 +1,5 @@
 import 'orlo_sync_adapter.dart';
+import '../../training/sync/training_sync_adapter.dart';
 
 class OrloSyncTypeDefinition {
   const OrloSyncTypeDefinition({
@@ -38,6 +39,19 @@ class OrloSyncTypeRegistry {
       schemaVersion: '1.0',
     ),
   ];
+
+  factory OrloSyncTypeRegistry.production() => OrloSyncTypeRegistry(
+    definitions: [
+      OrloSyncTypeDefinition(
+        id: 'training',
+        displayName: 'TRAINING SYNC',
+        schemaVersion: '1.0',
+        adapter: TrainingSyncAdapter(),
+      ),
+      defaults[1],
+      defaults[2],
+    ],
+  );
 
   final Map<String, OrloSyncTypeDefinition> _definitions;
 

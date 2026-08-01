@@ -8,6 +8,12 @@ abstract interface class TrainingSessionRepository {
 
   Future<TrainingRecord> saveNewV2(TrainingSessionV2 session);
 
+  Future<TrainingSyncCreateResult> createV2FromSync({
+    required String recordId,
+    required TrainingSessionV2 session,
+    required String expectedCanonicalDigest,
+  });
+
   Future<TrainingRecord> saveWithId(String id, TrainingSession session);
 
   Future<TrainingRecord?> findById(String id);
@@ -33,4 +39,20 @@ abstract interface class TrainingSessionRepository {
   Future<void> clear();
 
   Future<List<TrainingSession>> findAllSessions();
+}
+
+enum TrainingSyncCreateStatus { created, noChanges, conflict }
+
+class TrainingSyncCreateResult {
+  const TrainingSyncCreateResult({
+    required this.status,
+    required this.recordId,
+    required this.canonicalDigest,
+    required this.readBackVerified,
+  });
+
+  final TrainingSyncCreateStatus status;
+  final String recordId;
+  final String canonicalDigest;
+  final bool readBackVerified;
 }

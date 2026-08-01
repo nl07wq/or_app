@@ -31,7 +31,12 @@ void main() {
 
       await tester.tap(find.text('COPY CHATGPT INSTRUCTION'));
       await tester.pump();
-      expect(copied, contains('orlo-sync'));
+      expect(copied, contains('TRAINING SYNC SCHEMA 1.0'));
+      await tester.drag(
+        find.byKey(const ValueKey('orlo-sync-content')),
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Instructionをコピーしました。'), findsOneWidget);
 
       await tester.ensureVisible(find.text('PARSE'));
@@ -58,7 +63,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('PREVIEW'), findsOneWidget);
-      expect(find.textContaining('COMING LATER'), findsOneWidget);
+      expect(find.textContaining('payload'), findsWidgets);
       expect(find.text('Importできません。'), findsOneWidget);
       expect(find.text('IMPORT'), findsNothing);
     },
@@ -94,6 +99,7 @@ void main() {
     await tester.tap(find.text('SELECT FILE'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('PARSE'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('PARSE'));
     await tester.pumpAndSettle();
     await tester.drag(
@@ -101,8 +107,8 @@ void main() {
       const Offset(0, -700),
     );
     await tester.pumpAndSettle();
-    expect(find.text('IMPORT'), findsOneWidget);
-    await tester.tap(find.text('IMPORT'));
+    expect(find.text('IMPORT TRAINING'), findsOneWidget);
+    await tester.tap(find.text('IMPORT TRAINING'));
     await tester.pumpAndSettle();
     expect(find.text('CONFIRM IMPORT'), findsOneWidget);
     await tester.tap(find.text('CONFIRM IMPORT'));

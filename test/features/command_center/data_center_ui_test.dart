@@ -60,7 +60,8 @@ void main() {
       );
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('COMING LATER'), findsNWidgets(6));
+    expect(find.text('AVAILABLE'), findsOneWidget);
+    expect(find.text('COMING LATER'), findsNWidgets(5));
     expect(find.textContaining('OPERATION SYNC'), findsNothing);
     expect(find.text('OPEN ORLO SYNC'), findsOneWidget);
     expect(find.byType(ElevatedButton), findsNWidgets(2));

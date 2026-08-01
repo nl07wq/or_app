@@ -23,7 +23,7 @@ class OrloSyncPage extends StatefulWidget {
     OrloSyncGateway? gateway,
     SyncFileSelector? fileSelector,
     SyncClipboardWriter? clipboardWriter,
-  }) : gateway = gateway ?? OrloSyncGateway(),
+  }) : gateway = gateway ?? OrloSyncGateway.production(),
        fileSelector = fileSelector ?? BackupFileGateway.platform().selectJson,
        clipboardWriter =
            clipboardWriter ??
@@ -43,6 +43,8 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
   List<SyncIssue> _issues = const [];
   bool _busy = false;
   String? _stateMessage;
+  String _selectedType = 'training';
+  Map<String, Object?>? _successDetails;
 
   @override
   void dispose() {
@@ -56,6 +58,7 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
       _preview = null;
       _issues = const [];
       _stateMessage = null;
+      _successDetails = null;
     });
     try {
       final preview = await widget.gateway.prepare(_controller.text);
@@ -93,6 +96,7 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
         _preview = null;
         _issues = const [];
         _stateMessage = 'File loaded. PARSEを実行してください。';
+        _successDetails = null;
       });
     } catch (_) {
       if (mounted) setState(() => _stateMessage = 'Fileを読み込めませんでした。');
@@ -102,7 +106,13 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
   Future<void> _copyInstruction() async {
     try {
       await widget.clipboardWriter(
-        const OrloSyncInstructionProvider().buildCommonInstruction(),
+        _selectedType == 'training'
+            ? widget.gateway.registry
+                      .find('training')
+                      ?.adapter
+                      ?.buildChatGptPayloadInstruction() ??
+                  const OrloSyncInstructionProvider().buildCommonInstruction()
+            : const OrloSyncInstructionProvider().buildCommonInstruction(),
       );
       if (mounted) setState(() => _stateMessage = 'Instructionをコピーしました。');
     } catch (_) {
@@ -144,6 +154,11 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
       setState(() {
         _issues = result.issues;
         if (result.success) {
+          _successDetails = {
+            'recordId': preview.envelope.idempotencyKey,
+            'operationDate': preview.envelope.operationDate,
+            ...preview.counts.details,
+          };
           _controller.clear();
           _preview = null;
           _stateMessage = 'ImportとRead-back Verificationが完了しました。';
@@ -167,6 +182,19 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
       children: [
         const SectionHeader(icon: Icons.sync, title: 'PASTE SYNC DATA'),
         AppSpacing.gapSM,
+        DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: _selectedType,
+          decoration: const InputDecoration(labelText: 'Data Type'),
+          items: const [
+            DropdownMenuItem(value: 'training', child: Text('TRAINING')),
+            DropdownMenuItem(value: 'food', child: Text('FOOD')),
+            DropdownMenuItem(value: 'dailyLog', child: Text('DAILY LOG')),
+          ],
+          onChanged: (value) =>
+              setState(() => _selectedType = value ?? 'training'),
+        ),
+        AppSpacing.gapSM,
         OperationCard(
           child: OperationTextField(
             controller: _controller,
@@ -176,6 +204,7 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
             onChanged: (_) => setState(() {
               _preview = null;
               _issues = const [];
+              _successDetails = null;
             }),
           ),
         ),
@@ -210,6 +239,22 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
             AppSpacing.gapSM,
             Text(_stateMessage!),
           ],
+          if (_successDetails != null) ...[
+            AppSpacing.gapSM,
+            OperationCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('READ-BACK VERIFIED'),
+                  Text('Record ID  ${_successDetails!['recordId']}'),
+                  Text('Operation Date  ${_successDetails!['operationDate']}'),
+                  Text('Session  ${_successDetails!['sessionName'] ?? '—'}'),
+                  Text('Exercises  ${_successDetails!['exerciseCount'] ?? 0}'),
+                  Text('Cardio  ${_successDetails!['cardioCount'] ?? 0}'),
+                ],
+              ),
+            ),
+          ],
           if (_issues.isNotEmpty) ...[
             AppSpacing.gapXL,
             const SectionHeader(
@@ -227,7 +272,9 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
             if (_preview!.canImport) ...[
               AppSpacing.gapSM,
               OperationButton(
-                text: 'IMPORT',
+                text: _preview!.envelope.dataType == 'training'
+                    ? 'IMPORT TRAINING'
+                    : 'IMPORT',
                 icon: Icons.save_alt,
                 onPressed: _apply,
               ),
@@ -295,6 +342,18 @@ class _PreviewCard extends StatelessWidget {
         Text('Blocking Errors  ${preview.blockingErrorCount}'),
         AppSpacing.gapSM,
         Text(preview.canImport ? 'Import ready.' : 'Importできません。'),
+        if (preview.counts.noOp > 0) const Text('NO CHANGES'),
+        if (preview.counts.conflict > 0) const Text('CONFLICT'),
+        if (preview.envelope.dataType == 'training') ...[
+          AppSpacing.gapSM,
+          const Text('TRAINING PREVIEW'),
+          Text('Session  ${preview.counts.details['sessionName'] ?? '—'}'),
+          Text('Grade  ${preview.counts.details['grade'] ?? '—'}'),
+          Text('Exercises  ${preview.counts.details['exerciseCount'] ?? 0}'),
+          Text('Warm-up Sets  ${preview.counts.details['warmUpSets'] ?? 0}'),
+          Text('Main Sets  ${preview.counts.details['mainSets'] ?? 0}'),
+          Text('Cardio  ${preview.counts.details['cardioCount'] ?? 0}'),
+        ],
       ],
     ),
   );

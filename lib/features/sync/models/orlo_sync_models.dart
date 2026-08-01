@@ -96,6 +96,7 @@ class SyncPreviewCounts {
     this.update = 0,
     this.noOp = 0,
     this.conflict = 0,
+    this.details = const {},
   });
 
   final int records;
@@ -103,6 +104,7 @@ class SyncPreviewCounts {
   final int update;
   final int noOp;
   final int conflict;
+  final Map<String, Object?> details;
 }
 
 class SyncPreview {
@@ -118,7 +120,8 @@ class SyncPreview {
   final SyncValidationResult validation;
   final SyncPreviewCounts counts;
 
-  bool get canImport => validation.canImport;
+  bool get canImport =>
+      validation.canImport && (counts.create > 0 || counts.update > 0);
   int get warningCount => validation.issues
       .where((issue) => issue.severity == SyncIssueSeverity.warning)
       .length;

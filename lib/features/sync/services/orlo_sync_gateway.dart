@@ -16,6 +16,9 @@ class OrloSyncGateway {
   final OrloSyncTypeRegistry registry;
   final OrloSyncIdempotencyChecker? idempotencyChecker;
 
+  factory OrloSyncGateway.production() =>
+      OrloSyncGateway(registry: OrloSyncTypeRegistry.production());
+
   Future<SyncPreview> prepare(String rawText) async {
     final json = parser.parse(rawText);
     final output = OrloSyncValidator(registry).validate(json);

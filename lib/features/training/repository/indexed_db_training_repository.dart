@@ -7,6 +7,7 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
 import '../migration/training_record_lineage.dart';
 import '../models/persisted_training_record.dart';
+import '../services/training_v2_canonical_service.dart';
 import 'training_record_id_generator.dart';
 import 'training_session_repository.dart';
 
@@ -65,6 +66,120 @@ class IndexedDbTrainingSessionRepository
       operation: 'training.saveNewV2',
       requireExisting: false,
     );
+  }
+
+  @override
+  Future<TrainingSyncCreateResult> createV2FromSync({
+    required String recordId,
+    required TrainingSessionV2 session,
+    required String expectedCanonicalDigest,
+  }) async {
+    try {
+      PersistedTrainingRecord.validateId(recordId);
+      final localDate = PersistedTrainingRecord.localDateFromV2Session(session);
+      final digest = TrainingV2CanonicalService.digest(
+        localDate: localDate,
+        session: session,
+      );
+      if (digest != expectedCanonicalDigest) {
+        throw StateError('TRAINING SYNC canonical digest mismatch.');
+      }
+      return await _database.runTransaction<TrainingSyncCreateResult>(
+        storeNames: const [IndexedDbStoreNames.trainingRecords],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          final stored = await transaction.findAll(
+            IndexedDbStoreNames.trainingRecords,
+          );
+          final records = stored
+              .map(PersistedTrainingRecord.fromRecord)
+              .toList();
+          if (records.any(
+            (record) => !TrainingRecordLineage.hasValidKnownLineage(record),
+          )) {
+            return TrainingSyncCreateResult(
+              status: TrainingSyncCreateStatus.conflict,
+              recordId: recordId,
+              canonicalDigest: digest,
+              readBackVerified: false,
+            );
+          }
+          for (final record in records) {
+            if (record.id == recordId) {
+              final same =
+                  record.recordVersion == 2 &&
+                  TrainingV2CanonicalService.digest(
+                        localDate: record.localDate,
+                        session: record.dataV2,
+                      ) ==
+                      digest;
+              return TrainingSyncCreateResult(
+                status: same
+                    ? TrainingSyncCreateStatus.noChanges
+                    : TrainingSyncCreateStatus.conflict,
+                recordId: record.id,
+                canonicalDigest: digest,
+                readBackVerified: same,
+              );
+            }
+            if (record.recordVersion == 2 &&
+                TrainingV2CanonicalService.digest(
+                      localDate: record.localDate,
+                      session: record.dataV2,
+                    ) ==
+                    digest) {
+              return TrainingSyncCreateResult(
+                status: TrainingSyncCreateStatus.noChanges,
+                recordId: record.id,
+                canonicalDigest: digest,
+                readBackVerified: true,
+              );
+            }
+          }
+          final timestamp = _now().toUtc();
+          final saved = PersistedTrainingRecord.v2(
+            id: recordId,
+            localDate: localDate,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            data: session,
+          );
+          await transaction.put(
+            IndexedDbStoreNames.trainingRecords,
+            saved.toRecord(),
+          );
+          final readBack = await transaction.findById(
+            IndexedDbStoreNames.trainingRecords,
+            recordId,
+          );
+          if (readBack == null) {
+            throw StateError('TRAINING SYNC read-back missing.');
+          }
+          final restored = PersistedTrainingRecord.fromRecord(readBack);
+          final verified =
+              restored.recordVersion == 2 &&
+              restored.migrationSource == null &&
+              TrainingV2CanonicalService.digest(
+                    localDate: restored.localDate,
+                    session: restored.dataV2,
+                  ) ==
+                  digest;
+          if (!verified) throw StateError('TRAINING SYNC read-back mismatch.');
+          return TrainingSyncCreateResult(
+            status: TrainingSyncCreateStatus.created,
+            recordId: recordId,
+            canonicalDigest: digest,
+            readBackVerified: true,
+          );
+        },
+      );
+    } catch (error) {
+      throw RepositoryException(
+        operation: 'training.createV2FromSync',
+        code: RepositoryErrorCode.transactionFailed,
+        cause: error,
+      );
+    }
   }
 
   @override
