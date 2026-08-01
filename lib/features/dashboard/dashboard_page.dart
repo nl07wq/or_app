@@ -466,16 +466,6 @@ class _DailyCommandSummary extends StatelessWidget {
                   value: model.morningBriefSummary!,
                 ),
               ],
-              AppSpacing.gapMD,
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.commandCenter),
-                  icon: const Icon(Icons.chevron_right),
-                  label: const Text('COMMAND CENTER'),
-                ),
-              ),
             ],
           ),
         );

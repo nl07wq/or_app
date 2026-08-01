@@ -7,6 +7,8 @@ import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
@@ -136,6 +138,43 @@ void main() {
     expect(_progress(tester, 'TRAINING'), 1);
     expect(_progress(tester, 'ACTIVITY'), 1);
   });
+
+  testWidgets(
+    'DAILY COMMAND has no COMMAND CENTER navigation but quick access remains',
+    (tester) async {
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-28');
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+
+      await _pumpDashboard(tester, width: 390);
+      await tester.pumpAndSettle();
+
+      final dailyCommandCard = find.ancestor(
+        of: find.text('OPERATION STATUS'),
+        matching: find.byType(OperationCard),
+      );
+      expect(dailyCommandCard, findsOneWidget);
+      expect(
+        find.descendant(
+          of: dailyCommandCard,
+          matching: find.widgetWithText(TextButton, 'COMMAND CENTER'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: dailyCommandCard,
+          matching: find.byIcon(Icons.chevron_right),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.widgetWithText(OperationButton, 'COMMAND CENTER'),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final statusCase in [
     (hours: 8, name: 'green'),
