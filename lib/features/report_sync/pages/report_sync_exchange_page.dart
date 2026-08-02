@@ -74,7 +74,6 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   ReportSyncResponsePreview? _preview;
   List<ReportSyncHistory> _history = const [];
   Object? _importedRecord;
-  bool _requestRecorded = false;
   bool _busy = false;
   String? _message;
   String? _error;
@@ -104,11 +103,11 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     try {
       final request = await _gateway.prepareRequest(widget.exchangeType);
       final history = await _gateway.history(widget.exchangeType);
-      final imported = request.envelope == null
+      final imported = request.operationDate == null
           ? null
           : await _gateway.importedRecord(
               widget.exchangeType,
-              request.envelope!.operationDate,
+              request.operationDate!,
             );
       if (!mounted) return;
       setState(() {
@@ -123,41 +122,16 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     }
   }
 
-  Future<void> _recordRequest() async {
-    final envelope = _request?.envelope;
-    if (envelope == null || _requestRecorded) return;
-    await _gateway.recordRequest(envelope);
-    _requestRecorded = true;
-    _history = await _gateway.history(widget.exchangeType);
-  }
-
   Future<void> _copyInstruction() async {
     await _run(() async {
-      await _clipboardWriter(_gateway.instruction(widget.exchangeType));
-      _message = 'CHATGPT PROMPT COPIED';
-    });
-  }
-
-  Future<void> _copyRequest() async {
-    await _run(() async {
-      final envelope = _request!.envelope!;
-      await _recordRequest();
-      await _clipboardWriter(_gateway.encode(envelope));
-      _message = 'REQUEST DATA COPIED';
-    });
-  }
-
-  Future<void> _exportRequest() async {
-    await _run(() async {
-      final envelope = _request!.envelope!;
-      await _recordRequest();
-      final result = await _fileGateway.shareOrSave(
-        fileName: _requestFileName(widget.exchangeType, envelope.operationDate),
-        content: _gateway.encode(envelope),
+      final request = _request;
+      if (request == null || !request.isReady) {
+        throw StateError('The exchange target is not ready.');
+      }
+      await _clipboardWriter(
+        _gateway.instruction(widget.exchangeType, request),
       );
-      _message = result == BackupFileDelivery.cancelled
-          ? 'EXPORT CANCELLED'
-          : 'REQUEST FILE EXPORTED';
+      _message = 'CHATGPT PROMPT COPIED';
     });
   }
 
@@ -228,14 +202,13 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _message = result.disposition == ReportSyncDisposition.noChanges
           ? 'NO CHANGES'
           : 'COMPLETE · READ-BACK VERIFIED';
-      _requestRecorded = false;
       final request = await _gateway.prepareRequest(widget.exchangeType);
       _request = request;
       _history = await _gateway.history(widget.exchangeType);
-      if (request.envelope != null) {
+      if (request.operationDate != null) {
         _importedRecord = await _gateway.importedRecord(
           widget.exchangeType,
-          request.envelope!.operationDate,
+          request.operationDate!,
         );
       }
     });
@@ -291,15 +264,15 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           title: _title(widget.exchangeType),
         ),
         AppSpacing.gapSM,
-        const _HowToUseCard(),
+        _HowToUseCard(exchangeType: widget.exchangeType),
         AppSpacing.gapSM,
         OperationCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(_stateLabel(request, _importedRecord)),
-              if (request?.envelope != null)
-                Text('Operation Date  ${request!.envelope!.operationDate}'),
+              if (request?.operationDate != null)
+                Text('Operation Date  ${request!.operationDate}'),
               if (request?.blockingReason != null)
                 Text(request!.blockingReason!),
             ],
@@ -310,28 +283,25 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           _ImportedRecordCard(record: _importedRecord!),
         ],
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.upload_file, title: 'REQUEST'),
+        const SectionHeader(icon: Icons.upload_file, title: 'CHATGPT PROMPT'),
         AppSpacing.gapSM,
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              onPressed: !_busy && request != null ? _copyInstruction : null,
+              onPressed: ready && !_busy ? _copyInstruction : null,
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT PROMPT'),
             ),
-            OutlinedButton.icon(
-              onPressed: ready && !_busy ? _copyRequest : null,
-              icon: const Icon(Icons.copy_all_outlined),
-              label: const Text('COPY REQUEST DATA'),
-            ),
-            OutlinedButton.icon(
-              onPressed: ready && !_busy ? _exportRequest : null,
-              icon: const Icon(Icons.file_download_outlined),
-              label: const Text('EXPORT REQUEST FILE'),
-            ),
           ],
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Text(
+            'After the prompt, paste the formal ${_sourceName(widget.exchangeType)} '
+            'for the displayed Operation Date into ChatGPT.',
+          ),
         ),
         AppSpacing.gapXL,
         const SectionHeader(icon: Icons.download_outlined, title: 'RESPONSE'),
@@ -411,12 +381,14 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
 }
 
 class _HowToUseCard extends StatelessWidget {
-  const _HowToUseCard();
+  const _HowToUseCard({required this.exchangeType});
+
+  final ReportSyncExchangeType exchangeType;
 
   static const steps = [
     '1. COPY CHATGPT PROMPT',
-    '2. COPY REQUEST DATA',
-    '3. Paste both into ChatGPT',
+    '2. Paste the prompt into ChatGPT',
+    '3. Paste the required source record into ChatGPT',
     '4. Copy the JSON response',
     '5. Paste or select the response',
     '6. Validate and review',
@@ -433,10 +405,9 @@ class _HowToUseCard extends StatelessWidget {
         for (final step in steps)
           Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(step)),
         AppSpacing.gapSM,
-        const Text(
-          'The prompt defines the response rules and JSON schema. '
-          'The request data contains formal data for the operation date.',
-        ),
+        const Text('The prompt defines the response rules and JSON schema.'),
+        AppSpacing.gapSM,
+        Text('Required source record: ${_sourceName(exchangeType)}'),
       ],
     ),
   );
@@ -589,13 +560,12 @@ String _importLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.dailyDebrief => 'IMPORT DAILY DEBRIEF',
 };
 
-String _requestFileName(ReportSyncExchangeType type, String date) =>
-    switch (type) {
-      ReportSyncExchangeType.training => 'training-report-request-$date.json',
-      ReportSyncExchangeType.food => 'food-report-request-$date.json',
-      ReportSyncExchangeType.morningBrief => 'morning-brief-request-$date.json',
-      ReportSyncExchangeType.dailyDebrief => 'daily-debrief-request-$date.json',
-    };
+String _sourceName(ReportSyncExchangeType type) => switch (type) {
+  ReportSyncExchangeType.training => 'Training Record',
+  ReportSyncExchangeType.food => 'Meal Data',
+  ReportSyncExchangeType.morningBrief => 'Morning Fact',
+  ReportSyncExchangeType.dailyDebrief => 'Finalized Daily Data',
+};
 
 String _errorText(Object error) => switch (error) {
   ReportSyncException value => '${value.code.stableId}: ${value.message}',

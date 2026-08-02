@@ -134,6 +134,7 @@ class AppRepositoryContainer {
     final reportSyncValidator = ReportSyncValidator(
       historyRepository: reportSyncHistory,
       confirmationRepository: confirmation,
+      operationStateRepository: operationState,
       payloadRegistry: reportSyncPayloads,
     );
     final legacyDailySummaries = IndexedDbLegacyDailySummaryRepository(

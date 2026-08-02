@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/features/daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/repository/indexed_db_operation_state_repository.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
@@ -115,61 +117,32 @@ void main() {
   );
 
   test(
-    'Morning Brief response matches saved request and applies atomically',
+    'Morning Brief response imports without saved request history',
     () async {
       final database = FakeIndexedDbDatabase();
       final histories = IndexedDbReportSyncHistoryRepository(database);
+      final operationState = IndexedDbOperationStateRepository(database);
+      await operationState.createInitial(
+        OperationLocalDate.parse('2026-08-02'),
+      );
       final service = ReportSyncPersistenceService(
         database: database,
         historyRepository: histories,
         validator: ReportSyncValidator(
           historyRepository: histories,
           confirmationRepository: _NoConfirmationStore(),
+          operationStateRepository: operationState,
         ),
         clock: () => timestamp,
       );
       const codec = ReportSyncCodec();
-      const requestPayload = {
-        'operationDate': '2026-08-02',
-        'morningFact': {
-          'body': {'weightKg': null, 'bodyFatPercent': null},
-          'recovery': {'sleepDurationMinutes': null, 'sleepScore': null},
-          'condition': {
-            'footPainLevel': null,
-            'reportedConditions': <Object?>[],
-          },
-          'work': {'workStatus': null, 'startTime': null, 'endTime': null},
-          'carryover': null,
-        },
-        'carryover': null,
-        'previousDaySummary': null,
-        'recentTrend': null,
-        'availableStrategicResources': null,
-        'generationRequirements': null,
-      };
-      final requestDigest = ReportSyncCanonicalService.digest(requestPayload);
-      final request = codec.create(
-        direction: ReportSyncDirection.request,
-        exchangeType: ReportSyncExchangeType.morningBrief,
-        exchangeId: 'request-exchange',
-        requestId: 'request-mb',
-        operationDate: '2026-08-02',
-        createdAt: timestamp,
-        requestDigest: requestDigest,
-        payload: requestPayload,
-      );
-      await service.recordRequest(codec.decode(codec.encode(request)));
       final response = codec.create(
         direction: ReportSyncDirection.response,
         exchangeType: ReportSyncExchangeType.morningBrief,
         exchangeId: 'response-exchange',
-        requestId: 'request-mb',
         operationDate: '2026-08-02',
         createdAt: timestamp,
-        requestDigest: requestDigest,
         payload: {
-          'requestId': 'request-mb',
-          'requestDigest': requestDigest,
           'operationDate': '2026-08-02',
           'generatedAt': timestamp.toIso8601String(),
           'content': {
@@ -194,13 +167,25 @@ void main() {
         ).readByLocalDate('2026-08-02'),
         isNotNull,
       );
-      expect((await histories.list()).length, 2);
+      expect((await histories.list()).length, 1);
     },
   );
 
   test('Daily Debrief requires confirmed date and exact digest', () async {
     final database = FakeIndexedDbDatabase();
     final histories = IndexedDbReportSyncHistoryRepository(database);
+    final operationState = IndexedDbOperationStateRepository(database);
+    final initial = await operationState.createInitial(
+      OperationLocalDate.parse('2026-08-03'),
+    );
+    await operationState.save(
+      initial.copyWith(
+        lastFinalizedDate: OperationLocalDate.parse('2026-08-02'),
+        revision: initial.revision + 1,
+        updatedAt: initial.updatedAt.add(const Duration(microseconds: 1)),
+      ),
+      expectedRevision: initial.revision,
+    );
     final confirmation = completeConfirmation(date: DateTime(2026, 8, 2));
     final confirmationDigest = ReportSyncCanonicalService.digest(
       confirmation.toJson(),
@@ -211,46 +196,19 @@ void main() {
       validator: ReportSyncValidator(
         historyRepository: histories,
         confirmationRepository: _NoConfirmationStore(confirmation),
+        operationStateRepository: operationState,
       ),
       clock: () => timestamp,
     );
-    final requestPayload = <String, Object?>{
-      'operationDate': '2026-08-02',
-      'confirmationDigest': confirmationDigest,
-      'confirmation': <String, Object?>{},
-      'finalizedSnapshot': <String, Object?>{},
-      'morningBrief': null,
-      'commanderIntent': null,
-      'generationRequirements': null,
-    };
-    final requestDigest = ReportSyncCanonicalService.digest(requestPayload);
     const codec = ReportSyncCodec();
-    final request = codec.create(
-      direction: ReportSyncDirection.request,
-      exchangeType: ReportSyncExchangeType.dailyDebrief,
-      exchangeId: 'request-dd',
-      requestId: 'request-dd',
-      operationDate: '2026-08-02',
-      createdAt: timestamp,
-      requestDigest: requestDigest,
-      payload: requestPayload,
-    );
-    await service.recordRequest(
-      codec.decode(codec.encode(request)),
-      confirmationDigest: confirmationDigest,
-    );
     final response = codec.create(
       direction: ReportSyncDirection.response,
       exchangeType: ReportSyncExchangeType.dailyDebrief,
       exchangeId: 'response-dd',
-      requestId: 'request-dd',
       operationDate: '2026-08-02',
       createdAt: timestamp,
-      requestDigest: requestDigest,
       confirmationDigest: confirmationDigest,
       payload: {
-        'requestId': 'request-dd',
-        'requestDigest': requestDigest,
         'operationDate': '2026-08-02',
         'confirmationDigest': confirmationDigest,
         'generatedAt': timestamp.toIso8601String(),

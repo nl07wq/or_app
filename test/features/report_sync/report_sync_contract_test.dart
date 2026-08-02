@@ -97,12 +97,97 @@ void main() {
   test('registry provides all four JSON-only instructions', () {
     final registry = ReportSyncInstructionProviderRegistry.standard();
     for (final type in ReportSyncExchangeType.values) {
-      final text = registry.forType(type).buildInstruction();
+      final text = registry
+          .forType(type)
+          .buildInstruction(
+            operationDate: '2026-08-02',
+            confirmationDigest: type == ReportSyncExchangeType.dailyDebrief
+                ? 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                : null,
+          );
       expect(text, contains(type.stableId));
       expect(text, contains('exactly one JSON object'));
       expect(text, contains('Do not invent facts'));
+      expect(text, contains('2026-08-02'));
+      expect(text, isNot(contains('requestId')));
+      expect(text, isNot(contains('requestDigest')));
     }
   });
+
+  test('instructions specialize the formal plain-text source contract', () {
+    final registry = ReportSyncInstructionProviderRegistry.standard();
+    final training = registry
+        .forType(ReportSyncExchangeType.training)
+        .buildInstruction(operationDate: '2026-08-02');
+    expect(training, contains('Training Record pasted after this prompt'));
+    expect(training, contains('Training Import Schema Version 1'));
+    expect(training, contains('Equipment fields'));
+    expect(training, contains('legacyUnknown is forbidden'));
+
+    final food = registry
+        .forType(ReportSyncExchangeType.food)
+        .buildInstruction(operationDate: '2026-08-02');
+    expect(food, contains('Meal Data pasted after this prompt'));
+    expect(food, contains('Do not infer nutrition'));
+    expect(food, contains('Daily Meal v2'));
+
+    final morning = registry
+        .forType(ReportSyncExchangeType.morningBrief)
+        .buildInstruction(operationDate: '2026-08-02');
+    expect(morning, contains('Morning Fact pasted after this prompt'));
+    expect(morning, contains('Bowel information is out of scope'));
+    expect(morning, contains('green, yellow, and red'));
+
+    const confirmation =
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    final debrief = registry
+        .forType(ReportSyncExchangeType.dailyDebrief)
+        .buildInstruction(
+          operationDate: '2026-08-02',
+          confirmationDigest: confirmation,
+        );
+    expect(debrief, contains('Finalized Daily Data pasted after this prompt'));
+    expect(debrief, contains(confirmation));
+    expect(debrief, contains('Do not complete unconfirmed information'));
+  });
+
+  test('accepts a standalone response without legacy request identity', () {
+    final response = codec.create(
+      direction: ReportSyncDirection.response,
+      exchangeType: ReportSyncExchangeType.food,
+      exchangeId: 'response-food',
+      operationDate: '2026-08-02',
+      createdAt: DateTime.utc(2026, 8, 2),
+      payload: const {'operationDate': '2026-08-02', 'meals': <Object?>[]},
+    );
+    expect(codec.decode(codec.encode(response)).requestId, isNull);
+  });
+
+  test(
+    'strict response parsing rejects non-JSON and invalid payload types',
+    () {
+      for (final input in const [
+        '```json\n{}\n```',
+        'Explanation {"value":1}',
+        '[]',
+        '{} {}',
+      ]) {
+        expect(() => codec.decode(input), throwsA(isA<ReportSyncException>()));
+      }
+      final response = codec.create(
+        direction: ReportSyncDirection.response,
+        exchangeType: ReportSyncExchangeType.food,
+        exchangeId: 'response-food-invalid',
+        operationDate: '2026-08-02',
+        createdAt: DateTime.utc(2026, 8, 2),
+        payload: const {'operationDate': '2026-08-02', 'meals': '0'},
+      );
+      expect(
+        () => codec.decode(codec.encode(response)),
+        throwsA(isA<ReportSyncException>()),
+      );
+    },
+  );
 
   test(
     'defines four exchange types, two directions, and preserves null vs zero',

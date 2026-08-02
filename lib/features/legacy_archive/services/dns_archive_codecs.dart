@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../report_sync/services/report_sync_canonical_service.dart';
 import '../models/dns_archive_models.dart';
 
 class DnsSourceCodec {
@@ -137,6 +138,97 @@ class DnsNormalizedCodec {
 
   const DnsNormalizedCodec();
   String encode(DnsNormalizedPackage package) => jsonEncode(package.toJson());
+
+  String encodeStandalone(DnsNormalizedPackage package) => jsonEncode({
+    'format': DnsNormalizedPackage.format,
+    'envelopeVersion': 1,
+    'schemaVersion': '1.0',
+    'sourceType': 'dnsArchive',
+    'generatedAt': package.generatedAt.toUtc().toIso8601String(),
+    'records': [
+      for (final record in package.records)
+        {
+          'operationDate': record.operationDate,
+          'parseStatus': record.parseStatus.name,
+          'data': record.data,
+          'warnings': record.warnings
+              .map((warning) => warning.toJson())
+              .toList(),
+          'unmappedFragments': record.unmappedFragments,
+        },
+    ],
+  });
+
+  DnsNormalizedPackage decodeStandalone(String input) {
+    final root = _root(input);
+    _exact(root, const {
+      'format',
+      'envelopeVersion',
+      'schemaVersion',
+      'sourceType',
+      'generatedAt',
+      'records',
+    });
+    if (root['format'] != DnsNormalizedPackage.format ||
+        root['envelopeVersion'] != 1 ||
+        root['schemaVersion'] != '1.0' ||
+        root['sourceType'] != 'dnsArchive') {
+      throw const FormatException('Unsupported DNS normalized envelope.');
+    }
+    final generatedAt = _utc(root['generatedAt'], 'generatedAt');
+    final sourcePackageId =
+        'dns-response-${ReportSyncCanonicalService.digest(root).substring(0, 24)}';
+    final records = <DnsNormalizedRecord>[];
+    final dates = <String>{};
+    for (final raw in _list(root['records'], 'records')) {
+      final json = _map(raw, 'record');
+      _exact(json, const {
+        'operationDate',
+        'parseStatus',
+        'data',
+        'warnings',
+        'unmappedFragments',
+      });
+      final status = DnsParseStatus.values.byName(
+        _string(json['parseStatus'], 'parseStatus'),
+      );
+      final operationDate = json['operationDate'] == null
+          ? null
+          : _date(json['operationDate'], 'operationDate');
+      if (status != DnsParseStatus.blocked && operationDate == null) {
+        throw const FormatException(
+          'operationDate is required for parsed records.',
+        );
+      }
+      if (operationDate != null && !dates.add(operationDate)) {
+        throw const FormatException('Duplicate operationDate.');
+      }
+      records.add(
+        DnsNormalizedRecord(
+          sourceRecordId:
+              'dns-${operationDate ?? 'blocked'}-${ReportSyncCanonicalService.digest(json).substring(0, 16)}',
+          operationDate: operationDate,
+          parseStatus: status,
+          data: _validateData(_map(json['data'], 'data')),
+          warnings: _list(json['warnings'], 'warnings')
+              .map((value) => DnsWarning.fromJson(_map(value, 'warning')))
+              .toList(),
+          unmappedFragments: _list(
+            json['unmappedFragments'],
+            'unmappedFragments',
+          ).map((value) => _string(value, 'fragment')).toList(),
+        ),
+      );
+    }
+    if (records.isEmpty) {
+      throw const FormatException('records must not be empty.');
+    }
+    return DnsNormalizedPackage(
+      sourcePackageId: sourcePackageId,
+      generatedAt: generatedAt,
+      records: records,
+    );
+  }
 
   DnsNormalizedPackage decode(String input) {
     final root = _root(input);

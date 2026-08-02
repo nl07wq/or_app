@@ -126,9 +126,6 @@ class TrainingReportSyncPayloadSchema implements ReportSyncPayloadSchema {
 
   @override
   Map<String, Object?> get minimalResponseExample => {
-    'requestId': '<REQUEST_ID>',
-    'requestDigest':
-        '0000000000000000000000000000000000000000000000000000000000000000',
     'operationDate': '2000-01-01',
     'recordId': '<RECORD_ID>',
     'idempotencyKey': '<RECORD_ID>',
@@ -244,9 +241,6 @@ class FoodReportSyncPayloadSchema implements ReportSyncPayloadSchema {
 
   @override
   Map<String, Object?> get minimalResponseExample => {
-    'requestId': '<REQUEST_ID>',
-    'requestDigest':
-        '0000000000000000000000000000000000000000000000000000000000000000',
     'operationDate': '2000-01-01',
     'meals': <Object?>[],
   };
@@ -348,9 +342,6 @@ class MorningBriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
 
   @override
   Map<String, Object?> get minimalResponseExample => {
-    'requestId': '<REQUEST_ID>',
-    'requestDigest':
-        '0000000000000000000000000000000000000000000000000000000000000000',
     'operationDate': '2000-01-01',
     'generatedAt': '2000-01-01T00:00:00.000Z',
     'content': {
@@ -443,9 +434,6 @@ class DailyDebriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
 
   @override
   Map<String, Object?> get minimalResponseExample => {
-    'requestId': '<REQUEST_ID>',
-    'requestDigest':
-        '0000000000000000000000000000000000000000000000000000000000000000',
     'operationDate': '2000-01-01',
     'confirmationDigest':
         '0000000000000000000000000000000000000000000000000000000000000000',
@@ -466,9 +454,19 @@ class DailyDebriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
 }
 
 void _responseIdentity(Map<String, Object?> value, Set<String> additional) {
-  _exact(value, {'requestId', 'requestDigest', 'operationDate', ...additional});
-  _text(value['requestId'], 'requestId');
-  _digest(value['requestDigest'], 'requestDigest');
+  final current = {'operationDate', ...additional};
+  final legacy = {'requestId', 'requestDigest', ...current};
+  final fields = value.keys.toSet();
+  if (fields.length != current.length && fields.length != legacy.length) {
+    _fail('Fields do not match the response schema.');
+  }
+  if (fields.length == legacy.length) {
+    _exact(value, legacy);
+    _text(value['requestId'], 'requestId');
+    _digest(value['requestDigest'], 'requestDigest');
+  } else {
+    _exact(value, current);
+  }
   _date(value['operationDate'], 'operationDate');
 }
 

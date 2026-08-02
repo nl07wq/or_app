@@ -29,10 +29,10 @@ class ReportSyncEnvelope {
   final ReportSyncDirection direction;
   final ReportSyncExchangeType exchangeType;
   final String exchangeId;
-  final String requestId;
+  final String? requestId;
   final String operationDate;
   final DateTime createdAt;
-  final String requestDigest;
+  final String? requestDigest;
   final String? confirmationDigest;
   final Map<String, Object?> payload;
   final String packageDigest;
@@ -44,10 +44,10 @@ class ReportSyncEnvelope {
     required this.direction,
     required this.exchangeType,
     required this.exchangeId,
-    required this.requestId,
+    this.requestId,
     required this.operationDate,
     required this.createdAt,
-    required this.requestDigest,
+    this.requestDigest,
     required this.confirmationDigest,
     required Map<String, Object?> payload,
     required this.packageDigest,
@@ -60,10 +60,10 @@ class ReportSyncEnvelope {
     'direction': direction.stableId,
     'exchangeType': exchangeType.stableId,
     'exchangeId': exchangeId,
-    'requestId': requestId,
+    if (requestId != null) 'requestId': requestId,
     'operationDate': operationDate,
     'createdAt': createdAt.toUtc().toIso8601String(),
-    'requestDigest': requestDigest,
+    if (requestDigest != null) 'requestDigest': requestDigest,
     'confirmationDigest': confirmationDigest,
     'payload': payload,
   };

@@ -35,13 +35,10 @@ class DnsArchiveImportPage extends StatefulWidget {
 
 class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
   static const _maxInputBytes = 5 * 1024 * 1024;
-  final _sourceController = TextEditingController();
   final _normalizedController = TextEditingController();
   late final AppRepositoryContainer _container;
   late final BackupFileGateway _fileGateway;
   late final DnsClipboardWriter _clipboardWriter;
-  late final DateTime Function() _clock;
-  DnsSourcePackage? _source;
   DnsConversionPreview? _preview;
   List<LegacyDailySummaryRecord> _history = const [];
   bool _busy = false;
@@ -56,13 +53,11 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
     _clipboardWriter =
         widget.clipboardWriter ??
         ((text) => Clipboard.setData(ClipboardData(text: text)));
-    _clock = widget.clock ?? DateTime.now;
     _loadHistory();
   }
 
   @override
   void dispose() {
-    _sourceController.dispose();
     _normalizedController.dispose();
     super.dispose();
   }
@@ -76,43 +71,9 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
     }
   }
 
-  Future<void> _generateSource() => _run(() async {
-    final text = _sourceController.text;
-    if (text.trim().isEmpty || utf8.encode(text).length > _maxInputBytes) {
-      throw const FormatException(
-        'DNS source is empty or exceeds the safe limit.',
-      );
-    }
-    final now = _clock().toUtc();
-    final packageId = 'dns-${now.microsecondsSinceEpoch}';
-    _source = _container.dnsSourceCodec.splitConcatenated(
-      sourcePackageId: packageId,
-      text: text,
-      createdAt: now,
-    );
-    _preview = null;
-    _message = 'DNS SOURCE JSON READY';
-  });
-
   Future<void> _copyInstruction() => _run(() async {
     await _clipboardWriter(const DnsConversionInstructionProvider().build());
-    _message = 'DNS CONVERSION INSTRUCTION COPIED';
-  });
-
-  Future<void> _copySource() => _run(() async {
-    await _clipboardWriter(_container.dnsSourceCodec.encode(_source!));
-    _message = 'DNS SOURCE JSON COPIED';
-  });
-
-  Future<void> _exportSource() => _run(() async {
-    final source = _source!;
-    final result = await _fileGateway.shareOrSave(
-      fileName: 'dns-source-${source.sourcePackageId}.json',
-      content: _container.dnsSourceCodec.encode(source),
-    );
-    _message = result == BackupFileDelivery.cancelled
-        ? 'EXPORT CANCELLED'
-        : 'DNS SOURCE FILE EXPORTED';
+    _message = 'CHATGPT PROMPT COPIED';
   });
 
   Future<void> _selectNormalized() => _run(() async {
@@ -137,16 +98,16 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
   });
 
   Future<void> _validate() => _run(() async {
-    final source = _source;
-    if (source == null) throw StateError('DNS Source must be generated first.');
     final raw = _normalizedController.text;
     if (raw.trim().isEmpty || utf8.encode(raw).length > _maxInputBytes) {
       throw const FormatException(
         'Normalized response is empty or exceeds the safe limit.',
       );
     }
-    final normalized = _container.dnsNormalizedCodec.decode(raw);
-    final preview = await _container.dnsPreview.build(source, normalized);
+    final normalized = _container.dnsNormalizedCodec.decodeStandalone(raw);
+    final preview = await _container.dnsArchiveConverter.previewNormalized(
+      normalized,
+    );
     _preview = preview;
     _message = 'DNS NORMALIZED RESPONSE VALIDATED';
   });
@@ -174,9 +135,7 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
     if (confirmed != true || !mounted) return;
     await _run(() async {
       await _container.dnsArchiveConverter.apply(preview);
-      _sourceController.clear();
       _normalizedController.clear();
-      _source = null;
       _preview = null;
       _history = (await _container.legacyDailySummaries.list())
           .take(10)
@@ -208,58 +167,32 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
       key: const ValueKey('dns-archive-import-content'),
       padding: AppSpacing.cardPadding,
       children: [
-        const SectionHeader(icon: Icons.archive_outlined, title: 'DNS SOURCE'),
+        const SectionHeader(icon: Icons.help_outline, title: 'HOW TO USE'),
         AppSpacing.gapSM,
         OperationCard(
-          child: OperationTextField(
-            key: const ValueKey('dns-source-input'),
-            controller: _sourceController,
-            label: 'DNS CONCATENATED PLAIN TEXT',
-            hint: 'DNS-YYYY-MM-DD boundary required',
-            maxLines: 10,
-            onChanged: (_) => setState(() {
-              _source = null;
-              _preview = null;
-            }),
+          child: const Text(
+            '1. COPY CHATGPT PROMPT\n'
+            '2. Paste the prompt into ChatGPT\n'
+            '3. Paste the DNS Archive into ChatGPT\n'
+            '4. Copy the returned JSON only\n'
+            '5. Paste or select the response\n'
+            '6. Validate and review\n'
+            '7. Import\n\n'
+            'Required source record: DNS Archive',
           ),
         ),
         AppSpacing.gapSM,
         _DnsActionButton(
-          text: 'GENERATE DNS SOURCE JSON',
-          icon: Icons.transform,
-          onPressed: _busy ? null : _generateSource,
+          text: 'COPY CHATGPT PROMPT',
+          icon: Icons.content_copy,
+          onPressed: _busy ? null : _copyInstruction,
         ),
-        if (_source != null) ...[
-          AppSpacing.gapSM,
-          OperationCard(
-            child: Text(
-              'Source Package  ${_source!.sourcePackageId}\n'
-              'Source Records  ${_source!.records.length}',
-            ),
+        AppSpacing.gapSM,
+        const OperationCard(
+          child: Text(
+            'After the prompt, paste the formal DNS Archive into ChatGPT.',
           ),
-          AppSpacing.gapSM,
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _copyInstruction,
-                icon: const Icon(Icons.content_copy),
-                label: const Text('COPY DNS CONVERSION INSTRUCTION'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _copySource,
-                icon: const Icon(Icons.copy_all_outlined),
-                label: const Text('COPY DNS SOURCE JSON'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _exportSource,
-                icon: const Icon(Icons.file_download_outlined),
-                label: const Text('EXPORT DNS SOURCE FILE'),
-              ),
-            ],
-          ),
-        ],
+        ),
         AppSpacing.gapXL,
         const SectionHeader(
           icon: Icons.fact_check_outlined,
@@ -270,7 +203,7 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
           child: OperationTextField(
             key: const ValueKey('dns-normalized-input'),
             controller: _normalizedController,
-            label: 'PASTE DNS NORMALIZED JSON',
+            label: 'PASTE RESPONSE JSON',
             hint: 'Strict normalized JSON only',
             maxLines: 8,
             onChanged: (_) => setState(() {
@@ -284,12 +217,12 @@ class _DnsArchiveImportPageState extends State<DnsArchiveImportPage> {
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              onPressed: _source == null || _busy ? null : _selectNormalized,
+              onPressed: _busy ? null : _selectNormalized,
               icon: const Icon(Icons.file_open_outlined),
-              label: const Text('SELECT DNS NORMALIZED FILE'),
+              label: const Text('SELECT RESPONSE FILE'),
             ),
             OutlinedButton.icon(
-              onPressed: _source == null || _busy ? null : _validate,
+              onPressed: _busy ? null : _validate,
               icon: const Icon(Icons.verified_outlined),
               label: const Text('VALIDATE'),
             ),

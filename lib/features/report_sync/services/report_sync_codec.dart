@@ -6,21 +6,20 @@ import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_registry.dart';
 
 class ReportSyncCodec {
-  static const _fields = {
+  static const _requiredFields = {
     'format',
     'envelopeVersion',
     'schemaVersion',
     'direction',
     'exchangeType',
     'exchangeId',
-    'requestId',
     'operationDate',
     'createdAt',
-    'requestDigest',
     'confirmationDigest',
     'payload',
     'packageDigest',
   };
+  static const _optionalFields = {'requestId', 'requestDigest'};
 
   final ReportSyncPayloadRegistry? payloadRegistry;
   const ReportSyncCodec({this.payloadRegistry});
@@ -42,8 +41,12 @@ class ReportSyncCodec {
     }
     if (raw is! Map) return _invalid('Root must be an object.');
     final json = Map<String, Object?>.from(raw);
-    if (json.keys.toSet().difference(_fields).isNotEmpty ||
-        _fields.difference(json.keys.toSet()).isNotEmpty) {
+    final fields = json.keys.toSet();
+    if (fields.difference({
+          ..._requiredFields,
+          ..._optionalFields,
+        }).isNotEmpty ||
+        _requiredFields.difference(fields).isNotEmpty) {
       return _invalid('Envelope fields do not match schema 1.0.');
     }
     if (json['format'] != ReportSyncEnvelope.formatId ||
@@ -76,10 +79,10 @@ class ReportSyncCodec {
       direction: direction,
       exchangeType: type,
       exchangeId: _string(json, 'exchangeId'),
-      requestId: _string(json, 'requestId'),
+      requestId: _optionalString(json, 'requestId'),
       operationDate: _localDate(json['operationDate']),
       createdAt: createdAt,
-      requestDigest: _digest(json['requestDigest'], 'requestDigest'),
+      requestDigest: _optionalDigest(json['requestDigest'], 'requestDigest'),
       confirmationDigest: confirmation as String?,
       payload: Map<String, Object?>.from(payload),
       packageDigest: _digest(json['packageDigest'], 'packageDigest'),
@@ -94,8 +97,10 @@ class ReportSyncCodec {
     _effectivePayloadRegistry.validate(envelope);
     _validatePayloadIdentity(envelope);
     if (envelope.direction == ReportSyncDirection.request &&
-        ReportSyncCanonicalService.digest(envelope.payload) !=
-            envelope.requestDigest) {
+        (envelope.requestId == null ||
+            envelope.requestDigest == null ||
+            ReportSyncCanonicalService.digest(envelope.payload) !=
+                envelope.requestDigest)) {
       throw const ReportSyncException(
         ReportSyncIssueCode.requestDigestMismatch,
         'requestDigest does not match the request payload.',
@@ -108,10 +113,10 @@ class ReportSyncCodec {
     required ReportSyncDirection direction,
     required ReportSyncExchangeType exchangeType,
     required String exchangeId,
-    required String requestId,
+    String? requestId,
     required String operationDate,
     required DateTime createdAt,
-    required String requestDigest,
+    String? requestDigest,
     String? confirmationDigest,
     required Map<String, Object?> payload,
   }) {
@@ -158,9 +163,18 @@ class ReportSyncCodec {
       _invalid('Payload operationDate does not match the envelope.');
     }
     if (envelope.direction == ReportSyncDirection.response) {
-      if (payload['requestId'] != envelope.requestId ||
-          payload['requestDigest'] != envelope.requestDigest) {
-        _invalid('Payload request identity does not match the envelope.');
+      final hasLegacyEnvelopeIdentity =
+          envelope.requestId != null || envelope.requestDigest != null;
+      final hasLegacyPayloadIdentity =
+          payload.containsKey('requestId') ||
+          payload.containsKey('requestDigest');
+      if (hasLegacyEnvelopeIdentity != hasLegacyPayloadIdentity ||
+          (hasLegacyEnvelopeIdentity &&
+              (envelope.requestId == null ||
+                  envelope.requestDigest == null ||
+                  payload['requestId'] != envelope.requestId ||
+                  payload['requestDigest'] != envelope.requestDigest))) {
+        _invalid('Legacy request identity does not match the envelope.');
       }
       if (envelope.exchangeType == ReportSyncExchangeType.dailyDebrief &&
           payload['confirmationDigest'] != envelope.confirmationDigest) {
@@ -183,12 +197,20 @@ class ReportSyncCodec {
     return value;
   }
 
+  String? _optionalString(Map<String, Object?> json, String key) {
+    if (!json.containsKey(key)) return null;
+    return _string(json, key);
+  }
+
   String _digest(Object? value, String key) {
     if (!ReportSyncCanonicalService.isDigest(value)) {
       return _invalid('$key is invalid.');
     }
     return value as String;
   }
+
+  String? _optionalDigest(Object? value, String key) =>
+      value == null ? null : _digest(value, key);
 
   String _localDate(Object? value) {
     if (value is! String || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {

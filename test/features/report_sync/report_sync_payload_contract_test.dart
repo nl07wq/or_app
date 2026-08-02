@@ -95,10 +95,8 @@ void main() {
         direction: ReportSyncDirection.response,
         exchangeType: ReportSyncExchangeType.training,
         exchangeId: 'exchange-training-1',
-        requestId: payload['requestId'] as String,
         operationDate: payload['operationDate'] as String,
         createdAt: DateTime.utc(2026, 8, 2),
-        requestDigest: payload['requestDigest'] as String,
         payload: payload,
       );
       final decoded = await TrainingReportSyncPayloadAdapter(
@@ -116,10 +114,8 @@ void main() {
         direction: ReportSyncDirection.response,
         exchangeType: ReportSyncExchangeType.food,
         exchangeId: 'exchange-food-1',
-        requestId: payload['requestId'] as String,
         operationDate: payload['operationDate'] as String,
         createdAt: DateTime.utc(2026, 8, 2),
-        requestDigest: payload['requestDigest'] as String,
         payload: payload,
       );
       final database = FakeIndexedDbDatabase();

@@ -69,33 +69,30 @@ void main() {
       for (final type in ReportSyncExchangeType.values) {
         final prepared = await gateway.prepareRequest(type);
         expect(prepared.isReady, isTrue, reason: type.stableId);
-        expect(prepared.envelope!.exchangeType, type);
         expect(
-          prepared.envelope!.operationDate,
+          prepared.operationDate,
           type == ReportSyncExchangeType.dailyDebrief
               ? '2026-08-02'
               : '2026-08-03',
         );
-        expect(prepared.envelope!.hasValidPackageDigest, isTrue);
       }
-
-      final morning = (await gateway.prepareRequest(
-        ReportSyncExchangeType.morningBrief,
-      )).envelope!;
-      expect(morning.payload.toString(), isNot(contains('bowel')));
-      final training = (await gateway.prepareRequest(
-        ReportSyncExchangeType.training,
-      )).envelope!;
-      expect(training.payload['currentSession'], isNotNull);
       final debrief = (await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
-      )).envelope!;
-      expect(debrief.payload['confirmationDigest'], isNotNull);
+      ));
+      expect(debrief.confirmationDigest, isNotNull);
+      expect(
+        gateway.instruction(
+          ReportSyncExchangeType.training,
+          await gateway.prepareRequest(ReportSyncExchangeType.training),
+        ),
+        contains('Training Record'),
+      );
+      expect(await container.reportSyncHistory.list(), isEmpty);
     },
   );
 
   test(
-    'request readiness requires formal facts and accepts Quick Water',
+    'prompt readiness uses operation date rather than local record presence',
     () async {
       final container = AppRepositoryContainer.indexedDb(
         FakeIndexedDbDatabase(),
@@ -111,24 +108,16 @@ void main() {
       final training = await gateway.prepareRequest(
         ReportSyncExchangeType.training,
       );
-      expect(training.statusLabel, 'REQUEST NOT READY');
-      expect(
-        training.blockingReason,
-        'No training data is available for this operation date.',
-      );
+      expect(training.isReady, isTrue);
 
       final food = await gateway.prepareRequest(ReportSyncExchangeType.food);
-      expect(food.statusLabel, 'REQUEST NOT READY');
-      expect(
-        food.blockingReason,
-        'No food data is available for this operation date.',
-      );
+      expect(food.isReady, isTrue);
 
       final morning = await gateway.prepareRequest(
         ReportSyncExchangeType.morningBrief,
       );
-      expect(morning.statusLabel, 'REQUEST NOT READY');
-      expect(morning.blockingReason, 'Morning Fact is required.');
+      expect(morning.isReady, isTrue);
+      expect(morning.blockingReason, contains('Morning Fact is not recorded'));
 
       final debrief = await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
@@ -138,24 +127,6 @@ void main() {
         debrief.blockingReason,
         'Finalize the operation date before creating a request.',
       );
-
-      await container.food.save(
-        const MealData(
-          date: '2026-08-03',
-          mealType: 'Water',
-          items: [],
-          memo: '',
-          id: 'water-only',
-          waterMl: 300,
-        ),
-      );
-      final waterOnly = await gateway.prepareRequest(
-        ReportSyncExchangeType.food,
-      );
-      expect(waterOnly.isReady, isTrue);
-      final meals = waterOnly.envelope!.payload['meals'] as List<Object?>;
-      expect(meals, hasLength(1));
-      expect((meals.single as Map<String, Object?>)['waterMl'], 300);
 
       await container.operationState.save(
         initial.copyWith(
@@ -200,22 +171,14 @@ void main() {
         container: container,
         clock: () => runtimeNow,
       );
-      final request = (await gateway.prepareRequest(
-        ReportSyncExchangeType.food,
-      )).envelope!;
-      await gateway.recordRequest(request);
       final response = container.reportSyncCodec.create(
         direction: ReportSyncDirection.response,
         exchangeType: ReportSyncExchangeType.food,
         exchangeId: 'response-food-1',
-        requestId: request.requestId,
-        operationDate: request.operationDate,
+        operationDate: '2026-08-03',
         createdAt: runtimeNow,
-        requestDigest: request.requestDigest,
         payload: {
-          'requestId': request.requestId,
-          'requestDigest': request.requestDigest,
-          'operationDate': request.operationDate,
+          'operationDate': '2026-08-03',
           'meals': const [
             {
               'mealId': 'food-sync-1',
@@ -256,6 +219,32 @@ void main() {
       expect(repeated.disposition, ReportSyncDisposition.noChanges);
     },
   );
+
+  test('standalone response rejects an operation date mismatch', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.operationState.createInitial(
+      OperationLocalDate.parse('2026-08-03'),
+    );
+    final response = container.reportSyncCodec.create(
+      direction: ReportSyncDirection.response,
+      exchangeType: ReportSyncExchangeType.food,
+      exchangeId: 'response-wrong-date',
+      operationDate: '2026-08-02',
+      createdAt: now,
+      payload: const {'operationDate': '2026-08-02', 'meals': <Object?>[]},
+    );
+    expect(
+      () =>
+          ProductionReportSyncExchangeGateway(
+            container: container,
+            clock: () => now,
+          ).previewResponse(
+            ReportSyncExchangeType.food,
+            container.reportSyncCodec.encode(response),
+          ),
+      throwsA(isA<Exception>()),
+    );
+  });
 }
 
 MorningData _status(String date) => MorningData(

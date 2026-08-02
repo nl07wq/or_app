@@ -31,6 +31,12 @@ class ReportSyncPersistenceService {
         'Request envelope required.',
       );
     }
+    if (request.requestId == null || request.requestDigest == null) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        'Legacy request identity is required for request history.',
+      );
+    }
     final payloadConfirmation =
         request.exchangeType == ReportSyncExchangeType.dailyDebrief
         ? request.payload['confirmationDigest'] as String?
@@ -50,8 +56,8 @@ class ReportSyncPersistenceService {
         exchangeType: request.exchangeType,
         direction: request.direction,
         operationDate: request.operationDate,
-        requestId: request.requestId,
-        requestDigest: request.requestDigest,
+        requestId: request.requestId!,
+        requestDigest: request.requestDigest!,
         confirmationDigest: confirmationDigest ?? payloadConfirmation,
         startedAt: request.createdAt,
         completedAt: now,
@@ -94,8 +100,8 @@ class ReportSyncPersistenceService {
     }
     final record = MorningBriefRecord(
       localDate: response.operationDate,
-      requestId: response.requestId,
-      requestDigest: response.requestDigest,
+      requestId: _legacyRequestId(response),
+      requestDigest: _legacyRequestDigest(response),
       responseDigest: ReportSyncCanonicalService.digest(payload),
       generatedAt: generated,
       importedAt: now,
@@ -159,8 +165,8 @@ class ReportSyncPersistenceService {
 
     final record = DailyDebriefRecord(
       localDate: response.operationDate,
-      requestId: response.requestId,
-      requestDigest: response.requestDigest,
+      requestId: _legacyRequestId(response),
+      requestDigest: _legacyRequestDigest(response),
       responseDigest: ReportSyncCanonicalService.digest(payload),
       confirmationDigest: response.confirmationDigest!,
       generatedAt: generated,
@@ -196,8 +202,8 @@ class ReportSyncPersistenceService {
       exchangeType: response.exchangeType,
       direction: response.direction,
       operationDate: response.operationDate,
-      requestId: response.requestId,
-      requestDigest: response.requestDigest,
+      requestId: _legacyRequestId(response),
+      requestDigest: _legacyRequestDigest(response),
       responseDigest: ReportSyncCanonicalService.digest(response.payload),
       confirmationDigest: response.confirmationDigest,
       startedAt: response.createdAt,
@@ -281,4 +287,10 @@ class ReportSyncPersistenceService {
   static bool _equal(Object? a, Object? b) =>
       ReportSyncCanonicalService.encode(a) ==
       ReportSyncCanonicalService.encode(b);
+
+  static String _legacyRequestId(ReportSyncEnvelope response) =>
+      response.requestId ?? response.exchangeId;
+
+  static String _legacyRequestDigest(ReportSyncEnvelope response) =>
+      response.requestDigest ?? response.packageDigest;
 }

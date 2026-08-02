@@ -15,6 +15,26 @@ class DnsArchiveConverter {
     required this.clock,
   });
 
+  Future<DnsConversionPreview> previewNormalized(
+    DnsNormalizedPackage normalized,
+  ) {
+    final source = DnsSourcePackage(
+      sourcePackageId: normalized.sourcePackageId,
+      createdAt: normalized.generatedAt,
+      records: [
+        for (var index = 0; index < normalized.records.length; index++)
+          DnsSourceRecord(
+            sourceRecordId: normalized.records[index].sourceRecordId,
+            sourceOrder: index,
+            rawText: ReportSyncCanonicalService.encode(
+              normalized.records[index].toJson(),
+            ),
+          ),
+      ],
+    );
+    return preview(source: source, normalized: normalized);
+  }
+
   Future<DnsConversionPreview> preview({
     required DnsSourcePackage source,
     required DnsNormalizedPackage normalized,

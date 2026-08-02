@@ -7,6 +7,7 @@ import 'package:or_app/features/legacy_archive/repository/indexed_db_legacy_dail
 import 'package:or_app/features/legacy_archive/repository/legacy_daily_summary_repository.dart';
 import 'package:or_app/features/legacy_archive/services/dns_archive_codecs.dart';
 import 'package:or_app/features/legacy_archive/services/dns_archive_converter.dart';
+import 'package:or_app/features/legacy_archive/services/dns_conversion_instruction_provider.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -99,6 +100,50 @@ void main() {
       ),
       throwsFormatException,
     );
+  });
+
+  test('standalone normalized response derives identity in the app', () {
+    final codec = const DnsNormalizedCodec();
+    final response = jsonEncode({
+      'format': 'operation-reboot-dns-normalized',
+      'envelopeVersion': 1,
+      'schemaVersion': '1.0',
+      'sourceType': 'dnsArchive',
+      'generatedAt': '2026-08-02T00:00:00.000Z',
+      'records': [
+        {
+          'operationDate': '2026-08-01',
+          'parseStatus': 'parsed',
+          'data': {
+            'body': null,
+            'nutrition': null,
+            'hydration': null,
+            'activity': null,
+            'work': null,
+            'operation': null,
+          },
+          'warnings': <Object?>[],
+          'unmappedFragments': <Object?>[],
+        },
+      ],
+    });
+    final first = codec.decodeStandalone(response);
+    final second = codec.decodeStandalone(response);
+    expect(first.sourcePackageId, second.sourcePackageId);
+    expect(
+      first.records.single.sourceRecordId,
+      second.records.single.sourceRecordId,
+    );
+    expect(response, isNot(contains('sourceRecordId')));
+  });
+
+  test('DNS prompt accepts plain text and forbids generated identity', () {
+    final prompt = const DnsConversionInstructionProvider().build();
+    expect(prompt, contains('DNS Archive pasted after this prompt'));
+    expect(prompt, contains('one or multiple concatenated'));
+    expect(prompt, contains('Do not generate source package IDs'));
+    expect(prompt, contains('minimum and maximum'));
+    expect(prompt, contains('Return JSON only'));
   });
 
   test(

@@ -6,35 +6,35 @@ REPORT SYNC imports one ordinary module record. DNS conversion preserves histori
 
 ## 2. Common Envelope
 
-The unchanged envelope uses `operation-reboot-report-sync`, envelope version `1`, schema `1.0`, directions `request` and `response`, and exchange types `training`, `food`, `morningBrief`, and `dailyDebrief`. Strict parsing rejects unknown fields, types, versions, numeric strings, and digest mismatch.
+The envelope uses `operation-reboot-report-sync`, envelope version `1`, schema `1.0`, directions `request` and `response`, and exchange types `training`, `food`, `morningBrief`, and `dailyDebrief`. Strict parsing rejects unknown fields, types, versions, numeric strings, and digest mismatch. `requestId` and `requestDigest` remain readable for legacy/internal request records but are not required in a new standalone response.
 
 ## 3. Training Request / Response
 
-Requests contain the operation date, purpose, current session, recent summary, registered exercise/equipment facts, same-date STATUS weight, and instruction context. Responses echo request identity and carry a fixed `recordId`, equal `idempotencyKey`, and a session compatible with Training Sync Schema 1.0. Exercise identity, equipment stable IDs, sets, cardio, and calorie snapshots retain existing validation. Missing evaluation or next target is never inferred.
+The user gives ChatGPT the formal plain-text Training Record for the displayed Operation Date. The app does not export a request JSON. Responses carry a fixed `recordId`, equal `idempotencyKey`, and a session compatible with Training Sync Schema 1.0. Exercise identity, equipment stable IDs, sets, cardio, and calorie snapshots retain existing validation. Missing evaluation or next target is never inferred.
 
 ## 4. Food Request / Response
 
-Food payloads use only losslessly representable v1 meal and item fields. They do not infer catalog, recipe, provenance, manufacturer, source, estimation, or weight fields. Responses create v1 meals only, reject finalized dates, and use exact-content no-op versus same-ID conflict.
+The user gives ChatGPT the formal plain-text Meal Data for the displayed Operation Date. Food responses use only losslessly representable v1 meal and item fields. They do not infer catalog, recipe, provenance, manufacturer, source, estimation, or weight fields. Responses create v1 meals only, reject finalized dates, and use exact-content no-op versus same-ID conflict.
 
 ## 5. Morning Brief Request / Response
 
-Requests contain confirmed Morning Fact values and only formally derived prior summaries or trends. Responses contain generated time and content: situation analysis, green/yellow/red status, commander intent, ARGO comment, strategic resource decision, and ordered actions. The application does not fill missing prose.
+The user gives ChatGPT the formal plain-text Morning Fact for the current open Operation Date. Responses contain generated time and content: situation analysis, green/yellow/red status, commander intent, ARGO comment, strategic resource decision, and ordered actions. The application does not fill missing prose. Import validates the response date directly against `operation_state/current`; saved request history is not required.
 
 ## 6. Daily Debrief Request / Response
 
-Requests use the confirmed operation date, exact confirmation digest, confirmation, finalized snapshot, Morning Brief, commander intent, and generation requirements. DNS data is excluded. Responses echo confirmation identity and contain the existing Daily Debrief content fields. Finalized module records and snapshots are never rewritten.
+The user gives ChatGPT the formal plain-text Finalized Daily Data. The prompt embeds the finalized Operation Date and exact confirmation digest. Responses repeat that confirmation digest and contain the existing Daily Debrief content fields. Import compares the response directly with the current finalized date and persisted confirmation; saved request history is not required. Finalized module records and snapshots are never rewritten.
 
 ## 7. ChatGPT Instruction Rules
 
-Each exchange instruction includes its exact response schema and a non-production minimal example. Output is JSON only with no Markdown fence, unknown field, numeric string, invented fact, changed identity/date, or null-to-zero conversion.
+Each exchange instruction is specialized for Training Record, Meal Data, Morning Fact, or Finalized Daily Data; it embeds the actual Operation Date and includes the complete response schema. Output is JSON only with no Markdown fence, unknown field, numeric string, invented fact, changed identity/date, or null-to-zero conversion. The prompt itself is not source data, and only the next formal plain-text record is analyzed.
 
 ## 8. DNS Source Format
 
-`operation-reboot-dns-source` envelope version 1/schema 1.0 carries `dnsArchive` records with source identity, stable order, `dns` report type, and non-empty UTF-8 text. Concatenated input is split only at unambiguous `DNS-YYYY-MM-DD` line boundaries.
+Daily use sends the original concatenated DNS Archive plain text directly to ChatGPT. The app does not generate, copy, or export a DNS Source JSON. The legacy/internal `operation-reboot-dns-source` codec remains readable for compatibility and tests but is disconnected from the production UI.
 
 ## 9. DNS Normalized Format
 
-`operation-reboot-dns-normalized` carries source identity, generated time, and parsed records. Each record has source ID, operation date, parse status, structured data, warnings, and minimal unmapped fragments. ChatGPT does not create database IDs or digests.
+The standalone `operation-reboot-dns-normalized` response carries generated time and parsed records. Each response record has operation date, parse status, structured data, warnings, and minimal unmapped fragments. ChatGPT does not create package IDs, record IDs, or digests; the app derives deterministic conversion identity after strict validation. The legacy normalized form with source identity remains readable internally.
 
 ## 10. Legacy Daily Summary
 
@@ -63,7 +63,7 @@ Warnings: `estimatedValue`, `rangeValue`, `missingSection`, `missingField`, `unr
 
 ## 14. Converter Flow
 
-Strict parse, envelope/source/record/date validation, field/value/unit validation, warning classification, duplicate detection, app-owned identity/digest construction, conversion, preview, atomic save, and full read-back verification are mandatory. ChatGPT output is never written directly.
+Strict parse, response/record/date validation, field/value validation, warning classification, duplicate detection, app-owned identity/digest construction, conversion, preview, atomic save, and full read-back verification are mandatory. ChatGPT output is never written directly.
 
 ## 15. Idempotency / Conflict
 
@@ -81,18 +81,24 @@ Backup Schema 7.0 has 14 sections by adding `legacyDailySummaryRecords` to Schem
 
 The legacy store may later participate in full transfer. This task does not alter the current Operation Transfer schema or expose ARCHIVE import.
 
-## 19. Formal Examples
+## 19. Source and Response Flow
+
+The supported daily flow is formal plain text → ChatGPT → response JSON → strict validation → preview → explicit import. Source names are Training Record, Meal Data, Morning Fact, Finalized Daily Data, and DNS Archive. Only the response is JSON. `COPY REQUEST DATA`, request-file export, and new request-direction history are not part of the daily flow. Existing request-direction history remains read-only legacy data. Prompt text, source text, raw response text, and ChatGPT conversation text are never persisted.
+
+The same plain-text source contract is intended for a future ChatGPT API integration; no API or external communication is implemented here.
+
+## 20. Formal Examples
 
 Versioned examples live under `test/fixtures/report_sync/` and `test/fixtures/legacy_archive/`. Values are synthetic and must never be treated as user facts.
 
-## 20. Unsupported Reconstruction
+## 21. Unsupported Reconstruction
 
 Food item detail, Training set detail, complete Morning Facts, confirmations, finalized snapshots, and current module records cannot be reconstructed from DNS summaries. Missing values remain null.
 
-## 21. Implementation Status
+## 22. Implementation Status
 
-Four payload schemas, instructions, strict DNS codecs, converter/preview, immutable repository, IndexedDB 9, and Backup Schema 7 are implemented. No user interface or route is connected.
+Four payload schemas, specialized plain-text-source instructions, standalone response validation, strict DNS codecs, converter/preview, immutable repository, IndexedDB 9, and Backup Schema 7 are implemented. REPORT SYNC and DNS response import UIs are connected without request-data export.
 
-## 22. Open Questions
+## 23. Open Questions
 
 The future DNS import UI, archive transfer connection, retention policy, payload-size limits, encryption, and correction workflow remain unapproved and unimplemented.

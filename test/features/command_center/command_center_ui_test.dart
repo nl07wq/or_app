@@ -136,8 +136,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('MORNING BRIEF'), findsWidgets);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
+    await tester.drag(
+      find.byKey(const ValueKey('report-sync-morningBrief')),
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('COPY CHATGPT PROMPT'), findsWidgets);
-    expect(find.text('COPY REQUEST DATA'), findsWidgets);
+    expect(find.text('COPY REQUEST DATA'), findsNothing);
+    expect(find.text('Required source record: Morning Fact'), findsOneWidget);
     expect(find.textContaining('施設'), findsNothing);
   });
 

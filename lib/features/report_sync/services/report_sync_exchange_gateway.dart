@@ -1,33 +1,31 @@
-import '../../../core/models/morning_data.dart';
-import '../../../core/models/training_session_v2.dart';
-import '../../food/services/food_summary_service.dart';
-import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../sync/models/orlo_sync_models.dart';
 import '../../sync/services/orlo_sync_canonical_codec.dart';
-import '../../training/services/equipment_catalog.dart';
 import '../../training/sync/training_sync_adapter.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_adapters.dart';
-import 'report_sync_request_builders.dart';
 
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
 
 class ReportSyncRequestPreparation {
   const ReportSyncRequestPreparation({
     this.envelope,
+    this.operationDate,
+    this.confirmationDigest,
     this.statusLabel = 'REQUEST NOT READY',
     this.blockingReason,
   });
 
   final ReportSyncEnvelope? envelope;
+  final String? operationDate;
+  final String? confirmationDigest;
   final String statusLabel;
   final String? blockingReason;
-  bool get isReady => envelope != null;
+  bool get isReady => operationDate != null;
 }
 
 class ReportSyncResponsePreview {
@@ -68,7 +66,10 @@ abstract interface class ReportSyncExchangeGateway {
 
   String encode(ReportSyncEnvelope envelope);
 
-  String instruction(ReportSyncExchangeType type);
+  String instruction(
+    ReportSyncExchangeType type,
+    ReportSyncRequestPreparation preparation,
+  );
 
   Future<ReportSyncResponsePreview> previewResponse(
     ReportSyncExchangeType type,
@@ -111,63 +112,11 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       );
     }
 
-    final Map<String, Object?> payload;
-    String? confirmationDigest;
     switch (type) {
       case ReportSyncExchangeType.training:
-        final records = await _container.training.findRecordsByLocalDate(
-          operationDate,
-        );
-        final candidates =
-            records
-                .where((record) => record.v2Data != null && !record.isLegacy)
-                .toList()
-              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-        if (candidates.isEmpty) {
-          return const ReportSyncRequestPreparation(
-            blockingReason:
-                'No training data is available for this operation date.',
-          );
-        }
-        final record = candidates.first;
-        final session = record.v2Data!;
-        final customExercises = await _container.customTrainingExercises
-            .findAll();
-        final status = await _container.status.findByLocalDate(operationDate);
-        payload = const TrainingRequestPayloadBuilder().build(
-          operationDate: operationDate,
-          requestPurpose: 'trainingRecordImport',
-          currentSession: _trainingSession(record.id, operationDate, session),
-          registeredExercises: [
-            for (final exercise in customExercises)
-              {'id': exercise.id, 'name': exercise.name},
-          ],
-          registeredEquipment: [
-            for (final equipment in builtInEquipment)
-              {'id': equipment.id, 'name': equipment.displayName},
-          ],
-          sameDateStatusWeight: status?.weight,
-        );
-        break;
+        return ReportSyncRequestPreparation(operationDate: operationDate);
       case ReportSyncExchangeType.food:
-        final meals = await _container.food.findByLocalDate(operationDate);
-        if (meals.isEmpty) {
-          return const ReportSyncRequestPreparation(
-            blockingReason:
-                'No food data is available for this operation date.',
-          );
-        }
-        payload = const FoodReportSyncPayloadMapper().buildRequest(
-          operationDate: operationDate,
-          meals: meals,
-          requestPurpose: 'dailyMealImport',
-          dailySummary: FoodSummaryService.forLocalDate(
-            meals,
-            operationDate,
-          ).toJson(),
-        );
-        _container.reportSyncPayloads.forType(type).validateRequest(payload);
-        break;
+        return ReportSyncRequestPreparation(operationDate: operationDate);
       case ReportSyncExchangeType.morningBrief:
         if (state.phase != OperationPhase.open) {
           return const ReportSyncRequestPreparation(
@@ -175,16 +124,13 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           );
         }
         final status = await _container.status.findByLocalDate(operationDate);
-        if (status == null) {
-          return const ReportSyncRequestPreparation(
-            blockingReason: 'Morning Fact is required.',
-          );
-        }
-        payload = const MorningBriefRequestPayloadBuilder().build(
+        return ReportSyncRequestPreparation(
           operationDate: operationDate,
-          fact: _morningFact(status),
+          blockingReason: status == null
+              ? 'Morning Fact is not recorded. Paste the formal Morning Fact '
+                    'after the prompt before generating a response.'
+              : null,
         );
-        break;
       case ReportSyncExchangeType.dailyDebrief:
         final confirmation = await _container.confirmation.findByLocalDate(
           operationDate,
@@ -196,39 +142,13 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
                 'Daily confirmation is required for the finalized operation date.',
           );
         }
-        final morningBrief = await _container.morningBriefs.readByLocalDate(
-          operationDate,
-        );
-        payload = const DailyDebriefRequestPayloadBuilder().build(
+        return ReportSyncRequestPreparation(
           operationDate: operationDate,
-          confirmation: confirmation,
-          finalizedSnapshot: Map<String, Object?>.from(confirmation.toJson()),
-          morningBrief: morningBrief?.toRecord(),
-          commanderIntent: morningBrief?.commanderIntent,
+          confirmationDigest: ReportSyncCanonicalService.digest(
+            confirmation.toJson(),
+          ),
         );
-        confirmationDigest = payload['confirmationDigest'] as String;
-        break;
     }
-
-    final now = _clock().toUtc();
-    final identity =
-        '${type.stableId}-$operationDate-${now.microsecondsSinceEpoch}';
-    final requestDigest = ReportSyncCanonicalService.digest(payload);
-    final envelope = _container.reportSyncCodec.create(
-      direction: ReportSyncDirection.request,
-      exchangeType: type,
-      exchangeId: 'request-$identity',
-      requestId: 'request-$identity',
-      operationDate: operationDate,
-      createdAt: now,
-      requestDigest: requestDigest,
-      payload: payload,
-    );
-    if (confirmationDigest != null &&
-        confirmationDigest != payload['confirmationDigest']) {
-      throw StateError('Confirmation digest changed during request creation.');
-    }
-    return ReportSyncRequestPreparation(envelope: envelope);
   }
 
   @override
@@ -241,8 +161,21 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       _container.reportSyncCodec.encode(envelope);
 
   @override
-  String instruction(ReportSyncExchangeType type) =>
-      _container.reportSyncInstructions.forType(type).buildInstruction();
+  String instruction(
+    ReportSyncExchangeType type,
+    ReportSyncRequestPreparation preparation,
+  ) {
+    final operationDate = preparation.operationDate;
+    if (operationDate == null) {
+      throw StateError('The exchange target is not ready.');
+    }
+    return _container.reportSyncInstructions
+        .forType(type)
+        .buildInstruction(
+          operationDate: operationDate,
+          confirmationDigest: preparation.confirmationDigest,
+        );
+  }
 
   @override
   Future<ReportSyncResponsePreview> previewResponse(
@@ -285,8 +218,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         exchangeType: response.exchangeType,
         direction: response.direction,
         operationDate: response.operationDate,
-        requestId: response.requestId,
-        requestDigest: response.requestDigest,
+        requestId: response.requestId ?? response.exchangeId,
+        requestDigest: response.requestDigest ?? response.packageDigest,
         responseDigest: ReportSyncCanonicalService.digest(response.payload),
         confirmationDigest: response.confirmationDigest,
         startedAt: response.createdAt,
@@ -522,38 +455,4 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       _container.dailyDebriefs.readByLocalDate(localDate),
     _ => Future<Object?>.value(),
   };
-
-  static Map<String, Object?> _trainingSession(
-    String recordId,
-    String localDate,
-    TrainingSessionV2 session,
-  ) => {
-    'recordId': recordId,
-    'localDate': localDate,
-    'sessionType': session.sessionName,
-    'operationStatus': null,
-    'warmup': null,
-    'dynamicStretchCompleted': session.dynamicStretchCompleted,
-    'exercises': [for (final value in session.exercises) value.toJson()],
-    'cardio': [for (final value in session.cardioEntries) value.toJson()],
-    'cooldownStretchCompleted': session.cooldownStretchCompleted,
-    'overallEvaluation': session.overallEvaluation,
-    'nextTarget': null,
-  };
-
-  static MorningFact _morningFact(MorningData value) => MorningFact(
-    date: DateTime.parse(value.date),
-    weight: value.weight,
-    bodyFat: value.bodyFat,
-    sleepDuration: Duration(
-      minutes: (value.sleepHours * Duration.minutesPerHour).round(),
-    ),
-    sleepScore: value.sleepScore,
-    workHours: value.workHours,
-    footPain: value.footPain,
-    condition: value.condition,
-    previousCarryoverConfirmed: value.previousCarryoverConfirmed,
-    medications: const [],
-    freeNotes: value.memo.isEmpty ? null : value.memo,
-  );
 }
