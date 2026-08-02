@@ -11,6 +11,9 @@ import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_sync/models/operation_sync_history.dart';
+import '../../report_sync/models/daily_debrief_record.dart';
+import '../../report_sync/models/morning_brief_record.dart';
+import '../../report_sync/models/report_sync_history.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 
@@ -27,6 +30,9 @@ abstract final class BackupStoreRegistry {
     BackupSections.foodRecipes: IndexedDbStoreNames.foodRecipeRecords,
     BackupSections.operationSyncHistory:
         IndexedDbStoreNames.operationSyncHistory,
+    BackupSections.morningBriefRecords: IndexedDbStoreNames.morningBriefRecords,
+    BackupSections.dailyDebriefRecords: IndexedDbStoreNames.dailyDebriefRecords,
+    BackupSections.reportSyncHistory: IndexedDbStoreNames.reportSyncHistory,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -55,6 +61,12 @@ abstract final class BackupStoreRegistry {
         FoodRecipeDefinition.fromJson(record);
       case BackupSections.operationSyncHistory:
         OperationSyncHistory.fromRecord(record);
+      case BackupSections.morningBriefRecords:
+        MorningBriefRecord.fromRecord(record);
+      case BackupSections.dailyDebriefRecords:
+        DailyDebriefRecord.fromRecord(record);
+      case BackupSections.reportSyncHistory:
+        ReportSyncHistory.fromRecord(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -121,6 +133,9 @@ abstract final class BackupStoreRegistry {
       BackupSections.foodCatalog || BackupSections.foodRecipes => id,
       BackupSections.operationSyncHistory =>
         '${record['completedAt']}\u0000$id',
+      BackupSections.morningBriefRecords ||
+      BackupSections.dailyDebriefRecords => '${record['localDate']}\u0000$id',
+      BackupSections.reportSyncHistory => '${record['completedAt']}\u0000$id',
       _ => id.toString(),
     };
   }
@@ -163,6 +178,9 @@ abstract final class BackupStoreRegistry {
       BackupSections.foodCatalog => 'foodId',
       BackupSections.foodRecipes => 'recipeId',
       BackupSections.operationSyncHistory => 'operationId',
+      BackupSections.morningBriefRecords ||
+      BackupSections.dailyDebriefRecords => 'localDate',
+      BackupSections.reportSyncHistory => 'exchangeId',
       _ => 'id',
     };
     final value = record[key];

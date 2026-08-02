@@ -26,6 +26,14 @@ import '../operation_sync/services/operation_sync_production_registry.dart';
 import '../operation_sync/services/operation_sync_validator.dart';
 import '../operation_sync/services/operation_transfer_codec.dart';
 import '../operation_sync/services/operation_transfer_export_service.dart';
+import '../report_sync/repository/daily_debrief_repository.dart';
+import '../report_sync/repository/indexed_db_report_sync_repositories.dart';
+import '../report_sync/repository/morning_brief_repository.dart';
+import '../report_sync/repository/report_sync_history_repository.dart';
+import '../report_sync/services/report_sync_codec.dart';
+import '../report_sync/services/report_sync_instruction_provider.dart';
+import '../report_sync/services/report_sync_persistence_service.dart';
+import '../report_sync/services/report_sync_validator.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
@@ -52,6 +60,13 @@ class AppRepositoryContainer {
   final OperationTransferCodec operationTransferCodec;
   final OperationSyncCoreService operationSyncCore;
   final OperationTransferExportService operationTransferExport;
+  final MorningBriefRepository morningBriefs;
+  final DailyDebriefRepository dailyDebriefs;
+  final ReportSyncHistoryRepository reportSyncHistory;
+  final ReportSyncCodec reportSyncCodec;
+  final ReportSyncValidator reportSyncValidator;
+  final ReportSyncInstructionProviderRegistry reportSyncInstructions;
+  final ReportSyncPersistenceService reportSyncPersistence;
 
   AppRepositoryContainer._({
     required this.database,
@@ -72,6 +87,13 @@ class AppRepositoryContainer {
     required this.operationTransferCodec,
     required this.operationSyncCore,
     required this.operationTransferExport,
+    required this.morningBriefs,
+    required this.dailyDebriefs,
+    required this.reportSyncHistory,
+    required this.reportSyncCodec,
+    required this.reportSyncValidator,
+    required this.reportSyncInstructions,
+    required this.reportSyncPersistence,
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
@@ -83,6 +105,13 @@ class AppRepositoryContainer {
     );
     const operationTransferCodec = OperationTransferCodec();
     final operationState = IndexedDbOperationStateRepository(database);
+    final confirmation = IndexedDbDailyLogConfirmationRepository(database);
+    final reportSyncHistory = IndexedDbReportSyncHistoryRepository(database);
+    const reportSyncCodec = ReportSyncCodec();
+    final reportSyncValidator = ReportSyncValidator(
+      historyRepository: reportSyncHistory,
+      confirmationRepository: confirmation,
+    );
     final operationSyncRegistry = OperationSyncProductionRegistry.create(
       database,
     );
@@ -113,7 +142,7 @@ class AppRepositoryContainer {
       customTrainingExercises: IndexedDbCustomTrainingExerciseRepository(
         database,
       ),
-      confirmation: IndexedDbDailyLogConfirmationRepository(database),
+      confirmation: confirmation,
       operationState: operationState,
       operationSyncState: operationSyncState,
       operationSyncHistory: operationSyncHistory,
@@ -122,6 +151,18 @@ class AppRepositoryContainer {
       operationTransferExport: OperationTransferExportService(
         registry: operationSyncRegistry,
         operationStateRepository: operationState,
+      ),
+      morningBriefs: IndexedDbMorningBriefRepository(database),
+      dailyDebriefs: IndexedDbDailyDebriefRepository(database),
+      reportSyncHistory: reportSyncHistory,
+      reportSyncCodec: reportSyncCodec,
+      reportSyncValidator: reportSyncValidator,
+      reportSyncInstructions: ReportSyncInstructionProviderRegistry.standard(),
+      reportSyncPersistence: ReportSyncPersistenceService(
+        database: database,
+        historyRepository: reportSyncHistory,
+        validator: reportSyncValidator,
+        clock: DateTime.now,
       ),
     );
   }

@@ -82,11 +82,14 @@ abstract final class IndexedDbIndexNames {
   static const byNormalizedName = 'by_normalized_name';
   static const byCompletedAt = 'by_completed_at';
   static const byResult = 'by_result';
+  static const byImportedAt = 'by_imported_at';
+  static const byOperationDate = 'by_operation_date';
+  static const byExchangeType = 'by_exchange_type';
 }
 
 abstract final class IndexedDbSchema {
   static const databaseName = 'operation_reboot_db';
-  static const databaseVersion = 7;
+  static const databaseVersion = 8;
   static const oldestCompatibleDatabaseVersion = 3;
   static const keyPath = 'id';
 
@@ -206,6 +209,48 @@ abstract final class IndexedDbSchema {
       name: IndexedDbStoreNames.operationSyncHistory,
       keyPath: 'operationId',
       indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byCompletedAt,
+          keyPath: 'completedAt',
+        ),
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byResult,
+          keyPath: 'result',
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.morningBriefRecords,
+      keyPath: 'localDate',
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byImportedAt,
+          keyPath: 'importedAt',
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.dailyDebriefRecords,
+      keyPath: 'localDate',
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byImportedAt,
+          keyPath: 'importedAt',
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.reportSyncHistory,
+      keyPath: 'exchangeId',
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byOperationDate,
+          keyPath: 'operationDate',
+        ),
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byExchangeType,
+          keyPath: 'exchangeType',
+        ),
         IndexedDbIndexDefinition(
           name: IndexedDbIndexNames.byCompletedAt,
           keyPath: 'completedAt',

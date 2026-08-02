@@ -194,7 +194,7 @@ class BackupImportService {
     bool requireOperationState = false,
   }) async {
     try {
-      for (final section in BackupSections.schema5) {
+      for (final section in BackupSections.schema6) {
         if (section == BackupSections.operationState) continue;
         BackupStoreRegistry.validateAndSort(
           section,

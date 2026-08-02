@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v7 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v8 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 7);
+    expect(IndexedDbSchema.databaseVersion, 8);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -23,6 +23,9 @@ void main() {
         IndexedDbStoreNames.operationState,
         IndexedDbStoreNames.operationSyncState,
         IndexedDbStoreNames.operationSyncHistory,
+        IndexedDbStoreNames.morningBriefRecords,
+        IndexedDbStoreNames.dailyDebriefRecords,
+        IndexedDbStoreNames.reportSyncHistory,
       ]),
     );
     expect(
@@ -231,7 +234,10 @@ void main() {
               name != IndexedDbStoreNames.foodCatalogRecords &&
               name != IndexedDbStoreNames.foodRecipeRecords &&
               name != IndexedDbStoreNames.operationSyncState &&
-              name != IndexedDbStoreNames.operationSyncHistory,
+              name != IndexedDbStoreNames.operationSyncHistory &&
+              name != IndexedDbStoreNames.morningBriefRecords &&
+              name != IndexedDbStoreNames.dailyDebriefRecords &&
+              name != IndexedDbStoreNames.reportSyncHistory,
         )
         .toSet();
     final addedStores = IndexedDbSchema.storeDefinitions
@@ -241,6 +247,9 @@ void main() {
         .where((name) => name != IndexedDbStoreNames.foodRecipeRecords)
         .where((name) => name != IndexedDbStoreNames.operationSyncState)
         .where((name) => name != IndexedDbStoreNames.operationSyncHistory)
+        .where((name) => name != IndexedDbStoreNames.morningBriefRecords)
+        .where((name) => name != IndexedDbStoreNames.dailyDebriefRecords)
+        .where((name) => name != IndexedDbStoreNames.reportSyncHistory)
         .where((name) => !v3Stores.contains(name))
         .toList();
     final draft = IndexedDbSchema.storeDefinitions.singleWhere(
@@ -270,7 +279,10 @@ void main() {
               name != IndexedDbStoreNames.foodCatalogRecords &&
               name != IndexedDbStoreNames.foodRecipeRecords &&
               name != IndexedDbStoreNames.operationSyncState &&
-              name != IndexedDbStoreNames.operationSyncHistory,
+              name != IndexedDbStoreNames.operationSyncHistory &&
+              name != IndexedDbStoreNames.morningBriefRecords &&
+              name != IndexedDbStoreNames.dailyDebriefRecords &&
+              name != IndexedDbStoreNames.reportSyncHistory,
         )
         .toSet();
     final addedStores = IndexedDbSchema.storeDefinitions
@@ -279,6 +291,9 @@ void main() {
         .where((name) => name != IndexedDbStoreNames.foodRecipeRecords)
         .where((name) => name != IndexedDbStoreNames.operationSyncState)
         .where((name) => name != IndexedDbStoreNames.operationSyncHistory)
+        .where((name) => name != IndexedDbStoreNames.morningBriefRecords)
+        .where((name) => name != IndexedDbStoreNames.dailyDebriefRecords)
+        .where((name) => name != IndexedDbStoreNames.reportSyncHistory)
         .where((name) => !v4Stores.contains(name))
         .toList();
     final operationState = IndexedDbSchema.storeDefinitions.singleWhere(
@@ -304,14 +319,20 @@ void main() {
               name != IndexedDbStoreNames.foodCatalogRecords &&
               name != IndexedDbStoreNames.foodRecipeRecords &&
               name != IndexedDbStoreNames.operationSyncState &&
-              name != IndexedDbStoreNames.operationSyncHistory,
+              name != IndexedDbStoreNames.operationSyncHistory &&
+              name != IndexedDbStoreNames.morningBriefRecords &&
+              name != IndexedDbStoreNames.dailyDebriefRecords &&
+              name != IndexedDbStoreNames.reportSyncHistory,
         )
         .toSet();
     final added = IndexedDbSchema.storeDefinitions
         .where(
           (definition) =>
               definition.name != IndexedDbStoreNames.operationSyncState &&
-              definition.name != IndexedDbStoreNames.operationSyncHistory,
+              definition.name != IndexedDbStoreNames.operationSyncHistory &&
+              definition.name != IndexedDbStoreNames.morningBriefRecords &&
+              definition.name != IndexedDbStoreNames.dailyDebriefRecords &&
+              definition.name != IndexedDbStoreNames.reportSyncHistory,
         )
         .where((definition) => !v5Stores.contains(definition.name))
         .toList();
@@ -330,10 +351,19 @@ void main() {
         .where(
           (name) =>
               name != IndexedDbStoreNames.operationSyncState &&
-              name != IndexedDbStoreNames.operationSyncHistory,
+              name != IndexedDbStoreNames.operationSyncHistory &&
+              name != IndexedDbStoreNames.morningBriefRecords &&
+              name != IndexedDbStoreNames.dailyDebriefRecords &&
+              name != IndexedDbStoreNames.reportSyncHistory,
         )
         .toSet();
     final added = IndexedDbSchema.storeDefinitions
+        .where(
+          (definition) =>
+              definition.name != IndexedDbStoreNames.morningBriefRecords &&
+              definition.name != IndexedDbStoreNames.dailyDebriefRecords &&
+              definition.name != IndexedDbStoreNames.reportSyncHistory,
+        )
         .where((definition) => !v6Stores.contains(definition.name))
         .toList();
 
@@ -345,6 +375,35 @@ void main() {
     expect(added[0].indexes, isEmpty);
     expect(added[1].keyPath, 'operationId');
     expect(added[1].indexes.map((index) => index.name), [
+      IndexedDbIndexNames.byCompletedAt,
+      IndexedDbIndexNames.byResult,
+    ]);
+  });
+
+  test('v7 to v8 adds only REPORT SYNC stores with required indexes', () {
+    final added = IndexedDbSchema.storeDefinitions
+        .where(
+          (definition) => {
+            IndexedDbStoreNames.morningBriefRecords,
+            IndexedDbStoreNames.dailyDebriefRecords,
+            IndexedDbStoreNames.reportSyncHistory,
+          }.contains(definition.name),
+        )
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.morningBriefRecords,
+      IndexedDbStoreNames.dailyDebriefRecords,
+      IndexedDbStoreNames.reportSyncHistory,
+    ]);
+    expect(added[0].keyPath, 'localDate');
+    expect(added[1].keyPath, 'localDate');
+    expect(added[0].indexes.single.name, IndexedDbIndexNames.byImportedAt);
+    expect(added[1].indexes.single.name, IndexedDbIndexNames.byImportedAt);
+    expect(added[2].keyPath, 'exchangeId');
+    expect(added[2].indexes.map((index) => index.name), [
+      IndexedDbIndexNames.byOperationDate,
+      IndexedDbIndexNames.byExchangeType,
       IndexedDbIndexNames.byCompletedAt,
       IndexedDbIndexNames.byResult,
     ]);
