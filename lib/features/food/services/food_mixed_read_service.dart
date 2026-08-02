@@ -104,7 +104,12 @@ class FoodMixedReadService {
     temporaryKey: '$recordId:$index',
     displayName: item.name,
     quantityLabel: item.hasMeasuredAmount
-        ? '${_number(item.physicalAmount!)}${item.baseUnit!.label}'
+        ? item.amountMode == legacy.FoodAmountMode.baseMultiplier
+              ? 'AMOUNT ${_number(item.amount!)} '
+                    '(${_number(item.physicalAmount!)}${item.baseUnit!.label})'
+              : '${_number(item.physicalAmount!)}${item.baseUnit!.label}'
+        : item.quantity == 1
+        ? ''
         : '${item.quantity}',
     nutrition: NutritionSnapshot(
       calories: item.totalCalories,

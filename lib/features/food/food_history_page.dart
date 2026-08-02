@@ -1,22 +1,14 @@
 import 'package:flutter/material.dart';
 
-import 'food_nutrition_formatter.dart';
-import 'food_edit_page.dart';
-import 'services/food_submit_service.dart';
-
-import '../../core/models/meal_data.dart';
-import '../../core/models/food_item.dart';
-import '../../core/repositories/food_repository.dart';
-import '../../core/services/daily_log_mutation_guard.dart';
-import '../../core/widgets/confirmed_log_message.dart';
-
 import '../../core/theme/app_spacing.dart';
-
-import '../../core/widgets/history/history_delete_dialog.dart';
-import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/section_header.dart';
-import '../../core/state/app_initialization_state.dart';
+import '../repositories/app_repository_container.dart';
+import 'daily_meal_v2_page.dart';
+import 'food_edit_page.dart';
+import 'models/food_nutrition_aggregate.dart';
+import 'models/food_unified_read_model.dart';
 
 class FoodHistoryPage extends StatefulWidget {
   const FoodHistoryPage({super.key});
@@ -26,230 +18,180 @@ class FoodHistoryPage extends StatefulWidget {
 }
 
 class _FoodHistoryPageState extends State<FoodHistoryPage> {
-  bool _isLoading = true;
-  List<MealData> _records = const [];
-  Object? _loadError;
+  late Future<List<FoodUnifiedReadModel>> _future = _load();
 
-  @override
-  void initState() {
-    super.initState();
-    _loadRecords(showLoading: false);
-  }
+  Future<List<FoodUnifiedReadModel>> _load() =>
+      AppRepositoryRegistry.container.foodMixedRead.readHistory();
 
-  Future<void> _loadRecords({bool showLoading = true}) async {
-    if (showLoading && mounted) {
-      setState(() {
-        _isLoading = true;
-        _loadError = null;
-      });
-    }
+  void _refresh() => setState(() {
+    _future = _load();
+  });
 
-    List<MealData>? loadedRecords;
-    Object? loadError;
-    try {
-      loadedRecords = (await FoodRepository.getAll()).toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
-    } catch (error) {
-      loadError = error;
-    } finally {
-      if (mounted) {
-        setState(() {
-          if (loadError == null) {
-            _records = List.unmodifiable(loadedRecords!);
-          }
-          _loadError = loadError;
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _deleteRecord(MealData data) async {
-    final result = await showHistoryDeleteDialog(
-      context,
-      title: data.isWaterEntry ? 'Water Record' : 'Meal Record',
-    );
-
-    if (!result) return;
-
-    try {
-      await FoodSubmitService.delete(data);
-    } on ConfirmedDailyLogException catch (error) {
-      if (mounted) showConfirmedLogMessage(context, error);
-      return;
-    }
-
-    await _loadRecords();
-  }
-
-  Widget _buildMealCard(BuildContext context, MealData meal) {
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  meal.date,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+  Future<void> _open(FoodUnifiedReadModel record, {required bool edit}) async {
+    switch (record.identity.recordKind) {
+      case FoodRecordKind.legacyV1:
+        final meal = await AppRepositoryRegistry.container.food.findById(
+          record.identity.recordId,
+        );
+        if (meal == null || !mounted) return;
+        if (edit) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => FoodEditPage(meal: meal)),
+          );
+        } else {
+          await showDialog<void>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text(meal.mealType),
+              content: Text(
+                meal.isWaterEntry
+                    ? '${meal.waterMl!.toStringAsFixed(0)} ml'
+                    : meal.items.map((value) => value.name).join('\n'),
               ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: appInitializationController.value.isReadOnly
-                    ? null
-                    : () async {
-                        final updated = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => FoodEditPage(meal: meal),
-                          ),
-                        );
-
-                        if (updated == true) {
-                          await _loadRecords();
-                        }
-                      },
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: Theme.of(context).colorScheme.error,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CLOSE'),
                 ),
-                onPressed: appInitializationController.value.isReadOnly
-                    ? null
-                    : () => _deleteRecord(meal),
-              ),
-            ],
-          ),
-          SectionHeader(
-            icon: meal.isWaterEntry
-                ? Icons.water_drop_outlined
-                : Icons.restaurant,
-            title: meal.isWaterEntry ? 'Water' : meal.mealType,
-          ),
-          AppSpacing.gapMD,
-          if (meal.isWaterEntry)
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.water_drop_outlined),
-              title: Text('${meal.waterMl!.toStringAsFixed(0)} ml'),
-            )
-          else
-            ...meal.items.map(
-              (item) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.restaurant_menu),
-                title: Text(
-                  item.hasMeasuredAmount
-                      ? item.amountMode == FoodAmountMode.baseMultiplier
-                            ? '${item.name}  AMOUNT '
-                                  '${FoodNutritionFormatter.amount(item.amount!)}'
-                                  ' (${FoodNutritionFormatter.amount(item.physicalAmount!)}'
-                                  '${item.baseUnit!.label})'
-                            : '${item.name}  '
-                                  '${FoodNutritionFormatter.amount(item.amount!)}'
-                                  '${item.baseUnit!.label}'
-                      : item.quantity > 1
-                      ? '${item.name} ×${item.quantity}'
-                      : item.name,
-                ),
-                subtitle: Text(
-                  "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
-                  "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
-                  "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
-                  "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
-                ),
-              ),
+              ],
             ),
-          if (meal.memo.isNotEmpty) ...[
-            AppSpacing.gapMD,
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.note_outlined),
-              title: Text(meal.memo),
-            ),
-          ],
-        ],
-      ),
-    );
+          );
+        }
+      case FoodRecordKind.dailyMealV2:
+        final meal = await AppRepositoryRegistry.container.dailyMealsV2
+            .readById(record.identity.recordId);
+        if (meal == null || !mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => edit
+                ? DailyMealV2Page(meal: meal)
+                : DailyMealV2DetailPage(meal: meal),
+          ),
+        );
+    }
+    _refresh();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('FOOD')),
-      body: Padding(padding: AppSpacing.cardPadding, child: _buildBody()),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final loadError = _loadError;
-    if (loadError != null) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Unable to load food records.',
-                textAlign: TextAlign.center,
-              ),
-              AppSpacing.gapMD,
-              Text(
-                loadError.toString(),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              AppSpacing.gapMD,
-              OperationButton(
-                icon: Icons.refresh,
-                text: 'RETRY',
-                onPressed: _loadRecords,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (_records.isEmpty) {
-      return const Center(child: Text('No meal records.'));
-    }
-
-    final groupedRecords = <String, List<MealData>>{};
-    for (final meal in _records) {
-      groupedRecords.putIfAbsent(meal.date, () => []).add(meal);
-    }
-    return ListView.separated(
-      itemCount: groupedRecords.length,
-      separatorBuilder: (_, _) => AppSpacing.gapXL,
-      itemBuilder: (context, index) {
-        final group = groupedRecords.entries.elementAt(index);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('RECORD')),
+    body: FutureBuilder<List<FoodUnifiedReadModel>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Unable to load food records.'),
+                Text('${snapshot.error}'),
+                AppSpacing.gapMD,
+                SizedBox(
+                  width: 240,
+                  child: OperationButton(
+                    text: 'RETRY',
+                    icon: Icons.refresh,
+                    onPressed: _refresh,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        final values = snapshot.data!;
+        if (values.isEmpty) {
+          return const Center(child: Text('No meal records.'));
+        }
+        return ListView(
+          padding: AppSpacing.cardPadding,
           children: [
-            SectionHeader(icon: Icons.calendar_today, title: group.key),
-            AppSpacing.gapMD,
-            for (
-              var mealIndex = 0;
-              mealIndex < group.value.length;
-              mealIndex++
-            ) ...[
-              _buildMealCard(context, group.value[mealIndex]),
-              if (mealIndex < group.value.length - 1) AppSpacing.gapMD,
+            const SectionHeader(icon: Icons.bolt, title: 'RECENT'),
+            AppSpacing.gapSM,
+            Text(values.take(3).map((value) => value.displayName).join(' · ')),
+            AppSpacing.gapXL,
+            for (final record in values) ...[
+              OperationCard(
+                child: InkWell(
+                  onTap: () => _open(record, edit: false),
+                  child: Padding(
+                    padding: AppSpacing.cardPadding,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                record.localDate,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Edit',
+                              onPressed: () => _open(record, edit: true),
+                              icon: const Icon(Icons.edit_outlined),
+                            ),
+                          ],
+                        ),
+                        Text(_mealLabel(record.mealType)),
+                        if (record.waterMl == null)
+                          for (final item in record.items)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.quantityLabel.isEmpty
+                                      ? item.displayName
+                                      : '${item.displayName}  ${item.quantityLabel}',
+                                ),
+                                Text(
+                                  '${item.nutrition.calories?.toStringAsFixed(0) ?? 'Unknown'} kcal'
+                                  '  Protein ${item.nutrition.protein?.toStringAsFixed(1) ?? 'Unknown'}'
+                                  '  Fat ${item.nutrition.fat?.toStringAsFixed(1) ?? 'Unknown'}'
+                                  '  Carbohydrate ${item.nutrition.carbohydrate?.toStringAsFixed(1) ?? 'Unknown'}',
+                                ),
+                              ],
+                            ),
+                        Text(
+                          record.waterMl == null
+                              ? '${record.items.length} items · ${_completeness(record.nutritionCompleteness)}'
+                              : '${record.waterMl!.toStringAsFixed(0)} ml',
+                        ),
+                        if (record.waterMl == null)
+                          Text(_nutrition(record.nutritionAggregate)),
+                        if (record.memo != null) const Text('Memo recorded'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              AppSpacing.gapMD,
             ],
           ],
         );
       },
-    );
-  }
+    ),
+  );
 }
+
+String _completeness(FoodNutritionCompleteness value) =>
+    value.name.toUpperCase();
+String _mealLabel(String value) => switch (value) {
+  'breakfast' => 'Breakfast',
+  'lunch' => 'Lunch',
+  'dinner' => 'Dinner',
+  'snack' => 'Snack',
+  'training' => 'Training',
+  'water' => 'Water',
+  _ => value,
+};
+String _nutrition(FoodNutritionAggregate value) =>
+    'Calories ${_known(value.calories)} · P ${_known(value.protein)} · '
+    'F ${_known(value.fat)} · C ${_known(value.carbohydrate)}';
+String _known(FoodNutritionValueAggregate value) =>
+    value.knownItemCount == 0 ? 'Unknown' : value.knownTotal.toStringAsFixed(1);

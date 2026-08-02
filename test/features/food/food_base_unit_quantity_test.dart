@@ -10,6 +10,7 @@ import 'package:or_app/core/repositories/daily_log_confirmation_repository.dart'
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/data/beta_meal_templates.dart';
+import 'package:or_app/features/food/daily_meal_v2_page.dart';
 import 'package:or_app/features/food/food_edit_page.dart';
 import 'package:or_app/features/food/food_entry_page.dart';
 import 'package:or_app/features/food/food_history_page.dart';
@@ -770,18 +771,22 @@ void main() {
     ) async {
       final observer = _CountingNavigatorObserver();
       await _pumpFoodModule(tester, observer: observer);
-      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.tap(find.text('ADD MEAL'));
       await tester.pumpAndSettle();
 
-      await _enterNavigationMeal(tester);
-      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await _enterV2NavigationMeal(tester);
+      await tester.dragUntilVisible(
+        find.text('SAVE MEAL'),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
       await tester.tap(find.text('SAVE MEAL'));
       await tester.pumpAndSettle();
 
       _expectFoodModule();
       expect(find.text('MEALを保存しました'), findsOneWidget);
-      expect(find.byType(FoodEntryPage), findsNothing);
-      expect(observer.popCount, 1);
+      expect(find.byType(DailyMealV2Page), findsNothing);
+      expect(observer.popCount, 2);
     });
 
     testWidgets('UPDATE MEAL returns once to the FOOD module after success', (
@@ -813,11 +818,13 @@ void main() {
 
     testWidgets('validation failure keeps the FOOD input page', (tester) async {
       await _pumpFoodModule(tester);
-      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.tap(find.text('ADD MEAL'));
       await tester.pumpAndSettle();
 
-      expect(find.text('SAVE MEAL'), findsNothing);
-      expect(find.byType(FoodEntryPage), findsOneWidget);
+      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await tester.tap(find.text('SAVE MEAL'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DailyMealV2Page), findsOneWidget);
       expect(find.text('REPORT SYNC'), findsNothing);
     });
 
@@ -836,21 +843,22 @@ void main() {
         ),
       );
       await _pumpFoodModule(tester);
-      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.tap(find.text('ADD MEAL'));
       await tester.pumpAndSettle();
 
-      await _enterNavigationMeal(tester);
-      await tester.ensureVisible(find.text('SAVE MEAL'));
+      await _enterV2NavigationMeal(tester);
+      await tester.dragUntilVisible(
+        find.text('SAVE MEAL'),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
       await tester.tap(find.text('SAVE MEAL'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(FoodEntryPage), findsOneWidget);
+      expect(find.byType(DailyMealV2Page), findsOneWidget);
       expect(find.text('REPORT SYNC'), findsNothing);
       expect(find.textContaining('この日のログは確定済みです'), findsOneWidget);
-      expect(
-        tester.widget<TextField>(_field('Food Name')).controller?.text,
-        'Navigation Meal',
-      );
+      expect(find.text('Navigation Meal'), findsOneWidget);
     });
   });
 }
@@ -871,13 +879,19 @@ Future<void> _pumpFoodModule(
   await tester.pumpAndSettle();
 }
 
-Future<void> _enterNavigationMeal(WidgetTester tester) async {
-  await tester.enterText(_field('Food Name'), 'Navigation Meal');
+Future<void> _enterV2NavigationMeal(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('ADD CUSTOM ITEM'));
+  await tester.tap(find.text('ADD CUSTOM ITEM'));
+  await tester.pumpAndSettle();
+  await tester.enterText(_field('Name'), 'Navigation Meal');
   await tester.enterText(_field('Calories'), '100');
   await tester.enterText(_field('Protein'), '10');
   await tester.enterText(_field('Fat'), '5');
   await tester.enterText(_field('Carbohydrate'), '20');
-  await tester.pump();
+  await tester.ensureVisible(find.text('ADD').last);
+  await tester.tap(find.text('ADD').last);
+  await tester.pumpAndSettle();
+  expect(find.byType(DailyMealV2Page), findsOneWidget);
 }
 
 void _expectFoodModule() {
