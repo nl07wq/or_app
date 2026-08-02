@@ -125,7 +125,7 @@ class StartupInitializationService {
     try {
       final database = await _openDatabase();
       controller.updateStage(InitializationStage.upgradingSchema);
-      if (IndexedDbSchema.databaseVersion != 9) {
+      if (IndexedDbSchema.databaseVersion != 10) {
         throw RepositoryException(
           operation: 'startup.schema',
           code: RepositoryErrorCode.verificationFailed,

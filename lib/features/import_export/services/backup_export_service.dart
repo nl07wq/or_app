@@ -9,6 +9,7 @@ import 'backup_canonical_codec.dart';
 import 'backup_id_generator.dart';
 import 'backup_store_registry.dart';
 import 'backup_operation_state_integrity.dart';
+import '../../system/models/profile_model.dart';
 
 class BackupExportService {
   final IndexedDbDatabase _database;
@@ -38,10 +39,24 @@ class BackupExportService {
       mode: IndexedDbTransactionMode.readOnly,
       action: (transaction) async {
         final snapshot = <String, List<Map<String, Object?>>>{};
-        for (final section in BackupSections.schema7) {
+        for (final section in BackupSections.schema8) {
           final records = await transaction.findAll(
             BackupStoreRegistry.stores[section]!,
           );
+          if (section == BackupSections.profile) {
+            if (records.length > 1) {
+              throw const BackupException(
+                'invalid_record',
+                'Profile store must contain at most one record.',
+              );
+            }
+            snapshot[section] = [
+              records.isEmpty
+                  ? const ProfileModel().toBackupRecord()
+                  : ProfileModel.fromRecord(records.single).toBackupRecord(),
+            ];
+            continue;
+          }
           snapshot[section] = BackupStoreRegistry.validateAndSort(
             section,
             records,

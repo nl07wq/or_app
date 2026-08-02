@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/command_center/widgets/data_center_page.dart';
+import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 
@@ -18,7 +19,10 @@ void main() {
     expect(find.text('CURRENT OPERATION DATE'), findsOneWidget);
     expect(find.text('2026-08-01'), findsOneWidget);
     expect(find.text('BACKUP SCHEMA'), findsOneWidget);
-    expect(find.text('5.0'), findsOneWidget);
+    expect(
+      find.text('${BackupPackage.currentSchemaVersion}.0'),
+      findsOneWidget,
+    );
     expect(find.text('ENVELOPE VERSION'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('BACKUP SCHEMA 3.0'), findsOneWidget);

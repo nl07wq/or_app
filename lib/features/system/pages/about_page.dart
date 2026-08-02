@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../services/app_metadata.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -19,9 +20,31 @@ class AboutPage extends StatelessWidget {
         OperationCard(
           child: Column(
             children: [
-              _AboutValue(label: 'Version', value: '1.0.0'),
+              _AboutValue(label: 'App Version', value: AppMetadata.appVersion),
               Divider(),
-              _AboutValue(label: 'Operation Reboot Version', value: '1.0.0'),
+              _AboutValue(
+                label: 'Operation Reboot Version',
+                value: AppMetadata.operationRebootVersion,
+              ),
+              Divider(),
+              _AboutValue(
+                label: 'Database Version',
+                value: AppMetadata.databaseVersion,
+              ),
+              Divider(),
+              _AboutValue(
+                label: 'Backup Schema Version',
+                value: AppMetadata.backupSchemaVersion,
+              ),
+              Divider(),
+              _AboutValue(
+                label: 'Build Number',
+                value: AppMetadata.buildNumber,
+              ),
+              Divider(),
+              _AboutValue(label: 'Copyright', value: AppMetadata.copyright),
+              Divider(),
+              _AboutValue(label: 'License', value: AppMetadata.license),
             ],
           ),
         ),

@@ -216,6 +216,13 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         children: [
           Text('IMPORT PLAN', style: Theme.of(context).textTheme.titleMedium),
           Text('BACKUP SCHEMA ${plan.package.schemaVersion}.0'),
+          if (plan.package.schemaVersion < 8) ...[
+            AppSpacing.gapSM,
+            const Text(
+              'このBackupにはプロフィール情報が含まれていません。'
+              '現在のプロフィールは維持されます。',
+            ),
+          ],
           AppSpacing.gapMD,
           SegmentedButton<BackupImportMode>(
             segments: const [

@@ -62,6 +62,11 @@ void main() {
       'id': 'current',
       'value': 'preserved',
     });
+    database.seed(IndexedDbStoreNames.profileRecords, 'current', {
+      'id': 'current',
+      'version': 1,
+      'userName': 'Preserved',
+    });
 
     await expectLater(
       AppDataInitializationService(
@@ -78,6 +83,11 @@ void main() {
     expect(database.rawRecord(IndexedDbStoreNames.operationState, 'current'), {
       'id': 'current',
       'value': 'preserved',
+    });
+    expect(database.rawRecord(IndexedDbStoreNames.profileRecords, 'current'), {
+      'id': 'current',
+      'version': 1,
+      'userName': 'Preserved',
     });
   });
 

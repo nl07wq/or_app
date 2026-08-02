@@ -39,6 +39,7 @@ class AppDataInitializationService {
     IndexedDbStoreNames.dailyDebriefRecords,
     IndexedDbStoreNames.reportSyncHistory,
     IndexedDbStoreNames.legacyDailySummaryRecords,
+    IndexedDbStoreNames.profileRecords,
   ];
 
   static const transactionStores = <String>[

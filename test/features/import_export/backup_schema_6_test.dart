@@ -21,53 +21,50 @@ void main() {
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-  test(
-    'Schema 7 exports fourteen sections including legacy summaries',
-    () async {
-      final database = FakeIndexedDbDatabase();
-      final controller = AppInitializationController()..markReady();
-      _seedOperationState(database, timestamp);
-      database.seed(
-        IndexedDbStoreNames.morningBriefRecords,
-        '2026-08-02',
-        _brief(timestamp, digest).toRecord(),
-      );
-      database.seed(
-        IndexedDbStoreNames.legacyDailySummaryRecords,
-        '2026-08-01',
-        _legacy(timestamp, digest).toRecord(),
-      );
-      database.seed(
-        IndexedDbStoreNames.reportSyncHistory,
-        'exchange-1',
-        _history(timestamp, digest).toRecord(),
-      );
-      final package = await BackupExportService(
-        database: database,
-        controller: controller,
-        idGenerator: BackupIdGenerator(nextInt: (_) => 1),
-        clock: () => timestamp,
-      ).create();
-      expect(package.schemaVersion, 7);
-      expect(package.data.keys, BackupSections.schema7);
-      expect(package.data, hasLength(14));
-      expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
-      expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
-      expect(package.data[BackupSections.reportSyncHistory], hasLength(1));
-      expect(
-        package.data[BackupSections.legacyDailySummaryRecords],
-        hasLength(1),
-      );
-      final decoded = const BackupPackageCodec().decode(
-        BackupExportService.encode(package),
-      );
-      expect(decoded.data, package.data);
-      expect(decoded.digests.package, package.digests.package);
-      expect(IndexedDbStoreNames.operationSyncState, isNot(contains('report')));
-    },
-  );
+  test('Schema 8 exports fifteen sections including Profile', () async {
+    final database = FakeIndexedDbDatabase();
+    final controller = AppInitializationController()..markReady();
+    _seedOperationState(database, timestamp);
+    database.seed(
+      IndexedDbStoreNames.morningBriefRecords,
+      '2026-08-02',
+      _brief(timestamp, digest).toRecord(),
+    );
+    database.seed(
+      IndexedDbStoreNames.legacyDailySummaryRecords,
+      '2026-08-01',
+      _legacy(timestamp, digest).toRecord(),
+    );
+    database.seed(
+      IndexedDbStoreNames.reportSyncHistory,
+      'exchange-1',
+      _history(timestamp, digest).toRecord(),
+    );
+    final package = await BackupExportService(
+      database: database,
+      controller: controller,
+      idGenerator: BackupIdGenerator(nextInt: (_) => 1),
+      clock: () => timestamp,
+    ).create();
+    expect(package.schemaVersion, 8);
+    expect(package.data.keys, BackupSections.schema8);
+    expect(package.data, hasLength(15));
+    expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
+    expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
+    expect(package.data[BackupSections.reportSyncHistory], hasLength(1));
+    expect(
+      package.data[BackupSections.legacyDailySummaryRecords],
+      hasLength(1),
+    );
+    final decoded = const BackupPackageCodec().decode(
+      BackupExportService.encode(package),
+    );
+    expect(decoded.data, package.data);
+    expect(decoded.digests.package, package.digests.package);
+    expect(IndexedDbStoreNames.operationSyncState, isNot(contains('report')));
+  });
 
-  test('Schema 7 MERGE no-ops exact records and blocks differences', () async {
+  test('Schema 8 MERGE no-ops exact records and blocks differences', () async {
     final database = FakeIndexedDbDatabase();
     final controller = AppInitializationController()..markReady();
     _seedOperationState(database, timestamp);
@@ -154,7 +151,7 @@ void main() {
   });
 
   test(
-    'Schema 7 REPLACE ALL applies fourteen stores in one transaction',
+    'Schema 8 REPLACE ALL applies fifteen stores in one transaction',
     () async {
       final source = FakeIndexedDbDatabase();
       final sourceController = AppInitializationController()..markReady();

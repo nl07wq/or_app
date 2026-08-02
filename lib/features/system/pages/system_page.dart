@@ -7,6 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/app_data_initialization_service.dart';
+import '../services/storage_status_gateway.dart';
 
 class SystemDataHealthSnapshot {
   const SystemDataHealthSnapshot({
@@ -25,10 +26,12 @@ class SystemPage extends StatefulWidget {
     super.key,
     this.initializationService,
     this.dataHealthLoader,
+    this.storageGateway,
   });
 
   final AppDataInitializationService? initializationService;
   final Future<SystemDataHealthSnapshot> Function()? dataHealthLoader;
+  final StorageStatusGateway? storageGateway;
 
   @override
   State<SystemPage> createState() => _SystemPageState();
@@ -36,6 +39,7 @@ class SystemPage extends StatefulWidget {
 
 class _SystemPageState extends State<SystemPage> {
   late Future<SystemDataHealthSnapshot> _dataHealth;
+  late Future<StorageStatusSnapshot> _storageStatus;
   bool _initializing = false;
   String? _initializationResult;
 
@@ -43,6 +47,8 @@ class _SystemPageState extends State<SystemPage> {
   void initState() {
     super.initState();
     _dataHealth = _loadDataHealth();
+    _storageStatus = (widget.storageGateway ?? StorageStatusGateway.platform())
+        .load();
   }
 
   Future<SystemDataHealthSnapshot> _loadDataHealth() async {
@@ -100,13 +106,13 @@ class _SystemPageState extends State<SystemPage> {
       appInitializationController.markReady();
       if (!mounted) return;
       setState(() {
-        _initializationResult = 'APP DATA INITIALIZED';
+        _initializationResult = 'アプリデータを初期化しました';
         _dataHealth = _loadDataHealth();
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _initializationResult = 'INITIALIZATION FAILED — NO DATA WAS CHANGED';
+        _initializationResult = 'アプリデータを初期化できませんでした';
       });
     } finally {
       if (mounted) setState(() => _initializing = false);
@@ -137,7 +143,7 @@ class _SystemPageState extends State<SystemPage> {
               Navigator.pushNamed(context, AppRoutes.operationSync),
         ),
         AppSpacing.gapXL,
-        const _StorageSection(),
+        _StorageSection(snapshot: _storageStatus),
         AppSpacing.gapXL,
         _DataHealthSection(snapshot: _dataHealth),
         AppSpacing.gapXL,
@@ -181,7 +187,7 @@ class _InitializationConfirmationDialogState
       children: [
         const Text(
           'Operation Rebootの運用データを初期化します。実行前に'
-          'BACKUP & RESTOREからBackupを作成してください。',
+          'BACKUP & RESTOREからバックアップを作成してください。',
         ),
         AppSpacing.gapMD,
         const Text('続行するには INITIALIZE と入力してください。'),
@@ -190,7 +196,7 @@ class _InitializationConfirmationDialogState
           key: const ValueKey('initialize-confirmation-input'),
           controller: _controller,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Confirmation'),
+          decoration: const InputDecoration(labelText: '確認文字列'),
           onChanged: (_) => setState(() {}),
         ),
       ],
@@ -198,31 +204,112 @@ class _InitializationConfirmationDialogState
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context, false),
-        child: const Text('CANCEL'),
+        child: const Text('キャンセル'),
       ),
       FilledButton(
         key: const ValueKey('confirm-initialize-app-data'),
         onPressed: _controller.text == 'INITIALIZE'
             ? () => Navigator.pop(context, true)
             : null,
-        child: const Text('INITIALIZE'),
+        child: const Text('初期化する'),
       ),
     ],
   );
 }
 
 class _StorageSection extends StatelessWidget {
-  const _StorageSection();
+  const _StorageSection({required this.snapshot});
+
+  final Future<StorageStatusSnapshot> snapshot;
 
   @override
-  Widget build(BuildContext context) => const _ReadOnlySection(
-    icon: Icons.storage_outlined,
-    title: 'STORAGE',
-    values: [
-      ('Database Size', 'Browser managed'),
-      ('Last Backup', 'Not available'),
-      ('Storage Usage', 'Browser managed'),
-    ],
+  Widget build(BuildContext context) => FutureBuilder<StorageStatusSnapshot>(
+    future: snapshot,
+    builder: (context, value) {
+      final data = value.data;
+      final estimate = data == null
+          ? '取得中です'
+          : switch (data.estimateState) {
+              StorageEstimateState.available => null,
+              StorageEstimateState.unsupported => 'このブラウザでは取得できません',
+              StorageEstimateState.failed => '保存容量の取得に失敗しました',
+            };
+      final persistence = switch (data?.persistence) {
+        StoragePersistence.persistent => (
+          '永続保存',
+          'ブラウザによる自動削除の対象外として保存されています。',
+        ),
+        StoragePersistence.bestEffort => (
+          'ブラウザ管理',
+          'ブラウザの判断によってデータが削除される可能性があります。',
+        ),
+        _ => ('確認できません', 'このブラウザでは保存状態を確認できません。'),
+      };
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader(icon: Icons.storage_outlined, title: 'STORAGE'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              children: [
+                const _StorageValue(label: 'Storage Type', value: 'IndexedDB'),
+                const Divider(),
+                _StorageValue(
+                  label: 'Estimated Usage',
+                  value: estimate ?? _formatBytes(data!.usageBytes),
+                ),
+                const Divider(),
+                _StorageValue(
+                  label: 'Estimated Quota',
+                  value: estimate ?? _formatBytes(data!.quotaBytes),
+                ),
+                const Divider(),
+                _StorageValue(
+                  label: 'Persistence',
+                  value: persistence.$1,
+                  description: persistence.$2,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  static String _formatBytes(double? bytes) {
+    if (bytes == null) return 'このブラウザでは取得できません';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var value = bytes;
+    var unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit++;
+    }
+    return '${unit == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1)} ${units[unit]}';
+  }
+}
+
+class _StorageValue extends StatelessWidget {
+  const _StorageValue({
+    required this.label,
+    required this.value,
+    this.description,
+  });
+
+  final String label;
+  final String value;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    title: Text(label),
+    subtitle: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [Text(value), if (description != null) Text(description!)],
+    ),
   );
 }
 
@@ -296,7 +383,7 @@ class _InitializeSection extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.delete_forever_outlined),
-                label: Text(busy ? 'INITIALIZING' : 'INITIALIZE APP DATA'),
+                label: Text(busy ? '初期化しています' : 'アプリデータを初期化'),
               ),
             ),
             if (result != null) ...[AppSpacing.gapSM, Text(result!)],

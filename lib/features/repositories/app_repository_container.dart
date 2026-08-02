@@ -42,6 +42,8 @@ import '../report_sync/services/report_sync_payload_adapters.dart';
 import '../report_sync/services/report_sync_validator.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
+import '../system/repository/indexed_db_profile_repository.dart';
+import '../system/repository/profile_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
 import '../training/repository/custom_training_exercise_repository.dart';
 import '../training/repository/indexed_db_custom_training_exercise_repository.dart';
@@ -80,6 +82,7 @@ class AppRepositoryContainer {
   final DnsArchiveConverter dnsArchiveConverter;
   final DnsPreviewService dnsPreview;
   final FoodReportSyncApplyAdapter foodReportSyncApply;
+  final ProfileRepository profile;
 
   AppRepositoryContainer._({
     required this.database,
@@ -114,6 +117,7 @@ class AppRepositoryContainer {
     required this.dnsArchiveConverter,
     required this.dnsPreview,
     required this.foodReportSyncApply,
+    required this.profile,
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
@@ -208,6 +212,7 @@ class AppRepositoryContainer {
         confirmations: confirmation,
         database: database,
       ),
+      profile: IndexedDbProfileRepository(database),
     );
   }
 }

@@ -2,6 +2,7 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../models/backup_package.dart';
 import 'backup_store_registry.dart';
 import 'backup_operation_state_integrity.dart';
+import '../../system/models/profile_model.dart';
 
 class BackupImportPlanner {
   final IndexedDbDatabase _database;
@@ -23,10 +24,16 @@ class BackupImportPlanner {
     }
     final plans = <String, BackupSectionPlan>{};
     for (final section in package.includedSections) {
-      final existing = BackupStoreRegistry.validateAndSort(
-        section,
-        await _database.findAll(BackupStoreRegistry.stores[section]!),
+      final stored = await _database.findAll(
+        BackupStoreRegistry.stores[section]!,
       );
+      final existing = section == BackupSections.profile
+          ? stored.isEmpty
+                ? <Map<String, Object?>>[]
+                : BackupStoreRegistry.validateAndSort(section, [
+                    ProfileModel.fromRecord(stored.single).toBackupRecord(),
+                  ])
+          : BackupStoreRegistry.validateAndSort(section, stored);
       final incoming = package.data[section] ?? const [];
       if (mode == BackupImportMode.replaceAll) {
         plans[section] = BackupSectionPlan(

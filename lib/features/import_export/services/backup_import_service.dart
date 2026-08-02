@@ -6,6 +6,7 @@ import '../../operation_date/models/operation_state.dart';
 import '../models/backup_package.dart';
 import 'backup_import_planner.dart';
 import 'backup_store_registry.dart';
+import '../../system/models/profile_model.dart';
 
 typedef BackupRestoreState = Future<void> Function();
 
@@ -82,12 +83,17 @@ class BackupImportService {
               if (approvedPlan.mode == BackupImportMode.merge) {
                 final existing = await transaction.findById(
                   store,
-                  BackupStoreRegistry.recordId(section, record),
+                  section == BackupSections.profile
+                      ? ProfileModel.recordId
+                      : BackupStoreRegistry.recordId(section, record),
                 );
                 if (existing != null) {
+                  final comparableExisting = section == BackupSections.profile
+                      ? ProfileModel.fromRecord(existing).toBackupRecord()
+                      : existing;
                   if (!BackupStoreRegistry.recordsEqual(
                     section,
-                    existing,
+                    comparableExisting,
                     record,
                   )) {
                     throw BackupException(
@@ -98,8 +104,22 @@ class BackupImportService {
                   continue;
                 }
               }
-              await transaction.put(store, record);
+              await transaction.put(
+                store,
+                section == BackupSections.profile
+                    ? ProfileModel.fromBackupRecord(
+                        record,
+                      ).toRecord(now: DateTime.now().toUtc())
+                    : record,
+              );
             }
+          }
+          for (final section in sections) {
+            await _verifySection(
+              approvedPlan,
+              section,
+              await transaction.findAll(BackupStoreRegistry.stores[section]!),
+            );
           }
         },
       );
@@ -147,45 +167,56 @@ class BackupImportService {
 
   Future<void> _verifyApplied(BackupImportPlan plan) async {
     for (final section in plan.package.includedSections) {
-      final actual = BackupStoreRegistry.validateAndSort(
+      await _verifySection(
+        plan,
         section,
         await _database.findAll(BackupStoreRegistry.stores[section]!),
       );
-      final incoming = plan.package.data[section]!;
-      if (plan.mode == BackupImportMode.replaceAll) {
-        if (!_recordListsEqual(actual, incoming)) {
-          throw BackupException(
-            'post_import_verification_failed',
-            '$section does not match the replacement package.',
-          );
-        }
-      } else {
-        final sectionPlan = plan.sections[section]!;
-        if (actual.length != sectionPlan.existing + sectionPlan.add) {
-          throw BackupException(
-            'post_import_count_mismatch',
-            '$section count does not match the approved import plan.',
-          );
-        }
-        final actualById = {
-          for (final record in actual)
-            BackupStoreRegistry.recordId(section, record): record,
-        };
-        for (final record in incoming) {
-          final actualRecord =
-              actualById[BackupStoreRegistry.recordId(section, record)];
-          if (actualRecord == null ||
-              !BackupStoreRegistry.recordsEqual(
-                section,
-                actualRecord,
-                record,
-              )) {
-            throw BackupException(
-              'post_import_verification_failed',
-              '$section failed post-import verification.',
-            );
-          }
-        }
+    }
+  }
+
+  Future<void> _verifySection(
+    BackupImportPlan plan,
+    String section,
+    List<Map<String, Object?>> stored,
+  ) async {
+    final comparable = section == BackupSections.profile
+        ? [
+            for (final record in stored)
+              ProfileModel.fromRecord(record).toBackupRecord(),
+          ]
+        : stored;
+    final actual = BackupStoreRegistry.validateAndSort(section, comparable);
+    final incoming = plan.package.data[section]!;
+    if (plan.mode == BackupImportMode.replaceAll) {
+      if (!_recordListsEqual(actual, incoming)) {
+        throw BackupException(
+          'post_import_verification_failed',
+          '$section does not match the replacement package.',
+        );
+      }
+      return;
+    }
+    final sectionPlan = plan.sections[section]!;
+    if (actual.length != sectionPlan.existing + sectionPlan.add) {
+      throw BackupException(
+        'post_import_count_mismatch',
+        '$section count does not match the approved import plan.',
+      );
+    }
+    final actualById = {
+      for (final record in actual)
+        BackupStoreRegistry.recordId(section, record): record,
+    };
+    for (final record in incoming) {
+      final actualRecord =
+          actualById[BackupStoreRegistry.recordId(section, record)];
+      if (actualRecord == null ||
+          !BackupStoreRegistry.recordsEqual(section, actualRecord, record)) {
+        throw BackupException(
+          'post_import_verification_failed',
+          '$section failed post-import verification.',
+        );
       }
     }
   }
@@ -194,12 +225,17 @@ class BackupImportService {
     bool requireOperationState = false,
   }) async {
     try {
-      for (final section in BackupSections.schema7) {
+      for (final section in BackupSections.schema8) {
         if (section == BackupSections.operationState) continue;
-        BackupStoreRegistry.validateAndSort(
-          section,
-          await _database.findAll(BackupStoreRegistry.stores[section]!),
+        final records = await _database.findAll(
+          BackupStoreRegistry.stores[section]!,
         );
+        if (section == BackupSections.profile) {
+          if (records.length > 1) return false;
+          if (records.isNotEmpty) ProfileModel.fromRecord(records.single);
+        } else {
+          BackupStoreRegistry.validateAndSort(section, records);
+        }
       }
       final operationRecords = await _database.findAll(
         BackupStoreRegistry.stores[BackupSections.operationState]!,

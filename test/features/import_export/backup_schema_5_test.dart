@@ -42,24 +42,24 @@ void main() {
   });
 
   test(
-    'Schema 7 exports fourteen sections and excludes active sync state',
+    'Schema 8 exports fifteen sections and excludes active sync state',
     () async {
       final package = await _export(database, controller, timestamp);
-      expect(package.schemaVersion, 7);
-      expect(package.data.keys, BackupSections.schema7);
-      expect(package.data, hasLength(14));
+      expect(package.schemaVersion, 8);
+      expect(package.data.keys, BackupSections.schema8);
+      expect(package.data, hasLength(15));
       expect(package.data[BackupSections.operationSyncHistory], hasLength(1));
       expect(package.data, isNot(contains('operationSyncState')));
 
       final decoded = const BackupPackageCodec().decode(
         BackupExportService.encode(package),
       );
-      expect(decoded.schemaVersion, 7);
-      expect(decoded.digests.sections, hasLength(14));
+      expect(decoded.schemaVersion, 8);
+      expect(decoded.digests.sections, hasLength(15));
     },
   );
 
-  test('Schema 7 MERGE no-ops exact history and blocks differences', () async {
+  test('Schema 8 MERGE no-ops exact history and blocks differences', () async {
     final package = await _export(database, controller, timestamp);
     final service = _service(database, controller);
     final noOp = await service.dryRun(package, BackupImportMode.merge);
@@ -82,7 +82,7 @@ void main() {
   });
 
   test(
-    'Schema 7 REPLACE ALL replaces history and preserves sync state',
+    'Schema 8 REPLACE ALL replaces history and preserves sync state',
     () async {
       final package = await _export(database, controller, timestamp);
       final data = _copyData(package.data);

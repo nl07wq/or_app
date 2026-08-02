@@ -10,17 +10,22 @@ import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/about_page.dart';
 import 'package:or_app/features/system/pages/operation_sync_page.dart';
 import 'package:or_app/features/system/pages/profile_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
 import 'package:or_app/features/system/services/app_data_initialization_service.dart';
+import 'package:or_app/features/system/services/storage_status_gateway.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   setUp(() {
+    AppRepositoryRegistry.install(
+      AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
+    );
     appInitializationController.markReady();
     dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.unconfirmed(
       DateTime(2026, 8, 2),
@@ -30,6 +35,7 @@ void main() {
     trainingSummaryNotifier.value = null;
     activitySummaryNotifier.value = const ActivitySummary.empty();
   });
+  tearDown(AppRepositoryRegistry.resetForTesting);
 
   testWidgets('HOME menu exposes and navigates to the three formal pages', (
     tester,
@@ -80,18 +86,25 @@ void main() {
     expect(find.byType(SystemPage), findsOneWidget);
   });
 
-  testWidgets('PROFILE and ABOUT have distinct display-only responsibilities', (
+  testWidgets('PROFILE edits data while ABOUT owns version information', (
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: ProfilePage()));
+    await tester.pumpAndSettle();
     expect(find.text('User Name'), findsOneWidget);
+    expect(find.text('Height'), findsOneWidget);
+    expect(find.text('Gender'), findsOneWidget);
+    expect(find.text('Nationality'), findsOneWidget);
     expect(find.text('Version'), findsNothing);
     expect(find.text('Operation Reboot Version'), findsNothing);
-    expect(find.byType(TextField), findsNothing);
+    expect(find.byKey(const ValueKey('save-profile')), findsOneWidget);
 
     await tester.pumpWidget(const MaterialApp(home: AboutPage()));
-    expect(find.text('Version'), findsOneWidget);
+    expect(find.text('App Version'), findsOneWidget);
     expect(find.text('Operation Reboot Version'), findsOneWidget);
+    expect(find.text('Database Version'), findsOneWidget);
+    expect(find.text('Backup Schema Version'), findsOneWidget);
+    expect(find.text('Build Number'), findsOneWidget);
     expect(find.text('Appearance'), findsNothing);
     expect(find.text('Theme'), findsNothing);
     expect(find.byType(TextField), findsNothing);
@@ -112,6 +125,7 @@ void main() {
             recoveryStatus: 'NO RECOVERY REQUIRED',
             healthStatus: 'HEALTHY',
           ),
+          storageGateway: const _FakeStorageGateway(),
         ),
         routes: {AppRoutes.operationSync: (_) => const OperationSyncPage()},
       ),
@@ -122,9 +136,15 @@ void main() {
     expect(find.text('IMPORT'), findsNothing);
     expect(find.text('DIAGNOSTICS'), findsNothing);
     expect(find.text('STORAGE'), findsOneWidget);
-    expect(find.text('Database Size'), findsOneWidget);
-    expect(find.text('Last Backup'), findsOneWidget);
-    expect(find.text('Storage Usage'), findsOneWidget);
+    await tester.pump();
+    expect(find.text('Storage Type'), findsOneWidget);
+    expect(find.text('IndexedDB'), findsOneWidget);
+    expect(find.text('Estimated Usage'), findsOneWidget);
+    expect(find.text('1.0 KB'), findsOneWidget);
+    expect(find.text('Estimated Quota'), findsOneWidget);
+    expect(find.text('2.0 KB'), findsOneWidget);
+    expect(find.text('Persistence'), findsOneWidget);
+    expect(find.text('永続保存'), findsOneWidget);
     expect(find.text('DATA HEALTH'), findsOneWidget);
     await tester.pump();
     expect(find.text('Integrity'), findsOneWidget);
@@ -137,6 +157,30 @@ void main() {
     await tester.tap(find.text('OPEN OPERATION SYNC'));
     await tester.pumpAndSettle();
     expect(find.byType(OperationSyncPage), findsOneWidget);
+  });
+
+  testWidgets('ABOUT shows each formal metadata field exactly once', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: AboutPage()));
+    for (final label in [
+      'App Version',
+      'Operation Reboot Version',
+      'Database Version',
+      'Backup Schema Version',
+      'Build Number',
+      'Copyright',
+      'License',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.text('1.0.0'), findsOneWidget);
+    expect(find.text('5.2'), findsOneWidget);
+    expect(find.text('10'), findsOneWidget);
+    expect(find.text('8.0'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('未設定'), findsNWidgets(2));
+    expect(find.text('Version'), findsNothing);
   });
 
   testWidgets('INITIALIZE requires exact confirmation and resets app data', (
@@ -165,6 +209,7 @@ void main() {
             recoveryStatus: 'NO RECOVERY REQUIRED',
             healthStatus: 'HEALTHY',
           ),
+          storageGateway: const _FakeStorageGateway(),
         ),
       ),
     );
@@ -176,7 +221,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Backupを作成してください'), findsOneWidget);
+    expect(find.textContaining('バックアップを作成してください'), findsOneWidget);
     final confirm = tester.widget<FilledButton>(
       find.byKey(const ValueKey('confirm-initialize-app-data')),
     );
@@ -202,7 +247,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('confirm-initialize-app-data')));
     await tester.pumpAndSettle();
 
-    expect(find.text('APP DATA INITIALIZED'), findsOneWidget);
+    expect(find.text('アプリデータを初期化しました'), findsOneWidget);
     expect(await database.findAll(IndexedDbStoreNames.statusRecords), isEmpty);
     expect(
       database.rawRecord(IndexedDbStoreNames.operationState, 'current'),
@@ -286,6 +331,7 @@ void main() {
                 recoveryStatus: 'NO RECOVERY REQUIRED',
                 healthStatus: 'HEALTHY',
               ),
+              storageGateway: const _FakeStorageGateway(),
             ),
           ),
         );
@@ -294,4 +340,16 @@ void main() {
       }
     });
   }
+}
+
+class _FakeStorageGateway implements StorageStatusGateway {
+  const _FakeStorageGateway();
+
+  @override
+  Future<StorageStatusSnapshot> load() async => const StorageStatusSnapshot(
+    estimateState: StorageEstimateState.available,
+    usageBytes: 1024,
+    quotaBytes: 2048,
+    persistence: StoragePersistence.persistent,
+  );
 }

@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v9 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v10 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 9);
+    expect(IndexedDbSchema.databaseVersion, 10);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -27,6 +27,7 @@ void main() {
         IndexedDbStoreNames.dailyDebriefRecords,
         IndexedDbStoreNames.reportSyncHistory,
         IndexedDbStoreNames.legacyDailySummaryRecords,
+        IndexedDbStoreNames.profileRecords,
       ]),
     );
     expect(
@@ -420,5 +421,20 @@ void main() {
       IndexedDbIndexNames.byImportedAt,
       IndexedDbIndexNames.bySourceType,
     ]);
+  });
+
+  test('v9 to v10 adds only the Profile store without indexes', () {
+    final profile = IndexedDbSchema.storeDefinitions.singleWhere(
+      (definition) => definition.name == IndexedDbStoreNames.profileRecords,
+    );
+
+    expect(profile.keyPath, 'id');
+    expect(profile.indexes, isEmpty);
+    expect(
+      IndexedDbSchema.storeDefinitions.where(
+        (definition) => definition.name == profile.name,
+      ),
+      hasLength(1),
+    );
   });
 }

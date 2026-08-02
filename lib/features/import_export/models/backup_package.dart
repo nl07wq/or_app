@@ -35,7 +35,7 @@ class BackupDigests {
 
 class BackupPackage {
   static const schemaName = 'operation-reboot-backup';
-  static const currentSchemaVersion = 7;
+  static const currentSchemaVersion = 8;
   static const previousSchemaVersion = 2;
 
   final String schema;
@@ -106,6 +106,7 @@ abstract final class BackupSections {
   static const dailyDebriefRecords = 'dailyDebriefRecords';
   static const reportSyncHistory = 'reportSyncHistory';
   static const legacyDailySummaryRecords = 'legacyDailySummaryRecords';
+  static const profile = 'profile';
 
   static const schema2 = [
     status,
@@ -126,7 +127,8 @@ abstract final class BackupSections {
     reportSyncHistory,
   ];
   static const schema7 = [...schema6, legacyDailySummaryRecords];
-  static const all = schema7;
+  static const schema8 = [...schema7, profile];
+  static const all = schema8;
 
   static List<String> forSchema(int schemaVersion) => switch (schemaVersion) {
     2 => schema2,
@@ -135,6 +137,7 @@ abstract final class BackupSections {
     5 => schema5,
     6 => schema6,
     7 => schema7,
+    8 => schema8,
     _ => throw BackupException(
       'unsupported_schema',
       'Backup schema is not supported.',

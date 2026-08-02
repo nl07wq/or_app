@@ -15,6 +15,7 @@ import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/morning_brief_record.dart';
 import '../../report_sync/models/report_sync_history.dart';
 import '../../legacy_archive/models/dns_archive_models.dart';
+import '../../system/models/profile_model.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 
@@ -36,6 +37,7 @@ abstract final class BackupStoreRegistry {
     BackupSections.reportSyncHistory: IndexedDbStoreNames.reportSyncHistory,
     BackupSections.legacyDailySummaryRecords:
         IndexedDbStoreNames.legacyDailySummaryRecords,
+    BackupSections.profile: IndexedDbStoreNames.profileRecords,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -72,6 +74,8 @@ abstract final class BackupStoreRegistry {
         ReportSyncHistory.fromRecord(record);
       case BackupSections.legacyDailySummaryRecords:
         LegacyDailySummaryRecord.fromRecord(record);
+      case BackupSections.profile:
+        ProfileModel.fromBackupRecord(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -117,6 +121,12 @@ abstract final class BackupStoreRegistry {
       }
       result.add(record);
     }
+    if (section == BackupSections.profile && result.length != 1) {
+      throw const BackupException(
+        'invalid_record',
+        'Profile section must contain exactly one record.',
+      );
+    }
     result.sort((a, b) => _sortKey(section, a).compareTo(_sortKey(section, b)));
     return List.unmodifiable(result);
   }
@@ -143,6 +153,7 @@ abstract final class BackupStoreRegistry {
       BackupSections.reportSyncHistory => '${record['completedAt']}\u0000$id',
       BackupSections.legacyDailySummaryRecords =>
         '${record['localDate']}\u0000$id',
+      BackupSections.profile => id,
       _ => id.toString(),
     };
   }
@@ -189,9 +200,13 @@ abstract final class BackupStoreRegistry {
       BackupSections.dailyDebriefRecords => 'localDate',
       BackupSections.reportSyncHistory => 'exchangeId',
       BackupSections.legacyDailySummaryRecords => 'localDate',
+      BackupSections.profile => 'version',
       _ => 'id',
     };
     final value = record[key];
+    if (section == BackupSections.profile && value == 1) {
+      return ProfileModel.recordId;
+    }
     if (value is! String || value.isEmpty) {
       throw BackupException('invalid_record', '$section has an invalid ID.');
     }

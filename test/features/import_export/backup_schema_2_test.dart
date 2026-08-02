@@ -50,7 +50,7 @@ void main() {
   });
 
   test(
-    'exports deterministic Schema 7.0 package with all fourteen sections',
+    'exports deterministic Schema 8.0 package with all fifteen sections',
     () async {
       final package = await BackupExportService(
         database: database,
@@ -59,7 +59,7 @@ void main() {
       ).create(origin: 'https://example.test');
 
       expect(package.schema, BackupPackage.schemaName);
-      expect(package.schemaVersion, 7);
+      expect(package.schemaVersion, 8);
       expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
       expect(package.data.keys, containsAll(BackupSections.all));
       expect(package.data[BackupSections.operationState], hasLength(1));
@@ -146,7 +146,7 @@ void main() {
       ...utf8.encode(BackupExportService.encode(package)),
     ];
 
-    expect(const BackupPackageCodec().decodeUtf8(bytes).schemaVersion, 7);
+    expect(const BackupPackageCodec().decodeUtf8(bytes).schemaVersion, 8);
     expect(
       () => const BackupPackageCodec().decodeUtf8(const []),
       throwsA(
@@ -331,8 +331,8 @@ void main() {
       ))!,
     );
 
-    expect(package.schemaVersion, 7);
-    expect(package.databaseVersion, 9);
+    expect(package.schemaVersion, 8);
+    expect(package.databaseVersion, 10);
     expect(restored.recordVersion, 1);
     final physical = restored.data.items.first;
     final multiplier = restored.data.items.last;
@@ -470,8 +470,8 @@ void main() {
       envelope['id']! as String,
     );
 
-    expect(package.schemaVersion, 7);
-    expect(package.databaseVersion, 9);
+    expect(package.schemaVersion, 8);
+    expect(package.databaseVersion, 10);
     expect(restoredEnvelope, envelope);
     final restored = PersistedTrainingRecord.fromRecord(restoredEnvelope!);
     expect(restored.recordVersion, 2);
