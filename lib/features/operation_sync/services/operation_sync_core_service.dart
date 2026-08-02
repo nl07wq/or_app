@@ -1,3 +1,7 @@
+import '../../../data/indexed_db/indexed_db_database_contract.dart';
+import '../../../data/indexed_db/indexed_db_store_names.dart';
+import '../../operation_date/models/operation_local_date.dart';
+import '../../operation_date/models/operation_state.dart';
 import '../models/operation_sync_history.dart';
 import '../models/operation_sync_issue.dart';
 import '../models/operation_sync_preview.dart';
@@ -13,6 +17,7 @@ class OperationSyncCoreService {
   final OperationSyncValidator validator;
   final OperationSyncStateRepository stateRepository;
   final OperationSyncHistoryRepository historyRepository;
+  final IndexedDbDatabase database;
   final DateTime Function() _clock;
 
   OperationSyncCoreService({
@@ -20,6 +25,7 @@ class OperationSyncCoreService {
     required this.validator,
     required this.stateRepository,
     required this.historyRepository,
+    required this.database,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -81,9 +87,7 @@ class OperationSyncCoreService {
     }
   }
 
-  /// Core acceptance hook only. Production has an empty adapter registry, so
-  /// this path cannot write module records until a later approved task.
-  Future<void> applyForTesting({
+  Future<void> apply({
     required OperationTransferPackage package,
     required OperationSyncPreview preview,
   }) async {
@@ -109,39 +113,83 @@ class OperationSyncCoreService {
         updatedAt: _clock().toUtc(),
       ),
     );
-    for (final section in package.sections) {
-      final adapter = validator.registry.adapterFor(section.module);
-      if (adapter == null) {
-        throw const OperationSyncException(
-          OperationSyncIssueCode.adapterUnavailable,
-          'Module adapter is unavailable.',
-        );
-      }
-      await adapter.applyForTesting(section.records);
-    }
-    state = await _move(
-      state,
-      state.copyWith(
-        phase: OperationSyncPhase.verifying,
-        checkpoint: _checkpointFor(package, 'verifying'),
-        updatedAt: _clock().toUtc(),
-      ),
+    final targetOperationState = await validator.operationStateRepository
+        ?.requireCurrent();
+    final pristineTarget =
+        targetOperationState != null &&
+        targetOperationState.phase == OperationPhase.open &&
+        targetOperationState.revision == 0 &&
+        targetOperationState.lastFinalizedDate == null &&
+        !await validator.registry.hasAnyTargetRecords();
+    final context = OperationSyncInspectionContext(
+      package: package,
+      targetOperationState: targetOperationState,
+      pristineTarget: pristineTarget,
     );
-    for (final section in package.sections) {
-      final verified = await validator.registry
-          .adapterFor(section.module)!
-          .verifyForTesting(section.records);
-      if (!verified) {
-        await _fail(
-          state,
-          OperationSyncIssueCode.integrityFailure,
-          'fixtureReadBackMismatch',
-        );
-        throw const OperationSyncException(
-          OperationSyncIssueCode.integrityFailure,
-          'Fixture read-back verification failed.',
-        );
-      }
+    final transactionStores = <String>{
+      ...validator.registry.storeNames,
+      if (targetOperationState != null) IndexedDbStoreNames.operationState,
+    };
+    try {
+      await database.runTransaction<void>(
+        storeNames: transactionStores,
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          await _applyOperationState(transaction, context);
+          var created = 0;
+          var noChanges = 0;
+          for (final section in package.sections) {
+            final adapter = validator.registry.adapterFor(section.module);
+            if (adapter == null) {
+              throw const OperationSyncException(
+                OperationSyncIssueCode.adapterUnavailable,
+                'Module adapter is unavailable.',
+              );
+            }
+            final counts = await adapter.apply(
+              transaction,
+              section.records,
+              context,
+            );
+            created += counts.created;
+            noChanges += counts.noChanges;
+          }
+          if (created != preview.createCount ||
+              noChanges != preview.noChangeCount) {
+            throw const OperationSyncException(
+              OperationSyncIssueCode.operationStateConflict,
+              'Target records changed after preview.',
+            );
+          }
+          await _verify(transaction, package);
+        },
+      );
+      state = await _move(
+        state,
+        state.copyWith(
+          phase: OperationSyncPhase.verifying,
+          checkpoint: _checkpointFor(package, 'verifying'),
+          updatedAt: _clock().toUtc(),
+        ),
+      );
+      await database.runTransaction<void>(
+        storeNames: transactionStores,
+        mode: IndexedDbTransactionMode.readOnly,
+        action: (transaction) async {
+          await _verifyOperationState(transaction, context);
+          await _verify(transaction, package);
+        },
+      );
+    } on OperationSyncException catch (error) {
+      await _fail(state, error.code, error.code.stableId);
+      rethrow;
+    } catch (_) {
+      await _fail(
+        state,
+        OperationSyncIssueCode.integrityFailure,
+        'moduleApplyFailure',
+      );
+      rethrow;
     }
     final completedAt = _clock().toUtc();
     final completed = await _move(
@@ -171,6 +219,130 @@ class OperationSyncCoreService {
         isRecoveryExecution: false,
       ),
     );
+  }
+
+  Future<void> _applyOperationState(
+    IndexedDbTransaction transaction,
+    OperationSyncInspectionContext context,
+  ) async {
+    final expected = context.targetOperationState;
+    if (expected == null) return;
+    final stored = await transaction.findById(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+    );
+    if (stored == null) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.operationStateConflict,
+        'Target Operation State is missing.',
+      );
+    }
+    final current = OperationState.fromRecord(stored);
+    if (!_sameOperationState(current, expected)) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.operationStateConflict,
+        'Target Operation State changed after preview.',
+      );
+    }
+    if (!context.pristineTarget) return;
+    final now = _clock().toUtc();
+    final next = OperationState(
+      operationDate: OperationLocalDate.parse(
+        context.package.manifest.sourceOperationDate,
+      ),
+      revision: current.revision + 1,
+      lastFinalizedDate:
+          context.package.manifest.sourceLastFinalizedDate == null
+          ? null
+          : OperationLocalDate.parse(
+              context.package.manifest.sourceLastFinalizedDate!,
+            ),
+      createdAt: current.createdAt,
+      updatedAt: now.isAfter(current.updatedAt)
+          ? now
+          : current.updatedAt.add(const Duration(microseconds: 1)),
+    );
+    await transaction.put(IndexedDbStoreNames.operationState, next.toRecord());
+    final readBack = await transaction.findById(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+    );
+    if (readBack == null ||
+        !_sameOperationState(OperationState.fromRecord(readBack), next)) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.integrityFailure,
+        'Operation State read-back verification failed.',
+      );
+    }
+  }
+
+  Future<void> _verifyOperationState(
+    IndexedDbTransaction transaction,
+    OperationSyncInspectionContext context,
+  ) async {
+    final expected = context.targetOperationState;
+    if (expected == null) return;
+    final stored = await transaction.findById(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+    );
+    if (stored == null) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.integrityFailure,
+        'Operation State read-back is missing.',
+      );
+    }
+    final actual = OperationState.fromRecord(stored);
+    if (context.pristineTarget) {
+      if (actual.phase != OperationPhase.open ||
+          actual.operationDate.value !=
+              context.package.manifest.sourceOperationDate ||
+          actual.lastFinalizedDate?.value !=
+              context.package.manifest.sourceLastFinalizedDate) {
+        throw const OperationSyncException(
+          OperationSyncIssueCode.integrityFailure,
+          'Reconstructed Operation State does not match the source checkpoint.',
+        );
+      }
+    } else if (!_sameOperationState(actual, expected)) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.operationStateConflict,
+        'Existing target Operation State was modified.',
+      );
+    }
+  }
+
+  static bool _sameOperationState(OperationState first, OperationState second) {
+    return first.id == second.id &&
+        first.recordVersion == second.recordVersion &&
+        first.revision == second.revision &&
+        first.hasSameMutableContent(second) &&
+        first.createdAt == second.createdAt &&
+        first.updatedAt == second.updatedAt;
+  }
+
+  Future<void> _verify(
+    IndexedDbTransaction transaction,
+    OperationTransferPackage package,
+  ) async {
+    var verifiedCount = 0;
+    for (final section in package.sections) {
+      final adapter = validator.registry.adapterFor(section.module);
+      if (adapter == null ||
+          !await adapter.verify(transaction, section.records)) {
+        throw const OperationSyncException(
+          OperationSyncIssueCode.integrityFailure,
+          'Operation Sync read-back verification failed.',
+        );
+      }
+      verifiedCount += section.records.length;
+    }
+    if (verifiedCount != package.manifest.recordCount) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.integrityFailure,
+        'Operation Sync read-back record count does not match.',
+      );
+    }
   }
 
   OperationSyncCheckpoint _checkpointFor(

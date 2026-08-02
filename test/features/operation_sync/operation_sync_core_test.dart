@@ -7,6 +7,8 @@ import 'package:or_app/features/operation_sync/repository/indexed_db_operation_s
 import 'package:or_app/features/operation_sync/services/operation_sync_core_service.dart';
 import 'package:or_app/features/operation_sync/services/operation_sync_validator.dart';
 import 'package:or_app/features/operation_sync/services/operation_transfer_codec.dart';
+import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import 'operation_transfer_test_fixture.dart';
@@ -71,6 +73,7 @@ void main() {
         validator: OperationSyncValidator(registry),
         stateRepository: stateRepository,
         historyRepository: historyRepository,
+        database: database,
         clock: () => DateTime.utc(2026, 8, 2, 10),
       );
       final package = fixturePackage();
@@ -83,7 +86,7 @@ void main() {
         OperationSyncPhase.previewReady,
       );
       expect(preview.canApply, isTrue);
-      await service.applyForTesting(package: package, preview: preview);
+      await service.apply(package: package, preview: preview);
       expect(
         (await stateRepository.requireCurrent()).phase,
         OperationSyncPhase.completed,
@@ -110,8 +113,15 @@ class _FixtureAdapter implements OperationTransferModuleAdapter {
   Set<int> get supportedRecordVersions => const {1};
 
   @override
+  Set<String> get storeNames => const {IndexedDbStoreNames.statusRecords};
+
+  @override
+  Future<List<OperationTransferRecord>> exportRecords() async => const [];
+
+  @override
   Future<OperationSyncRecordInspection> inspect(
     OperationTransferRecord record,
+    OperationSyncInspectionContext context,
   ) async {
     final disposition =
         dispositions[record.recordId] ?? OperationSyncRecordDisposition.create;
@@ -119,12 +129,39 @@ class _FixtureAdapter implements OperationTransferModuleAdapter {
   }
 
   @override
-  Future<void> applyForTesting(List<OperationTransferRecord> records) async {
-    appliedIds.addAll(records.map((record) => record.recordId));
+  bool isDateBound(OperationTransferRecord record) => true;
+
+  @override
+  Future<bool> hasTargetRecords() async => false;
+
+  @override
+  Future<OperationSyncApplyCounts> apply(
+    IndexedDbTransaction transaction,
+    List<OperationTransferRecord> records,
+    OperationSyncInspectionContext context,
+  ) async {
+    for (final record in records) {
+      appliedIds.add(record.recordId);
+      await transaction.put(IndexedDbStoreNames.statusRecords, {
+        'id': record.recordId,
+        'digest': record.recordDigest,
+      });
+    }
+    return OperationSyncApplyCounts(created: records.length, noChanges: 0);
   }
 
   @override
-  Future<bool> verifyForTesting(List<OperationTransferRecord> records) async {
-    return records.every((record) => appliedIds.contains(record.recordId));
+  Future<bool> verify(
+    IndexedDbTransaction transaction,
+    List<OperationTransferRecord> records,
+  ) async {
+    for (final record in records) {
+      final stored = await transaction.findById(
+        IndexedDbStoreNames.statusRecords,
+        record.recordId,
+      );
+      if (stored?['digest'] != record.recordDigest) return false;
+    }
+    return true;
   }
 }

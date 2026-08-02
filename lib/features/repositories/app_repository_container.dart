@@ -22,8 +22,10 @@ import '../operation_sync/repository/indexed_db_operation_sync_state_repository.
 import '../operation_sync/repository/operation_sync_history_repository.dart';
 import '../operation_sync/repository/operation_sync_state_repository.dart';
 import '../operation_sync/services/operation_sync_core_service.dart';
+import '../operation_sync/services/operation_sync_production_registry.dart';
 import '../operation_sync/services/operation_sync_validator.dart';
 import '../operation_sync/services/operation_transfer_codec.dart';
+import '../operation_sync/services/operation_transfer_export_service.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
@@ -49,6 +51,7 @@ class AppRepositoryContainer {
   final OperationSyncHistoryRepository operationSyncHistory;
   final OperationTransferCodec operationTransferCodec;
   final OperationSyncCoreService operationSyncCore;
+  final OperationTransferExportService operationTransferExport;
 
   AppRepositoryContainer._({
     required this.database,
@@ -68,6 +71,7 @@ class AppRepositoryContainer {
     required this.operationSyncHistory,
     required this.operationTransferCodec,
     required this.operationSyncCore,
+    required this.operationTransferExport,
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
@@ -78,11 +82,19 @@ class AppRepositoryContainer {
       database,
     );
     const operationTransferCodec = OperationTransferCodec();
+    final operationState = IndexedDbOperationStateRepository(database);
+    final operationSyncRegistry = OperationSyncProductionRegistry.create(
+      database,
+    );
     final operationSyncCore = OperationSyncCoreService(
       codec: operationTransferCodec,
-      validator: OperationSyncValidator(OperationTransferAdapterRegistry()),
+      validator: OperationSyncValidator(
+        operationSyncRegistry,
+        operationStateRepository: operationState,
+      ),
       stateRepository: operationSyncState,
       historyRepository: operationSyncHistory,
+      database: database,
     );
     return AppRepositoryContainer._(
       database: database,
@@ -102,11 +114,15 @@ class AppRepositoryContainer {
         database,
       ),
       confirmation: IndexedDbDailyLogConfirmationRepository(database),
-      operationState: IndexedDbOperationStateRepository(database),
+      operationState: operationState,
       operationSyncState: operationSyncState,
       operationSyncHistory: operationSyncHistory,
       operationTransferCodec: operationTransferCodec,
       operationSyncCore: operationSyncCore,
+      operationTransferExport: OperationTransferExportService(
+        registry: operationSyncRegistry,
+        operationStateRepository: operationState,
+      ),
     );
   }
 }
