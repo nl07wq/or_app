@@ -23,7 +23,7 @@ class AppRoutes {
 
   static const profile = '/profile';
 
-  static const settings = '/settings';
+  static const about = '/about';
 
   static const system = '/system';
 

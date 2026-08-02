@@ -17,15 +17,7 @@ class ProfilePage extends StatelessWidget {
         SectionHeader(icon: Icons.person_outline, title: 'PROFILE'),
         AppSpacing.gapSM,
         OperationCard(
-          child: Column(
-            children: [
-              _ProfileValue(label: 'User Name', value: 'Not configured'),
-              Divider(),
-              _ProfileValue(label: 'Version', value: '1.0.0'),
-              Divider(),
-              _ProfileValue(label: 'Operation Reboot Version', value: '1.0.0'),
-            ],
-          ),
+          child: _ProfileValue(label: 'User Name', value: 'Not configured'),
         ),
       ],
     ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/navigation/app_routes.dart';
 
-enum _SystemMenuDestination { profile, settings, system }
+enum _SystemMenuDestination { profile, about, system }
 
 class SystemMenuButton extends StatelessWidget {
   const SystemMenuButton({super.key});
@@ -14,7 +14,7 @@ class SystemMenuButton extends StatelessWidget {
     onSelected: (destination) {
       final route = switch (destination) {
         _SystemMenuDestination.profile => AppRoutes.profile,
-        _SystemMenuDestination.settings => AppRoutes.settings,
+        _SystemMenuDestination.about => AppRoutes.about,
         _SystemMenuDestination.system => AppRoutes.system,
       };
       Navigator.pushNamed(context, route);
@@ -29,11 +29,11 @@ class SystemMenuButton extends StatelessWidget {
         ),
       ),
       PopupMenuItem(
-        value: _SystemMenuDestination.settings,
+        value: _SystemMenuDestination.about,
         child: ListTile(
-          leading: Icon(Icons.settings),
+          leading: Icon(Icons.info_outline),
           contentPadding: EdgeInsets.zero,
-          title: Text('SETTINGS'),
+          title: Text('ABOUT'),
         ),
       ),
       PopupMenuItem(

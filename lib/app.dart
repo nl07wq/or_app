@@ -18,8 +18,8 @@ import 'features/command_center/pages/command_center_page.dart';
 import 'features/import_export/backup_restore_page.dart';
 import 'features/sync/pages/orlo_sync_page.dart';
 import 'features/system/pages/operation_sync_page.dart';
+import 'features/system/pages/about_page.dart';
 import 'features/system/pages/profile_page.dart';
-import 'features/system/pages/settings_page.dart';
 import 'features/system/pages/system_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
@@ -78,7 +78,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.backupRestore: (_) => const BackupRestorePage(),
         AppRoutes.orloSync: (_) => OrloSyncPage(),
         AppRoutes.profile: (_) => const ProfilePage(),
-        AppRoutes.settings: (_) => const SettingsPage(),
+        AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
         AppRoutes.operationSync: (_) => const OperationSyncPage(),
       },
