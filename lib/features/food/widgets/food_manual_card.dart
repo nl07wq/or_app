@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/state/app_initialization_state.dart';
-import '../daily_meal_v2_page.dart';
+import '../food_entry_page.dart';
 
 class FoodManualCard extends StatelessWidget {
   const FoodManualCard({super.key});
@@ -13,13 +13,13 @@ class FoodManualCard extends StatelessWidget {
     return OperationCard(
       child: OperationButton(
         icon: Icons.edit_note,
-        text: "ADD MEAL",
+        text: "FOOD ENTRY",
         onPressed: appInitializationController.value.isReadOnly
             ? null
             : () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const DailyMealV2Page()),
+                  MaterialPageRoute(builder: (_) => const FoodEntryPage()),
                 );
               },
       ),

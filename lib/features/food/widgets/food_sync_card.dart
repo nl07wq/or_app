@@ -10,14 +10,25 @@ class FoodSyncCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationCard(
-      child: OperationButton(
-        icon: Icons.sync,
-        text: 'SYNC FOOD',
-        onPressed: appInitializationController.value.isReadOnly
-            ? null
-            : () {
-                // 次回実装
-              },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('FOOD SYNC'),
+          const SizedBox(height: 8),
+          const Text('COMING LATER'),
+          const SizedBox(height: 12),
+          OperationButton(
+            icon: Icons.sync,
+            text: 'SYNC FOOD',
+            onPressed: appInitializationController.value.isReadOnly
+                ? null
+                : () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('FOOD SYNC COMING LATER')),
+                    );
+                  },
+          ),
+        ],
       ),
     );
   }

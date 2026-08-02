@@ -166,32 +166,6 @@ class _ActivityPageState extends State<ActivityPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
-
-          AppSpacing.gapSM,
-
-          const OperationDescription(
-            text:
-                'Operation Reboot Reportから\n'
-                '本日の活動記録を同期します。',
-          ),
-
-          AppSpacing.gapMD,
-
-          OperationButton(
-            icon: Icons.sync,
-            text: 'SYNC ACTIVITY',
-            onPressed: appInitializationController.value.isReadOnly
-                ? null
-                : () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Coming Soon')),
-                    );
-                  },
-          ),
-
-          AppSpacing.gapXL,
-
           const SectionHeader(
             icon: Icons.directions_walk_outlined,
             title: 'MANUAL ENTRY',

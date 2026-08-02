@@ -18,7 +18,7 @@ void main() {
     expect(find.text('CURRENT OPERATION DATE'), findsOneWidget);
     expect(find.text('2026-08-01'), findsOneWidget);
     expect(find.text('BACKUP SCHEMA'), findsOneWidget);
-    expect(find.text('3.0'), findsOneWidget);
+    expect(find.text('4.0'), findsOneWidget);
     expect(find.text('ENVELOPE VERSION'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('BACKUP SCHEMA 3.0'), findsOneWidget);
@@ -40,19 +40,12 @@ void main() {
     expect(find.text('BACKUP ROUTE'), findsOneWidget);
   });
 
-  testWidgets('shows non-operable sync and monitoring placeholders', (
+  testWidgets('hides daily sync and keeps monitoring placeholders', (
     tester,
   ) async {
     await _pump(tester, width: 390, stateLoader: () async => _state());
 
-    for (final label in [
-      'TRAINING SYNC',
-      'FOOD SYNC',
-      'DAILY LOG SYNC',
-      'IMPORT HISTORY',
-      'CONFLICTS',
-      'QUARANTINE',
-    ]) {
+    for (final label in ['IMPORT HISTORY', 'CONFLICTS', 'QUARANTINE']) {
       await tester.scrollUntilVisible(
         find.text(label),
         250,
@@ -60,20 +53,15 @@ void main() {
       );
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('AVAILABLE'), findsOneWidget);
-    expect(find.text('COMING LATER'), findsNWidgets(5));
+    expect(find.text('NORMAL SYNC'), findsNothing);
+    expect(find.text('TRAINING SYNC'), findsNothing);
+    expect(find.text('FOOD SYNC'), findsNothing);
+    expect(find.text('DAILY LOG SYNC'), findsNothing);
+    expect(find.text('AVAILABLE'), findsNothing);
+    expect(find.text('COMING LATER'), findsNWidgets(3));
     expect(find.textContaining('OPERATION SYNC'), findsNothing);
-    expect(find.text('OPEN ORLO SYNC'), findsOneWidget);
-    expect(find.byType(ElevatedButton), findsNWidgets(2));
-
-    await tester.scrollUntilVisible(
-      find.text('OPEN ORLO SYNC'),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('OPEN ORLO SYNC'));
-    await tester.pumpAndSettle();
-    expect(find.text('SYNC ROUTE'), findsOneWidget);
+    expect(find.text('OPEN ORLO SYNC'), findsNothing);
+    expect(find.byType(ElevatedButton), findsOneWidget);
   });
 
   testWidgets('keeps loading, error, and content mutually exclusive', (
@@ -132,7 +120,6 @@ Future<void> _pump(
       routes: {
         AppRoutes.backupRestore: (_) =>
             const Scaffold(body: Text('BACKUP ROUTE')),
-        AppRoutes.orloSync: (_) => const Scaffold(body: Text('SYNC ROUTE')),
       },
     ),
   );

@@ -157,7 +157,8 @@ void main() {
       const Offset(0, -1000),
     );
     await tester.pumpAndSettle();
-    expect(find.text('NORMAL SYNC'), findsOneWidget);
+    expect(find.text('NORMAL SYNC'), findsNothing);
+    expect(find.text('OPEN ORLO SYNC'), findsNothing);
     expect(find.text('SYSTEM MONITORING'), findsOneWidget);
     expect(find.textContaining('OPERATION SYNC'), findsNothing);
     expect(tester.takeException(), isNull);

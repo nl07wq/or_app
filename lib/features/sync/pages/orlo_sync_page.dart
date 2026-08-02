@@ -23,6 +23,9 @@ class OrloSyncPage extends StatefulWidget {
     OrloSyncGateway? gateway,
     SyncFileSelector? fileSelector,
     SyncClipboardWriter? clipboardWriter,
+    this.initialDataType = 'training',
+    this.lockDataType = false,
+    this.title = 'ORLO SYNC',
   }) : gateway = gateway ?? OrloSyncGateway.production(),
        fileSelector = fileSelector ?? BackupFileGateway.platform().selectJson,
        clipboardWriter =
@@ -32,6 +35,9 @@ class OrloSyncPage extends StatefulWidget {
   final OrloSyncGateway gateway;
   final SyncFileSelector fileSelector;
   final SyncClipboardWriter clipboardWriter;
+  final String initialDataType;
+  final bool lockDataType;
+  final String title;
 
   @override
   State<OrloSyncPage> createState() => _OrloSyncPageState();
@@ -43,8 +49,14 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
   List<SyncIssue> _issues = const [];
   bool _busy = false;
   String? _stateMessage;
-  String _selectedType = 'training';
+  late String _selectedType;
   Map<String, Object?>? _successDetails;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedType = widget.initialDataType;
+  }
 
   @override
   void dispose() {
@@ -61,6 +73,24 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
       _successDetails = null;
     });
     try {
+      if (widget.lockDataType) {
+        final raw = widget.gateway.parser.parse(_controller.text);
+        if (raw['dataType'] != _selectedType) {
+          if (!mounted) return;
+          setState(() {
+            _stateMessage = 'TRAINING SYNC accepts training data only.';
+            _issues = [
+              SyncIssue(
+                code: 'selectedDataTypeMismatch',
+                path: r'$.dataType',
+                message: 'TRAINING SYNC accepts training data only.',
+                severity: SyncIssueSeverity.blockingError,
+              ),
+            ];
+          });
+          return;
+        }
+      }
       final preview = await widget.gateway.prepare(_controller.text);
       if (!mounted) return;
       setState(() {
@@ -175,25 +205,36 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('ORLO SYNC')),
+    appBar: AppBar(title: Text(widget.title)),
     body: ListView(
       key: const ValueKey('orlo-sync-content'),
       padding: AppSpacing.cardPadding,
       children: [
         const SectionHeader(icon: Icons.sync, title: 'PASTE SYNC DATA'),
         AppSpacing.gapSM,
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _selectedType,
-          decoration: const InputDecoration(labelText: 'Data Type'),
-          items: const [
-            DropdownMenuItem(value: 'training', child: Text('TRAINING')),
-            DropdownMenuItem(value: 'food', child: Text('FOOD')),
-            DropdownMenuItem(value: 'dailyLog', child: Text('DAILY LOG')),
-          ],
-          onChanged: (value) =>
-              setState(() => _selectedType = value ?? 'training'),
-        ),
+        if (widget.lockDataType)
+          const OperationCard(
+            child: Row(
+              children: [
+                Icon(Icons.fitness_center),
+                SizedBox(width: 8),
+                Text('TRAINING'),
+              ],
+            ),
+          )
+        else
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _selectedType,
+            decoration: const InputDecoration(labelText: 'Data Type'),
+            items: const [
+              DropdownMenuItem(value: 'training', child: Text('TRAINING')),
+              DropdownMenuItem(value: 'food', child: Text('FOOD')),
+              DropdownMenuItem(value: 'dailyLog', child: Text('DAILY LOG')),
+            ],
+            onChanged: (value) =>
+                setState(() => _selectedType = value ?? 'training'),
+          ),
         AppSpacing.gapSM,
         OperationCard(
           child: OperationTextField(

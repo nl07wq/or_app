@@ -7,7 +7,6 @@ import '../../core/widgets/section_header.dart';
 
 import 'widgets/morning_history_button.dart';
 import 'widgets/morning_manual_card.dart';
-import 'widgets/morning_sync_card.dart';
 
 class MorningPage extends StatelessWidget {
   const MorningPage({super.key});
@@ -21,22 +20,6 @@ class MorningPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
-            SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
-
-            AppSpacing.gapSM,
-
-            OperationDescription(
-              text:
-                  'Operation Reboot Reportから\n'
-                  '本日の状態記録を同期します。',
-            ),
-
-            AppSpacing.gapMD,
-
-            MorningSyncCard(),
-
-            AppSpacing.gapXL,
-
             SectionHeader(icon: Icons.edit_note, title: 'MANUAL ENTRY'),
 
             AppSpacing.gapSM,

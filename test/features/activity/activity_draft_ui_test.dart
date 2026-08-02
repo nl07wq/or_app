@@ -296,7 +296,7 @@ void main() {
       await AppRepositoryRegistry.container.activityDrafts.findByDate(today),
       isNull,
     );
-    expect(find.text('REPORT SYNC'), findsOneWidget);
+    expect(find.text('REPORT SYNC'), findsNothing);
     expect(find.text('MANUAL ENTRY'), findsOneWidget);
     expect(find.text('RECORD'), findsWidgets);
     expect(find.textContaining('Activity記録を確定しました'), findsOneWidget);

@@ -16,7 +16,9 @@ class TrainingPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('TRAINING')),
       body: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
+        padding: MediaQuery.sizeOf(context).width < 360
+            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)
+            : AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [

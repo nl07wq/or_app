@@ -98,7 +98,11 @@ void main() {
     );
     await tester.tap(find.text('SELECT FILE'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('PARSE'));
+    await tester.drag(
+      find.byKey(const ValueKey('orlo-sync-content')),
+      const Offset(0, -400),
+    );
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
     await tester.tap(find.text('PARSE'));
     await tester.pumpAndSettle();
@@ -114,6 +118,41 @@ void main() {
     await tester.tap(find.text('CONFIRM IMPORT'));
     await tester.pumpAndSettle();
     expect(find.text('ImportとRead-back Verificationが完了しました。'), findsOneWidget);
+  });
+
+  testWidgets('locked training page rejects another data type', (tester) async {
+    final raw = jsonDecode(_validRaw()) as Map<String, Object?>;
+    raw['dataType'] = 'food';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OrloSyncPage(
+          initialDataType: 'training',
+          lockDataType: true,
+          title: 'TRAINING SYNC',
+          fileSelector: () async => BackupSelectedFile(
+            name: 'food.json',
+            bytes: utf8.encode(jsonEncode(raw)),
+          ),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('SELECT FILE'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const ValueKey('orlo-sync-content')),
+      const Offset(0, -400),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PARSE'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('TRAINING SYNC accepts training data only.'),
+      findsOneWidget,
+    );
+    expect(find.text('PREVIEW'), findsNothing);
+    expect(find.text('IMPORT'), findsNothing);
   });
 
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {
