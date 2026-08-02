@@ -10,6 +10,7 @@ import '../../status/models/persisted_status_record.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
 import '../../operation_date/models/operation_state.dart';
+import '../../operation_sync/models/operation_sync_history.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 
@@ -24,6 +25,8 @@ abstract final class BackupStoreRegistry {
     BackupSections.operationState: IndexedDbStoreNames.operationState,
     BackupSections.foodCatalog: IndexedDbStoreNames.foodCatalogRecords,
     BackupSections.foodRecipes: IndexedDbStoreNames.foodRecipeRecords,
+    BackupSections.operationSyncHistory:
+        IndexedDbStoreNames.operationSyncHistory,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -50,6 +53,8 @@ abstract final class BackupStoreRegistry {
         FoodCatalogEntry.fromJson(record);
       case BackupSections.foodRecipes:
         FoodRecipeDefinition.fromJson(record);
+      case BackupSections.operationSyncHistory:
+        OperationSyncHistory.fromRecord(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -114,6 +119,8 @@ abstract final class BackupStoreRegistry {
       BackupSections.customExercises => '${record['normalizedName']}\u0000$id',
       BackupSections.operationState => id.toString(),
       BackupSections.foodCatalog || BackupSections.foodRecipes => id,
+      BackupSections.operationSyncHistory =>
+        '${record['completedAt']}\u0000$id',
       _ => id.toString(),
     };
   }
@@ -155,6 +162,7 @@ abstract final class BackupStoreRegistry {
     final key = switch (section) {
       BackupSections.foodCatalog => 'foodId',
       BackupSections.foodRecipes => 'recipeId',
+      BackupSections.operationSyncHistory => 'operationId',
       _ => 'id',
     };
     final value = record[key];

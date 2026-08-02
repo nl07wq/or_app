@@ -16,6 +16,8 @@ abstract final class IndexedDbStoreNames {
   static const migrationQuarantine = 'migration_quarantine';
   static const customTrainingExercises = 'custom_training_exercises';
   static const operationState = 'operation_state';
+  static const operationSyncState = 'operation_sync_state';
+  static const operationSyncHistory = 'operation_sync_history';
 
   static const legacy = [morningFacts, trainings];
 
@@ -31,6 +33,8 @@ abstract final class IndexedDbStoreNames {
     migrationQuarantine,
     customTrainingExercises,
     operationState,
+    operationSyncState,
+    operationSyncHistory,
   ];
 
   static const drafts = [activityDrafts];

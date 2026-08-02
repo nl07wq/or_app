@@ -27,6 +27,7 @@ import 'package:or_app/features/repositories/repository_exception.dart';
 import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/operation_sync/models/operation_sync_state.dart';
 import 'package:or_app/features/status/migration/status_migration_service.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
 import 'package:or_app/features/training/migration/legacy_trainings_migration_service.dart';
@@ -101,6 +102,11 @@ void main() {
       expect(operationState.id, OperationState.canonicalId);
       expect(operationState.phase, OperationPhase.open);
       expect(controller.value.operationRecoveryRequired, isFalse);
+      expect(controller.value.operationSyncRecoveryRequired, isFalse);
+      expect(
+        controller.value.operationSyncPhase,
+        OperationSyncPhase.idle.stableId,
+      );
 
       await MorningRepository.save(_morning());
       expect((await MorningRepository.getAll()).single.weight, 70);
@@ -119,6 +125,59 @@ void main() {
       );
       await TrainingRepository.deleteById(second.id);
       expect(await TrainingRepository.getRecords(), hasLength(1));
+    },
+  );
+
+  test(
+    'startup reports Operation Sync recovery phases without mutation',
+    () async {
+      const recoveryPhases = {
+        OperationSyncPhase.reading,
+        OperationSyncPhase.validating,
+        OperationSyncPhase.applying,
+        OperationSyncPhase.verifying,
+        OperationSyncPhase.recoveryRequired,
+      };
+      for (final phase in OperationSyncPhase.values) {
+        AppRepositoryRegistry.resetForTesting();
+        SharedPreferences.setMockInitialValues({});
+        final database = FakeIndexedDbDatabase();
+        final source = OperationSyncState(
+          revision: 4,
+          phase: phase,
+          operationId: phase == OperationSyncPhase.idle ? null : 'operation-1',
+          updatedAt: DateTime.utc(2026, 8, 2, 12),
+        ).toRecord();
+        database.seed(
+          IndexedDbStoreNames.operationSyncState,
+          OperationSyncState.canonicalId,
+          source,
+        );
+        final controller = AppInitializationController();
+
+        await StartupInitializationService(
+          controller: controller,
+          openDatabase: () async => database,
+          restore: () async {},
+          isWeb: true,
+        ).initialize();
+
+        expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
+        expect(
+          controller.value.operationSyncRecoveryRequired,
+          recoveryPhases.contains(phase),
+          reason: phase.stableId,
+        );
+        expect(controller.value.operationSyncPhase, phase.stableId);
+        expect(
+          await database.findById(
+            IndexedDbStoreNames.operationSyncState,
+            OperationSyncState.canonicalId,
+          ),
+          source,
+          reason: phase.stableId,
+        );
+      }
     },
   );
 

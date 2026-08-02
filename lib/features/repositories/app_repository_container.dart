@@ -17,6 +17,13 @@ import '../food/repository/indexed_db_food_repository.dart';
 import '../food/services/food_mixed_read_service.dart';
 import '../operation_date/repository/indexed_db_operation_state_repository.dart';
 import '../operation_date/repository/operation_state_repository.dart';
+import '../operation_sync/repository/indexed_db_operation_sync_history_repository.dart';
+import '../operation_sync/repository/indexed_db_operation_sync_state_repository.dart';
+import '../operation_sync/repository/operation_sync_history_repository.dart';
+import '../operation_sync/repository/operation_sync_state_repository.dart';
+import '../operation_sync/services/operation_sync_core_service.dart';
+import '../operation_sync/services/operation_sync_validator.dart';
+import '../operation_sync/services/operation_transfer_codec.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
@@ -38,6 +45,10 @@ class AppRepositoryContainer {
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
   final OperationStateRepository operationState;
+  final OperationSyncStateRepository operationSyncState;
+  final OperationSyncHistoryRepository operationSyncHistory;
+  final OperationTransferCodec operationTransferCodec;
+  final OperationSyncCoreService operationSyncCore;
 
   AppRepositoryContainer._({
     required this.database,
@@ -53,11 +64,26 @@ class AppRepositoryContainer {
     required this.customTrainingExercises,
     required this.confirmation,
     required this.operationState,
+    required this.operationSyncState,
+    required this.operationSyncHistory,
+    required this.operationTransferCodec,
+    required this.operationSyncCore,
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
     final food = IndexedDbFoodRepository(database);
     final dailyMealsV2 = IndexedDbDailyMealV2Repository(database);
+    final operationSyncState = IndexedDbOperationSyncStateRepository(database);
+    final operationSyncHistory = IndexedDbOperationSyncHistoryRepository(
+      database,
+    );
+    const operationTransferCodec = OperationTransferCodec();
+    final operationSyncCore = OperationSyncCoreService(
+      codec: operationTransferCodec,
+      validator: OperationSyncValidator(OperationTransferAdapterRegistry()),
+      stateRepository: operationSyncState,
+      historyRepository: operationSyncHistory,
+    );
     return AppRepositoryContainer._(
       database: database,
       status: IndexedDbStatusRepository(database),
@@ -77,6 +103,10 @@ class AppRepositoryContainer {
       ),
       confirmation: IndexedDbDailyLogConfirmationRepository(database),
       operationState: IndexedDbOperationStateRepository(database),
+      operationSyncState: operationSyncState,
+      operationSyncHistory: operationSyncHistory,
+      operationTransferCodec: operationTransferCodec,
+      operationSyncCore: operationSyncCore,
     );
   }
 }

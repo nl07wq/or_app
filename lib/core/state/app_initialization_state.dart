@@ -33,6 +33,8 @@ class AppInitializationState {
   final bool retryAllowed;
   final bool operationRecoveryRequired;
   final String? operationPhase;
+  final bool operationSyncRecoveryRequired;
+  final String? operationSyncPhase;
 
   const AppInitializationState({
     required this.mode,
@@ -43,6 +45,8 @@ class AppInitializationState {
     this.retryAllowed = false,
     this.operationRecoveryRequired = false,
     this.operationPhase,
+    this.operationSyncRecoveryRequired = false,
+    this.operationSyncPhase,
   });
 
   const AppInitializationState.initializing({
@@ -53,7 +57,9 @@ class AppInitializationState {
        failedMigrationId = null,
        retryAllowed = false,
        operationRecoveryRequired = false,
-       operationPhase = null;
+       operationPhase = null,
+       operationSyncRecoveryRequired = false,
+       operationSyncPhase = null;
 
   bool get isReadOnly => mode == PersistenceMode.legacyReadOnly;
   bool get canWrite => mode == PersistenceMode.indexedDbReadWrite;
@@ -67,6 +73,8 @@ class AppInitializationState {
     bool? retryAllowed,
     bool? operationRecoveryRequired,
     String? operationPhase,
+    bool? operationSyncRecoveryRequired,
+    String? operationSyncPhase,
   }) {
     return AppInitializationState(
       mode: mode ?? this.mode,
@@ -78,6 +86,9 @@ class AppInitializationState {
       operationRecoveryRequired:
           operationRecoveryRequired ?? this.operationRecoveryRequired,
       operationPhase: operationPhase ?? this.operationPhase,
+      operationSyncRecoveryRequired:
+          operationSyncRecoveryRequired ?? this.operationSyncRecoveryRequired,
+      operationSyncPhase: operationSyncPhase ?? this.operationSyncPhase,
     );
   }
 }
@@ -94,12 +105,16 @@ class AppInitializationController
   void markReady({
     bool operationRecoveryRequired = false,
     String? operationPhase,
+    bool operationSyncRecoveryRequired = false,
+    String? operationSyncPhase,
   }) {
     value = AppInitializationState(
       mode: PersistenceMode.indexedDbReadWrite,
       currentStage: InitializationStage.complete,
       operationRecoveryRequired: operationRecoveryRequired,
       operationPhase: operationPhase,
+      operationSyncRecoveryRequired: operationSyncRecoveryRequired,
+      operationSyncPhase: operationSyncPhase,
     );
   }
 

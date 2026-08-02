@@ -42,15 +42,15 @@ void main() {
     );
   });
 
-  test('Schema 4 exports and decodes all nine formal sections', () async {
+  test('Schema 5 exports and decodes all ten formal sections', () async {
     final package = await BackupExportService(
       database: database,
       controller: controller,
       clock: () => timestamp,
     ).create();
 
-    expect(package.schemaVersion, 4);
-    expect(package.data.keys, containsAll(BackupSections.schema4));
+    expect(package.schemaVersion, 5);
+    expect(package.data.keys, containsAll(BackupSections.schema5));
     expect(package.data[BackupSections.foodCatalog], hasLength(1));
     expect(package.data[BackupSections.foodRecipes], hasLength(1));
     final decoded = const BackupPackageCodec().decode(

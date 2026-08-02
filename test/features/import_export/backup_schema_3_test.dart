@@ -50,7 +50,7 @@ void main() {
       controller: controller,
     ).create();
 
-    expect(package.schemaVersion, 4);
+    expect(package.schemaVersion, 5);
     expect(package.data[BackupSections.operationState], [state.toRecord()]);
     expect(package.recordCounts[BackupSections.operationState], 1);
     expect(package.digests.sections[BackupSections.operationState], isNotEmpty);

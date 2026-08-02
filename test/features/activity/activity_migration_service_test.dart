@@ -56,7 +56,7 @@ void main() {
       _metadata(database).targetDatabaseVersion,
       IndexedDbSchema.databaseVersion,
     );
-    expect(IndexedDbSchema.databaseVersion, 6);
+    expect(IndexedDbSchema.databaseVersion, 7);
     expect(await database.findAll(IndexedDbStoreNames.activityDrafts), isEmpty);
   });
 

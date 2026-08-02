@@ -80,11 +80,13 @@ abstract final class IndexedDbIndexNames {
   static const bySourceSection = 'by_source_section';
   static const byMigrationId = 'by_migration_id';
   static const byNormalizedName = 'by_normalized_name';
+  static const byCompletedAt = 'by_completed_at';
+  static const byResult = 'by_result';
 }
 
 abstract final class IndexedDbSchema {
   static const databaseName = 'operation_reboot_db';
-  static const databaseVersion = 6;
+  static const databaseVersion = 7;
   static const oldestCompatibleDatabaseVersion = 3;
   static const keyPath = 'id';
 
@@ -199,6 +201,21 @@ abstract final class IndexedDbSchema {
       ],
     ),
     IndexedDbStoreDefinition(name: IndexedDbStoreNames.operationState),
+    IndexedDbStoreDefinition(name: IndexedDbStoreNames.operationSyncState),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.operationSyncHistory,
+      keyPath: 'operationId',
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byCompletedAt,
+          keyPath: 'completedAt',
+        ),
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byResult,
+          keyPath: 'result',
+        ),
+      ],
+    ),
     IndexedDbStoreDefinition(
       name: IndexedDbStoreNames.activityDrafts,
       indexes: [

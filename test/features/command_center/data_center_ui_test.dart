@@ -18,7 +18,7 @@ void main() {
     expect(find.text('CURRENT OPERATION DATE'), findsOneWidget);
     expect(find.text('2026-08-01'), findsOneWidget);
     expect(find.text('BACKUP SCHEMA'), findsOneWidget);
-    expect(find.text('4.0'), findsOneWidget);
+    expect(find.text('5.0'), findsOneWidget);
     expect(find.text('ENVELOPE VERSION'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('BACKUP SCHEMA 3.0'), findsOneWidget);

@@ -125,11 +125,11 @@ class StartupInitializationService {
     try {
       final database = await _openDatabase();
       controller.updateStage(InitializationStage.upgradingSchema);
-      if (IndexedDbSchema.databaseVersion != 6) {
+      if (IndexedDbSchema.databaseVersion != 7) {
         throw RepositoryException(
           operation: 'startup.schema',
           code: RepositoryErrorCode.verificationFailed,
-          cause: StateError('IndexedDB Schema Version 6 is required.'),
+          cause: StateError('IndexedDB Schema Version 7 is required.'),
         );
       }
 
@@ -187,6 +187,9 @@ class StartupInitializationService {
       await _verifyMetadata(database);
       final container = AppRepositoryContainer.indexedDb(database);
       await _verifyRepositories(container);
+      final operationSyncState = await container.operationSyncState
+          .initializeIfAbsent();
+      await container.operationSyncHistory.list();
       final operationState = await OperationStateBootstrapService(
         container.operationState,
         container.confirmation,
@@ -198,6 +201,8 @@ class StartupInitializationService {
         controller.markReady(
           operationRecoveryRequired: true,
           operationPhase: operationState.state.phase.name,
+          operationSyncRecoveryRequired: operationSyncState.requiresRecovery,
+          operationSyncPhase: operationSyncState.phase.stableId,
         );
         final recover =
             recoverDailyFinalize ??
@@ -214,9 +219,13 @@ class StartupInitializationService {
       }
       final finalOperationState = await container.operationState
           .requireCurrent();
+      final finalOperationSyncState = await container.operationSyncState
+          .requireCurrent();
       controller.markReady(
         operationRecoveryRequired: finalOperationState.requiresRecovery,
         operationPhase: finalOperationState.phase.name,
+        operationSyncRecoveryRequired: finalOperationSyncState.requiresRecovery,
+        operationSyncPhase: finalOperationSyncState.phase.stableId,
       );
     } catch (error) {
       AppRepositoryRegistry.clear();

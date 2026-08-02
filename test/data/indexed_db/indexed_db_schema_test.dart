@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v6 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v7 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 6);
+    expect(IndexedDbSchema.databaseVersion, 7);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -21,6 +21,8 @@ void main() {
         IndexedDbStoreNames.migrationQuarantine,
         IndexedDbStoreNames.customTrainingExercises,
         IndexedDbStoreNames.operationState,
+        IndexedDbStoreNames.operationSyncState,
+        IndexedDbStoreNames.operationSyncHistory,
       ]),
     );
     expect(
@@ -225,12 +227,20 @@ void main() {
         .where(
           (name) =>
               name != IndexedDbStoreNames.activityDrafts &&
-              name != IndexedDbStoreNames.operationState,
+              name != IndexedDbStoreNames.operationState &&
+              name != IndexedDbStoreNames.foodCatalogRecords &&
+              name != IndexedDbStoreNames.foodRecipeRecords &&
+              name != IndexedDbStoreNames.operationSyncState &&
+              name != IndexedDbStoreNames.operationSyncHistory,
         )
         .toSet();
     final addedStores = IndexedDbSchema.storeDefinitions
         .map((definition) => definition.name)
         .where((name) => name != IndexedDbStoreNames.operationState)
+        .where((name) => name != IndexedDbStoreNames.foodCatalogRecords)
+        .where((name) => name != IndexedDbStoreNames.foodRecipeRecords)
+        .where((name) => name != IndexedDbStoreNames.operationSyncState)
+        .where((name) => name != IndexedDbStoreNames.operationSyncHistory)
         .where((name) => !v3Stores.contains(name))
         .toList();
     final draft = IndexedDbSchema.storeDefinitions.singleWhere(
@@ -254,10 +264,21 @@ void main() {
 
   test('v4 to v5 upgrade adds only operation_state without indexes', () {
     final v4Stores = IndexedDbStoreNames.all
-        .where((name) => name != IndexedDbStoreNames.operationState)
+        .where(
+          (name) =>
+              name != IndexedDbStoreNames.operationState &&
+              name != IndexedDbStoreNames.foodCatalogRecords &&
+              name != IndexedDbStoreNames.foodRecipeRecords &&
+              name != IndexedDbStoreNames.operationSyncState &&
+              name != IndexedDbStoreNames.operationSyncHistory,
+        )
         .toSet();
     final addedStores = IndexedDbSchema.storeDefinitions
         .map((definition) => definition.name)
+        .where((name) => name != IndexedDbStoreNames.foodCatalogRecords)
+        .where((name) => name != IndexedDbStoreNames.foodRecipeRecords)
+        .where((name) => name != IndexedDbStoreNames.operationSyncState)
+        .where((name) => name != IndexedDbStoreNames.operationSyncHistory)
         .where((name) => !v4Stores.contains(name))
         .toList();
     final operationState = IndexedDbSchema.storeDefinitions.singleWhere(
@@ -281,10 +302,17 @@ void main() {
         .where(
           (name) =>
               name != IndexedDbStoreNames.foodCatalogRecords &&
-              name != IndexedDbStoreNames.foodRecipeRecords,
+              name != IndexedDbStoreNames.foodRecipeRecords &&
+              name != IndexedDbStoreNames.operationSyncState &&
+              name != IndexedDbStoreNames.operationSyncHistory,
         )
         .toSet();
     final added = IndexedDbSchema.storeDefinitions
+        .where(
+          (definition) =>
+              definition.name != IndexedDbStoreNames.operationSyncState &&
+              definition.name != IndexedDbStoreNames.operationSyncHistory,
+        )
         .where((definition) => !v5Stores.contains(definition.name))
         .toList();
 
@@ -295,5 +323,30 @@ void main() {
     expect(added[0].keyPath, 'foodId');
     expect(added[1].keyPath, 'recipeId');
     expect(added.every((definition) => definition.indexes.isEmpty), isTrue);
+  });
+
+  test('v6 to v7 adds only Operation Sync state and history stores', () {
+    final v6Stores = IndexedDbStoreNames.all
+        .where(
+          (name) =>
+              name != IndexedDbStoreNames.operationSyncState &&
+              name != IndexedDbStoreNames.operationSyncHistory,
+        )
+        .toSet();
+    final added = IndexedDbSchema.storeDefinitions
+        .where((definition) => !v6Stores.contains(definition.name))
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.operationSyncState,
+      IndexedDbStoreNames.operationSyncHistory,
+    ]);
+    expect(added[0].keyPath, 'id');
+    expect(added[0].indexes, isEmpty);
+    expect(added[1].keyPath, 'operationId');
+    expect(added[1].indexes.map((index) => index.name), [
+      IndexedDbIndexNames.byCompletedAt,
+      IndexedDbIndexNames.byResult,
+    ]);
   });
 }
