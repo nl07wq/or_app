@@ -9,7 +9,7 @@ class SystemMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<_SystemMenuDestination>(
-    icon: const Icon(Icons.more_horiz),
+    icon: const Icon(Icons.more_vert),
     tooltip: 'SYSTEM MENU',
     onSelected: (destination) {
       final route = switch (destination) {
@@ -22,15 +22,27 @@ class SystemMenuButton extends StatelessWidget {
     itemBuilder: (_) => const [
       PopupMenuItem(
         value: _SystemMenuDestination.profile,
-        child: Text('PROFILE'),
+        child: ListTile(
+          leading: Icon(Icons.account_circle),
+          contentPadding: EdgeInsets.zero,
+          title: Text('PROFILE'),
+        ),
       ),
       PopupMenuItem(
         value: _SystemMenuDestination.settings,
-        child: Text('SETTINGS'),
+        child: ListTile(
+          leading: Icon(Icons.settings),
+          contentPadding: EdgeInsets.zero,
+          title: Text('SETTINGS'),
+        ),
       ),
       PopupMenuItem(
         value: _SystemMenuDestination.system,
-        child: Text('SYSTEM'),
+        child: ListTile(
+          leading: Icon(Icons.admin_panel_settings),
+          contentPadding: EdgeInsets.zero,
+          title: Text('SYSTEM'),
+        ),
       ),
     ],
   );

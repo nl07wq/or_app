@@ -44,8 +44,13 @@ void main() {
     await tester.pump();
 
     expect(find.byTooltip('SYSTEM MENU'), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
     await tester.tap(find.byTooltip('SYSTEM MENU'));
     await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.account_circle), findsOneWidget);
+    expect(find.byIcon(Icons.settings), findsOneWidget);
+    expect(find.byIcon(Icons.admin_panel_settings), findsOneWidget);
     expect(find.text('PROFILE'), findsOneWidget);
     expect(find.text('SETTINGS'), findsOneWidget);
     expect(find.text('SYSTEM'), findsOneWidget);
