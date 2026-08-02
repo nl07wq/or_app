@@ -136,7 +136,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('MORNING BRIEF'), findsWidgets);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
-    expect(find.text('COPY CHATGPT INSTRUCTION'), findsWidgets);
+    expect(find.text('COPY CHATGPT PROMPT'), findsWidgets);
+    expect(find.text('COPY REQUEST DATA'), findsWidgets);
     expect(find.textContaining('施設'), findsNothing);
   });
 

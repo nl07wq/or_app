@@ -134,7 +134,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   Future<void> _copyInstruction() async {
     await _run(() async {
       await _clipboardWriter(_gateway.instruction(widget.exchangeType));
-      _message = 'CHATGPT INSTRUCTION COPIED';
+      _message = 'CHATGPT PROMPT COPIED';
     });
   }
 
@@ -143,7 +143,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       final envelope = _request!.envelope!;
       await _recordRequest();
       await _clipboardWriter(_gateway.encode(envelope));
-      _message = 'REQUEST JSON COPIED';
+      _message = 'REQUEST DATA COPIED';
     });
   }
 
@@ -291,6 +291,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           title: _title(widget.exchangeType),
         ),
         AppSpacing.gapSM,
+        const _HowToUseCard(),
+        AppSpacing.gapSM,
         OperationCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,14 +317,14 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              onPressed: ready && !_busy ? _copyInstruction : null,
+              onPressed: !_busy && request != null ? _copyInstruction : null,
               icon: const Icon(Icons.content_copy),
-              label: const Text('COPY CHATGPT INSTRUCTION'),
+              label: const Text('COPY CHATGPT PROMPT'),
             ),
             OutlinedButton.icon(
               onPressed: ready && !_busy ? _copyRequest : null,
               icon: const Icon(Icons.copy_all_outlined),
-              label: const Text('COPY REQUEST JSON'),
+              label: const Text('COPY REQUEST DATA'),
             ),
             OutlinedButton.icon(
               onPressed: ready && !_busy ? _exportRequest : null,
@@ -335,13 +337,24 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         const SectionHeader(icon: Icons.download_outlined, title: 'RESPONSE'),
         AppSpacing.gapSM,
         OperationCard(
-          child: OperationTextField(
-            key: const ValueKey('report-sync-response-input'),
-            controller: _responseController,
-            label: 'PASTE RESPONSE JSON',
-            hint: 'Strict JSON response only',
-            maxLines: 8,
-            onChanged: (_) => setState(() => _preview = null),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Paste only the JSON returned by ChatGPT. Explanatory text, '
+                'Markdown code fences, multiple JSON values, and malformed '
+                'JSON are rejected.',
+              ),
+              AppSpacing.gapSM,
+              OperationTextField(
+                key: const ValueKey('report-sync-response-input'),
+                controller: _responseController,
+                label: 'PASTE RESPONSE JSON',
+                hint: 'Strict JSON response only',
+                maxLines: 8,
+                onChanged: (_) => setState(() => _preview = null),
+              ),
+            ],
           ),
         ),
         AppSpacing.gapSM,
@@ -395,6 +408,38 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       ],
     );
   }
+}
+
+class _HowToUseCard extends StatelessWidget {
+  const _HowToUseCard();
+
+  static const steps = [
+    '1. COPY CHATGPT PROMPT',
+    '2. COPY REQUEST DATA',
+    '3. Paste both into ChatGPT',
+    '4. Copy the JSON response',
+    '5. Paste or select the response',
+    '6. Validate and review',
+    '7. Import',
+  ];
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('HOW TO USE', style: Theme.of(context).textTheme.titleMedium),
+        AppSpacing.gapSM,
+        for (final step in steps)
+          Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(step)),
+        AppSpacing.gapSM,
+        const Text(
+          'The prompt defines the response rules and JSON schema. '
+          'The request data contains formal data for the operation date.',
+        ),
+      ],
+    ),
+  );
 }
 
 class _PreviewCard extends StatelessWidget {
@@ -519,7 +564,7 @@ class _ImportedRecordCard extends StatelessWidget {
 String _stateLabel(ReportSyncRequestPreparation? request, Object? imported) {
   if (imported != null) return 'IMPORTED';
   if (request == null) return 'LOADING';
-  if (!request.isReady) return request.blockingReason ?? 'BLOCKED';
+  if (!request.isReady) return request.statusLabel;
   return 'REQUEST READY';
 }
 

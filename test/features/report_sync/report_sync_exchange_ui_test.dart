@@ -14,6 +14,10 @@ void main() {
   testWidgets(
     'common exchange UI exports, validates, confirms, and clears raw input',
     (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final gateway = _FakeExchangeGateway();
       final files = _FakeFileGateway(
         selected: BackupSelectedFile(
@@ -36,17 +40,34 @@ void main() {
 
       expect(find.text('FOOD REPORT SYNC'), findsWidgets);
       expect(find.text('REQUEST READY'), findsOneWidget);
-      expect(find.text('COPY CHATGPT INSTRUCTION'), findsOneWidget);
-      expect(find.text('COPY REQUEST JSON'), findsOneWidget);
+      expect(find.text('HOW TO USE'), findsOneWidget);
+      for (final step in const [
+        '1. COPY CHATGPT PROMPT',
+        '2. COPY REQUEST DATA',
+        '3. Paste both into ChatGPT',
+        '4. Copy the JSON response',
+        '5. Paste or select the response',
+        '6. Validate and review',
+        '7. Import',
+      ]) {
+        expect(find.text(step), findsOneWidget);
+      }
+      expect(find.text('COPY CHATGPT PROMPT'), findsWidgets);
+      expect(find.text('COPY REQUEST DATA'), findsWidgets);
       expect(find.text('EXPORT REQUEST FILE'), findsOneWidget);
 
-      await tester.tap(find.text('COPY CHATGPT INSTRUCTION'));
+      await tester.tap(find.text('COPY CHATGPT PROMPT').last);
       await tester.pump();
-      await tester.tap(find.text('COPY REQUEST JSON'));
+      await tester.tap(find.text('COPY REQUEST DATA').last);
       await tester.pump();
       expect(copied, hasLength(2));
       expect(gateway.recordRequestCalls, 1);
 
+      await tester.scrollUntilVisible(
+        find.text('EXPORT REQUEST FILE'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('EXPORT REQUEST FILE'));
       await tester.pump();
       expect(files.savedName, 'food-report-request-2026-08-02.json');
@@ -61,6 +82,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('RESPONSE FILE LOADED'), findsOneWidget);
       expect(find.text('{"fromFile":true}'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('PASTE RESPONSE JSON'),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('Markdown code fences'), findsOneWidget);
 
       await tester.enterText(
         find.descendant(
@@ -98,6 +126,42 @@ void main() {
     },
   );
 
+  testWidgets('not ready state explains why and disables request data', (
+    tester,
+  ) async {
+    const reason = 'No food data is available for this operation date.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(
+            preparation: const ReportSyncRequestPreparation(
+              blockingReason: reason,
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('REQUEST NOT READY'), findsOneWidget);
+    expect(find.text(reason), findsOneWidget);
+    final prompt = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
+    );
+    final request = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'COPY REQUEST DATA'),
+    );
+    final export = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'EXPORT REQUEST FILE'),
+    );
+    expect(prompt.onPressed, isNotNull);
+    expect(request.onPressed, isNull);
+    expect(export.onPressed, isNull);
+  });
+
   for (final disposition in const [
     ReportSyncDisposition.noChanges,
     ReportSyncDisposition.conflict,
@@ -118,6 +182,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('PASTE RESPONSE JSON'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.enterText(
         find.descendant(
           of: find.byKey(const ValueKey('report-sync-response-input')),
@@ -165,11 +234,15 @@ void main() {
 }
 
 class _FakeExchangeGateway implements ReportSyncExchangeGateway {
-  _FakeExchangeGateway({this.disposition = ReportSyncDisposition.create});
+  _FakeExchangeGateway({
+    this.disposition = ReportSyncDisposition.create,
+    this.preparation,
+  });
 
   static const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   final ReportSyncDisposition disposition;
+  final ReportSyncRequestPreparation? preparation;
   int recordRequestCalls = 0;
   int applyCalls = 0;
 
@@ -238,7 +311,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   @override
   Future<ReportSyncRequestPreparation> prepareRequest(
     ReportSyncExchangeType type,
-  ) async => ReportSyncRequestPreparation(envelope: request);
+  ) async => preparation ?? ReportSyncRequestPreparation(envelope: request);
 
   @override
   Future<ReportSyncResponsePreview> previewResponse(

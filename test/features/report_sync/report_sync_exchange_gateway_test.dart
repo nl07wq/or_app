@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/daily_log_confirmation.dart';
+import 'package:or_app/core/models/food_item.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
@@ -32,6 +34,23 @@ void main() {
       );
       await container.status.save(_status('2026-08-03'));
       await container.training.saveNewV2(TrainingSessionV2(date: '2026-08-03'));
+      await container.food.save(
+        const MealData(
+          date: '2026-08-03',
+          mealType: 'Breakfast',
+          items: [
+            FoodItem(
+              name: 'Oats',
+              calories: 100,
+              protein: 4,
+              fat: 2,
+              carbohydrate: 18,
+            ),
+          ],
+          memo: '',
+          id: 'breakfast-2026-08-03',
+        ),
+      );
       await container.confirmation.save(
         DailyLogConfirmation(
           date: DateTime(2026, 8, 2),
@@ -76,6 +95,88 @@ void main() {
   );
 
   test(
+    'request readiness requires formal facts and accepts Quick Water',
+    () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      final initial = await container.operationState.createInitial(
+        OperationLocalDate.parse('2026-08-03'),
+      );
+      final gateway = ProductionReportSyncExchangeGateway(
+        container: container,
+        clock: () => now,
+      );
+
+      final training = await gateway.prepareRequest(
+        ReportSyncExchangeType.training,
+      );
+      expect(training.statusLabel, 'REQUEST NOT READY');
+      expect(
+        training.blockingReason,
+        'No training data is available for this operation date.',
+      );
+
+      final food = await gateway.prepareRequest(ReportSyncExchangeType.food);
+      expect(food.statusLabel, 'REQUEST NOT READY');
+      expect(
+        food.blockingReason,
+        'No food data is available for this operation date.',
+      );
+
+      final morning = await gateway.prepareRequest(
+        ReportSyncExchangeType.morningBrief,
+      );
+      expect(morning.statusLabel, 'REQUEST NOT READY');
+      expect(morning.blockingReason, 'Morning Fact is required.');
+
+      final debrief = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+      );
+      expect(debrief.statusLabel, 'FINALIZE REQUIRED');
+      expect(
+        debrief.blockingReason,
+        'Finalize the operation date before creating a request.',
+      );
+
+      await container.food.save(
+        const MealData(
+          date: '2026-08-03',
+          mealType: 'Water',
+          items: [],
+          memo: '',
+          id: 'water-only',
+          waterMl: 300,
+        ),
+      );
+      final waterOnly = await gateway.prepareRequest(
+        ReportSyncExchangeType.food,
+      );
+      expect(waterOnly.isReady, isTrue);
+      final meals = waterOnly.envelope!.payload['meals'] as List<Object?>;
+      expect(meals, hasLength(1));
+      expect((meals.single as Map<String, Object?>)['waterMl'], 300);
+
+      await container.operationState.save(
+        initial.copyWith(
+          lastFinalizedDate: OperationLocalDate.parse('2026-08-02'),
+          revision: initial.revision + 1,
+          updatedAt: now,
+        ),
+        expectedRevision: initial.revision,
+      );
+      final missingConfirmation = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+      );
+      expect(missingConfirmation.statusLabel, 'BLOCKED');
+      expect(
+        missingConfirmation.blockingReason,
+        'Daily confirmation is required for the finalized operation date.',
+      );
+    },
+  );
+
+  test(
     'food response previews, applies atomically, and becomes no changes',
     () async {
       final runtimeNow = DateTime.now().toUtc();
@@ -84,6 +185,16 @@ void main() {
       );
       await container.operationState.createInitial(
         OperationLocalDate.parse('2026-08-03'),
+      );
+      await container.food.save(
+        const MealData(
+          date: '2026-08-03',
+          mealType: 'Water',
+          items: [],
+          memo: '',
+          id: 'request-water',
+          waterMl: 250,
+        ),
       );
       final gateway = ProductionReportSyncExchangeGateway(
         container: container,

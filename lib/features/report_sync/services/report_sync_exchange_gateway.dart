@@ -18,9 +18,14 @@ import 'report_sync_request_builders.dart';
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
 
 class ReportSyncRequestPreparation {
-  const ReportSyncRequestPreparation({this.envelope, this.blockingReason});
+  const ReportSyncRequestPreparation({
+    this.envelope,
+    this.statusLabel = 'REQUEST NOT READY',
+    this.blockingReason,
+  });
 
   final ReportSyncEnvelope? envelope;
+  final String statusLabel;
   final String? blockingReason;
   bool get isReady => envelope != null;
 }
@@ -100,7 +105,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         : state.operationDate.value;
     if (operationDate == null) {
       return const ReportSyncRequestPreparation(
-        blockingReason: 'FINALIZE REQUIRED',
+        statusLabel: 'FINALIZE REQUIRED',
+        blockingReason:
+            'Finalize the operation date before creating a request.',
       );
     }
 
@@ -118,7 +125,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
               ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
         if (candidates.isEmpty) {
           return const ReportSyncRequestPreparation(
-            blockingReason: 'REQUEST NOT READY',
+            blockingReason:
+                'No training data is available for this operation date.',
           );
         }
         final record = candidates.first;
@@ -143,6 +151,12 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         break;
       case ReportSyncExchangeType.food:
         final meals = await _container.food.findByLocalDate(operationDate);
+        if (meals.isEmpty) {
+          return const ReportSyncRequestPreparation(
+            blockingReason:
+                'No food data is available for this operation date.',
+          );
+        }
         payload = const FoodReportSyncPayloadMapper().buildRequest(
           operationDate: operationDate,
           meals: meals,
@@ -157,13 +171,13 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       case ReportSyncExchangeType.morningBrief:
         if (state.phase != OperationPhase.open) {
           return const ReportSyncRequestPreparation(
-            blockingReason: 'REQUEST NOT READY',
+            blockingReason: 'Morning Brief requires the open operation date.',
           );
         }
         final status = await _container.status.findByLocalDate(operationDate);
         if (status == null) {
           return const ReportSyncRequestPreparation(
-            blockingReason: 'NOT GENERATED',
+            blockingReason: 'Morning Fact is required.',
           );
         }
         payload = const MorningBriefRequestPayloadBuilder().build(
@@ -177,7 +191,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         );
         if (confirmation == null) {
           return const ReportSyncRequestPreparation(
-            blockingReason: 'FINALIZE REQUIRED',
+            statusLabel: 'BLOCKED',
+            blockingReason:
+                'Daily confirmation is required for the finalized operation date.',
           );
         }
         final morningBrief = await _container.morningBriefs.readByLocalDate(
