@@ -20,4 +20,12 @@ class AppRoutes {
   static const backupRestore = '/backup-restore';
 
   static const orloSync = '/orlo-sync';
+
+  static const profile = '/profile';
+
+  static const settings = '/settings';
+
+  static const system = '/system';
+
+  static const operationSync = '/operation-sync';
 }

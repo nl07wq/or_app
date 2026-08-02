@@ -11,6 +11,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/app_clock.dart';
@@ -77,7 +78,10 @@ class _DashboardPageState extends State<DashboardPage> {
                             : engine.estimateTDEE(input);
 
                         return Scaffold(
-                          appBar: AppBar(title: const Text('O.R.L.O.')),
+                          appBar: AppBar(
+                            title: const Text('O.R.L.O.'),
+                            actions: const [SystemMenuButton()],
+                          ),
                           body: LayoutBuilder(
                             builder: (context, dashboardConstraints) {
                               final useLargeLayout =
