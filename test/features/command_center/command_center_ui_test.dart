@@ -12,6 +12,9 @@ import 'package:or_app/features/operation_date/models/operation_active_attempt.d
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
+import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -124,7 +127,7 @@ void main() {
     );
   });
 
-  testWidgets('uses uppercase tabs and formal BRIEF DEBRIEF exchange', (
+  testWidgets('separates BRIEF DEBRIEF content from report sync pages', (
     tester,
   ) async {
     await _pump(tester, width: 390);
@@ -136,14 +139,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('MORNING BRIEF'), findsWidgets);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
-    await tester.drag(
-      find.byKey(const ValueKey('report-sync-morningBrief')),
-      const Offset(0, -500),
+    expect(find.byType(ReportSyncExchangePanel), findsNothing);
+    expect(find.text('MORNING BRIEFはまだありません。'), findsOneWidget);
+    expect(find.text('HISTORY'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('open-morning-brief-report-sync')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('open-morning-brief-report-sync')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('COPY CHATGPT PROMPT'), findsWidgets);
-    expect(find.text('COPY REQUEST DATA'), findsNothing);
-    expect(find.text('Required source record: Morning Fact'), findsOneWidget);
+    expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+    expect(find.text('EXPORT TO CHATGPT'), findsOneWidget);
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportSyncExchangePanel), findsNothing);
+    expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('open-daily-debrief-report-sync')),
+      findsOneWidget,
+    );
     expect(find.textContaining('施設'), findsNothing);
   });
 
@@ -171,6 +191,76 @@ void main() {
     expect(find.text('SYSTEM MONITORING'), findsOneWidget);
     expect(find.textContaining('OPERATION SYNC'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows imported brief and debrief content with history', (
+    tester,
+  ) async {
+    const digest =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    final timestamp = DateTime.utc(2026, 8, 1, 9);
+    await AppRepositoryRegistry.container.morningBriefs.create(
+      MorningBriefRecord(
+        localDate: '2026-08-01',
+        requestId: 'legacy-request',
+        requestDigest: digest,
+        responseDigest: digest,
+        generatedAt: timestamp,
+        importedAt: timestamp,
+        situationAnalysis: 'Morning situation',
+        operationStatus: MorningBriefOperationStatus.green,
+        commanderIntent: 'Morning intent',
+        argoComment: 'Morning comment',
+        strategicResourceDecision: 'Morning resources',
+        actions: const [
+          MorningBriefAction(
+            actionId: 'action-1',
+            text: 'Morning action',
+            priority: 'high',
+          ),
+        ],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      ),
+    );
+    await AppRepositoryRegistry.container.dailyDebriefs.create(
+      DailyDebriefRecord(
+        localDate: '2026-07-31',
+        requestId: 'legacy-request',
+        requestDigest: digest,
+        responseDigest: digest,
+        confirmationDigest: digest,
+        generatedAt: timestamp,
+        importedAt: timestamp,
+        dailySummary: 'Daily summary',
+        commanderIntentEvaluation: 'Intent evaluation',
+        successes: const ['Success'],
+        issues: const ['Issue'],
+        nutritionEvaluation: 'Nutrition evaluation',
+        activityEvaluation: 'Activity evaluation',
+        trainingEvaluation: 'Training evaluation',
+        recoveryEvaluation: 'Recovery evaluation',
+        carryover: const ['Carryover'],
+        tomorrowConsiderations: const ['Tomorrow'],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      ),
+    );
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Morning situation'), findsOneWidget);
+    expect(find.textContaining('Morning intent'), findsOneWidget);
+    expect(find.text('2026-08-01'), findsWidgets);
+    expect(find.text('HISTORY'), findsOneWidget);
+
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Daily summary'), findsOneWidget);
+    expect(find.textContaining('Intent evaluation'), findsOneWidget);
+    expect(find.textContaining(digest), findsOneWidget);
+    expect(find.text('2026-07-31'), findsWidgets);
   });
 
   for (final statusCase in [
@@ -235,6 +325,29 @@ void main() {
       for (final theme in [ThemeData.light(), ThemeData.dark()]) {
         await _pump(tester, width: width, theme: theme);
         expect(tester.takeException(), isNull);
+        await tester.tap(
+          find.widgetWithText(TextButton, 'BRIEF / DEBRIEF').first,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(TabBar),
+            matching: find.text('MORNING BRIEF'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('morning-brief-content')),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('DAILY DEBRIEF').first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('daily-debrief-content')),
+          findsOneWidget,
+        );
       }
     });
   }

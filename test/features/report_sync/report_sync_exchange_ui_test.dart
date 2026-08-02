@@ -39,28 +39,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('FOOD REPORT SYNC'), findsWidgets);
-    expect(find.text('REQUEST READY'), findsOneWidget);
-    expect(find.text('HOW TO USE'), findsOneWidget);
+    expect(find.text('EXPORT READY'), findsOneWidget);
+    expect(find.text('使い方'), findsOneWidget);
     for (final step in const [
-      '1. COPY CHATGPT PROMPT',
-      '2. Paste the prompt into ChatGPT',
-      '3. Paste the required source record into ChatGPT',
-      '4. Copy the JSON response',
-      '5. Paste or select the response',
-      '6. Validate and review',
-      '7. Import',
+      '① ChatGPT用プロンプトをコピー',
+      '② ChatGPTへ貼り付ける',
+      '③ 指定されたデータを貼り付ける',
+      '④ ChatGPTが返したJSONだけをコピー',
+      '⑤ JSONを貼り付ける、またはJSONファイルを選択する',
+      '⑥ 内容を確認する',
+      '⑦ インポートする',
     ]) {
       expect(find.text(step), findsOneWidget);
     }
     expect(find.text('COPY CHATGPT PROMPT'), findsWidgets);
     expect(find.text('COPY REQUEST DATA'), findsNothing);
     expect(find.text('EXPORT REQUEST FILE'), findsNothing);
-    expect(find.text('Required source record: Meal Data'), findsOneWidget);
+    expect(find.text('対象データ: Meal Data'), findsOneWidget);
+    expect(find.text('EXPORT TO CHATGPT'), findsOneWidget);
+    expect(find.text('IMPORT FROM CHATGPT'), findsOneWidget);
+    expect(find.text('COPY MEAL DATA'), findsOneWidget);
 
     await tester.tap(find.text('COPY CHATGPT PROMPT').last);
     await tester.pump();
     expect(copied, ['JSON ONLY']);
     expect(gateway.recordRequestCalls, 0);
+
+    await tester.tap(find.text('COPY MEAL DATA'));
+    await tester.pump();
+    expect(copied, ['JSON ONLY', 'OPERATION REBOOT\nSOURCE: Meal Data']);
 
     await tester.scrollUntilVisible(
       find.text('SELECT RESPONSE FILE'),
@@ -77,7 +84,7 @@ void main() {
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.textContaining('Markdown code fences'), findsOneWidget);
+    expect(find.textContaining('Markdown'), findsOneWidget);
 
     await tester.enterText(
       find.descendant(
@@ -144,6 +151,56 @@ void main() {
     expect(find.text('EXPORT REQUEST FILE'), findsNothing);
   });
 
+  for (final module in const [
+    (
+      type: ReportSyncExchangeType.training,
+      source: 'Training Record',
+      button: 'COPY TRAINING RECORD',
+    ),
+    (
+      type: ReportSyncExchangeType.food,
+      source: 'Meal Data',
+      button: 'COPY MEAL DATA',
+    ),
+    (
+      type: ReportSyncExchangeType.morningBrief,
+      source: 'Morning Fact',
+      button: 'COPY MORNING FACT',
+    ),
+    (
+      type: ReportSyncExchangeType.dailyDebrief,
+      source: 'Finalized Daily Data',
+      button: 'COPY FINALIZED DAILY DATA',
+    ),
+  ]) {
+    testWidgets('${module.type.name} exposes its formal plain-text export', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReportSyncExchangePage(
+            exchangeType: module.type,
+            gateway: _FakeExchangeGateway(
+              preparation: ReportSyncRequestPreparation(
+                operationDate: '2026-08-02',
+                sourceText:
+                    'OPERATION REBOOT\nSOURCE: ${module.source}\nOPERATION DATE: 2026-08-02',
+              ),
+            ),
+            fileGateway: _FakeFileGateway(),
+            clipboardWriter: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(module.button), findsOneWidget);
+      expect(find.text('対象データ: ${module.source}'), findsOneWidget);
+      expect(find.text('COPY REQUEST DATA'), findsNothing);
+      expect(find.text('EXPORT REQUEST FILE'), findsNothing);
+    });
+  }
+
   for (final disposition in const [
     ReportSyncDisposition.noChanges,
     ReportSyncDisposition.conflict,
@@ -197,19 +254,21 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       for (final theme in [ThemeData.light(), ThemeData.dark()]) {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: theme,
-            home: ReportSyncExchangePage(
-              exchangeType: ReportSyncExchangeType.food,
-              gateway: _FakeExchangeGateway(),
-              fileGateway: _FakeFileGateway(),
-              clipboardWriter: (_) async {},
+        for (final type in ReportSyncExchangeType.values) {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: theme,
+              home: ReportSyncExchangePage(
+                exchangeType: type,
+                gateway: _FakeExchangeGateway(),
+                fileGateway: _FakeFileGateway(),
+                clipboardWriter: (_) async {},
+              ),
             ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: type.stableId);
+        }
       }
     });
   }
@@ -301,6 +360,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
       ReportSyncRequestPreparation(
         envelope: request,
         operationDate: request.operationDate,
+        sourceText: 'OPERATION REBOOT\nSOURCE: Meal Data',
       );
 
   @override

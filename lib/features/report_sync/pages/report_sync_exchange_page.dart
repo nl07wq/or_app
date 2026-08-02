@@ -9,8 +9,6 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
-import '../models/daily_debrief_record.dart';
-import '../models/morning_brief_record.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
@@ -73,7 +71,6 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   ReportSyncRequestPreparation? _request;
   ReportSyncResponsePreview? _preview;
   List<ReportSyncHistory> _history = const [];
-  Object? _importedRecord;
   bool _busy = false;
   String? _message;
   String? _error;
@@ -103,17 +100,10 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     try {
       final request = await _gateway.prepareRequest(widget.exchangeType);
       final history = await _gateway.history(widget.exchangeType);
-      final imported = request.operationDate == null
-          ? null
-          : await _gateway.importedRecord(
-              widget.exchangeType,
-              request.operationDate!,
-            );
       if (!mounted) return;
       setState(() {
         _request = request;
         _history = history;
-        _importedRecord = imported;
       });
     } catch (error) {
       if (mounted) setState(() => _error = _errorText(error));
@@ -132,6 +122,17 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         _gateway.instruction(widget.exchangeType, request),
       );
       _message = 'CHATGPT PROMPT COPIED';
+    });
+  }
+
+  Future<void> _copySource() async {
+    await _run(() async {
+      final source = _request?.sourceText;
+      if (source == null) {
+        throw StateError('コピーできる正式記録がありません。');
+      }
+      await _clipboardWriter(source);
+      _message = '${_sourceName(widget.exchangeType).toUpperCase()} COPIED';
     });
   }
 
@@ -205,12 +206,6 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       final request = await _gateway.prepareRequest(widget.exchangeType);
       _request = request;
       _history = await _gateway.history(widget.exchangeType);
-      if (request.operationDate != null) {
-        _importedRecord = await _gateway.importedRecord(
-          widget.exchangeType,
-          request.operationDate!,
-        );
-      }
     });
   }
 
@@ -270,7 +265,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_stateLabel(request, _importedRecord)),
+              Text(_stateLabel(request)),
               if (request?.operationDate != null)
                 Text('Operation Date  ${request!.operationDate}'),
               if (request?.blockingReason != null)
@@ -278,12 +273,11 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             ],
           ),
         ),
-        if (_importedRecord != null) ...[
-          AppSpacing.gapSM,
-          _ImportedRecordCard(record: _importedRecord!),
-        ],
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.upload_file, title: 'CHATGPT PROMPT'),
+        const SectionHeader(
+          icon: Icons.upload_file,
+          title: 'EXPORT TO CHATGPT',
+        ),
         AppSpacing.gapSM,
         Wrap(
           spacing: 8,
@@ -294,26 +288,35 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT PROMPT'),
             ),
+            OutlinedButton.icon(
+              onPressed: request?.canCopySource == true && !_busy
+                  ? _copySource
+                  : null,
+              icon: const Icon(Icons.copy_all_outlined),
+              label: Text(_copySourceLabel(widget.exchangeType)),
+            ),
           ],
         ),
         AppSpacing.gapSM,
         OperationCard(
           child: Text(
-            'After the prompt, paste the formal ${_sourceName(widget.exchangeType)} '
-            'for the displayed Operation Date into ChatGPT.',
+            'プロンプトを貼り付けた後、コピーした正式な'
+            '${_sourceName(widget.exchangeType)}をChatGPTへ貼り付けてください。',
           ),
         ),
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.download_outlined, title: 'RESPONSE'),
+        const SectionHeader(
+          icon: Icons.download_outlined,
+          title: 'IMPORT FROM CHATGPT',
+        ),
         AppSpacing.gapSM,
         OperationCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Paste only the JSON returned by ChatGPT. Explanatory text, '
-                'Markdown code fences, multiple JSON values, and malformed '
-                'JSON are rejected.',
+                'ChatGPTが返したJSONだけを貼り付けてください。説明文、'
+                'Markdown、複数JSON、不正なJSONは受け付けません。',
               ),
               AppSpacing.gapSM,
               OperationTextField(
@@ -386,13 +389,13 @@ class _HowToUseCard extends StatelessWidget {
   final ReportSyncExchangeType exchangeType;
 
   static const steps = [
-    '1. COPY CHATGPT PROMPT',
-    '2. Paste the prompt into ChatGPT',
-    '3. Paste the required source record into ChatGPT',
-    '4. Copy the JSON response',
-    '5. Paste or select the response',
-    '6. Validate and review',
-    '7. Import',
+    '① ChatGPT用プロンプトをコピー',
+    '② ChatGPTへ貼り付ける',
+    '③ 指定されたデータを貼り付ける',
+    '④ ChatGPTが返したJSONだけをコピー',
+    '⑤ JSONを貼り付ける、またはJSONファイルを選択する',
+    '⑥ 内容を確認する',
+    '⑦ インポートする',
   ];
 
   @override
@@ -400,14 +403,14 @@ class _HowToUseCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('HOW TO USE', style: Theme.of(context).textTheme.titleMedium),
+        Text('使い方', style: Theme.of(context).textTheme.titleMedium),
         AppSpacing.gapSM,
         for (final step in steps)
           Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(step)),
         AppSpacing.gapSM,
-        const Text('The prompt defines the response rules and JSON schema.'),
+        const Text('プロンプトには変換ルールとResponse JSON Schemaが含まれます。'),
         AppSpacing.gapSM,
-        Text('Required source record: ${_sourceName(exchangeType)}'),
+        Text('対象データ: ${_sourceName(exchangeType)}'),
       ],
     ),
   );
@@ -465,78 +468,10 @@ class _HistoryCard extends StatelessWidget {
   );
 }
 
-class _ImportedRecordCard extends StatelessWidget {
-  const _ImportedRecordCard({required this.record});
-  final Object record;
-
-  @override
-  Widget build(BuildContext context) {
-    if (record is MorningBriefRecord) {
-      final value = record as MorningBriefRecord;
-      return OperationCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Situation Analysis\n${value.situationAnalysis}'),
-            AppSpacing.gapSM,
-            Text(
-              'Operation Status\n${value.operationStatus.stableId.toUpperCase()}',
-            ),
-            AppSpacing.gapSM,
-            Text('Commander Intent\n${value.commanderIntent}'),
-            AppSpacing.gapSM,
-            Text('Argo Comment\n${value.argoComment}'),
-            AppSpacing.gapSM,
-            Text(
-              'Strategic Resource Decision\n${value.strategicResourceDecision}',
-            ),
-            AppSpacing.gapSM,
-            const Text('Actions'),
-            for (final action in value.actions)
-              Text('• ${action.text} [${action.priority}]'),
-          ],
-        ),
-      );
-    }
-    final value = record as DailyDebriefRecord;
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Daily Summary\n${value.dailySummary}'),
-          AppSpacing.gapSM,
-          Text(
-            'Commander Intent Evaluation\n${value.commanderIntentEvaluation}',
-          ),
-          AppSpacing.gapSM,
-          Text('Successes\n${value.successes.join('\n')}'),
-          AppSpacing.gapSM,
-          Text('Issues\n${value.issues.join('\n')}'),
-          AppSpacing.gapSM,
-          Text('Nutrition Evaluation\n${value.nutritionEvaluation}'),
-          AppSpacing.gapSM,
-          Text('Activity Evaluation\n${value.activityEvaluation}'),
-          AppSpacing.gapSM,
-          Text('Training Evaluation\n${value.trainingEvaluation}'),
-          AppSpacing.gapSM,
-          Text('Recovery Evaluation\n${value.recoveryEvaluation}'),
-          AppSpacing.gapSM,
-          Text('Carryover\n${value.carryover.join('\n')}'),
-          AppSpacing.gapSM,
-          Text(
-            'Tomorrow Considerations\n${value.tomorrowConsiderations.join('\n')}',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _stateLabel(ReportSyncRequestPreparation? request, Object? imported) {
-  if (imported != null) return 'IMPORTED';
+String _stateLabel(ReportSyncRequestPreparation? request) {
   if (request == null) return 'LOADING';
   if (!request.isReady) return request.statusLabel;
-  return 'REQUEST READY';
+  return 'EXPORT READY';
 }
 
 String _title(ReportSyncExchangeType type) => switch (type) {
@@ -565,6 +500,13 @@ String _sourceName(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.food => 'Meal Data',
   ReportSyncExchangeType.morningBrief => 'Morning Fact',
   ReportSyncExchangeType.dailyDebrief => 'Finalized Daily Data',
+};
+
+String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
+  ReportSyncExchangeType.training => 'COPY TRAINING RECORD',
+  ReportSyncExchangeType.food => 'COPY MEAL DATA',
+  ReportSyncExchangeType.morningBrief => 'COPY MORNING FACT',
+  ReportSyncExchangeType.dailyDebrief => 'COPY FINALIZED DAILY DATA',
 };
 
 String _errorText(Object error) => switch (error) {

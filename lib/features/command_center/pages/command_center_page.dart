@@ -13,13 +13,12 @@ import '../../morning/models/morning_fact_state.dart';
 import '../../operation_date/models/daily_finalize_result.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../repositories/app_repository_container.dart';
-import '../../report_sync/models/report_sync_envelope.dart';
-import '../../report_sync/pages/report_sync_exchange_page.dart';
 import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
 import '../services/daily_command_read_model_builder.dart';
 import '../widgets/daily_command_item.dart';
 import '../widgets/data_center_page.dart';
+import '../widgets/brief_debrief_page.dart';
 
 class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({super.key});
@@ -69,7 +68,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
               controller: _pageController,
               onPageChanged: (page) => setState(() => _currentPage = page),
               children: [
-                const _BriefDebriefPage(),
+                const BriefDebriefPage(),
                 _DailyCommandPage(
                   refreshToken: _refreshToken,
                   isRecovering: _isRecovering,
@@ -458,43 +457,6 @@ class _WorkspaceHeader extends StatelessWidget {
       ),
     );
   }
-}
-
-class _BriefDebriefPage extends StatelessWidget {
-  const _BriefDebriefPage();
-  @override
-  Widget build(BuildContext context) => const DefaultTabController(
-    length: 2,
-    child: Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: SectionHeader(
-            icon: Icons.article_outlined,
-            title: 'BRIEF / DEBRIEF',
-          ),
-        ),
-        TabBar(
-          tabs: [
-            Tab(text: 'MORNING BRIEF'),
-            Tab(text: 'DAILY DEBRIEF'),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            children: [
-              ReportSyncExchangePanel(
-                exchangeType: ReportSyncExchangeType.morningBrief,
-              ),
-              ReportSyncExchangePanel(
-                exchangeType: ReportSyncExchangeType.dailyDebrief,
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 String _cycleLabel(DailyCommandCycleState state) => switch (state) {

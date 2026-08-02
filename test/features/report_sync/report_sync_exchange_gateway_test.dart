@@ -75,6 +75,9 @@ void main() {
               ? '2026-08-02'
               : '2026-08-03',
         );
+        expect(prepared.sourceText, isNotNull, reason: type.stableId);
+        expect(prepared.sourceText, startsWith('OPERATION REBOOT\nSOURCE:'));
+        expect(prepared.sourceText, isNot(startsWith('{')));
       }
       final debrief = (await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
@@ -109,15 +112,18 @@ void main() {
         ReportSyncExchangeType.training,
       );
       expect(training.isReady, isTrue);
+      expect(training.sourceText, isNull);
 
       final food = await gateway.prepareRequest(ReportSyncExchangeType.food);
       expect(food.isReady, isTrue);
+      expect(food.sourceText, isNull);
 
       final morning = await gateway.prepareRequest(
         ReportSyncExchangeType.morningBrief,
       );
       expect(morning.isReady, isTrue);
-      expect(morning.blockingReason, contains('Morning Fact is not recorded'));
+      expect(morning.sourceText, isNull);
+      expect(morning.blockingReason, contains('Morning Fact'));
 
       final debrief = await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,

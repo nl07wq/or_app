@@ -8,6 +8,7 @@ import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_adapters.dart';
+import 'report_sync_plain_text_exporter.dart';
 
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
 
@@ -16,6 +17,7 @@ class ReportSyncRequestPreparation {
     this.envelope,
     this.operationDate,
     this.confirmationDigest,
+    this.sourceText,
     this.statusLabel = 'REQUEST NOT READY',
     this.blockingReason,
   });
@@ -23,9 +25,11 @@ class ReportSyncRequestPreparation {
   final ReportSyncEnvelope? envelope;
   final String? operationDate;
   final String? confirmationDigest;
+  final String? sourceText;
   final String statusLabel;
   final String? blockingReason;
   bool get isReady => operationDate != null;
+  bool get canCopySource => sourceText != null;
 }
 
 class ReportSyncResponsePreview {
@@ -114,9 +118,35 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
 
     switch (type) {
       case ReportSyncExchangeType.training:
-        return ReportSyncRequestPreparation(operationDate: operationDate);
+        final records = await _container.training.findRecordsByLocalDate(
+          operationDate,
+        );
+        final candidates =
+            records
+                .where((record) => record.v2Data != null && !record.isLegacy)
+                .toList()
+              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        return ReportSyncRequestPreparation(
+          operationDate: operationDate,
+          sourceText: candidates.isEmpty
+              ? null
+              : const ReportSyncPlainTextExporter().training(candidates.first),
+          blockingReason: candidates.isEmpty
+              ? '対象日のTraining Recordがありません。'
+              : null,
+        );
       case ReportSyncExchangeType.food:
-        return ReportSyncRequestPreparation(operationDate: operationDate);
+        final meals = await _container.food.findByLocalDate(operationDate);
+        return ReportSyncRequestPreparation(
+          operationDate: operationDate,
+          sourceText: meals.isEmpty
+              ? null
+              : const ReportSyncPlainTextExporter().food(
+                  operationDate: operationDate,
+                  meals: meals,
+                ),
+          blockingReason: meals.isEmpty ? '対象日のMeal Dataがありません。' : null,
+        );
       case ReportSyncExchangeType.morningBrief:
         if (state.phase != OperationPhase.open) {
           return const ReportSyncRequestPreparation(
@@ -126,10 +156,10 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         final status = await _container.status.findByLocalDate(operationDate);
         return ReportSyncRequestPreparation(
           operationDate: operationDate,
-          blockingReason: status == null
-              ? 'Morning Fact is not recorded. Paste the formal Morning Fact '
-                    'after the prompt before generating a response.'
-              : null,
+          sourceText: status == null
+              ? null
+              : const ReportSyncPlainTextExporter().morning(status),
+          blockingReason: status == null ? '対象日のMorning Factがありません。' : null,
         );
       case ReportSyncExchangeType.dailyDebrief:
         final confirmation = await _container.confirmation.findByLocalDate(
@@ -142,10 +172,18 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
                 'Daily confirmation is required for the finalized operation date.',
           );
         }
+        final morningBrief = await _container.morningBriefs.readByLocalDate(
+          operationDate,
+        );
         return ReportSyncRequestPreparation(
           operationDate: operationDate,
           confirmationDigest: ReportSyncCanonicalService.digest(
             confirmation.toJson(),
+          ),
+          sourceText: const ReportSyncPlainTextExporter().finalizedDailyData(
+            operationDate: operationDate,
+            confirmation: confirmation,
+            morningBrief: morningBrief,
           ),
         );
     }
