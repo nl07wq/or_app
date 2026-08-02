@@ -6,6 +6,8 @@ abstract final class IndexedDbStoreNames {
   // IndexedDB v2 canonical stores.
   static const statusRecords = 'status_records';
   static const foodRecords = 'food_records';
+  static const foodCatalogRecords = 'food_catalog_records';
+  static const foodRecipeRecords = 'food_recipe_records';
   static const trainingRecords = 'training_records';
   static const activityRecords = 'activity_records';
   static const activityDrafts = 'activity_drafts';
@@ -20,6 +22,8 @@ abstract final class IndexedDbStoreNames {
   static const canonical = [
     statusRecords,
     foodRecords,
+    foodCatalogRecords,
+    foodRecipeRecords,
     trainingRecords,
     activityRecords,
     dailyLogConfirmations,

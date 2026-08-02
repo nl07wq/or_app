@@ -38,7 +38,7 @@ class BackupExportService {
       mode: IndexedDbTransactionMode.readOnly,
       action: (transaction) async {
         final snapshot = <String, List<Map<String, Object?>>>{};
-        for (final section in BackupSections.schema3) {
+        for (final section in BackupSections.schema4) {
           final records = await transaction.findAll(
             BackupStoreRegistry.stores[section]!,
           );
@@ -81,7 +81,7 @@ class BackupExportService {
       counts[section] = records.length;
       sectionDigests[section] = BackupCanonicalCodec.digest(records);
     }
-    if (schemaVersion == BackupPackage.currentSchemaVersion) {
+    if (schemaVersion >= 3) {
       BackupOperationStateIntegrity.validate(normalized);
     }
     final packagePayload = <String, Object?>{

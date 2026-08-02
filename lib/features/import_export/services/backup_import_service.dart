@@ -82,10 +82,14 @@ class BackupImportService {
               if (approvedPlan.mode == BackupImportMode.merge) {
                 final existing = await transaction.findById(
                   store,
-                  record['id'] as String,
+                  BackupStoreRegistry.recordId(section, record),
                 );
                 if (existing != null) {
-                  if (!BackupStoreRegistry.envelopesEqual(existing, record)) {
+                  if (!BackupStoreRegistry.recordsEqual(
+                    section,
+                    existing,
+                    record,
+                  )) {
                     throw BackupException(
                       'import_conflict',
                       '$section changed after dry run.',
@@ -103,9 +107,7 @@ class BackupImportService {
       await _verifyApplied(approvedPlan);
       await _restore();
       if (!await _validateCurrentDatabase(
-        requireOperationState:
-            approvedPlan.package.schemaVersion ==
-            BackupPackage.currentSchemaVersion,
+        requireOperationState: approvedPlan.package.schemaVersion >= 3,
       )) {
         throw const BackupException(
           'post_import_validation_failed',
@@ -113,9 +115,7 @@ class BackupImportService {
         );
       }
       _controller.markReady();
-      final restoresOperationState =
-          approvedPlan.package.schemaVersion ==
-          BackupPackage.currentSchemaVersion;
+      final restoresOperationState = approvedPlan.package.schemaVersion >= 3;
       final recoveryRequired = restoresOperationState
           ? OperationState.fromRecord(
               approvedPlan.package.data[BackupSections.operationState]!.single,
@@ -168,12 +168,18 @@ class BackupImportService {
           );
         }
         final actualById = {
-          for (final record in actual) record['id'] as String: record,
+          for (final record in actual)
+            BackupStoreRegistry.recordId(section, record): record,
         };
         for (final record in incoming) {
-          final actualRecord = actualById[record['id']];
+          final actualRecord =
+              actualById[BackupStoreRegistry.recordId(section, record)];
           if (actualRecord == null ||
-              !BackupStoreRegistry.envelopesEqual(actualRecord, record)) {
+              !BackupStoreRegistry.recordsEqual(
+                section,
+                actualRecord,
+                record,
+              )) {
             throw BackupException(
               'post_import_verification_failed',
               '$section failed post-import verification.',
@@ -188,7 +194,8 @@ class BackupImportService {
     bool requireOperationState = false,
   }) async {
     try {
-      for (final section in BackupSections.schema2) {
+      for (final section in BackupSections.schema4) {
+        if (section == BackupSections.operationState) continue;
         BackupStoreRegistry.validateAndSort(
           section,
           await _database.findAll(BackupStoreRegistry.stores[section]!),

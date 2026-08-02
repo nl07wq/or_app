@@ -7,6 +7,12 @@ import '../activity/repository/indexed_db_activity_repository.dart';
 import '../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import '../food/repository/food_repository.dart';
+import '../food/repository/food_catalog_repository.dart';
+import '../food/repository/food_recipe_repository.dart';
+import '../food/repository/daily_meal_v2_repository.dart';
+import '../food/repository/indexed_db_food_catalog_repository.dart';
+import '../food/repository/indexed_db_food_recipe_repository.dart';
+import '../food/repository/indexed_db_daily_meal_v2_repository.dart';
 import '../food/repository/indexed_db_food_repository.dart';
 import '../operation_date/repository/indexed_db_operation_state_repository.dart';
 import '../operation_date/repository/operation_state_repository.dart';
@@ -23,6 +29,9 @@ class AppRepositoryContainer {
   final ActivityRepository activity;
   final ActivityDraftRepository activityDrafts;
   final FoodRepository food;
+  final FoodCatalogRepository foodCatalog;
+  final FoodRecipeRepository foodRecipes;
+  final DailyMealV2Repository dailyMealsV2;
   final TrainingSessionRepository training;
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
@@ -34,6 +43,9 @@ class AppRepositoryContainer {
     required this.activity,
     required this.activityDrafts,
     required this.food,
+    required this.foodCatalog,
+    required this.foodRecipes,
+    required this.dailyMealsV2,
     required this.training,
     required this.customTrainingExercises,
     required this.confirmation,
@@ -47,6 +59,9 @@ class AppRepositoryContainer {
       activity: IndexedDbActivityRepository(database),
       activityDrafts: IndexedDbActivityDraftRepository(database),
       food: IndexedDbFoodRepository(database),
+      foodCatalog: IndexedDbFoodCatalogRepository(database),
+      foodRecipes: IndexedDbFoodRecipeRepository(database),
+      dailyMealsV2: IndexedDbDailyMealV2Repository(database),
       training: IndexedDbTrainingSessionRepository(database),
       customTrainingExercises: IndexedDbCustomTrainingExerciseRepository(
         database,

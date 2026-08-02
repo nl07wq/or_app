@@ -13,11 +13,11 @@ class FakeIndexedDbDatabase implements IndexedDbDatabase {
 
   @override
   Future<void> put(String storeName, Map<String, Object?> record) async {
-    final id = record['id'];
-    if (id is! String) throw const FormatException('Record ID is required.');
     final definition = IndexedDbSchema.storeDefinitions.singleWhere(
       (definition) => definition.name == storeName,
     );
+    final id = record[definition.keyPath];
+    if (id is! String) throw const FormatException('Record ID is required.');
     for (final index in definition.indexes.where((index) => index.unique)) {
       final value = record[index.keyPath];
       if (value == null) continue;

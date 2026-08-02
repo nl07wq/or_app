@@ -2,6 +2,10 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../activity/models/persisted_activity_record.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../food/models/persisted_food_record.dart';
+import '../../food/models/persisted_daily_meal_v2_record.dart';
+import '../../food/models/food_catalog_models.dart';
+import '../../food/models/recipe_models_v2.dart';
+import '../../food/services/food_v2_canonical_service.dart';
 import '../../status/models/persisted_status_record.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
@@ -18,6 +22,8 @@ abstract final class BackupStoreRegistry {
     BackupSections.confirmations: IndexedDbStoreNames.dailyLogConfirmations,
     BackupSections.customExercises: IndexedDbStoreNames.customTrainingExercises,
     BackupSections.operationState: IndexedDbStoreNames.operationState,
+    BackupSections.foodCatalog: IndexedDbStoreNames.foodCatalogRecords,
+    BackupSections.foodRecipes: IndexedDbStoreNames.foodRecipeRecords,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -27,7 +33,11 @@ abstract final class BackupStoreRegistry {
       case BackupSections.activity:
         PersistedActivityRecord.fromRecord(record);
       case BackupSections.food:
-        PersistedFoodRecord.fromRecord(record);
+        if (record['recordVersion'] == 2) {
+          PersistedDailyMealV2Record.fromRecord(record);
+        } else {
+          PersistedFoodRecord.fromRecord(record);
+        }
       case BackupSections.training:
         PersistedTrainingRecord.fromRecord(record);
       case BackupSections.confirmations:
@@ -36,6 +46,10 @@ abstract final class BackupStoreRegistry {
         PersistedCustomTrainingExerciseRecord.fromRecord(record);
       case BackupSections.operationState:
         OperationState.fromRecord(record);
+      case BackupSections.foodCatalog:
+        FoodCatalogEntry.fromJson(record);
+      case BackupSections.foodRecipes:
+        FoodRecipeDefinition.fromJson(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -52,7 +66,7 @@ abstract final class BackupStoreRegistry {
     for (final source in records) {
       final record = _deepCopyMap(source);
       validateRecord(section, record);
-      final id = record['id'] as String;
+      final id = recordId(section, record);
       if (!ids.add(id)) {
         throw BackupException(
           'duplicate_id',
@@ -86,7 +100,7 @@ abstract final class BackupStoreRegistry {
   }
 
   static String _sortKey(String section, Map<String, Object?> record) {
-    final id = record['id'];
+    final id = recordId(section, record);
     return switch (section) {
       BackupSections.status || BackupSections.activity =>
         '${record['localDate']}\u0000'
@@ -99,6 +113,7 @@ abstract final class BackupStoreRegistry {
       BackupSections.confirmations => '${record['localDate']}\u0000$id',
       BackupSections.customExercises => '${record['normalizedName']}\u0000$id',
       BackupSections.operationState => id.toString(),
+      BackupSections.foodCatalog || BackupSections.foodRecipes => id,
       _ => id.toString(),
     };
   }
@@ -108,6 +123,46 @@ abstract final class BackupStoreRegistry {
     Map<String, Object?> second,
   ) =>
       BackupCanonicalCodec.encode(first) == BackupCanonicalCodec.encode(second);
+
+  static bool recordsEqual(
+    String section,
+    Map<String, Object?> first,
+    Map<String, Object?> second,
+  ) {
+    if (section == BackupSections.foodCatalog ||
+        section == BackupSections.foodRecipes) {
+      return FoodV2CanonicalService.digest(first) ==
+          FoodV2CanonicalService.digest(second);
+    }
+    if (section == BackupSections.food &&
+        first['recordVersion'] == 2 &&
+        second['recordVersion'] == 2) {
+      final firstData = first['data'];
+      final secondData = second['data'];
+      if (firstData is Map && secondData is Map) {
+        return FoodV2CanonicalService.digest(
+              Map<String, Object?>.from(firstData),
+            ) ==
+            FoodV2CanonicalService.digest(
+              Map<String, Object?>.from(secondData),
+            );
+      }
+    }
+    return envelopesEqual(first, second);
+  }
+
+  static String recordId(String section, Map<String, Object?> record) {
+    final key = switch (section) {
+      BackupSections.foodCatalog => 'foodId',
+      BackupSections.foodRecipes => 'recipeId',
+      _ => 'id',
+    };
+    final value = record[key];
+    if (value is! String || value.isEmpty) {
+      throw BackupException('invalid_record', '$section has an invalid ID.');
+    }
+    return value;
+  }
 
   static Map<String, Object?> _deepCopyMap(Map source) => {
     for (final entry in source.entries)

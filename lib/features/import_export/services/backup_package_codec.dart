@@ -53,9 +53,10 @@ class BackupPackageCodec {
     final json = Map<String, Object?>.from(decoded);
     if (json['schemaVersion'] == '1.0') return _decodeSchema1(json);
     final version = json['schemaVersion'];
-    if (version == BackupPackage.previousSchemaVersion ||
-        version == BackupPackage.currentSchemaVersion) {
-      return _decodeCurrent(json, version as int);
+    if (version is int &&
+        version >= 2 &&
+        version <= BackupPackage.currentSchemaVersion) {
+      return _decodeCurrent(json, version);
     }
     throw const BackupException(
       'unsupported_schema',
@@ -157,7 +158,7 @@ class BackupPackageCodec {
         'Package digest does not match.',
       );
     }
-    if (schemaVersion == BackupPackage.currentSchemaVersion) {
+    if (schemaVersion >= 3) {
       BackupOperationStateIntegrity.validate(data);
     }
     return BackupPackage(

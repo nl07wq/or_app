@@ -35,7 +35,7 @@ class BackupDigests {
 
 class BackupPackage {
   static const schemaName = 'operation-reboot-backup';
-  static const currentSchemaVersion = 3;
+  static const currentSchemaVersion = 4;
   static const previousSchemaVersion = 2;
 
   final String schema;
@@ -74,8 +74,8 @@ class BackupPackage {
 
   bool get isLegacyConverted => schemaVersion == 1;
   bool get permitsReplaceAll =>
-      schemaVersion == previousSchemaVersion ||
-      schemaVersion == currentSchemaVersion;
+      schemaVersion >= previousSchemaVersion &&
+      schemaVersion <= currentSchemaVersion;
 
   Map<String, Object?> toJson() => {
     'schema': schema,
@@ -99,6 +99,8 @@ abstract final class BackupSections {
   static const confirmations = 'dailyLogConfirmations';
   static const customExercises = 'customTrainingExercises';
   static const operationState = 'operationState';
+  static const foodCatalog = 'foodCatalogRecords';
+  static const foodRecipes = 'foodRecipeRecords';
 
   static const schema2 = [
     status,
@@ -110,10 +112,18 @@ abstract final class BackupSections {
   ];
 
   static const schema3 = [...schema2, operationState];
-  static const all = schema3;
+  static const schema4 = [...schema3, foodCatalog, foodRecipes];
+  static const all = schema4;
 
-  static List<String> forSchema(int schemaVersion) =>
-      schemaVersion == BackupPackage.currentSchemaVersion ? schema3 : schema2;
+  static List<String> forSchema(int schemaVersion) => switch (schemaVersion) {
+    2 => schema2,
+    3 => schema3,
+    4 => schema4,
+    _ => throw BackupException(
+      'unsupported_schema',
+      'Backup schema is not supported.',
+    ),
+  };
 }
 
 enum BackupImportMode { merge, replaceAll }

@@ -50,7 +50,7 @@ void main() {
       controller: controller,
     ).create();
 
-    expect(package.schemaVersion, 3);
+    expect(package.schemaVersion, 4);
     expect(package.data[BackupSections.operationState], [state.toRecord()]);
     expect(package.recordCounts[BackupSections.operationState], 1);
     expect(package.digests.sections[BackupSections.operationState], isNotEmpty);
@@ -274,6 +274,7 @@ BackupPackage _packageFor(
   Map<String, Object?>? confirmation,
 }) {
   return BackupExportService.buildPackage(
+    schemaVersion: 3,
     exportId: 'schema-3-test',
     exportedAt: DateTime.utc(2026, 8, 1),
     source: const BackupSource(platform: 'test'),

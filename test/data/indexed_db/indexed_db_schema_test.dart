@@ -3,15 +3,17 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v5 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v6 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 5);
+    expect(IndexedDbSchema.databaseVersion, 6);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
       containsAll([
         IndexedDbStoreNames.statusRecords,
         IndexedDbStoreNames.foodRecords,
+        IndexedDbStoreNames.foodCatalogRecords,
+        IndexedDbStoreNames.foodRecipeRecords,
         IndexedDbStoreNames.trainingRecords,
         IndexedDbStoreNames.activityRecords,
         IndexedDbStoreNames.dailyLogConfirmations,
@@ -272,5 +274,26 @@ void main() {
     expect(operationState.keyPath, 'id');
     expect(operationState.indexes, isEmpty);
     expect(existingRecord, beforeUpgrade);
+  });
+
+  test('v5 to v6 upgrade adds only Food Catalog and Recipe stores', () {
+    final v5Stores = IndexedDbStoreNames.all
+        .where(
+          (name) =>
+              name != IndexedDbStoreNames.foodCatalogRecords &&
+              name != IndexedDbStoreNames.foodRecipeRecords,
+        )
+        .toSet();
+    final added = IndexedDbSchema.storeDefinitions
+        .where((definition) => !v5Stores.contains(definition.name))
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.foodCatalogRecords,
+      IndexedDbStoreNames.foodRecipeRecords,
+    ]);
+    expect(added[0].keyPath, 'foodId');
+    expect(added[1].keyPath, 'recipeId');
+    expect(added.every((definition) => definition.indexes.isEmpty), isTrue);
   });
 }

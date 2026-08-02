@@ -12,7 +12,7 @@ class BackupImportPlanner {
     BackupPackage package,
     BackupImportMode mode,
   ) async {
-    if (package.schemaVersion == BackupPackage.currentSchemaVersion) {
+    if (package.schemaVersion >= 3) {
       BackupOperationStateIntegrity.validate(package.data);
     }
     if (package.isLegacyConverted && mode != BackupImportMode.merge) {
@@ -36,17 +36,18 @@ class BackupImportPlanner {
         continue;
       }
       final existingById = {
-        for (final record in existing) record['id'] as String: record,
+        for (final record in existing)
+          BackupStoreRegistry.recordId(section, record): record,
       };
       var add = 0;
       var skip = 0;
       final conflicts = <String>[];
       for (final record in incoming) {
-        final id = record['id'] as String;
+        final id = BackupStoreRegistry.recordId(section, record);
         final match = existingById[id];
         if (match == null) {
           add++;
-        } else if (BackupStoreRegistry.envelopesEqual(match, record)) {
+        } else if (BackupStoreRegistry.recordsEqual(section, match, record)) {
           skip++;
         } else {
           conflicts.add('$section:$id');
@@ -60,8 +61,7 @@ class BackupImportPlanner {
         conflicts: conflicts,
       );
     }
-    if (package.schemaVersion == BackupPackage.currentSchemaVersion &&
-        mode == BackupImportMode.merge) {
+    if (package.schemaVersion >= 3 && mode == BackupImportMode.merge) {
       final current = plans[BackupSections.operationState]!;
       final conflicts = [...current.conflicts];
       if (current.skip != 1) conflicts.add('operationState:must-match-current');
@@ -98,13 +98,15 @@ class BackupImportPlanner {
     final byValue = <Object, String>{};
     for (final record in existing) {
       final value = record[uniqueField];
-      if (value != null) byValue[value] = record['id'] as String;
+      if (value != null) {
+        byValue[value] = BackupStoreRegistry.recordId(section, record);
+      }
     }
     for (final record in incoming) {
       final value = record[uniqueField];
       if (value == null) continue;
       final existingId = byValue[value];
-      final incomingId = record['id'] as String;
+      final incomingId = BackupStoreRegistry.recordId(section, record);
       if (existingId != null && existingId != incomingId) {
         conflicts.add('$section:$uniqueField:$value');
       }
