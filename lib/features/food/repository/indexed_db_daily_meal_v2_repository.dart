@@ -3,6 +3,7 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
 import '../models/daily_meal_v2_models.dart';
 import '../models/persisted_daily_meal_v2_record.dart';
+import '../models/persisted_food_record.dart';
 import '../services/food_v2_canonical_service.dart';
 import 'daily_meal_v2_repository.dart';
 
@@ -28,9 +29,16 @@ class IndexedDbDailyMealV2Repository implements DailyMealV2Repository {
         IndexedDbStoreNames.foodRecords,
         PersistedDailyMealV2Record.envelopeId(mealId),
       );
-      if (value == null ||
-          value['recordVersion'] != DailyMealV2.recordVersion2) {
+      if (value == null) {
         return null;
+      }
+      final version = value['recordVersion'];
+      if (version == PersistedFoodRecord.currentRecordVersion) {
+        PersistedFoodRecord.fromRecord(value);
+        return null;
+      }
+      if (version != DailyMealV2.recordVersion2) {
+        throw FormatException('Unsupported FOOD recordVersion: $version.');
       }
       return PersistedDailyMealV2Record.fromRecord(value).data;
     } catch (error) {
@@ -40,21 +48,35 @@ class IndexedDbDailyMealV2Repository implements DailyMealV2Repository {
 
   @override
   Future<List<DailyMealV2>> readForLocalDate(String localDate) async {
+    final values = await findAll();
+    return List.unmodifiable(
+      values.where((value) => value.localDate == localDate),
+    );
+  }
+
+  @override
+  Future<List<DailyMealV2>> findAll() async {
     try {
       final values = await _database.findAll(IndexedDbStoreNames.foodRecords);
-      final result =
-          values
-              .where(
-                (value) => value['recordVersion'] == DailyMealV2.recordVersion2,
-              )
-              .map(PersistedDailyMealV2Record.fromRecord)
-              .where((value) => value.localDate == localDate)
-              .map((value) => value.data)
-              .toList()
-            ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final result = <DailyMealV2>[];
+      for (final value in values) {
+        final version = value['recordVersion'];
+        if (version == PersistedFoodRecord.currentRecordVersion) {
+          PersistedFoodRecord.fromRecord(value);
+          continue;
+        }
+        if (version != DailyMealV2.recordVersion2) {
+          throw FormatException('Unsupported FOOD recordVersion: $version.');
+        }
+        result.add(PersistedDailyMealV2Record.fromRecord(value).data);
+      }
+      result.sort((a, b) {
+        final byDate = a.localDate.compareTo(b.localDate);
+        return byDate != 0 ? byDate : a.createdAt.compareTo(b.createdAt);
+      });
       return List.unmodifiable(result);
     } catch (error) {
-      throw _exception('dailyMealV2.readForLocalDate', error);
+      throw _exception('dailyMealV2.findAll', error);
     }
   }
 

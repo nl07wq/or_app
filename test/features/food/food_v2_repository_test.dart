@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/models/daily_meal_v2_models.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
@@ -9,6 +10,7 @@ import 'package:or_app/features/food/models/recipe_models_v2.dart';
 import 'package:or_app/features/food/repository/indexed_db_daily_meal_v2_repository.dart';
 import 'package:or_app/features/food/repository/indexed_db_food_catalog_repository.dart';
 import 'package:or_app/features/food/repository/indexed_db_food_recipe_repository.dart';
+import 'package:or_app/features/food/repository/indexed_db_food_repository.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -72,11 +74,15 @@ void main() {
     'daily meal v2 coexists with v1 and updates only its envelope',
     () async {
       final database = FakeIndexedDbDatabase();
-      database.seed(IndexedDbStoreNames.foodRecords, 'food:legacy', {
-        'id': 'food:legacy',
-        'recordVersion': 1,
-        'localDate': '2026-08-02',
-      });
+      await IndexedDbFoodRepository(database).save(
+        const MealData(
+          date: '2026-08-02',
+          mealType: 'Breakfast',
+          items: [],
+          memo: '',
+          id: 'legacy',
+        ),
+      );
       final repository = IndexedDbDailyMealV2Repository(
         database,
         now: () => next,
@@ -110,6 +116,68 @@ void main() {
 
     await expectLater(repository.create(meal), throwsA(isA<Object>()));
     expect(await repository.readById(meal.mealId), isNull);
+  });
+
+  test('v1 and v2 repositories exclude the other known version', () async {
+    final database = FakeIndexedDbDatabase();
+    final legacy = IndexedDbFoodRepository(database);
+    final daily = IndexedDbDailyMealV2Repository(database);
+    await legacy.save(
+      const MealData(
+        date: '2026-08-02',
+        mealType: 'Breakfast',
+        items: [],
+        memo: '',
+        id: 'legacy',
+      ),
+    );
+    await daily.create(_meal(created, updated));
+
+    expect(await legacy.findAll(), hasLength(1));
+    expect(await daily.findAll(), hasLength(1));
+  });
+
+  test('unknown version and malformed known records are not hidden', () async {
+    final database = FakeIndexedDbDatabase();
+    database.seed(IndexedDbStoreNames.foodRecords, 'food:unknown', {
+      'id': 'food:unknown',
+      'recordVersion': 99,
+    });
+    final legacy = IndexedDbFoodRepository(database);
+    final daily = IndexedDbDailyMealV2Repository(database);
+
+    expect((await legacy.findAllWithIssues()).issues, hasLength(1));
+    await expectLater(daily.findAll(), throwsA(isA<Object>()));
+  });
+
+  test('malformed v1 and malformed v2 records remain integrity failures', () async {
+    final invalidV1 = FakeIndexedDbDatabase()
+      ..seed(IndexedDbStoreNames.foodRecords, 'food:bad-v1', {
+        'id': 'food:bad-v1',
+        'recordVersion': 1,
+      });
+    expect(
+      (await IndexedDbFoodRepository(invalidV1).findAllWithIssues()).issues,
+      hasLength(1),
+    );
+    await expectLater(
+      IndexedDbDailyMealV2Repository(invalidV1).findAll(),
+      throwsA(isA<Object>()),
+    );
+
+    final invalidV2 = FakeIndexedDbDatabase()
+      ..seed(IndexedDbStoreNames.foodRecords, 'food:bad-v2', {
+        'id': 'food:bad-v2',
+        'recordVersion': 2,
+      });
+    expect(
+      (await IndexedDbFoodRepository(invalidV2).findAllWithIssues()).issues,
+      hasLength(1),
+    );
+    await expectLater(
+      IndexedDbDailyMealV2Repository(invalidV2).findAll(),
+      throwsA(isA<Object>()),
+    );
   });
 }
 

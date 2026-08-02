@@ -3,6 +3,7 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
 import '../models/persisted_food_record.dart';
+import '../models/persisted_daily_meal_v2_record.dart';
 import 'food_repository.dart';
 
 class FoodReadIssue {
@@ -107,6 +108,14 @@ class IndexedDbFoodRepository implements FoodRepository, FoodAuditRepository {
         envelopeId,
       );
       if (value == null) return null;
+      final version = value['recordVersion'];
+      if (version == 2) {
+        PersistedDailyMealV2Record.fromRecord(value);
+        return null;
+      }
+      if (version != PersistedFoodRecord.currentRecordVersion) {
+        throw FormatException('Unsupported FOOD recordVersion: $version.');
+      }
       return PersistedFoodRecord.fromRecord(value).data;
     } on FormatException catch (error) {
       throw RepositoryException(
@@ -168,6 +177,14 @@ class IndexedDbFoodRepository implements FoodRepository, FoodAuditRepository {
       final issues = <FoodReadIssue>[];
       for (final value in stored) {
         try {
+          final version = value['recordVersion'];
+          if (version == 2) {
+            PersistedDailyMealV2Record.fromRecord(value);
+            continue;
+          }
+          if (version != PersistedFoodRecord.currentRecordVersion) {
+            throw FormatException('Unsupported FOOD recordVersion: $version.');
+          }
           records.add(PersistedFoodRecord.fromRecord(value));
         } catch (error) {
           issues.add(

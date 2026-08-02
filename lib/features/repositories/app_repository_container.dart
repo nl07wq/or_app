@@ -14,6 +14,7 @@ import '../food/repository/indexed_db_food_catalog_repository.dart';
 import '../food/repository/indexed_db_food_recipe_repository.dart';
 import '../food/repository/indexed_db_daily_meal_v2_repository.dart';
 import '../food/repository/indexed_db_food_repository.dart';
+import '../food/services/food_mixed_read_service.dart';
 import '../operation_date/repository/indexed_db_operation_state_repository.dart';
 import '../operation_date/repository/operation_state_repository.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
@@ -32,6 +33,7 @@ class AppRepositoryContainer {
   final FoodCatalogRepository foodCatalog;
   final FoodRecipeRepository foodRecipes;
   final DailyMealV2Repository dailyMealsV2;
+  final FoodMixedReadService foodMixedRead;
   final TrainingSessionRepository training;
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
@@ -46,6 +48,7 @@ class AppRepositoryContainer {
     required this.foodCatalog,
     required this.foodRecipes,
     required this.dailyMealsV2,
+    required this.foodMixedRead,
     required this.training,
     required this.customTrainingExercises,
     required this.confirmation,
@@ -53,15 +56,21 @@ class AppRepositoryContainer {
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
+    final food = IndexedDbFoodRepository(database);
+    final dailyMealsV2 = IndexedDbDailyMealV2Repository(database);
     return AppRepositoryContainer._(
       database: database,
       status: IndexedDbStatusRepository(database),
       activity: IndexedDbActivityRepository(database),
       activityDrafts: IndexedDbActivityDraftRepository(database),
-      food: IndexedDbFoodRepository(database),
+      food: food,
       foodCatalog: IndexedDbFoodCatalogRepository(database),
       foodRecipes: IndexedDbFoodRecipeRepository(database),
-      dailyMealsV2: IndexedDbDailyMealV2Repository(database),
+      dailyMealsV2: dailyMealsV2,
+      foodMixedRead: FoodMixedReadService(
+        legacyRepository: food,
+        v2Repository: dailyMealsV2,
+      ),
       training: IndexedDbTrainingSessionRepository(database),
       customTrainingExercises: IndexedDbCustomTrainingExerciseRepository(
         database,
