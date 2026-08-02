@@ -14,6 +14,7 @@ import '../../operation_sync/models/operation_sync_history.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/morning_brief_record.dart';
 import '../../report_sync/models/report_sync_history.dart';
+import '../../legacy_archive/models/dns_archive_models.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 
@@ -33,6 +34,8 @@ abstract final class BackupStoreRegistry {
     BackupSections.morningBriefRecords: IndexedDbStoreNames.morningBriefRecords,
     BackupSections.dailyDebriefRecords: IndexedDbStoreNames.dailyDebriefRecords,
     BackupSections.reportSyncHistory: IndexedDbStoreNames.reportSyncHistory,
+    BackupSections.legacyDailySummaryRecords:
+        IndexedDbStoreNames.legacyDailySummaryRecords,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -67,6 +70,8 @@ abstract final class BackupStoreRegistry {
         DailyDebriefRecord.fromRecord(record);
       case BackupSections.reportSyncHistory:
         ReportSyncHistory.fromRecord(record);
+      case BackupSections.legacyDailySummaryRecords:
+        LegacyDailySummaryRecord.fromRecord(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -136,6 +141,8 @@ abstract final class BackupStoreRegistry {
       BackupSections.morningBriefRecords ||
       BackupSections.dailyDebriefRecords => '${record['localDate']}\u0000$id',
       BackupSections.reportSyncHistory => '${record['completedAt']}\u0000$id',
+      BackupSections.legacyDailySummaryRecords =>
+        '${record['localDate']}\u0000$id',
       _ => id.toString(),
     };
   }
@@ -181,6 +188,7 @@ abstract final class BackupStoreRegistry {
       BackupSections.morningBriefRecords ||
       BackupSections.dailyDebriefRecords => 'localDate',
       BackupSections.reportSyncHistory => 'exchangeId',
+      BackupSections.legacyDailySummaryRecords => 'localDate',
       _ => 'id',
     };
     final value = record[key];

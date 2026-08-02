@@ -3,14 +3,18 @@ import '../models/report_sync_envelope.dart';
 import '../models/report_sync_issue.dart';
 import '../repository/report_sync_history_repository.dart';
 import 'report_sync_canonical_service.dart';
+import 'report_sync_payload_registry.dart';
 
 class ReportSyncValidator {
   final ReportSyncHistoryRepository historyRepository;
   final DailyLogConfirmationStore confirmationRepository;
-  const ReportSyncValidator({
+  final ReportSyncPayloadRegistry payloadRegistry;
+  ReportSyncValidator({
     required this.historyRepository,
     required this.confirmationRepository,
-  });
+    ReportSyncPayloadRegistry? payloadRegistry,
+  }) : payloadRegistry =
+           payloadRegistry ?? ReportSyncPayloadRegistry.standard();
 
   Future<void> validateResponse(ReportSyncEnvelope response) async {
     if (response.direction != ReportSyncDirection.response) {
@@ -51,7 +55,7 @@ class ReportSyncValidator {
         'requestDigest does not match the request.',
       );
     }
-    _validatePayload(response);
+    payloadRegistry.validate(response);
     if (response.exchangeType == ReportSyncExchangeType.dailyDebrief) {
       if (request.confirmationDigest != response.confirmationDigest) {
         throw const ReportSyncException(
@@ -78,76 +82,8 @@ class ReportSyncValidator {
     }
   }
 
-  void _validatePayload(ReportSyncEnvelope envelope) {
-    final allowed = switch ((envelope.exchangeType, envelope.direction)) {
-      (ReportSyncExchangeType.training, ReportSyncDirection.request) => const {
-        'facts',
-      },
-      (ReportSyncExchangeType.training, ReportSyncDirection.response) => const {
-        'session',
-      },
-      (ReportSyncExchangeType.food, ReportSyncDirection.request) => const {
-        'facts',
-      },
-      (ReportSyncExchangeType.food, ReportSyncDirection.response) => const {
-        'dailyMeal',
-      },
-      (ReportSyncExchangeType.morningBrief, ReportSyncDirection.request) =>
-        const {
-          'morningFact',
-          'currentDailyState',
-          'operationStatus',
-          'commanderIntentCandidates',
-          'trainingStatus',
-          'foodStatus',
-          'activityStatus',
-          'carryOver',
-        },
-      (ReportSyncExchangeType.morningBrief, ReportSyncDirection.response) =>
-        const {
-          'model',
-          'generatedAt',
-          'situationAnalysis',
-          'operationStatus',
-          'commanderIntent',
-          'argoComment',
-          'strategicResourceDecision',
-          'actions',
-        },
-      (ReportSyncExchangeType.dailyDebrief, ReportSyncDirection.request) =>
-        const {
-          'confirmation',
-          'snapshot',
-          'dns',
-          'training',
-          'food',
-          'activity',
-          'status',
-          'operationSummary',
-        },
-      (ReportSyncExchangeType.dailyDebrief, ReportSyncDirection.response) =>
-        const {
-          'model',
-          'generatedAt',
-          'dailySummary',
-          'commanderIntentEvaluation',
-          'successes',
-          'issues',
-          'nutritionEvaluation',
-          'activityEvaluation',
-          'trainingEvaluation',
-          'recoveryEvaluation',
-          'carryover',
-          'tomorrowConsiderations',
-        },
-    };
-    if (envelope.payload.keys.toSet().difference(allowed).isNotEmpty ||
-        allowed.difference(envelope.payload.keys.toSet()).isNotEmpty) {
-      throw const ReportSyncException(
-        ReportSyncIssueCode.schemaMismatch,
-        'Payload sections do not match the exchange schema.',
-      );
-    }
+  void validatePayload(ReportSyncEnvelope envelope) {
+    payloadRegistry.validate(envelope);
     if (ReportSyncCanonicalService.digest(envelope.payload).isEmpty) {
       throw const ReportSyncException(
         ReportSyncIssueCode.integrityFailure,

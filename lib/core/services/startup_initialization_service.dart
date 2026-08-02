@@ -125,11 +125,11 @@ class StartupInitializationService {
     try {
       final database = await _openDatabase();
       controller.updateStage(InitializationStage.upgradingSchema);
-      if (IndexedDbSchema.databaseVersion != 8) {
+      if (IndexedDbSchema.databaseVersion != 9) {
         throw RepositoryException(
           operation: 'startup.schema',
           code: RepositoryErrorCode.verificationFailed,
-          cause: StateError('IndexedDB Schema Version 8 is required.'),
+          cause: StateError('IndexedDB Schema Version 9 is required.'),
         );
       }
 
@@ -358,6 +358,7 @@ class StartupInitializationService {
     }
     controller.updateStage(InitializationStage.verifyingRepositories);
     await container.confirmation.findAll();
+    await container.legacyDailySummaries.list();
   }
 
   RepositoryException _verificationFailure(String message) {

@@ -31,6 +31,18 @@ class ReportSyncPersistenceService {
         'Request envelope required.',
       );
     }
+    final payloadConfirmation =
+        request.exchangeType == ReportSyncExchangeType.dailyDebrief
+        ? request.payload['confirmationDigest'] as String?
+        : null;
+    if (confirmationDigest != null &&
+        payloadConfirmation != null &&
+        confirmationDigest != payloadConfirmation) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.confirmationDigestMismatch,
+        'Request confirmationDigest does not match its payload.',
+      );
+    }
     final now = clock().toUtc();
     return historyRepository.create(
       ReportSyncHistory(
@@ -40,7 +52,7 @@ class ReportSyncPersistenceService {
         operationDate: request.operationDate,
         requestId: request.requestId,
         requestDigest: request.requestDigest,
-        confirmationDigest: confirmationDigest,
+        confirmationDigest: confirmationDigest ?? payloadConfirmation,
         startedAt: request.createdAt,
         completedAt: now,
         result: ReportSyncHistoryResult.success,
@@ -65,11 +77,12 @@ class ReportSyncPersistenceService {
     }
     await validator.validateResponse(response);
     final payload = response.payload;
+    final content = Map<String, Object?>.from(payload['content'] as Map);
     final now = clock().toUtc();
     final generated = DateTime.tryParse(
       payload['generatedAt'] is String ? payload['generatedAt'] as String : '',
     );
-    final actions = payload['actions'];
+    final actions = content['actions'];
     if (generated == null ||
         !generated.isUtc ||
         actions is! List ||
@@ -86,17 +99,17 @@ class ReportSyncPersistenceService {
       responseDigest: ReportSyncCanonicalService.digest(payload),
       generatedAt: generated,
       importedAt: now,
-      situationAnalysis: _string(payload, 'situationAnalysis'),
+      situationAnalysis: _string(content, 'situationAnalysis'),
       operationStatus: MorningBriefOperationStatus.values.firstWhere(
-        (v) => v.stableId == payload['operationStatus'],
+        (v) => v.stableId == content['operationStatus'],
         orElse: () => throw const ReportSyncException(
           ReportSyncIssueCode.schemaMismatch,
           'Unknown operation status.',
         ),
       ),
-      commanderIntent: _string(payload, 'commanderIntent'),
-      argoComment: _string(payload, 'argoComment'),
-      strategicResourceDecision: _string(payload, 'strategicResourceDecision'),
+      commanderIntent: _string(content, 'commanderIntent'),
+      argoComment: _string(content, 'argoComment'),
+      strategicResourceDecision: _string(content, 'strategicResourceDecision'),
       actions: [
         for (final value in actions)
           MorningBriefAction.fromJson(Map<String, Object?>.from(value as Map)),
@@ -122,6 +135,7 @@ class ReportSyncPersistenceService {
     }
     await validator.validateResponse(response);
     final payload = response.payload;
+    final content = Map<String, Object?>.from(payload['content'] as Map);
     final now = clock().toUtc();
     final generated = DateTime.tryParse(
       payload['generatedAt'] is String ? payload['generatedAt'] as String : '',
@@ -133,7 +147,7 @@ class ReportSyncPersistenceService {
       );
     }
     List<String> list(String key) {
-      final value = payload[key];
+      final value = content[key];
       if (value is! List || value.any((v) => v is! String || v.isEmpty)) {
         throw ReportSyncException(
           ReportSyncIssueCode.schemaMismatch,
@@ -151,14 +165,14 @@ class ReportSyncPersistenceService {
       confirmationDigest: response.confirmationDigest!,
       generatedAt: generated,
       importedAt: now,
-      dailySummary: _string(payload, 'dailySummary'),
-      commanderIntentEvaluation: _string(payload, 'commanderIntentEvaluation'),
+      dailySummary: _string(content, 'dailySummary'),
+      commanderIntentEvaluation: _string(content, 'commanderIntentEvaluation'),
       successes: list('successes'),
       issues: list('issues'),
-      nutritionEvaluation: _string(payload, 'nutritionEvaluation'),
-      activityEvaluation: _string(payload, 'activityEvaluation'),
-      trainingEvaluation: _string(payload, 'trainingEvaluation'),
-      recoveryEvaluation: _string(payload, 'recoveryEvaluation'),
+      nutritionEvaluation: _string(content, 'nutritionEvaluation'),
+      activityEvaluation: _string(content, 'activityEvaluation'),
+      trainingEvaluation: _string(content, 'trainingEvaluation'),
+      recoveryEvaluation: _string(content, 'recoveryEvaluation'),
       carryover: list('carryover'),
       tomorrowConsiderations: list('tomorrowConsiderations'),
       createdAt: now,

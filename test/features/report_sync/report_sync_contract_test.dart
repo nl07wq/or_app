@@ -7,9 +7,17 @@ import 'package:or_app/features/report_sync/services/report_sync_instruction_pro
 
 void main() {
   const codec = ReportSyncCodec();
-  final digest = ReportSyncCanonicalService.digest({
-    'facts': <String, Object?>{},
-  });
+  const trainingRequest = <String, Object?>{
+    'operationDate': '2026-08-02',
+    'requestPurpose': 'Create a training record.',
+    'currentSession': null,
+    'recentTrainingSummary': null,
+    'registeredExercises': <Object?>[],
+    'registeredEquipment': <Object?>[],
+    'statusWeight': null,
+    'instructionContext': <String, Object?>{},
+  };
+  final digest = ReportSyncCanonicalService.digest(trainingRequest);
 
   test('round-trips the strict common envelope and package digest', () {
     final envelope = codec.create(
@@ -20,7 +28,7 @@ void main() {
       operationDate: '2026-08-02',
       createdAt: DateTime.utc(2026, 8, 2, 1),
       requestDigest: digest,
-      payload: const {'facts': <String, Object?>{}},
+      payload: trainingRequest,
     );
     final decoded = codec.decode(codec.encode(envelope));
     expect(decoded.toJson(), envelope.toJson());
@@ -35,8 +43,22 @@ void main() {
       requestId: 'request-2',
       operationDate: '2026-08-02',
       createdAt: DateTime.utc(2026, 8, 2),
-      requestDigest: digest,
-      payload: const {'facts': <String, Object?>{}},
+      requestDigest: ReportSyncCanonicalService.digest(const {
+        'operationDate': '2026-08-02',
+        'requestPurpose': 'Create food records.',
+        'meals': <Object?>[],
+        'dailySummary': null,
+        'knownFoodReferences': <Object?>[],
+        'instructionContext': <String, Object?>{},
+      }),
+      payload: const {
+        'operationDate': '2026-08-02',
+        'requestPurpose': 'Create food records.',
+        'meals': <Object?>[],
+        'dailySummary': null,
+        'knownFoodReferences': <Object?>[],
+        'instructionContext': <String, Object?>{},
+      },
     );
     final unknown = {...envelope.toJson(), 'extra': true};
     expect(

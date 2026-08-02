@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v8 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v9 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 8);
+    expect(IndexedDbSchema.databaseVersion, 9);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -26,6 +26,7 @@ void main() {
         IndexedDbStoreNames.morningBriefRecords,
         IndexedDbStoreNames.dailyDebriefRecords,
         IndexedDbStoreNames.reportSyncHistory,
+        IndexedDbStoreNames.legacyDailySummaryRecords,
       ]),
     );
     expect(
@@ -406,6 +407,18 @@ void main() {
       IndexedDbIndexNames.byExchangeType,
       IndexedDbIndexNames.byCompletedAt,
       IndexedDbIndexNames.byResult,
+    ]);
+  });
+
+  test('v8 to v9 adds only Legacy Daily Summary with required indexes', () {
+    final store = IndexedDbSchema.storeDefinitions.singleWhere(
+      (definition) =>
+          definition.name == IndexedDbStoreNames.legacyDailySummaryRecords,
+    );
+    expect(store.keyPath, 'localDate');
+    expect(store.indexes.map((index) => index.name), [
+      IndexedDbIndexNames.byImportedAt,
+      IndexedDbIndexNames.bySourceType,
     ]);
   });
 }

@@ -6,6 +6,7 @@ import 'package:or_app/features/import_export/services/backup_export_service.dar
 import 'package:or_app/features/import_export/services/backup_id_generator.dart';
 import 'package:or_app/features/import_export/services/backup_import_service.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
+import 'package:or_app/features/legacy_archive/models/dns_archive_models.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_state.dart';
@@ -20,41 +21,53 @@ void main() {
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-  test('Schema 6 exports thirteen sections and REPORT SYNC stores', () async {
-    final database = FakeIndexedDbDatabase();
-    final controller = AppInitializationController()..markReady();
-    _seedOperationState(database, timestamp);
-    database.seed(
-      IndexedDbStoreNames.morningBriefRecords,
-      '2026-08-02',
-      _brief(timestamp, digest).toRecord(),
-    );
-    database.seed(
-      IndexedDbStoreNames.reportSyncHistory,
-      'exchange-1',
-      _history(timestamp, digest).toRecord(),
-    );
-    final package = await BackupExportService(
-      database: database,
-      controller: controller,
-      idGenerator: BackupIdGenerator(nextInt: (_) => 1),
-      clock: () => timestamp,
-    ).create();
-    expect(package.schemaVersion, 6);
-    expect(package.data.keys, BackupSections.schema6);
-    expect(package.data, hasLength(13));
-    expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
-    expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
-    expect(package.data[BackupSections.reportSyncHistory], hasLength(1));
-    final decoded = const BackupPackageCodec().decode(
-      BackupExportService.encode(package),
-    );
-    expect(decoded.data, package.data);
-    expect(decoded.digests.package, package.digests.package);
-    expect(IndexedDbStoreNames.operationSyncState, isNot(contains('report')));
-  });
+  test(
+    'Schema 7 exports fourteen sections including legacy summaries',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final controller = AppInitializationController()..markReady();
+      _seedOperationState(database, timestamp);
+      database.seed(
+        IndexedDbStoreNames.morningBriefRecords,
+        '2026-08-02',
+        _brief(timestamp, digest).toRecord(),
+      );
+      database.seed(
+        IndexedDbStoreNames.legacyDailySummaryRecords,
+        '2026-08-01',
+        _legacy(timestamp, digest).toRecord(),
+      );
+      database.seed(
+        IndexedDbStoreNames.reportSyncHistory,
+        'exchange-1',
+        _history(timestamp, digest).toRecord(),
+      );
+      final package = await BackupExportService(
+        database: database,
+        controller: controller,
+        idGenerator: BackupIdGenerator(nextInt: (_) => 1),
+        clock: () => timestamp,
+      ).create();
+      expect(package.schemaVersion, 7);
+      expect(package.data.keys, BackupSections.schema7);
+      expect(package.data, hasLength(14));
+      expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
+      expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
+      expect(package.data[BackupSections.reportSyncHistory], hasLength(1));
+      expect(
+        package.data[BackupSections.legacyDailySummaryRecords],
+        hasLength(1),
+      );
+      final decoded = const BackupPackageCodec().decode(
+        BackupExportService.encode(package),
+      );
+      expect(decoded.data, package.data);
+      expect(decoded.digests.package, package.digests.package);
+      expect(IndexedDbStoreNames.operationSyncState, isNot(contains('report')));
+    },
+  );
 
-  test('Schema 6 MERGE no-ops exact records and blocks differences', () async {
+  test('Schema 7 MERGE no-ops exact records and blocks differences', () async {
     final database = FakeIndexedDbDatabase();
     final controller = AppInitializationController()..markReady();
     _seedOperationState(database, timestamp);
@@ -87,8 +100,8 @@ void main() {
     ]);
   });
 
-  test('Schema 2 through 5 REPLACE ALL preserves REPORT SYNC stores', () async {
-    for (final schemaVersion in [2, 3, 4, 5]) {
+  test('Schema 2 through 6 REPLACE ALL preserves newer stores', () async {
+    for (final schemaVersion in [2, 3, 4, 5, 6]) {
       final database = FakeIndexedDbDatabase();
       final controller = AppInitializationController()..markReady();
       _seedOperationState(database, timestamp);
@@ -96,6 +109,11 @@ void main() {
         IndexedDbStoreNames.morningBriefRecords,
         '2026-08-02',
         _brief(timestamp, digest).toRecord(),
+      );
+      database.seed(
+        IndexedDbStoreNames.legacyDailySummaryRecords,
+        '2026-08-01',
+        _legacy(timestamp, digest).toRecord(),
       );
       final sections = BackupSections.forSchema(schemaVersion);
       final data = <String, List<Map<String, Object?>>>{
@@ -126,13 +144,17 @@ void main() {
       expect((await service.execute(plan)).success, isTrue);
       expect(
         await database.findAll(IndexedDbStoreNames.morningBriefRecords),
+        schemaVersion < 6 ? hasLength(1) : isEmpty,
+      );
+      expect(
+        await database.findAll(IndexedDbStoreNames.legacyDailySummaryRecords),
         hasLength(1),
       );
     }
   });
 
   test(
-    'Schema 6 REPLACE ALL applies thirteen stores in one transaction',
+    'Schema 7 REPLACE ALL applies fourteen stores in one transaction',
     () async {
       final source = FakeIndexedDbDatabase();
       final sourceController = AppInitializationController()..markReady();
@@ -231,6 +253,18 @@ ReportSyncHistory _history(DateTime timestamp, String digest) =>
       completedAt: timestamp,
       result: ReportSyncHistoryResult.success,
       packageDigest: digest,
+    );
+
+LegacyDailySummaryRecord _legacy(DateTime timestamp, String digest) =>
+    LegacyDailySummaryRecord(
+      localDate: '2026-08-01',
+      sourceRecordId: 'dns-record-1',
+      sourcePackageId: 'dns-package-1',
+      warnings: const [],
+      unmappedFragments: const [],
+      sourceTextDigest: digest,
+      createdAt: timestamp,
+      importedAt: timestamp,
     );
 
 Map<String, List<Map<String, Object?>>> _copy(

@@ -11,6 +11,9 @@ abstract final class ReportSyncCanonicalService {
   static String digest(Object? value) =>
       OperationTransferCanonicalService.sha256Hex(utf8.encode(encode(value)));
 
+  static String digestUtf8(String value) =>
+      OperationTransferCanonicalService.sha256Hex(utf8.encode(value));
+
   static bool isDigest(Object? value) =>
       value is String && RegExp(r'^[0-9a-f]{64}$').hasMatch(value);
 }

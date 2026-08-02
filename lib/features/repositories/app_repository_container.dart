@@ -16,6 +16,10 @@ import '../food/repository/indexed_db_daily_meal_v2_repository.dart';
 import '../food/repository/indexed_db_food_repository.dart';
 import '../food/services/food_mixed_read_service.dart';
 import '../operation_date/repository/indexed_db_operation_state_repository.dart';
+import '../legacy_archive/repository/legacy_daily_summary_repository.dart';
+import '../legacy_archive/repository/indexed_db_legacy_daily_summary_repository.dart';
+import '../legacy_archive/services/dns_archive_codecs.dart';
+import '../legacy_archive/services/dns_archive_converter.dart';
 import '../operation_date/repository/operation_state_repository.dart';
 import '../operation_sync/repository/indexed_db_operation_sync_history_repository.dart';
 import '../operation_sync/repository/indexed_db_operation_sync_state_repository.dart';
@@ -33,6 +37,8 @@ import '../report_sync/repository/report_sync_history_repository.dart';
 import '../report_sync/services/report_sync_codec.dart';
 import '../report_sync/services/report_sync_instruction_provider.dart';
 import '../report_sync/services/report_sync_persistence_service.dart';
+import '../report_sync/services/report_sync_payload_registry.dart';
+import '../report_sync/services/report_sync_payload_adapters.dart';
 import '../report_sync/services/report_sync_validator.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
@@ -67,6 +73,13 @@ class AppRepositoryContainer {
   final ReportSyncValidator reportSyncValidator;
   final ReportSyncInstructionProviderRegistry reportSyncInstructions;
   final ReportSyncPersistenceService reportSyncPersistence;
+  final ReportSyncPayloadRegistry reportSyncPayloads;
+  final LegacyDailySummaryRepository legacyDailySummaries;
+  final DnsSourceCodec dnsSourceCodec;
+  final DnsNormalizedCodec dnsNormalizedCodec;
+  final DnsArchiveConverter dnsArchiveConverter;
+  final DnsPreviewService dnsPreview;
+  final FoodReportSyncApplyAdapter foodReportSyncApply;
 
   AppRepositoryContainer._({
     required this.database,
@@ -94,6 +107,13 @@ class AppRepositoryContainer {
     required this.reportSyncValidator,
     required this.reportSyncInstructions,
     required this.reportSyncPersistence,
+    required this.reportSyncPayloads,
+    required this.legacyDailySummaries,
+    required this.dnsSourceCodec,
+    required this.dnsNormalizedCodec,
+    required this.dnsArchiveConverter,
+    required this.dnsPreview,
+    required this.foodReportSyncApply,
   });
 
   factory AppRepositoryContainer.indexedDb(IndexedDbDatabase database) {
@@ -107,10 +127,22 @@ class AppRepositoryContainer {
     final operationState = IndexedDbOperationStateRepository(database);
     final confirmation = IndexedDbDailyLogConfirmationRepository(database);
     final reportSyncHistory = IndexedDbReportSyncHistoryRepository(database);
-    const reportSyncCodec = ReportSyncCodec();
+    final reportSyncPayloads = ReportSyncPayloadRegistry.standard();
+    final reportSyncCodec = ReportSyncCodec(
+      payloadRegistry: reportSyncPayloads,
+    );
     final reportSyncValidator = ReportSyncValidator(
       historyRepository: reportSyncHistory,
       confirmationRepository: confirmation,
+      payloadRegistry: reportSyncPayloads,
+    );
+    final legacyDailySummaries = IndexedDbLegacyDailySummaryRepository(
+      database,
+    );
+    final dnsArchiveConverter = DnsArchiveConverter(
+      database: database,
+      repository: legacyDailySummaries,
+      clock: DateTime.now,
     );
     final operationSyncRegistry = OperationSyncProductionRegistry.create(
       database,
@@ -163,6 +195,17 @@ class AppRepositoryContainer {
         historyRepository: reportSyncHistory,
         validator: reportSyncValidator,
         clock: DateTime.now,
+      ),
+      reportSyncPayloads: reportSyncPayloads,
+      legacyDailySummaries: legacyDailySummaries,
+      dnsSourceCodec: const DnsSourceCodec(),
+      dnsNormalizedCodec: const DnsNormalizedCodec(),
+      dnsArchiveConverter: dnsArchiveConverter,
+      dnsPreview: DnsPreviewService(dnsArchiveConverter),
+      foodReportSyncApply: FoodReportSyncApplyAdapter(
+        repository: food,
+        confirmations: confirmation,
+        database: database,
       ),
     );
   }

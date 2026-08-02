@@ -130,14 +130,22 @@ void main() {
       );
       const codec = ReportSyncCodec();
       const requestPayload = {
-        'morningFact': <String, Object?>{},
-        'currentDailyState': <String, Object?>{},
-        'operationStatus': <String, Object?>{},
-        'commanderIntentCandidates': <Object?>[],
-        'trainingStatus': <String, Object?>{},
-        'foodStatus': <String, Object?>{},
-        'activityStatus': <String, Object?>{},
-        'carryOver': <Object?>[],
+        'operationDate': '2026-08-02',
+        'morningFact': {
+          'body': {'weightKg': null, 'bodyFatPercent': null},
+          'recovery': {'sleepDurationMinutes': null, 'sleepScore': null},
+          'condition': {
+            'footPainLevel': null,
+            'reportedConditions': <Object?>[],
+          },
+          'work': {'workStatus': null, 'startTime': null, 'endTime': null},
+          'carryover': null,
+        },
+        'carryover': null,
+        'previousDaySummary': null,
+        'recentTrend': null,
+        'availableStrategicResources': null,
+        'generationRequirements': null,
       };
       final requestDigest = ReportSyncCanonicalService.digest(requestPayload);
       final request = codec.create(
@@ -160,16 +168,20 @@ void main() {
         createdAt: timestamp,
         requestDigest: requestDigest,
         payload: {
-          'model': 'test-model',
+          'requestId': 'request-mb',
+          'requestDigest': requestDigest,
+          'operationDate': '2026-08-02',
           'generatedAt': timestamp.toIso8601String(),
-          'situationAnalysis': 'analysis',
-          'operationStatus': 'green',
-          'commanderIntent': 'intent',
-          'argoComment': 'comment',
-          'strategicResourceDecision': 'decision',
-          'actions': const [
-            {'actionId': 'action-1', 'text': 'act', 'priority': 'high'},
-          ],
+          'content': {
+            'situationAnalysis': 'analysis',
+            'operationStatus': 'green',
+            'commanderIntent': 'intent',
+            'argoComment': 'comment',
+            'strategicResourceDecision': 'decision',
+            'actions': const [
+              {'actionId': 'action-1', 'text': 'act', 'priority': 'high'},
+            ],
+          },
         },
       );
       final result = await service.importMorningBrief(
@@ -202,15 +214,14 @@ void main() {
       ),
       clock: () => timestamp,
     );
-    const requestPayload = {
+    final requestPayload = <String, Object?>{
+      'operationDate': '2026-08-02',
+      'confirmationDigest': confirmationDigest,
       'confirmation': <String, Object?>{},
-      'snapshot': <String, Object?>{},
-      'dns': <String, Object?>{},
-      'training': <String, Object?>{},
-      'food': <String, Object?>{},
-      'activity': <String, Object?>{},
-      'status': <String, Object?>{},
-      'operationSummary': <String, Object?>{},
+      'finalizedSnapshot': <String, Object?>{},
+      'morningBrief': null,
+      'commanderIntent': null,
+      'generationRequirements': null,
     };
     final requestDigest = ReportSyncCanonicalService.digest(requestPayload);
     const codec = ReportSyncCodec();
@@ -238,18 +249,23 @@ void main() {
       requestDigest: requestDigest,
       confirmationDigest: confirmationDigest,
       payload: {
-        'model': 'test-model',
+        'requestId': 'request-dd',
+        'requestDigest': requestDigest,
+        'operationDate': '2026-08-02',
+        'confirmationDigest': confirmationDigest,
         'generatedAt': timestamp.toIso8601String(),
-        'dailySummary': 'summary',
-        'commanderIntentEvaluation': 'evaluation',
-        'successes': const ['success'],
-        'issues': const <String>[],
-        'nutritionEvaluation': 'nutrition',
-        'activityEvaluation': 'activity',
-        'trainingEvaluation': 'training',
-        'recoveryEvaluation': 'recovery',
-        'carryover': const <String>[],
-        'tomorrowConsiderations': const ['consideration'],
+        'content': {
+          'dailySummary': 'summary',
+          'commanderIntentEvaluation': 'evaluation',
+          'successes': const ['success'],
+          'issues': const <String>[],
+          'nutritionEvaluation': 'nutrition',
+          'activityEvaluation': 'activity',
+          'trainingEvaluation': 'training',
+          'recoveryEvaluation': 'recovery',
+          'carryover': const <String>[],
+          'tomorrowConsiderations': const ['consideration'],
+        },
       },
     );
     expect(

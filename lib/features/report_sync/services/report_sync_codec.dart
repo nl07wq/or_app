@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_issue.dart';
 import 'report_sync_canonical_service.dart';
+import 'report_sync_payload_registry.dart';
 
 class ReportSyncCodec {
   static const _fields = {
@@ -21,7 +22,10 @@ class ReportSyncCodec {
     'packageDigest',
   };
 
-  const ReportSyncCodec();
+  final ReportSyncPayloadRegistry? payloadRegistry;
+  const ReportSyncCodec({this.payloadRegistry});
+  ReportSyncPayloadRegistry get _effectivePayloadRegistry =>
+      payloadRegistry ?? ReportSyncPayloadRegistry.standard();
 
   String encode(ReportSyncEnvelope envelope) =>
       ReportSyncCanonicalService.encode(envelope.toJson());
@@ -87,7 +91,8 @@ class ReportSyncCodec {
       );
     }
     _validateConfirmationRule(envelope);
-    _validatePayloadSections(envelope);
+    _effectivePayloadRegistry.validate(envelope);
+    _validatePayloadIdentity(envelope);
     if (envelope.direction == ReportSyncDirection.request &&
         ReportSyncCanonicalService.digest(envelope.payload) !=
             envelope.requestDigest) {
@@ -147,73 +152,20 @@ class ReportSyncCodec {
     }
   }
 
-  void _validatePayloadSections(ReportSyncEnvelope envelope) {
-    final allowed = switch ((envelope.exchangeType, envelope.direction)) {
-      (ReportSyncExchangeType.training, ReportSyncDirection.request) => const {
-        'facts',
-      },
-      (ReportSyncExchangeType.training, ReportSyncDirection.response) => const {
-        'session',
-      },
-      (ReportSyncExchangeType.food, ReportSyncDirection.request) => const {
-        'facts',
-      },
-      (ReportSyncExchangeType.food, ReportSyncDirection.response) => const {
-        'dailyMeal',
-      },
-      (ReportSyncExchangeType.morningBrief, ReportSyncDirection.request) =>
-        const {
-          'morningFact',
-          'currentDailyState',
-          'operationStatus',
-          'commanderIntentCandidates',
-          'trainingStatus',
-          'foodStatus',
-          'activityStatus',
-          'carryOver',
-        },
-      (ReportSyncExchangeType.morningBrief, ReportSyncDirection.response) =>
-        const {
-          'model',
-          'generatedAt',
-          'situationAnalysis',
-          'operationStatus',
-          'commanderIntent',
-          'argoComment',
-          'strategicResourceDecision',
-          'actions',
-        },
-      (ReportSyncExchangeType.dailyDebrief, ReportSyncDirection.request) =>
-        const {
-          'confirmation',
-          'snapshot',
-          'dns',
-          'training',
-          'food',
-          'activity',
-          'status',
-          'operationSummary',
-        },
-      (ReportSyncExchangeType.dailyDebrief, ReportSyncDirection.response) =>
-        const {
-          'model',
-          'generatedAt',
-          'dailySummary',
-          'commanderIntentEvaluation',
-          'successes',
-          'issues',
-          'nutritionEvaluation',
-          'activityEvaluation',
-          'trainingEvaluation',
-          'recoveryEvaluation',
-          'carryover',
-          'tomorrowConsiderations',
-        },
-    };
-    final actual = envelope.payload.keys.toSet();
-    if (actual.difference(allowed).isNotEmpty ||
-        allowed.difference(actual).isNotEmpty) {
-      _invalid('Payload sections do not match the exchange schema.');
+  void _validatePayloadIdentity(ReportSyncEnvelope envelope) {
+    final payload = envelope.payload;
+    if (payload['operationDate'] != envelope.operationDate) {
+      _invalid('Payload operationDate does not match the envelope.');
+    }
+    if (envelope.direction == ReportSyncDirection.response) {
+      if (payload['requestId'] != envelope.requestId ||
+          payload['requestDigest'] != envelope.requestDigest) {
+        _invalid('Payload request identity does not match the envelope.');
+      }
+      if (envelope.exchangeType == ReportSyncExchangeType.dailyDebrief &&
+          payload['confirmationDigest'] != envelope.confirmationDigest) {
+        _invalid('Payload confirmationDigest does not match the envelope.');
+      }
     }
   }
 
