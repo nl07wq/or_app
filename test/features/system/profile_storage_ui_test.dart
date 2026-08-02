@@ -61,10 +61,12 @@ void main() {
     expect(find.text('該当する国・地域がありません'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('nationality-search')),
-      '台湾',
+      '日本',
     );
     await tester.pump();
-    await tester.tap(find.text('台湾').last);
+    final japanOption = find.widgetWithText(ListTile, '日本');
+    expect(japanOption, findsOneWidget);
+    await tester.tap(japanOption);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('save-profile')));
     await tester.pumpAndSettle();
@@ -74,13 +76,13 @@ void main() {
     expect(stored!.userName, '早坂  一馬');
     expect(stored.heightCm, 175.5);
     expect(stored.gender, ProfileGender.male);
-    expect(stored.nationality, '台湾');
+    expect(stored.nationality, '日本');
 
     await tester.pumpWidget(
       MaterialApp(home: ProfilePage(repository: repository)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('台湾'), findsOneWidget);
+    expect(find.text('日本'), findsOneWidget);
     expect(find.text('保存済み'), findsOneWidget);
   });
 

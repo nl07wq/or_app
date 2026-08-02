@@ -1,9 +1,9 @@
 abstract final class ProfileNationalities {
   static const sourceUrl = 'https://www.mofa.go.jp/mofaj/area/index.html';
   static const verifiedOn = '2026-08-03';
-  static const countryCount = 195;
+  static const countryCount = 196;
   static const otherRegionCount = 7;
-  static const totalCount = 202;
+  static const totalCount = 203;
 
   // 外務省「国・地域」の掲載順。実行時通信やHTML解析は行わない。
   static const countries = <String>[
@@ -129,6 +129,7 @@ abstract final class ProfileNationalities {
     'ニウエ',
     'ニカラグア共和国',
     'ニジェール共和国',
+    '日本',
     'ニュージーランド',
     'ネパール',
     'ノルウェー王国',

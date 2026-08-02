@@ -37,7 +37,7 @@ void main() {
           userName: 'Kazuma',
           heightCm: 175.5,
           gender: ProfileGender.male,
-          nationality: '台湾',
+          nationality: '日本',
         ),
       );
       final controller = AppInitializationController()..markReady();
@@ -55,7 +55,7 @@ void main() {
           'userName': 'Kazuma',
           'heightCm': 175.5,
           'gender': 'male',
-          'nationality': '台湾',
+          'nationality': '日本',
         },
       ]);
       expect(package.includedSections, hasLength(15));
@@ -75,7 +75,7 @@ void main() {
       final restored = await repository.findCurrent();
       expect(restored!.userName, 'Kazuma');
       expect(restored.heightCm, 175.5);
-      expect(restored.nationality, '台湾');
+      expect(restored.nationality, '日本');
     },
   );
 

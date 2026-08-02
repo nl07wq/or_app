@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
@@ -135,28 +137,138 @@ void main() {
     expect(find.text('EXPORT'), findsNothing);
     expect(find.text('IMPORT'), findsNothing);
     expect(find.text('DIAGNOSTICS'), findsNothing);
+    expect(find.text('機種変更などのデータ転送や、長期保存データの一括取り込みを行います。'), findsOneWidget);
+    expect(find.textContaining('Transfer data between devices'), findsNothing);
     expect(find.text('STORAGE'), findsOneWidget);
     await tester.pump();
-    expect(find.text('Storage Type'), findsOneWidget);
+    expect(find.text('保存方式'), findsOneWidget);
     expect(find.text('IndexedDB'), findsOneWidget);
-    expect(find.text('Estimated Usage'), findsOneWidget);
+    expect(find.text('推定使用量'), findsOneWidget);
     expect(find.text('1.0 KB'), findsOneWidget);
-    expect(find.text('Estimated Quota'), findsOneWidget);
+    expect(find.text('推定上限容量'), findsOneWidget);
     expect(find.text('2.0 KB'), findsOneWidget);
-    expect(find.text('Persistence'), findsOneWidget);
+    expect(find.text('保存状態'), findsOneWidget);
     expect(find.text('永続保存'), findsOneWidget);
+    for (final oldLabel in [
+      'Storage Type',
+      'Estimated Usage',
+      'Estimated Quota',
+      'Persistence',
+    ]) {
+      expect(find.text(oldLabel), findsNothing);
+    }
+    final usage = find.ancestor(
+      of: find.text('推定使用量'),
+      matching: find.byType(ListTile),
+    );
+    final quota = find.ancestor(
+      of: find.text('推定上限容量'),
+      matching: find.byType(ListTile),
+    );
+    expect(
+      find.descendant(of: usage, matching: find.text('1.0 KB')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: quota, matching: find.text('2.0 KB')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('空き容量'), findsNothing);
     expect(find.text('DATA HEALTH'), findsOneWidget);
     await tester.pump();
-    expect(find.text('Integrity'), findsOneWidget);
-    expect(find.text('READABLE'), findsOneWidget);
-    expect(find.text('Recovery Status'), findsOneWidget);
-    expect(find.text('NO RECOVERY REQUIRED'), findsOneWidget);
-    expect(find.text('Health Status'), findsOneWidget);
-    expect(find.text('HEALTHY'), findsOneWidget);
+    expect(find.text('データ整合性'), findsOneWidget);
+    expect(find.text('読み取り可能'), findsOneWidget);
+    expect(find.text('復旧状態'), findsOneWidget);
+    expect(find.text('復旧は必要ありません'), findsOneWidget);
+    expect(find.text('システム状態'), findsOneWidget);
+    expect(find.text('正常'), findsOneWidget);
+    for (final internalValue in [
+      'Integrity',
+      'READABLE',
+      'Recovery Status',
+      'NO RECOVERY REQUIRED',
+      'Health Status',
+      'HEALTHY',
+    ]) {
+      expect(find.text(internalValue), findsNothing);
+    }
 
     await tester.tap(find.text('OPEN OPERATION SYNC'));
     await tester.pumpAndSettle();
     expect(find.byType(OperationSyncPage), findsOneWidget);
+  });
+
+  testWidgets('SYSTEM localizes every Data Health state and unknown values', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const cases = [
+      (
+        snapshot: SystemDataHealthSnapshot(
+          integrity: 'READABLE',
+          recoveryStatus: 'NO RECOVERY REQUIRED',
+          healthStatus: 'HEALTHY',
+        ),
+        values: ['読み取り可能', '復旧は必要ありません', '正常'],
+      ),
+      (
+        snapshot: SystemDataHealthSnapshot(
+          integrity: 'CHECK REQUIRED',
+          recoveryStatus: 'RECOVERY REQUIRED',
+          healthStatus: 'ATTENTION',
+        ),
+        values: ['確認が必要です', '復旧が必要です', '確認が必要です'],
+      ),
+      (
+        snapshot: SystemDataHealthSnapshot(
+          integrity: 'UNAVAILABLE',
+          recoveryStatus: 'UNKNOWN',
+          healthStatus: 'CHECK REQUIRED',
+        ),
+        values: ['利用できません', '確認できません', '確認が必要です'],
+      ),
+      (
+        snapshot: SystemDataHealthSnapshot(
+          integrity: 'UNEXPECTED',
+          recoveryStatus: 'UNEXPECTED',
+          healthStatus: 'UNEXPECTED',
+        ),
+        values: ['確認できません', '確認できません', '確認できません'],
+      ),
+    ];
+    for (final testCase in cases) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SystemPage(
+            key: ValueKey(testCase.snapshot),
+            dataHealthLoader: () async => testCase.snapshot,
+            storageGateway: const _FakeStorageGateway(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final value in testCase.values.toSet()) {
+        expect(find.text(value), findsWidgets);
+      }
+      expect(find.text('UNEXPECTED'), findsNothing);
+    }
+
+    final pending = Completer<SystemDataHealthSnapshot>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemPage(
+          key: const ValueKey('pending-data-health'),
+          dataHealthLoader: () => pending.future,
+          storageGateway: const _FakeStorageGateway(),
+        ),
+      ),
+    );
+    expect(find.text('確認中です'), findsNWidgets(3));
+    pending.complete(cases.first.snapshot);
+    await tester.pump();
   });
 
   testWidgets('ABOUT shows each formal metadata field exactly once', (
@@ -222,37 +334,130 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('バックアップを作成してください'), findsOneWidget);
-    final confirm = tester.widget<FilledButton>(
-      find.byKey(const ValueKey('confirm-initialize-app-data')),
-    );
-    expect(confirm.onPressed, isNull);
-    await tester.enterText(
-      find.byKey(const ValueKey('initialize-confirmation-input')),
+    final input = find.byKey(const ValueKey('initialize-confirmation-input'));
+    final confirm = find.byKey(const ValueKey('confirm-initialize-app-data'));
+    FilledButton confirmButton() => tester.widget<FilledButton>(confirm);
+    Future<void> enterConfirmation(String value) async {
+      await tester.enterText(input, value);
+      await tester.pump();
+    }
+
+    expect(confirmButton().onPressed, isNull);
+    expect(database.transactionCount, 0);
+    for (final invalid in [
+      '',
+      'INIT',
+      'INITIALIZ',
       'initialize',
+      'InitialIze',
+      'INTILIZE',
+      ' INITIALIZE',
+      'INITIALIZE ',
+      'INITIALIZE\n',
+      'ＩＮＩＴＩＡＬＩＺＥ',
+    ]) {
+      await enterConfirmation(invalid);
+      expect(confirmButton().onPressed, isNull, reason: invalid);
+    }
+
+    await enterConfirmation('INITIALIZE');
+    expect(confirmButton().onPressed, isNotNull);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'INITIALIZE',
+        selection: TextSelection.collapsed(offset: 10),
+        composing: TextRange(start: 0, end: 10),
+      ),
     );
     await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.byKey(const ValueKey('confirm-initialize-app-data')),
-          )
-          .onPressed,
-      isNull,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('initialize-confirmation-input')),
-      'INITIALIZE',
+    expect(confirmButton().onPressed, isNull);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'INITIALIZE',
+        selection: TextSelection.collapsed(offset: 10),
+      ),
     );
     await tester.pump();
+    expect(confirmButton().onPressed, isNotNull);
+    await enterConfirmation('INITIALIZ');
+    expect(confirmButton().onPressed, isNull);
+    await enterConfirmation('INITIALIZE');
+    expect(confirmButton().onPressed, isNotNull);
+    await enterConfirmation('INITIALIZE ');
+    expect(confirmButton().onPressed, isNull);
+    expect(database.transactionCount, 0);
+
+    await tester.tap(find.text('キャンセル'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).controller!.text, isEmpty);
+    expect(confirmButton().onPressed, isNull);
+    await enterConfirmation('INITIALIZE');
+    expect(confirmButton().onPressed, isNotNull);
     await tester.tap(find.byKey(const ValueKey('confirm-initialize-app-data')));
     await tester.pumpAndSettle();
 
+    expect(database.transactionCount, 1);
     expect(find.text('アプリデータを初期化しました'), findsOneWidget);
     expect(await database.findAll(IndexedDbStoreNames.statusRecords), isEmpty);
     expect(
       database.rawRecord(IndexedDbStoreNames.operationState, 'current'),
       isNotNull,
     );
+  });
+
+  testWidgets('INITIALIZE prevents duplicate execution and reports failure', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = _ControlledInitializationService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemPage(
+          initializationService: service,
+          dataHealthLoader: () async => const SystemDataHealthSnapshot(
+            integrity: 'READABLE',
+            recoveryStatus: 'NO RECOVERY REQUIRED',
+            healthStatus: 'HEALTHY',
+          ),
+          storageGateway: const _FakeStorageGateway(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('initialize-app-data')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('initialize-confirmation-input')),
+      'INITIALIZE',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('confirm-initialize-app-data')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(service.callCount, 1);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const ValueKey('initialize-app-data')),
+          )
+          .onPressed,
+      isNull,
+    );
+    service.completeFailure();
+    await tester.pumpAndSettle();
+    expect(service.callCount, 1);
+    expect(find.text('アプリデータを初期化できませんでした'), findsOneWidget);
+    expect(find.text('アプリデータを初期化しました'), findsNothing);
   });
 
   testWidgets('OPERATION SYNC exposes the formal transfer surface', (
@@ -316,7 +521,7 @@ void main() {
     testWidgets('SYSTEM is overflow-free at ${width.toInt()}px', (
       tester,
     ) async {
-      tester.view.physicalSize = Size(width, 1200);
+      tester.view.physicalSize = Size(width, 700);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -335,8 +540,29 @@ void main() {
             ),
           ),
         );
-        await tester.pump();
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('initialize-app-data')),
+          300,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('initialize-app-data')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('initialize-confirmation-input')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('confirm-initialize-app-data')),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
+        await tester.tap(find.text('キャンセル'));
+        await tester.pumpAndSettle();
       }
     });
   }
@@ -352,4 +578,21 @@ class _FakeStorageGateway implements StorageStatusGateway {
     quotaBytes: 2048,
     persistence: StoragePersistence.persistent,
   );
+}
+
+class _ControlledInitializationService extends AppDataInitializationService {
+  _ControlledInitializationService() : super(FakeIndexedDbDatabase());
+
+  final _completion = Completer<AppDataInitializationResult>();
+  int callCount = 0;
+
+  @override
+  Future<AppDataInitializationResult> initialize() {
+    callCount++;
+    return _completion.future;
+  }
+
+  void completeFailure() {
+    _completion.completeError(StateError('Injected initialization failure.'));
+  }
 }

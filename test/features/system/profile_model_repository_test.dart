@@ -13,10 +13,14 @@ void main() {
       'https://www.mofa.go.jp/mofaj/area/index.html',
     );
     expect(ProfileNationalities.verifiedOn, '2026-08-03');
-    expect(ProfileNationalities.countries, hasLength(195));
+    expect(ProfileNationalities.countries, hasLength(196));
     expect(ProfileNationalities.otherRegions, hasLength(7));
-    expect(ProfileNationalities.values, hasLength(202));
-    expect(ProfileNationalities.values.toSet(), hasLength(202));
+    expect(ProfileNationalities.values, hasLength(203));
+    expect(ProfileNationalities.values.toSet(), hasLength(203));
+    expect(ProfileNationalities.values.where((value) => value == '日本'), ['日本']);
+    final japanIndex = ProfileNationalities.countries.indexOf('日本');
+    expect(ProfileNationalities.countries[japanIndex - 1], 'ニジェール共和国');
+    expect(ProfileNationalities.countries[japanIndex + 1], 'ニュージーランド');
     expect(ProfileNationalities.otherRegions, [
       '北朝鮮',
       '台湾',
@@ -33,7 +37,7 @@ void main() {
       userName: '  早坂  一馬  ',
       heightCm: 175.5,
       gender: ProfileGender.male,
-      nationality: '台湾',
+      nationality: '日本',
     );
     expect(profile.userName, '早坂  一馬');
     expect(profile.heightCm, 175.5);
@@ -77,7 +81,7 @@ void main() {
           userName: ' Kazuma ',
           heightCm: 175,
           gender: ProfileGender.preferNotToSay,
-          nationality: '台湾',
+          nationality: '日本',
         ),
       );
       expect(saved.userName, 'Kazuma');
@@ -87,7 +91,7 @@ void main() {
         database.rawRecord(IndexedDbStoreNames.profileRecords, 'current'),
         isNotNull,
       );
-      expect((await repository.findCurrent())!.nationality, '台湾');
+      expect((await repository.findCurrent())!.nationality, '日本');
 
       await repository.deleteCurrent();
       expect(await repository.findCurrent(), isNull);

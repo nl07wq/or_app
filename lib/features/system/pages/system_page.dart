@@ -136,8 +136,8 @@ class _SystemPageState extends State<SystemPage> {
           icon: Icons.sync_alt,
           title: 'OPERATION SYNC',
           description:
-              'Transfer data between devices\n'
-              'and import long-term archives.',
+              '機種変更などのデータ転送や、'
+              '長期保存データの一括取り込みを行います。',
           buttonText: 'OPEN OPERATION SYNC',
           onPressed: () =>
               Navigator.pushNamed(context, AppRoutes.operationSync),
@@ -196,8 +196,10 @@ class _InitializationConfirmationDialogState
           key: const ValueKey('initialize-confirmation-input'),
           controller: _controller,
           autofocus: true,
+          minLines: 1,
+          maxLines: 2,
+          keyboardType: TextInputType.multiline,
           decoration: const InputDecoration(labelText: '確認文字列'),
-          onChanged: (_) => setState(() {}),
         ),
       ],
     ),
@@ -206,11 +208,15 @@ class _InitializationConfirmationDialogState
         onPressed: () => Navigator.pop(context, false),
         child: const Text('キャンセル'),
       ),
-      FilledButton(
-        key: const ValueKey('confirm-initialize-app-data'),
-        onPressed: _controller.text == 'INITIALIZE'
-            ? () => Navigator.pop(context, true)
-            : null,
+      ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _controller,
+        builder: (context, value, child) => FilledButton(
+          key: const ValueKey('confirm-initialize-app-data'),
+          onPressed: value.text == 'INITIALIZE' && value.composing.isCollapsed
+              ? () => Navigator.pop(context, true)
+              : null,
+          child: child,
+        ),
         child: const Text('初期化する'),
       ),
     ],
@@ -253,20 +259,20 @@ class _StorageSection extends StatelessWidget {
           OperationCard(
             child: Column(
               children: [
-                const _StorageValue(label: 'Storage Type', value: 'IndexedDB'),
+                const _StorageValue(label: '保存方式', value: 'IndexedDB'),
                 const Divider(),
                 _StorageValue(
-                  label: 'Estimated Usage',
+                  label: '推定使用量',
                   value: estimate ?? _formatBytes(data!.usageBytes),
                 ),
                 const Divider(),
                 _StorageValue(
-                  label: 'Estimated Quota',
+                  label: '推定上限容量',
                   value: estimate ?? _formatBytes(data!.quotaBytes),
                 ),
                 const Divider(),
                 _StorageValue(
-                  label: 'Persistence',
+                  label: '保存状態',
                   value: persistence.$1,
                   description: persistence.$2,
                 ),
@@ -327,14 +333,32 @@ class _DataHealthSection extends StatelessWidget {
         icon: Icons.health_and_safety_outlined,
         title: 'DATA HEALTH',
         values: [
-          ('Integrity', data?.integrity ?? 'CHECKING'),
-          ('Recovery Status', data?.recoveryStatus ?? 'CHECKING'),
-          ('Health Status', data?.healthStatus ?? 'CHECKING'),
+          ('データ整合性', _localizedDataHealthStatus(data?.integrity ?? 'CHECKING')),
+          (
+            '復旧状態',
+            _localizedDataHealthStatus(data?.recoveryStatus ?? 'CHECKING'),
+          ),
+          (
+            'システム状態',
+            _localizedDataHealthStatus(data?.healthStatus ?? 'CHECKING'),
+          ),
         ],
       );
     },
   );
 }
+
+String _localizedDataHealthStatus(String value) => switch (value) {
+  'READABLE' => '読み取り可能',
+  'NO RECOVERY REQUIRED' => '復旧は必要ありません',
+  'RECOVERY REQUIRED' => '復旧が必要です',
+  'HEALTHY' => '正常',
+  'CHECK REQUIRED' || 'ATTENTION' => '確認が必要です',
+  'CHECKING' => '確認中です',
+  'UNAVAILABLE' => '利用できません',
+  'UNKNOWN' => '確認できません',
+  _ => '確認できません',
+};
 
 class _InitializeSection extends StatelessWidget {
   const _InitializeSection({
