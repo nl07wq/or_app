@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_issue.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_state.dart';
 import 'package:or_app/features/operation_sync/models/operation_transfer_package.dart';
@@ -95,13 +96,111 @@ void main() {
       expect(adapter.appliedIds, ['record-1']);
     },
   );
+
+  test('blocked preview records failed conflict history', () async {
+    final database = FakeIndexedDbDatabase();
+    final stateRepository = IndexedDbOperationSyncStateRepository(database);
+    final historyRepository = IndexedDbOperationSyncHistoryRepository(database);
+    final adapter = _FixtureAdapter({
+      'record-1': OperationSyncRecordDisposition.conflict,
+    });
+    final service = OperationSyncCoreService(
+      codec: const OperationTransferCodec(),
+      validator: OperationSyncValidator(
+        OperationTransferAdapterRegistry(adapters: [adapter]),
+      ),
+      stateRepository: stateRepository,
+      historyRepository: historyRepository,
+      database: database,
+    );
+    final package = fixturePackage();
+
+    final preview = await service.preview(
+      const OperationTransferCodec().encode(package),
+    );
+
+    expect(preview.canApply, isFalse);
+    expect(
+      (await stateRepository.requireCurrent()).phase,
+      OperationSyncPhase.failed,
+    );
+    final history = await historyRepository.list();
+    expect(history, hasLength(1));
+    expect(history.single.result, OperationSyncHistoryResult.failed);
+    expect(history.single.conflictCount, 1);
+    expect(
+      history.single.failureCode,
+      OperationSyncIssueCode.canonicalConflict,
+    );
+  });
+
+  test(
+    'apply interruption requires matching package and resumes safely',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final stateRepository = IndexedDbOperationSyncStateRepository(database);
+      final historyRepository = IndexedDbOperationSyncHistoryRepository(
+        database,
+      );
+      final adapter = _FixtureAdapter({}, failApply: true);
+      final service = OperationSyncCoreService(
+        codec: const OperationTransferCodec(),
+        validator: OperationSyncValidator(
+          OperationTransferAdapterRegistry(adapters: [adapter]),
+        ),
+        stateRepository: stateRepository,
+        historyRepository: historyRepository,
+        database: database,
+      );
+      final package = fixturePackage();
+      final rawPackage = const OperationTransferCodec().encode(package);
+      final preview = await service.preview(rawPackage);
+
+      await expectLater(
+        service.apply(package: package, preview: preview),
+        throwsA(isA<StateError>()),
+      );
+      final recoveryState = await stateRepository.requireCurrent();
+      expect(recoveryState.phase, OperationSyncPhase.recoveryRequired);
+      expect(recoveryState.checkpoint?.verificationStatus, 'applying');
+
+      await expectLater(
+        service.resumePreview(
+          const OperationTransferCodec().encode(
+            fixturePackage(createdAt: DateTime.utc(2026, 8, 3)),
+          ),
+        ),
+        throwsA(
+          isA<OperationSyncException>().having(
+            (error) => error.code,
+            'code',
+            OperationSyncIssueCode.packageDigestMismatch,
+          ),
+        ),
+      );
+
+      adapter.failApply = false;
+      final resumed = await service.resumePreview(rawPackage);
+      expect(resumed.canApply, isTrue);
+      await service.apply(
+        package: package,
+        preview: resumed,
+        isRecoveryExecution: true,
+      );
+      final history = await historyRepository.list();
+      expect(history, hasLength(1));
+      expect(history.single.result, OperationSyncHistoryResult.success);
+      expect(history.single.isRecoveryExecution, isTrue);
+    },
+  );
 }
 
 class _FixtureAdapter implements OperationTransferModuleAdapter {
   final Map<String, OperationSyncRecordDisposition> dispositions;
   final List<String> appliedIds = [];
+  bool failApply;
 
-  _FixtureAdapter(this.dispositions);
+  _FixtureAdapter(this.dispositions, {this.failApply = false});
 
   @override
   String get module => 'fixture';
@@ -140,6 +239,7 @@ class _FixtureAdapter implements OperationTransferModuleAdapter {
     List<OperationTransferRecord> records,
     OperationSyncInspectionContext context,
   ) async {
+    if (failApply) throw StateError('Injected apply interruption.');
     for (final record in records) {
       appliedIds.add(record.recordId);
       await transaction.put(IndexedDbStoreNames.statusRecords, {

@@ -523,7 +523,7 @@ void main() {
       );
       expect(
         (await stateRepository.requireCurrent()).phase,
-        OperationSyncPhase.failed,
+        OperationSyncPhase.recoveryRequired,
       );
     },
   );

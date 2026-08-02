@@ -66,13 +66,34 @@ class OperationSyncCoreService {
         ),
       );
       final preview = await validator.preview(package);
-      await _move(
+      state = await _move(
         state,
         state.copyWith(
-          phase: OperationSyncPhase.previewReady,
+          phase: preview.canApply
+              ? OperationSyncPhase.previewReady
+              : OperationSyncPhase.failed,
+          failureCode: preview.canApply
+              ? null
+              : preview.issues
+                    .firstWhere(
+                      (issue) =>
+                          issue.level == OperationSyncIssueLevel.blocking,
+                    )
+                    .code,
+          failureDetailCode: preview.canApply ? null : 'previewBlocked',
           updatedAt: _clock().toUtc(),
         ),
       );
+      if (!preview.canApply) {
+        await _recordHistory(
+          state: state,
+          package: package,
+          preview: preview,
+          result: OperationSyncHistoryResult.failed,
+          failureCode: state.failureCode,
+          isRecoveryExecution: false,
+        );
+      }
       return preview;
     } on OperationSyncException catch (error) {
       await _fail(state, error.code, error.code.stableId);
@@ -87,9 +108,55 @@ class OperationSyncCoreService {
     }
   }
 
+  Future<OperationSyncPreview> resumePreview(String rawPackage) async {
+    var state = await stateRepository.requireCurrent();
+    final history = state.operationId == null
+        ? null
+        : await historyRepository.readById(state.operationId!);
+    final canResume =
+        state.requiresRecovery ||
+        state.phase == OperationSyncPhase.previewReady ||
+        (state.phase == OperationSyncPhase.completed && history == null);
+    if (!canResume || state.packageDigest == null || state.checkpoint == null) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.processingStateConflict,
+        'Operation Sync has no resumable checkpoint.',
+      );
+    }
+    final package = codec.decode(rawPackage);
+    if (package.packageDigest != state.packageDigest ||
+        package.packageDigest != state.checkpoint!.validatedPackageDigest ||
+        !_checkpointMatches(package, state.checkpoint!)) {
+      throw const OperationSyncException(
+        OperationSyncIssueCode.packageDigestMismatch,
+        'Selected package does not match the recovery checkpoint.',
+      );
+    }
+    final preview = await validator.preview(package);
+    state = await _move(
+      state,
+      state.copyWith(
+        phase: preview.canApply
+            ? OperationSyncPhase.previewReady
+            : OperationSyncPhase.recoveryRequired,
+        failureCode: preview.canApply
+            ? null
+            : preview.issues
+                  .firstWhere(
+                    (issue) => issue.level == OperationSyncIssueLevel.blocking,
+                  )
+                  .code,
+        failureDetailCode: preview.canApply ? null : 'recoveryPreviewBlocked',
+        updatedAt: _clock().toUtc(),
+      ),
+    );
+    return preview;
+  }
+
   Future<void> apply({
     required OperationTransferPackage package,
     required OperationSyncPreview preview,
+    bool isRecoveryExecution = false,
   }) async {
     if (!preview.canApply || preview.packageDigest != package.packageDigest) {
       throw const OperationSyncException(
@@ -181,10 +248,10 @@ class OperationSyncCoreService {
         },
       );
     } on OperationSyncException catch (error) {
-      await _fail(state, error.code, error.code.stableId);
+      await _requireRecovery(state, error.code, error.code.stableId);
       rethrow;
     } catch (_) {
-      await _fail(
+      await _requireRecovery(
         state,
         OperationSyncIssueCode.integrityFailure,
         'moduleApplyFailure',
@@ -200,25 +267,42 @@ class OperationSyncCoreService {
         updatedAt: completedAt,
       ),
     );
-    await historyRepository.create(
-      OperationSyncHistory(
-        operationId: completed.operationId!,
-        packageId: package.packageId,
-        packageDigest: package.packageDigest,
-        sourceType: package.sourceType.stableId,
-        transferMode: package.transferMode.stableId,
-        startedAt: completed.startedAt!,
-        completedAt: completedAt,
-        moduleIds: [for (final section in package.sections) section.module],
-        recordCount: preview.recordCount,
-        createCount: preview.createCount,
-        noChangeCount: preview.noChangeCount,
-        conflictCount: preview.conflictCount,
-        quarantineCount: 0,
-        result: OperationSyncHistoryResult.success,
-        isRecoveryExecution: false,
-      ),
+    await _recordHistory(
+      state: completed,
+      package: package,
+      preview: preview,
+      result: OperationSyncHistoryResult.success,
+      isRecoveryExecution: isRecoveryExecution,
     );
+  }
+
+  static bool _checkpointMatches(
+    OperationTransferPackage package,
+    OperationSyncCheckpoint checkpoint,
+  ) {
+    final sectionDigests = {
+      for (final section in package.sections)
+        section.module: section.sectionDigest,
+    };
+    final recordDigests = [
+      for (final section in package.sections)
+        for (final record in section.records) record.recordDigest,
+    ];
+    if (sectionDigests.length != checkpoint.expectedSectionDigests.length ||
+        recordDigests.length != checkpoint.expectedRecordDigests.length) {
+      return false;
+    }
+    for (final entry in sectionDigests.entries) {
+      if (checkpoint.expectedSectionDigests[entry.key] != entry.value) {
+        return false;
+      }
+    }
+    for (var index = 0; index < recordDigests.length; index++) {
+      if (checkpoint.expectedRecordDigests[index] != recordDigests[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _applyOperationState(
@@ -388,6 +472,55 @@ class OperationSyncCoreService {
         failureCode: code,
         failureDetailCode: detail,
         updatedAt: _clock().toUtc(),
+      ),
+    );
+  }
+
+  Future<void> _requireRecovery(
+    OperationSyncState state,
+    OperationSyncIssueCode code,
+    String detail,
+  ) async {
+    await _move(
+      state,
+      state.copyWith(
+        phase: OperationSyncPhase.recoveryRequired,
+        failureCode: code,
+        failureDetailCode: detail,
+        updatedAt: _clock().toUtc(),
+      ),
+    );
+  }
+
+  Future<void> _recordHistory({
+    required OperationSyncState state,
+    required OperationTransferPackage package,
+    required OperationSyncPreview preview,
+    required OperationSyncHistoryResult result,
+    required bool isRecoveryExecution,
+    OperationSyncIssueCode? failureCode,
+  }) async {
+    final completedAt = _clock().toUtc();
+    await historyRepository.create(
+      OperationSyncHistory(
+        operationId: state.operationId!,
+        packageId: package.packageId,
+        packageDigest: package.packageDigest,
+        sourceType: package.sourceType.stableId,
+        transferMode: package.transferMode.stableId,
+        startedAt: state.startedAt!,
+        completedAt: completedAt.isBefore(state.startedAt!)
+            ? state.startedAt!
+            : completedAt,
+        moduleIds: [for (final section in package.sections) section.module],
+        recordCount: preview.recordCount,
+        createCount: preview.createCount,
+        noChangeCount: preview.noChangeCount,
+        conflictCount: preview.conflictCount,
+        quarantineCount: 0,
+        result: result,
+        failureCode: failureCode,
+        isRecoveryExecution: isRecoveryExecution,
       ),
     );
   }

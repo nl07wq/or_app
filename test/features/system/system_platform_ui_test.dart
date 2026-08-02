@@ -105,22 +105,37 @@ void main() {
     expect(find.byType(OperationSyncPage), findsOneWidget);
   });
 
-  testWidgets('OPERATION SYNC is a non-operable placeholder', (tester) async {
+  testWidgets('OPERATION SYNC exposes the formal transfer surface', (
+    tester,
+  ) async {
     await tester.pumpWidget(const MaterialApp(home: OperationSyncPage()));
 
     expect(
-      find.text('This feature transfers data\nbetween devices.'),
+      find.text('Transfer data between devices with a verified package.'),
       findsOneWidget,
     );
     for (final module in OperationSyncPage.modules) {
       expect(find.text(module), findsOneWidget);
     }
-    final button = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'COMING LATER'),
+    expect(find.text('SELECT TRANSFER PACKAGE'), findsWidgets);
+    expect(find.text('VALIDATION'), findsOneWidget);
+    expect(find.text('PREVIEW'), findsOneWidget);
+    expect(find.text('APPLY'), findsOneWidget);
+    expect(find.text('VERIFY'), findsOneWidget);
+    expect(find.text('COMPLETE'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('export-transfer-package')),
+      300,
+      scrollable: find.byType(Scrollable).last,
     );
-    expect(button.onPressed, isNull);
-    expect(find.text('IMPORT DATA'), findsNothing);
-    expect(find.text('EXPORT DATA'), findsNothing);
+    expect(find.text('EXPORT TRANSFER PACKAGE'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('OPERATION SYNC HISTORY'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('OPERATION SYNC HISTORY'), findsOneWidget);
+    expect(find.text('COMING LATER'), findsOneWidget);
   });
 
   for (final pageCase in const <({String name, Widget page})>[
