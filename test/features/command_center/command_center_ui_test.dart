@@ -124,7 +124,7 @@ void main() {
     );
   });
 
-  testWidgets('uses uppercase tabs and approved BRIEF description', (
+  testWidgets('uses uppercase tabs and formal BRIEF DEBRIEF exchange', (
     tester,
   ) async {
     await _pump(tester, width: 390);
@@ -134,7 +134,9 @@ void main() {
     expect(find.text('DATA CENTER'), findsWidgets);
     await tester.tap(find.text('BRIEF / DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.text('MORNING BRIEFとDAILY DEBRIEFの履歴を確認できます。'), findsOneWidget);
+    expect(find.text('MORNING BRIEF'), findsWidgets);
+    expect(find.text('DAILY DEBRIEF'), findsWidgets);
+    expect(find.text('COPY CHATGPT INSTRUCTION'), findsWidgets);
     expect(find.textContaining('施設'), findsNothing);
   });
 

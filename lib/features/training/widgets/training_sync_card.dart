@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/state/app_initialization_state.dart';
-import '../../sync/pages/orlo_sync_page.dart';
+import '../../report_sync/models/report_sync_envelope.dart';
+import '../../report_sync/pages/report_sync_exchange_page.dart';
 
 class TrainingSyncCard extends StatelessWidget {
   const TrainingSyncCard({super.key});
@@ -17,13 +18,11 @@ class TrainingSyncCard extends StatelessWidget {
         onPressed: appInitializationController.value.isReadOnly
             ? null
             : () {
-                Navigator.push(
+                Navigator.push<void>(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => OrloSyncPage(
-                      initialDataType: 'training',
-                      lockDataType: true,
-                      title: 'TRAINING SYNC',
+                    builder: (_) => const ReportSyncExchangePage(
+                      exchangeType: ReportSyncExchangeType.training,
                     ),
                   ),
                 );

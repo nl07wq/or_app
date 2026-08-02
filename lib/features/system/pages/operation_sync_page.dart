@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
+import '../../legacy_archive/pages/dns_archive_import_page.dart';
 import '../../operation_sync/models/operation_sync_history.dart';
 import '../../operation_sync/models/operation_sync_issue.dart';
 import '../../operation_sync/models/operation_sync_state.dart';
@@ -290,11 +291,21 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
             contentPadding: EdgeInsets.zero,
             leading: Icon(
               module == 'ARCHIVE'
-                  ? Icons.schedule_outlined
+                  ? Icons.archive_outlined
                   : Icons.check_circle_outline,
             ),
             title: Text(module),
-            trailing: Text(module == 'ARCHIVE' ? 'COMING LATER' : 'AVAILABLE'),
+            trailing: module == 'ARCHIVE'
+                ? const Icon(Icons.chevron_right)
+                : const Text('AVAILABLE'),
+            onTap: module == 'ARCHIVE'
+                ? () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DnsArchiveImportPage(),
+                    ),
+                  )
+                : null,
           ),
       ],
     ),

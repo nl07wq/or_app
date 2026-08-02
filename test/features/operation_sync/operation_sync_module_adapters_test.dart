@@ -489,7 +489,10 @@ void main() {
       final package = fixturePackage(
         sections: [fixtureSection(module: 'status', records: records)],
       );
-      final stateRepository = IndexedDbOperationSyncStateRepository(target);
+      final stateRepository = IndexedDbOperationSyncStateRepository(
+        target,
+        clock: () => DateTime.utc(2026, 8, 2, 10),
+      );
       final core = OperationSyncCoreService(
         codec: const OperationTransferCodec(),
         validator: OperationSyncValidator(

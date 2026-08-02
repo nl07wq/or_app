@@ -4,36 +4,36 @@ import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/food_entry_page.dart';
 import 'package:or_app/features/morning/morning_page.dart';
-import 'package:or_app/features/sync/pages/orlo_sync_page.dart';
+import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
 import 'package:or_app/features/training/training_page.dart';
 
 void main() {
-  testWidgets('FOOD keeps v1 entry and reports sync as coming later', (
+  testWidgets('FOOD keeps v1 entry and opens formal report sync', (
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: FoodPage()));
 
     expect(find.text('REPORT SYNC'), findsOneWidget);
-    expect(find.text('FOOD SYNC'), findsOneWidget);
-    expect(find.text('COMING LATER'), findsOneWidget);
+    expect(find.text('FOOD REPORT SYNC'), findsOneWidget);
+    expect(find.text('COMING LATER'), findsNothing);
     expect(find.text('FOOD DATABASE'), findsNothing);
     expect(find.text('RECIPE DATABASE'), findsNothing);
     expect(find.text('FOOD ENTRY'), findsOneWidget);
     expect(find.text('RECORD'), findsWidgets);
 
     await tester.tap(find.text('SYNC FOOD'));
-    await tester.pump();
-    expect(find.text('FOOD SYNC COMING LATER'), findsOneWidget);
-    expect(find.byType(OrloSyncPage), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+    expect(find.text('FOOD REPORT SYNC'), findsWidgets);
 
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('FOOD ENTRY'));
     await tester.pumpAndSettle();
     expect(find.byType(FoodEntryPage), findsOneWidget);
   });
 
-  testWidgets('TRAINING opens a locked training sync experience', (
-    tester,
-  ) async {
+  testWidgets('TRAINING opens formal report sync', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
 
     expect(find.text('REPORT SYNC'), findsOneWidget);
@@ -43,10 +43,8 @@ void main() {
 
     await tester.tap(find.text('SYNC TRAINING'));
     await tester.pumpAndSettle();
-    expect(find.byType(OrloSyncPage), findsOneWidget);
-    expect(find.text('TRAINING SYNC'), findsOneWidget);
-    expect(find.text('TRAINING'), findsOneWidget);
-    expect(find.text('Data Type'), findsNothing);
+    expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+    expect(find.text('TRAINING REPORT SYNC'), findsWidgets);
     expect(find.text('OPEN ORLO SYNC'), findsNothing);
   });
 

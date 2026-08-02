@@ -9,6 +9,7 @@ import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 
 void main() {
   group('DailyCommandReadModelBuilder', () {
@@ -37,6 +38,18 @@ void main() {
         DailyLogModule.activity,
       ]);
     });
+
+    test(
+      'uses imported Morning Brief for command display without invention',
+      () {
+        final model = _build(status: _status(), morningBrief: _morningBrief());
+
+        expect(model.operationStatus?.name, 'yellow');
+        expect(model.statusReason, 'formal situation');
+        expect(model.commanderIntent, 'formal intent');
+        expect(model.morningBriefSummary, 'formal argo comment');
+      },
+    );
 
     test('derives REVIEW READY when required modules are valid', () {
       final model = _build(
@@ -106,6 +119,7 @@ DailyCommandReadModel _build({
   ActivitySummary activity = const ActivitySummary.empty(),
   OperationPhase phase = OperationPhase.open,
   bool isHistoricalView = false,
+  MorningBriefRecord? morningBrief,
 }) {
   final date = OperationLocalDate.parse('2026-08-01');
   final now = DateTime.utc(2026, 8, 1);
@@ -132,9 +146,29 @@ DailyCommandReadModel _build({
     food: food,
     training: training,
     activity: activity,
+    morningBrief: morningBrief,
     isHistoricalView: isHistoricalView,
   );
 }
+
+MorningBriefRecord _morningBrief() => MorningBriefRecord(
+  localDate: '2026-08-01',
+  requestId: 'request-1',
+  requestDigest:
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  responseDigest:
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  generatedAt: DateTime.utc(2026, 8, 1),
+  importedAt: DateTime.utc(2026, 8, 1),
+  situationAnalysis: 'formal situation',
+  operationStatus: MorningBriefOperationStatus.yellow,
+  commanderIntent: 'formal intent',
+  argoComment: 'formal argo comment',
+  strategicResourceDecision: 'formal resource decision',
+  actions: const [],
+  createdAt: DateTime.utc(2026, 8, 1),
+  updatedAt: DateTime.utc(2026, 8, 1),
+);
 
 MorningFact _status() => MorningFact(
   date: DateTime(2026, 8, 1),

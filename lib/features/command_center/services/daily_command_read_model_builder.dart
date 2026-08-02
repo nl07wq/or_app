@@ -2,10 +2,12 @@ import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/operation_engine.dart';
 import '../../../core/engine/operation_input.dart';
+import '../../../core/engine/operation_status.dart';
 import '../../../core/engine/training_summary.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_state.dart';
+import '../../report_sync/models/morning_brief_record.dart';
 import '../models/daily_command_read_model.dart';
 
 abstract final class DailyCommandReadModelBuilder {
@@ -15,6 +17,7 @@ abstract final class DailyCommandReadModelBuilder {
     required FoodSummary? food,
     required TrainingSummary? training,
     required ActivitySummary activity,
+    MorningBriefRecord? morningBrief,
     bool isHistoricalView = false,
   }) {
     final validation = DailyLogConfirmationValidation.validate(
@@ -44,10 +47,18 @@ abstract final class DailyCommandReadModelBuilder {
       operationDate: operationState.operationDate.value,
       persistentPhase: phase,
       cycleState: _cycleState(phase, validation),
-      operationStatus: snapshot?.status,
-      statusReason: analysis?.situation ?? 'STATUSを入力して日次運用を開始してください。',
-      commanderIntent: snapshot?.commanderIntent,
-      morningBriefSummary: snapshot?.summary,
+      operationStatus: morningBrief == null
+          ? snapshot?.status
+          : OperationStatus.values.byName(
+              morningBrief.operationStatus.stableId,
+            ),
+      statusReason:
+          morningBrief?.situationAnalysis ??
+          analysis?.situation ??
+          'STATUSを入力して日次運用を開始してください。',
+      commanderIntent:
+          morningBrief?.commanderIntent ?? snapshot?.commanderIntent,
+      morningBriefSummary: morningBrief?.argoComment ?? snapshot?.summary,
       statusModuleState: _requiredState(
         recorded: status != null,
         valid: validation.statusValid,
