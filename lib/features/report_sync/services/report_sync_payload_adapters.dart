@@ -18,9 +18,13 @@ import 'report_sync_import_schema_v2.dart';
 class TrainingReportSyncPayloadAdapter {
   final CustomTrainingExerciseRepository customExercises;
   final TrainingRecordIdGenerator? idGenerator;
+  final bool allowNullSessionGrade;
+  final Set<String> equipmentNamesRequiringIdentityResolution;
   const TrainingReportSyncPayloadAdapter(
     this.customExercises, {
     this.idGenerator,
+    this.allowNullSessionGrade = false,
+    this.equipmentNamesRequiringIdentityResolution = const {},
   });
 
   Future<TrainingSyncPayload> decodeResponse(
@@ -37,6 +41,7 @@ class TrainingReportSyncPayloadAdapter {
     if (response.schemaVersion == ReportSyncEnvelope.importSchemaVersion2) {
       const TrainingReportSyncPayloadSchemaV2().validateResponse(
         response.payload,
+        allowNullSessionGrade: allowNullSessionGrade,
       );
       final recordId = (idGenerator ?? TrainingRecordIdGenerator()).generate();
       final externalSession = Map<String, Object?>.from(
@@ -58,6 +63,9 @@ class TrainingReportSyncPayloadAdapter {
         operationDate: response.operationDate,
         idempotencyKey: recordId,
         customExercises: customExercises,
+        allowNullSessionGrade: allowNullSessionGrade,
+        equipmentNamesRequiringIdentityResolution:
+            equipmentNamesRequiringIdentityResolution,
       );
       return TrainingReportSyncMappedPayload(decoded: decoded, payload: mapped);
     }

@@ -70,6 +70,8 @@ abstract final class TrainingSyncSchema {
     required String? operationDate,
     required String idempotencyKey,
     required CustomTrainingExerciseRepository customExercises,
+    bool allowNullSessionGrade = false,
+    Set<String> equipmentNamesRequiringIdentityResolution = const {},
   }) async {
     _fields(payload, {'session', 'exercises', 'cardio'}, r'$.payload');
     final sessionJson = _map(payload, 'session');
@@ -94,9 +96,12 @@ abstract final class TrainingSyncSchema {
     if (operationDate == null || localDate != operationDate) {
       throw const FormatException('Operation Date does not match localDate.');
     }
-    final grade = TrainingSessionGrade.fromStableId(
-      _text(sessionJson, 'grade'),
-    );
+    final gradeValue = allowNullSessionGrade
+        ? _nullableText(sessionJson, 'grade')
+        : _text(sessionJson, 'grade');
+    final grade = gradeValue == null
+        ? null
+        : TrainingSessionGrade.fromStableId(gradeValue);
     final dynamicStretch = _boolean(sessionJson, 'dynamicStretchCompleted');
     final cooldownStretch = _boolean(sessionJson, 'cooldownStretchCompleted');
     final exerciseValues = _list(payload, 'exercises');
@@ -128,7 +133,11 @@ abstract final class TrainingSyncSchema {
       if (!builtInKeys.contains(identity) && !customKeys.contains(identity)) {
         throw const FormatException('Custom exercise is not registered.');
       }
-      final equipment = _equipment(json['equipment'], name);
+      final equipment = _equipment(
+        json['equipment'],
+        name,
+        equipmentNamesRequiringIdentityResolution,
+      );
       final sets = <TrainingSetV2>[];
       final setValues = _list(json, 'sets');
       for (var setIndex = 0; setIndex < setValues.length; setIndex++) {
@@ -217,6 +226,7 @@ abstract final class TrainingSyncSchema {
   static TrainingEquipmentSnapshot? _equipment(
     Object? value,
     String exerciseName,
+    Set<String> namesRequiringIdentityResolution,
   ) {
     if (value == null) return null;
     final json = _asMap(value, 'equipment');
@@ -228,7 +238,26 @@ abstract final class TrainingSyncSchema {
     );
     final id = _nullableText(json, 'id');
     final name = _text(json, 'name');
-    if (id == null) return TrainingEquipmentSnapshot(name: name);
+    if (id == null) {
+      if (!namesRequiringIdentityResolution.contains(name)) {
+        return TrainingEquipmentSnapshot(name: name);
+      }
+      final compatibleIds = compatibleEquipmentIds(exerciseName);
+      final matches = builtInEquipment
+          .where(
+            (equipment) =>
+                equipment.displayName == name &&
+                compatibleIds.contains(equipment.id),
+          )
+          .toList(growable: false);
+      if (matches.length != 1) {
+        throw const FormatException('Equipment identity is invalid.');
+      }
+      return TrainingEquipmentSnapshot(
+        catalogId: matches.single.id,
+        name: matches.single.displayName,
+      );
+    }
     final catalog = equipmentById(id);
     if (catalog == null ||
         catalog.displayName != name ||

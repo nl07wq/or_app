@@ -148,7 +148,10 @@ class MorningBriefReportSyncPayloadSchemaV2 {
 class TrainingReportSyncPayloadSchemaV2 {
   const TrainingReportSyncPayloadSchemaV2();
 
-  void validateResponse(Map<String, Object?> value) {
+  void validateResponse(
+    Map<String, Object?> value, {
+    bool allowNullSessionGrade = false,
+  }) {
     _exact(value, const {
       'operationDate',
       'sourceRecordId',
@@ -174,7 +177,11 @@ class TrainingReportSyncPayloadSchemaV2 {
     }, r'$.payload.session.session');
     _date(header['localDate'], r'$.payload.session.session.localDate');
     _text(header['name'], r'$.payload.session.session.name');
-    _text(header['grade'], r'$.payload.session.session.grade');
+    if (allowNullSessionGrade) {
+      _nullableText(header['grade'], r'$.payload.session.session.grade');
+    } else {
+      _text(header['grade'], r'$.payload.session.session.grade');
+    }
     _nullableString(header['memo'], r'$.payload.session.session.memo');
     _boolean(
       header['dynamicStretchCompleted'],

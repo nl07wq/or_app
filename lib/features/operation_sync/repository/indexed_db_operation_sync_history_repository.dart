@@ -54,7 +54,10 @@ class IndexedDbOperationSyncHistoryRepository
       IndexedDbStoreNames.operationSyncHistory,
       operationId,
     );
-    return record == null ? null : OperationSyncHistory.fromRecord(record);
+    return record == null ||
+            record['recordVersion'] != OperationSyncHistory.currentRecordVersion
+        ? null
+        : OperationSyncHistory.fromRecord(record);
   }
 
   @override
@@ -63,7 +66,9 @@ class IndexedDbOperationSyncHistoryRepository
       for (final record in await _database.findAll(
         IndexedDbStoreNames.operationSyncHistory,
       ))
-        OperationSyncHistory.fromRecord(record),
+        if (record['recordVersion'] ==
+            OperationSyncHistory.currentRecordVersion)
+          OperationSyncHistory.fromRecord(record),
     ];
     values.sort((a, b) {
       final byDate = b.completedAt.compareTo(a.completedAt);

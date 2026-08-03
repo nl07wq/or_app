@@ -65,7 +65,7 @@ abstract final class BackupStoreRegistry {
       case BackupSections.foodRecipes:
         FoodRecipeDefinition.fromJson(record);
       case BackupSections.operationSyncHistory:
-        OperationSyncHistory.fromRecord(record);
+        validateOperationSyncStoredRecord(record);
       case BackupSections.morningBriefRecords:
         MorningBriefRecord.fromRecord(record);
       case BackupSections.dailyDebriefRecords:
