@@ -10,9 +10,17 @@ class FakeIndexedDbDatabase implements IndexedDbDatabase {
   int transactionCount = 0;
   int? failOnTransactionNumber;
   Object transactionFailure = StateError('Fake transaction failed.');
+  String? failNextPutForStore;
+  String? failNextReadAfterPutForStore;
+  Object storeOperationFailure = StateError('Fake store operation failed.');
+  final Set<String> _pendingReadFailures = {};
 
   @override
   Future<void> put(String storeName, Map<String, Object?> record) async {
+    if (failNextPutForStore == storeName) {
+      failNextPutForStore = null;
+      throw storeOperationFailure;
+    }
     final definition = IndexedDbSchema.storeDefinitions.singleWhere(
       (definition) => definition.name == storeName,
     );
@@ -31,10 +39,15 @@ class FakeIndexedDbDatabase implements IndexedDbDatabase {
       }
     }
     _store(storeName)[id] = _copyMap(record);
+    if (failNextReadAfterPutForStore == storeName) {
+      failNextReadAfterPutForStore = null;
+      _pendingReadFailures.add(storeName);
+    }
   }
 
   @override
   Future<Map<String, Object?>?> findById(String storeName, String id) async {
+    if (_pendingReadFailures.remove(storeName)) return null;
     final record = _store(storeName)[id];
     return record == null ? null : _copyMap(record);
   }

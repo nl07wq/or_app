@@ -225,7 +225,7 @@ class BackupImportService {
     bool requireOperationState = false,
   }) async {
     try {
-      for (final section in BackupSections.schema8) {
+      for (final section in BackupSections.schema9) {
         if (section == BackupSections.operationState) continue;
         final records = await _database.findAll(
           BackupStoreRegistry.stores[section]!,

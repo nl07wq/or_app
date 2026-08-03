@@ -26,8 +26,11 @@ class ReportSyncCodec {
   ReportSyncPayloadRegistry get _effectivePayloadRegistry =>
       payloadRegistry ?? ReportSyncPayloadRegistry.standard();
 
-  String encode(ReportSyncEnvelope envelope) =>
-      ReportSyncCanonicalService.encode(envelope.toJson());
+  String encode(ReportSyncEnvelope envelope) {
+    final json = envelope.toJson();
+    if (_usesAppGeneratedDigest(envelope)) json['packageDigest'] = null;
+    return ReportSyncCanonicalService.encode(json);
+  }
 
   ReportSyncEnvelope decode(String input) {
     final Object? raw;
@@ -51,7 +54,9 @@ class ReportSyncCodec {
     }
     if (json['format'] != ReportSyncEnvelope.formatId ||
         json['envelopeVersion'] != ReportSyncEnvelope.currentEnvelopeVersion ||
-        json['schemaVersion'] != ReportSyncEnvelope.currentSchemaVersion) {
+        !ReportSyncEnvelope.supportedSchemaVersions.contains(
+          json['schemaVersion'],
+        )) {
       return _invalid('Unsupported REPORT SYNC schema.');
     }
     final direction = _enum(
@@ -59,6 +64,10 @@ class ReportSyncCodec {
       json['direction'],
       (v) => v.stableId,
     );
+    if (direction == ReportSyncDirection.response &&
+        (input.isEmpty || input.trim() != input)) {
+      return _invalid('Response must contain exactly one JSON object.');
+    }
     final type = _enum(
       ReportSyncExchangeType.values,
       json['exchangeType'],
@@ -75,8 +84,16 @@ class ReportSyncCodec {
     if (createdAt == null || !createdAt.isUtc) {
       return _invalid('createdAt must be UTC.');
     }
-    final envelope = ReportSyncEnvelope(
+    final schemaVersion = json['schemaVersion'] as String;
+    final appGeneratedDigest =
+        schemaVersion == ReportSyncEnvelope.importSchemaVersion2 &&
+        direction == ReportSyncDirection.response;
+    final packageDigest = appGeneratedDigest
+        ? _schema2PackageDigest(json['packageDigest'])
+        : _digest(json['packageDigest'], 'packageDigest');
+    var envelope = ReportSyncEnvelope(
       direction: direction,
+      schemaVersion: schemaVersion,
       exchangeType: type,
       exchangeId: _string(json, 'exchangeId'),
       requestId: _optionalString(json, 'requestId'),
@@ -85,14 +102,8 @@ class ReportSyncCodec {
       requestDigest: _optionalDigest(json['requestDigest'], 'requestDigest'),
       confirmationDigest: confirmation as String?,
       payload: Map<String, Object?>.from(payload),
-      packageDigest: _digest(json['packageDigest'], 'packageDigest'),
+      packageDigest: packageDigest,
     );
-    if (!envelope.hasValidPackageDigest) {
-      throw const ReportSyncException(
-        ReportSyncIssueCode.integrityFailure,
-        'packageDigest mismatch.',
-      );
-    }
     _validateConfirmationRule(envelope);
     _effectivePayloadRegistry.validate(envelope);
     _validatePayloadIdentity(envelope);
@@ -104,6 +115,16 @@ class ReportSyncCodec {
       throw const ReportSyncException(
         ReportSyncIssueCode.requestDigestMismatch,
         'requestDigest does not match the request payload.',
+      );
+    }
+    if (appGeneratedDigest) {
+      envelope = envelope.withPackageDigest(
+        ReportSyncCanonicalService.digest(envelope.digestPayload()),
+      );
+    } else if (!envelope.hasValidPackageDigest) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.integrityFailure,
+        'packageDigest mismatch.',
       );
     }
     return envelope;
@@ -119,9 +140,11 @@ class ReportSyncCodec {
     String? requestDigest,
     String? confirmationDigest,
     required Map<String, Object?> payload,
+    String schemaVersion = ReportSyncEnvelope.currentSchemaVersion,
   }) {
     final base = ReportSyncEnvelope(
       direction: direction,
+      schemaVersion: schemaVersion,
       exchangeType: exchangeType,
       exchangeId: exchangeId,
       requestId: requestId,
@@ -134,6 +157,7 @@ class ReportSyncCodec {
     );
     return ReportSyncEnvelope(
       direction: direction,
+      schemaVersion: schemaVersion,
       exchangeType: exchangeType,
       exchangeId: exchangeId,
       requestId: requestId,
@@ -211,6 +235,31 @@ class ReportSyncCodec {
 
   String? _optionalDigest(Object? value, String key) =>
       value == null ? null : _digest(value, key);
+
+  String _schema2PackageDigest(Object? value) {
+    if (value != null) {
+      final preview = value.toString();
+      throw ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        'Schema 2.0 packageDigest must be null.',
+        validationError: ReportSyncValidationError(
+          code: 'invalidPackageDigestOwnership',
+          jsonPath: r'$.packageDigest',
+          message: 'Schema 2.0ではpackageDigestをnullにしてください。',
+          expected: 'null',
+          actualType: value.runtimeType.toString(),
+          actualValuePreview: preview.length <= 64
+              ? preview
+              : preview.substring(0, 64),
+        ),
+      );
+    }
+    return '';
+  }
+
+  bool _usesAppGeneratedDigest(ReportSyncEnvelope envelope) =>
+      envelope.schemaVersion == ReportSyncEnvelope.importSchemaVersion2 &&
+      envelope.direction == ReportSyncDirection.response;
 
   String _localDate(Object? value) {
     if (value is! String || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {

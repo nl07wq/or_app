@@ -18,6 +18,7 @@ import 'package:or_app/features/system/pages/operation_sync_page.dart';
 import 'package:or_app/features/system/pages/profile_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
 import 'package:or_app/features/system/services/app_data_initialization_service.dart';
+import 'package:or_app/features/system/services/app_metadata.dart';
 import 'package:or_app/features/system/services/storage_status_gateway.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
@@ -289,7 +290,7 @@ void main() {
     expect(find.text('1.0.0'), findsOneWidget);
     expect(find.text('5.2'), findsOneWidget);
     expect(find.text('10'), findsOneWidget);
-    expect(find.text('8.0'), findsOneWidget);
+    expect(find.text(AppMetadata.backupSchemaVersion), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('未設定'), findsNWidgets(2));
     expect(find.text('Version'), findsNothing);

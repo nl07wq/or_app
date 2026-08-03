@@ -13,8 +13,8 @@ enum ReportSyncHistoryResult {
 }
 
 class ReportSyncHistory {
-  static const currentRecordVersion = 1;
-  static const fields = {
+  static const currentRecordVersion = 2;
+  static const version1Fields = {
     'exchangeId',
     'recordVersion',
     'exchangeType',
@@ -30,6 +30,14 @@ class ReportSyncHistory {
     'failureCode',
     'packageDigest',
   };
+  static const fields = {
+    ...version1Fields,
+    'receivedMealCount',
+    'selectedMealCount',
+    'importedMealCount',
+    'conflictMealCount',
+    'excludedMealCount',
+  };
   final String exchangeId;
   final int recordVersion;
   final ReportSyncExchangeType exchangeType;
@@ -44,6 +52,11 @@ class ReportSyncHistory {
   final ReportSyncHistoryResult result;
   final ReportSyncIssueCode? failureCode;
   final String packageDigest;
+  final int? receivedMealCount;
+  final int? selectedMealCount;
+  final int? importedMealCount;
+  final int? conflictMealCount;
+  final int? excludedMealCount;
 
   ReportSyncHistory({
     required this.exchangeId,
@@ -60,7 +73,15 @@ class ReportSyncHistory {
     required this.result,
     this.failureCode,
     required this.packageDigest,
+    this.receivedMealCount,
+    this.selectedMealCount,
+    this.importedMealCount,
+    this.conflictMealCount,
+    this.excludedMealCount,
   }) {
+    if (recordVersion != 1 && recordVersion != currentRecordVersion) {
+      throw const FormatException('Unsupported history version.');
+    }
     if (completedAt.isBefore(startedAt)) {
       throw const FormatException('completedAt precedes startedAt.');
     }
@@ -69,6 +90,7 @@ class ReportSyncHistory {
         (failureCode != null)) {
       throw const FormatException('failureCode does not match result.');
     }
+    _validateMealCounts();
   }
 
   Map<String, Object?> toRecord() => {
@@ -86,13 +108,24 @@ class ReportSyncHistory {
     'result': result.stableId,
     'failureCode': failureCode?.stableId,
     'packageDigest': packageDigest,
+    if (recordVersion >= 2) ...{
+      'receivedMealCount': receivedMealCount,
+      'selectedMealCount': selectedMealCount,
+      'importedMealCount': importedMealCount,
+      'conflictMealCount': conflictMealCount,
+      'excludedMealCount': excludedMealCount,
+    },
   };
 
   factory ReportSyncHistory.fromRecord(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, fields);
-    if (json['recordVersion'] != currentRecordVersion) {
+    final version = json['recordVersion'];
+    if (version is! int || (version != 1 && version != currentRecordVersion)) {
       throw const FormatException('Unsupported history version.');
     }
+    ReportSyncRecordUtils.exactFields(
+      json,
+      version == 1 ? version1Fields : fields,
+    );
     T parse<T>(Iterable<T> values, Object? raw, String Function(T) id) {
       if (raw is! String) {
         throw const FormatException('Invalid stable ID.');
@@ -142,6 +175,90 @@ class ReportSyncHistory {
               (v) => v.stableId,
             ),
       packageDigest: ReportSyncRecordUtils.digest(json, 'packageDigest'),
+      receivedMealCount: version == 1
+          ? null
+          : _nullableNonNegativeInteger(json, 'receivedMealCount'),
+      selectedMealCount: version == 1
+          ? null
+          : _nullableNonNegativeInteger(json, 'selectedMealCount'),
+      importedMealCount: version == 1
+          ? null
+          : _nullableNonNegativeInteger(json, 'importedMealCount'),
+      conflictMealCount: version == 1
+          ? null
+          : _nullableNonNegativeInteger(json, 'conflictMealCount'),
+      excludedMealCount: version == 1
+          ? null
+          : _nullableNonNegativeInteger(json, 'excludedMealCount'),
+      recordVersion: version,
     );
   }
+
+  void _validateMealCounts() {
+    final counts = [
+      receivedMealCount,
+      selectedMealCount,
+      importedMealCount,
+      conflictMealCount,
+      excludedMealCount,
+    ];
+    if (recordVersion == 1 && counts.any((value) => value != null)) {
+      throw const FormatException(
+        'History version 1 cannot contain meal counts.',
+      );
+    }
+    if (exchangeType != ReportSyncExchangeType.food &&
+        counts.any((value) => value != null)) {
+      throw const FormatException(
+        'Meal counts are only valid for FOOD history.',
+      );
+    }
+    if (counts.any((value) => value != null && value < 0)) {
+      throw const FormatException(
+        'Meal counts must be non-negative integers or null.',
+      );
+    }
+    if ((receivedMealCount != null &&
+            selectedMealCount != null &&
+            selectedMealCount! > receivedMealCount!) ||
+        (selectedMealCount != null &&
+            importedMealCount != null &&
+            importedMealCount! > selectedMealCount!) ||
+        (receivedMealCount != null &&
+            conflictMealCount != null &&
+            conflictMealCount! > receivedMealCount!) ||
+        (receivedMealCount != null &&
+            importedMealCount != null &&
+            excludedMealCount != null &&
+            excludedMealCount != receivedMealCount! - importedMealCount!)) {
+      throw const FormatException('Meal counts are inconsistent.');
+    }
+  }
+
+  static int? _nullableNonNegativeInteger(
+    Map<String, Object?> json,
+    String key,
+  ) {
+    final value = json[key];
+    if (value == null) return null;
+    if (value is! int || value < 0) {
+      throw FormatException('$key must be a non-negative integer or null.');
+    }
+    return value;
+  }
+}
+
+class ReportSyncMealCounts {
+  const ReportSyncMealCounts({
+    required this.received,
+    required this.selected,
+    required this.imported,
+    required this.conflict,
+  });
+
+  final int received;
+  final int selected;
+  final int imported;
+  final int conflict;
+  int get excluded => received - imported;
 }

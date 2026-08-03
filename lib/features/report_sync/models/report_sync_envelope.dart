@@ -22,6 +22,11 @@ class ReportSyncEnvelope {
   static const formatId = 'operation-reboot-report-sync';
   static const currentEnvelopeVersion = 1;
   static const currentSchemaVersion = '1.0';
+  static const importSchemaVersion2 = '2.0';
+  static const supportedSchemaVersions = {
+    currentSchemaVersion,
+    importSchemaVersion2,
+  };
 
   final String format;
   final int envelopeVersion;
@@ -72,6 +77,22 @@ class ReportSyncEnvelope {
     ...digestPayload(),
     'packageDigest': packageDigest,
   };
+
+  ReportSyncEnvelope withPackageDigest(String value) => ReportSyncEnvelope(
+    format: format,
+    envelopeVersion: envelopeVersion,
+    schemaVersion: schemaVersion,
+    direction: direction,
+    exchangeType: exchangeType,
+    exchangeId: exchangeId,
+    requestId: requestId,
+    operationDate: operationDate,
+    createdAt: createdAt,
+    requestDigest: requestDigest,
+    confirmationDigest: confirmationDigest,
+    payload: payload,
+    packageDigest: value,
+  );
 
   bool get hasValidPackageDigest =>
       ReportSyncCanonicalService.digest(digestPayload()) == packageDigest;

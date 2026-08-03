@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
@@ -153,6 +155,72 @@ void main() {
     restored!.items.clear();
     expect((await repository.findById('complete'))?.items, hasLength(3));
   });
+
+  test(
+    'reads multiple FOOD items from LinkedMap-compatible IndexedDB values',
+    () {
+      final record = PersistedFoodRecord(
+        id: 'food:linked-map',
+        localDate: '2026-07-26',
+        createdAt: DateTime.utc(2026, 7, 26),
+        updatedAt: DateTime.utc(2026, 7, 26),
+        data: _meal(id: 'linked-map'),
+      ).toRecord();
+      final data = LinkedHashMap<dynamic, dynamic>.of({
+        'date': '2026-07-26',
+        'mealType': '昼食',
+        'memo': 'mixed numbers',
+        'id': 'linked-map',
+        'waterMl': null,
+        'items': <Object?>[
+          LinkedHashMap<dynamic, dynamic>.of({
+            'name': 'Rice',
+            'calories': 200,
+            'protein': 4.5,
+            'fat': 0,
+            'carbohydrate': 44.0,
+            'quantity': 2,
+            'amount': null,
+            'baseAmount': null,
+            'baseUnit': null,
+            'amountMode': null,
+          }),
+          LinkedHashMap<dynamic, dynamic>.of({
+            'name': 'Chicken',
+            'calories': 165.0,
+            'protein': 31,
+            'fat': 3.6,
+            'carbohydrate': 0,
+            'quantity': 1,
+            'amount': 150,
+            'baseAmount': 100.0,
+            'baseUnit': 'g',
+            'amountMode': 'physicalAmount',
+            'calculatedCalories': 247.5,
+            'calculatedProtein': 46.5,
+            'calculatedFat': 5.4,
+            'calculatedCarbohydrate': 0.0,
+          }),
+        ],
+      });
+      record['data'] = data;
+
+      final restored = PersistedFoodRecord.fromRecord(record).data;
+
+      expect(restored.id, 'linked-map');
+      expect(restored.mealType, '昼食');
+      expect(restored.memo, 'mixed numbers');
+      expect(restored.waterMl, isNull);
+      expect(restored.items, hasLength(2));
+      expect(restored.items.first.quantity, 2);
+      expect(restored.items.first.amount, isNull);
+      expect(restored.items.last.calories, 165.0);
+      expect(restored.items.last.amount, 150.0);
+      expect(restored.items.last.baseAmount, 100.0);
+      expect(restored.items.last.baseUnit, FoodBaseUnit.g);
+      expect(restored.items.last.amountMode, FoodAmountMode.physicalAmount);
+    },
+  );
 
   test('delete and clear affect only FOOD Store', () async {
     await repository.save(_meal(id: 'meal-1'));

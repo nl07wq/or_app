@@ -37,7 +37,7 @@ void main() {
   });
 
   test(
-    'exports Schema 8.0 UTF-8 JSON through the shared file gateway',
+    'exports Schema 9.0 UTF-8 JSON through the shared file gateway',
     () async {
       final result = await _service(
         database: database,
@@ -52,7 +52,7 @@ void main() {
       expect(utf8.decode(utf8.encode(gateway.content!)), gateway.content);
 
       final package = const BackupPackageCodec().decode(gateway.content!);
-      expect(package.schemaVersion, 8);
+      expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
       expect(package.data.keys, containsAll(BackupSections.all));
       expect(package.data, isNot(contains('activity_drafts')));
       expect(package.data, isNot(contains('migration_metadata')));
@@ -73,7 +73,7 @@ void main() {
       ).export();
 
       expect(result.delivery, BackupFileDelivery.cancelled);
-      expect(result.package.schemaVersion, 8);
+      expect(result.package.schemaVersion, BackupPackage.currentSchemaVersion);
       expect(database.transactionCount, 1);
     },
   );

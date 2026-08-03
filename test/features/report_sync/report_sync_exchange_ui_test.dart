@@ -2,19 +2,23 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/food_item.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
+import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
 import 'package:or_app/features/report_sync/services/report_sync_canonical_service.dart';
+import 'package:or_app/features/report_sync/services/report_sync_clipboard_gateway.dart';
 import 'package:or_app/features/report_sync/services/report_sync_codec.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
 
 void main() {
-  testWidgets('common exchange UI uses a prompt plus plain-text source flow', (
+  testWidgets('food exchange UI is import-only and supports meal selection', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -39,35 +43,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('FOOD REPORT SYNC'), findsWidgets);
-    expect(find.text('EXPORT READY'), findsOneWidget);
+    expect(find.text('IMPORT READY'), findsOneWidget);
     expect(find.text('使い方'), findsOneWidget);
     for (final step in const [
-      '① ChatGPT用プロンプトをコピー',
-      '② ChatGPTへ貼り付ける',
-      '③ 指定されたデータを貼り付ける',
-      '④ ChatGPTが返したJSONだけをコピー',
-      '⑤ JSONを貼り付ける、またはJSONファイルを選択する',
-      '⑥ 内容を確認する',
-      '⑦ インポートする',
+      '① 対象日を確認する',
+      '② ChatGPT用プロンプトをコピーする',
+      '③ ChatGPTへ貼り付ける',
+      '④ ChatGPTが保持している対象日の記録からJSONを作成させる',
+      '⑤ 返されたJSONだけをコピーする',
+      '⑥ JSONを貼り付ける、またはJSONファイルを選択する',
+      '⑦ 内容を確認してインポートする',
     ]) {
       expect(find.text(step), findsOneWidget);
     }
     expect(find.text('COPY CHATGPT PROMPT'), findsWidgets);
     expect(find.text('COPY REQUEST DATA'), findsNothing);
     expect(find.text('EXPORT REQUEST FILE'), findsNothing);
-    expect(find.text('対象データ: Meal Data'), findsOneWidget);
-    expect(find.text('EXPORT TO CHATGPT'), findsOneWidget);
+    expect(find.text('対象データ: Meal Data'), findsNothing);
+    expect(find.text('EXPORT TO CHATGPT'), findsNothing);
     expect(find.text('IMPORT FROM CHATGPT'), findsOneWidget);
-    expect(find.text('COPY MEAL DATA'), findsOneWidget);
+    expect(find.text('PASTE'), findsOneWidget);
+    expect(find.text('COPY MEAL DATA'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('report-sync-target-date')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('COPY CHATGPT PROMPT').last);
     await tester.pump();
     expect(copied, ['JSON ONLY']);
     expect(gateway.recordRequestCalls, 0);
-
-    await tester.tap(find.text('COPY MEAL DATA'));
-    await tester.pump();
-    expect(copied, ['JSON ONLY', 'OPERATION REBOOT\nSOURCE: Meal Data']);
 
     await tester.scrollUntilVisible(
       find.text('SELECT RESPONSE FILE'),
@@ -101,37 +106,74 @@ void main() {
     await tester.tap(find.text('VALIDATE'));
     await tester.pumpAndSettle();
     expect(find.text('PREVIEW'), findsOneWidget);
-    expect(find.text('CREATE  1'), findsOneWidget);
+    expect(find.text('受信：3件'), findsOneWidget);
+    expect(find.text('選択：1件'), findsOneWidget);
+    expect(find.text('競合：1件'), findsOneWidget);
+    expect(find.text('除外：2件'), findsOneWidget);
+    expect(find.textContaining('Rice ×1'), findsOneWidget);
+    await tester.tap(find.text('すべて解除'));
+    await tester.pump();
+    expect(find.text('選択：0件'), findsOneWidget);
+    expect(find.text('除外：3件'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('food-meal-meal-1')));
+    await tester.pump();
+    expect(find.text('選択：1件'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('IMPORT FOOD'),
+      find.text('選択したMealを取り込む'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('IMPORT FOOD'), findsOneWidget);
+    expect(find.text('選択したMealを取り込む'), findsOneWidget);
 
-    await tester.tap(find.text('IMPORT FOOD'));
+    await tester.tap(find.text('選択したMealを取り込む'));
     await tester.pumpAndSettle();
     expect(find.text('CONFIRM IMPORT'), findsOneWidget);
     await tester.tap(find.text('CONFIRM IMPORT'));
     await tester.pumpAndSettle();
     expect(gateway.applyCalls, 1);
-    expect(find.text('COMPLETE · READ-BACK VERIFIED'), findsOneWidget);
+    expect(gateway.lastPreviewTargetDate, '2026-08-02');
+    expect(gateway.lastSelectedMealIds, const {'meal-1'});
+    expect(find.text('取り込み完了：1件 · READ-BACK VERIFIED'), findsOneWidget);
     expect(find.text('{"response":true}'), findsNothing);
     expect(find.text('REPORT SYNC HISTORY'), findsOneWidget);
     expect(find.textContaining('food · response'), findsOneWidget);
+    expect(find.textContaining('受信Meal：4件'), findsOneWidget);
+    expect(find.textContaining('取り込み成功：2件'), findsOneWidget);
   });
 
-  testWidgets('not ready state explains why and disables the prompt', (
+  testWidgets('food V1 history shows that meal counts were not recorded', (
     tester,
   ) async {
-    const reason = 'No food data is available for this operation date.';
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(legacyHistory: true),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Meal件数の記録はありません'), findsOneWidget);
+    expect(find.textContaining('受信Meal：'), findsNothing);
+  });
+
+  testWidgets('invalid target date disables import-only actions', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.food,
           gateway: _FakeExchangeGateway(
             preparation: const ReportSyncRequestPreparation(
-              blockingReason: reason,
+              operationDate: '2026-02-30',
             ),
           ),
           fileGateway: _FakeFileGateway(),
@@ -141,8 +183,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('REQUEST NOT READY'), findsOneWidget);
-    expect(find.text(reason), findsOneWidget);
+    expect(find.textContaining('YYYY-MM-DD形式'), findsOneWidget);
     final prompt = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
     );
@@ -151,17 +192,203 @@ void main() {
     expect(find.text('EXPORT REQUEST FILE'), findsNothing);
   });
 
+  testWidgets('calendar selection updates prompt and validation target date', (
+    tester,
+  ) async {
+    final gateway = _FakeExchangeGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.training,
+          gateway: gateway,
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dateField = find.byKey(const ValueKey('report-sync-target-date'));
+    expect(tester.widget<TextField>(dateField).readOnly, isTrue);
+    await tester.tap(dateField);
+    await tester.pumpAndSettle();
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+    await tester.tap(find.text('1').last);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(dateField).controller?.text, '2026-08-01');
+
+    await tester.tap(find.text('COPY CHATGPT PROMPT').last);
+    await tester.pump();
+    expect(gateway.lastInstructionDate, '2026-08-01');
+
+    await tester.scrollUntilVisible(
+      find.text('PASTE RESPONSE JSON'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('report-sync-response-input')),
+        matching: find.byType(TextField),
+      ),
+      '{}',
+    );
+    await tester.scrollUntilVisible(
+      find.text('VALIDATE'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+    expect(gateway.lastPreviewTargetDate, '2026-08-01');
+  });
+
+  testWidgets('PASTE replaces the full response and invalidates preview only', (
+    tester,
+  ) async {
+    final gateway = _FakeExchangeGateway();
+    final clipboard = _FakeClipboardGateway(text: '{"pasted":true}');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: gateway,
+          fileGateway: _FakeFileGateway(),
+          clipboardGateway: clipboard,
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('PASTE RESPONSE JSON'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final responseField = find.descendant(
+      of: find.byKey(const ValueKey('report-sync-response-input')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(responseField, '{"old":true}');
+    await tester.scrollUntilVisible(
+      find.text('VALIDATE'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+    expect(find.text('PREVIEW'), findsOneWidget);
+
+    await tester.tap(find.text('PASTE'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(responseField).controller?.text,
+      '{"pasted":true}',
+    );
+    expect(find.text('クリップボードの内容を貼り付けました'), findsOneWidget);
+    expect(find.text('PREVIEW'), findsNothing);
+    expect(gateway.previewCalls, 1);
+    expect(gateway.applyCalls, 0);
+  });
+
+  testWidgets('PASTE failure preserves manual and file fallbacks', (
+    tester,
+  ) async {
+    final clipboard = _FakeClipboardGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(),
+          fileGateway: _FakeFileGateway(),
+          clipboardGateway: clipboard,
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('PASTE RESPONSE JSON'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final responseField = find.descendant(
+      of: find.byKey(const ValueKey('report-sync-response-input')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(responseField, 'manual value');
+    await tester.scrollUntilVisible(
+      find.text('PASTE'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('PASTE'));
+    await tester.pumpAndSettle();
+    expect(find.text('クリップボードに貼り付け可能なテキストがありません'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(responseField).controller?.text,
+      'manual value',
+    );
+
+    clipboard.fails = true;
+    await tester.scrollUntilVisible(
+      find.text('PASTE'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('PASTE'));
+    await tester.pumpAndSettle();
+    expect(find.text('クリップボードから貼り付けできませんでした'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(responseField).controller?.text,
+      'manual value',
+    );
+    expect(find.text('SELECT RESPONSE FILE'), findsOneWidget);
+    expect(find.text('VALIDATE'), findsOneWidget);
+  });
+
+  testWidgets('strict parse errors are explained in Japanese', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(
+            previewError: const ReportSyncException(
+              ReportSyncIssueCode.schemaMismatch,
+              'invalid JSON',
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('report-sync-response-input')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('report-sync-response-input')),
+        matching: find.byType(TextField),
+      ),
+      '“invalid”',
+    );
+    await tester.scrollUntilVisible(
+      find.text('VALIDATE'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('JSON形式が正しくありません'), findsOneWidget);
+    expect(find.textContaining('スマートクォート'), findsOneWidget);
+  });
+
   for (final module in const [
-    (
-      type: ReportSyncExchangeType.training,
-      source: 'Training Record',
-      button: 'COPY TRAINING RECORD',
-    ),
-    (
-      type: ReportSyncExchangeType.food,
-      source: 'Meal Data',
-      button: 'COPY MEAL DATA',
-    ),
     (
       type: ReportSyncExchangeType.morningBrief,
       source: 'Morning Fact',
@@ -278,14 +505,22 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   _FakeExchangeGateway({
     this.disposition = ReportSyncDisposition.create,
     this.preparation,
+    this.previewError,
+    this.legacyHistory = false,
   });
 
   static const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   final ReportSyncDisposition disposition;
   final ReportSyncRequestPreparation? preparation;
+  final Object? previewError;
+  final bool legacyHistory;
   int recordRequestCalls = 0;
   int applyCalls = 0;
+  int previewCalls = 0;
+  String? lastPreviewTargetDate;
+  String? lastInstructionDate;
+  Set<String>? lastSelectedMealIds;
 
   late final request = const ReportSyncCodec().create(
     direction: ReportSyncDirection.request,
@@ -315,9 +550,24 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   );
 
   @override
-  Future<ReportSyncApplyResult> apply(ReportSyncResponsePreview preview) async {
+  Future<ReportSyncApplyResult> apply(
+    ReportSyncResponsePreview preview, {
+    Set<String>? selectedMealIds,
+  }) async {
     applyCalls++;
-    return ReportSyncApplyResult(disposition, readBackVerified: true);
+    lastSelectedMealIds = selectedMealIds;
+    return ReportSyncApplyResult(
+      disposition,
+      readBackVerified: true,
+      mealCounts: selectedMealIds == null
+          ? null
+          : ReportSyncMealCounts(
+              received: preview.foodMeals.length,
+              selected: selectedMealIds.length,
+              imported: selectedMealIds.length,
+              conflict: preview.conflictCount,
+            ),
+    );
   }
 
   @override
@@ -327,6 +577,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   Future<List<ReportSyncHistory>> history(ReportSyncExchangeType type) async =>
       [
         ReportSyncHistory(
+          recordVersion: legacyHistory ? 1 : 2,
           exchangeId: 'request-food',
           exchangeType: type,
           direction: ReportSyncDirection.response,
@@ -337,6 +588,16 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
           completedAt: DateTime.utc(2026, 8, 2),
           result: ReportSyncHistoryResult.success,
           packageDigest: digest,
+          receivedMealCount:
+              type == ReportSyncExchangeType.food && !legacyHistory ? 4 : null,
+          selectedMealCount:
+              type == ReportSyncExchangeType.food && !legacyHistory ? 2 : null,
+          importedMealCount:
+              type == ReportSyncExchangeType.food && !legacyHistory ? 2 : null,
+          conflictMealCount:
+              type == ReportSyncExchangeType.food && !legacyHistory ? 1 : null,
+          excludedMealCount:
+              type == ReportSyncExchangeType.food && !legacyHistory ? 2 : null,
         ),
       ];
 
@@ -350,35 +611,115 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   String instruction(
     ReportSyncExchangeType type,
     ReportSyncRequestPreparation preparation,
-  ) => 'JSON ONLY';
+  ) {
+    lastInstructionDate = preparation.operationDate;
+    return 'JSON ONLY';
+  }
 
   @override
   Future<ReportSyncRequestPreparation> prepareRequest(
-    ReportSyncExchangeType type,
-  ) async =>
+    ReportSyncExchangeType type, {
+    String? targetDate,
+  }) async =>
       preparation ??
       ReportSyncRequestPreparation(
         envelope: request,
-        operationDate: request.operationDate,
+        operationDate: targetDate ?? request.operationDate,
         sourceText: 'OPERATION REBOOT\nSOURCE: Meal Data',
       );
 
   @override
   Future<ReportSyncResponsePreview> previewResponse(
     ReportSyncExchangeType type,
-    String rawResponse,
-  ) async => ReportSyncResponsePreview(
-    envelope: response,
-    disposition: disposition,
-    createCount: disposition == ReportSyncDisposition.create ? 1 : 0,
-    noChangeCount: disposition == ReportSyncDisposition.noChanges ? 1 : 0,
-    conflictCount: disposition == ReportSyncDisposition.conflict ? 1 : 0,
-  );
+    String rawResponse, {
+    String? targetDate,
+  }) async {
+    if (previewError != null) throw previewError!;
+    previewCalls++;
+    lastPreviewTargetDate = targetDate;
+    return ReportSyncResponsePreview(
+      envelope: response,
+      disposition: disposition,
+      createCount: disposition == ReportSyncDisposition.create ? 1 : 0,
+      noChangeCount:
+          disposition == ReportSyncDisposition.create ||
+              disposition == ReportSyncDisposition.noChanges
+          ? 1
+          : 0,
+      conflictCount:
+          disposition == ReportSyncDisposition.create ||
+              disposition == ReportSyncDisposition.conflict
+          ? 1
+          : 0,
+      foodMeals: disposition == ReportSyncDisposition.create
+          ? const [
+              FoodReportSyncMealPreview(
+                meal: MealData(
+                  date: '2026-08-02',
+                  mealType: 'Lunch',
+                  items: [
+                    FoodItem(
+                      name: 'Rice',
+                      calories: 200,
+                      protein: 4,
+                      fat: 1,
+                      carbohydrate: 44,
+                      quantity: 1,
+                    ),
+                  ],
+                  memo: '',
+                  id: 'meal-1',
+                ),
+                disposition: FoodReportSyncMealDisposition.create,
+              ),
+              FoodReportSyncMealPreview(
+                meal: MealData(
+                  date: '2026-08-02',
+                  mealType: 'Dinner',
+                  items: [],
+                  memo: '',
+                  id: 'meal-conflict',
+                  waterMl: 250,
+                ),
+                disposition: FoodReportSyncMealDisposition.conflict,
+              ),
+              FoodReportSyncMealPreview(
+                meal: MealData(
+                  date: '2026-08-02',
+                  mealType: 'Snack',
+                  items: [],
+                  memo: '',
+                  id: 'meal-no-change',
+                  waterMl: 100,
+                ),
+                disposition: FoodReportSyncMealDisposition.noChanges,
+              ),
+            ]
+          : const [],
+    );
+  }
 
   @override
   Future<void> recordRequest(ReportSyncEnvelope request) async {
     recordRequestCalls++;
   }
+}
+
+class _FakeClipboardGateway implements ReportSyncClipboardGateway {
+  _FakeClipboardGateway({this.text});
+
+  String? text;
+  bool fails = false;
+  final writes = <String>[];
+
+  @override
+  Future<String?> readText() async {
+    if (fails) throw StateError('clipboard unavailable');
+    return text;
+  }
+
+  @override
+  Future<void> writeText(String text) async => writes.add(text);
 }
 
 class _FakeFileGateway implements BackupFileGateway {

@@ -4,36 +4,120 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../../food/repository/food_repository.dart';
+import '../../food/repository/food_meal_id_generator.dart';
 import '../../food/models/persisted_food_record.dart';
 import '../../training/repository/custom_training_exercise_repository.dart';
+import '../../training/repository/training_record_id_generator.dart';
+import '../../training/services/exercise_name_localization.dart';
 import '../../training/sync/training_sync_schema.dart';
 import '../models/report_sync_envelope.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_registry.dart';
+import 'report_sync_import_schema_v2.dart';
 
 class TrainingReportSyncPayloadAdapter {
   final CustomTrainingExerciseRepository customExercises;
-  const TrainingReportSyncPayloadAdapter(this.customExercises);
+  final TrainingRecordIdGenerator? idGenerator;
+  const TrainingReportSyncPayloadAdapter(
+    this.customExercises, {
+    this.idGenerator,
+  });
 
   Future<TrainingSyncPayload> decodeResponse(
+    ReportSyncEnvelope response,
+  ) async => (await decodeForImport(response)).decoded;
+
+  Future<TrainingReportSyncMappedPayload> decodeForImport(
     ReportSyncEnvelope response,
   ) async {
     if (response.exchangeType != ReportSyncExchangeType.training ||
         response.direction != ReportSyncDirection.response) {
       throw const FormatException('Training response required.');
     }
+    if (response.schemaVersion == ReportSyncEnvelope.importSchemaVersion2) {
+      const TrainingReportSyncPayloadSchemaV2().validateResponse(
+        response.payload,
+      );
+      final recordId = (idGenerator ?? TrainingRecordIdGenerator()).generate();
+      final externalSession = Map<String, Object?>.from(
+        response.payload['session'] as Map,
+      );
+      final header = Map<String, Object?>.from(
+        externalSession['session'] as Map,
+      );
+      final mapped = <String, Object?>{
+        'session': {'recordId': recordId, ...header},
+        'exercises': [
+          for (final raw in externalSession['exercises'] as List)
+            _mapExerciseV2(Map<String, Object?>.from(raw as Map)),
+        ],
+        'cardio': List<Object?>.from(externalSession['cardio'] as List),
+      };
+      final decoded = await TrainingSyncSchema.decode(
+        payload: mapped,
+        operationDate: response.operationDate,
+        idempotencyKey: recordId,
+        customExercises: customExercises,
+      );
+      return TrainingReportSyncMappedPayload(decoded: decoded, payload: mapped);
+    }
     const TrainingReportSyncPayloadSchema().validateResponse(response.payload);
-    return TrainingSyncSchema.decode(
-      payload: Map<String, Object?>.from(response.payload['session'] as Map),
+    final payload = Map<String, Object?>.from(
+      response.payload['session'] as Map,
+    );
+    final decoded = await TrainingSyncSchema.decode(
+      payload: payload,
       operationDate: response.operationDate,
       idempotencyKey: response.payload['idempotencyKey'] as String,
       customExercises: customExercises,
     );
+    return TrainingReportSyncMappedPayload(decoded: decoded, payload: payload);
+  }
+
+  static Map<String, Object?> _mapExerciseV2(Map<String, Object?> value) {
+    final name = value['exerciseName'] as String;
+    final nextTarget = value['nextTarget'] as String?;
+    return {
+      'exerciseId': exerciseIdentityKey(name),
+      ...value,
+      'nextTarget': nextTarget == null
+          ? null
+          : {
+              'targetWeightKg': null,
+              'targetReps': <int>[],
+              'notes': nextTarget,
+            },
+    };
   }
 }
 
+class TrainingReportSyncMappedPayload {
+  const TrainingReportSyncMappedPayload({
+    required this.decoded,
+    required this.payload,
+  });
+
+  final TrainingSyncPayload decoded;
+  final Map<String, Object?> payload;
+}
+
+class FoodReportSyncDecodedMeal {
+  const FoodReportSyncDecodedMeal({
+    required this.previewId,
+    required this.sourceMealId,
+    required this.meal,
+    required this.conflictDigest,
+  });
+
+  final String previewId;
+  final String? sourceMealId;
+  final MealData meal;
+  final String conflictDigest;
+}
+
 class FoodReportSyncPayloadMapper {
-  const FoodReportSyncPayloadMapper();
+  final FoodMealIdGenerator? idGenerator;
+  const FoodReportSyncPayloadMapper({this.idGenerator});
 
   Map<String, Object?> buildRequest({
     required String operationDate,
@@ -75,32 +159,78 @@ class FoodReportSyncPayloadMapper {
   };
 
   List<MealData> decodeResponse(ReportSyncEnvelope response) {
+    return decodeResponseMeals(response).map((value) => value.meal).toList();
+  }
+
+  List<FoodReportSyncDecodedMeal> decodeResponseMeals(
+    ReportSyncEnvelope response,
+  ) {
     if (response.exchangeType != ReportSyncExchangeType.food ||
         response.direction != ReportSyncDirection.response) {
       throw const FormatException('Food response required.');
     }
-    const FoodReportSyncPayloadSchema().validateResponse(response.payload);
+    final isV2 =
+        response.schemaVersion == ReportSyncEnvelope.importSchemaVersion2;
+    if (isV2) {
+      const FoodReportSyncPayloadSchemaV2().validateResponse(response.payload);
+    } else {
+      const FoodReportSyncPayloadSchema().validateResponse(response.payload);
+    }
     return [
-      for (final raw in response.payload['meals'] as List)
-        _mealFromJson(
+      for (
+        var index = 0;
+        index < (response.payload['meals'] as List).length;
+        index++
+      )
+        _decodedMeal(
           response.operationDate,
-          Map<String, Object?>.from(raw as Map),
+          Map<String, Object?>.from(
+            (response.payload['meals'] as List)[index] as Map,
+          ),
+          index,
+          isV2,
         ),
     ];
   }
 
-  static MealData _mealFromJson(String date, Map<String, Object?> json) =>
-      MealData(
-        date: date,
-        mealType: json['mealType'] as String,
-        items: [
-          for (final raw in json['items'] as List)
-            _itemFromJson(Map<String, Object?>.from(raw as Map)),
-        ],
-        memo: json['memo'] as String? ?? '',
-        id: json['mealId'] as String,
-        waterMl: (json['waterMl'] as num?)?.toDouble(),
-      );
+  FoodReportSyncDecodedMeal _decodedMeal(
+    String date,
+    Map<String, Object?> json,
+    int index,
+    bool isV2,
+  ) {
+    final meal = _mealFromJson(
+      date,
+      json,
+      id: isV2
+          ? (idGenerator ?? FoodMealIdGenerator()).generate()
+          : json['mealId'] as String,
+    );
+    return FoodReportSyncDecodedMeal(
+      previewId: 'food-preview-$index',
+      sourceMealId: isV2
+          ? json['sourceMealId'] as String?
+          : json['mealId'] as String,
+      meal: meal,
+      conflictDigest: conflictDigest(meal),
+    );
+  }
+
+  static MealData _mealFromJson(
+    String date,
+    Map<String, Object?> json, {
+    required String id,
+  }) => MealData(
+    date: date,
+    mealType: json['mealType'] as String,
+    items: [
+      for (final raw in json['items'] as List)
+        _itemFromJson(Map<String, Object?>.from(raw as Map)),
+    ],
+    memo: json['memo'] as String? ?? '',
+    id: id,
+    waterMl: (json['waterMl'] as num?)?.toDouble(),
+  );
 
   static FoodItem _itemFromJson(Map<String, Object?> json) => FoodItem(
     name: json['name'] as String,
@@ -118,6 +248,29 @@ class FoodReportSyncPayloadMapper {
         ? null
         : FoodAmountMode.parse(json['amountMode'] as String),
   );
+
+  static String conflictDigest(MealData meal) =>
+      ReportSyncCanonicalService.digest({
+        'operationDate': meal.date.substring(0, 10),
+        'mealType': meal.mealType,
+        'items': [
+          for (final item in meal.items)
+            {
+              'name': item.name,
+              'calories': item.calories,
+              'protein': item.protein,
+              'fat': item.fat,
+              'carbohydrate': item.carbohydrate,
+              'quantity': item.quantity,
+              'amount': item.amount,
+              'baseAmount': item.baseAmount,
+              'baseUnit': item.baseUnit?.label,
+              'amountMode': item.amountMode?.serializedValue,
+            },
+        ],
+        'memo': meal.memo,
+        'waterMl': meal.waterMl,
+      });
 }
 
 enum FoodReportSyncApplyStatus { created, noChange, conflict, finalizedBlocked }
@@ -150,6 +303,19 @@ class FoodReportSyncApplyAdapter {
       );
     }
     final meals = mapper.decodeResponse(response);
+    return applyMeals(response.operationDate, meals);
+  }
+
+  Future<FoodReportSyncApplyResult> applyMeals(
+    String operationDate,
+    List<MealData> meals,
+  ) async {
+    if (await confirmations.isConfirmed(operationDate)) {
+      return const FoodReportSyncApplyResult(
+        FoodReportSyncApplyStatus.finalizedBlocked,
+        0,
+      );
+    }
     final targetDatabase = database;
     if (targetDatabase != null) {
       return _applyAtomic(targetDatabase, meals);

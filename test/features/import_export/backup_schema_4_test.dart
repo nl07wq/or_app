@@ -42,14 +42,14 @@ void main() {
     );
   });
 
-  test('Schema 8 exports and decodes all fifteen formal sections', () async {
+  test('Schema 9 exports and decodes all fifteen formal sections', () async {
     final package = await BackupExportService(
       database: database,
       controller: controller,
       clock: () => timestamp,
     ).create();
 
-    expect(package.schemaVersion, 8);
+    expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
     expect(package.data.keys, containsAll(BackupSections.schema5));
     expect(package.data[BackupSections.foodCatalog], hasLength(1));
     expect(package.data[BackupSections.foodRecipes], hasLength(1));

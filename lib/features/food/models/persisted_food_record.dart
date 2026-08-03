@@ -83,7 +83,16 @@ class PersistedFoodRecord {
     if (dataValue is! Map) {
       throw const FormatException('Invalid FOOD data.');
     }
-    final data = MealData.fromJson(Map<String, dynamic>.from(dataValue));
+    final mealJson = Map<String, dynamic>.from(dataValue);
+    final itemsValue = mealJson['items'];
+    if (itemsValue is! List || itemsValue.any((item) => item is! Map)) {
+      throw const FormatException('Invalid FOOD items.');
+    }
+    mealJson['items'] = [
+      for (final item in itemsValue)
+        Map<String, dynamic>.from(item as Map),
+    ];
+    final data = MealData.fromJson(mealJson);
     if (id != envelopeId(data.id) ||
         localDateFromMealDate(data.date) != localDate) {
       throw const FormatException(
@@ -113,7 +122,7 @@ class PersistedFoodRecord {
     if (mealId.trim().isEmpty) {
       throw const FormatException('FOOD Meal ID must not be empty.');
     }
-    return 'food:$mealId';
+    return mealId.startsWith('food:') ? mealId : 'food:$mealId';
   }
 
   static String mealIdFromEnvelopeId(String id) {

@@ -1,16 +1,54 @@
+import '../../../core/models/meal_data.dart';
+import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/models/operation_state.dart';
+import '../../food/repository/food_meal_id_generator.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../sync/models/orlo_sync_models.dart';
 import '../../sync/services/orlo_sync_canonical_codec.dart';
 import '../../training/sync/training_sync_adapter.dart';
+import '../../training/repository/training_record_id_generator.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_adapters.dart';
 import 'report_sync_plain_text_exporter.dart';
+import 'report_sync_persistence_service.dart';
 
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
+
+enum FoodReportSyncMealDisposition { create, noChanges, conflict, blocked }
+
+class ReportSyncApplyException implements Exception {
+  const ReportSyncApplyException({
+    required this.code,
+    required this.stage,
+    required this.userMessage,
+  });
+
+  final String code;
+  final String stage;
+  final String userMessage;
+}
+
+class FoodReportSyncMealPreview {
+  const FoodReportSyncMealPreview({
+    required this.meal,
+    required this.disposition,
+    this.previewIdOverride,
+    this.conflictDigestOverride,
+  });
+
+  final MealData meal;
+  final FoodReportSyncMealDisposition disposition;
+  final String? previewIdOverride;
+  final String? conflictDigestOverride;
+  String get previewId => previewIdOverride ?? meal.id;
+  String get conflictDigest =>
+      conflictDigestOverride ??
+      FoodReportSyncPayloadMapper.conflictDigest(meal);
+  bool get canSelect => disposition == FoodReportSyncMealDisposition.create;
+}
 
 class ReportSyncRequestPreparation {
   const ReportSyncRequestPreparation({
@@ -40,6 +78,8 @@ class ReportSyncResponsePreview {
     required this.noChangeCount,
     required this.conflictCount,
     this.message,
+    this.foodMeals = const [],
+    this.trainingImportEnvelope,
   });
 
   final ReportSyncEnvelope envelope;
@@ -48,6 +88,8 @@ class ReportSyncResponsePreview {
   final int noChangeCount;
   final int conflictCount;
   final String? message;
+  final List<FoodReportSyncMealPreview> foodMeals;
+  final OrloSyncEnvelope? trainingImportEnvelope;
   bool get canApply => disposition == ReportSyncDisposition.create;
 }
 
@@ -55,16 +97,19 @@ class ReportSyncApplyResult {
   const ReportSyncApplyResult(
     this.disposition, {
     this.readBackVerified = false,
+    this.mealCounts,
   });
 
   final ReportSyncDisposition disposition;
   final bool readBackVerified;
+  final ReportSyncMealCounts? mealCounts;
 }
 
 abstract interface class ReportSyncExchangeGateway {
   Future<ReportSyncRequestPreparation> prepareRequest(
-    ReportSyncExchangeType type,
-  );
+    ReportSyncExchangeType type, {
+    String? targetDate,
+  });
 
   Future<void> recordRequest(ReportSyncEnvelope request);
 
@@ -77,10 +122,14 @@ abstract interface class ReportSyncExchangeGateway {
 
   Future<ReportSyncResponsePreview> previewResponse(
     ReportSyncExchangeType type,
-    String rawResponse,
-  );
+    String rawResponse, {
+    String? targetDate,
+  });
 
-  Future<ReportSyncApplyResult> apply(ReportSyncResponsePreview preview);
+  Future<ReportSyncApplyResult> apply(
+    ReportSyncResponsePreview preview, {
+    Set<String>? selectedMealIds,
+  });
 
   Future<List<ReportSyncHistory>> history(ReportSyncExchangeType type);
 
@@ -91,23 +140,27 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   ProductionReportSyncExchangeGateway({
     AppRepositoryContainer? container,
     DateTime Function()? clock,
-  }) : _containerOverride = container,
-       _clock = clock ?? DateTime.now;
+    this.trainingIdGenerator,
+    this.foodIdGenerator,
+  }) : _containerOverride = container;
 
   final AppRepositoryContainer? _containerOverride;
-  final DateTime Function() _clock;
+  final TrainingRecordIdGenerator? trainingIdGenerator;
+  final FoodMealIdGenerator? foodIdGenerator;
 
   AppRepositoryContainer get _container =>
       _containerOverride ?? AppRepositoryRegistry.container;
 
   @override
   Future<ReportSyncRequestPreparation> prepareRequest(
-    ReportSyncExchangeType type,
-  ) async {
+    ReportSyncExchangeType type, {
+    String? targetDate,
+  }) async {
     final state = await _container.operationState.requireCurrent();
+    if (targetDate != null) OperationLocalDate.parse(targetDate);
     final operationDate = type == ReportSyncExchangeType.dailyDebrief
         ? state.lastFinalizedDate?.value
-        : state.operationDate.value;
+        : targetDate ?? state.operationDate.value;
     if (operationDate == null) {
       return const ReportSyncRequestPreparation(
         statusLabel: 'FINALIZE REQUIRED',
@@ -118,35 +171,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
 
     switch (type) {
       case ReportSyncExchangeType.training:
-        final records = await _container.training.findRecordsByLocalDate(
-          operationDate,
-        );
-        final candidates =
-            records
-                .where((record) => record.v2Data != null && !record.isLegacy)
-                .toList()
-              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-        return ReportSyncRequestPreparation(
-          operationDate: operationDate,
-          sourceText: candidates.isEmpty
-              ? null
-              : const ReportSyncPlainTextExporter().training(candidates.first),
-          blockingReason: candidates.isEmpty
-              ? '対象日のTraining Recordがありません。'
-              : null,
-        );
+        return ReportSyncRequestPreparation(operationDate: operationDate);
       case ReportSyncExchangeType.food:
-        final meals = await _container.food.findByLocalDate(operationDate);
-        return ReportSyncRequestPreparation(
-          operationDate: operationDate,
-          sourceText: meals.isEmpty
-              ? null
-              : const ReportSyncPlainTextExporter().food(
-                  operationDate: operationDate,
-                  meals: meals,
-                ),
-          blockingReason: meals.isEmpty ? '対象日のMeal Dataがありません。' : null,
-        );
+        return ReportSyncRequestPreparation(operationDate: operationDate);
       case ReportSyncExchangeType.morningBrief:
         if (state.phase != OperationPhase.open) {
           return const ReportSyncRequestPreparation(
@@ -218,8 +245,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   @override
   Future<ReportSyncResponsePreview> previewResponse(
     ReportSyncExchangeType type,
-    String rawResponse,
-  ) async {
+    String rawResponse, {
+    String? targetDate,
+  }) async {
     final response = _container.reportSyncCodec.decode(rawResponse);
     if (response.exchangeType != type ||
         response.direction != ReportSyncDirection.response) {
@@ -228,64 +256,28 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         'The selected exchange type does not match the response.',
       );
     }
-    await _container.reportSyncValidator.validateResponse(response);
+    if (targetDate != null) OperationLocalDate.parse(targetDate);
+    await _container.reportSyncValidator.validateResponse(
+      response,
+      expectedOperationDate: targetDate,
+    );
     final preview = await switch (type) {
       ReportSyncExchangeType.training => _previewTraining(response),
       ReportSyncExchangeType.food => _previewFood(response),
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
       ReportSyncExchangeType.dailyDebrief => _previewDailyDebrief(response),
     };
-    if (preview.disposition != ReportSyncDisposition.create) {
-      await _recordPreviewOutcome(preview);
-    }
     return preview;
-  }
-
-  Future<void> _recordPreviewOutcome(ReportSyncResponsePreview preview) async {
-    final response = preview.envelope;
-    if (await _container.reportSyncHistory.readById(response.exchangeId) !=
-        null) {
-      return;
-    }
-    final completed = _clock().toUtc();
-    final isConflict = preview.disposition == ReportSyncDisposition.conflict;
-    final isBlocked = preview.disposition == ReportSyncDisposition.blocked;
-    await _container.reportSyncHistory.create(
-      ReportSyncHistory(
-        exchangeId: response.exchangeId,
-        exchangeType: response.exchangeType,
-        direction: response.direction,
-        operationDate: response.operationDate,
-        requestId: response.requestId ?? response.exchangeId,
-        requestDigest: response.requestDigest ?? response.packageDigest,
-        responseDigest: ReportSyncCanonicalService.digest(response.payload),
-        confirmationDigest: response.confirmationDigest,
-        startedAt: response.createdAt,
-        completedAt: completed.isBefore(response.createdAt)
-            ? response.createdAt
-            : completed,
-        result: isConflict
-            ? ReportSyncHistoryResult.conflict
-            : isBlocked
-            ? ReportSyncHistoryResult.failed
-            : ReportSyncHistoryResult.noChange,
-        failureCode: isConflict
-            ? ReportSyncIssueCode.recordConflict
-            : isBlocked
-            ? ReportSyncIssueCode.integrityFailure
-            : null,
-        packageDigest: response.packageDigest,
-      ),
-    );
   }
 
   Future<ReportSyncResponsePreview> _previewTraining(
     ReportSyncEnvelope response,
   ) async {
-    await TrainingReportSyncPayloadAdapter(
+    final mapped = await TrainingReportSyncPayloadAdapter(
       _container.customTrainingExercises,
-    ).decodeResponse(response);
-    final envelope = _trainingEnvelope(response);
+      idGenerator: trainingIdGenerator,
+    ).decodeForImport(response);
+    final envelope = _trainingEnvelope(response, mapped.payload);
     final adapter = TrainingSyncAdapter(
       repository: _container.training,
       customExercises: _container.customTrainingExercises,
@@ -317,44 +309,111 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       message: issues.isEmpty
           ? null
           : issues.map((issue) => issue.message).join('\n'),
+      trainingImportEnvelope: envelope,
     );
   }
 
   Future<ReportSyncResponsePreview> _previewFood(
     ReportSyncEnvelope response,
   ) async {
-    if (await _container.confirmation.isConfirmed(response.operationDate)) {
-      return _preview(
-        response,
-        ReportSyncDisposition.blocked,
-        message: 'Finalized DateへのImportはできません。',
-      );
-    }
-    final meals = const FoodReportSyncPayloadMapper().decodeResponse(response);
+    final decodedMeals = FoodReportSyncPayloadMapper(
+      idGenerator: foodIdGenerator,
+    ).decodeResponseMeals(response);
+    final finalized = await _container.confirmation.isConfirmed(
+      response.operationDate,
+    );
     var creates = 0;
     var noChanges = 0;
     var conflicts = 0;
-    for (final meal in meals) {
+    final mealPreviews = <FoodReportSyncMealPreview>[];
+    final existingForDate = await _container.food.findByLocalDate(
+      response.operationDate,
+    );
+    final existingDigests = {
+      for (final existing in existingForDate)
+        FoodReportSyncPayloadMapper.conflictDigest(existing),
+    };
+    final usesExternalIdentity =
+        response.schemaVersion == ReportSyncEnvelope.importSchemaVersion2;
+    final receivedDigests = <String>{};
+    final reservedMealIds = <String>{};
+    for (final decoded in decodedMeals) {
+      var meal = decoded.meal;
+      if (finalized) {
+        mealPreviews.add(
+          FoodReportSyncMealPreview(
+            meal: meal,
+            disposition: FoodReportSyncMealDisposition.blocked,
+            previewIdOverride: usesExternalIdentity ? decoded.previewId : null,
+            conflictDigestOverride: decoded.conflictDigest,
+          ),
+        );
+        continue;
+      }
+      if (usesExternalIdentity) {
+        if (existingDigests.contains(decoded.conflictDigest) ||
+            !receivedDigests.add(decoded.conflictDigest)) {
+          conflicts++;
+          mealPreviews.add(
+            FoodReportSyncMealPreview(
+              meal: meal,
+              disposition: FoodReportSyncMealDisposition.conflict,
+              previewIdOverride: decoded.previewId,
+              conflictDigestOverride: decoded.conflictDigest,
+            ),
+          );
+          continue;
+        }
+        meal = await _withUniqueFoodId(meal, reservedMealIds);
+      }
       final existing = await _container.food.findById(meal.id);
       if (existing == null) {
         creates++;
+        mealPreviews.add(
+          FoodReportSyncMealPreview(
+            meal: meal,
+            disposition: FoodReportSyncMealDisposition.create,
+            previewIdOverride: usesExternalIdentity ? decoded.previewId : null,
+            conflictDigestOverride: decoded.conflictDigest,
+          ),
+        );
       } else if (ReportSyncCanonicalService.encode(existing.toJson()) ==
           ReportSyncCanonicalService.encode(meal.toJson())) {
         noChanges++;
+        mealPreviews.add(
+          FoodReportSyncMealPreview(
+            meal: meal,
+            disposition: FoodReportSyncMealDisposition.noChanges,
+            previewIdOverride: usesExternalIdentity ? decoded.previewId : null,
+            conflictDigestOverride: decoded.conflictDigest,
+          ),
+        );
       } else {
         conflicts++;
+        mealPreviews.add(
+          FoodReportSyncMealPreview(
+            meal: meal,
+            disposition: FoodReportSyncMealDisposition.conflict,
+            previewIdOverride: usesExternalIdentity ? decoded.previewId : null,
+            conflictDigestOverride: decoded.conflictDigest,
+          ),
+        );
       }
     }
     return ReportSyncResponsePreview(
       envelope: response,
-      disposition: conflicts > 0
-          ? ReportSyncDisposition.conflict
+      disposition: finalized
+          ? ReportSyncDisposition.blocked
           : creates > 0
           ? ReportSyncDisposition.create
+          : conflicts > 0
+          ? ReportSyncDisposition.conflict
           : ReportSyncDisposition.noChanges,
       createCount: creates,
       noChangeCount: noChanges,
       conflictCount: conflicts,
+      message: finalized ? '確定済みの日付には取り込めません。' : null,
+      foodMeals: mealPreviews,
     );
   }
 
@@ -408,7 +467,10 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   );
 
   @override
-  Future<ReportSyncApplyResult> apply(ReportSyncResponsePreview preview) async {
+  Future<ReportSyncApplyResult> apply(
+    ReportSyncResponsePreview preview, {
+    Set<String>? selectedMealIds,
+  }) async {
     if (preview.disposition == ReportSyncDisposition.noChanges) {
       return const ReportSyncApplyResult(
         ReportSyncDisposition.noChanges,
@@ -421,7 +483,10 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     final response = preview.envelope;
     switch (response.exchangeType) {
       case ReportSyncExchangeType.training:
-        final envelope = _trainingEnvelope(response);
+        final envelope = preview.trainingImportEnvelope;
+        if (envelope == null) {
+          throw StateError('Training preview payload is unavailable.');
+        }
         final digest = OrloSyncCanonicalCodec.digest(envelope.payload);
         final result = await TrainingSyncAdapter(
           repository: _container.training,
@@ -432,12 +497,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         }
         break;
       case ReportSyncExchangeType.food:
-        final result = await _container.foodReportSyncApply.apply(response);
-        if (result.status == FoodReportSyncApplyStatus.conflict ||
-            result.status == FoodReportSyncApplyStatus.finalizedBlocked) {
-          throw StateError('Food response cannot be imported.');
-        }
-        break;
+        return _applyFood(preview, selectedMealIds);
       case ReportSyncExchangeType.morningBrief:
         await _container.reportSyncPersistence.importMorningBrief(response);
         return const ReportSyncApplyResult(
@@ -451,29 +511,154 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           readBackVerified: true,
         );
     }
-    await _container.reportSyncPersistence.recordResponse(response);
+    await _container.reportSyncPersistence.recordResponse(
+      response,
+      expectedOperationDate: response.operationDate,
+    );
     return const ReportSyncApplyResult(
       ReportSyncDisposition.create,
       readBackVerified: true,
     );
   }
 
-  OrloSyncEnvelope _trainingEnvelope(ReportSyncEnvelope response) =>
-      OrloSyncEnvelope(
-        envelopeVersion: OrloSyncEnvelope.currentEnvelopeVersion,
-        schemaVersion: OrloSyncEnvelope.currentSchemaVersion,
-        dataType: 'training',
-        packageId: response.exchangeId,
-        idempotencyKey: response.payload['idempotencyKey'] as String,
-        source: OrloSyncSource(
-          type: 'chatGptExchange',
-          generatedAt: response.createdAt,
-          producer: 'report-sync',
-          producerVersion: '1.0',
-        ),
+  Future<ReportSyncApplyResult> _applyFood(
+    ReportSyncResponsePreview preview,
+    Set<String>? selectedMealIds,
+  ) async {
+    try {
+      final response = preview.envelope;
+      final selectableIds = {
+        for (final item in preview.foodMeals)
+          if (item.canSelect) item.previewId,
+      };
+      final selected = selectedMealIds ?? selectableIds;
+      if (selected.isEmpty || !selectableIds.containsAll(selected)) {
+        throw const ReportSyncApplyException(
+          code: 'invalid_food_selection',
+          stage: 'MEAL SELECTION',
+          userMessage: '取り込み可能なMEALを1件以上選択してください。',
+        );
+      }
+      final selectedPreviews = [
+        for (final item in preview.foodMeals)
+          if (selected.contains(item.previewId)) item,
+      ];
+      final selectedPayload = <String, Object?>{
+        ...response.payload,
+        'meals': [
+          for (
+            var index = 0;
+            index < (response.payload['meals'] as List).length;
+            index++
+          )
+            if (selected.contains(preview.foodMeals[index].previewId))
+              (response.payload['meals'] as List)[index],
+        ],
+      };
+      final selectedResponse = _container.reportSyncCodec.create(
+        direction: response.direction,
+        exchangeType: response.exchangeType,
+        exchangeId: response.exchangeId,
+        requestId: response.requestId,
         operationDate: response.operationDate,
-        payload: Map<String, Object?>.from(response.payload['session'] as Map),
+        createdAt: response.createdAt,
+        requestDigest: response.requestDigest,
+        confirmationDigest: response.confirmationDigest,
+        payload: selectedPayload,
+        schemaVersion: response.schemaVersion,
       );
+      final mealCounts = ReportSyncMealCounts(
+        received: preview.foodMeals.length,
+        selected: selected.length,
+        imported: selected.length,
+        conflict: preview.conflictCount,
+      );
+      if (await _container.confirmation.isConfirmed(response.operationDate)) {
+        throw const ReportSyncApplyException(
+          code: 'food_finalized_blocked',
+          stage: 'IMPORT PRECONDITION',
+          userMessage: '確定済みの日付にはMEALを取り込めません。',
+        );
+      }
+      try {
+        await _container.reportSyncPersistence.importFoodMeals(
+          selectedResponse,
+          meals: [for (final item in selectedPreviews) item.meal],
+          mealCounts: mealCounts,
+        );
+      } on ReportSyncImportFailure catch (error) {
+        throw ReportSyncApplyException(
+          code: error.code,
+          stage: error.stage,
+          userMessage: error.message,
+        );
+      }
+      return ReportSyncApplyResult(
+        ReportSyncDisposition.create,
+        readBackVerified: true,
+        mealCounts: mealCounts,
+      );
+    } on ReportSyncApplyException {
+      rethrow;
+    } on ReportSyncException catch (error) {
+      throw ReportSyncApplyException(
+        code: error.code.stableId,
+        stage: 'IMPORT PREPARATION',
+        userMessage: 'MEALの取り込み準備に失敗しました。',
+      );
+    } on FormatException {
+      throw const ReportSyncApplyException(
+        code: 'food_record_invalid',
+        stage: 'FOOD RECORD MAPPING',
+        userMessage: 'MEALを正式な保存形式へ変換できませんでした。',
+      );
+    } catch (_) {
+      throw const ReportSyncApplyException(
+        code: 'food_import_unexpected_failure',
+        stage: 'FOOD IMPORT PREPARATION',
+        userMessage: 'MEALの保存準備に失敗しました。保存処理は開始されていません。',
+      );
+    }
+  }
+
+  OrloSyncEnvelope _trainingEnvelope(
+    ReportSyncEnvelope response,
+    Map<String, Object?> mappedPayload,
+  ) => OrloSyncEnvelope(
+    envelopeVersion: OrloSyncEnvelope.currentEnvelopeVersion,
+    schemaVersion: OrloSyncEnvelope.currentSchemaVersion,
+    dataType: 'training',
+    packageId: response.exchangeId,
+    idempotencyKey: (mappedPayload['session'] as Map)['recordId'] as String,
+    source: OrloSyncSource(
+      type: 'chatGptExchange',
+      generatedAt: response.createdAt,
+      producer: 'report-sync',
+      producerVersion: '1.0',
+    ),
+    operationDate: response.operationDate,
+    payload: mappedPayload,
+  );
+
+  Future<MealData> _withUniqueFoodId(
+    MealData meal,
+    Set<String> reservedMealIds,
+  ) async {
+    var candidate = meal;
+    while (reservedMealIds.contains(candidate.id) ||
+        await _container.food.findById(candidate.id) != null) {
+      candidate = MealData(
+        date: meal.date,
+        mealType: meal.mealType,
+        items: meal.items,
+        memo: meal.memo,
+        id: (foodIdGenerator ?? FoodMealIdGenerator()).generate(),
+        waterMl: meal.waterMl,
+      );
+    }
+    reservedMealIds.add(candidate.id);
+    return candidate;
+  }
 
   @override
   Future<List<ReportSyncHistory>> history(ReportSyncExchangeType type) async =>

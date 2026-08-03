@@ -16,7 +16,7 @@ void main() {
   final timestamp = DateTime.utc(2026, 8, 3, 12);
 
   test(
-    'Schema 8 exports and restores Profile in the formal transaction',
+    'Schema 9 exports and restores Profile in the formal transaction',
     () async {
       final database = FakeIndexedDbDatabase();
       database.seed(
@@ -47,8 +47,8 @@ void main() {
         clock: () => timestamp,
       ).create();
 
-      expect(package.schemaVersion, 8);
-      expect(package.data.keys, BackupSections.schema8);
+      expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
+      expect(package.data.keys, BackupSections.schema9);
       expect(package.data[BackupSections.profile], [
         {
           'version': 1,

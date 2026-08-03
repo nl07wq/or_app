@@ -1,5 +1,6 @@
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_issue.dart';
+import 'report_sync_import_schema_v2.dart';
 
 abstract interface class ReportSyncPayloadSchema {
   ReportSyncExchangeType get exchangeType;
@@ -29,6 +30,26 @@ class ReportSyncPayloadRegistry {
       _schemas[type]!;
 
   void validate(ReportSyncEnvelope envelope) {
+    if (envelope.schemaVersion == ReportSyncEnvelope.importSchemaVersion2) {
+      if (envelope.direction != ReportSyncDirection.response) {
+        _fail('Schema 2.0 is only supported for import responses.');
+      }
+      switch (envelope.exchangeType) {
+        case ReportSyncExchangeType.training:
+          const TrainingReportSyncPayloadSchemaV2().validateResponse(
+            envelope.payload,
+          );
+          return;
+        case ReportSyncExchangeType.food:
+          const FoodReportSyncPayloadSchemaV2().validateResponse(
+            envelope.payload,
+          );
+          return;
+        case ReportSyncExchangeType.morningBrief:
+        case ReportSyncExchangeType.dailyDebrief:
+          _fail('Schema 2.0 is not supported for this exchange type.');
+      }
+    }
     final schema = forType(envelope.exchangeType);
     if (envelope.direction == ReportSyncDirection.request) {
       schema.validateRequest(envelope.payload);
@@ -172,14 +193,22 @@ class FoodReportSyncPayloadSchema implements ReportSyncPayloadSchema {
   @override
   void validateResponse(Map<String, Object?> value) {
     _responseIdentity(value, const {'meals'});
-    _meals(value['meals']);
+    _meals(value['meals'], requireNonEmpty: true);
   }
 
-  static void _meals(Object? raw) {
-    for (final entry in _list(raw, 'meals')) {
+  static void _meals(Object? raw, {bool requireNonEmpty = false}) {
+    final meals = _list(raw, 'meals');
+    if (requireNonEmpty && meals.isEmpty) {
+      _fail('meals must contain at least one meal.');
+    }
+    final mealIds = <String>{};
+    for (final entry in meals) {
       final meal = _map(entry, 'meal');
       _exact(meal, const {'mealId', 'mealType', 'items', 'memo', 'waterMl'});
       _text(meal['mealId'], 'mealId');
+      if (!mealIds.add(meal['mealId'] as String)) {
+        _fail('mealId must be unique within meals.');
+      }
       _text(meal['mealType'], 'mealType');
       _nullableStringAllowEmpty(meal['memo'], 'memo');
       _nullableFiniteNumber(meal['waterMl'], 'waterMl');
@@ -242,7 +271,28 @@ class FoodReportSyncPayloadSchema implements ReportSyncPayloadSchema {
   @override
   Map<String, Object?> get minimalResponseExample => {
     'operationDate': '2000-01-01',
-    'meals': <Object?>[],
+    'meals': [
+      {
+        'mealId': '<MEAL_ID>',
+        'mealType': '<MEAL_TYPE>',
+        'items': [
+          {
+            'name': '<FOOD_NAME>',
+            'calories': 0,
+            'protein': 0,
+            'fat': 0,
+            'carbohydrate': 0,
+            'quantity': 1,
+            'amount': null,
+            'baseAmount': null,
+            'baseUnit': null,
+            'amountMode': null,
+          },
+        ],
+        'memo': null,
+        'waterMl': null,
+      },
+    ],
   };
 }
 

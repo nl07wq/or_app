@@ -20,7 +20,10 @@ class ReportSyncValidator {
   }) : payloadRegistry =
            payloadRegistry ?? ReportSyncPayloadRegistry.standard();
 
-  Future<void> validateResponse(ReportSyncEnvelope response) async {
+  Future<void> validateResponse(
+    ReportSyncEnvelope response, {
+    String? expectedOperationDate,
+  }) async {
     if (response.direction != ReportSyncDirection.response) {
       throw const ReportSyncException(
         ReportSyncIssueCode.schemaMismatch,
@@ -29,9 +32,10 @@ class ReportSyncValidator {
     }
     final state = await operationStateRepository.requireCurrent();
     final expectedDate =
-        response.exchangeType == ReportSyncExchangeType.dailyDebrief
-        ? state.lastFinalizedDate?.value
-        : state.operationDate.value;
+        expectedOperationDate ??
+        (response.exchangeType == ReportSyncExchangeType.dailyDebrief
+            ? state.lastFinalizedDate?.value
+            : state.operationDate.value);
     if (expectedDate == null || expectedDate != response.operationDate) {
       throw const ReportSyncException(
         ReportSyncIssueCode.operationDateMismatch,
