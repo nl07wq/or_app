@@ -104,6 +104,34 @@ void main() {
     expect(preview.canApply, isFalse);
   });
 
+  test(
+    'accepts built-in Face Pull with null equipment without custom registry',
+    () async {
+      final preview = await workflow.preview(
+        jsonEncode(
+          _envelope([
+            _record(
+              '2026-06-19',
+              'face-pull',
+              exerciseName: 'Face Pull',
+              equipment: null,
+            ),
+          ], endDate: '2026-06-19'),
+        ),
+        startDate: '2026-06-01',
+        endDate: '2026-06-19',
+      );
+
+      expect(preview.newCount, 1);
+      expect(preview.invalidCount, 0);
+      final exercise =
+          preview.records.single.persistedRecord!.dataV2.exercises.single;
+      expect(exercise.exerciseName, 'Face Pull');
+      expect(exerciseIdentityKey(exercise.exerciseName), 'facepull');
+      expect(exercise.equipment, isNull);
+    },
+  );
+
   test('normalizes approved null-equipment dumbbell alias', () async {
     final preview = await workflow.preview(
       jsonEncode(

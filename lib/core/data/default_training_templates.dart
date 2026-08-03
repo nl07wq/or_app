@@ -13,7 +13,7 @@ const defaultTrainingTemplates = [
 
   TrainingTemplate(
     name: 'Pull',
-    exercises: ['ラットプルダウン', 'シーテッドロー', 'Dumbbell Curl'],
+    exercises: ['ラットプルダウン', 'シーテッドロー', 'Face Pull', 'Dumbbell Curl'],
   ),
 
   TrainingTemplate(

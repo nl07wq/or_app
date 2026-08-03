@@ -7,6 +7,7 @@ const _builtInExerciseNames = <String, String>{
   'inclinebenchpress': 'インクラインベンチプレス',
   'chestpress': 'チェストプレス',
   'seatedrow': 'シーテッドロー',
+  'facepull': 'フェイスプル',
   'squat': 'スクワット',
   'legcurl': 'レッグカール',
   'hacksquat': 'ハックスクワット',

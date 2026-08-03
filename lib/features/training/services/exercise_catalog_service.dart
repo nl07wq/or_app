@@ -23,6 +23,7 @@ class ExerciseCatalogService {
   ExerciseCatalogService._();
 
   static const _customExercisesKey = 'training_custom_exercises';
+  static const _facePullName = 'Face Pull';
   static const _recentLimit = 5;
 
   static Future<ExerciseCatalog> load() async {
@@ -63,6 +64,10 @@ class ExerciseCatalogService {
   static Future<void> registerCustom(String name) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) return;
+    if (exerciseIdentityKey(trimmedName) ==
+        exerciseIdentityKey(_facePullName)) {
+      return;
+    }
 
     if (!PersistenceAccess.usesCompatibilityStorage) {
       PersistenceAccess.requireWrite('exerciseCatalog.registerCustom');
@@ -148,11 +153,20 @@ class ExerciseCatalogService {
     }
     PersistenceAccess.requireReadable('exerciseCatalog.load');
     if (PersistenceAccess.canReadIndexedDb) {
-      final records = await AppRepositoryRegistry
-          .container
-          .customTrainingExercises
-          .findAll();
-      return List.unmodifiable(records.map((record) => record.name));
+      final repository =
+          AppRepositoryRegistry.container.customTrainingExercises;
+      final records = await repository.findAll();
+      final facePullIdentity = exerciseIdentityKey(_facePullName);
+      final retained = <CustomTrainingExercise>[];
+      for (final record in records) {
+        if (record.name == _facePullName &&
+            exerciseIdentityKey(record.name) == facePullIdentity) {
+          await repository.deleteById(record.id);
+        } else {
+          retained.add(record);
+        }
+      }
+      return List.unmodifiable(retained.map((record) => record.name));
     }
     if (AppRepositoryRegistry.controller.value.mode ==
         PersistenceMode.legacyReadOnly) {
