@@ -13,9 +13,10 @@ class ConfirmationOperationSyncAdapter
             recordType: 'dailyConfirmation',
             storeName: IndexedDbStoreNames.dailyLogConfirmations,
             backupSection: BackupSections.confirmations,
-            recordVersions: const {1},
+            recordVersions: const {1, 2},
             dateBound: true,
-            matches: (record) => record['recordVersion'] == 1,
+            matches: (record) =>
+                record['recordVersion'] == 1 || record['recordVersion'] == 2,
             uniqueFields: const ['localDate'],
           ),
         ],

@@ -1,4 +1,6 @@
 import '../../../core/models/daily_log_confirmation.dart';
+import '../../import_export/services/backup_canonical_codec.dart';
+import 'daily_log_confirmation_lifecycle.dart';
 
 class DailyLogConfirmationMigrationSource {
   final String migrationId;
@@ -59,8 +61,30 @@ class UnsupportedDailyLogSnapshotVersionException implements Exception {
 }
 
 class PersistedDailyLogConfirmationRecord {
-  static const currentRecordVersion = 1;
+  static const legacyRecordVersion = 1;
+  static const currentRecordVersion = 2;
   static const currentSnapshotVersion = 1;
+
+  static const _v2Fields = {
+    'id',
+    'recordVersion',
+    'snapshotVersion',
+    'localDate',
+    'lifecycleStatus',
+    'revision',
+    'data',
+    'snapshotDigest',
+    'originalSnapshotDigest',
+    'finalizedAt',
+    'reopenedAt',
+    'lastRefinalizedAt',
+    'reopenReason',
+    'sourceRecordVersions',
+    'previousRevisions',
+    'createdAt',
+    'updatedAt',
+    'migrationSource',
+  };
 
   final String id;
   final int recordVersion;
@@ -70,38 +94,149 @@ class PersistedDailyLogConfirmationRecord {
   final DateTime updatedAt;
   final DailyLogConfirmationMigrationSource? migrationSource;
   final DailyLogConfirmation data;
+  final DailyLogConfirmationLifecycleStatus? lifecycleStatus;
+  final int? revision;
+  final String? snapshotDigest;
+  final String? originalSnapshotDigest;
+  final DateTime? finalizedAt;
+  final DateTime? reopenedAt;
+  final DateTime? lastRefinalizedAt;
+  final DailyLogConfirmationReopenReason? reopenReason;
+  final DailyLogConfirmationSourceRecordVersions? sourceRecordVersions;
+  final List<DailyLogConfirmationRevision> previousRevisions;
 
   const PersistedDailyLogConfirmationRecord({
     required this.id,
-    this.recordVersion = currentRecordVersion,
+    this.recordVersion = legacyRecordVersion,
     this.snapshotVersion = currentSnapshotVersion,
     required this.localDate,
     required this.createdAt,
     required this.updatedAt,
     this.migrationSource,
     required this.data,
-  });
+  }) : lifecycleStatus = null,
+       revision = null,
+       snapshotDigest = null,
+       originalSnapshotDigest = null,
+       finalizedAt = null,
+       reopenedAt = null,
+       lastRefinalizedAt = null,
+       reopenReason = null,
+       sourceRecordVersions = null,
+       previousRevisions = const [];
 
-  Map<String, Object?> toRecord() => {
-    'id': id,
-    'recordVersion': recordVersion,
-    'snapshotVersion': snapshotVersion,
-    'localDate': localDate,
-    'createdAt': createdAt.toUtc().toIso8601String(),
-    'updatedAt': updatedAt.toUtc().toIso8601String(),
-    if (migrationSource != null) 'migrationSource': migrationSource!.toJson(),
-    'data': data.toJson(),
-  };
+  PersistedDailyLogConfirmationRecord.v2({
+    required this.id,
+    this.snapshotVersion = currentSnapshotVersion,
+    required this.localDate,
+    required this.lifecycleStatus,
+    required this.revision,
+    required this.data,
+    required this.snapshotDigest,
+    required this.originalSnapshotDigest,
+    required DateTime finalizedAt,
+    required DateTime? reopenedAt,
+    required DateTime? lastRefinalizedAt,
+    required this.reopenReason,
+    required this.sourceRecordVersions,
+    required Iterable<DailyLogConfirmationRevision> previousRevisions,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.migrationSource,
+  }) : recordVersion = currentRecordVersion,
+       finalizedAt = finalizedAt.toUtc(),
+       reopenedAt = reopenedAt?.toUtc(),
+       lastRefinalizedAt = lastRefinalizedAt?.toUtc(),
+       previousRevisions = List.unmodifiable(previousRevisions),
+       createdAt = createdAt.toUtc(),
+       updatedAt = updatedAt.toUtc() {
+    _validateV2(this);
+  }
+
+  factory PersistedDailyLogConfirmationRecord.initialFinalizedV2({
+    required String id,
+    required String localDate,
+    required DailyLogConfirmation data,
+    required DateTime timestamp,
+    DailyLogConfirmationSourceRecordVersions sourceRecordVersions =
+        const DailyLogConfirmationSourceRecordVersions.unknown(),
+    DailyLogConfirmationMigrationSource? migrationSource,
+  }) {
+    final copied = copyData(data);
+    final digest = digestSnapshot(copied);
+    return PersistedDailyLogConfirmationRecord.v2(
+      id: id,
+      localDate: localDate,
+      lifecycleStatus: DailyLogConfirmationLifecycleStatus.finalized,
+      revision: 1,
+      data: copied,
+      snapshotDigest: digest,
+      originalSnapshotDigest: digest,
+      finalizedAt: copied.confirmedAt.toUtc(),
+      reopenedAt: null,
+      lastRefinalizedAt: null,
+      reopenReason: null,
+      sourceRecordVersions: sourceRecordVersions,
+      previousRevisions: const [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      migrationSource: migrationSource,
+    );
+  }
+
+  Map<String, Object?> toRecord() {
+    if (recordVersion == legacyRecordVersion) {
+      return {
+        'id': id,
+        'recordVersion': recordVersion,
+        'snapshotVersion': snapshotVersion,
+        'localDate': localDate,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'updatedAt': updatedAt.toUtc().toIso8601String(),
+        if (migrationSource != null)
+          'migrationSource': migrationSource!.toJson(),
+        'data': data.toJson(),
+      };
+    }
+    _validateV2(this);
+    return {
+      'id': id,
+      'recordVersion': recordVersion,
+      'snapshotVersion': snapshotVersion,
+      'localDate': localDate,
+      'lifecycleStatus': lifecycleStatus!.stableId,
+      'revision': revision,
+      'data': data.toJson(),
+      'snapshotDigest': snapshotDigest,
+      'originalSnapshotDigest': originalSnapshotDigest,
+      'finalizedAt': finalizedAt!.toIso8601String(),
+      'reopenedAt': reopenedAt?.toIso8601String(),
+      'lastRefinalizedAt': lastRefinalizedAt?.toIso8601String(),
+      'reopenReason': reopenReason?.stableId,
+      'sourceRecordVersions': sourceRecordVersions!.toJson(),
+      'previousRevisions': [
+        for (final previous in previousRevisions) previous.toJson(),
+      ],
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'migrationSource': migrationSource?.toJson(),
+    };
+  }
 
   factory PersistedDailyLogConfirmationRecord.fromRecord(
     Map<String, Object?> record,
   ) {
     final id = _requiredString(record, 'id');
     final recordVersion = record['recordVersion'];
-    if (recordVersion is! int || recordVersion != currentRecordVersion) {
+    if (recordVersion is! int ||
+        (recordVersion != legacyRecordVersion &&
+            recordVersion != currentRecordVersion)) {
       throw FormatException(
         'Unsupported Daily Log Confirmation recordVersion: $recordVersion.',
       );
+    }
+    if (recordVersion == currentRecordVersion) {
+      return _fromV2Record(record);
     }
     final snapshotVersion = record['snapshotVersion'];
     if (snapshotVersion is! int) {
@@ -153,6 +288,86 @@ class PersistedDailyLogConfirmationRecord {
     );
   }
 
+  static PersistedDailyLogConfirmationRecord _fromV2Record(
+    Map<String, Object?> record,
+  ) {
+    _requireExactFields(record, _v2Fields);
+    final snapshotVersion = record['snapshotVersion'];
+    if (snapshotVersion is! int) {
+      throw const FormatException(
+        'Invalid Daily Log Confirmation snapshotVersion.',
+      );
+    }
+    if (snapshotVersion != currentSnapshotVersion) {
+      throw UnsupportedDailyLogSnapshotVersionException(snapshotVersion);
+    }
+    final localDate = _requiredString(record, 'localDate');
+    validateLocalDate(localDate);
+    final id = _requiredString(record, 'id');
+    if (id != canonicalId(localDate)) {
+      throw const FormatException(
+        'Invalid Daily Log Confirmation persistent ID.',
+      );
+    }
+    final dataValue = record['data'];
+    final sourceValue = record['sourceRecordVersions'];
+    final previousValue = record['previousRevisions'];
+    if (dataValue is! Map || sourceValue is! Map || previousValue is! List) {
+      throw const FormatException('Invalid Daily Log Confirmation v2 data.');
+    }
+    final migrationValue = record['migrationSource'];
+    if (migrationValue != null && migrationValue is! Map) {
+      throw const FormatException(
+        'Invalid Daily Log Confirmation migrationSource.',
+      );
+    }
+    final rawRevision = record['revision'];
+    if (rawRevision is! int) {
+      throw const FormatException('Invalid Daily Log Confirmation revision.');
+    }
+    final rawReopenReason = record['reopenReason'];
+    final parsed = PersistedDailyLogConfirmationRecord.v2(
+      id: id,
+      snapshotVersion: snapshotVersion,
+      localDate: localDate,
+      lifecycleStatus: DailyLogConfirmationLifecycleStatus.fromStableId(
+        record['lifecycleStatus'],
+      ),
+      revision: rawRevision,
+      data: DailyLogConfirmation.fromJson(Map<String, dynamic>.from(dataValue)),
+      snapshotDigest: _requiredString(record, 'snapshotDigest'),
+      originalSnapshotDigest: _requiredString(record, 'originalSnapshotDigest'),
+      finalizedAt: _requiredUtcDate(record, 'finalizedAt'),
+      reopenedAt: _nullableUtcDate(record, 'reopenedAt'),
+      lastRefinalizedAt: _nullableUtcDate(record, 'lastRefinalizedAt'),
+      reopenReason: rawReopenReason == null
+          ? null
+          : DailyLogConfirmationReopenReason.fromStableId(rawReopenReason),
+      sourceRecordVersions: DailyLogConfirmationSourceRecordVersions.fromJson(
+        Map<String, Object?>.from(sourceValue),
+      ),
+      previousRevisions: [
+        for (final value in previousValue)
+          if (value is Map)
+            DailyLogConfirmationRevision.fromJson(
+              Map<String, Object?>.from(value),
+            )
+          else
+            throw const FormatException(
+              'Invalid Daily Log Confirmation previousRevisions.',
+            ),
+      ],
+      createdAt: _requiredUtcDate(record, 'createdAt'),
+      updatedAt: _requiredUtcDate(record, 'updatedAt'),
+      migrationSource: migrationValue == null
+          ? null
+          : DailyLogConfirmationMigrationSource.fromJson(
+              Map<String, Object?>.from(migrationValue as Map),
+            ),
+    );
+    return parsed;
+  }
+
   static String canonicalId(String localDate) {
     validateLocalDate(localDate);
     return 'confirmation:$localDate';
@@ -184,6 +399,31 @@ class PersistedDailyLogConfirmationRecord {
     );
   }
 
+  static String digestSnapshot(DailyLogConfirmation data) =>
+      BackupCanonicalCodec.digest(data.toJson());
+
+  bool get isLegacyV1 => recordVersion == legacyRecordVersion;
+
+  DailyLogConfirmationLifecycleStatus get projectedLifecycleStatus => isLegacyV1
+      ? DailyLogConfirmationLifecycleStatus.finalized
+      : lifecycleStatus!;
+
+  int get projectedRevision => isLegacyV1 ? 1 : revision!;
+
+  String get projectedSnapshotDigest =>
+      isLegacyV1 ? digestSnapshot(data) : snapshotDigest!;
+
+  String get projectedOriginalSnapshotDigest =>
+      isLegacyV1 ? projectedSnapshotDigest : originalSnapshotDigest!;
+
+  DateTime get projectedFinalizedAt =>
+      isLegacyV1 ? data.confirmedAt.toUtc() : finalizedAt!;
+
+  DailyLogConfirmationSourceRecordVersions get projectedSourceRecordVersions =>
+      isLegacyV1
+      ? const DailyLogConfirmationSourceRecordVersions.unknown()
+      : sourceRecordVersions!;
+
   static String _requiredString(Map<String, Object?> record, String key) {
     final value = record[key];
     if (value is! String || value.isEmpty) {
@@ -202,6 +442,126 @@ class PersistedDailyLogConfirmationRecord {
       throw FormatException('Invalid Daily Log Confirmation $key.');
     }
     return date;
+  }
+
+  static DateTime _requiredUtcDate(Map<String, Object?> record, String key) {
+    final value = record[key];
+    if (value is! String) {
+      throw FormatException('Invalid Daily Log Confirmation $key.');
+    }
+    final date = DateTime.tryParse(value);
+    if (date == null || !date.isUtc || !value.endsWith('Z')) {
+      throw FormatException('Invalid Daily Log Confirmation $key.');
+    }
+    return date;
+  }
+
+  static DateTime? _nullableUtcDate(Map<String, Object?> record, String key) {
+    if (record[key] == null) return null;
+    return _requiredUtcDate(record, key);
+  }
+
+  static void _requireExactFields(
+    Map<String, Object?> record,
+    Set<String> expected,
+  ) {
+    final actual = record.keys.toSet();
+    if (actual.difference(expected).isNotEmpty ||
+        expected.difference(actual).isNotEmpty) {
+      throw const FormatException('Invalid Daily Log Confirmation v2 fields.');
+    }
+  }
+
+  static void _validateV2(PersistedDailyLogConfirmationRecord record) {
+    if (record.recordVersion != currentRecordVersion ||
+        record.snapshotVersion != currentSnapshotVersion ||
+        record.lifecycleStatus == null ||
+        record.revision == null ||
+        record.revision! < 1 ||
+        record.snapshotDigest == null ||
+        record.originalSnapshotDigest == null ||
+        record.finalizedAt == null ||
+        record.sourceRecordVersions == null) {
+      throw const FormatException('Invalid Daily Log Confirmation v2.');
+    }
+    validateLocalDate(record.localDate);
+    if (record.id != canonicalId(record.localDate) ||
+        localDateFromDate(record.data.date) != record.localDate) {
+      throw const FormatException(
+        'Daily Log Confirmation v2 identity does not match its Snapshot.',
+      );
+    }
+    _validateDigest(record.snapshotDigest!, 'snapshotDigest');
+    _validateDigest(record.originalSnapshotDigest!, 'originalSnapshotDigest');
+    if (digestSnapshot(record.data) != record.snapshotDigest) {
+      throw const FormatException(
+        'Daily Log Confirmation snapshotDigest does not match data.',
+      );
+    }
+    if (record.updatedAt.isBefore(record.createdAt)) {
+      throw const FormatException(
+        'Daily Log Confirmation updatedAt is invalid.',
+      );
+    }
+    switch (record.lifecycleStatus!) {
+      case DailyLogConfirmationLifecycleStatus.finalized:
+        if (record.reopenedAt != null || record.reopenReason != null) {
+          throw const FormatException(
+            'Finalized Daily Log Confirmation lifecycle fields are invalid.',
+          );
+        }
+        break;
+      case DailyLogConfirmationLifecycleStatus.reopened:
+        if (record.reopenedAt == null ||
+            record.reopenReason !=
+                DailyLogConfirmationReopenReason.userCorrection ||
+            record.reopenedAt!.isBefore(record.projectedFinalizedAt)) {
+          throw const FormatException(
+            'Reopened Daily Log Confirmation lifecycle fields are invalid.',
+          );
+        }
+        break;
+    }
+    if (record.revision == 1) {
+      if (record.lastRefinalizedAt != null ||
+          record.previousRevisions.isNotEmpty ||
+          record.originalSnapshotDigest != record.snapshotDigest) {
+        throw const FormatException(
+          'Initial Daily Log Confirmation revision is invalid.',
+        );
+      }
+    } else {
+      if (record.lastRefinalizedAt == null ||
+          record.previousRevisions.length != record.revision! - 1) {
+        throw const FormatException(
+          'Daily Log Confirmation revision history is incomplete.',
+        );
+      }
+    }
+    for (var index = 0; index < record.previousRevisions.length; index++) {
+      final previous = record.previousRevisions[index];
+      if (previous.revision != index + 1 ||
+          previous.revision >= record.revision! ||
+          localDateFromDate(previous.snapshot.date) != record.localDate ||
+          digestSnapshot(previous.snapshot) != previous.snapshotDigest) {
+        throw const FormatException(
+          'Daily Log Confirmation previousRevisions are invalid.',
+        );
+      }
+    }
+    if (record.previousRevisions.isNotEmpty &&
+        record.previousRevisions.first.snapshotDigest !=
+            record.originalSnapshotDigest) {
+      throw const FormatException(
+        'Daily Log Confirmation originalSnapshotDigest is invalid.',
+      );
+    }
+  }
+
+  static void _validateDigest(String value, String field) {
+    if (!RegExp(r'^[0-9a-f]{8}$').hasMatch(value)) {
+      throw FormatException('Invalid Daily Log Confirmation $field.');
+    }
   }
 
   static Map<String, Object?> _copyMap(Map source) {

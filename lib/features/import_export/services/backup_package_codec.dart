@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../core/models/morning_data.dart';
 import '../../../core/models/training_session.dart';
 import '../../../data/indexed_db/indexed_db_schema.dart';
+import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../status/models/persisted_status_record.dart';
 import '../../training/models/persisted_training_record.dart';
 import '../../training/repository/training_record_id_generator.dart';
@@ -111,7 +112,17 @@ class BackupPackageCodec {
               '$section contains a non-object record.',
             );
           }
-          return Map<String, Object?>.from(value);
+          final record = Map<String, Object?>.from(value);
+          if (section == BackupSections.confirmations &&
+              schemaVersion < 10 &&
+              record['recordVersion'] !=
+                  PersistedDailyLogConfirmationRecord.legacyRecordVersion) {
+            throw const BackupException(
+              'invalid_record',
+              'Backup schemas 2 through 9 require Confirmation v1 records.',
+            );
+          }
+          return record;
         }),
       );
       final expectedCount = countJson[section];

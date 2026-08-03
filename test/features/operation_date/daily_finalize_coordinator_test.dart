@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
+import 'package:or_app/features/daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
+import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import 'package:or_app/features/daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/operation_date/models/daily_finalize_result.dart';
@@ -38,6 +40,26 @@ void main() {
         expect(state.lastFinalizedDate?.value, '2026-07-31');
         expect(state.phase, OperationPhase.open);
         expect(state.activeAttempt, isNull);
+        final persisted = PersistedDailyLogConfirmationRecord.fromRecord(
+          (await fixture.database.findById(
+            IndexedDbStoreNames.dailyLogConfirmations,
+            result.confirmationId,
+          ))!,
+        );
+        expect(persisted.recordVersion, 2);
+        expect(
+          persisted.lifecycleStatus,
+          DailyLogConfirmationLifecycleStatus.finalized,
+        );
+        expect(persisted.revision, 1);
+        expect(persisted.previousRevisions, isEmpty);
+        expect(persisted.originalSnapshotDigest, persisted.snapshotDigest);
+        expect(persisted.sourceRecordVersions!.toJson(), {
+          'status': null,
+          'food': null,
+          'activity': null,
+          'training': null,
+        });
       },
     );
 

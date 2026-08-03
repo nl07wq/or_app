@@ -37,6 +37,9 @@ void main() {
       );
 
       expect(envelope.snapshotVersion, 1);
+      expect(envelope.recordVersion, 2);
+      expect(envelope.revision, 1);
+      expect(envelope.previousRevisions, isEmpty);
       expect(envelope.localDate, '2026-07-26');
       expect(restored?.toJson(), confirmation.toJson());
       expect(restored?.morning?.weight, 88.25);
@@ -47,14 +50,24 @@ void main() {
       expect(restored?.training?.exerciseCount, 4);
       expect(restored?.training?.duration, const Duration(minutes: 75));
       expect(restored?.estimatedTotalBurnKcal, 2875.5);
+      expect(database.transactionCount, 1);
     },
   );
 
   test(
-    'same-day save preserves createdAt and updates only updatedAt',
+    'create-only save rejects different data and preserves the existing v2',
     () async {
       await repository.save(completeConfirmation());
-      await repository.save(completeConfirmation(trainingName: 'Updated'));
+      await expectLater(
+        repository.save(completeConfirmation(trainingName: 'Updated')),
+        throwsA(
+          isA<RepositoryException>().having(
+            (error) => error.code,
+            'code',
+            RepositoryErrorCode.invalidRecord,
+          ),
+        ),
+      );
 
       final envelope = PersistedDailyLogConfirmationRecord.fromRecord(
         (await database.findById(
@@ -63,14 +76,44 @@ void main() {
         ))!,
       );
       expect(envelope.createdAt, DateTime.utc(2026, 7, 26));
-      expect(envelope.updatedAt, DateTime.utc(2026, 7, 26, 1));
-      expect(envelope.data.training?.sessionName, 'Updated');
+      expect(envelope.updatedAt, DateTime.utc(2026, 7, 26));
+      expect(envelope.data.training?.sessionName, 'Push');
       expect(
         await database.findAll(IndexedDbStoreNames.dailyLogConfirmations),
         hasLength(1),
       );
     },
   );
+
+  test('mixed v1 and v2 read keeps an existing v1 record unchanged', () async {
+    final v1 = PersistedDailyLogConfirmationRecord(
+      id: 'confirmation:2026-07-25',
+      localDate: '2026-07-25',
+      createdAt: DateTime.utc(2026, 7, 25),
+      updatedAt: DateTime.utc(2026, 7, 25),
+      data: completeConfirmation(date: DateTime(2026, 7, 25)),
+    ).toRecord();
+    database.seed(
+      IndexedDbStoreNames.dailyLogConfirmations,
+      'confirmation:2026-07-25',
+      v1,
+    );
+    await repository.save(completeConfirmation());
+
+    final all = await repository.findAllPersisted();
+    final projection = await repository.findLifecycleProjection('2026-07-25');
+
+    expect(all.map((record) => record.recordVersion), [2, 1]);
+    expect(projection.isFinalized, isTrue);
+    expect(projection.revision, 1);
+    expect(
+      await database.findById(
+        IndexedDbStoreNames.dailyLogConfirmations,
+        'confirmation:2026-07-25',
+      ),
+      v1,
+    );
+  });
 
   test(
     'keeps separate days and returns latest-first immutable lists',

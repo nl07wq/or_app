@@ -63,12 +63,11 @@ class DailyFinalizeTransaction {
             final timestamp = _now().toUtc();
             await transaction.put(
               IndexedDbStoreNames.dailyLogConfirmations,
-              PersistedDailyLogConfirmationRecord(
+              PersistedDailyLogConfirmationRecord.initialFinalizedV2(
                 id: id,
                 localDate: localDate,
-                createdAt: timestamp,
-                updatedAt: timestamp,
                 data: confirmation,
+                timestamp: timestamp,
               ).toRecord(),
             );
           }

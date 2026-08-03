@@ -1,9 +1,20 @@
 import '../../../core/models/daily_log_confirmation.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
+import '../../import_export/services/backup_canonical_codec.dart';
 import '../../repositories/repository_exception.dart';
+import '../models/daily_log_confirmation_lifecycle_projection.dart';
 import '../models/persisted_daily_log_confirmation_record.dart';
 import 'daily_log_confirmation_repository.dart';
+
+class _DailyLogConfirmationVerificationException implements Exception {
+  final String message;
+
+  const _DailyLogConfirmationVerificationException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 class DailyLogConfirmationReadIssue {
   final String? recordId;
@@ -35,7 +46,10 @@ abstract interface class DailyLogConfirmationAuditRepository {
 }
 
 class IndexedDbDailyLogConfirmationRepository
-    implements DailyLogConfirmationStore, DailyLogConfirmationAuditRepository {
+    implements
+        DailyLogConfirmationStore,
+        DailyLogConfirmationLifecycleStore,
+        DailyLogConfirmationAuditRepository {
   final IndexedDbDatabase _database;
   final DateTime Function() _now;
 
@@ -52,30 +66,14 @@ class IndexedDbDailyLogConfirmationRepository
     );
     final id = PersistedDailyLogConfirmationRecord.canonicalId(localDate);
     try {
-      await _database.runTransaction<void>(
-        storeNames: const [IndexedDbStoreNames.dailyLogConfirmations],
-        mode: IndexedDbTransactionMode.readWrite,
-        action: (transaction) async {
-          final existingValue = await transaction.findById(
-            IndexedDbStoreNames.dailyLogConfirmations,
-            id,
-          );
-          final existing = existingValue == null
-              ? null
-              : PersistedDailyLogConfirmationRecord.fromRecord(existingValue);
-          final timestamp = _now().toUtc();
-          await transaction.put(
-            IndexedDbStoreNames.dailyLogConfirmations,
-            PersistedDailyLogConfirmationRecord(
-              id: id,
-              localDate: localDate,
-              createdAt: existing?.createdAt ?? timestamp,
-              updatedAt: timestamp,
-              migrationSource: existing?.migrationSource,
-              data: copied,
-            ).toRecord(),
-          );
-        },
+      final timestamp = _now().toUtc();
+      await createV2(
+        PersistedDailyLogConfirmationRecord.initialFinalizedV2(
+          id: id,
+          localDate: localDate,
+          data: copied,
+          timestamp: timestamp,
+        ),
       );
     } on RepositoryException {
       rethrow;
@@ -103,15 +101,9 @@ class IndexedDbDailyLogConfirmationRepository
   @override
   Future<DailyLogConfirmation?> findByLocalDate(String localDate) async {
     try {
-      PersistedDailyLogConfirmationRecord.validateLocalDate(localDate);
-      final value = await _database.findById(
-        IndexedDbStoreNames.dailyLogConfirmations,
-        PersistedDailyLogConfirmationRecord.canonicalId(localDate),
-      );
-      if (value == null) return null;
-      return PersistedDailyLogConfirmationRecord.copyData(
-        PersistedDailyLogConfirmationRecord.fromRecord(value).data,
-      );
+      final record = await findPersistedByLocalDate(localDate);
+      if (record == null) return null;
+      return PersistedDailyLogConfirmationRecord.copyData(record.data);
     } on UnsupportedDailyLogSnapshotVersionException catch (error) {
       throw RepositoryException(
         operation: 'dailyLogConfirmation.findByLocalDate',
@@ -124,6 +116,8 @@ class IndexedDbDailyLogConfirmationRepository
         code: RepositoryErrorCode.invalidRecord,
         cause: error,
       );
+    } on RepositoryException {
+      rethrow;
     } catch (error) {
       throw RepositoryException(
         operation: 'dailyLogConfirmation.findByLocalDate',
@@ -158,6 +152,152 @@ class IndexedDbDailyLogConfirmationRepository
         (record) => PersistedDailyLogConfirmationRecord.copyData(record.data),
       ),
     );
+  }
+
+  @override
+  Future<PersistedDailyLogConfirmationRecord?> findPersistedByLocalDate(
+    String localDate,
+  ) async {
+    try {
+      PersistedDailyLogConfirmationRecord.validateLocalDate(localDate);
+      final value = await _database.findById(
+        IndexedDbStoreNames.dailyLogConfirmations,
+        PersistedDailyLogConfirmationRecord.canonicalId(localDate),
+      );
+      return value == null
+          ? null
+          : PersistedDailyLogConfirmationRecord.fromRecord(value);
+    } on UnsupportedDailyLogSnapshotVersionException catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.findPersistedByLocalDate',
+        code: RepositoryErrorCode.unsupportedRecordVersion,
+        cause: error,
+      );
+    } on FormatException catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.findPersistedByLocalDate',
+        code: RepositoryErrorCode.invalidRecord,
+        cause: error,
+      );
+    } on RepositoryException {
+      rethrow;
+    } catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.findPersistedByLocalDate',
+        cause: error,
+      );
+    }
+  }
+
+  @override
+  Future<List<PersistedDailyLogConfirmationRecord>> findAllPersisted() async {
+    final result = await findAllWithIssues();
+    if (result.hasIssues) {
+      final unsupported = result.issues.any(
+        (issue) => issue.code == 'unsupportedRecordVersion',
+      );
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.findAllPersisted',
+        code: unsupported
+            ? RepositoryErrorCode.unsupportedRecordVersion
+            : RepositoryErrorCode.partialCorruption,
+        cause: result.issues,
+      );
+    }
+    return List.unmodifiable(result.records);
+  }
+
+  @override
+  Future<DailyLogConfirmationLifecycleProjection> findLifecycleProjection(
+    String localDate,
+  ) async => DailyLogConfirmationLifecycleProjection.fromRecord(
+    await findPersistedByLocalDate(localDate),
+  );
+
+  @override
+  Future<void> createV2(PersistedDailyLogConfirmationRecord record) async {
+    if (record.recordVersion !=
+        PersistedDailyLogConfirmationRecord.currentRecordVersion) {
+      throw const RepositoryException(
+        operation: 'dailyLogConfirmation.createV2',
+        code: RepositoryErrorCode.unsupportedRecordVersion,
+        cause: 'Only Daily Log Confirmation v2 can be saved.',
+      );
+    }
+    final serialized = record.toRecord();
+    try {
+      await _database.runTransaction<void>(
+        storeNames: const [IndexedDbStoreNames.dailyLogConfirmations],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          final existingValue = await transaction.findById(
+            IndexedDbStoreNames.dailyLogConfirmations,
+            record.id,
+          );
+          if (existingValue != null) {
+            final existing = PersistedDailyLogConfirmationRecord.fromRecord(
+              existingValue,
+            );
+            if (existing.projectedSnapshotDigest == record.snapshotDigest) {
+              return;
+            }
+            throw const FormatException(
+              'Daily Log Confirmation already exists with different data.',
+            );
+          }
+          await transaction.put(
+            IndexedDbStoreNames.dailyLogConfirmations,
+            serialized,
+          );
+          final readBack = await transaction.findById(
+            IndexedDbStoreNames.dailyLogConfirmations,
+            record.id,
+          );
+          if (readBack == null) {
+            throw const _DailyLogConfirmationVerificationException(
+              'Daily Log Confirmation v2 read-back is missing.',
+            );
+          }
+          final verified = PersistedDailyLogConfirmationRecord.fromRecord(
+            readBack,
+          );
+          if (verified.recordVersion !=
+                  PersistedDailyLogConfirmationRecord.currentRecordVersion ||
+              BackupCanonicalCodec.encode(verified.toRecord()) !=
+                  BackupCanonicalCodec.encode(serialized)) {
+            throw const _DailyLogConfirmationVerificationException(
+              'Daily Log Confirmation v2 read-back does not match.',
+            );
+          }
+        },
+      );
+    } on RepositoryException {
+      rethrow;
+    } on UnsupportedDailyLogSnapshotVersionException catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.createV2',
+        code: RepositoryErrorCode.unsupportedRecordVersion,
+        cause: error,
+      );
+    } on FormatException catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.createV2',
+        code: RepositoryErrorCode.invalidRecord,
+        cause: error,
+      );
+    } on _DailyLogConfirmationVerificationException catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.createV2',
+        code: RepositoryErrorCode.verificationFailed,
+        cause: error,
+      );
+    } catch (error) {
+      throw RepositoryException(
+        operation: 'dailyLogConfirmation.createV2',
+        code: RepositoryErrorCode.transactionFailed,
+        cause: error,
+      );
+    }
   }
 
   @override

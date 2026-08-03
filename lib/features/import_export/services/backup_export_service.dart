@@ -4,6 +4,7 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_schema.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 import 'backup_id_generator.dart';
@@ -39,7 +40,7 @@ class BackupExportService {
       mode: IndexedDbTransactionMode.readOnly,
       action: (transaction) async {
         final snapshot = <String, List<Map<String, Object?>>>{};
-        for (final section in BackupSections.schema9) {
+        for (final section in BackupSections.all) {
           final records = await transaction.findAll(
             BackupStoreRegistry.stores[section]!,
           );
@@ -92,6 +93,19 @@ class BackupExportService {
         section,
         data[section] ?? const [],
       );
+      if (section == BackupSections.confirmations && schemaVersion < 10) {
+        final containsV2 = records.any(
+          (record) =>
+              record['recordVersion'] !=
+              PersistedDailyLogConfirmationRecord.legacyRecordVersion,
+        );
+        if (containsV2) {
+          throw const BackupException(
+            'invalid_record',
+            'Backup schemas 2 through 9 require Confirmation v1 records.',
+          );
+        }
+      }
       normalized[section] = records;
       counts[section] = records.length;
       sectionDigests[section] = BackupCanonicalCodec.digest(records);

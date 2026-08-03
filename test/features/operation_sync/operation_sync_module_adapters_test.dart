@@ -9,6 +9,7 @@ import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/persisted_activity_record.dart';
+import 'package:or_app/features/daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
 import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
@@ -282,6 +283,57 @@ void main() {
         await registry.adapterFor('training')!.exportRecords(),
         hasLength(1),
       );
+    },
+  );
+
+  test(
+    'Confirmation adapter transfers reopened v2 with revision history',
+    () async {
+      final source = FakeIndexedDbDatabase();
+      final target = FakeIndexedDbDatabase();
+      final stored = _confirmationV2Record();
+      source.seed(
+        IndexedDbStoreNames.dailyLogConfirmations,
+        stored['id']! as String,
+        stored,
+      );
+      final sourceAdapter = OperationSyncProductionRegistry.create(
+        source,
+      ).adapterFor('confirmation')!;
+      final targetAdapter = OperationSyncProductionRegistry.create(
+        target,
+      ).adapterFor('confirmation')!;
+      final records = await sourceAdapter.exportRecords();
+      final context = _context('confirmation', records);
+
+      expect(sourceAdapter.schemaVersion, '1.0');
+      expect(sourceAdapter.supportedRecordVersions, containsAll({1, 2}));
+      expect(records.single.recordVersion, 2);
+      expect(
+        (records.single.canonicalPayload['record']! as Map)['lifecycleStatus'],
+        'reopened',
+      );
+      await target.runTransaction<void>(
+        storeNames: targetAdapter.storeNames,
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          await targetAdapter.apply(transaction, records, context);
+          expect(await targetAdapter.verify(transaction, records), isTrue);
+        },
+      );
+      final restored = PersistedDailyLogConfirmationRecord.fromRecord(
+        (await target.findById(
+          IndexedDbStoreNames.dailyLogConfirmations,
+          stored['id']! as String,
+        ))!,
+      );
+      expect(
+        restored.lifecycleStatus,
+        DailyLogConfirmationLifecycleStatus.reopened,
+      );
+      expect(restored.revision, 2);
+      expect(restored.previousRevisions, hasLength(1));
+      expect(restored.previousRevisions.single.revision, 1);
     },
   );
 
@@ -747,6 +799,57 @@ Map<String, Object?> _confirmationRecord() =>
         training: null,
       ),
     ).toRecord();
+
+Map<String, Object?> _confirmationV2Record() {
+  final first = DailyLogConfirmation(
+    date: DateTime(2026, 8, 1),
+    confirmedAt: DateTime.utc(2026, 8, 1, 20),
+    morning: null,
+    food: null,
+    activity: null,
+    training: null,
+  );
+  final current = DailyLogConfirmation(
+    date: DateTime(2026, 8, 1),
+    confirmedAt: DateTime.utc(2026, 8, 1, 22),
+    morning: null,
+    food: null,
+    activity: null,
+    training: null,
+  );
+  return PersistedDailyLogConfirmationRecord.v2(
+    id: 'confirmation:2026-08-01',
+    localDate: '2026-08-01',
+    lifecycleStatus: DailyLogConfirmationLifecycleStatus.reopened,
+    revision: 2,
+    data: current,
+    snapshotDigest: PersistedDailyLogConfirmationRecord.digestSnapshot(current),
+    originalSnapshotDigest: PersistedDailyLogConfirmationRecord.digestSnapshot(
+      first,
+    ),
+    finalizedAt: first.confirmedAt,
+    reopenedAt: DateTime.utc(2026, 8, 1, 23),
+    lastRefinalizedAt: current.confirmedAt,
+    reopenReason: DailyLogConfirmationReopenReason.userCorrection,
+    sourceRecordVersions:
+        const DailyLogConfirmationSourceRecordVersions.unknown(),
+    previousRevisions: [
+      DailyLogConfirmationRevision(
+        revision: 1,
+        snapshot: first,
+        snapshotDigest: PersistedDailyLogConfirmationRecord.digestSnapshot(
+          first,
+        ),
+        finalizedAt: first.confirmedAt,
+        reopenedAt: DateTime.utc(2026, 8, 1, 21),
+        sourceRecordVersions:
+            const DailyLogConfirmationSourceRecordVersions.unknown(),
+      ),
+    ],
+    createdAt: first.confirmedAt,
+    updatedAt: DateTime.utc(2026, 8, 1, 23),
+  ).toRecord();
+}
 
 Map<String, Object?> _trainingV1Record() => PersistedTrainingRecord(
   id: 'training:66666666-6666-4666-8666-666666666666',
