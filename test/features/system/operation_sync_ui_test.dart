@@ -57,6 +57,20 @@ void main() {
     expect(workflow.applyCalls, 1);
     expect(find.text('READ-BACK VERIFIED · TRANSFER COMPLETE'), findsOneWidget);
     expect(find.text('SUCCESS'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('OPERATION SYNC RECORD'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('OPERATION SYNC RECORD'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('view-all-operation-sync-records')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('SUCCESS').last);
+    await tester.pumpAndSettle();
+    expect(find.text('OPERATION ID'), findsOneWidget);
+    expect(find.text('operation-sync:test'), findsOneWidget);
   });
 
   testWidgets('blocking conflicts are explicit and cannot be applied', (

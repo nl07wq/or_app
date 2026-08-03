@@ -15,6 +15,7 @@ import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import '../services/report_sync_clipboard_gateway.dart';
 import '../services/report_sync_exchange_gateway.dart';
+import '../services/report_sync_persistence_service.dart';
 
 typedef ReportSyncClipboardWriter = Future<void> Function(String text);
 
@@ -81,23 +82,40 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   ReportSyncResponsePreview? _preview;
   List<ReportSyncHistory> _history = const [];
   bool _busy = false;
-  String? _message;
-  String? _error;
+  String? _loadError;
+  String? _importMessage;
+  String? _importActionError;
   String? _importError;
+  String? _generateMessage;
+  String? _generateError;
+  String? _promptCopyMessage;
+  String? _promptCopyError;
+  String? _sourceCopyMessage;
+  String? _sourceCopyError;
   Set<String> _selectedMealIds = const {};
+  bool _statusSourceGenerated = false;
 
   bool get _isImportOnly =>
       widget.exchangeType == ReportSyncExchangeType.training ||
       widget.exchangeType == ReportSyncExchangeType.food;
 
-  bool get _hasValidTargetDate {
-    if (!_isImportOnly) return _request?.isReady ?? false;
+  bool get _usesTargetDate =>
+      _isImportOnly ||
+      widget.exchangeType == ReportSyncExchangeType.morningBrief;
+
+  bool get _hasValidSelectedDate {
+    if (!_usesTargetDate) return false;
     try {
       OperationLocalDate.parse(_targetDateController.text);
       return true;
     } on FormatException {
       return false;
     }
+  }
+
+  bool get _hasValidTargetDate {
+    if (!_isImportOnly) return _request?.isReady ?? false;
+    return _hasValidSelectedDate;
   }
 
   bool get _canApplyCurrent {
@@ -128,7 +146,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   Future<void> _load() async {
     setState(() {
       _busy = true;
-      _error = null;
+      _loadError = null;
     });
     try {
       final request = await _gateway.prepareRequest(widget.exchangeType);
@@ -136,20 +154,20 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       if (!mounted) return;
       setState(() {
         _request = request;
-        if (_isImportOnly && _targetDateController.text.isEmpty) {
+        if (_usesTargetDate && _targetDateController.text.isEmpty) {
           _targetDateController.text = request.operationDate ?? '';
         }
         _history = history;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = _errorText(error));
+      if (mounted) setState(() => _loadError = _errorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _copyInstruction() async {
-    await _run(() async {
+    await _runExport(_ExportAction.prompt, () async {
       final request = _request;
       if (request == null || !_hasValidTargetDate) {
         throw StateError('The exchange target is not ready.');
@@ -159,21 +177,59 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
               operationDate: _targetDateController.text,
             )
           : request;
-      await _clipboardWriter(
-        _gateway.instruction(widget.exchangeType, instructionRequest),
+      final instruction = _gateway.instruction(
+        widget.exchangeType,
+        instructionRequest,
       );
-      _message = 'CHATGPT PROMPT COPIED';
+      try {
+        await _clipboardWriter(instruction);
+      } catch (_) {
+        if (widget.exchangeType == ReportSyncExchangeType.morningBrief) {
+          throw const _ChatGptPromptCopyException();
+        }
+        rethrow;
+      }
+      _promptCopyMessage =
+          widget.exchangeType == ReportSyncExchangeType.morningBrief
+          ? 'CHATGPT PROMPTをコピーしました'
+          : 'CHATGPT PROMPT COPIED';
     });
   }
 
   Future<void> _copySource() async {
-    await _run(() async {
+    await _runExport(_ExportAction.source, () async {
       final source = _request?.sourceText;
       if (source == null) {
         throw StateError('コピーできる正式記録がありません。');
       }
       await _clipboardWriter(source);
-      _message = '${_sourceName(widget.exchangeType).toUpperCase()} COPIED';
+      _sourceCopyMessage =
+          '${_sourceName(widget.exchangeType).toUpperCase()} COPIED';
+    });
+  }
+
+  Future<void> _generateStatusSource() async {
+    await _runExport(_ExportAction.generate, () async {
+      final date = _targetDateController.text;
+      if (!_hasValidSelectedDate) {
+        throw const FormatException('対象日が正しくありません。');
+      }
+      final request = await _gateway.prepareRequest(
+        ReportSyncExchangeType.morningBrief,
+        targetDate: date,
+      );
+      _request = request;
+      _statusSourceGenerated = request.statusSourceExport != null;
+      _preview = null;
+      _selectedMealIds = const {};
+      _promptCopyMessage = null;
+      _promptCopyError = null;
+      _sourceCopyMessage = null;
+      _sourceCopyError = null;
+      if (!_statusSourceGenerated || request.statusLabel != 'READY') {
+        throw StateError(request.blockingReason ?? 'STATUS SOURCE READYが必要です。');
+      }
+      _generateMessage = 'STATUS SOURCEを生成しました';
     });
   }
 
@@ -188,19 +244,29 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     if (selected == null || !mounted) return;
     setState(() {
       _targetDateController.text = _formatLocalDate(selected);
+      _statusSourceGenerated = false;
       _preview = null;
       _selectedMealIds = const {};
-      _message = null;
-      _error = null;
+      _clearExportFeedback();
+      _importMessage = null;
+      _importActionError = null;
       _importError = null;
     });
+    if (widget.exchangeType == ReportSyncExchangeType.morningBrief) {
+      await _runExport(_ExportAction.generate, () async {
+        _request = await _gateway.prepareRequest(
+          ReportSyncExchangeType.morningBrief,
+          targetDate: _targetDateController.text,
+        );
+      });
+    }
   }
 
   Future<void> _selectResponseFile() async {
-    await _run(() async {
+    await _runImport(() async {
       final selected = await _fileGateway.selectJson();
       if (selected == null) {
-        _message = 'FILE SELECTION CANCELLED';
+        _importMessage = 'FILE SELECTION CANCELLED';
         return;
       }
       if (!selected.name.toLowerCase().endsWith('.json')) {
@@ -214,12 +280,12 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         allowMalformed: false,
       );
       _preview = null;
-      _message = 'RESPONSE FILE LOADED';
+      _importMessage = 'RESPONSE FILE LOADED';
     });
   }
 
   Future<void> _pasteResponse() async {
-    await _run(() async {
+    await _runImport(() async {
       final String? pasted;
       try {
         pasted = await _clipboardGateway.readText();
@@ -233,12 +299,12 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _preview = null;
       _selectedMealIds = const {};
       _importError = null;
-      _message = 'クリップボードの内容を貼り付けました';
+      _importMessage = 'クリップボードの内容を貼り付けました';
     });
   }
 
   Future<void> _validate() async {
-    await _run(() async {
+    await _runImport(() async {
       final raw = _responseController.text;
       if (raw.trim().isEmpty || utf8.encode(raw).length > _maxInputBytes) {
         throw const FormatException(
@@ -248,14 +314,14 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _preview = await _gateway.previewResponse(
         widget.exchangeType,
         raw,
-        targetDate: _isImportOnly ? _targetDateController.text : null,
+        targetDate: _usesTargetDate ? _targetDateController.text : null,
       );
       _selectedMealIds = {
         for (final item in _preview!.foodMeals)
           if (item.canSelect) item.previewId,
       };
       _history = await _gateway.history(widget.exchangeType);
-      _message = 'RESPONSE READY';
+      _importMessage = 'RESPONSE READY';
     });
   }
 
@@ -283,7 +349,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     setState(() {
       _busy = true;
       _importError = null;
-      _message = null;
+      _importMessage = null;
     });
     try {
       final result = await _gateway.apply(
@@ -298,14 +364,14 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _responseController.clear();
       _preview = null;
       final importedMealCount = result.mealCounts?.imported;
-      _message = result.disposition == ReportSyncDisposition.noChanges
+      _importMessage = result.disposition == ReportSyncDisposition.noChanges
           ? 'NO CHANGES'
           : importedMealCount == null
           ? 'COMPLETE · READ-BACK VERIFIED'
           : '$importedMealCount件のMEALを取り込みました';
       final request = await _gateway.prepareRequest(
         widget.exchangeType,
-        targetDate: _isImportOnly ? _targetDateController.text : null,
+        targetDate: _usesTargetDate ? _targetDateController.text : null,
       );
       _request = request;
       _history = await _gateway.history(widget.exchangeType);
@@ -316,20 +382,70 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     }
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _runExport(
+    _ExportAction exportAction,
+    Future<void> Function() action,
+  ) async {
     if (_busy) return;
     setState(() {
       _busy = true;
-      _error = null;
-      _importError = null;
-      _message = null;
+      _setExportError(exportAction, null);
+      _setExportMessage(exportAction, null);
     });
     try {
       await action();
     } catch (error) {
-      _error = _errorText(error);
+      _setExportError(exportAction, _errorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _runImport(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _importActionError = null;
+      _importError = null;
+      _importMessage = null;
+    });
+    try {
+      await action();
+    } catch (error) {
+      _importActionError = _errorText(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _clearExportFeedback() {
+    _generateMessage = null;
+    _generateError = null;
+    _promptCopyMessage = null;
+    _promptCopyError = null;
+    _sourceCopyMessage = null;
+    _sourceCopyError = null;
+  }
+
+  void _setExportMessage(_ExportAction action, String? value) {
+    switch (action) {
+      case _ExportAction.generate:
+        _generateMessage = value;
+      case _ExportAction.prompt:
+        _promptCopyMessage = value;
+      case _ExportAction.source:
+        _sourceCopyMessage = value;
+    }
+  }
+
+  void _setExportError(_ExportAction action, String? value) {
+    switch (action) {
+      case _ExportAction.generate:
+        _generateError = value;
+      case _ExportAction.prompt:
+        _promptCopyError = value;
+      case _ExportAction.source:
+        _sourceCopyError = value;
     }
   }
 
@@ -338,13 +454,13 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     if (_busy && _request == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null && _request == null) {
+    if (_loadError != null && _request == null) {
       return Center(
         child: OperationCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!),
+              Text(_loadError!),
               AppSpacing.gapMD,
               OperationButton(
                 text: 'RETRY',
@@ -369,7 +485,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         AppSpacing.gapSM,
         _HowToUseCard(exchangeType: widget.exchangeType),
         AppSpacing.gapSM,
-        if (_isImportOnly)
+        if (_usesTargetDate)
           OperationCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,7 +503,22 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                   ),
                 ),
                 AppSpacing.gapSM,
-                Text(ready ? 'IMPORT READY' : '対象日をYYYY-MM-DD形式で入力してください。'),
+                if (widget.exchangeType ==
+                    ReportSyncExchangeType.morningBrief) ...[
+                  Text(
+                    'STATUS SOURCE',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text('状態  ${request?.statusLabel ?? 'NOT READY'}'),
+                  if (request?.statusSourceExport != null)
+                    Text(
+                      '前日比較  '
+                      '${request!.statusSourceExport!.source.previousDayComparison.previousStatusAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}',
+                    ),
+                  if (request?.blockingReason != null)
+                    Text(request!.blockingReason!),
+                ] else
+                  Text(ready ? 'IMPORT READY' : '対象日をYYYY-MM-DD形式で入力してください。'),
               ],
             ),
           )
@@ -411,33 +542,105 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             title: 'EXPORT TO CHATGPT',
           ),
         if (!_isImportOnly) AppSpacing.gapSM,
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
+        if (_isImportOnly) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
               onPressed: ready && !_busy ? _copyInstruction : null,
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT PROMPT'),
             ),
-            if (!_isImportOnly)
-              OutlinedButton.icon(
+          ),
+          _ActionFeedback(
+            message: _promptCopyMessage,
+            error: _promptCopyError,
+            errorKey: const ValueKey('report-sync-export-prompt-error'),
+          ),
+        ] else ...[
+          if (widget.exchangeType == ReportSyncExchangeType.morningBrief) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _hasValidSelectedDate && !_busy
+                    ? _generateStatusSource
+                    : null,
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('GENERATE STATUS SOURCE'),
+              ),
+            ),
+            _ActionFeedback(
+              message: _generateMessage,
+              error: _generateError,
+              errorKey: const ValueKey('report-sync-export-generate-error'),
+            ),
+            AppSpacing.gapSM,
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed:
+                  ready &&
+                      !_busy &&
+                      (widget.exchangeType !=
+                              ReportSyncExchangeType.morningBrief ||
+                          _statusSourceGenerated)
+                  ? _copyInstruction
+                  : null,
+              icon: const Icon(Icons.content_copy),
+              label: const Text('COPY CHATGPT PROMPT'),
+            ),
+          ),
+          _ActionFeedback(
+            message: _promptCopyMessage,
+            error: _promptCopyError,
+            errorKey: const ValueKey('report-sync-export-prompt-error'),
+          ),
+          AppSpacing.gapSM,
+          if (widget.exchangeType != ReportSyncExchangeType.morningBrief) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
                 onPressed: request?.canCopySource == true && !_busy
                     ? _copySource
                     : null,
                 icon: const Icon(Icons.copy_all_outlined),
                 label: Text(_copySourceLabel(widget.exchangeType)),
               ),
+            ),
+            _ActionFeedback(
+              message: _sourceCopyMessage,
+              error: _sourceCopyError,
+              errorKey: const ValueKey('report-sync-export-source-error'),
+            ),
           ],
-        ),
+        ],
         if (!_isImportOnly) ...[
           AppSpacing.gapSM,
           OperationCard(
             child: Text(
-              'プロンプトを貼り付けた後、コピーした正式な'
-              '${_sourceName(widget.exchangeType)}をChatGPTへ貼り付けてください。',
+              widget.exchangeType == ReportSyncExchangeType.morningBrief
+                  ? 'コピーした内容には、MB生成指示と正式なSTATUS SOURCEが含まれています。'
+                        'そのままChatGPTへ1回貼り付けてください。'
+                  : 'プロンプトを貼り付けた後、コピーした正式な'
+                        '${_sourceName(widget.exchangeType)}をChatGPTへ貼り付けてください。',
             ),
           ),
+          if (widget.exchangeType == ReportSyncExchangeType.morningBrief &&
+              _statusSourceGenerated &&
+              request?.statusSourceExport != null) ...[
+            AppSpacing.gapSM,
+            const SectionHeader(
+              icon: Icons.preview_outlined,
+              title: 'STATUS SOURCE PREVIEW',
+            ),
+            AppSpacing.gapSM,
+            OperationCard(
+              child: SelectableText(
+                request!.statusSourceExport!.plainText,
+                key: const ValueKey('status-source-preview-text'),
+              ),
+            ),
+          ],
         ],
         AppSpacing.gapXL,
         const SectionHeader(
@@ -463,6 +666,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                 onChanged: (_) => setState(() {
                   _preview = null;
                   _selectedMealIds = const {};
+                  _importActionError = null;
                   _importError = null;
                 }),
               ),
@@ -491,17 +695,14 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             ),
           ],
         ),
+        _ActionFeedback(
+          message: _importMessage,
+          error: _importActionError,
+          errorKey: const ValueKey('report-sync-import-action-error'),
+        ),
         if (_busy) ...[
           AppSpacing.gapMD,
           const Center(child: CircularProgressIndicator()),
-        ],
-        if (_message != null) ...[AppSpacing.gapSM, Text(_message!)],
-        if (_error != null) ...[
-          AppSpacing.gapSM,
-          Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
         ],
         if (_preview != null) ...[
           AppSpacing.gapXL,
@@ -516,6 +717,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                 _importError = null;
               }),
             )
+          else if (widget.exchangeType == ReportSyncExchangeType.morningBrief)
+            _MorningBriefPreviewCard(preview: _preview!)
           else
             _PreviewCard(preview: _preview!),
           if (_preview!.canApply) ...[
@@ -537,11 +740,81 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           ],
         ],
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.history, title: 'REPORT SYNC HISTORY'),
+        const SectionHeader(
+          icon: Icons.receipt_long_outlined,
+          title: 'REPORT SYNC RECORD',
+        ),
         AppSpacing.gapSM,
-        _HistoryCard(history: _history),
+        _HistoryCard(history: _history.take(5).toList(growable: false)),
+        if (_history.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          _RecordArchiveButton(
+            key: const ValueKey('view-all-report-sync-records'),
+            text: 'VIEW ALL RECORDS',
+            icon: Icons.list_alt,
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _ReportSyncRecordArchivePage(history: _history),
+              ),
+            ),
+          ),
+        ],
         AppSpacing.gapLG,
       ],
+    );
+  }
+}
+
+enum _ExportAction { generate, prompt, source }
+
+class _RecordArchiveButton extends StatelessWidget {
+  const _RecordArchiveButton({
+    super.key,
+    required this.text,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String text;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    height: 52,
+    child: ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 20),
+      label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
+    ),
+  );
+}
+
+class _ActionFeedback extends StatelessWidget {
+  const _ActionFeedback({
+    required this.message,
+    required this.error,
+    required this.errorKey,
+  });
+
+  final String? message;
+  final String? error;
+  final Key errorKey;
+
+  @override
+  Widget build(BuildContext context) {
+    if (message == null && error == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        error ?? message!,
+        key: error == null ? null : errorKey,
+        style: error == null
+            ? null
+            : TextStyle(color: Theme.of(context).colorScheme.error),
+      ),
     );
   }
 }
@@ -571,28 +844,136 @@ class _HowToUseCard extends StatelessWidget {
     '⑦ 内容を確認してインポートする',
   ];
 
+  static const morningBriefSteps = [
+    '① 対象日を選択する',
+    '② STATUS SOURCEを生成してPreviewを確認する',
+    '③ COPY CHATGPT PROMPTを押す',
+    '④ コピーした内容をChatGPTへ1回だけ貼り付ける',
+    '⑤ ChatGPTの単一textコードブロック内のJSONだけをコピーする',
+    '⑥ PASTEでJSONを貼り付ける',
+    '⑦ VALIDATEを押す',
+    '⑧ PREVIEWでSource Digestと内容を確認する',
+    '⑨ IMPORT MORNING BRIEFを押す',
+    '⑩ COMPLETE · READ-BACK VERIFIEDを確認する',
+  ];
+
   @override
   Widget build(BuildContext context) {
     final importOnly =
         exchangeType == ReportSyncExchangeType.training ||
         exchangeType == ReportSyncExchangeType.food;
+    final morningBrief = exchangeType == ReportSyncExchangeType.morningBrief;
+    final visibleSteps = morningBrief
+        ? morningBriefSteps
+        : importOnly
+        ? importOnlySteps
+        : steps;
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('使い方', style: Theme.of(context).textTheme.titleMedium),
           AppSpacing.gapSM,
-          for (final step in importOnly ? importOnlySteps : steps)
+          for (final step in visibleSteps)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(step),
             ),
           AppSpacing.gapSM,
-          const Text('プロンプトには変換ルールとResponse JSON Schemaが含まれます。'),
-          if (!importOnly) ...[
+          Text(
+            morningBrief
+                ? 'プロンプトには正式なMB SchemaとSTATUS SOURCEが1つに統合されています。'
+                : 'プロンプトには変換ルールとResponse JSON Schemaが含まれます。',
+          ),
+          if (!morningBrief && !importOnly) ...[
             AppSpacing.gapSM,
             Text('対象データ: ${_sourceName(exchangeType)}'),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MorningBriefPreviewCard extends StatelessWidget {
+  const _MorningBriefPreviewCard({required this.preview});
+
+  final ReportSyncResponsePreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = preview.envelope.payload;
+    final source = Map<String, Object?>.from(payload['source'] as Map);
+    final content = Map<String, Object?>.from(payload['content'] as Map);
+    final analysis = Map<String, Object?>.from(
+      content['situationAnalysis'] as Map,
+    );
+    final decision = Map<String, Object?>.from(
+      content['strategicResourceDecision'] as Map,
+    );
+    final actions = (content['actions'] as List).cast<Map>();
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(preview.disposition.name.toUpperCase()),
+          Text('Operation Date  ${preview.envelope.operationDate}'),
+          Text('STATUS Source Date  ${source['sourceOperationDate']}'),
+          Text('Source Record ID  ${source['sourceRecordId']}'),
+          Text(
+            'Source Digest  '
+            '${preview.morningBriefSourceDigestMatches ? 'MATCH' : 'MISMATCH'}',
+          ),
+          Text('Operation Status  ${content['operationStatus']}'),
+          AppSpacing.gapSM,
+          Text(
+            'SITUATION ANALYSIS',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          for (final key in const [
+            'body',
+            'recovery',
+            'condition',
+            'work',
+            'carryover',
+            'overall',
+          ])
+            Text('${key.toUpperCase()}  ${analysis[key]}'),
+          AppSpacing.gapSM,
+          Text(
+            'OPERATING POLICY',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          Text('${content['operatingPolicy']}'),
+          AppSpacing.gapSM,
+          Text(
+            'STRATEGIC RESOURCE DECISION',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          Text('DECISION  ${decision['decision']}'),
+          Text('TARGET RESOURCE  ${decision['targetResource'] ?? '-'}'),
+          Text('RATIONALE  ${decision['rationale']}'),
+          Text('EXECUTION  ${decision['execution'] ?? '-'}'),
+          AppSpacing.gapSM,
+          Text(
+            'COMMANDER INTENT',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          Text('${content['commanderIntent']}'),
+          AppSpacing.gapSM,
+          Text('ACTIONS', style: Theme.of(context).textTheme.titleSmall),
+          for (var index = 0; index < actions.length; index++)
+            Text(
+              '${index + 1}. ${actions[index]['text']}  '
+              '[${actions[index]['priority']}]',
+            ),
+          AppSpacing.gapSM,
+          Text(
+            'Existing Morning Brief  ${preview.conflictCount > 0 ? 'YES' : 'NO'}',
+          ),
+          Text('Disposition  ${preview.disposition.name.toUpperCase()}'),
+          if (preview.message != null)
+            Text('Blocking Issue  ${preview.message}'),
         ],
       ),
     );
@@ -758,16 +1139,26 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OperationCard(
     child: history.isEmpty
-        ? const Text('NO REPORT SYNC HISTORY')
+        ? const Row(
+            children: [
+              Icon(Icons.receipt_long_outlined),
+              SizedBox(width: 10),
+              Expanded(child: Text('RECORDはありません')),
+            ],
+          )
         : Column(
             children: [
               for (var index = 0; index < history.length; index++) ...[
                 ListTile(
+                  key: ValueKey(
+                    'report-sync-record-${history[index].exchangeId}',
+                  ),
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.history),
+                  leading: const Icon(Icons.receipt_long_outlined),
                   title: Text(
                     '${history[index].exchangeType.stableId} · '
                     '${history[index].direction.stableId}',
+                    overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,6 +1174,8 @@ class _HistoryCard extends StatelessWidget {
                         Text(_historyMealCounts(history[index])),
                     ],
                   ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openReportSyncRecord(context, history[index]),
                 ),
                 if (index != history.length - 1) const Divider(),
               ],
@@ -790,6 +1183,135 @@ class _HistoryCard extends StatelessWidget {
           ),
   );
 }
+
+void _openReportSyncRecord(BuildContext context, ReportSyncHistory record) {
+  Navigator.push<void>(
+    context,
+    MaterialPageRoute(builder: (_) => _ReportSyncRecordPage(record: record)),
+  );
+}
+
+class _ReportSyncRecordArchivePage extends StatelessWidget {
+  const _ReportSyncRecordArchivePage({required this.history});
+
+  final List<ReportSyncHistory> history;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('REPORT SYNC RECORD')),
+    body: ListView.separated(
+      padding: AppSpacing.cardPadding,
+      itemCount: history.length,
+      separatorBuilder: (_, _) => const Divider(),
+      itemBuilder: (context, index) => ListTile(
+        key: ValueKey('all-report-sync-record-${history[index].exchangeId}'),
+        leading: Icon(_reportSyncResultIcon(history[index].result)),
+        title: Text(
+          '${history[index].exchangeType.stableId} · '
+          '${history[index].direction.stableId}',
+        ),
+        subtitle: Text(
+          '${history[index].operationDate} · '
+          '${history[index].result.stableId.toUpperCase()}',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _openReportSyncRecord(context, history[index]),
+      ),
+    ),
+  );
+}
+
+class _ReportSyncRecordPage extends StatelessWidget {
+  const _ReportSyncRecordPage({required this.record});
+
+  final ReportSyncHistory record;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('REPORT SYNC RECORD')),
+    body: ListView(
+      padding: AppSpacing.cardPadding,
+      children: [
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(_reportSyncResultIcon(record.result)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      record.result.stableId.toUpperCase(),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              _RecordField(
+                label: 'OPERATION DATE',
+                value: record.operationDate,
+              ),
+              _RecordField(
+                label: 'EXCHANGE TYPE',
+                value: record.exchangeType.stableId,
+              ),
+              _RecordField(
+                label: 'DIRECTION',
+                value: record.direction.stableId,
+              ),
+              _RecordField(label: 'EXCHANGE ID', value: record.exchangeId),
+              _RecordField(label: 'REQUEST ID', value: record.requestId),
+              _RecordField(
+                label: 'COMPLETED AT',
+                value: record.completedAt.toLocal().toString(),
+              ),
+              if (record.failureCode != null)
+                _RecordField(
+                  label: 'FAILURE CODE',
+                  value: record.failureCode!.stableId,
+                ),
+              if (record.exchangeType == ReportSyncExchangeType.food)
+                _RecordField(
+                  label: 'MEAL COUNTS',
+                  value: _historyMealCounts(record),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _RecordField extends StatelessWidget {
+  const _RecordField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 2),
+        SelectableText(value),
+      ],
+    ),
+  );
+}
+
+IconData _reportSyncResultIcon(ReportSyncHistoryResult result) =>
+    switch (result) {
+      ReportSyncHistoryResult.success => Icons.check_circle_outline,
+      ReportSyncHistoryResult.failed => Icons.error_outline,
+      ReportSyncHistoryResult.noChange => Icons.check_circle_outline,
+      ReportSyncHistoryResult.conflict => Icons.warning_amber,
+    };
 
 String _historyMealCounts(ReportSyncHistory history) {
   if (history.recordVersion == 1) return 'Meal件数の記録はありません';
@@ -810,7 +1332,7 @@ String _stateLabel(ReportSyncRequestPreparation? request) {
 String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'TRAINING REPORT SYNC',
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
-  ReportSyncExchangeType.morningBrief => 'MORNING BRIEF',
+  ReportSyncExchangeType.morningBrief => 'MORNING BRIEF REPORT SYNC',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
 };
 
@@ -831,14 +1353,14 @@ String _importLabel(ReportSyncExchangeType type) => switch (type) {
 String _sourceName(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'Training Record',
   ReportSyncExchangeType.food => 'Meal Data',
-  ReportSyncExchangeType.morningBrief => 'Morning Fact',
+  ReportSyncExchangeType.morningBrief => 'STATUS Source',
   ReportSyncExchangeType.dailyDebrief => 'Finalized Daily Data',
 };
 
 String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'COPY TRAINING RECORD',
   ReportSyncExchangeType.food => 'COPY MEAL DATA',
-  ReportSyncExchangeType.morningBrief => 'COPY MORNING FACT',
+  ReportSyncExchangeType.morningBrief => 'STATUS SOURCE',
   ReportSyncExchangeType.dailyDebrief => 'COPY FINALIZED DAILY DATA',
 };
 
@@ -848,6 +1370,7 @@ String _formatLocalDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}';
 
 String _errorText(Object error) => switch (error) {
+  _ChatGptPromptCopyException() => 'CHATGPT PROMPTをコピーできませんでした',
   ReportSyncException value when value.validationError != null =>
     '取り込めない項目：${value.validationError!.jsonPath}\n'
         '理由：${value.validationError!.message}\n'
@@ -873,13 +1396,22 @@ String _errorText(Object error) => switch (error) {
   _ => '処理に失敗しました。入力内容を確認してください。',
 };
 
+class _ChatGptPromptCopyException implements Exception {
+  const _ChatGptPromptCopyException();
+}
+
 String _importErrorText(Object error) => switch (error) {
+  ReportSyncImportFailure value =>
+    'Error Code: ${value.code}\n'
+        'Failure Stage: ${value.stage}\n'
+        '${value.message}',
   ReportSyncApplyException value =>
     'Error Code：${value.code}\n'
         '失敗段階：${value.stage}\n'
         '${value.userMessage}',
+  ReportSyncException value => _errorText(value),
   _ =>
     'Error Code：unexpected_import_failure\n'
         '失敗段階：IMPORT\n'
-        'MEALを取り込めませんでした。保存内容は変更されていません。',
+        'データを取り込めませんでした。保存内容は変更されていません。',
 };

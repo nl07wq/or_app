@@ -14,6 +14,7 @@ import '../models/report_sync_issue.dart';
 import '../repository/report_sync_history_repository.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_validator.dart';
+import 'status_report_sync_source_service.dart';
 
 class ReportSyncImportFailure implements Exception {
   const ReportSyncImportFailure({
@@ -354,53 +355,175 @@ class ReportSyncPersistenceService {
         'Morning Brief response required.',
       );
     }
-    await validator.validateResponse(response);
-    final payload = response.payload;
-    final content = Map<String, Object?>.from(payload['content'] as Map);
-    final now = clock().toUtc();
-    final generated = DateTime.tryParse(
-      payload['generatedAt'] is String ? payload['generatedAt'] as String : '',
-    );
-    final actions = content['actions'];
-    if (generated == null ||
-        !generated.isUtc ||
-        actions is! List ||
-        actions.any((v) => v is! Map)) {
+    if (response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
       throw const ReportSyncException(
         ReportSyncIssueCode.schemaMismatch,
-        'Morning Brief response payload is invalid.',
+        'Morning Brief requires Schema 2.0.',
       );
     }
-    final record = MorningBriefRecord(
+    await validator.validateResponse(
+      response,
+      expectedOperationDate: response.operationDate,
+    );
+    final payload = response.payload;
+    final source = Map<String, Object?>.from(payload['source'] as Map);
+    final content = Map<String, Object?>.from(payload['content'] as Map);
+    final currentSource = await StatusReportSyncSourceService(
+      database,
+    ).generate(operationDate: response.operationDate, exportedAt: clock());
+    final expectedSource = <String, Object?>{
+      'sourceType': 'status',
+      'sourceOperationDate': response.operationDate,
+      'sourceRecordId': currentSource.source.sourceRecordId,
+      'sourceDigest': currentSource.sourceDigest,
+    };
+    if (!_equal(source, expectedSource)) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.integrityFailure,
+        'Morning Brief STATUS source identity changed before import.',
+      );
+    }
+
+    final analysis = Map<String, Object?>.from(
+      content['situationAnalysis'] as Map,
+    );
+    final decision = Map<String, Object?>.from(
+      content['strategicResourceDecision'] as Map,
+    );
+    final actionValues = (content['actions'] as List).cast<Map>();
+    final now = clock().toUtc();
+    final record = MorningBriefRecord.v2(
       localDate: response.operationDate,
-      requestId: _legacyRequestId(response),
-      requestDigest: _legacyRequestDigest(response),
+      sourceType: 'status',
+      sourceOperationDate: response.operationDate,
+      sourceRecordId: currentSource.source.sourceRecordId,
+      sourceDigest: currentSource.sourceDigest,
       responseDigest: ReportSyncCanonicalService.digest(payload),
-      generatedAt: generated,
+      exchangeId: response.exchangeId,
+      generatedAt: response.createdAt,
       importedAt: now,
-      situationAnalysis: _string(content, 'situationAnalysis'),
+      situationAnalysisV2: MorningBriefSituationAnalysis.fromJson(analysis),
+      operatingPolicy: _string(content, 'operatingPolicy'),
+      strategicResourceDecisionV2:
+          MorningBriefStrategicResourceDecision.fromJson(decision),
       operationStatus: MorningBriefOperationStatus.values.firstWhere(
-        (v) => v.stableId == content['operationStatus'],
-        orElse: () => throw const ReportSyncException(
-          ReportSyncIssueCode.schemaMismatch,
-          'Unknown operation status.',
-        ),
+        (value) => value.stableId == content['operationStatus'],
       ),
       commanderIntent: _string(content, 'commanderIntent'),
-      argoComment: _string(content, 'argoComment'),
-      strategicResourceDecision: _string(content, 'strategicResourceDecision'),
       actions: [
-        for (final value in actions)
-          MorningBriefAction.fromJson(Map<String, Object?>.from(value as Map)),
+        for (var index = 0; index < actionValues.length; index++)
+          MorningBriefAction(
+            actionId: '${response.operationDate}:action:${index + 1}',
+            text: _string(
+              Map<String, Object?>.from(actionValues[index]),
+              'text',
+            ),
+            priority: _string(
+              Map<String, Object?>.from(actionValues[index]),
+              'priority',
+            ),
+          ),
       ],
       createdAt: now,
       updatedAt: now,
     );
-    return _apply(
-      response,
-      domainStore: IndexedDbStoreNames.morningBriefRecords,
-      domainRecord: record.toRecord(),
-    );
+    final history = _history(response, completedAt: clock().toUtc());
+    var stage = 'TRANSACTION START';
+    var store = IndexedDbStoreNames.morningBriefRecords;
+    try {
+      return await database.runTransaction(
+        storeNames: const [
+          IndexedDbStoreNames.morningBriefRecords,
+          IndexedDbStoreNames.reportSyncHistory,
+        ],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          stage = 'MORNING BRIEF CONFLICT CHECK';
+          if (await transaction.findById(store, record.localDate) != null) {
+            throw const ReportSyncException(
+              ReportSyncIssueCode.recordConflict,
+              'A Morning Brief already exists for this operation date.',
+            );
+          }
+          store = IndexedDbStoreNames.reportSyncHistory;
+          final existingHistory = await transaction.findById(
+            store,
+            history.exchangeId,
+          );
+          if (existingHistory != null) {
+            throw const ReportSyncException(
+              ReportSyncIssueCode.recordConflict,
+              'Report Sync record conflict.',
+            );
+          }
+          stage = 'MORNING BRIEF PUT';
+          store = IndexedDbStoreNames.morningBriefRecords;
+          await transaction.put(store, record.toRecord());
+          stage = 'REPORT SYNC RECORD PUT';
+          store = IndexedDbStoreNames.reportSyncHistory;
+          await transaction.put(store, history.toRecord());
+          stage = 'MORNING BRIEF READ-BACK';
+          store = IndexedDbStoreNames.morningBriefRecords;
+          final savedRecord = await transaction.findById(
+            store,
+            record.localDate,
+          );
+          if (savedRecord == null ||
+              !_equal(
+                MorningBriefRecord.fromRecord(
+                  Map<String, Object?>.from(savedRecord),
+                ).toRecord(),
+                record.toRecord(),
+              )) {
+            throw const ReportSyncException(
+              ReportSyncIssueCode.integrityFailure,
+              'Morning Brief read-back failed.',
+            );
+          }
+          stage = 'REPORT SYNC RECORD READ-BACK';
+          store = IndexedDbStoreNames.reportSyncHistory;
+          final savedHistory = await transaction.findById(
+            store,
+            history.exchangeId,
+          );
+          if (savedHistory == null ||
+              !_equal(
+                ReportSyncHistory.fromRecord(
+                  Map<String, Object?>.from(savedHistory),
+                ).toRecord(),
+                history.toRecord(),
+              )) {
+            throw const ReportSyncException(
+              ReportSyncIssueCode.integrityFailure,
+              'Report Sync record read-back failed.',
+            );
+          }
+          stage = 'TRANSACTION COMMIT';
+          return history;
+        },
+      );
+    } on ReportSyncException catch (error, stackTrace) {
+      if (error.code == ReportSyncIssueCode.recordConflict) rethrow;
+      throw ReportSyncImportFailure(
+        code: 'morning_brief_import_failed',
+        stage: stage,
+        message: 'Morning Brief import failed and was rolled back.',
+        cause: error,
+        causeStackTrace: stackTrace,
+        store: store,
+        recordId: record.localDate,
+      );
+    } catch (error, stackTrace) {
+      throw ReportSyncImportFailure(
+        code: 'morning_brief_import_failed',
+        stage: stage,
+        message: 'Morning Brief import failed and was rolled back.',
+        cause: error,
+        causeStackTrace: stackTrace,
+        store: store,
+        recordId: record.localDate,
+      );
+    }
   }
 
   Future<ReportSyncHistory> importDailyDebrief(
@@ -578,42 +701,40 @@ class ReportSyncPersistenceService {
 
   static String _transactionErrorCode(String stage, String store) =>
       switch (stage) {
-    'FOOD RECORD PUT' => 'food_record_put_failed',
-    'HISTORY RECORD PUT' => 'history_record_put_failed',
-    'FOOD READ-BACK' => 'food_read_back_failed',
-    'HISTORY READ-BACK' => 'history_read_back_failed',
-    'READ-BACK COMPARISON' =>
-      store == IndexedDbStoreNames.reportSyncHistory
-          ? 'history_read_back_mismatch'
-          : 'food_read_back_mismatch',
-    'TRANSACTION COMMIT' => 'food_transaction_aborted',
-    _ => 'food_transaction_failed',
-  };
+        'FOOD RECORD PUT' => 'food_record_put_failed',
+        'HISTORY RECORD PUT' => 'history_record_put_failed',
+        'FOOD READ-BACK' => 'food_read_back_failed',
+        'HISTORY READ-BACK' => 'history_read_back_failed',
+        'READ-BACK COMPARISON' =>
+          store == IndexedDbStoreNames.reportSyncHistory
+              ? 'history_read_back_mismatch'
+              : 'food_read_back_mismatch',
+        'TRANSACTION COMMIT' => 'food_transaction_aborted',
+        _ => 'food_transaction_failed',
+      };
 
   static String _transactionErrorMessage(String stage, String store) =>
       switch (stage) {
-    'FOOD RECORD PUT' => 'MEALを保存できませんでした。変更はすべて取り消されました。',
-    'HISTORY RECORD PUT' => '取り込み履歴を保存できませんでした。変更はすべて取り消されました。',
-    'FOOD READ-BACK' =>
-      '保存したMEALを確認できませんでした。変更はすべて取り消されました。',
-    'READ-BACK COMPARISON' =>
-      store == IndexedDbStoreNames.reportSyncHistory
-          ? '保存した取り込み履歴を確認できませんでした。変更はすべて取り消されました。'
-          : '保存したMEALを確認できませんでした。変更はすべて取り消されました。',
-    'HISTORY READ-BACK' =>
-      '保存した取り込み履歴を確認できませんでした。変更はすべて取り消されました。',
-    'TRANSACTION COMMIT' => '保存Transactionが中断されました。変更はすべて取り消されました。',
-    _ => 'MEALの保存に失敗しました。変更はすべて取り消されました。',
-  };
+        'FOOD RECORD PUT' => 'MEALを保存できませんでした。変更はすべて取り消されました。',
+        'HISTORY RECORD PUT' => '取り込み履歴を保存できませんでした。変更はすべて取り消されました。',
+        'FOOD READ-BACK' => '保存したMEALを確認できませんでした。変更はすべて取り消されました。',
+        'READ-BACK COMPARISON' =>
+          store == IndexedDbStoreNames.reportSyncHistory
+              ? '保存した取り込み履歴を確認できませんでした。変更はすべて取り消されました。'
+              : '保存したMEALを確認できませんでした。変更はすべて取り消されました。',
+        'HISTORY READ-BACK' => '保存した取り込み履歴を確認できませんでした。変更はすべて取り消されました。',
+        'TRANSACTION COMMIT' => '保存Transactionが中断されました。変更はすべて取り消されました。',
+        _ => 'MEALの保存に失敗しました。変更はすべて取り消されました。',
+      };
 
   static void _logFoodImportFailure(ReportSyncImportFailure failure) {
     final diagnostic =
         'FOOD IMPORT TRANSACTION FAILED\n'
-      'Stage: ${failure.stage}\n'
-      'Store: ${failure.store ?? '-'}\n'
-      'Record ID: ${failure.recordId ?? '-'}\n'
-      'Meal Index: ${failure.mealIndex == null ? '-' : failure.mealIndex! + 1}\n'
-      'Cause Type: ${failure.cause?.runtimeType ?? '-'}\n'
+        'Stage: ${failure.stage}\n'
+        'Store: ${failure.store ?? '-'}\n'
+        'Record ID: ${failure.recordId ?? '-'}\n'
+        'Meal Index: ${failure.mealIndex == null ? '-' : failure.mealIndex! + 1}\n'
+        'Cause Type: ${failure.cause?.runtimeType ?? '-'}\n'
         'Cause: ${failure.cause ?? '-'}';
     debugPrint(diagnostic);
     developer.log(

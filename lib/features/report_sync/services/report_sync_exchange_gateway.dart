@@ -10,10 +10,12 @@ import '../../training/repository/training_record_id_generator.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
+import '../models/status_report_sync_source.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_adapters.dart';
 import 'report_sync_plain_text_exporter.dart';
 import 'report_sync_persistence_service.dart';
+import 'status_report_sync_source_service.dart';
 
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
 
@@ -56,6 +58,8 @@ class ReportSyncRequestPreparation {
     this.operationDate,
     this.confirmationDigest,
     this.sourceText,
+    this.statusSourceExport,
+    this.statusSourceError,
     this.statusLabel = 'REQUEST NOT READY',
     this.blockingReason,
   });
@@ -64,6 +68,8 @@ class ReportSyncRequestPreparation {
   final String? operationDate;
   final String? confirmationDigest;
   final String? sourceText;
+  final StatusReportSyncSourceExport? statusSourceExport;
+  final StatusReportSyncSourceException? statusSourceError;
   final String statusLabel;
   final String? blockingReason;
   bool get isReady => operationDate != null;
@@ -80,6 +86,7 @@ class ReportSyncResponsePreview {
     this.message,
     this.foodMeals = const [],
     this.trainingImportEnvelope,
+    this.morningBriefSourceDigestMatches = false,
   });
 
   final ReportSyncEnvelope envelope;
@@ -90,6 +97,7 @@ class ReportSyncResponsePreview {
   final String? message;
   final List<FoodReportSyncMealPreview> foodMeals;
   final OrloSyncEnvelope? trainingImportEnvelope;
+  final bool morningBriefSourceDigestMatches;
   bool get canApply => disposition == ReportSyncDisposition.create;
 }
 
@@ -142,9 +150,11 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     DateTime Function()? clock,
     this.trainingIdGenerator,
     this.foodIdGenerator,
-  }) : _containerOverride = container;
+  }) : _containerOverride = container,
+       _clock = clock ?? DateTime.now;
 
   final AppRepositoryContainer? _containerOverride;
+  final DateTime Function() _clock;
   final TrainingRecordIdGenerator? trainingIdGenerator;
   final FoodMealIdGenerator? foodIdGenerator;
 
@@ -180,14 +190,31 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
             blockingReason: 'Morning Brief requires the open operation date.',
           );
         }
-        final status = await _container.status.findByLocalDate(operationDate);
-        return ReportSyncRequestPreparation(
-          operationDate: operationDate,
-          sourceText: status == null
-              ? null
-              : const ReportSyncPlainTextExporter().morning(status),
-          blockingReason: status == null ? '対象日のMorning Factがありません。' : null,
-        );
+        try {
+          final source = await StatusReportSyncSourceService(
+            _container.database,
+          ).generate(operationDate: operationDate, exportedAt: _clock());
+          return ReportSyncRequestPreparation(
+            operationDate: operationDate,
+            sourceText: source.plainText,
+            statusSourceExport: source,
+            statusLabel: 'READY',
+          );
+        } on StatusReportSyncSourceException catch (error) {
+          return ReportSyncRequestPreparation(
+            operationDate: operationDate,
+            statusSourceError: error,
+            statusLabel: switch (error.code) {
+              'statusSourceMissing' => 'MISSING',
+              'statusSourceInvalid' ||
+              'statusSourceIncomplete' ||
+              'statusSourceNotCanonical' ||
+              'statusSourceDateMismatch' => 'INVALID',
+              _ => 'NOT READY',
+            },
+            blockingReason: error.message,
+          );
+        }
       case ReportSyncExchangeType.dailyDebrief:
         final confirmation = await _container.confirmation.findByLocalDate(
           operationDate,
@@ -234,12 +261,30 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     if (operationDate == null) {
       throw StateError('The exchange target is not ready.');
     }
-    return _container.reportSyncInstructions
+    final instruction = _container.reportSyncInstructions
         .forType(type)
         .buildInstruction(
           operationDate: operationDate,
           confirmationDigest: preparation.confirmationDigest,
+          sourceRecordId: preparation.statusSourceExport?.source.sourceRecordId,
+          sourceDigest: preparation.statusSourceExport?.sourceDigest,
         );
+    if (type != ReportSyncExchangeType.morningBrief) return instruction;
+
+    final export = preparation.statusSourceExport;
+    final sourceText = preparation.sourceText;
+    if (preparation.statusLabel != 'READY' ||
+        export == null ||
+        sourceText == null ||
+        sourceText != export.plainText) {
+      throw StateError('STATUS SOURCE READYが必要です。');
+    }
+    return '$instruction\n\n'
+        'SOURCE DATA START\n'
+        '━━━━━━━━━━━━━━━━━━━━\n'
+        '$sourceText'
+        '━━━━━━━━━━━━━━━━━━━━\n'
+        'SOURCE DATA END';
   }
 
   @override
@@ -420,19 +465,69 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   Future<ReportSyncResponsePreview> _previewMorningBrief(
     ReportSyncEnvelope response,
   ) async {
+    if (response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        'Morning Brief requires Schema 2.0.',
+      );
+    }
+    final payload = response.payload;
+    final source = Map<String, Object?>.from(payload['source'] as Map);
+    final current = await StatusReportSyncSourceService(
+      _container.database,
+    ).generate(operationDate: response.operationDate, exportedAt: _clock());
+    _requireMorningBriefSource(
+      source,
+      operationDate: response.operationDate,
+      current: current,
+    );
     final existing = await _container.morningBriefs.readByLocalDate(
       response.operationDate,
     );
     if (existing == null) {
-      return _preview(response, ReportSyncDisposition.create);
+      return ReportSyncResponsePreview(
+        envelope: response,
+        disposition: ReportSyncDisposition.create,
+        createCount: 1,
+        noChangeCount: 0,
+        conflictCount: 0,
+        morningBriefSourceDigestMatches: true,
+      );
     }
-    final digest = ReportSyncCanonicalService.digest(response.payload);
     return _preview(
       response,
-      existing.responseDigest == digest
-          ? ReportSyncDisposition.noChanges
-          : ReportSyncDisposition.conflict,
+      ReportSyncDisposition.conflict,
+      message: 'A Morning Brief already exists for this operation date.',
     );
+  }
+
+  void _requireMorningBriefSource(
+    Map<String, Object?> source, {
+    required String operationDate,
+    required StatusReportSyncSourceExport current,
+  }) {
+    final expected = <String, Object?>{
+      'sourceType': 'status',
+      'sourceOperationDate': operationDate,
+      'sourceRecordId': current.source.sourceRecordId,
+      'sourceDigest': current.sourceDigest,
+    };
+    for (final entry in expected.entries) {
+      if (source[entry.key] != entry.value) {
+        throw ReportSyncException(
+          ReportSyncIssueCode.integrityFailure,
+          'Morning Brief STATUS source identity does not match.',
+          validationError: ReportSyncValidationError(
+            code: 'sourceIdentityMismatch',
+            jsonPath: r'$.payload.source.' + entry.key,
+            message: 'The current STATUS source does not match the response.',
+            expected: entry.value.toString(),
+            actualType: source[entry.key]?.runtimeType.toString() ?? 'null',
+            actualValuePreview: source[entry.key]?.toString() ?? 'null',
+          ),
+        );
+      }
+    }
   }
 
   Future<ReportSyncResponsePreview> _previewDailyDebrief(
@@ -664,7 +759,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   Future<List<ReportSyncHistory>> history(ReportSyncExchangeType type) async =>
       (await _container.reportSyncHistory.list())
           .where((value) => value.exchangeType == type)
-          .take(10)
           .toList(growable: false);
 
   @override

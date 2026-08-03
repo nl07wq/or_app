@@ -9,7 +9,11 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/food/repository/food_meal_id_generator.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
+import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
+import 'package:or_app/features/report_sync/models/status_report_sync_source.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
+import 'package:or_app/features/report_sync/services/report_sync_persistence_service.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/training/repository/training_record_id_generator.dart';
 
@@ -31,7 +35,7 @@ void main() {
         initial.copyWith(
           lastFinalizedDate: OperationLocalDate.parse('2026-08-02'),
           revision: initial.revision + 1,
-          updatedAt: now,
+          updatedAt: initial.updatedAt.add(const Duration(microseconds: 1)),
         ),
         expectedRevision: initial.revision,
       );
@@ -83,14 +87,34 @@ void main() {
           expect(prepared.sourceText, isNull, reason: type.stableId);
         } else {
           expect(prepared.sourceText, isNotNull, reason: type.stableId);
-          expect(prepared.sourceText, startsWith('OPERATION REBOOT\nSOURCE:'));
+          expect(prepared.sourceText, startsWith('OPERATION REBOOT\n'));
           expect(prepared.sourceText, isNot(startsWith('{')));
+        }
+        if (type == ReportSyncExchangeType.morningBrief) {
+          expect(prepared.statusLabel, 'READY');
+          expect(prepared.statusSourceExport, isNotNull);
         }
       }
       final debrief = (await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
       ));
       expect(debrief.confirmationDigest, isNotNull);
+      final morning = await gateway.prepareRequest(
+        ReportSyncExchangeType.morningBrief,
+      );
+      final morningSource = morning.statusSourceExport!.plainText;
+      final morningPrompt = gateway.instruction(
+        ReportSyncExchangeType.morningBrief,
+        morning,
+      );
+      expect(morningPrompt, contains('正式なMORNING BRIEF'));
+      expect(morningPrompt, contains('SOURCE DATA START'));
+      expect(morningPrompt, contains('SOURCE DATA END'));
+      expect(morningPrompt, contains(morningSource));
+      expect(morningPrompt.split(morningSource), hasLength(2));
+      expect(morningPrompt, contains('"schemaVersion": "2.0"'));
+      expect(morningPrompt, contains('"packageDigest": null'));
+      expect(morningPrompt, isNot(contains('"actionId":')));
       expect(
         gateway.instruction(
           ReportSyncExchangeType.training,
@@ -99,6 +123,156 @@ void main() {
         contains('Training Record'),
       );
       expect(await container.reportSyncHistory.list(), isEmpty);
+    },
+  );
+
+  test(
+    'Morning Brief Schema 2 imports MB and record atomically with read-back',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      await container.operationState.createInitial(
+        OperationLocalDate.parse('2026-08-03'),
+      );
+      await container.status.save(_status('2026-08-03'));
+      final gateway = ProductionReportSyncExchangeGateway(
+        container: container,
+        clock: () => now,
+      );
+      final preparation = await gateway.prepareRequest(
+        ReportSyncExchangeType.morningBrief,
+        targetDate: '2026-08-03',
+      );
+      final response = container.reportSyncCodec.create(
+        direction: ReportSyncDirection.response,
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+        exchangeType: ReportSyncExchangeType.morningBrief,
+        exchangeId: 'morning-v2-success',
+        operationDate: '2026-08-03',
+        createdAt: now,
+        payload: _morningBriefPayload(preparation.statusSourceExport!),
+      );
+      final preview = await gateway.previewResponse(
+        ReportSyncExchangeType.morningBrief,
+        container.reportSyncCodec.encode(response),
+        targetDate: '2026-08-03',
+      );
+      expect(preview.disposition, ReportSyncDisposition.create);
+      expect(preview.morningBriefSourceDigestMatches, isTrue);
+
+      final transactionsBeforeApply = database.transactionCount;
+      final result = await gateway.apply(preview);
+      expect(result.readBackVerified, isTrue);
+      expect(database.transactionCount, transactionsBeforeApply + 1);
+      final saved = await container.morningBriefs.readByLocalDate('2026-08-03');
+      expect(saved?.recordVersion, MorningBriefRecord.currentRecordVersion);
+      expect(saved?.sourceDigest, preparation.statusSourceExport!.sourceDigest);
+      expect(saved?.actions.single.actionId, '2026-08-03:action:1');
+      expect(
+        await container.reportSyncHistory.readById('morning-v2-success'),
+        isNotNull,
+      );
+
+      final conflict = await gateway.previewResponse(
+        ReportSyncExchangeType.morningBrief,
+        container.reportSyncCodec.encode(response),
+        targetDate: '2026-08-03',
+      );
+      expect(conflict.disposition, ReportSyncDisposition.conflict);
+      expect(conflict.canApply, isFalse);
+    },
+  );
+
+  test('Morning Brief read-back failure rolls back MB and record', () async {
+    final database = FakeIndexedDbDatabase();
+    final container = AppRepositoryContainer.indexedDb(database);
+    await container.operationState.createInitial(
+      OperationLocalDate.parse('2026-08-03'),
+    );
+    await container.status.save(_status('2026-08-03'));
+    final gateway = ProductionReportSyncExchangeGateway(
+      container: container,
+      clock: () => now,
+    );
+    final preparation = await gateway.prepareRequest(
+      ReportSyncExchangeType.morningBrief,
+      targetDate: '2026-08-03',
+    );
+    final response = container.reportSyncCodec.create(
+      direction: ReportSyncDirection.response,
+      schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+      exchangeType: ReportSyncExchangeType.morningBrief,
+      exchangeId: 'morning-v2-rollback',
+      operationDate: '2026-08-03',
+      createdAt: now,
+      payload: _morningBriefPayload(preparation.statusSourceExport!),
+    );
+    final preview = await gateway.previewResponse(
+      ReportSyncExchangeType.morningBrief,
+      container.reportSyncCodec.encode(response),
+      targetDate: '2026-08-03',
+    );
+    database.failNextReadAfterPutForStore =
+        IndexedDbStoreNames.morningBriefRecords;
+
+    await expectLater(
+      gateway.apply(preview),
+      throwsA(isA<ReportSyncImportFailure>()),
+    );
+    expect(await container.morningBriefs.readByLocalDate('2026-08-03'), isNull);
+    expect(
+      await container.reportSyncHistory.readById('morning-v2-rollback'),
+      isNull,
+    );
+  });
+
+  test(
+    'Morning Brief blocks a mismatched current STATUS source digest',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      await container.operationState.createInitial(
+        OperationLocalDate.parse('2026-08-03'),
+      );
+      await container.status.save(_status('2026-08-03'));
+      final gateway = ProductionReportSyncExchangeGateway(
+        container: container,
+        clock: () => now,
+      );
+      final preparation = await gateway.prepareRequest(
+        ReportSyncExchangeType.morningBrief,
+        targetDate: '2026-08-03',
+      );
+      final payload = _morningBriefPayload(preparation.statusSourceExport!);
+      payload['source'] = {
+        ...Map<String, Object?>.from(payload['source'] as Map),
+        'sourceDigest':
+            'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      };
+      final response = container.reportSyncCodec.create(
+        direction: ReportSyncDirection.response,
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+        exchangeType: ReportSyncExchangeType.morningBrief,
+        exchangeId: 'morning-v2-source-mismatch',
+        operationDate: '2026-08-03',
+        createdAt: now,
+        payload: payload,
+      );
+
+      await expectLater(
+        gateway.previewResponse(
+          ReportSyncExchangeType.morningBrief,
+          container.reportSyncCodec.encode(response),
+          targetDate: '2026-08-03',
+        ),
+        throwsA(
+          isA<ReportSyncException>().having(
+            (error) => error.validationError?.jsonPath,
+            'jsonPath',
+            r'$.payload.source.sourceDigest',
+          ),
+        ),
+      );
     },
   );
 
@@ -152,7 +326,8 @@ void main() {
       );
       expect(morning.isReady, isTrue);
       expect(morning.sourceText, isNull);
-      expect(morning.blockingReason, contains('Morning Fact'));
+      expect(morning.statusLabel, 'MISSING');
+      expect(morning.blockingReason, '対象日のSTATUSがありません。');
 
       final debrief = await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
@@ -167,7 +342,7 @@ void main() {
         initial.copyWith(
           lastFinalizedDate: OperationLocalDate.parse('2026-08-02'),
           revision: initial.revision + 1,
-          updatedAt: now,
+          updatedAt: initial.updatedAt.add(const Duration(microseconds: 1)),
         ),
         expectedRevision: initial.revision,
       );
@@ -760,13 +935,47 @@ Map<String, Object?> _foodV2Meal(
   'waterMl': null,
 };
 
+Map<String, Object?> _morningBriefPayload(
+  StatusReportSyncSourceExport source,
+) => {
+  'operationDate': source.source.operationDate,
+  'source': {
+    'sourceType': 'status',
+    'sourceOperationDate': source.source.operationDate,
+    'sourceRecordId': source.source.sourceRecordId,
+    'sourceDigest': source.sourceDigest,
+  },
+  'content': {
+    'situationAnalysis': {
+      'body': '体重と体脂肪率は正式記録どおりです。',
+      'recovery': '睡眠時間と睡眠スコアを確認しました。',
+      'condition': '足の痛みを考慮します。',
+      'work': '勤務時間を考慮します。',
+      'carryover': '前日情報は利用できません。',
+      'overall': '負荷を抑えて安定運用します。',
+    },
+    'operatingPolicy': '回復を優先しながら必要事項を進めます。',
+    'strategicResourceDecision': {
+      'decision': '回復資源を優先します。',
+      'targetResource': null,
+      'rationale': '足の痛みが記録されているためです。',
+      'execution': null,
+    },
+    'operationStatus': 'green',
+    'commanderIntent': '回復を守りながら重要事項を確実に進めます。',
+    'actions': const [
+      {'text': '足の状態を確認してから行動します。', 'priority': 'high'},
+    ],
+  },
+};
+
 MorningData _status(String date) => MorningData(
   date: date,
   weight: 70,
   bodyFat: 20,
   sleepHours: 7,
   sleepScore: 80,
-  footPain: 0,
+  footPain: 3,
   workType: WorkType.work,
   workStart: '09:00',
   workEnd: '18:00',

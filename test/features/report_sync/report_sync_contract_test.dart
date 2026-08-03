@@ -266,7 +266,7 @@ void main() {
     );
   });
 
-  test('registry provides all four JSON-only instructions', () {
+  test('registry provides all four exchange instructions', () {
     final registry = ReportSyncInstructionProviderRegistry.standard();
     for (final type in ReportSyncExchangeType.values) {
       final text = registry
@@ -276,13 +276,30 @@ void main() {
             confirmationDigest: type == ReportSyncExchangeType.dailyDebrief
                 ? 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
                 : null,
+            sourceRecordId: type == ReportSyncExchangeType.morningBrief
+                ? 'status:2026-08-02'
+                : null,
+            sourceDigest: type == ReportSyncExchangeType.morningBrief
+                ? 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+                : null,
           );
-      expect(text, contains(type.stableId));
-      expect(text, contains('exactly one JSON object'));
-      expect(text, contains('Do not invent facts'));
       expect(text, contains('2026-08-02'));
       expect(text, isNot(contains('requestId')));
       expect(text, isNot(contains('requestDigest')));
+      if (type == ReportSyncExchangeType.morningBrief) {
+        expect(text, contains('正式なMORNING BRIEF'));
+        expect(text, contains('```text'));
+        expect(text, contains('"schemaVersion": "2.0"'));
+        expect(text, contains('"packageDigest": null'));
+        expect(text, contains('status:2026-08-02'));
+        expect(text, contains('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'));
+        expect(text, isNot(contains('"argoComment"')));
+        expect(text, isNot(contains('"actionId"')));
+        continue;
+      }
+      expect(text, contains(type.stableId));
+      expect(text, contains('exactly one JSON object'));
+      expect(text, contains('Do not invent facts'));
       if (type == ReportSyncExchangeType.training ||
           type == ReportSyncExchangeType.food) {
         expect(text, contains('```text'));
@@ -329,10 +346,17 @@ void main() {
 
     final morning = registry
         .forType(ReportSyncExchangeType.morningBrief)
-        .buildInstruction(operationDate: '2026-08-02');
-    expect(morning, contains('Morning Fact pasted after this prompt'));
-    expect(morning, contains('Bowel information is out of scope'));
-    expect(morning, contains('green, yellow, and red'));
+        .buildInstruction(
+          operationDate: '2026-08-02',
+          sourceRecordId: 'status:2026-08-02',
+          sourceDigest:
+              'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        );
+    expect(morning, contains('正式なSTATUS SOURCEだけを使用'));
+    expect(morning, contains('packageDigestはnull'));
+    expect(morning, contains('operationStatusはgreen/yellow/red'));
+    expect(morning, contains('actionIdはアプリが生成'));
+    expect(morning, contains('単一のPlain Textコードブロック'));
 
     const confirmation =
         'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -347,34 +371,37 @@ void main() {
     expect(debrief, contains('Do not complete unconfirmed information'));
   });
 
-  test('training instruction documents the formal cardio snapshot contract', () {
-    final training = ReportSyncInstructionProviderRegistry.standard()
-        .forType(ReportSyncExchangeType.training)
-        .buildInstruction(operationDate: '2026-08-02');
+  test(
+    'training instruction documents the formal cardio snapshot contract',
+    () {
+      final training = ReportSyncInstructionProviderRegistry.standard()
+          .forType(ReportSyncExchangeType.training)
+          .buildInstruction(operationDate: '2026-08-02');
 
-    for (final field in const [
-      'estimatedCaloriesKcal',
-      'weightSnapshotKg',
-      'calculationMethod',
-      'calculationVersion',
-    ]) {
-      expect(training, contains(field));
-    }
-    expect(training, contains('all four fields together'));
-    expect(training, contains('set all four fields to null'));
-    expect(training, contains('calculationMethod must be metsAcsmV1'));
-    expect(training, contains('calculationVersion must be 1'));
-    expect(training, contains('leaving the other snapshot fields null'));
-    expect(training, contains('calculation weight cannot be confirmed'));
-    expect(training, contains('Never copy calories alone'));
-    expect(training, contains('infer weight'));
-    expect(training, contains('without independent rounding'));
-    expect(training, contains('exactly one fenced Plain Text code block'));
-    expect(training, contains('schemaVersion "2.0"'));
-    expect(training, contains('Set packageDigest to null'));
-    expect(training, contains('operationDate "2026-08-02" exactly'));
-    expect(training, contains('Do not invent facts'));
-  });
+      for (final field in const [
+        'estimatedCaloriesKcal',
+        'weightSnapshotKg',
+        'calculationMethod',
+        'calculationVersion',
+      ]) {
+        expect(training, contains(field));
+      }
+      expect(training, contains('all four fields together'));
+      expect(training, contains('set all four fields to null'));
+      expect(training, contains('calculationMethod must be metsAcsmV1'));
+      expect(training, contains('calculationVersion must be 1'));
+      expect(training, contains('leaving the other snapshot fields null'));
+      expect(training, contains('calculation weight cannot be confirmed'));
+      expect(training, contains('Never copy calories alone'));
+      expect(training, contains('infer weight'));
+      expect(training, contains('without independent rounding'));
+      expect(training, contains('exactly one fenced Plain Text code block'));
+      expect(training, contains('schemaVersion "2.0"'));
+      expect(training, contains('Set packageDigest to null'));
+      expect(training, contains('operationDate "2026-08-02" exactly'));
+      expect(training, contains('Do not invent facts'));
+    },
+  );
 
   test('accepts a standalone response without legacy request identity', () {
     final response = codec.create(

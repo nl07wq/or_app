@@ -1,5 +1,150 @@
 import '../models/report_sync_issue.dart';
 
+class MorningBriefReportSyncPayloadSchemaV2 {
+  const MorningBriefReportSyncPayloadSchemaV2();
+
+  void validateResponse(Map<String, Object?> value) {
+    _exact(value, const {'operationDate', 'source', 'content'}, r'$.payload');
+    _date(value['operationDate'], r'$.payload.operationDate');
+
+    final source = _map(value['source'], r'$.payload.source');
+    _exact(source, const {
+      'sourceType',
+      'sourceOperationDate',
+      'sourceRecordId',
+      'sourceDigest',
+    }, r'$.payload.source');
+    if (source['sourceType'] != 'status') {
+      _invalid(
+        r'$.payload.source.sourceType',
+        'sourceType must be status.',
+        'status',
+        source['sourceType'],
+      );
+    }
+    _date(
+      source['sourceOperationDate'],
+      r'$.payload.source.sourceOperationDate',
+    );
+    _text(source['sourceRecordId'], r'$.payload.source.sourceRecordId');
+    _digest(source['sourceDigest'], r'$.payload.source.sourceDigest');
+
+    final content = _map(value['content'], r'$.payload.content');
+    _exact(content, const {
+      'situationAnalysis',
+      'operatingPolicy',
+      'strategicResourceDecision',
+      'operationStatus',
+      'commanderIntent',
+      'actions',
+    }, r'$.payload.content');
+
+    final analysis = _map(
+      content['situationAnalysis'],
+      r'$.payload.content.situationAnalysis',
+    );
+    _exact(analysis, const {
+      'body',
+      'recovery',
+      'condition',
+      'work',
+      'carryover',
+      'overall',
+    }, r'$.payload.content.situationAnalysis');
+    for (final key in const [
+      'body',
+      'recovery',
+      'condition',
+      'work',
+      'carryover',
+      'overall',
+    ]) {
+      _japanesePlainText(
+        analysis[key],
+        '${r'$.payload.content.situationAnalysis'}.$key',
+      );
+    }
+
+    _japanesePlainText(
+      content['operatingPolicy'],
+      r'$.payload.content.operatingPolicy',
+    );
+    final decision = _map(
+      content['strategicResourceDecision'],
+      r'$.payload.content.strategicResourceDecision',
+    );
+    _exact(decision, const {
+      'decision',
+      'targetResource',
+      'rationale',
+      'execution',
+    }, r'$.payload.content.strategicResourceDecision');
+    _japanesePlainText(
+      decision['decision'],
+      r'$.payload.content.strategicResourceDecision.decision',
+    );
+    _nullableJapanesePlainText(
+      decision['targetResource'],
+      r'$.payload.content.strategicResourceDecision.targetResource',
+    );
+    _japanesePlainText(
+      decision['rationale'],
+      r'$.payload.content.strategicResourceDecision.rationale',
+    );
+    _nullableJapanesePlainText(
+      decision['execution'],
+      r'$.payload.content.strategicResourceDecision.execution',
+    );
+
+    if (!const {
+      'green',
+      'yellow',
+      'red',
+    }.contains(content['operationStatus'])) {
+      _invalid(
+        r'$.payload.content.operationStatus',
+        'Unknown operationStatus.',
+        'green, yellow, or red',
+        content['operationStatus'],
+      );
+    }
+    _japaneseOneLine(
+      content['commanderIntent'],
+      r'$.payload.content.commanderIntent',
+      forbiddenWord: '候補',
+    );
+
+    final actions = _list(content['actions'], r'$.payload.content.actions');
+    if (actions.isEmpty || actions.length > 5) {
+      _invalid(
+        r'$.payload.content.actions',
+        'One to five actions are required.',
+        'Array with 1..5 entries',
+        actions,
+      );
+    }
+    for (var index = 0; index < actions.length; index++) {
+      final path = '${r'$.payload.content.actions'}[$index]';
+      final action = _map(actions[index], path);
+      _exact(action, const {'text', 'priority'}, path);
+      _japaneseOneLine(action['text'], '$path.text');
+      if (!const {
+        'low',
+        'medium',
+        'high',
+        'critical',
+      }.contains(action['priority'])) {
+        _invalid(
+          '$path.priority',
+          'Unknown action priority.',
+          'low, medium, high, or critical',
+          action['priority'],
+        );
+      }
+    }
+  }
+}
+
 class TrainingReportSyncPayloadSchemaV2 {
   const TrainingReportSyncPayloadSchemaV2();
 
@@ -327,6 +472,55 @@ void _nullableString(Object? value, String path) {
     _invalid(path, '文字列またはnullが必要です。', 'String or null', value);
   }
 }
+
+void _digest(Object? value, String path) {
+  if (value is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(value)) {
+    _invalid(
+      path,
+      'Digest is invalid.',
+      '64 lowercase hexadecimal characters',
+      value,
+    );
+  }
+}
+
+void _japanesePlainText(Object? value, String path) {
+  _text(value, path);
+  final text = value as String;
+  if (!RegExp(r'[\u3040-\u30ff\u3400-\u9fff]').hasMatch(text) ||
+      _containsMarkdown(text)) {
+    _invalid(
+      path,
+      'Japanese plain text is required.',
+      'Japanese plain text',
+      value,
+    );
+  }
+}
+
+void _nullableJapanesePlainText(Object? value, String path) {
+  if (value != null) _japanesePlainText(value, path);
+}
+
+void _japaneseOneLine(Object? value, String path, {String? forbiddenWord}) {
+  _japanesePlainText(value, path);
+  final text = value as String;
+  if (text.contains('\n') ||
+      text.contains('\r') ||
+      (forbiddenWord != null && text.contains(forbiddenWord))) {
+    _invalid(
+      path,
+      'A Japanese one-line sentence is required.',
+      'Japanese one-line plain text',
+      value,
+    );
+  }
+}
+
+bool _containsMarkdown(String value) =>
+    value.contains('```') ||
+    RegExp(r'(^|\n)\s{0,3}(#{1,6}|[-*+]\s|>\s|\d+\.\s)').hasMatch(value) ||
+    RegExp(r'\[[^\]]+\]\([^\)]+\)').hasMatch(value);
 
 void _boolean(Object? value, String path) {
   if (value is! bool) _invalid(path, '真偽値が必要です。', 'boolean', value);

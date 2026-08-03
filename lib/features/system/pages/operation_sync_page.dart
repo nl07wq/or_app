@@ -374,26 +374,52 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
 
   Widget _buildHistory() {
     final history = _workspace?.history ?? const <OperationSyncHistory>[];
+    final recent = history.take(5).toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionHeader(
-          icon: Icons.history,
-          title: 'OPERATION SYNC HISTORY',
+          icon: Icons.fact_check_outlined,
+          title: 'OPERATION SYNC RECORD',
         ),
         AppSpacing.gapSM,
         OperationCard(
           child: history.isEmpty
-              ? const Text('NO OPERATION SYNC HISTORY')
+              ? const Row(
+                  children: [
+                    Icon(Icons.fact_check_outlined),
+                    SizedBox(width: 10),
+                    Expanded(child: Text('RECORDはありません')),
+                  ],
+                )
               : Column(
                   children: [
-                    for (var index = 0; index < history.length; index++) ...[
-                      _HistoryRow(history: history[index]),
-                      if (index != history.length - 1) const Divider(),
+                    for (var index = 0; index < recent.length; index++) ...[
+                      _HistoryRow(
+                        history: recent[index],
+                        onTap: () =>
+                            _openOperationSyncRecord(context, recent[index]),
+                      ),
+                      if (index != recent.length - 1) const Divider(),
                     ],
                   ],
                 ),
         ),
+        if (history.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          _OperationSyncRecordArchiveButton(
+            key: const ValueKey('view-all-operation-sync-records'),
+            text: 'VIEW ALL RECORDS',
+            icon: Icons.list_alt,
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    _OperationSyncRecordArchivePage(history: history),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -409,6 +435,30 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     }
     return 'OPERATION SYNC FAILED: $error';
   }
+}
+
+class _OperationSyncRecordArchiveButton extends StatelessWidget {
+  const _OperationSyncRecordArchiveButton({
+    super.key,
+    required this.text,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String text;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    height: 52,
+    child: ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 20),
+      label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
+    ),
+  );
 }
 
 class _IssueRow extends StatelessWidget {
@@ -469,9 +519,10 @@ class _SyncActionButton extends StatelessWidget {
 }
 
 class _HistoryRow extends StatelessWidget {
-  const _HistoryRow({required this.history});
+  const _HistoryRow({required this.history, required this.onTap});
 
   final OperationSyncHistory history;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -488,6 +539,141 @@ class _HistoryRow extends StatelessWidget {
       'CONFLICT ${history.conflictCount}'
       '${history.failureCode == null ? '' : '\n${history.failureCode!.stableId}'}',
     ),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: onTap,
     isThreeLine: history.failureCode != null,
+  );
+}
+
+void _openOperationSyncRecord(
+  BuildContext context,
+  OperationSyncHistory record,
+) {
+  Navigator.push<void>(
+    context,
+    MaterialPageRoute(builder: (_) => _OperationSyncRecordPage(record: record)),
+  );
+}
+
+class _OperationSyncRecordArchivePage extends StatelessWidget {
+  const _OperationSyncRecordArchivePage({required this.history});
+
+  final List<OperationSyncHistory> history;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('OPERATION SYNC RECORD')),
+    body: ListView.separated(
+      padding: AppSpacing.cardPadding,
+      itemCount: history.length,
+      separatorBuilder: (_, _) => const Divider(),
+      itemBuilder: (context, index) => _HistoryRow(
+        history: history[index],
+        onTap: () => _openOperationSyncRecord(context, history[index]),
+      ),
+    ),
+  );
+}
+
+class _OperationSyncRecordPage extends StatelessWidget {
+  const _OperationSyncRecordPage({required this.record});
+
+  final OperationSyncHistory record;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('OPERATION SYNC RECORD')),
+    body: ListView(
+      padding: AppSpacing.cardPadding,
+      children: [
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(switch (record.result) {
+                    OperationSyncHistoryResult.success =>
+                      Icons.check_circle_outline,
+                    OperationSyncHistoryResult.failed => Icons.error_outline,
+                    OperationSyncHistoryResult.recoveryRequired =>
+                      Icons.restore,
+                  }),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      record.result.stableId.toUpperCase(),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              _OperationSyncRecordField(
+                label: 'OPERATION ID',
+                value: record.operationId,
+              ),
+              _OperationSyncRecordField(
+                label: 'PACKAGE ID',
+                value: record.packageId,
+              ),
+              _OperationSyncRecordField(
+                label: 'SOURCE TYPE',
+                value: record.sourceType,
+              ),
+              _OperationSyncRecordField(
+                label: 'TRANSFER MODE',
+                value: record.transferMode,
+              ),
+              _OperationSyncRecordField(
+                label: 'MODULES',
+                value: record.moduleIds.join(', '),
+              ),
+              _OperationSyncRecordField(
+                label: 'RECORDS',
+                value: '${record.recordCount}',
+              ),
+              _OperationSyncRecordField(
+                label: 'RESULT COUNTS',
+                value:
+                    'CREATE ${record.createCount} · '
+                    'NO CHANGES ${record.noChangeCount} · '
+                    'CONFLICT ${record.conflictCount} · '
+                    'QUARANTINE ${record.quarantineCount}',
+              ),
+              _OperationSyncRecordField(
+                label: 'COMPLETED AT',
+                value: record.completedAt.toLocal().toString(),
+              ),
+              if (record.failureCode != null)
+                _OperationSyncRecordField(
+                  label: 'FAILURE CODE',
+                  value: record.failureCode!.stableId,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _OperationSyncRecordField extends StatelessWidget {
+  const _OperationSyncRecordField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 2),
+        SelectableText(value),
+      ],
+    ),
   );
 }

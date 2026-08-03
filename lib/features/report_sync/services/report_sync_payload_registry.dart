@@ -46,6 +46,10 @@ class ReportSyncPayloadRegistry {
           );
           return;
         case ReportSyncExchangeType.morningBrief:
+          const MorningBriefReportSyncPayloadSchemaV2().validateResponse(
+            envelope.payload,
+          );
+          return;
         case ReportSyncExchangeType.dailyDebrief:
           _fail('Schema 2.0 is not supported for this exchange type.');
       }

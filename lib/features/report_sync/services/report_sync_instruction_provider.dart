@@ -15,6 +15,8 @@ abstract interface class ReportSyncInstructionProvider {
   String buildInstruction({
     String operationDate = '<OPERATION_DATE>',
     String? confirmationDigest,
+    String? sourceRecordId,
+    String? sourceDigest,
   });
 }
 
@@ -29,10 +31,22 @@ class StandardReportSyncInstructionProvider
   String buildInstruction({
     String operationDate = '<OPERATION_DATE>',
     String? confirmationDigest,
+    String? sourceRecordId,
+    String? sourceDigest,
   }) {
     if (exchangeType == ReportSyncExchangeType.dailyDebrief &&
         confirmationDigest == null) {
       throw StateError('Daily Debrief requires a confirmation digest.');
+    }
+    if (exchangeType == ReportSyncExchangeType.morningBrief) {
+      if (sourceRecordId == null || sourceDigest == null) {
+        throw StateError('Morning Brief requires STATUS source identity.');
+      }
+      return _buildMorningBriefInstruction(
+        operationDate,
+        sourceRecordId,
+        sourceDigest,
+      );
     }
     final importSchema2 =
         exchangeType == ReportSyncExchangeType.training ||
@@ -100,6 +114,76 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
         .trim();
   }
 
+  String _buildMorningBriefInstruction(
+    String operationDate,
+    String sourceRecordId,
+    String sourceDigest,
+  ) {
+    final responseExample = <String, Object?>{
+      'format': ReportSyncEnvelope.formatId,
+      'envelopeVersion': ReportSyncEnvelope.currentEnvelopeVersion,
+      'schemaVersion': ReportSyncEnvelope.importSchemaVersion2,
+      'direction': ReportSyncDirection.response.stableId,
+      'exchangeType': ReportSyncExchangeType.morningBrief.stableId,
+      'exchangeId': '<UNIQUE_RESPONSE_ID>',
+      'operationDate': operationDate,
+      'createdAt': '<UTC_TIMESTAMP>',
+      'confirmationDigest': null,
+      'payload': {
+        'operationDate': operationDate,
+        'source': {
+          'sourceType': 'status',
+          'sourceOperationDate': operationDate,
+          'sourceRecordId': sourceRecordId,
+          'sourceDigest': sourceDigest,
+        },
+        'content': {
+          'situationAnalysis': {
+            'body': '<Japanese plain text>',
+            'recovery': '<Japanese plain text>',
+            'condition': '<Japanese plain text>',
+            'work': '<Japanese plain text>',
+            'carryover': '<Japanese plain text>',
+            'overall': '<Japanese plain text>',
+          },
+          'operatingPolicy': '<Japanese plain text>',
+          'strategicResourceDecision': {
+            'decision': '<Japanese plain text>',
+            'targetResource': null,
+            'rationale': '<Japanese plain text>',
+            'execution': null,
+          },
+          'operationStatus': 'green',
+          'commanderIntent': '<Japanese one-line sentence>',
+          'actions': [
+            {'text': '<Japanese one-line action>', 'priority': 'high'},
+          ],
+        },
+      },
+      'packageDigest': null,
+    };
+    return '''
+Operation Rebootの$operationDateの正式なMORNING BRIEFを生成してください。
+
+SOURCE CONTRACT
+このPrompt自体はSource Dataではありません。末尾のSOURCE DATA STARTとSOURCE DATA ENDの間にある、同日かつsourceRecordIdが「$sourceRecordId」、sourceDigestが「$sourceDigest」の正式なSTATUS SOURCEだけを使用してください。
+別日、別Record、会話中の別情報、不足情報の推測を混ぜないでください。本文は日本語のPlain Textとし、候補ではなく当日の正式な判断を返してください。必須Sectionをすべて出力してください。
+
+RESPONSE CONTRACT
+返答全体は、開始Fenceが```text、終了Fenceが```の単一のPlain Textコードブロック1つだけにしてください。コードブロック内には単一のImport用JSON Objectだけを入れ、コードブロック外には説明、見出し、挨拶、注記を一切出力しないでください。コピーされる内容は{で始まり}で終わる必要があります。
+formatは「${ReportSyncEnvelope.formatId}」、envelopeVersionは1、schemaVersionは「2.0」、directionは「response」、exchangeTypeは「morningBrief」、operationDateは「$operationDate」に固定してください。
+packageDigestはnullにしてください。Digestを計算せず、Placeholderや文字列へ置換しないでください。アプリがStrict Validation後に正式Digestを生成します。
+Unknown Field、旧Schema 1.0 Field、argoComment、actionIdを追加しないでください。situationAnalysisを単一Stringにしないでください。
+situationAnalysisのbody/recovery/condition/work/carryover/overall、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actionsをすべて返してください。
+operationStatusはgreen/yellow/redのみです。commanderIntentは日本語1行で、「候補」という表現を付けないでください。actionsは1件以上5件以下、入力順を維持し、各要素はtextとpriorityだけにしてください。priorityはlow/medium/high/criticalのみです。actionIdはアプリが生成します。
+decisionとrationaleは日本語Plain Text必須、targetResourceとexecutionは情報がない場合だけnullです。Markdown、改行付きCommander Intent、型変換、Missing Field補完は禁止です。
+
+完全なResponse構造は次のとおりです。Placeholderは型の説明であり事実ではありません。
+${const JsonEncoder.withIndent('  ').convert(responseExample)}
+'''
+        .trim();
+  }
+
   String _buildImportOnlyInstruction(
     String operationDate,
     Map<String, Object?> responseExample,
@@ -142,7 +226,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food =>
       'Convert the Meal Data pasted after this prompt for $date into Operation Reboot Food Import Schema Version 1.',
     ReportSyncExchangeType.morningBrief =>
-      'Use the Morning Fact pasted after this prompt for $date to generate Operation Reboot Morning Brief Import Schema Version 1.',
+      'Prepare the formal STATUS Source for Morning Brief review on $date.',
     ReportSyncExchangeType.dailyDebrief =>
       'Use the Finalized Daily Data pasted after this prompt for $date to generate Operation Reboot Daily Debrief Import Schema Version 1.',
   };
@@ -150,15 +234,14 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
   String get _sourceName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Record',
     ReportSyncExchangeType.food => 'Meal Data',
-    ReportSyncExchangeType.morningBrief => 'Morning Fact',
+    ReportSyncExchangeType.morningBrief => 'STATUS Source',
     ReportSyncExchangeType.dailyDebrief => 'Finalized Daily Data',
   };
 
   String get _schemaName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Import Schema Version 2',
     ReportSyncExchangeType.food => 'Food Import Schema Version 2',
-    ReportSyncExchangeType.morningBrief =>
-      'Morning Brief Import Schema Version 1',
+    ReportSyncExchangeType.morningBrief => 'Morning Brief source review',
     ReportSyncExchangeType.dailyDebrief =>
       'Daily Debrief Import Schema Version 1',
   };
@@ -169,7 +252,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food =>
       'Convert only recorded meals and food items. Do not infer nutrition, convert null to zero, register Food Catalog or Recipe data, convert implicitly to Daily Meal v2, infer reference or provenance, or create an unrecorded meal. Return only Food import JSON.',
     ReportSyncExchangeType.morningBrief =>
-      'Use only formal Body, Recovery, Condition, Work, and Carryover facts. Bowel information is out of scope. Do not complete a missing fact. operationStatus must be green, yellow, or red. Generate one-sentence commanderIntent plus situationAnalysis, argoComment, strategicResourceDecision, and actions from supplied facts only. Return only Morning Brief import JSON.',
+      'Use only formal Body, Previous Day Comparison, Recovery, Condition, Work, and Carryover facts. Bowel information is out of scope. Do not complete a missing fact.',
     ReportSyncExchangeType.dailyDebrief =>
       'Use only finalized facts. Use Morning Brief only when included. Do not complete unconfirmed information or alter Confirmation or Snapshot facts. Produce commanderIntentEvaluation, dailySummary, successes, issues, nutritionEvaluation, activityEvaluation, trainingEvaluation, recoveryEvaluation, carryover, and tomorrowConsiderations. The confirmationDigest is fixed by the schema and must not change. Return only Daily Debrief import JSON.',
   };
@@ -180,7 +263,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food =>
       'Do not create mealId or any internal ID. Every meal contains exactly sourceMealId, mealType, items, memo, and waterMl. sourceMealId is the original reference ID only when it can be confirmed, otherwise null. Every food item contains exactly name, calories, protein, fat, carbohydrate, quantity, amount, baseAmount, baseUnit, and amountMode. quantity is the recorded count multiplier and must be an integer of 1 or greater. amount and baseAmount must be finite positive numbers when present. amount, baseAmount, and baseUnit are one measurement tuple: provide all three together or set all three to null. Allowed baseUnit values are g and mL. Allowed amountMode values are physicalAmount and baseMultiplier; amountMode may be null only when it was not recorded, and a non-null amountMode requires the complete measurement tuple. For physicalAmount, amount is the consumed physical amount and the nutrition multiplier is amount divided by baseAmount. For baseMultiplier, amount is the recorded multiplier and the consumed physical amount is baseAmount multiplied by amount. When the measurement tuple is present, calories, protein, fat, and carbohydrate are the recorded nutrition basis corresponding to baseAmount, not consumed totals. Do not infer a missing measurement field, mode, unit, count, or nutrition value. Keep multiple meals separate. Operation Reboot generates permanent Meal IDs. Preserve the recorded mealType. Nullable fields must be null when unrecorded.',
     ReportSyncExchangeType.morningBrief =>
-      'The content fields are situationAnalysis, operationStatus, commanderIntent, argoComment, strategicResourceDecision, and actions. Each action contains actionId, text, and priority. The allowed operationStatus stable IDs are green, yellow, and red.',
+      'Return the formal Morning Brief Schema Version 2 response only.',
     ReportSyncExchangeType.dailyDebrief =>
       'The content fields are dailySummary, commanderIntentEvaluation, successes, issues, nutritionEvaluation, activityEvaluation, trainingEvaluation, recoveryEvaluation, carryover, and tomorrowConsiderations. The fixed confirmationDigest is $confirmationDigest.',
   };

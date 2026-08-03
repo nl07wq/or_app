@@ -8,6 +8,7 @@ import 'package:or_app/features/import_export/services/backup_file_gateway.dart'
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
 import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
+import 'package:or_app/features/report_sync/models/status_report_sync_source.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
 import 'package:or_app/features/report_sync/services/report_sync_canonical_service.dart';
 import 'package:or_app/features/report_sync/services/report_sync_clipboard_gateway.dart';
@@ -18,7 +19,7 @@ void main() {
   testWidgets('food exchange UI is import-only and supports meal selection', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.physicalSize = const Size(800, 2200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -119,13 +120,13 @@ void main() {
     await tester.pump();
     expect(find.text('選択：1件'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('選択したMealを取り込む'),
+      find.text('選択したMEALを取り込む'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('選択したMealを取り込む'), findsOneWidget);
+    expect(find.text('選択したMEALを取り込む'), findsOneWidget);
 
-    await tester.tap(find.text('選択したMealを取り込む'));
+    await tester.tap(find.text('選択したMEALを取り込む'));
     await tester.pumpAndSettle();
     expect(find.text('CONFIRM IMPORT'), findsOneWidget);
     await tester.tap(find.text('CONFIRM IMPORT'));
@@ -133,9 +134,11 @@ void main() {
     expect(gateway.applyCalls, 1);
     expect(gateway.lastPreviewTargetDate, '2026-08-02');
     expect(gateway.lastSelectedMealIds, const {'meal-1'});
-    expect(find.text('取り込み完了：1件 · READ-BACK VERIFIED'), findsOneWidget);
+    await tester.fling(find.byType(ListView), const Offset(0, -1000), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('1件のMEALを取り込みました'), findsOneWidget);
     expect(find.text('{"response":true}'), findsNothing);
-    expect(find.text('REPORT SYNC HISTORY'), findsOneWidget);
+    expect(find.text('REPORT SYNC RECORD'), findsOneWidget);
     expect(find.textContaining('food · response'), findsOneWidget);
     expect(find.textContaining('受信Meal：4件'), findsOneWidget);
     expect(find.textContaining('取り込み成功：2件'), findsOneWidget);
@@ -162,6 +165,68 @@ void main() {
 
     expect(find.text('Meal件数の記録はありません'), findsOneWidget);
     expect(find.textContaining('受信Meal：'), findsNothing);
+  });
+
+  testWidgets('REPORT SYNC RECORD shows five recent rows and all records', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(historyCount: 7),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('REPORT SYNC RECORD'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.byKey(const ValueKey('report-sync-record-request-food-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('report-sync-record-request-food-5')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-record-request-food-0')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('EXCHANGE ID'), findsOneWidget);
+    expect(find.text('request-food-0'), findsNWidgets(2));
+    Navigator.of(tester.element(find.text('EXCHANGE ID'))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('view-all-report-sync-records')),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('view-all-report-sync-records')),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('all-report-sync-record-request-food-6')),
+      250,
+    );
+    expect(
+      find.byKey(const ValueKey('all-report-sync-record-request-food-6')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('invalid target date disables import-only actions', (
@@ -391,8 +456,8 @@ void main() {
   for (final module in const [
     (
       type: ReportSyncExchangeType.morningBrief,
-      source: 'Morning Fact',
-      button: 'COPY MORNING FACT',
+      source: 'STATUS Source',
+      button: 'COPY CHATGPT PROMPT',
     ),
     (
       type: ReportSyncExchangeType.dailyDebrief,
@@ -403,6 +468,10 @@ void main() {
     testWidgets('${module.type.name} exposes its formal plain-text export', (
       tester,
     ) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
         MaterialApp(
           home: ReportSyncExchangePage(
@@ -422,11 +491,182 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(module.button), findsOneWidget);
-      expect(find.text('対象データ: ${module.source}'), findsOneWidget);
+      expect(
+        find.text('対象データ: ${module.source}'),
+        module.type == ReportSyncExchangeType.morningBrief
+            ? findsNothing
+            : findsOneWidget,
+      );
       expect(find.text('COPY REQUEST DATA'), findsNothing);
       expect(find.text('EXPORT REQUEST FILE'), findsNothing);
     });
   }
+
+  testWidgets('morning brief previews and copies the exact STATUS source', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final source = _statusSourceExport();
+    final copied = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.morningBrief,
+          gateway: _FakeExchangeGateway(
+            preparation: ReportSyncRequestPreparation(
+              operationDate: '2026-08-02',
+              sourceText: source.plainText,
+              statusSourceExport: source,
+              statusLabel: 'READY',
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (value) async => copied.add(value),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('STATUS SOURCE'), findsOneWidget);
+    for (final step in const [
+      '① 対象日を選択する',
+      '② STATUS SOURCEを生成してPreviewを確認する',
+      '③ COPY CHATGPT PROMPTを押す',
+      '④ コピーした内容をChatGPTへ1回だけ貼り付ける',
+      '⑤ ChatGPTの単一textコードブロック内のJSONだけをコピーする',
+      '⑥ PASTEでJSONを貼り付ける',
+      '⑦ VALIDATEを押す',
+      '⑧ PREVIEWでSource Digestと内容を確認する',
+      '⑨ IMPORT MORNING BRIEFを押す',
+      '⑩ COMPLETE · READ-BACK VERIFIEDを確認する',
+    ]) {
+      expect(find.text(step), findsOneWidget);
+    }
+    expect(find.text('③ 指定されたデータを貼り付ける'), findsNothing);
+    expect(
+      find.text('プロンプトには正式なMB SchemaとSTATUS SOURCEが1つに統合されています。'),
+      findsOneWidget,
+    );
+    expect(find.text('現在の回答はアプリへインポートしません。'), findsNothing);
+    expect(find.text('COPY STATUS SOURCE'), findsNothing);
+    expect(find.text('状態  READY'), findsOneWidget);
+    expect(find.text('前日比較  AVAILABLE'), findsOneWidget);
+    var prompt = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
+    );
+    expect(prompt.onPressed, isNull);
+
+    await tester.tap(find.text('GENERATE STATUS SOURCE'));
+    await tester.pumpAndSettle();
+    expect(find.text('STATUS SOURCE PREVIEW'), findsOneWidget);
+    expect(find.text(source.plainText), findsOneWidget);
+    expect(
+      find.text(
+        'コピーした内容には、MB生成指示と正式なSTATUS SOURCEが含まれています。'
+        'そのままChatGPTへ1回貼り付けてください。',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('プロンプトを貼り付けた後'), findsNothing);
+    prompt = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
+    );
+    expect(prompt.onPressed, isNotNull);
+    await tester.tap(find.text('COPY CHATGPT PROMPT'));
+    await tester.pumpAndSettle();
+    expect(copied, hasLength(1));
+    expect(copied.single, contains('MORNING BRIEF SOURCE PROMPT'));
+    expect(copied.single, contains(source.plainText));
+    expect(copied.single.split(source.plainText), hasLength(2));
+    expect(find.text('CHATGPT PROMPTをコピーしました'), findsOneWidget);
+    expect(find.text('STATUS SOURCEをコピーしました'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('report-sync-target-date')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1').last);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('STATUS SOURCE PREVIEW'), findsNothing);
+    expect(find.text('CHATGPT PROMPTをコピーしました'), findsNothing);
+    prompt = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
+    );
+    expect(prompt.onPressed, isNull);
+  });
+
+  testWidgets('morning brief import errors stay in the import action area', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final source = _statusSourceExport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.morningBrief,
+          gateway: _FakeExchangeGateway(
+            preparation: ReportSyncRequestPreparation(
+              operationDate: '2026-08-02',
+              sourceText: source.plainText,
+              statusSourceExport: source,
+              statusLabel: 'READY',
+            ),
+            previewError: const ReportSyncException(
+              ReportSyncIssueCode.integrityFailure,
+              'invalid digest',
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('GENERATE STATUS SOURCE'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('report-sync-response-input')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('report-sync-response-input')),
+        matching: find.byType(TextField),
+      ),
+      '{}',
+    );
+    await tester.scrollUntilVisible(
+      find.text('VALIDATE'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('report-sync-import-action-error')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('JSONの整合性を確認できません'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('report-sync-export-generate-error')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('report-sync-export-prompt-error')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('report-sync-export-source-error')),
+      findsNothing,
+    );
+  });
 
   for (final disposition in const [
     ReportSyncDisposition.noChanges,
@@ -501,12 +741,59 @@ void main() {
   }
 }
 
+StatusReportSyncSourceExport _statusSourceExport() {
+  const digest =
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const canonicalText =
+      'OPERATION REBOOT\nFORMAT: operation-reboot-status-source\n';
+  const plainText =
+      'OPERATION REBOOT\nFORMAT: operation-reboot-status-source\n'
+      'EXPORTED AT: 2026-08-02T01:00:00.000Z\n'
+      'SOURCE DIGEST: $digest\n';
+  return StatusReportSyncSourceExport(
+    source: const StatusReportSyncSource(
+      operationDate: '2026-08-02',
+      sourceRecordId: 'status:2026-08-02',
+      sourceRecordVersion: 1,
+      body: StatusReportSyncBodySource(weightKg: 80, bodyFatPercent: 20),
+      recovery: StatusReportSyncRecoverySource(
+        sleepDurationMinutes: 450,
+        sleepScore: 80,
+      ),
+      condition: StatusReportSyncConditionSource(
+        footPainLevel: 3,
+        condition: 4,
+        notes: null,
+      ),
+      work: StatusReportSyncWorkSource(
+        workType: 'work',
+        startTime: '09:00',
+        endTime: '18:00',
+        breakDurationMinutes: 60,
+        workHours: 8,
+      ),
+      previousCarryoverConfirmed: true,
+      previousDayComparison: StatusReportSyncPreviousDayComparison(
+        previousOperationDate: '2026-08-01',
+        previousStatusAvailable: true,
+        weightDifferenceKg: '+0.1',
+        bodyFatDifferencePoint: '-0.1',
+      ),
+    ),
+    exportedAt: DateTime.utc(2026, 8, 2, 1),
+    sourceDigest: digest,
+    canonicalText: canonicalText,
+    plainText: plainText,
+  );
+}
+
 class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   _FakeExchangeGateway({
     this.disposition = ReportSyncDisposition.create,
     this.preparation,
     this.previewError,
     this.legacyHistory = false,
+    this.historyCount = 1,
   });
 
   static const digest =
@@ -515,6 +802,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   final ReportSyncRequestPreparation? preparation;
   final Object? previewError;
   final bool legacyHistory;
+  final int historyCount;
   int recordRequestCalls = 0;
   int applyCalls = 0;
   int previewCalls = 0;
@@ -574,32 +862,39 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   String encode(ReportSyncEnvelope envelope) => jsonEncode(envelope.toJson());
 
   @override
-  Future<List<ReportSyncHistory>> history(ReportSyncExchangeType type) async =>
-      [
-        ReportSyncHistory(
-          recordVersion: legacyHistory ? 1 : 2,
-          exchangeId: 'request-food',
-          exchangeType: type,
-          direction: ReportSyncDirection.response,
-          operationDate: '2026-08-02',
-          requestId: 'request-food',
-          requestDigest: digest,
-          startedAt: DateTime.utc(2026, 8, 2),
-          completedAt: DateTime.utc(2026, 8, 2),
-          result: ReportSyncHistoryResult.success,
-          packageDigest: digest,
-          receivedMealCount:
-              type == ReportSyncExchangeType.food && !legacyHistory ? 4 : null,
-          selectedMealCount:
-              type == ReportSyncExchangeType.food && !legacyHistory ? 2 : null,
-          importedMealCount:
-              type == ReportSyncExchangeType.food && !legacyHistory ? 2 : null,
-          conflictMealCount:
-              type == ReportSyncExchangeType.food && !legacyHistory ? 1 : null,
-          excludedMealCount:
-              type == ReportSyncExchangeType.food && !legacyHistory ? 2 : null,
-        ),
-      ];
+  Future<List<ReportSyncHistory>> history(
+    ReportSyncExchangeType type,
+  ) async => [
+    for (var index = 0; index < historyCount; index++)
+      ReportSyncHistory(
+        recordVersion: legacyHistory ? 1 : 2,
+        exchangeId: 'request-food-$index',
+        exchangeType: type,
+        direction: ReportSyncDirection.response,
+        operationDate: '2026-08-02',
+        requestId: 'request-food-$index',
+        requestDigest: digest,
+        startedAt: DateTime.utc(2026, 8, 2, index),
+        completedAt: DateTime.utc(2026, 8, 2, index),
+        result: ReportSyncHistoryResult.success,
+        packageDigest: digest,
+        receivedMealCount: type == ReportSyncExchangeType.food && !legacyHistory
+            ? 4
+            : null,
+        selectedMealCount: type == ReportSyncExchangeType.food && !legacyHistory
+            ? 2
+            : null,
+        importedMealCount: type == ReportSyncExchangeType.food && !legacyHistory
+            ? 2
+            : null,
+        conflictMealCount: type == ReportSyncExchangeType.food && !legacyHistory
+            ? 1
+            : null,
+        excludedMealCount: type == ReportSyncExchangeType.food && !legacyHistory
+            ? 2
+            : null,
+      ),
+  ];
 
   @override
   Future<Object?> importedRecord(
@@ -613,6 +908,16 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     ReportSyncRequestPreparation preparation,
   ) {
     lastInstructionDate = preparation.operationDate;
+    if (type == ReportSyncExchangeType.morningBrief) {
+      final source = preparation.sourceText;
+      if (source == null) throw StateError('STATUS SOURCE READYが必要です。');
+      return 'MORNING BRIEF SOURCE PROMPT\n'
+          'SOURCE DATA START\n'
+          '━━━━━━━━━━━━━━━━━━━━\n'
+          '$source'
+          '━━━━━━━━━━━━━━━━━━━━\n'
+          'SOURCE DATA END';
+    }
     return 'JSON ONLY';
   }
 

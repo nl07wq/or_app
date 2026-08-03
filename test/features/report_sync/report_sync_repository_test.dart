@@ -1,5 +1,9 @@
+import 'dart:collection';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/daily_log_confirmation.dart';
+import 'package:or_app/core/models/morning_data.dart';
+import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/features/daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/repository/indexed_db_operation_state_repository.dart';
@@ -13,6 +17,8 @@ import 'package:or_app/features/report_sync/services/report_sync_canonical_servi
 import 'package:or_app/features/report_sync/services/report_sync_codec.dart';
 import 'package:or_app/features/report_sync/services/report_sync_persistence_service.dart';
 import 'package:or_app/features/report_sync/services/report_sync_validator.dart';
+import 'package:or_app/features/report_sync/services/status_report_sync_source_service.dart';
+import 'package:or_app/features/status/repositories/indexed_db_status_repository.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
@@ -54,6 +60,60 @@ void main() {
       throwsA(isA<ReportSyncException>()),
     );
     expect(await repository.list(), hasLength(1));
+  });
+
+  test('Morning Brief v2 normalizes nested dynamic maps on mixed read', () {
+    final record = MorningBriefRecord.v2(
+      localDate: '2026-08-02',
+      sourceType: 'status',
+      sourceOperationDate: '2026-08-02',
+      sourceRecordId: 'status:2026-08-02',
+      sourceDigest: digest,
+      responseDigest: digest,
+      exchangeId: 'exchange-v2',
+      generatedAt: timestamp,
+      importedAt: timestamp,
+      situationAnalysisV2: const MorningBriefSituationAnalysis(
+        body: '身体を確認しました。',
+        recovery: '回復を確認しました。',
+        condition: '体調を確認しました。',
+        work: '勤務を確認しました。',
+        carryover: '引継ぎを確認しました。',
+        overall: '全体を確認しました。',
+      ),
+      operatingPolicy: '回復を優先します。',
+      strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
+        decision: '回復資源を選択します。',
+        targetResource: null,
+        rationale: '正式記録に基づく判断です。',
+        execution: null,
+      ),
+      operationStatus: MorningBriefOperationStatus.green,
+      commanderIntent: '重要事項を確実に進めます。',
+      actions: const [
+        MorningBriefAction(
+          actionId: '2026-08-02:action:1',
+          text: '状態を確認します。',
+          priority: 'high',
+        ),
+      ],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    final stored = record.toRecord();
+    stored['situationAnalysis'] = LinkedHashMap<Object?, Object?>.from(
+      stored['situationAnalysis'] as Map,
+    );
+    stored['strategicResourceDecision'] = LinkedHashMap<Object?, Object?>.from(
+      stored['strategicResourceDecision'] as Map,
+    );
+    stored['actions'] = [
+      LinkedHashMap<Object?, Object?>.from(
+        (stored['actions'] as List).single as Map,
+      ),
+    ];
+
+    expect(MorningBriefRecord.fromRecord(stored).toRecord(), record.toRecord());
   });
 
   test(
@@ -125,6 +185,22 @@ void main() {
       await operationState.createInitial(
         OperationLocalDate.parse('2026-08-02'),
       );
+      await IndexedDbStatusRepository(database).save(
+        MorningData(
+          date: '2026-08-02',
+          weight: 70,
+          bodyFat: 20,
+          sleepHours: 7,
+          sleepScore: 80,
+          footPain: 3,
+          workType: WorkType.work,
+          workStart: '09:00',
+          workEnd: '18:00',
+          workBreak: '01:00',
+          workHours: 8,
+          memo: '',
+        ),
+      );
       final service = ReportSyncPersistenceService(
         database: database,
         historyRepository: histories,
@@ -136,23 +212,44 @@ void main() {
         clock: () => timestamp,
       );
       const codec = ReportSyncCodec();
+      final source = await StatusReportSyncSourceService(
+        database,
+      ).generate(operationDate: '2026-08-02', exportedAt: timestamp);
       final response = codec.create(
         direction: ReportSyncDirection.response,
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
         exchangeType: ReportSyncExchangeType.morningBrief,
         exchangeId: 'response-exchange',
         operationDate: '2026-08-02',
         createdAt: timestamp,
         payload: {
           'operationDate': '2026-08-02',
-          'generatedAt': timestamp.toIso8601String(),
+          'source': {
+            'sourceType': 'status',
+            'sourceOperationDate': '2026-08-02',
+            'sourceRecordId': source.source.sourceRecordId,
+            'sourceDigest': source.sourceDigest,
+          },
           'content': {
-            'situationAnalysis': 'analysis',
+            'situationAnalysis': {
+              'body': '体重と体脂肪率は正式記録どおりです。',
+              'recovery': '睡眠時間と睡眠スコアを確認しました。',
+              'condition': '足の痛みを考慮します。',
+              'work': '勤務時間を考慮します。',
+              'carryover': '前日情報は利用できません。',
+              'overall': '負荷を抑えて安定運用します。',
+            },
+            'operatingPolicy': '回復を優先しながら必要事項を進めます。',
+            'strategicResourceDecision': {
+              'decision': '回復資源を優先します。',
+              'targetResource': null,
+              'rationale': '足の痛みが記録されているためです。',
+              'execution': null,
+            },
             'operationStatus': 'green',
-            'commanderIntent': 'intent',
-            'argoComment': 'comment',
-            'strategicResourceDecision': 'decision',
+            'commanderIntent': '回復を守りながら重要事項を確実に進めます。',
             'actions': const [
-              {'actionId': 'action-1', 'text': 'act', 'priority': 'high'},
+              {'text': '足の状態を確認してから行動します。', 'priority': 'high'},
             ],
           },
         },
@@ -162,10 +259,10 @@ void main() {
       );
       expect(result.result, ReportSyncHistoryResult.success);
       expect(
-        await IndexedDbMorningBriefRepository(
+        (await IndexedDbMorningBriefRepository(
           database,
-        ).readByLocalDate('2026-08-02'),
-        isNotNull,
+        ).readByLocalDate('2026-08-02'))?.recordVersion,
+        MorningBriefRecord.currentRecordVersion,
       );
       expect((await histories.list()).length, 1);
     },

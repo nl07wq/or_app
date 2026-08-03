@@ -141,7 +141,7 @@ void main() {
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('MORNING BRIEFはまだありません。'), findsOneWidget);
-    expect(find.text('HISTORY'), findsOneWidget);
+    expect(find.text('MORNING BRIEF BACK NUMBER'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-morning-brief-report-sync')),
       findsOneWidget,
@@ -252,8 +252,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
-    expect(find.text('2026-08-01'), findsWidgets);
-    expect(find.text('HISTORY'), findsOneWidget);
+    expect(find.text('MB-2026-08-01'), findsOneWidget);
+    expect(find.text('MORNING BRIEF BACK NUMBER'), findsOneWidget);
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
@@ -262,6 +262,94 @@ void main() {
     expect(find.textContaining(digest), findsOneWidget);
     expect(find.text('2026-07-31'), findsWidgets);
   });
+
+  testWidgets(
+    'separates current Morning Brief and exposes five back numbers with detail',
+    (tester) async {
+      for (final date in const [
+        '2026-08-01',
+        '2026-07-31',
+        '2026-07-30',
+        '2026-07-29',
+        '2026-07-28',
+        '2026-07-27',
+        '2026-07-26',
+      ]) {
+        await AppRepositoryRegistry.container.morningBriefs.create(
+          _morningBriefV2(date),
+        );
+      }
+
+      await _pump(tester, width: 390);
+      await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('CURRENT INTENT 2026-08-01'), findsOneWidget);
+      expect(find.text('CARRYOVER MUST STAY HIDDEN'), findsNothing);
+      expect(find.text('OVERALL'), findsNothing);
+      expect(find.text('HIGH'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('morning-brief-status-lamp-yellow')),
+        findsNWidgets(2),
+      );
+      expect(find.byIcon(Icons.assignment_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.monitor_weight_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.health_and_safety_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.work_outline), findsOneWidget);
+      expect(find.byIcon(Icons.route_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.track_changes_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.flag_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.checklist_outlined), findsOneWidget);
+      expect(find.text('判断'), findsOneWidget);
+      expect(find.text('重点資源'), findsOneWidget);
+      expect(find.text('理由'), findsOneWidget);
+      expect(find.text('実行方針'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('MORNING BRIEF BACK NUMBER'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('morning-brief-back-number-2026-07-26')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('CURRENT INTENT 2026-07-31'), findsOneWidget);
+      Navigator.of(
+        tester.element(find.text('CURRENT INTENT 2026-07-31')),
+      ).pop();
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('view-all-morning-brief-back-numbers')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('view-all-morning-brief-back-numbers')),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('all-morning-brief-back-number-2026-07-26')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('all-morning-brief-back-number-2026-07-26')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final statusCase in [
     (hours: 8, name: 'green'),
@@ -351,6 +439,49 @@ void main() {
       }
     });
   }
+}
+
+MorningBriefRecord _morningBriefV2(String date) {
+  const digest =
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  final timestamp = DateTime.utc(2026, 8, 1, 9);
+  return MorningBriefRecord.v2(
+    localDate: date,
+    sourceType: 'status',
+    sourceOperationDate: date,
+    sourceRecordId: 'status:$date',
+    sourceDigest: digest,
+    responseDigest: digest,
+    exchangeId: 'exchange:$date',
+    generatedAt: timestamp,
+    importedAt: timestamp,
+    situationAnalysisV2: const MorningBriefSituationAnalysis(
+      body: 'BODY STATUS',
+      recovery: 'RECOVERY STATUS',
+      condition: 'CONDITION STATUS',
+      work: 'WORK STATUS',
+      carryover: 'CARRYOVER MUST STAY HIDDEN',
+      overall: 'Integrated overall assessment',
+    ),
+    operatingPolicy: 'Operating policy',
+    strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
+      decision: 'Decision',
+      targetResource: 'Resource',
+      rationale: 'Rationale',
+      execution: 'Execution',
+    ),
+    operationStatus: MorningBriefOperationStatus.yellow,
+    commanderIntent: 'CURRENT INTENT $date',
+    actions: const [
+      MorningBriefAction(
+        actionId: 'action-1',
+        text: 'Priority action',
+        priority: 'high',
+      ),
+    ],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
 }
 
 Future<void> _scrollDailyCommand(WidgetTester tester, double dy) async {

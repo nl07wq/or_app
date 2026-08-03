@@ -486,11 +486,11 @@ void main() {
     );
     expect(find.text('EXPORT TRANSFER PACKAGE'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('OPERATION SYNC HISTORY'),
+      find.text('OPERATION SYNC RECORD'),
       300,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('OPERATION SYNC HISTORY'), findsOneWidget);
+    expect(find.text('OPERATION SYNC RECORD'), findsOneWidget);
   });
 
   for (final pageCase in const <({String name, Widget page})>[
