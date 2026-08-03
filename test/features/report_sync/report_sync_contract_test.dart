@@ -347,6 +347,35 @@ void main() {
     expect(debrief, contains('Do not complete unconfirmed information'));
   });
 
+  test('training instruction documents the formal cardio snapshot contract', () {
+    final training = ReportSyncInstructionProviderRegistry.standard()
+        .forType(ReportSyncExchangeType.training)
+        .buildInstruction(operationDate: '2026-08-02');
+
+    for (final field in const [
+      'estimatedCaloriesKcal',
+      'weightSnapshotKg',
+      'calculationMethod',
+      'calculationVersion',
+    ]) {
+      expect(training, contains(field));
+    }
+    expect(training, contains('all four fields together'));
+    expect(training, contains('set all four fields to null'));
+    expect(training, contains('calculationMethod must be metsAcsmV1'));
+    expect(training, contains('calculationVersion must be 1'));
+    expect(training, contains('leaving the other snapshot fields null'));
+    expect(training, contains('calculation weight cannot be confirmed'));
+    expect(training, contains('Never copy calories alone'));
+    expect(training, contains('infer weight'));
+    expect(training, contains('without independent rounding'));
+    expect(training, contains('exactly one fenced Plain Text code block'));
+    expect(training, contains('schemaVersion "2.0"'));
+    expect(training, contains('Set packageDigest to null'));
+    expect(training, contains('operationDate "2026-08-02" exactly'));
+    expect(training, contains('Do not invent facts'));
+  });
+
   test('accepts a standalone response without legacy request identity', () {
     final response = codec.create(
       direction: ReportSyncDirection.response,
