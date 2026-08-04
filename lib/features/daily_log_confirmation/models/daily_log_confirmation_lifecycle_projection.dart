@@ -28,6 +28,16 @@ class DailyLogConfirmationLifecycleProjection {
         revision: null,
       );
 
+  const DailyLogConfirmationLifecycleProjection.legacyFinalized()
+    : this._(
+        isFinalized: true,
+        isReopened: false,
+        isEditable: false,
+        isLocked: true,
+        recordVersion: PersistedDailyLogConfirmationRecord.legacyRecordVersion,
+        revision: 1,
+      );
+
   factory DailyLogConfirmationLifecycleProjection.fromRecord(
     PersistedDailyLogConfirmationRecord? record,
   ) {

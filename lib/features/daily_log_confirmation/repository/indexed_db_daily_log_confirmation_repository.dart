@@ -4,6 +4,7 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../import_export/services/backup_canonical_codec.dart';
 import '../../repositories/repository_exception.dart';
 import '../models/daily_log_confirmation_lifecycle_projection.dart';
+import '../models/daily_log_confirmation_lifecycle.dart';
 import '../models/persisted_daily_log_confirmation_record.dart';
 import 'daily_log_confirmation_repository.dart';
 
@@ -213,6 +214,63 @@ class IndexedDbDailyLogConfirmationRepository
   ) async => DailyLogConfirmationLifecycleProjection.fromRecord(
     await findPersistedByLocalDate(localDate),
   );
+
+  @override
+  Future<PersistedDailyLogConfirmationRecord> updateLifecycleWithReadBack({
+    required IndexedDbTransaction transaction,
+    required String id,
+    required int expectedRevision,
+    required DailyLogConfirmationLifecycleStatus expectedLifecycle,
+    required PersistedDailyLogConfirmationRecord replacement,
+  }) async {
+    if (replacement.id != id ||
+        replacement.recordVersion !=
+            PersistedDailyLogConfirmationRecord.currentRecordVersion) {
+      throw const FormatException(
+        'Daily Log Confirmation lifecycle replacement identity is invalid.',
+      );
+    }
+    final existingValue = await transaction.findById(
+      IndexedDbStoreNames.dailyLogConfirmations,
+      id,
+    );
+    if (existingValue == null) {
+      throw StateError('Daily Log Confirmation lifecycle target is missing.');
+    }
+    final existing = PersistedDailyLogConfirmationRecord.fromRecord(
+      existingValue,
+    );
+    if (existing.projectedRevision != expectedRevision ||
+        existing.projectedLifecycleStatus != expectedLifecycle) {
+      throw StateError(
+        'Daily Log Confirmation lifecycle precondition changed.',
+      );
+    }
+    final serialized = replacement.toRecord();
+    await transaction.put(
+      IndexedDbStoreNames.dailyLogConfirmations,
+      serialized,
+    );
+    final readBackValue = await transaction.findById(
+      IndexedDbStoreNames.dailyLogConfirmations,
+      id,
+    );
+    if (readBackValue == null) {
+      throw const DailyLogConfirmationLifecycleReadBackException(
+        'Daily Log Confirmation lifecycle read-back is missing.',
+      );
+    }
+    final readBack = PersistedDailyLogConfirmationRecord.fromRecord(
+      readBackValue,
+    );
+    if (BackupCanonicalCodec.encode(readBack.toRecord()) !=
+        BackupCanonicalCodec.encode(serialized)) {
+      throw const DailyLogConfirmationLifecycleReadBackException(
+        'Daily Log Confirmation lifecycle read-back does not match.',
+      );
+    }
+    return readBack;
+  }
 
   @override
   Future<void> createV2(PersistedDailyLogConfirmationRecord record) async {

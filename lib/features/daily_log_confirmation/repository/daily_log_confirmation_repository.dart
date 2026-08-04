@@ -1,6 +1,17 @@
 import '../../../core/models/daily_log_confirmation.dart';
+import '../../../data/indexed_db/indexed_db_database_contract.dart';
+import '../models/daily_log_confirmation_lifecycle.dart';
 import '../models/daily_log_confirmation_lifecycle_projection.dart';
 import '../models/persisted_daily_log_confirmation_record.dart';
+
+class DailyLogConfirmationLifecycleReadBackException implements Exception {
+  final String message;
+
+  const DailyLogConfirmationLifecycleReadBackException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 abstract interface class DailyLogConfirmationStore {
   Future<void> save(DailyLogConfirmation confirmation);
@@ -30,4 +41,12 @@ abstract interface class DailyLogConfirmationLifecycleStore {
   Future<DailyLogConfirmationLifecycleProjection> findLifecycleProjection(
     String localDate,
   );
+
+  Future<PersistedDailyLogConfirmationRecord> updateLifecycleWithReadBack({
+    required IndexedDbTransaction transaction,
+    required String id,
+    required int expectedRevision,
+    required DailyLogConfirmationLifecycleStatus expectedLifecycle,
+    required PersistedDailyLogConfirmationRecord replacement,
+  });
 }

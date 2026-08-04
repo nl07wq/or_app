@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/daily_log_confirmation/migration/daily_log_confirmation_legacy_reader.dart';
 import '../../features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
+import '../../features/daily_log_confirmation/models/daily_log_confirmation_lifecycle_projection.dart';
+import '../../features/daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../../features/repositories/app_repository_container.dart';
 import '../models/daily_log_confirmation.dart';
 import '../services/persistence_access.dart';
@@ -36,6 +38,27 @@ class DailyLogConfirmationRepository {
       if (_sameDate(record.date, date)) return record;
     }
     return null;
+  }
+
+  static Future<DailyLogConfirmationLifecycleProjection> getLifecycleProjection(
+    DateTime date,
+  ) async {
+    PersistenceAccess.requireReadable('confirmation.getLifecycleProjection');
+    if (PersistenceAccess.canReadIndexedDb) {
+      final repository = AppRepositoryRegistry.container.confirmation;
+      if (repository is! DailyLogConfirmationLifecycleStore) {
+        throw StateError(
+          'Daily Log Confirmation lifecycle repository is unavailable.',
+        );
+      }
+      return (repository as DailyLogConfirmationLifecycleStore)
+          .findLifecycleProjection(
+            PersistedDailyLogConfirmationRecord.localDateFromDate(date),
+          );
+    }
+    return await findByDate(date) == null
+        ? const DailyLogConfirmationLifecycleProjection.notFinalized()
+        : const DailyLogConfirmationLifecycleProjection.legacyFinalized();
   }
 
   static Future<List<DailyLogConfirmation>> getAll() async {

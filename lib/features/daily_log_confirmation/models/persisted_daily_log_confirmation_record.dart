@@ -184,6 +184,87 @@ class PersistedDailyLogConfirmationRecord {
     );
   }
 
+  factory PersistedDailyLogConfirmationRecord.reopenedFrom({
+    required PersistedDailyLogConfirmationRecord existing,
+    required DateTime reopenedAt,
+  }) {
+    final timestamp = reopenedAt.toUtc();
+    if (existing.projectedLifecycleStatus !=
+        DailyLogConfirmationLifecycleStatus.finalized) {
+      throw const FormatException(
+        'Only finalized Daily Log Confirmations can be reopened.',
+      );
+    }
+    return PersistedDailyLogConfirmationRecord.v2(
+      id: existing.id,
+      snapshotVersion: existing.snapshotVersion,
+      localDate: existing.localDate,
+      lifecycleStatus: DailyLogConfirmationLifecycleStatus.reopened,
+      revision: existing.projectedRevision,
+      data: copyData(existing.data),
+      snapshotDigest: existing.projectedSnapshotDigest,
+      originalSnapshotDigest: existing.projectedOriginalSnapshotDigest,
+      finalizedAt: existing.projectedFinalizedAt,
+      reopenedAt: timestamp,
+      lastRefinalizedAt: existing.isLegacyV1
+          ? null
+          : existing.lastRefinalizedAt,
+      reopenReason: DailyLogConfirmationReopenReason.userCorrection,
+      sourceRecordVersions: existing.projectedSourceRecordVersions,
+      previousRevisions: existing.previousRevisions,
+      createdAt: existing.createdAt.toUtc(),
+      updatedAt: timestamp,
+      migrationSource: existing.migrationSource,
+    );
+  }
+
+  factory PersistedDailyLogConfirmationRecord.refinalizedFrom({
+    required PersistedDailyLogConfirmationRecord existing,
+    required DailyLogConfirmation data,
+    required DailyLogConfirmationSourceRecordVersions sourceRecordVersions,
+    required DateTime refinalizedAt,
+  }) {
+    if (existing.recordVersion != currentRecordVersion ||
+        existing.lifecycleStatus !=
+            DailyLogConfirmationLifecycleStatus.reopened) {
+      throw const FormatException(
+        'Only reopened Daily Log Confirmation v2 can be re-finalized.',
+      );
+    }
+    final timestamp = refinalizedAt.toUtc();
+    final previousFinalizedAt = existing.revision == 1
+        ? existing.finalizedAt!
+        : existing.lastRefinalizedAt!;
+    final previous = DailyLogConfirmationRevision(
+      revision: existing.revision!,
+      snapshot: copyData(existing.data),
+      snapshotDigest: existing.snapshotDigest!,
+      finalizedAt: previousFinalizedAt,
+      reopenedAt: existing.reopenedAt!,
+      sourceRecordVersions: existing.sourceRecordVersions!,
+    );
+    final snapshot = copyData(data);
+    return PersistedDailyLogConfirmationRecord.v2(
+      id: existing.id,
+      snapshotVersion: existing.snapshotVersion,
+      localDate: existing.localDate,
+      lifecycleStatus: DailyLogConfirmationLifecycleStatus.finalized,
+      revision: existing.revision! + 1,
+      data: snapshot,
+      snapshotDigest: digestSnapshot(snapshot),
+      originalSnapshotDigest: existing.originalSnapshotDigest!,
+      finalizedAt: existing.finalizedAt!,
+      reopenedAt: null,
+      lastRefinalizedAt: timestamp,
+      reopenReason: null,
+      sourceRecordVersions: sourceRecordVersions,
+      previousRevisions: [...existing.previousRevisions, previous],
+      createdAt: existing.createdAt,
+      updatedAt: timestamp,
+      migrationSource: existing.migrationSource,
+    );
+  }
+
   Map<String, Object?> toRecord() {
     if (recordVersion == legacyRecordVersion) {
       return {

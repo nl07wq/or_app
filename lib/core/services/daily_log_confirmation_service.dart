@@ -2,6 +2,7 @@ import '../../features/activity/models/activity_summary_state.dart';
 import '../../features/food/models/food_summary_state.dart';
 import '../../features/morning/models/morning_fact_state.dart';
 import '../../features/training/models/training_summary_state.dart';
+import '../../features/daily_log_confirmation/services/daily_log_reopen_service.dart';
 import '../models/daily_log_confirmation.dart';
 import '../models/daily_log_confirmation_status.dart';
 import '../repositories/daily_log_confirmation_repository.dart';
@@ -87,21 +88,13 @@ class DailyLogConfirmationService {
     return confirmation;
   }
 
-  /// Reopens an explicitly selected confirmed calendar day for normal editing.
-  ///
-  /// This removes only the confirmation snapshot. Source Morning, Food,
-  /// Activity, and Training records are intentionally left unchanged.
+  /// Reopens an explicitly selected finalized day without deleting its
+  /// confirmation Snapshot.
   static Future<void> reopenDate(DateTime date) async {
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    await DailyLogConfirmationRepository.deleteByDate(normalizedDate);
-
-    final today = DateTime.now();
-    if (normalizedDate.year == today.year &&
-        normalizedDate.month == today.month &&
-        normalizedDate.day == today.day) {
-      dailyLogConfirmationNotifier.value =
-          DailyLogConfirmationStatus.unconfirmed(normalizedDate);
-    }
+    await DailyLogReopenService.production().reopen(
+      _formatLocalDate(normalizedDate),
+    );
   }
 
   static String _formatLocalDate(DateTime date) =>
