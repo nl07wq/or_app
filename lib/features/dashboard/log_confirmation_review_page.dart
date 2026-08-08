@@ -71,13 +71,13 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
           'Operation Dateを翌日へ進めますか？',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('NO'),
-          ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('YES'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('NO'),
           ),
         ],
       ),
@@ -205,7 +205,9 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
               OperationButton(
                 icon: Icons.verified_outlined,
                 text: _isConfirming ? 'FINALIZING...' : 'FINALIZE DAY',
-                onPressed: _isConfirming ? null : _confirmLog,
+                onPressed: _isConfirming || !validation.canFinalize
+                    ? null
+                    : _confirmLog,
               ),
               AppSpacing.gapXS,
               Text(
