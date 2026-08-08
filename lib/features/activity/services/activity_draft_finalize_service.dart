@@ -131,15 +131,36 @@ class ActivityDraftFinalizeService {
     }
 
     final events = <DigestiveEvent>[];
+    if (draft.digestiveEvents.isEmpty) {
+      throw const FormatException(
+        'DIGESTIVE 1を入力してください\n'
+        '排便がない場合はAmountを0として記録してください',
+      );
+    }
     for (final event in draft.digestiveEvents) {
       if (event.amount == null) {
-        throw FormatException('排便イベント${event.sequence}の量を入力してください');
+        throw FormatException(
+          'DIGESTIVE ${event.sequence}の入力が不足しています\n'
+          '排便がない場合はAmountを0として記録してください',
+        );
+      }
+      if (event.amount == 0 && (event.shape != null || event.relief != null)) {
+        throw FormatException(
+          'DIGESTIVE ${event.sequence}の入力が不足しています\n'
+          '排便がない場合はAmountを0として記録してください',
+        );
       }
       if (event.amount! > 0 && event.shape == null) {
-        throw FormatException('排便イベント${event.sequence}の形状を入力してください');
+        throw FormatException(
+          'DIGESTIVE ${event.sequence}の入力が不足しています\n'
+          '排便がない場合はAmountを0として記録してください',
+        );
       }
       if (event.amount! > 0 && event.relief == null) {
-        throw FormatException('排便イベント${event.sequence}のスッキリ感を入力してください');
+        throw FormatException(
+          'DIGESTIVE ${event.sequence}の入力が不足しています\n'
+          '排便がない場合はAmountを0として記録してください',
+        );
       }
       events.add(
         DigestiveEvent(

@@ -3,15 +3,11 @@ import 'package:flutter/foundation.dart';
 class AppClock {
   AppClock._();
 
-  static final ValueNotifier<DateTime?> _debugDateOverride = ValueNotifier(
-    null,
-  );
+  static DateTime? _testDateOverride;
   static DateTime Function() _systemNow = DateTime.now;
 
-  static ValueListenable<DateTime?> get debugDateOverride => _debugDateOverride;
-
   static DateTime now() {
-    final override = _debugDateOverride.value;
+    final override = _testDateOverride;
     if (kDebugMode && override != null) return override;
     return _systemNow();
   }
@@ -21,22 +17,25 @@ class AppClock {
     return DateTime(now.year, now.month, now.day);
   }
 
+  @visibleForTesting
   static bool get hasDebugDateOverride =>
-      kDebugMode && _debugDateOverride.value != null;
+      kDebugMode && _testDateOverride != null;
 
+  @visibleForTesting
   static void setDebugDate(DateTime date) {
     if (!kDebugMode) return;
-    _debugDateOverride.value = DateTime(date.year, date.month, date.day);
+    _testDateOverride = DateTime(date.year, date.month, date.day);
   }
 
+  @visibleForTesting
   static void clearDebugDateOverride() {
     if (!kDebugMode) return;
-    _debugDateOverride.value = null;
+    _testDateOverride = null;
   }
 
   @visibleForTesting
   static void resetForTesting() {
-    _debugDateOverride.value = null;
+    _testDateOverride = null;
     _systemNow = DateTime.now;
   }
 

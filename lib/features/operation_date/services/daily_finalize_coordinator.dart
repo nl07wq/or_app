@@ -188,18 +188,14 @@ class DailyFinalizeCoordinator {
       final finalizedDate = state.operationDate;
       final attempt = state.activeAttempt!;
       final nextDate = finalizedDate.addDays(1);
-      state = await _integrity.saveState(
-        state,
-        state.copyWith(
-          operationDate: nextDate,
-          phase: OperationPhase.open,
-          lastFinalizedDate: finalizedDate,
-          clearActiveAttempt: true,
-        ),
+      state = await _transaction.advanceAndIssueUndoEntitlement(
+        expectedState: state,
       );
       if (state.operationDate != nextDate ||
           state.phase != OperationPhase.open ||
-          state.lastFinalizedDate != finalizedDate) {
+          state.lastFinalizedDate != finalizedDate ||
+          state.undoableFinalizeDate != finalizedDate ||
+          state.undoableFinalizeConfirmationId != attempt.confirmationId) {
         throw StateError('Operation date advance read-back mismatch.');
       }
       await _integrity.verifyConfirmation(

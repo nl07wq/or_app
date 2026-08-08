@@ -57,7 +57,34 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       );
 
   Future<void> _confirmLog() async {
-    if (_isConfirming || !_validation.canFinalize) {
+    if (_isConfirming) {
+      return;
+    }
+
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('FINALIZE DAY'),
+        content: const Text(
+          'この日の入力を確定して\n'
+          'Operation Dateを翌日へ進めますか？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('NO'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('YES'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    if (!_validation.canFinalize) {
+      _showValidationFailure(_validation.blockingModules);
       return;
     }
 
@@ -90,12 +117,7 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
     } on DailyLogValidationException catch (error) {
       if (!mounted) return;
       setState(() => _isConfirming = false);
-      final labels = error.invalidModules
-          .map(DailyLogConfirmationValidation.moduleLabel)
-          .join(', ');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('必須記録を完了してください: $labels')));
+      _showValidationFailure(error.invalidModules);
     } on DailyFinalizeException catch (error) {
       if (!mounted) return;
       setState(() => _isConfirming = false);
@@ -115,6 +137,15 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('DAILY LOGの確定に失敗しました。')));
     }
+  }
+
+  void _showValidationFailure(Iterable<DailyLogModule> invalidModules) {
+    final message =
+        '必須記録を完了してください: '
+        '${invalidModules.map(DailyLogConfirmationValidation.moduleLabel).join(', ')}';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _formatLocalDate(DateTime date) =>
@@ -153,8 +184,12 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
               ],
               AppSpacing.gapLG,
               const Text(
-                '確定後は本日の通常編集・削除がロックされます。'
-                '変更が必要な場合は訂正フローを使用してください。',
+                'FINALIZEすると、\n'
+                'Operation Dateが翌日へ進みます。\n\n'
+                '確定後も、\n'
+                'STATUS・FOOD・ACTIVITY・TRAININGは修正できます。\n\n'
+                '直前のFINALIZEを取り消す場合は、\n'
+                'SYSTEMのLAST FINALIZEを使用してください。',
               ),
             ],
           ),
@@ -170,12 +205,13 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
               OperationButton(
                 icon: Icons.verified_outlined,
                 text: _isConfirming ? 'FINALIZING...' : 'FINALIZE DAY',
-                onPressed: _isConfirming || !validation.canFinalize
-                    ? null
-                    : _confirmLog,
+                onPressed: _isConfirming ? null : _confirmLog,
               ),
               AppSpacing.gapXS,
-              const Text('本日の記録を確定', textAlign: TextAlign.center),
+              Text(
+                '本日の入力を確定し、\nOperation Dateを翌日へ進める',
+                textAlign: TextAlign.center,
+              ),
               TextButton(
                 onPressed: _isConfirming ? null : () => Navigator.pop(context),
                 child: const Text('BACK TO EDIT'),

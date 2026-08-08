@@ -50,6 +50,12 @@ Future<void> saveActivity(ActivityData data) async {
   );
   await DailyLogMutationGuard.assertDateMutable(data.date);
   await _repository.save(data);
+  final readBack = await _repository.findById(data.id);
+  if (readBack == null ||
+      !_isSameDate(readBack.date, data.date) ||
+      readBack.id != data.id) {
+    throw StateError('targetRecordReadBackFailed');
+  }
   if (await _isCurrentOperationDate(data.date)) {
     activitySummaryNotifier.value = summary;
   }
@@ -58,6 +64,9 @@ Future<void> saveActivity(ActivityData data) async {
 Future<void> deleteActivity(DateTime date) async {
   await DailyLogMutationGuard.assertDateMutable(date);
   await _repository.deleteByDate(date);
+  if (await _repository.findByDate(date) != null) {
+    throw StateError('targetRecordDeleteReadBackFailed');
+  }
 
   if (await _isCurrentOperationDate(date)) {
     activitySummaryNotifier.value = const ActivitySummary.empty();
@@ -73,6 +82,11 @@ String _formatLocalDate(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-'
     '${date.month.toString().padLeft(2, '0')}-'
     '${date.day.toString().padLeft(2, '0')}';
+
+bool _isSameDate(DateTime first, DateTime second) =>
+    first.year == second.year &&
+    first.month == second.month &&
+    first.day == second.day;
 
 Future<MorningData?> _loadMorning(DateTime date) async {
   final records = await MorningRepository.getAll();

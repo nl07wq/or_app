@@ -149,10 +149,19 @@ class MorningSubmitService {
       );
       await MorningRepository.save(morningData);
     } else {
-      await DailyLogMutationGuard.assertDateMutable(
-        DateTime.parse(morningData.date),
-      );
+      final date = DateTime.parse(morningData.date);
+      await DailyLogMutationGuard.assertDateMutable(date);
       await MorningRepository.update(morningData);
+      final records = await MorningRepository.getAll();
+      final localDate = morningData.date.substring(0, 10);
+      final readBack = records.where(
+        (record) => record.date.substring(0, 10) == localDate,
+      );
+      if (readBack.length != 1 ||
+          readBack.single.toJson().toString() !=
+              morningData.toJson().toString()) {
+        throw StateError('targetRecordReadBackFailed');
+      }
     }
 
     await refreshMorningFact(localDate: morningData.date.substring(0, 10));

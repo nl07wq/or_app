@@ -14,9 +14,7 @@ import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
-import '../../core/services/app_clock.dart';
 import '../../core/services/daily_log_confirmation_state.dart';
-import '../../core/services/daily_log_confirmation_service.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/models/daily_log_confirmation_status.dart';
 import '../../core/state/app_initialization_state.dart';
@@ -33,10 +31,11 @@ import '../command_center/models/daily_command_read_model.dart';
 import '../command_center/services/daily_command_read_model_builder.dart';
 import '../command_center/widgets/daily_command_item.dart';
 import '../repositories/app_repository_container.dart';
+import '../operation_date/models/operation_local_date.dart';
+import '../operation_date/services/operation_date_service.dart';
 
 import 'widgets/daily_log_card.dart';
 import 'log_confirmation_review_page.dart';
-import 'package:flutter/foundation.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -46,12 +45,14 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  late Future<OperationLocalDate> _operationDateFuture =
+      const OperationDateService().current();
+
   @override
   Widget build(BuildContext context) {
     final isReadOnly = appInitializationController.value.isReadOnly;
-    return ValueListenableBuilder<DateTime?>(
-      valueListenable: AppClock.debugDateOverride,
-      builder: (context, _, _) {
+    return Builder(
+      builder: (context) {
         return ValueListenableBuilder<MorningFact?>(
           valueListenable: morningFactNotifier,
           builder: (context, morningFact, _) {
@@ -101,16 +102,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.stretch,
                                         children: [
-                                          if (kDebugMode) ...[
-                                            _DebugDateCard(
-                                              onPreviousDay: () =>
-                                                  _changeDebugDate(-1),
-                                              onToday: _resetDebugDate,
-                                              onNextDay: () =>
-                                                  _changeDebugDate(1),
-                                            ),
-                                            AppSpacing.gapLG,
-                                          ],
+                                          _OperationDateCard(
+                                            operationDateFuture:
+                                                _operationDateFuture,
+                                          ),
+                                          AppSpacing.gapLG,
                                           SectionHeader(
                                             icon: Icons.dashboard_outlined,
                                             title: 'DAILY COMMAND',
@@ -153,17 +149,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                             valueListenable:
                                                 dailyLogConfirmationNotifier,
                                             builder: (context, confirmationStatus, _) {
-                                              if (confirmationStatus
-                                                  .isConfirmed) {
-                                                return _ConfirmedLogConfirmationCard(
-                                                  confirmedAt:
-                                                      confirmationStatus
-                                                          .confirmedAt!,
-                                                  date: confirmationStatus.date,
-                                                  isReadOnly: isReadOnly,
-                                                );
-                                              }
-
                                               return DailyLogCard(
                                                 morningFact: morningFact,
                                                 foodSummary: foodSummary,
@@ -173,27 +158,34 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     trainingSummary,
                                                 onReview: isReadOnly
                                                     ? null
-                                                    : () => Navigator.pushNamed(
-                                                        context,
-                                                        AppRoutes
-                                                            .logConfirmationReview,
-                                                        arguments: LogConfirmationReviewPage(
-                                                          morning: morningFact,
-                                                          food: foodSummary,
-                                                          activity:
-                                                              activitySummary,
-                                                          training:
-                                                              trainingSummary,
-                                                          estimatedTotalBurn:
-                                                              _estimatedTotalBurn(
-                                                                estimatedTDEE,
+                                                    : () async {
+                                                        final changed = await Navigator.pushNamed(
+                                                          context,
+                                                          AppRoutes
+                                                              .logConfirmationReview,
+                                                          arguments: LogConfirmationReviewPage(
+                                                            morning:
+                                                                morningFact,
+                                                            food: foodSummary,
+                                                            activity:
+                                                                activitySummary,
+                                                            training:
                                                                 trainingSummary,
-                                                              ),
-                                                          targetDate:
-                                                              confirmationStatus
-                                                                  .date,
-                                                        ),
-                                                      ),
+                                                            estimatedTotalBurn:
+                                                                _estimatedTotalBurn(
+                                                                  estimatedTDEE,
+                                                                  trainingSummary,
+                                                                ),
+                                                            targetDate:
+                                                                confirmationStatus
+                                                                    .date,
+                                                          ),
+                                                        );
+                                                        if (changed == true &&
+                                                            mounted) {
+                                                          await _refreshOperationDate();
+                                                        }
+                                                      },
                                               );
                                             },
                                           ),
@@ -234,17 +226,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _changeDebugDate(int dayOffset) async {
-    final current = AppClock.today();
-    AppClock.setDebugDate(
-      DateTime(current.year, current.month, current.day + dayOffset),
-    );
-    await refreshActivitySummary();
-  }
-
-  Future<void> _resetDebugDate() async {
-    AppClock.clearDebugDateOverride();
-    await refreshActivitySummary();
+  Future<void> _refreshOperationDate() async {
+    final operationDate = await const OperationDateService().current();
+    if (!mounted) return;
+    setState(() {
+      _operationDateFuture = Future.value(operationDate);
+    });
   }
 
   void _showQuickWaterInput(BuildContext context) {
@@ -256,160 +243,42 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _DebugDateCard extends StatelessWidget {
-  final VoidCallback onPreviousDay;
-  final VoidCallback onToday;
-  final VoidCallback onNextDay;
+class _OperationDateCard extends StatelessWidget {
+  const _OperationDateCard({required this.operationDateFuture});
 
-  const _DebugDateCard({
-    required this.onPreviousDay,
-    required this.onToday,
-    required this.onNextDay,
-  });
+  final Future<OperationLocalDate> operationDateFuture;
 
   @override
-  Widget build(BuildContext context) {
-    final date = AppClock.today();
-    final dateText =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => FutureBuilder(
+    future: operationDateFuture,
+    builder: (context, snapshot) => OperationCard(
+      child: Row(
         children: [
-          Text(
-            AppClock.hasDebugDateOverride
-                ? 'DEBUG DATE OVERRIDE'
-                : 'DEBUG DATE',
-            style: Theme.of(context).textTheme.titleMedium,
+          Icon(
+            Icons.calendar_today_outlined,
+            color: Theme.of(context).colorScheme.primary,
           ),
           AppSpacing.gapSM,
-          Text(dateText),
-          AppSpacing.gapMD,
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onPreviousDay,
-                icon: const Icon(Icons.chevron_left),
-                label: const Text('Previous day'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onToday,
-                icon: const Icon(Icons.today),
-                label: const Text('Today'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onNextDay,
-                icon: const Icon(Icons.chevron_right),
-                label: const Text('Next day'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConfirmedLogConfirmationCard extends StatelessWidget {
-  const _ConfirmedLogConfirmationCard({
-    required this.confirmedAt,
-    required this.date,
-    required this.isReadOnly,
-  });
-
-  final DateTime confirmedAt;
-  final DateTime date;
-  final bool isReadOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    final localTime = confirmedAt.toLocal();
-    final time =
-        '${localTime.hour.toString().padLeft(2, '0')}:'
-        '${localTime.minute.toString().padLeft(2, '0')}';
-
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.check_circle_outline,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  'DAILY LOG FINALIZED',
-                  style: Theme.of(context).textTheme.titleMedium,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'OPERATION DATE',
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
-              ),
-            ],
-          ),
-          AppSpacing.gapSM,
-          Text('Finalized at $time'),
-          AppSpacing.gapMD,
-          OperationButton(
-            icon: Icons.article_outlined,
-            text: 'VIEW DAILY LOG',
-            onPressed: () => Navigator.pushNamed(
-              context,
-              AppRoutes.logConfirmationDetail,
-              arguments: date,
+                AppSpacing.gapXS,
+                Text(
+                  snapshot.data?.value ?? 'LOADING...',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ],
             ),
           ),
-          AppSpacing.gapSM,
-          OperationButton(
-            icon: Icons.edit_note_outlined,
-            text: 'CORRECT LOG',
-            onPressed: isReadOnly ? null : () => _showReopenDialog(context),
-          ),
         ],
       ),
-    );
-  }
-
-  Future<void> _showReopenDialog(BuildContext context) async {
-    final shouldReopen = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Correct Log'),
-        content: const Text(
-          'この日の確定を解除して、通常の編集・削除を再開します。\n'
-          '確定スナップショットは削除されますが、入力済みデータは変更されません。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('編集を再開'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldReopen != true || !context.mounted) {
-      return;
-    }
-
-    try {
-      await DailyLogConfirmationService.reopenDate(date);
-    } catch (_) {
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('確定状態を解除できませんでした。')));
-    }
-  }
+    ),
+  );
 }
 
 class _DailyCommandSummary extends StatelessWidget {

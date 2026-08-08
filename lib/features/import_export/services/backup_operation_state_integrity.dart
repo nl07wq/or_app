@@ -36,6 +36,18 @@ abstract final class BackupOperationStateIntegrity {
           );
         }
       }
+      final undoableDate = state.undoableFinalizeDate;
+      if (undoableDate != null) {
+        final confirmation =
+            confirmations[state.undoableFinalizeConfirmationId];
+        if (confirmation == null ||
+            confirmation.localDate != undoableDate.value) {
+          throw const BackupException(
+            'operation_state_undo_entitlement_mismatch',
+            'Undo entitlement does not match its finalized confirmation.',
+          );
+        }
+      }
       return;
     }
     final attempt = state.activeAttempt!;

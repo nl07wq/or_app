@@ -109,6 +109,84 @@ class DailyFinalizeTransaction {
     }
   }
 
+  Future<OperationState> advanceAndIssueUndoEntitlement({
+    required OperationState expectedState,
+  }) async {
+    try {
+      return await _database.runTransaction<OperationState>(
+        storeNames: const [
+          IndexedDbStoreNames.dailyLogConfirmations,
+          IndexedDbStoreNames.operationState,
+        ],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          final current = await _readState(transaction);
+          if (current.revision != expectedState.revision) {
+            throw OperationStateRevisionConflictException(
+              expectedRevision: expectedState.revision,
+              actualRevision: current.revision,
+            );
+          }
+          final attempt = current.activeAttempt;
+          if (current.phase != OperationPhase.advancing ||
+              attempt == null ||
+              attempt.idempotencyKey !=
+                  expectedState.activeAttempt?.idempotencyKey ||
+              attempt.confirmationId == null ||
+              attempt.confirmationDigest == null) {
+            throw StateError(
+              'Operation state is not the expected advancing lock.',
+            );
+          }
+
+          await _verifyConfirmation(
+            transaction,
+            attempt.confirmationId!,
+            attempt.confirmationDigest!,
+          );
+          final finalizedDate = current.operationDate;
+          final timestamp = _nextTimestamp(current.updatedAt);
+          final next = OperationState(
+            operationDate: finalizedDate.addDays(1),
+            phase: OperationPhase.open,
+            revision: current.revision + 1,
+            lastFinalizedDate: finalizedDate,
+            undoableFinalizeDate: finalizedDate,
+            undoableFinalizeConfirmationId: attempt.confirmationId,
+            undoableFinalizeCreatedAt: timestamp,
+            activeAttempt: null,
+            createdAt: current.createdAt,
+            updatedAt: timestamp,
+          );
+          await transaction.put(
+            IndexedDbStoreNames.operationState,
+            next.toRecord(),
+          );
+
+          await _verifyConfirmation(
+            transaction,
+            attempt.confirmationId!,
+            attempt.confirmationDigest!,
+          );
+          final readBack = await _readState(transaction);
+          if (!_recordsEqual(next.toRecord(), readBack.toRecord())) {
+            throw StateError('Operation state advance read-back mismatch.');
+          }
+          return readBack;
+        },
+      );
+    } on DailyFinalizeException {
+      rethrow;
+    } on OperationStateRevisionConflictException {
+      rethrow;
+    } catch (error) {
+      throw DailyFinalizeException(
+        DailyFinalizeFailureCode.advanceWriteFailed,
+        error,
+      );
+    }
+  }
+
   Future<OperationState> _readState(IndexedDbTransaction transaction) async {
     final records = await transaction.findAll(
       IndexedDbStoreNames.operationState,

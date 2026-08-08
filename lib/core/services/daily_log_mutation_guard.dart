@@ -34,14 +34,12 @@ class DailyLogMutationGuard {
     }
   }
 
-  static Future<bool> isDateLocked(DateTime date) async =>
-      (await getLifecycleProjection(date)).isLocked;
+  /// Finalization advances the Operation Date but never locks module records.
+  static Future<bool> isDateLocked(DateTime date) async => false;
 
   static Future<bool> isDateConfirmed(DateTime date) => isDateLocked(date);
 
-  static Future<void> assertDateEditable(DateTime date) async {
-    if (await isDateLocked(date)) throw const ConfirmedDailyLogException();
-  }
+  static Future<void> assertDateEditable(DateTime date) async {}
 
   static Future<void> assertDateMutable(DateTime date) =>
       assertDateEditable(date);

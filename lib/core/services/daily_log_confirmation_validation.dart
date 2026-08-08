@@ -78,7 +78,9 @@ abstract final class DailyLogConfirmationValidation {
   }
 
   static bool _isValidActivity(ActivitySummary activity) {
-    if (!activity.isRecorded || activity.officialSteps < 0) return false;
+    if (!activity.isRecorded || activity.officialSteps < 0) {
+      return false;
+    }
 
     final basis = activity.calculationBasis;
     final measuredSteps = basis?.rawSteps;

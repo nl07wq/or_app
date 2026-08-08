@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../operation_date/services/daily_finalize_undo_service.dart';
 import '../services/app_data_initialization_service.dart';
 import '../services/storage_status_gateway.dart';
 
@@ -141,6 +142,32 @@ class _SystemPageState extends State<SystemPage> {
           buttonText: 'OPEN OPERATION SYNC',
           onPressed: () =>
               Navigator.pushNamed(context, AppRoutes.operationSync),
+        ),
+        AppSpacing.gapXL,
+        FutureBuilder<DailyFinalizeUndoInspection>(
+          future: DailyFinalizeUndoService(
+            AppRepositoryRegistry.container.database,
+          ).inspect(),
+          builder: (context, snapshot) {
+            final inspection = snapshot.data;
+            final canOpen = inspection?.canUndo == true;
+            return _SystemSection(
+              icon: Icons.event_available_outlined,
+              title: 'LAST FINALIZE',
+              description: canOpen
+                  ? '直前に成功したFINALIZEを一度だけ取り消せます。'
+                  : inspection?.targetDate.isNotEmpty == true
+                  ? 'UNDO LAST FINALIZEは現在実行できません。'
+                  : '取り消せる直前のFINALIZEはありません。',
+              buttonText: 'OPEN LAST FINALIZE',
+              onPressed: canOpen
+                  ? () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.logConfirmationDetail,
+                    )
+                  : null,
+            );
+          },
         ),
         AppSpacing.gapXL,
         _StorageSection(snapshot: _storageStatus),

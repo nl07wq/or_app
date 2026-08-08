@@ -18,6 +18,7 @@ class DailyStateRestoreService {
   }) {
     if (force) {
       _hasRestored = false;
+      _inFlightRestore = null;
     }
     if (_hasRestored) {
       return Future<void>.value();

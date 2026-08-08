@@ -109,15 +109,21 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     var saved = false;
     try {
       final session = TrainingV2FormMapper.toDomain(_form);
-      await DailyLogMutationGuard.assertDateMutable(
-        DateTime.parse(session.date),
-      );
       if (_isEditing) {
-        await TrainingRepository.updateV2ById(
+        final date = DateTime.parse(session.date);
+        await DailyLogMutationGuard.assertDateMutable(date);
+        final readBack = await TrainingRepository.updateV2ById(
           widget.existingRecord!.id,
           session,
         );
+        if (readBack.id != widget.existingRecord!.id ||
+            readBack.localDate != session.date.substring(0, 10)) {
+          throw StateError('targetRecordReadBackFailed');
+        }
       } else {
+        await DailyLogMutationGuard.assertDateMutable(
+          DateTime.parse(session.date),
+        );
         await TrainingRepository.saveNewV2(session);
       }
       await refreshTrainingSummary();

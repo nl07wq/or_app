@@ -26,15 +26,27 @@ class FoodSubmitService {
   }
 
   static Future<void> update(MealData data) async {
-    await DailyLogMutationGuard.assertDateMutable(DateTime.parse(data.date));
+    final date = DateTime.parse(data.date);
+    await DailyLogMutationGuard.assertDateMutable(date);
     await FoodRepository.update(data);
-    await refreshFoodSummary();
+    final records = await FoodRepository.getAll();
+    final readBack = records.where((record) => record.id == data.id);
+    if (readBack.length != 1 ||
+        readBack.single.date.substring(0, 10) != data.date.substring(0, 10) ||
+        readBack.single.toJson().toString() != data.toJson().toString()) {
+      throw StateError('targetRecordReadBackFailed');
+    }
+    await refreshFoodSummary(localDate: data.date.substring(0, 10));
   }
 
   static Future<void> delete(MealData data) async {
     await DailyLogMutationGuard.assertDateMutable(DateTime.parse(data.date));
     await FoodRepository.remove(data);
-    await refreshFoodSummary();
+    final readBack = await FoodRepository.getAll();
+    if (readBack.any((record) => record.id == data.id)) {
+      throw StateError('targetRecordDeleteReadBackFailed');
+    }
+    await refreshFoodSummary(localDate: data.date.substring(0, 10));
   }
 
   static MealData _withLocalDate(MealData data, String localDate) => MealData(

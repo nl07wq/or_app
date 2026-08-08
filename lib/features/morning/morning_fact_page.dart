@@ -23,10 +23,12 @@ class MorningFactPage extends StatefulWidget {
     super.key,
     this.data,
     this.operationDateService = const OperationDateService(),
+    this.returnAfterSave = false,
   });
 
   final MorningData? data;
   final OperationDateService operationDateService;
+  final bool returnAfterSave;
 
   bool get isEdit => data != null;
 
@@ -213,10 +215,14 @@ class _MorningFactPageState extends State<MorningFactPage> {
                             return;
                           }
 
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            AppRoutes.dashboard,
-                            (route) => false,
-                          );
+                          if (widget.returnAfterSave) {
+                            Navigator.pop(context, true);
+                          } else {
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              AppRoutes.dashboard,
+                              (route) => false,
+                            );
+                          }
                         } on ConfirmedDailyLogException catch (exception) {
                           if (context.mounted) {
                             showConfirmedLogMessage(context, exception);

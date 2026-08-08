@@ -32,8 +32,14 @@ enum _EntryMode { loading, locked, draft, formal, error }
 class ActivityEntryPage extends StatefulWidget {
   final ActivityData? initialData;
   final DateTime? targetDate;
+  final bool returnAfterSave;
 
-  const ActivityEntryPage({super.key, this.initialData, this.targetDate});
+  const ActivityEntryPage({
+    super.key,
+    this.initialData,
+    this.targetDate,
+    this.returnAfterSave = false,
+  });
 
   @override
   State<ActivityEntryPage> createState() => _ActivityEntryPageState();
@@ -273,27 +279,28 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         carryOver == null ||
         carryOver < 0 ||
         _officialSteps == null) {
-      _showMessage(
-        'Enter valid values that result in non-negative official steps.',
-      );
+      _showMessage('正式歩数が0以上になるように入力してください');
       return false;
     }
     return true;
   }
 
   String? _digestiveValidationMessage() {
-    if (_digestiveEvents.every(_isEmptyDigestiveEvent)) return null;
+    if (_digestiveEvents.isEmpty ||
+        _isEmptyDigestiveEvent(_digestiveEvents.first)) {
+      return 'DIGESTIVE 1を入力してください\n'
+          '排便がない場合は「なし」を選択してください';
+    }
     for (final event in _digestiveEvents) {
-      if (event.amount == null) {
-        return 'DIGESTIVE ${event.sequence}のAmountを入力してください';
+      if (event.amount == null ||
+          (event.amount == 0 &&
+              (event.shape != null || event.relief != null)) ||
+          (event.amount! > 0 &&
+              (event.shape == null || event.relief == null))) {
+        return 'DIGESTIVE ${event.sequence}の入力が不足しています\n'
+            '排便がない場合はAmountを0として記録してください';
       }
       if (event.amount == 0) continue;
-      if (event.shape == null) {
-        return 'DIGESTIVE ${event.sequence}のShapeを入力してください';
-      }
-      if (event.relief == null) {
-        return 'DIGESTIVE ${event.sequence}のReliefを入力してください';
-      }
     }
     return null;
   }
@@ -310,18 +317,20 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
     setState(() => _isBusy = true);
     final initial = _formalData!;
+    final bowelMovement = _usesDigestiveEvents
+        ? initial.bowelMovement
+        : _buildBowelMovement();
+    final digestiveEvents = _usesDigestiveEvents
+        ? _buildFormalDigestiveEvents()
+        : initial.digestiveEvents;
     final updated = initial.copyWith(
       date: _date,
       measuredSteps: _measuredSteps!,
       carryOver: _carryOver!,
       stepsEntered: true,
       carryOverEntered: true,
-      bowelMovement: _usesDigestiveEvents
-          ? initial.bowelMovement
-          : _buildBowelMovement(),
-      digestiveEvents: _usesDigestiveEvents
-          ? _buildFormalDigestiveEvents()
-          : initial.digestiveEvents,
+      bowelMovement: bowelMovement,
+      digestiveEvents: digestiveEvents,
       updatedAt: DateTime.now(),
     );
 
@@ -344,7 +353,11 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
     if (!mounted) return;
     _showMessage('ACTIVITYを保存しました');
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.activity));
+    if (widget.returnAfterSave) {
+      Navigator.pop(context, true);
+    } else {
+      Navigator.popUntil(context, ModalRoute.withName(AppRoutes.activity));
+    }
   }
 
   Future<void> _saveDraft() async {
@@ -662,7 +675,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               ListTile(
                 title: const Text('Date'),
                 trailing: Text(_formatDate(_date)),
-                onTap: _pickDate,
+                onTap: _isFormal ? null : _pickDate,
               ),
               AppSpacing.gapMD,
               OperationTextField(
@@ -765,7 +778,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           Semantics(
             label: '排便記録なし',
             child: Text(
-              'No record',
+              'DIGESTIVE 1 未入力',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

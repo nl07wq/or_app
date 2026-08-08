@@ -10,8 +10,13 @@ import 'widgets/food_input_form.dart';
 
 class FoodEditPage extends StatelessWidget {
   final MealData meal;
+  final bool returnAfterSave;
 
-  const FoodEditPage({super.key, required this.meal});
+  const FoodEditPage({
+    super.key,
+    required this.meal,
+    this.returnAfterSave = false,
+  });
 
   Future<bool> _update(BuildContext context, MealData data) async {
     try {
@@ -34,7 +39,7 @@ class FoodEditPage extends StatelessWidget {
       context,
     ).showSnackBar(const SnackBar(content: Text('MEALを更新しました')));
 
-    if (data.isWaterEntry) {
+    if (returnAfterSave || data.isWaterEntry) {
       Navigator.pop(context, true);
     } else {
       Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));

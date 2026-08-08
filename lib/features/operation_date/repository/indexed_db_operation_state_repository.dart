@@ -124,6 +124,10 @@ class IndexedDbOperationStateRepository implements OperationStateRepository {
             phase: state.phase,
             revision: current.revision + 1,
             lastFinalizedDate: state.lastFinalizedDate,
+            undoableFinalizeDate: state.undoableFinalizeDate,
+            undoableFinalizeConfirmationId:
+                state.undoableFinalizeConfirmationId,
+            undoableFinalizeCreatedAt: state.undoableFinalizeCreatedAt,
             activeAttempt: state.activeAttempt,
             createdAt: current.createdAt,
             updatedAt: _nextTimestamp(current.updatedAt),

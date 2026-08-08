@@ -13,6 +13,9 @@ class OperationState {
   final OperationPhase phase;
   final int revision;
   final OperationLocalDate? lastFinalizedDate;
+  final OperationLocalDate? undoableFinalizeDate;
+  final String? undoableFinalizeConfirmationId;
+  final DateTime? undoableFinalizeCreatedAt;
   final OperationActiveAttempt? activeAttempt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -24,6 +27,9 @@ class OperationState {
     this.phase = OperationPhase.open,
     this.revision = 0,
     this.lastFinalizedDate,
+    this.undoableFinalizeDate,
+    this.undoableFinalizeConfirmationId,
+    this.undoableFinalizeCreatedAt,
     this.activeAttempt,
     required this.createdAt,
     required this.updatedAt,
@@ -33,6 +39,8 @@ class OperationState {
 
   bool get requiresRecovery => phase != OperationPhase.open;
 
+  bool get hasUndoableFinalize => undoableFinalizeDate != null;
+
   Map<String, Object?> toRecord() => {
     'id': id,
     'recordVersion': recordVersion,
@@ -40,6 +48,9 @@ class OperationState {
     'phase': phase.name,
     'revision': revision,
     'lastFinalizedDate': lastFinalizedDate?.value,
+    'undoableFinalizeDate': undoableFinalizeDate?.value,
+    'undoableFinalizeConfirmationId': undoableFinalizeConfirmationId,
+    'undoableFinalizeCreatedAt': undoableFinalizeCreatedAt?.toIso8601String(),
     'activeAttempt': activeAttempt?.toJson(),
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
@@ -77,6 +88,18 @@ class OperationState {
           : OperationLocalDate.parse(
               _requiredString(record, 'lastFinalizedDate'),
             ),
+      undoableFinalizeDate: record['undoableFinalizeDate'] == null
+          ? null
+          : OperationLocalDate.parse(
+              _requiredString(record, 'undoableFinalizeDate'),
+            ),
+      undoableFinalizeConfirmationId:
+          record['undoableFinalizeConfirmationId'] == null
+          ? null
+          : _requiredString(record, 'undoableFinalizeConfirmationId'),
+      undoableFinalizeCreatedAt: record['undoableFinalizeCreatedAt'] == null
+          ? null
+          : _requiredUtcDate(record, 'undoableFinalizeCreatedAt'),
       activeAttempt: attemptValue == null
           ? null
           : OperationActiveAttempt.fromJson(
@@ -93,6 +116,10 @@ class OperationState {
     int? revision,
     OperationLocalDate? lastFinalizedDate,
     bool clearLastFinalizedDate = false,
+    OperationLocalDate? undoableFinalizeDate,
+    String? undoableFinalizeConfirmationId,
+    DateTime? undoableFinalizeCreatedAt,
+    bool clearUndoableFinalize = false,
     OperationActiveAttempt? activeAttempt,
     bool clearActiveAttempt = false,
     DateTime? createdAt,
@@ -107,6 +134,16 @@ class OperationState {
       lastFinalizedDate: clearLastFinalizedDate
           ? null
           : lastFinalizedDate ?? this.lastFinalizedDate,
+      undoableFinalizeDate: clearUndoableFinalize
+          ? null
+          : undoableFinalizeDate ?? this.undoableFinalizeDate,
+      undoableFinalizeConfirmationId: clearUndoableFinalize
+          ? null
+          : undoableFinalizeConfirmationId ??
+                this.undoableFinalizeConfirmationId,
+      undoableFinalizeCreatedAt: clearUndoableFinalize
+          ? null
+          : undoableFinalizeCreatedAt ?? this.undoableFinalizeCreatedAt,
       activeAttempt: clearActiveAttempt
           ? null
           : activeAttempt ?? this.activeAttempt,
@@ -124,6 +161,10 @@ class OperationState {
     return operationDate == other.operationDate &&
         phase == other.phase &&
         lastFinalizedDate == other.lastFinalizedDate &&
+        undoableFinalizeDate == other.undoableFinalizeDate &&
+        undoableFinalizeConfirmationId ==
+            other.undoableFinalizeConfirmationId &&
+        undoableFinalizeCreatedAt == other.undoableFinalizeCreatedAt &&
         attemptsMatch;
   }
 
@@ -139,6 +180,29 @@ class OperationState {
     if (lastFinalizedDate != null &&
         lastFinalizedDate!.compareTo(operationDate) >= 0) {
       throw const FormatException('Invalid last finalized date.');
+    }
+    final undoFields = [
+      undoableFinalizeDate,
+      undoableFinalizeConfirmationId,
+      undoableFinalizeCreatedAt,
+    ];
+    final undoFieldCount = undoFields.where((value) => value != null).length;
+    if (undoFieldCount != 0 && undoFieldCount != undoFields.length) {
+      throw const FormatException('Incomplete undoable finalize state.');
+    }
+    if (undoableFinalizeDate != null) {
+      if (undoableFinalizeDate!.compareTo(operationDate) >= 0 ||
+          undoableFinalizeConfirmationId !=
+              'confirmation:${undoableFinalizeDate!.value}' ||
+          !undoableFinalizeCreatedAt!.isUtc) {
+        throw const FormatException('Invalid undoable finalize state.');
+      }
+      if (phase == OperationPhase.open &&
+          operationDate != undoableFinalizeDate!.addDays(1)) {
+        throw const FormatException(
+          'Open operation does not match undoable finalize date.',
+        );
+      }
     }
     if (phase == OperationPhase.open) {
       if (activeAttempt != null) {
