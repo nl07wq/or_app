@@ -1,3 +1,4 @@
+import '../../../core/models/morning_data.dart';
 import '../../../core/models/work_type.dart';
 import '../../../core/services/work_calculator.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
@@ -173,7 +174,7 @@ class StatusReportSyncSourceService {
         rawData['weight'] is! num ||
         rawData['bodyFat'] is! num ||
         rawData['sleepHours'] is! num ||
-        rawData['sleepScore'] is! int ||
+        (rawData['sleepScore'] != null && rawData['sleepScore'] is! int) ||
         rawData['footPain'] is! int ||
         rawData['workType'] is! String ||
         rawData['workStart'] is! String ||
@@ -245,7 +246,11 @@ class StatusReportSyncSourceService {
     if ((sleepMinutes - sleepMinutes.round()).abs() > 0.000000001) {
       _invalid(date, 'sleepHours');
     }
-    if (data.sleepScore < 0 || data.sleepScore > 100) {
+    if (data.sleepType == SleepType.sleep && data.sleepScore == null) {
+      _invalid(date, 'sleepScore');
+    }
+    if (data.sleepScore != null &&
+        (data.sleepScore! < 0 || data.sleepScore! > 100)) {
       _invalid(date, 'sleepScore');
     }
     if (data.footPain < 1 || data.footPain > 10) {
@@ -433,7 +438,7 @@ class StatusReportSyncSourceService {
       '',
       '[RECOVERY]',
       'SLEEP DURATION MINUTES: ${source.recovery.sleepDurationMinutes}',
-      'SLEEP SCORE: ${source.recovery.sleepScore}',
+      'SLEEP SCORE: ${_nullable(source.recovery.sleepScore)}',
       '',
       '[CONDITION]',
       'FOOT PAIN LEVEL: ${source.condition.footPainLevel}',

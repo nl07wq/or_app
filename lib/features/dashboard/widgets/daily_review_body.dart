@@ -82,7 +82,9 @@ class _StatusReviewSection extends StatelessWidget {
                   key: const ValueKey('status-sleep-score-row'),
                   children: [
                     Text('Sleep ${_formatSleep(morning!.sleepDuration)}'),
-                    Text('Sleep Score ${morning!.sleepScore}'),
+                    Text(
+                      'Sleep Score ${morning!.sleepScore?.toString() ?? '未計測'}',
+                    ),
                   ],
                 ),
                 AppSpacing.gapXS,

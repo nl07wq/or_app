@@ -13,6 +13,7 @@ class WheelInputCard extends StatefulWidget {
   final double step;
 
   final double? initialValue;
+  final bool preserveEmpty;
 
   /// 数値→表示名
   final Map<int, String>? labels;
@@ -26,6 +27,7 @@ class WheelInputCard extends StatefulWidget {
     required this.max,
     required this.step,
     this.initialValue,
+    this.preserveEmpty = false,
     this.labels,
   });
 
@@ -93,6 +95,7 @@ class _WheelInputCardState extends State<WheelInputCard> {
             step: widget.step,
             unit: widget.unit,
             initialValue: widget.initialValue,
+            preserveEmpty: widget.preserveEmpty,
             labels: widget.labels,
           ),
 

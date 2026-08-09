@@ -1,5 +1,14 @@
 import 'work_type.dart';
 
+enum SleepType {
+  sleep('睡眠'),
+  nap('仮眠');
+
+  const SleepType(this.displayLabel);
+
+  final String displayLabel;
+}
+
 class MorningData {
   final String date;
 
@@ -9,7 +18,8 @@ class MorningData {
 
   // RECOVERY
   final double sleepHours;
-  final int sleepScore;
+  final int? sleepScore;
+  final SleepType sleepType;
 
   // FOOT HEALTH
   final int footPain;
@@ -43,6 +53,7 @@ class MorningData {
 
     required this.sleepHours,
     required this.sleepScore,
+    this.sleepType = SleepType.sleep,
 
     required this.footPain,
     this.condition,
@@ -63,6 +74,22 @@ class MorningData {
   });
 
   factory MorningData.fromJson(Map<String, dynamic> json) {
+    final sleepTypeValue = json['sleepType'];
+    final sleepType = sleepTypeValue == null
+        ? SleepType.sleep
+        : SleepType.values.firstWhere(
+            (value) => value.name == sleepTypeValue,
+            orElse: () => throw const FormatException('Invalid sleep type.'),
+          );
+    final sleepScore = json.containsKey('sleepScore')
+        ? (json['sleepScore'] as num?)?.toInt()
+        : 0;
+    if (sleepType == SleepType.sleep && sleepScore == null) {
+      throw const FormatException('Sleep score is required for sleep.');
+    }
+    if (sleepScore != null && (sleepScore < 0 || sleepScore > 100)) {
+      throw const FormatException('Invalid sleep score.');
+    }
     return MorningData(
       date: json['date'] as String,
 
@@ -70,7 +97,8 @@ class MorningData {
       bodyFat: (json['bodyFat'] ?? 0).toDouble(),
 
       sleepHours: (json['sleepHours'] as num).toDouble(),
-      sleepScore: (json['sleepScore'] ?? 0) as int,
+      sleepScore: sleepScore,
+      sleepType: sleepType,
 
       footPain: (json['footPain'] ?? 0) as int,
       condition: (json['condition'] as num?)?.toInt(),
@@ -102,6 +130,7 @@ class MorningData {
 
       'sleepHours': sleepHours,
       'sleepScore': sleepScore,
+      'sleepType': sleepType.name,
 
       'footPain': footPain,
       if (condition != null) 'condition': condition,

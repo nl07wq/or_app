@@ -33,6 +33,7 @@ class MorningSubmitService {
 
     required String sleepText,
     required String sleepScoreText,
+    required SleepType sleepType,
 
     required String footPainText,
 
@@ -82,10 +83,19 @@ class MorningSubmitService {
       return '睡眠時間は 7:30 の形式で入力してください';
     }
 
-    final sleepScore = int.tryParse(sleepScoreText.trim());
+    final sleepScoreInput = sleepScoreText.trim();
+    final sleepScore = sleepScoreInput.isEmpty
+        ? null
+        : int.tryParse(sleepScoreInput);
 
-    if (sleepScore == null) {
+    if (sleepType == SleepType.sleep && sleepScore == null) {
       return '睡眠スコアを入力してください';
+    }
+    if (sleepScoreInput.isNotEmpty && sleepScore == null) {
+      return '睡眠スコアを入力してください';
+    }
+    if (sleepScore != null && (sleepScore < 0 || sleepScore > 100)) {
+      return '睡眠スコアは0から100で入力してください';
     }
 
     final double workHours =
@@ -114,6 +124,7 @@ class MorningSubmitService {
 
       sleepHours: sleep,
       sleepScore: sleepScore,
+      sleepType: sleepType,
 
       footPain: int.tryParse(footPainText) ?? 3,
       condition: existingData?.condition,

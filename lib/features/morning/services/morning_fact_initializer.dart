@@ -15,7 +15,7 @@ class MorningFactInitializer {
         weight: latest.weight.toString(),
         bodyFat: latest.bodyFat.toString(),
         sleep: _formatTime(latest.sleepHours),
-        sleepScore: latest.sleepScore.toString(),
+        sleepScore: latest.sleepScore?.toString() ?? '',
       );
     } catch (_) {
       return const MorningInitialValues.empty();

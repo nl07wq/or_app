@@ -11,6 +11,7 @@ class WheelRuler extends StatefulWidget {
   final String unit;
 
   final double? initialValue;
+  final bool preserveEmpty;
 
   /// 数値→表示文字
   final Map<int, String>? labels;
@@ -25,6 +26,7 @@ class WheelRuler extends StatefulWidget {
     required this.step,
     required this.unit,
     this.initialValue,
+    this.preserveEmpty = false,
     this.labels,
     this.onChanged,
   });
@@ -52,7 +54,8 @@ class _WheelRulerState extends State<WheelRuler> {
 
     double initialValue = widget.initialValue ?? widget.min;
 
-    if (widget.controller.text.isNotEmpty) {
+    final initiallyEmpty = widget.controller.text.isEmpty;
+    if (!initiallyEmpty) {
       initialValue = double.tryParse(widget.controller.text) ?? initialValue;
     }
 
@@ -62,9 +65,11 @@ class _WheelRulerState extends State<WheelRuler> {
 
     _scrollController = FixedExtentScrollController(initialItem: selectedIndex);
 
-    widget.controller.text = values[selectedIndex].toStringAsFixed(
-      widget.step < 1 ? 1 : 0,
-    );
+    if (!widget.preserveEmpty || !initiallyEmpty) {
+      widget.controller.text = values[selectedIndex].toStringAsFixed(
+        widget.step < 1 ? 1 : 0,
+      );
+    }
   }
 
   String _displayValue(double value) {

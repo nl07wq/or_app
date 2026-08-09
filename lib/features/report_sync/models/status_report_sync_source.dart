@@ -34,7 +34,7 @@ class StatusReportSyncRecoverySource {
   });
 
   final int sleepDurationMinutes;
-  final int sleepScore;
+  final int? sleepScore;
 }
 
 class StatusReportSyncConditionSource {

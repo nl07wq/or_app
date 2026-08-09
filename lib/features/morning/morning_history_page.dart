@@ -143,9 +143,14 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                         value: formatTime(data.sleepHours),
                       ),
                       _HistoryDetailRow(
+                        icon: Icons.category_outlined,
+                        label: '睡眠タイプ',
+                        value: data.sleepType.displayLabel,
+                      ),
+                      _HistoryDetailRow(
                         icon: Icons.speed,
                         label: '睡眠スコア',
-                        value: '${data.sleepScore}',
+                        value: data.sleepScore?.toString() ?? '未計測',
                       ),
                       _HistoryDetailRow(
                         icon: Icons.directions_walk,

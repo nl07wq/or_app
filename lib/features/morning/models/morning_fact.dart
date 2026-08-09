@@ -5,7 +5,7 @@ class MorningFact {
   final double weight;
   final double? bodyFat;
   final Duration sleepDuration;
-  final int sleepScore;
+  final int? sleepScore;
   final double workHours;
   final int footPain;
   final int? condition;
@@ -32,7 +32,7 @@ class MorningFact {
     double? weight,
     Object? bodyFat = _unset,
     Duration? sleepDuration,
-    int? sleepScore,
+    Object? sleepScore = _unset,
     double? workHours,
     int? footPain,
     Object? condition = _unset,
@@ -45,7 +45,7 @@ class MorningFact {
       weight: weight ?? this.weight,
       bodyFat: bodyFat == _unset ? this.bodyFat : bodyFat as double?,
       sleepDuration: sleepDuration ?? this.sleepDuration,
-      sleepScore: sleepScore ?? this.sleepScore,
+      sleepScore: sleepScore == _unset ? this.sleepScore : sleepScore as int?,
       workHours: workHours ?? this.workHours,
       footPain: footPain ?? this.footPain,
       condition: condition == _unset ? this.condition : condition as int?,
@@ -63,7 +63,9 @@ class MorningFact {
       weight: (json['weight'] as num).toDouble(),
       bodyFat: (json['bodyFat'] as num?)?.toDouble(),
       sleepDuration: Duration(microseconds: json['sleepDuration'] as int),
-      sleepScore: (json['sleepScore'] as num?)?.toInt() ?? 0,
+      sleepScore: json.containsKey('sleepScore')
+          ? (json['sleepScore'] as num?)?.toInt()
+          : 0,
       workHours: (json['workHours'] as num).toDouble(),
       footPain: json['footPain'] as int,
       condition: (json['condition'] as num?)?.toInt(),

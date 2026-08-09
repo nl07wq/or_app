@@ -52,7 +52,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
       bodyFatController.text = data.bodyFat.toString();
 
       sleepController.text = _formatTime(data.sleepHours);
-      sleepScoreController.text = data.sleepScore.toString();
+      sleepScoreController.text = data.sleepScore?.toString() ?? '';
+      selectedSleepType = data.sleepType;
 
       footPainController.text = data.footPain.toString();
 
@@ -114,6 +115,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
   final memoController = TextEditingController();
 
   WorkType selectedWorkType = WorkType.work;
+  SleepType selectedSleepType = SleepType.sleep;
 
   String _formatTime(double hours) {
     final totalMinutes = (hours * 60).round();
@@ -162,6 +164,15 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     RecoveryCard(
                       sleepController: sleepController,
                       sleepScoreController: sleepScoreController,
+                      sleepType: selectedSleepType,
+                      onSleepTypeChanged: (value) {
+                        setState(() {
+                          selectedSleepType = value;
+                          if (value == SleepType.nap) {
+                            sleepScoreController.clear();
+                          }
+                        });
+                      },
                     ),
 
                     AppSpacing.gapMD,
@@ -200,6 +211,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
                             bodyFatText: bodyFatController.text,
                             sleepText: sleepController.text,
                             sleepScoreText: sleepScoreController.text,
+                            sleepType: selectedSleepType,
                             footPainText: footPainController.text,
                             workStart: workStartController.text,
                             workEnd: workEndController.text,
