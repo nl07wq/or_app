@@ -9,6 +9,34 @@ enum MorningBriefOperationStatus {
   final String stableId;
 }
 
+class MorningBriefSectionDisplay {
+  const MorningBriefSectionDisplay({
+    required this.primaryText,
+    required this.supportingText,
+  });
+
+  static const fields = {'primaryText', 'supportingText'};
+
+  final String primaryText;
+  final String? supportingText;
+
+  Map<String, Object?> toJson() => {
+    'primaryText': primaryText,
+    'supportingText': supportingText,
+  };
+
+  factory MorningBriefSectionDisplay.fromJson(Map<String, Object?> json) {
+    ReportSyncRecordUtils.exactFields(json, fields);
+    return MorningBriefSectionDisplay(
+      primaryText: ReportSyncRecordUtils.string(json, 'primaryText'),
+      supportingText: ReportSyncRecordUtils.nullableString(
+        json,
+        'supportingText',
+      ),
+    );
+  }
+}
+
 class MorningBriefSituationAnalysis {
   const MorningBriefSituationAnalysis({
     required this.body,
@@ -17,15 +45,26 @@ class MorningBriefSituationAnalysis {
     required this.work,
     required this.carryover,
     required this.overall,
+    this.bodyDisplay,
+    this.recoveryDisplay,
+    this.conditionDisplay,
+    this.workDisplay,
   });
 
-  static const fields = {
+  static const requiredFields = {
     'body',
     'recovery',
     'condition',
     'work',
     'carryover',
     'overall',
+  };
+  static const fields = {
+    ...requiredFields,
+    'bodyDisplay',
+    'recoveryDisplay',
+    'conditionDisplay',
+    'workDisplay',
   };
 
   final String body;
@@ -34,6 +73,10 @@ class MorningBriefSituationAnalysis {
   final String work;
   final String carryover;
   final String overall;
+  final MorningBriefSectionDisplay? bodyDisplay;
+  final MorningBriefSectionDisplay? recoveryDisplay;
+  final MorningBriefSectionDisplay? conditionDisplay;
+  final MorningBriefSectionDisplay? workDisplay;
 
   Map<String, Object?> toJson() => {
     'body': body,
@@ -42,10 +85,21 @@ class MorningBriefSituationAnalysis {
     'work': work,
     'carryover': carryover,
     'overall': overall,
+    if (bodyDisplay != null) 'bodyDisplay': bodyDisplay!.toJson(),
+    if (recoveryDisplay != null) 'recoveryDisplay': recoveryDisplay!.toJson(),
+    if (conditionDisplay != null)
+      'conditionDisplay': conditionDisplay!.toJson(),
+    if (workDisplay != null) 'workDisplay': workDisplay!.toJson(),
   };
 
   factory MorningBriefSituationAnalysis.fromJson(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, fields);
+    final actualFields = json.keys.toSet();
+    if (actualFields.difference(fields).isNotEmpty ||
+        requiredFields.difference(actualFields).isNotEmpty) {
+      throw const FormatException(
+        'Morning Brief situation analysis fields are invalid.',
+      );
+    }
     return MorningBriefSituationAnalysis(
       body: ReportSyncRecordUtils.string(json, 'body'),
       recovery: ReportSyncRecordUtils.string(json, 'recovery'),
@@ -53,6 +107,24 @@ class MorningBriefSituationAnalysis {
       work: ReportSyncRecordUtils.string(json, 'work'),
       carryover: ReportSyncRecordUtils.string(json, 'carryover'),
       overall: ReportSyncRecordUtils.string(json, 'overall'),
+      bodyDisplay: _display(json, 'bodyDisplay'),
+      recoveryDisplay: _display(json, 'recoveryDisplay'),
+      conditionDisplay: _display(json, 'conditionDisplay'),
+      workDisplay: _display(json, 'workDisplay'),
+    );
+  }
+
+  static MorningBriefSectionDisplay? _display(
+    Map<String, Object?> json,
+    String field,
+  ) {
+    final value = json[field];
+    if (value == null) return null;
+    if (value is! Map) {
+      throw FormatException('Morning Brief $field is invalid.');
+    }
+    return MorningBriefSectionDisplay.fromJson(
+      Map<String, Object?>.from(value),
     );
   }
 

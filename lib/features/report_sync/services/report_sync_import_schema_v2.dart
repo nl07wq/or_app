@@ -43,14 +43,23 @@ class MorningBriefReportSyncPayloadSchemaV2 {
       content['situationAnalysis'],
       r'$.payload.content.situationAnalysis',
     );
-    _exact(analysis, const {
-      'body',
-      'recovery',
-      'condition',
-      'work',
-      'carryover',
-      'overall',
-    }, r'$.payload.content.situationAnalysis');
+    _fields(
+      analysis,
+      const {
+        'body',
+        'recovery',
+        'condition',
+        'work',
+        'carryover',
+        'overall',
+        'bodyDisplay',
+        'recoveryDisplay',
+        'conditionDisplay',
+        'workDisplay',
+      },
+      const {'body', 'recovery', 'condition', 'work', 'carryover', 'overall'},
+      r'$.payload.content.situationAnalysis',
+    );
     for (final key in const [
       'body',
       'recovery',
@@ -62,6 +71,31 @@ class MorningBriefReportSyncPayloadSchemaV2 {
       _japanesePlainText(
         analysis[key],
         '${r'$.payload.content.situationAnalysis'}.$key',
+      );
+    }
+    for (final key in const [
+      'bodyDisplay',
+      'recoveryDisplay',
+      'conditionDisplay',
+      'workDisplay',
+    ]) {
+      final value = analysis[key];
+      if (value == null) continue;
+      final display = _map(
+        value,
+        '${r'$.payload.content.situationAnalysis'}.$key',
+      );
+      _exact(display, const {
+        'primaryText',
+        'supportingText',
+      }, '${r'$.payload.content.situationAnalysis'}.$key');
+      _japanesePlainText(
+        display['primaryText'],
+        '${r'$.payload.content.situationAnalysis'}.$key.primaryText',
+      );
+      _nullableJapanesePlainText(
+        display['supportingText'],
+        '${r'$.payload.content.situationAnalysis'}.$key.supportingText',
       );
     }
 

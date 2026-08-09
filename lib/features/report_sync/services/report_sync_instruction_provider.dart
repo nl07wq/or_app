@@ -140,9 +140,25 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
         'content': {
           'situationAnalysis': {
             'body': '<Japanese plain text>',
+            'bodyDisplay': {
+              'primaryText': '<Japanese plain text>',
+              'supportingText': '<Japanese plain text or null>',
+            },
             'recovery': '<Japanese plain text>',
+            'recoveryDisplay': {
+              'primaryText': '<Japanese plain text>',
+              'supportingText': '<Japanese plain text or null>',
+            },
             'condition': '<Japanese plain text>',
+            'conditionDisplay': {
+              'primaryText': '<Japanese plain text>',
+              'supportingText': '<Japanese plain text or null>',
+            },
             'work': '<Japanese plain text>',
+            'workDisplay': {
+              'primaryText': '<Japanese plain text>',
+              'supportingText': '<Japanese plain text or null>',
+            },
             'carryover': '<Japanese plain text>',
             'overall': '<Japanese plain text>',
           },
@@ -174,7 +190,13 @@ RESPONSE CONTRACT
 formatは「${ReportSyncEnvelope.formatId}」、envelopeVersionは1、schemaVersionは「2.0」、directionは「response」、exchangeTypeは「morningBrief」、operationDateは「$operationDate」に固定してください。
 packageDigestはnullにしてください。Digestを計算せず、Placeholderや文字列へ置換しないでください。アプリがStrict Validation後に正式Digestを生成します。
 Unknown Field、旧Schema 1.0 Field、argoComment、actionIdを追加しないでください。situationAnalysisを単一Stringにしないでください。
-situationAnalysisのbody/recovery/condition/work/carryover/overall、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actionsをすべて返してください。
+situationAnalysisのbody/recovery/condition/work/carryover/overallと、bodyDisplay/recoveryDisplay/conditionDisplay/workDisplay、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actionsをすべて返してください。
+body/recovery/condition/workは従来どおりSection全体の日本語分析文です。各DisplayはprimaryTextとsupportingTextだけを持ち、primaryTextにはSTATUS SOURCEの明示Fact、supportingTextには対応する分析文だけを入れてください。Factと分析を後から文字列分割できる形式へ連結しないでください。
+bodyDisplay.primaryTextは「体重: 値kg  体脂肪率: 値%」形式とし、前日比とBody分析はbodyDisplay.supportingTextへ入れてください。
+recoveryDisplay.primaryTextは「睡眠時間: H:MM  睡眠スコア: 値」形式とし、sleepDurationMinutesをH:MMへ変換してください。sleepScoreがnullの場合は0へ変換せず「睡眠スコア: 仮眠」としてください。Recovery分析はrecoveryDisplay.supportingTextへ入れてください。
+conditionDisplay.primaryTextは「足底筋膜炎: LV.n」形式とし、FOOT PAIN LEVELの数値を使用してください。Condition分析はconditionDisplay.supportingTextへ入れてください。
+workDisplay.primaryTextはSTATUS SOURCEに存在する勤務Factだけを「項目名: 値」で表し、存在しない勤務情報を推測しないでください。Work補足がない場合のみworkDisplay.supportingTextをnullにしてください。
+STRATEGIC RESOURCE DECISIONで睡眠時間を使用する場合も、sleepDurationMinutesをH:MMへ変換した自然な日本語にしてください。「151分」のような分表記を使用しないでください。
 operationStatusはgreen/yellow/redのみです。commanderIntentは日本語1行で、「候補」という表現を付けないでください。actionsは1件以上5件以下、入力順を維持し、各要素はtextとpriorityだけにしてください。priorityはlow/medium/high/criticalのみです。actionIdはアプリが生成します。
 decisionとrationaleは日本語Plain Text必須、targetResourceとexecutionは情報がない場合だけnullです。Markdown、改行付きCommander Intent、型変換、Missing Field補完は禁止です。
 

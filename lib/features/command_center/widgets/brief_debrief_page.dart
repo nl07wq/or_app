@@ -434,21 +434,25 @@ class _SituationAnalysisSection extends StatelessWidget {
         icon: Icons.monitor_weight_outlined,
         title: 'BODY',
         body: analysis.body,
+        display: analysis.bodyDisplay,
       ),
       _AnalysisBlock(
         icon: Icons.bedtime_outlined,
         title: 'RECOVERY',
         body: analysis.recovery,
+        display: analysis.recoveryDisplay,
       ),
       _AnalysisBlock(
         icon: Icons.health_and_safety_outlined,
         title: 'CONDITION',
         body: analysis.condition,
+        display: analysis.conditionDisplay,
       ),
       _AnalysisBlock(
         icon: Icons.work_outline,
         title: 'WORK',
         body: analysis.work,
+        display: analysis.workDisplay,
         showDivider: false,
       ),
     ],
@@ -460,12 +464,14 @@ class _AnalysisBlock extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
+    required this.display,
     this.showDivider = true,
   });
 
   final IconData icon;
   final String title;
   final String body;
+  final MorningBriefSectionDisplay? display;
   final bool showDivider;
 
   @override
@@ -490,7 +496,10 @@ class _AnalysisBlock extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _ReadableText(body),
+                  if (display == null)
+                    _ReadableText(body)
+                  else
+                    _StructuredAnalysisText(display: display!),
                 ],
               ),
             ),
@@ -498,6 +507,24 @@ class _AnalysisBlock extends StatelessWidget {
         ),
       ),
       if (showDivider) const Divider(height: 1),
+    ],
+  );
+}
+
+class _StructuredAnalysisText extends StatelessWidget {
+  const _StructuredAnalysisText({required this.display});
+
+  final MorningBriefSectionDisplay display;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _ReadableText(display.primaryText),
+      if (display.supportingText != null) ...[
+        const SizedBox(height: 8),
+        _ReadableText(display.supportingText!, supporting: true),
+      ],
     ],
   );
 }
@@ -563,10 +590,15 @@ class _BriefSectionTitle extends StatelessWidget {
 }
 
 class _ReadableText extends StatelessWidget {
-  const _ReadableText(this.text, {this.emphasized = false});
+  const _ReadableText(
+    this.text, {
+    this.emphasized = false,
+    this.supporting = false,
+  });
 
   final String text;
   final bool emphasized;
+  final bool supporting;
 
   @override
   Widget build(BuildContext context) {
@@ -577,11 +609,15 @@ class _ReadableText extends StatelessWidget {
         for (var index = 0; index < paragraphs.length; index++) ...[
           Text(
             paragraphs[index],
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              height: 1.65,
-              fontSize: emphasized ? 17 : null,
-              fontWeight: emphasized ? FontWeight.w600 : null,
-            ),
+            style:
+                (supporting
+                        ? Theme.of(context).textTheme.bodyMedium
+                        : Theme.of(context).textTheme.bodyLarge)
+                    ?.copyWith(
+                      height: 1.65,
+                      fontSize: emphasized ? 17 : null,
+                      fontWeight: emphasized ? FontWeight.w600 : null,
+                    ),
           ),
           if (index != paragraphs.length - 1) const SizedBox(height: 8),
         ],
