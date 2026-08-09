@@ -3,6 +3,7 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../activity/models/activity_draft.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../daily_log_confirmation/services/daily_log_confirmation_source_snapshot.dart';
+import '../../daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
 import '../../import_export/services/backup_canonical_codec.dart';
 import '../models/operation_local_date.dart';
 import '../models/operation_state.dart';
@@ -72,6 +73,7 @@ class DailyFinalizeUndoService {
     IndexedDbStoreNames.activityRecords,
     IndexedDbStoreNames.activityDrafts,
     IndexedDbStoreNames.trainingRecords,
+    IndexedDbStoreNames.dailyAggregateRecords,
   ];
 
   DailyFinalizeUndoService(this._database, {DateTime Function()? now})
@@ -137,6 +139,9 @@ class DailyFinalizeUndoService {
             IndexedDbStoreNames.dailyLogConfirmations,
             context.targetConfirmation.id,
           );
+          await IndexedDbDailyAggregateRepository(
+            _database,
+          ).deleteByDateInTransaction(transaction, context.target.value);
 
           final nextState = OperationState(
             operationDate: context.target,

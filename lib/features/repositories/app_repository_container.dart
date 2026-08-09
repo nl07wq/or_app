@@ -6,6 +6,8 @@ import '../activity/repository/indexed_db_activity_draft_repository.dart';
 import '../activity/repository/indexed_db_activity_repository.dart';
 import '../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
+import '../daily_aggregate/repository/daily_aggregate_repository.dart';
+import '../daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
 import '../food/repository/food_repository.dart';
 import '../food/repository/food_catalog_repository.dart';
 import '../food/repository/food_recipe_repository.dart';
@@ -62,6 +64,7 @@ class AppRepositoryContainer {
   final TrainingSessionRepository training;
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
+  final DailyAggregateRepository dailyAggregates;
   final OperationStateRepository operationState;
   final OperationSyncStateRepository operationSyncState;
   final OperationSyncHistoryRepository operationSyncHistory;
@@ -97,6 +100,7 @@ class AppRepositoryContainer {
     required this.training,
     required this.customTrainingExercises,
     required this.confirmation,
+    required this.dailyAggregates,
     required this.operationState,
     required this.operationSyncState,
     required this.operationSyncHistory,
@@ -180,6 +184,7 @@ class AppRepositoryContainer {
         database,
       ),
       confirmation: confirmation,
+      dailyAggregates: IndexedDbDailyAggregateRepository(database),
       operationState: operationState,
       operationSyncState: operationSyncState,
       operationSyncHistory: operationSyncHistory,

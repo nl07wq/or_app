@@ -1,6 +1,7 @@
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../activity/models/persisted_activity_record.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
+import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../food/models/persisted_food_record.dart';
 import '../../food/models/persisted_daily_meal_v2_record.dart';
 import '../../food/models/food_catalog_models.dart';
@@ -38,6 +39,8 @@ abstract final class BackupStoreRegistry {
     BackupSections.legacyDailySummaryRecords:
         IndexedDbStoreNames.legacyDailySummaryRecords,
     BackupSections.profile: IndexedDbStoreNames.profileRecords,
+    BackupSections.dailyAggregateRecords:
+        IndexedDbStoreNames.dailyAggregateRecords,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -76,6 +79,8 @@ abstract final class BackupStoreRegistry {
         LegacyDailySummaryRecord.fromRecord(record);
       case BackupSections.profile:
         ProfileModel.fromBackupRecord(record);
+      case BackupSections.dailyAggregateRecords:
+        DailyAggregateV1.fromJson(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -154,6 +159,7 @@ abstract final class BackupStoreRegistry {
       BackupSections.legacyDailySummaryRecords =>
         '${record['localDate']}\u0000$id',
       BackupSections.profile => id,
+      BackupSections.dailyAggregateRecords => record['operationDate'] as String,
       _ => id.toString(),
     };
   }
@@ -201,6 +207,7 @@ abstract final class BackupStoreRegistry {
       BackupSections.reportSyncHistory => 'exchangeId',
       BackupSections.legacyDailySummaryRecords => 'localDate',
       BackupSections.profile => 'version',
+      BackupSections.dailyAggregateRecords => 'operationDate',
       _ => 'id',
     };
     final value = record[key];

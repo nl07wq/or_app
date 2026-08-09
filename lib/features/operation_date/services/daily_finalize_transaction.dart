@@ -2,6 +2,8 @@ import '../../../core/models/daily_log_confirmation.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
+import '../../daily_aggregate/models/daily_aggregate_v1.dart';
+import '../../daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
 import '../../import_export/services/backup_canonical_codec.dart';
 import '../models/operation_active_attempt.dart';
 import '../models/daily_finalize_result.dart';
@@ -111,11 +113,13 @@ class DailyFinalizeTransaction {
 
   Future<OperationState> advanceAndIssueUndoEntitlement({
     required OperationState expectedState,
+    required DailyAggregateV1 dailyAggregate,
   }) async {
     try {
       return await _database.runTransaction<OperationState>(
         storeNames: const [
           IndexedDbStoreNames.dailyLogConfirmations,
+          IndexedDbStoreNames.dailyAggregateRecords,
           IndexedDbStoreNames.operationState,
         ],
         mode: IndexedDbTransactionMode.readWrite,
@@ -145,6 +149,15 @@ class DailyFinalizeTransaction {
             attempt.confirmationDigest!,
           );
           final finalizedDate = current.operationDate;
+          if (dailyAggregate.operationDate != finalizedDate.value ||
+              dailyAggregate.sourceType != DailyAggregateSourceType.records) {
+            throw StateError(
+              'Daily Aggregate does not match the finalized date.',
+            );
+          }
+          await IndexedDbDailyAggregateRepository(
+            _database,
+          ).putInTransaction(transaction, dailyAggregate);
           final timestamp = _nextTimestamp(current.updatedAt);
           final next = OperationState(
             operationDate: finalizedDate.addDays(1),

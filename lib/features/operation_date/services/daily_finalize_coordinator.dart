@@ -1,5 +1,6 @@
 import '../../../core/models/daily_log_confirmation.dart';
 import '../../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
+import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../models/daily_finalize_result.dart';
 import '../models/operation_active_attempt.dart';
 import '../models/operation_local_date.dart';
@@ -14,6 +15,7 @@ typedef BuildDailyConfirmation =
       OperationLocalDate localDate,
       double? estimatedTotalBurnKcal,
     );
+typedef BuildDailyAggregate = Future<DailyAggregateV1> Function(String date);
 
 class DailyFinalizeCoordinator {
   static final Set<String> _activeFinalizeKeys = <String>{};
@@ -25,6 +27,7 @@ class DailyFinalizeCoordinator {
   final DailyFinalizeIntegrityService _integrity;
   final Future<void> Function() restoreNextDate;
   final BuildDailyConfirmation buildDailyConfirmation;
+  final BuildDailyAggregate buildDailyAggregate;
   final DateTime Function() _now;
 
   DailyFinalizeCoordinator(
@@ -35,6 +38,7 @@ class DailyFinalizeCoordinator {
     DailyFinalizeIntegrityService? integrity,
     required this.restoreNextDate,
     required this.buildDailyConfirmation,
+    required this.buildDailyAggregate,
     DateTime Function()? now,
   }) : _integrity =
            integrity ??
@@ -188,8 +192,10 @@ class DailyFinalizeCoordinator {
       final finalizedDate = state.operationDate;
       final attempt = state.activeAttempt!;
       final nextDate = finalizedDate.addDays(1);
+      final aggregate = await buildDailyAggregate(finalizedDate.value);
       state = await _transaction.advanceAndIssueUndoEntitlement(
         expectedState: state,
+        dailyAggregate: aggregate,
       );
       if (state.operationDate != nextDate ||
           state.phase != OperationPhase.open ||

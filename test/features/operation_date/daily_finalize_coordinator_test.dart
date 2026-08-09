@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
+import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import 'package:or_app/features/daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
@@ -341,6 +342,7 @@ Future<_Fixture> _fixture(
       date: DateTime.parse(date.value),
       confirmedAt: DateTime.utc(2026, 7, 31, 12, 1),
     ),
+    buildDailyAggregate: (date) async => _aggregate(date),
     now: () => DateTime.utc(2026, 7, 31, 12),
   );
   fixture = _Fixture(
@@ -351,6 +353,30 @@ Future<_Fixture> _fixture(
   );
   return fixture;
 }
+
+DailyAggregateV1 _aggregate(String operationDate) => DailyAggregateV1(
+  operationDate: operationDate,
+  weightKg: null,
+  bodyFatPercent: null,
+  sleepDurationMinutes: null,
+  sleepScore: null,
+  sleepType: null,
+  plantarFasciitisLevel: null,
+  workStartTime: null,
+  workEndTime: null,
+  workBreakMinutes: null,
+  actualWorkMinutes: null,
+  intakeCaloriesKcal: null,
+  proteinG: null,
+  fatG: null,
+  carbsG: null,
+  hydrationMl: 0,
+  officialSteps: null,
+  measuredSteps: null,
+  trainingPerformed: false,
+  digestiveCount: null,
+  sourceType: DailyAggregateSourceType.records,
+);
 
 class _Fixture {
   final FakeIndexedDbDatabase database;
