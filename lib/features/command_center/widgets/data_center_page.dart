@@ -64,12 +64,9 @@ class _DataCenterContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'BODY HISTORY',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('HISTORY', style: Theme.of(context).textTheme.titleMedium),
               AppSpacing.gapSM,
-              const Text('保存済みの正式データから、体重と体脂肪率の履歴を確認します。'),
+              const Text('保存済みの正式データから、各種履歴と推移を確認します。'),
               AppSpacing.gapMD,
               SizedBox(
                 width: double.infinity,

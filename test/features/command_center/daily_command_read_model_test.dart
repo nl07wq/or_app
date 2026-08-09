@@ -39,15 +39,25 @@ void main() {
       ]);
     });
 
-    test(
-      'uses imported Morning Brief for command display without invention',
-      () {
-        final model = _build(status: _status(), morningBrief: _morningBrief());
+    test('hotfix: uses operation-date Morning Brief for command status', () {
+      final model = _build(status: _status(), morningBrief: _morningBrief());
 
-        expect(model.operationStatus?.name, 'yellow');
-        expect(model.statusReason, 'formal situation');
-        expect(model.commanderIntent, 'formal intent');
-        expect(model.morningBriefSummary, 'formal argo comment');
+      expect(model.operationStatus?.name, 'yellow');
+      expect(model.statusReason, 'formal situation');
+      expect(model.commanderIntent, 'formal intent');
+      expect(model.morningBriefSummary, 'formal argo comment');
+    });
+
+    test(
+      'hotfix: ignores a different-date Morning Brief and stays STANDBY',
+      () {
+        final model = _build(
+          status: _status(),
+          morningBrief: _morningBrief(localDate: '2026-07-31'),
+        );
+
+        expect(model.operationStatus, isNull);
+        expect(model.statusReason, '当日のMORNING BRIEFが未登録です。');
       },
     );
 
@@ -151,24 +161,25 @@ DailyCommandReadModel _build({
   );
 }
 
-MorningBriefRecord _morningBrief() => MorningBriefRecord(
-  localDate: '2026-08-01',
-  requestId: 'request-1',
-  requestDigest:
-      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-  responseDigest:
-      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-  generatedAt: DateTime.utc(2026, 8, 1),
-  importedAt: DateTime.utc(2026, 8, 1),
-  situationAnalysis: 'formal situation',
-  operationStatus: MorningBriefOperationStatus.yellow,
-  commanderIntent: 'formal intent',
-  argoComment: 'formal argo comment',
-  strategicResourceDecision: 'formal resource decision',
-  actions: const [],
-  createdAt: DateTime.utc(2026, 8, 1),
-  updatedAt: DateTime.utc(2026, 8, 1),
-);
+MorningBriefRecord _morningBrief({String localDate = '2026-08-01'}) =>
+    MorningBriefRecord(
+      localDate: localDate,
+      requestId: 'request-1',
+      requestDigest:
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      responseDigest:
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      generatedAt: DateTime.utc(2026, 8, 1),
+      importedAt: DateTime.utc(2026, 8, 1),
+      situationAnalysis: 'formal situation',
+      operationStatus: MorningBriefOperationStatus.yellow,
+      commanderIntent: 'formal intent',
+      argoComment: 'formal argo comment',
+      strategicResourceDecision: 'formal resource decision',
+      actions: const [],
+      createdAt: DateTime.utc(2026, 8, 1),
+      updatedAt: DateTime.utc(2026, 8, 1),
+    );
 
 MorningFact _status() => MorningFact(
   date: DateTime(2026, 8, 1),

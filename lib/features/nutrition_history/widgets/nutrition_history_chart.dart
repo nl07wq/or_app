@@ -4,20 +4,21 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../models/body_history_models.dart';
-import '../services/body_history_chart_engine.dart';
-import '../services/body_history_x_axis.dart';
-import '../theme/history_metric_color_registry.dart';
+import '../../body_history/models/body_history_models.dart';
+import '../../body_history/services/body_history_x_axis.dart';
+import '../../body_history/theme/history_metric_color_registry.dart';
+import '../models/nutrition_history_models.dart';
+import '../services/nutrition_history_chart_engine.dart';
 
-class BodyHistoryChart extends StatelessWidget {
+class NutritionHistoryChart extends StatelessWidget {
   static const double _height = 300;
-  static const double yAxisWidth = 58;
+  static const double yAxisWidth = 66;
   static const double _chartTopPadding = 16;
   static const double _bottomTitlesHeight = 38;
 
-  final BodyHistoryChartModel model;
+  final NutritionHistoryChartModel model;
 
-  const BodyHistoryChart({super.key, required this.model});
+  const NutritionHistoryChart({super.key, required this.model});
 
   @override
   Widget build(BuildContext context) {
@@ -27,14 +28,13 @@ class BodyHistoryChart extends StatelessWidget {
         child: Center(child: Text('この期間には記録がありません。')),
       );
     }
-    final engine = const BodyHistoryChartEngine();
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableChartWidth = math.max(
           0.0,
           constraints.maxWidth - yAxisWidth,
         );
-        final chartWidth = engine.chartWidth(
+        final chartWidth = const NutritionHistoryChartEngine().chartWidth(
           pointCount: model.points.length,
           availableWidth: availableChartWidth,
         );
@@ -51,7 +51,7 @@ class BodyHistoryChart extends StatelessWidget {
             children: [
               SizedBox(
                 width: yAxisWidth,
-                child: _FixedYAxis(axis: model.axis!, unit: model.metric.unit),
+                child: _FixedYAxis(axis: model.axis!),
               ),
               Expanded(
                 child: SingleChildScrollView(
@@ -99,8 +99,12 @@ class BodyHistoryChart extends StatelessWidget {
     final color = HistoryMetricColorRegistry.resolve(
       context,
       switch (model.metric) {
-        BodyHistoryMetric.weight => HistoryMetricColorKey.weight,
-        BodyHistoryMetric.bodyFat => HistoryMetricColorKey.bodyFat,
+        NutritionHistoryMetric.intakeCalories =>
+          HistoryMetricColorKey.intakeCalories,
+        NutritionHistoryMetric.estimatedExpenditure =>
+          HistoryMetricColorKey.estimatedExpenditure,
+        NutritionHistoryMetric.calorieBalance =>
+          HistoryMetricColorKey.calorieBalance,
       },
     );
     final gridColor = Theme.of(context).colorScheme.outlineVariant;
@@ -122,19 +126,26 @@ class BodyHistoryChart extends StatelessWidget {
         getDrawingHorizontalLine: (_) =>
             FlLine(color: gridColor.withValues(alpha: 0.55), strokeWidth: 1),
       ),
+      extraLinesData: ExtraLinesData(
+        horizontalLines: model.showZeroLine
+            ? [
+                HorizontalLine(
+                  y: 0,
+                  color: Theme.of(context).colorScheme.outline,
+                  strokeWidth: 2,
+                ),
+              ]
+            : const [],
+      ),
       borderData: FlBorderData(
         show: true,
         border: Border(bottom: BorderSide(color: gridColor)),
       ),
-      titlesData: FlTitlesData(
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
-        ),
-        leftTitles: AxisTitles(sideTitles: const SideTitles(showTitles: false)),
-        bottomTitles: const AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
-        ),
+      titlesData: const FlTitlesData(
+        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
       ),
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
@@ -189,23 +200,34 @@ class BodyHistoryChart extends StatelessWidget {
   }
 
   String _tooltip(BodyHistoryDisplayPoint point) {
-    final value = '${_number(point.value)}${model.metric.unit}';
+    final value = '${_number(point.value)} kcal';
     return switch (model.granularity) {
-      BodyHistoryGranularity.daily => '${point.startDate}\n$value',
+      BodyHistoryGranularity.daily =>
+        '${model.metric.label}\n${point.startDate}\n$value',
       BodyHistoryGranularity.weekly =>
-        '${point.startDate} – ${point.endDate}\n'
+        '${model.metric.label}\n${point.startDate} – ${point.endDate}\n'
             '週平均: $value\n記録日数: ${point.measurementCount}日',
       BodyHistoryGranularity.monthly =>
-        '${point.startDate.substring(0, 7)}\n'
+        '${model.metric.label}\n${point.startDate.substring(0, 4)}年'
+            '${int.parse(point.startDate.substring(5, 7))}月\n'
             '月平均: $value\n記録日数: ${point.measurementCount}日',
     };
   }
 
   static String _number(double value) {
     final rounded = value.roundToDouble();
-    return (value - rounded).abs() < 0.001
+    final raw = (value - rounded).abs() < 0.001
         ? rounded.toStringAsFixed(0)
         : value.toStringAsFixed(1);
+    final parts = raw.split('.');
+    final negative = parts.first.startsWith('-');
+    final digits = negative ? parts.first.substring(1) : parts.first;
+    final grouped = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return '${negative ? '-' : ''}$grouped'
+        '${parts.length == 2 ? '.${parts.last}' : ''}';
   }
 }
 
@@ -256,9 +278,8 @@ class _XAxisLabels extends StatelessWidget {
 
 class _FixedYAxis extends StatelessWidget {
   final BodyHistoryAxisRange axis;
-  final String unit;
 
-  const _FixedYAxis({required this.axis, required this.unit});
+  const _FixedYAxis({required this.axis});
 
   @override
   Widget build(BuildContext context) {
@@ -273,24 +294,34 @@ class _FixedYAxis extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.only(
-        top: BodyHistoryChart._chartTopPadding,
-        bottom: BodyHistoryChart._bottomTitlesHeight,
+        top: NutritionHistoryChart._chartTopPadding,
+        bottom: NutritionHistoryChart._bottomTitlesHeight,
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border(right: BorderSide(color: gridColor)),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            for (final value in values)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Text(
-                  '${BodyHistoryChart._number(value)}$unit',
-                  textAlign: TextAlign.right,
-                  style: Theme.of(context).textTheme.labelSmall,
+            for (var index = 0; index < values.length; index++)
+              Align(
+                alignment: Alignment(
+                  1,
+                  values.length == 1
+                      ? 0
+                      : -1 + (2 * index / (values.length - 1)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${NutritionHistoryChart._number(values[index])} kcal',
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
                 ),
               ),
           ],

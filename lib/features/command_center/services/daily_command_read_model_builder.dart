@@ -38,27 +38,27 @@ abstract final class DailyCommandReadModelBuilder {
     final snapshot = input == null
         ? null
         : engine.generateCommanderSnapshot(input);
-    final analysis = input == null
-        ? null
-        : engine.generateCommanderAnalysis(input);
     final phase = operationState.phase;
+    final currentMorningBrief =
+        morningBrief?.localDate == operationState.operationDate.value
+        ? morningBrief
+        : null;
 
     return DailyCommandReadModel(
       operationDate: operationState.operationDate.value,
       persistentPhase: phase,
       cycleState: _cycleState(phase, validation),
-      operationStatus: morningBrief == null
-          ? snapshot?.status
+      operationStatus: currentMorningBrief == null
+          ? null
           : OperationStatus.values.byName(
-              morningBrief.operationStatus.stableId,
+              currentMorningBrief.operationStatus.stableId,
             ),
       statusReason:
-          morningBrief?.situationAnalysis ??
-          analysis?.situation ??
-          'STATUSを入力して日次運用を開始してください。',
+          currentMorningBrief?.situationAnalysis ?? '当日のMORNING BRIEFが未登録です。',
       commanderIntent:
-          morningBrief?.commanderIntent ?? snapshot?.commanderIntent,
-      morningBriefSummary: morningBrief?.argoComment ?? snapshot?.summary,
+          currentMorningBrief?.commanderIntent ?? snapshot?.commanderIntent,
+      morningBriefSummary:
+          currentMorningBrief?.argoComment ?? snapshot?.summary,
       statusModuleState: _requiredState(
         recorded: status != null,
         valid: validation.statusValid,

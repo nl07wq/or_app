@@ -21,6 +21,8 @@ class AppRoutes {
 
   static const bodyHistory = '/data-center/history/body';
 
+  static const nutritionHistory = '/data-center/history/nutrition';
+
   static const backupRestore = '/backup-restore';
 
   static const orloSync = '/orlo-sync';

@@ -350,12 +350,15 @@ class _DailyCommandSummary extends StatelessWidget {
   Future<DailyCommandReadModel> _load() async {
     final state = await AppRepositoryRegistry.container.operationState
         .requireCurrent();
+    final morningBrief = await AppRepositoryRegistry.container.morningBriefs
+        .readByLocalDate(state.operationDate.value);
     return DailyCommandReadModelBuilder.build(
       operationState: state,
       status: morningFact,
       food: foodSummary,
       training: trainingSummary,
       activity: activitySummary,
+      morningBrief: morningBrief,
     );
   }
 }

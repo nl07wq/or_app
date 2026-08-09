@@ -37,6 +37,27 @@ class DataCenterHistoryPage extends StatelessWidget {
             ],
           ),
         ),
+        AppSpacing.gapMD,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'NUTRITION HISTORY',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みDaily Aggregateから、摂取・推定消費・カロリー収支の履歴を表示します。'),
+              AppSpacing.gapMD,
+              OperationButton(
+                text: 'OPEN NUTRITION HISTORY',
+                icon: Icons.restaurant_outlined,
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.nutritionHistory),
+              ),
+            ],
+          ),
+        ),
       ],
     ),
   );
