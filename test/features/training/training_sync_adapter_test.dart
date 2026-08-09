@@ -390,6 +390,10 @@ class _StatusRepository implements StatusRepository {
   Future<MorningData?> findLatest() async => null;
 
   @override
+  Future<StatusReadResult> getRange(String startDate, String endDate) async =>
+      StatusReadResult(records: const []);
+
+  @override
   Future<void> save(MorningData data) async {}
 
   @override

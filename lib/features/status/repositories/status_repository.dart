@@ -36,6 +36,8 @@ abstract interface class StatusRepository {
 
   Future<MorningData?> findLatest();
 
+  Future<StatusReadResult> getRange(String startDate, String endDate);
+
   Future<StatusReadResult> findAllCanonical();
 
   Future<StatusReadResult> findAllIncludingRevisions();

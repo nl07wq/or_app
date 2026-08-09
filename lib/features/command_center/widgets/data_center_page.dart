@@ -58,6 +58,33 @@ class _DataCenterContent extends StatelessWidget {
         AppSpacing.gapSM,
         _SystemStateCard(state: state),
         AppSpacing.gapXL,
+        const SectionHeader(icon: Icons.history, title: 'HISTORY'),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'BODY HISTORY',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みの正式データから、体重と体脂肪率の履歴を確認します。'),
+              AppSpacing.gapMD,
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.dataCenterHistory),
+                  icon: const Icon(Icons.history),
+                  label: const Text('OPEN HISTORY'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapXL,
         const SectionHeader(
           icon: Icons.settings_backup_restore,
           title: 'BACKUP & RESTORE',

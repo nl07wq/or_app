@@ -197,7 +197,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'DNS HISTORICAL IMPORT',
+              'HISTORICAL DNS IMPORT',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             AppSpacing.gapMD,

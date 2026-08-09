@@ -26,37 +26,56 @@ void main() {
     );
   });
 
-  test('valid legacy DNS record is classified as NEW', () async {
-    final preview = await workflow.preview(
-      jsonEncode(_envelope([_record('2026-08-08')])),
+  test('prompt requires range midpoint and preserves only approved data', () {
+    final prompt = workflow.buildPrompt(
       startDate: '2026-08-08',
       endDate: '2026-08-08',
     );
 
-    expect(preview.receivedCount, 1);
-    expect(preview.newCount, 1);
-    expect(preview.canApply, isTrue);
+    expect(prompt, contains('2500 through 2800 becomes 2650'));
+    expect(prompt, contains('-1000 through -1300 becomes -1150'));
+    expect(prompt, contains('This midpoint conversion is the only permitted'));
+    expect(prompt, contains('a deficit is negative'));
+    expect(prompt, contains('digestiveEvents'));
+    expect(prompt, contains('conditionFactSummary'));
+    expect(prompt, contains('operationStatus'));
+    expect(prompt, contains('Do not add any CI field'));
+    expect(prompt, contains('do not add hydration breakdown'));
+    expect(prompt, contains('Do not add record status'));
+    expect(prompt, isNot(contains('Do not add CI, hydration breakdown,')));
   });
 
-  test('missing nullable fields are preserved as null', () async {
+  test(
+    'expanded historical DNS record is accepted without data loss',
+    () async {
+      final preview = await workflow.preview(
+        jsonEncode(_envelope([_record('2026-08-08')])),
+        startDate: '2026-08-08',
+        endDate: '2026-08-08',
+      );
+
+      expect(preview.receivedCount, 1);
+      expect(preview.newCount, 1);
+      expect(preview.canApply, isTrue);
+      final aggregate = preview.records.single.aggregate!;
+      expect(aggregate.estimatedExpenditureKcal, 2650);
+      expect(aggregate.estimatedCalorieBalanceKcal, -1150);
+      expect(aggregate.digestiveEvents, hasLength(2));
+      expect(aggregate.digestiveEvents.first.toJson(), {
+        'amount': 3,
+        'shape': 2,
+        'relief': null,
+      });
+      expect(aggregate.operationStatus, 'RED');
+      expect(aggregate.conditionFactSummary, contains('排便2回'));
+    },
+  );
+
+  test('CI and other excluded fields are rejected', () async {
     final record = _record('2026-08-08')
-      ..remove('weightKg')
-      ..remove('sleepScore')
-      ..remove('officialSteps');
-    final preview = await workflow.preview(
-      jsonEncode(_envelope([record])),
-      startDate: '2026-08-08',
-      endDate: '2026-08-08',
-    );
-
-    final aggregate = preview.records.single.aggregate!;
-    expect(aggregate.weightKg, isNull);
-    expect(aggregate.sleepScore, isNull);
-    expect(aggregate.officialSteps, isNull);
-  });
-
-  test('unknown record field is INVALID and blocks apply', () async {
-    final record = _record('2026-08-08')..['unknown'] = true;
+      ..['ci'] = 542
+      ..['hydrationBreakdown'] = const []
+      ..['recordStatus'] = 'Fixed';
     final preview = await workflow.preview(
       jsonEncode(_envelope([record])),
       startDate: '2026-08-08',
@@ -68,23 +87,7 @@ void main() {
     expect(preview.records.single.issues.single.message, contains('unknown'));
   });
 
-  test('existing operation date is never overwritten', () async {
-    final existing = _aggregate('2026-08-08', weightKg: 80);
-    await repository.put(existing);
-
-    final preview = await workflow.preview(
-      jsonEncode(_envelope([_record('2026-08-08', weightKg: 99)])),
-      startDate: '2026-08-08',
-      endDate: '2026-08-08',
-    );
-
-    expect(preview.identicalCount, 1);
-    expect(preview.newCount, 0);
-    expect(preview.canApply, isFalse);
-    expect((await repository.getByDate('2026-08-08'))!.weightKg, 80);
-  });
-
-  test('apply saves and reads back legacyDns aggregate and audit', () async {
+  test('apply round-trips expanded aggregate and audit', () async {
     final preview = await workflow.preview(
       jsonEncode(_envelope([_record('2026-08-08')])),
       startDate: '2026-08-08',
@@ -95,6 +98,12 @@ void main() {
     final stored = await repository.getByDate('2026-08-08');
     expect(stored, isNotNull);
     expect(stored!.sourceType, DailyAggregateSourceType.legacyDns);
+    expect(stored.toJson(), preview.records.single.aggregate!.toJson());
+    expect(stored.estimatedExpenditureKcal, 2650);
+    expect(stored.estimatedCalorieBalanceKcal, -1150);
+    expect(stored.digestiveEvents, hasLength(2));
+    expect(stored.operationStatus, 'RED');
+    expect(stored.conditionFactSummary, hasLength(6));
     expect(result.record.workflowKind, 'historicalDns');
     expect(result.record.recordType, 'dailyAggregateV1');
     expect(result.record.appliedCount, 1);
@@ -102,6 +111,24 @@ void main() {
       (await workflow.listRecords()).single.operationId,
       result.record.operationId,
     );
+  });
+
+  test('old DailyAggregate record remains readable without inferred data', () {
+    final oldRecord = _aggregate('2026-08-08', weightKg: 80).toJson()
+      ..remove('estimatedExpenditureKcal')
+      ..remove('estimatedCalorieBalanceKcal')
+      ..remove('digestiveEvents')
+      ..remove('operationStatus')
+      ..remove('conditionFactSummary');
+
+    final restored = DailyAggregateV1.fromJson(oldRecord);
+
+    expect(restored.estimatedExpenditureKcal, isNull);
+    expect(restored.estimatedCalorieBalanceKcal, isNull);
+    expect(restored.digestiveEvents, isEmpty);
+    expect(restored.operationStatus, isNull);
+    expect(restored.conditionFactSummary, isEmpty);
+    expect(restored.toJson(), isNot(contains('estimatedExpenditureKcal')));
   });
 }
 
@@ -141,6 +168,8 @@ DailyAggregateV1 _aggregate(String date, {required double weightKg}) =>
       workBreakMinutes: 60,
       actualWorkMinutes: 420,
       intakeCaloriesKcal: 2000,
+      estimatedExpenditureKcal: 2650,
+      estimatedCalorieBalanceKcal: -1150,
       proteinG: 120,
       fatG: 60,
       carbsG: 200,
@@ -149,5 +178,18 @@ DailyAggregateV1 _aggregate(String date, {required double weightKg}) =>
       measuredSteps: 8200,
       trainingPerformed: true,
       digestiveCount: 1,
+      digestiveEvents: const [
+        DailyAggregateDigestiveEventV1(amount: 3, shape: 2, relief: null),
+        DailyAggregateDigestiveEventV1(amount: 2, shape: 3, relief: null),
+      ],
+      operationStatus: 'RED',
+      conditionFactSummary: const [
+        '睡眠2時間21分',
+        '正式歩数6,970歩',
+        '水分3,600mL',
+        'トレーニングなし',
+        '排便2回',
+        '夕食は帰宅後就寝により欠食',
+      ],
       sourceType: DailyAggregateSourceType.legacyDns,
     );

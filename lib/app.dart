@@ -15,6 +15,8 @@ import 'features/food/food_page.dart';
 import 'features/activity/activity_page.dart';
 import 'features/training/training_page.dart';
 import 'features/command_center/pages/command_center_page.dart';
+import 'features/body_history/pages/body_history_page.dart';
+import 'features/body_history/pages/data_center_history_page.dart';
 import 'features/import_export/backup_restore_page.dart';
 import 'features/sync/pages/orlo_sync_page.dart';
 import 'features/system/pages/operation_sync_page.dart';
@@ -75,12 +77,17 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.activity: (_) => const ActivityPage(),
         AppRoutes.training: (_) => const TrainingPage(),
         AppRoutes.commandCenter: (_) => const CommandCenterPage(),
+        AppRoutes.dataCenterHistory: (_) => const DataCenterHistoryPage(),
+        AppRoutes.bodyHistory: (_) => const BodyHistoryPage(),
         AppRoutes.backupRestore: (_) => const BackupRestorePage(),
         AppRoutes.orloSync: (_) => OrloSyncPage(),
         AppRoutes.profile: (_) => const ProfilePage(),
         AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
         AppRoutes.operationSync: (_) => const OperationSyncPage(),
+        AppRoutes.historicalTrainingImport: (_) =>
+            const HistoricalTrainingImportPage(),
+        AppRoutes.historicalDnsImport: (_) => const HistoricalDnsImportPage(),
       },
     );
   }

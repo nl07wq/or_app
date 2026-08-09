@@ -132,6 +132,8 @@ class HistoricalDnsWorkflowService implements HistoricalDnsWorkflow {
     'workBreakMinutes',
     'actualWorkMinutes',
     'intakeCaloriesKcal',
+    'estimatedExpenditureKcal',
+    'estimatedCalorieBalanceKcal',
     'proteinG',
     'fatG',
     'carbsG',
@@ -140,6 +142,9 @@ class HistoricalDnsWorkflowService implements HistoricalDnsWorkflow {
     'measuredSteps',
     'trainingPerformed',
     'digestiveCount',
+    'digestiveEvents',
+    'operationStatus',
+    'conditionFactSummary',
     'sourceType',
   };
 
@@ -181,6 +186,8 @@ class HistoricalDnsWorkflowService implements HistoricalDnsWorkflow {
       workBreakMinutes: 60,
       actualWorkMinutes: 420,
       intakeCaloriesKcal: 1479,
+      estimatedExpenditureKcal: 2650,
+      estimatedCalorieBalanceKcal: -1150,
       proteinG: 99.3,
       fatG: 57.9,
       carbsG: 149.1,
@@ -189,6 +196,19 @@ class HistoricalDnsWorkflowService implements HistoricalDnsWorkflow {
       measuredSteps: 7512,
       trainingPerformed: false,
       digestiveCount: 2,
+      digestiveEvents: [
+        DailyAggregateDigestiveEventV1(amount: 3, shape: 2, relief: null),
+        DailyAggregateDigestiveEventV1(amount: 2, shape: 3, relief: null),
+      ],
+      operationStatus: 'RED',
+      conditionFactSummary: [
+        '睡眠2時間21分',
+        '正式歩数6,970歩',
+        '水分3,600mL',
+        'トレーニングなし',
+        '排便2回',
+        '夕食は帰宅後就寝により欠食',
+      ],
       sourceType: DailyAggregateSourceType.legacyDns,
     ).toJson();
     final example = <String, Object?>{
@@ -215,11 +235,15 @@ Create one Operation Reboot Historical DNS response from every formal Legacy DNS
 SOURCE CONTRACT
 This prompt is not source data. Use only formal Legacy DNS records already retained in the requested range. Do not use STATUS, FOOD, ACTIVITY, TRAINING, Morning Brief, Daily Debrief, or inferred records. Do not output dates outside the requested range or duplicate a date. Do not invent, estimate, reconstruct, round, or complete missing values. Keep null, numeric zero, and false distinct. A numeric value explicitly recorded with an approximate label remains that recorded number; do not recalculate it.
 
+For estimated expenditure and estimated calorie balance only, if the formal Legacy DNS records the value as a numeric range, convert that range to its arithmetic midpoint and output the midpoint as one JSON number. For example, 2500 through 2800 becomes 2650, and -1000 through -1300 becomes -1150. This midpoint conversion is the only permitted transformation of source data. Do not recalculate either value from intake calories, activity, steps, work, training, or any other field. Preserve the sign of calorie balance: a deficit is negative and a surplus is positive.
+
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block whose opening fence is ```text and closing fence is ```.
 Inside it return only one JSON object and no explanation. Use format "$_format", envelopeVersion 1, schemaVersion "$_schemaVersion", direction "response", exchangeType "$_exchangeType", recordType "$_recordType", sourceMode "dateRange", importMode "missingRecordsOnly", requestedStartDate "$startDate", and requestedEndDate "$endDate" exactly. Create a unique exchangeId and UTC createdAt. Set packageDigest to null.
 
-Each payload.records item may contain only the fields shown in the example. Set sourceType to "legacyDns". Preserve operationDate. Use JSON numbers and booleans, not numeric or boolean Strings. sleepType is only "sleep", "nap", or null. Use null for an unrecorded nullable value; never replace it with 0, false, or empty text. hydrationMl and trainingPerformed are required by DailyAggregateV1: if either fact is not confirmed by the DNS, do not invent a value or emit a record that claims one. Do not add CI, hydration breakdown, digestive details, condition prose, record status, operation status, estimated expenditure, or estimated calorie balance.
+Each payload.records item may contain only the fields shown in the example. Set sourceType to "legacyDns". Preserve operationDate. Use JSON numbers and booleans, not numeric or boolean Strings. sleepType is only "sleep", "nap", or null. operationStatus is only "GREEN", "YELLOW", "RED", or null. Use null for an unrecorded nullable value; never replace it with 0, false, or empty text. hydrationMl and trainingPerformed are required by DailyAggregateV1: if either fact is not confirmed by the DNS, do not invent a value or emit a record that claims one.
+
+Preserve every formally recorded digestive event in digestiveEvents using only amount, shape, and relief. Preserve null when shape or relief was not recorded; do not infer it. Preserve the formal Condition fact summary lines in conditionFactSummary without summarizing, rewording, or splitting them again. Omit every line that contains CI information. Do not add any CI field or CI-derived value. Output only total hydrationMl; do not add hydration breakdown or beverage details. Do not add record status.
 
 The structure below is a type example, not source data. Repeat payload.records for each formal DNS record in the selected range.
 ${const JsonEncoder.withIndent('  ').convert(example)}

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../models/daily_aggregate_v1.dart';
@@ -98,9 +100,6 @@ class IndexedDbDailyAggregateRepository implements DailyAggregateRepository {
   }
 
   static bool _equal(DailyAggregateV1 first, DailyAggregateV1 second) {
-    final left = first.toJson();
-    final right = second.toJson();
-    return left.length == right.length &&
-        left.entries.every((entry) => right[entry.key] == entry.value);
+    return jsonEncode(first.toJson()) == jsonEncode(second.toJson());
   }
 }

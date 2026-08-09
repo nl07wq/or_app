@@ -102,6 +102,28 @@ class IndexedDbStatusRepository implements StatusRepository {
   }
 
   @override
+  Future<StatusReadResult> getRange(String startDate, String endDate) async {
+    PersistedStatusRecord.validateLocalDate(startDate);
+    PersistedStatusRecord.validateLocalDate(endDate);
+    if (startDate.compareTo(endDate) > 0) {
+      throw ArgumentError('startDate must not be after endDate.');
+    }
+    final result = await _findAll(includeRevisions: false);
+    final records =
+        result.records
+            .where(
+              (record) =>
+                  record.localDate.compareTo(startDate) >= 0 &&
+                  record.localDate.compareTo(endDate) <= 0,
+            )
+            .toList()
+          ..sort(
+            (first, second) => first.localDate.compareTo(second.localDate),
+          );
+    return StatusReadResult(records: records, issues: result.issues);
+  }
+
+  @override
   Future<StatusReadResult> findAllCanonical() {
     return _findAll(includeRevisions: false);
   }

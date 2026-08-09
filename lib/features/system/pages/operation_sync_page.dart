@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/navigation/app_routes.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -303,15 +304,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
             SelectableText(_message!),
           ],
           AppSpacing.gapXL,
-          HistoricalTrainingImportPanel(
-            workflow: _historicalTrainingWorkflow,
-            onRecordSaved: _loadHistoricalRecords,
-          ),
-          AppSpacing.gapXL,
-          HistoricalDnsImportPanel(
-            workflow: _historicalDnsWorkflow,
-            onRecordSaved: _loadHistoricalRecords,
-          ),
+          _buildHistoricalImportActions(),
           AppSpacing.gapXL,
           _buildHistory(),
         ],
@@ -374,6 +367,44 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
           ),
       ],
     ),
+  );
+
+  Widget _buildHistoricalImportActions() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(
+        icon: Icons.history_outlined,
+        title: 'HISTORICAL IMPORT',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.fitness_center_outlined),
+              title: const Text('HISTORICAL TRAINING IMPORT'),
+              subtitle: const Text('過去の正式Training Recordを指定期間から取り込みます。'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.historicalTrainingImport,
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('HISTORICAL DNS IMPORT'),
+              subtitle: const Text('過去のLegacy DNSをDaily Aggregateとして取り込みます。'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.historicalDnsImport),
+            ),
+          ],
+        ),
+      ),
+    ],
   );
 
   Widget _buildRecovery(OperationSyncState state) => OperationCard(
@@ -508,6 +539,205 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     return 'OPERATION SYNC FAILED: $error';
   }
 }
+
+class HistoricalTrainingImportPage extends StatefulWidget {
+  final HistoricalTrainingWorkflow? workflow;
+
+  const HistoricalTrainingImportPage({super.key, this.workflow});
+
+  @override
+  State<HistoricalTrainingImportPage> createState() =>
+      _HistoricalTrainingImportPageState();
+}
+
+class _HistoricalTrainingImportPageState
+    extends State<HistoricalTrainingImportPage> {
+  HistoricalTrainingWorkflow? _workflow;
+  List<OperationSyncRecord> _records = const [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _workflow =
+        widget.workflow ??
+        (_historicalProductionAvailable
+            ? HistoricalTrainingWorkflowService.production()
+            : null);
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    try {
+      final records = await _workflow?.listRecords() ?? const [];
+      if (!mounted) return;
+      setState(() {
+        _records = List.unmodifiable(records);
+        _error = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = 'OPERATION SYNC FAILED: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _HistoricalImportScaffold(
+    title: 'HISTORICAL TRAINING IMPORT',
+    panel: HistoricalTrainingImportPanel(
+      workflow: _workflow,
+      onRecordSaved: _loadRecords,
+    ),
+    records: _records,
+    error: _error,
+  );
+}
+
+class HistoricalDnsImportPage extends StatefulWidget {
+  final HistoricalDnsWorkflow? workflow;
+
+  const HistoricalDnsImportPage({super.key, this.workflow});
+
+  @override
+  State<HistoricalDnsImportPage> createState() =>
+      _HistoricalDnsImportPageState();
+}
+
+class _HistoricalDnsImportPageState extends State<HistoricalDnsImportPage> {
+  HistoricalDnsWorkflow? _workflow;
+  List<OperationSyncRecord> _records = const [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _workflow =
+        widget.workflow ??
+        (_historicalProductionAvailable
+            ? HistoricalDnsWorkflowService.production()
+            : null);
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    try {
+      final records = await _workflow?.listRecords() ?? const [];
+      if (!mounted) return;
+      setState(() {
+        _records = List.unmodifiable(records);
+        _error = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = 'OPERATION SYNC FAILED: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _HistoricalImportScaffold(
+    title: 'HISTORICAL DNS IMPORT',
+    panel: HistoricalDnsImportPanel(
+      workflow: _workflow,
+      onRecordSaved: _loadRecords,
+    ),
+    records: _records,
+    error: _error,
+  );
+}
+
+class _HistoricalImportScaffold extends StatelessWidget {
+  final String title;
+  final Widget panel;
+  final List<OperationSyncRecord> records;
+  final String? error;
+
+  const _HistoricalImportScaffold({
+    required this.title,
+    required this.panel,
+    required this.records,
+    required this.error,
+  });
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(title)),
+    body: ListView(
+      padding: AppSpacing.cardPadding,
+      children: [
+        panel,
+        if (error != null) ...[AppSpacing.gapMD, SelectableText(error!)],
+        AppSpacing.gapXL,
+        _HistoricalRecordSection(records: records),
+      ],
+    ),
+  );
+}
+
+class _HistoricalRecordSection extends StatelessWidget {
+  final List<OperationSyncRecord> records;
+
+  const _HistoricalRecordSection({required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    final views = [
+      for (final record in records) _OperationSyncRecordView.historical(record),
+    ]..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    final recent = views.take(5).toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.fact_check_outlined,
+          title: 'OPERATION SYNC RECORD',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: recent.isEmpty
+              ? const Row(
+                  children: [
+                    Icon(Icons.fact_check_outlined),
+                    SizedBox(width: 10),
+                    Expanded(child: Text('RECORDはありません')),
+                  ],
+                )
+              : Column(
+                  children: [
+                    for (var index = 0; index < recent.length; index++) ...[
+                      _MixedRecordRow(
+                        record: recent[index],
+                        onTap: () => _openMixedOperationSyncRecord(
+                          context,
+                          recent[index],
+                        ),
+                      ),
+                      if (index != recent.length - 1) const Divider(),
+                    ],
+                  ],
+                ),
+        ),
+        if (views.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          _OperationSyncRecordArchiveButton(
+            text: 'VIEW ALL RECORDS',
+            icon: Icons.list_alt,
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    _MixedOperationSyncRecordArchivePage(records: views),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+bool get _historicalProductionAvailable =>
+    kIsWeb &&
+    appInitializationController.value.mode ==
+        PersistenceMode.indexedDbReadWrite &&
+    AppRepositoryRegistry.hasContainer;
 
 class _OperationSyncRecordArchiveButton extends StatelessWidget {
   const _OperationSyncRecordArchiveButton({
