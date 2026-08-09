@@ -41,6 +41,7 @@ class SystemPage extends StatefulWidget {
 class _SystemPageState extends State<SystemPage> {
   late Future<SystemDataHealthSnapshot> _dataHealth;
   late Future<StorageStatusSnapshot> _storageStatus;
+  late Future<DailyFinalizeUndoInspection> _undoInspection;
   bool _initializing = false;
   String? _initializationResult;
 
@@ -50,6 +51,9 @@ class _SystemPageState extends State<SystemPage> {
     _dataHealth = _loadDataHealth();
     _storageStatus = (widget.storageGateway ?? StorageStatusGateway.platform())
         .load();
+    _undoInspection = DailyFinalizeUndoService(
+      AppRepositoryRegistry.container.database,
+    ).inspect();
   }
 
   Future<SystemDataHealthSnapshot> _loadDataHealth() async {
@@ -109,6 +113,9 @@ class _SystemPageState extends State<SystemPage> {
       setState(() {
         _initializationResult = 'アプリデータを初期化しました';
         _dataHealth = _loadDataHealth();
+        _undoInspection = DailyFinalizeUndoService(
+          AppRepositoryRegistry.container.database,
+        ).inspect();
       });
     } catch (_) {
       if (!mounted) return;
@@ -145,9 +152,7 @@ class _SystemPageState extends State<SystemPage> {
         ),
         AppSpacing.gapXL,
         FutureBuilder<DailyFinalizeUndoInspection>(
-          future: DailyFinalizeUndoService(
-            AppRepositoryRegistry.container.database,
-          ).inspect(),
+          future: _undoInspection,
           builder: (context, snapshot) {
             final inspection = snapshot.data;
             final canOpen = inspection?.canUndo == true;

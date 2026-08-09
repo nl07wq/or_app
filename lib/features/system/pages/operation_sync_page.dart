@@ -141,8 +141,8 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
         _workspace = workspace;
         _activeStage = 'PREVIEW';
         _message = selection.preview.canApply
-            ? 'PACKAGE VALIDATED · review before apply'
-            : 'VALIDATION BLOCKED · resolve conflicts before retry';
+            ? 'PACKAGE VALIDATED · 適用前に内容を確認してください'
+            : 'VALIDATION BLOCKED · 競合を解消してから再試行してください';
       });
     } catch (error) {
       if (mounted) setState(() => _message = _errorMessage(error));
@@ -161,10 +161,9 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
           selection.isRecovery ? 'RESUME TRANSFER?' : 'APPLY TRANSFER?',
         ),
         content: Text(
-          'This merge-create-only transfer will create '
-          '${selection.preview.createCount} records and keep '
-          '${selection.preview.noChangeCount} unchanged. The package is '
-          'integrity-protected but not encrypted.',
+          'この追加専用転送では${selection.preview.createCount}件の記録を作成し、'
+          '${selection.preview.noChangeCount}件は変更しません。'
+          'パッケージは整合性保護されていますが、暗号化されていません。',
         ),
         actions: [
           TextButton(
@@ -182,7 +181,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     setState(() {
       _busy = true;
       _activeStage = 'APPLY';
-      _message = 'APPLYING · do not close this page';
+      _message = 'APPLYING · この画面を閉じないでください';
     });
     try {
       await _workflow!.apply(selection);
@@ -224,7 +223,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
             title: 'DEVICE TRANSFER',
           ),
           AppSpacing.gapSM,
-          const Text('Transfer data between devices with a verified package.'),
+          const Text('検証済みパッケージを使用して、デバイス間でデータを転送します。'),
           AppSpacing.gapMD,
           const OperationCard(
             child: Row(
@@ -234,9 +233,8 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
                 SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Transfer files contain personal data and are not '
-                    'encrypted. Files stay on this device unless you '
-                    'explicitly save or share them.',
+                    '転送ファイルには個人データが含まれ、暗号化されません。'
+                    '明示的に保存または共有しない限り、ファイルはこのデバイス内に留まります。',
                   ),
                 ),
               ],
@@ -268,8 +266,8 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
           if (!_available) ...[
             AppSpacing.gapMD,
             const Text(
-              'Operation Sync import and export are available on Web/PWA '
-              'with persistent storage.',
+              'Operation Syncのインポートとエクスポートは、永続ストレージを利用できる'
+              'Web/PWAで使用できます。',
             ),
           ],
           if (_busy) ...[
@@ -370,8 +368,8 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
         ),
         AppSpacing.gapSM,
         const Text(
-          'Reselect the exact same transfer package. Its digest must match '
-          'the locked checkpoint before the operation can resume.',
+          '同一の転送パッケージを再選択してください。処理を再開するには、'
+          'ダイジェストがロック済みチェックポイントと一致する必要があります。',
         ),
       ],
     ),

@@ -359,7 +359,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         : ReportSyncDisposition.noChanges;
     final issues = [
       for (final item in preview.records)
-        for (final issue in item.issues) issue.message,
+        for (final issue in item.issues)
+          '${issue.path ?? r'$'}: ${issue.message}',
     ];
     return ReportSyncResponsePreview(
       envelope: null,

@@ -304,8 +304,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   }
 
   Future<void> _validate() async {
+    final raw = _responseController.text;
     await _runImport(() async {
-      final raw = _responseController.text;
       if (raw.trim().isEmpty || utf8.encode(raw).length > _maxInputBytes) {
         throw const FormatException(
           'Response is empty or exceeds the safe limit.',
@@ -322,7 +322,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       };
       _history = await _gateway.history(widget.exchangeType);
       _importMessage = 'RESPONSE READY';
-    });
+    }, errorFormatter: (error) => _validationErrorText(error, raw));
   }
 
   Future<void> _apply() async {
@@ -401,7 +401,10 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     }
   }
 
-  Future<void> _runImport(Future<void> Function() action) async {
+  Future<void> _runImport(
+    Future<void> Function() action, {
+    String Function(Object error)? errorFormatter,
+  }) async {
     if (_busy) return;
     setState(() {
       _busy = true;
@@ -412,7 +415,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     try {
       await action();
     } catch (error) {
-      _importActionError = _errorText(error);
+      _importActionError = (errorFormatter ?? _errorText)(error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -699,6 +702,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           message: _importMessage,
           error: _importActionError,
           errorKey: const ValueKey('report-sync-import-action-error'),
+          historicalStyleError: true,
         ),
         if (_busy) ...[
           AppSpacing.gapMD,
@@ -721,6 +725,16 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             _MorningBriefPreviewCard(preview: _preview!)
           else
             _PreviewCard(preview: _preview!),
+          if (!_preview!.canApply) ...[
+            AppSpacing.gapSM,
+            if (_preview!.message != null)
+              SelectableText(_localizedValidationDetails(_preview!.message!)),
+            if (_preview!.message != null) AppSpacing.gapSM,
+            Text(
+              'IMPORT BLOCKED',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
           if (_preview!.canApply) ...[
             AppSpacing.gapSM,
             OperationButton(
@@ -797,15 +811,41 @@ class _ActionFeedback extends StatelessWidget {
     required this.message,
     required this.error,
     required this.errorKey,
+    this.historicalStyleError = false,
   });
 
   final String? message;
   final String? error;
   final Key errorKey;
+  final bool historicalStyleError;
 
   @override
   Widget build(BuildContext context) {
     if (message == null && error == null) return const SizedBox.shrink();
+    if (error != null && historicalStyleError) {
+      final lines = error!.split('\n');
+      final state = lines.first;
+      final details = lines.skip(1).join('\n').trim();
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          key: errorKey,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.error_outline),
+              title: Text(state),
+              subtitle: details.isEmpty ? null : Text(details),
+            ),
+            Text(
+              'IMPORT BLOCKED',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Text(
@@ -972,8 +1012,6 @@ class _MorningBriefPreviewCard extends StatelessWidget {
             'Existing Morning Brief  ${preview.conflictCount > 0 ? 'YES' : 'NO'}',
           ),
           Text('Disposition  ${preview.disposition.name.toUpperCase()}'),
-          if (preview.message != null)
-            Text('Blocking Issue  ${preview.message}'),
         ],
       ),
     );
@@ -985,21 +1023,26 @@ class _PreviewCard extends StatelessWidget {
   final ReportSyncResponsePreview preview;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(preview.disposition.name.toUpperCase()),
-        Text('Operation Date  ${preview.operationDate}'),
-        Text('CREATE  ${preview.createCount}'),
-        Text('NO CHANGES  ${preview.noChangeCount}'),
-        Text('CONFLICT  ${preview.conflictCount}'),
-        if (preview.exchangeType == ReportSyncExchangeType.training)
-          ..._trainingPreviewLines(preview),
-        if (preview.message != null) Text(preview.message!),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(preview.disposition.name.toUpperCase()),
+          Text('Operation Date  ${preview.operationDate}'),
+          Text('CREATE  ${preview.createCount}'),
+          Text('NO CHANGES  ${preview.noChangeCount}'),
+          Text('CONFLICT  ${preview.conflictCount}'),
+          if (preview.trainingPreview != null) ...[
+            Text('INVALID  ${preview.trainingPreview!.invalidCount}'),
+            Text('BLOCKED  ${preview.trainingPreview!.blockedCount}'),
+          ],
+          if (preview.exchangeType == ReportSyncExchangeType.training)
+            ..._trainingPreviewLines(preview),
+        ],
+      ),
+    );
+  }
 }
 
 List<Widget> _trainingPreviewLines(ReportSyncResponsePreview preview) {
@@ -1121,7 +1164,6 @@ class _FoodPreviewCard extends StatelessWidget {
             ),
             if (item != preview.foodMeals.last) const Divider(),
           ],
-          if (preview.message != null) Text(preview.message!),
         ],
       ),
     );
@@ -1376,6 +1418,118 @@ String _formatLocalDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+String _validationErrorText(Object error, String rawInput) {
+  Object? decoded;
+  try {
+    decoded = jsonDecode(rawInput);
+  } on FormatException {
+    return 'INVALID JSON\n'
+        'JSONを読み取れませんでした。'
+        'Markdown、説明文、スマートクォート、末尾カンマ等が含まれていないか確認してください。';
+  }
+
+  final identity = _validationIdentity(decoded);
+  final state = identity.operationDate == null
+      ? 'INVALID'
+      : '${identity.operationDate}・INVALID';
+  final sourceId = identity.sourceRecordId ?? 'SOURCE ID NOT AVAILABLE';
+
+  if (error is ReportSyncException) {
+    final validation = error.validationError;
+    if (validation != null) {
+      return '$state\n'
+          '$sourceId\n'
+          '${validation.jsonPath}: ${error.code.stableId}：'
+          '${_reportSyncIssueCodeLabel(error.code)} '
+          '${_localizedValidationReason(validation.message)}';
+    }
+    if (error.code == ReportSyncIssueCode.schemaMismatch) {
+      return '$state\n$sourceId\n\$: ${error.code.stableId}：'
+          '${_reportSyncIssueCodeLabel(error.code)} '
+          '${_localizedValidationReason(error.message)}';
+    }
+    return 'ERROR\n$sourceId\n${error.code.stableId}：'
+        '${_reportSyncIssueCodeLabel(error.code)} ${_errorText(error)}';
+  }
+  if (error is FormatException) {
+    return '$state\n$sourceId\n\$: schemaMismatch：'
+        'スキーマ不一致 ${_localizedValidationReason(error.message)}';
+  }
+  return 'ERROR\n$sourceId\n${_errorText(error)}';
+}
+
+String _reportSyncIssueCodeLabel(ReportSyncIssueCode code) => switch (code) {
+  ReportSyncIssueCode.operationDateMismatch => '対象日不一致',
+  ReportSyncIssueCode.exchangeTypeMismatch => '交換種別不一致',
+  ReportSyncIssueCode.schemaMismatch => 'スキーマ不一致',
+  ReportSyncIssueCode.integrityFailure => '整合性検証失敗',
+  ReportSyncIssueCode.requestDigestMismatch => 'リクエストダイジェスト不一致',
+  ReportSyncIssueCode.responseDigestMismatch => 'レスポンスダイジェスト不一致',
+  ReportSyncIssueCode.recordConflict => 'レコード競合',
+  ReportSyncIssueCode.confirmationDigestMismatch => '確定ダイジェスト不一致',
+  ReportSyncIssueCode.requestNotFound => 'リクエスト未検出',
+  ReportSyncIssueCode.duplicateNoChange => '重複・変更なし',
+};
+
+String? _reportSyncIssueCodeLabelByStableId(String stableId) {
+  for (final code in ReportSyncIssueCode.values) {
+    if (code.stableId == stableId) return _reportSyncIssueCodeLabel(code);
+  }
+  return null;
+}
+
+String _localizedValidationDetails(String details) => details
+    .split('\n')
+    .map((line) {
+      final match = RegExp(
+        r'^(.*): ([A-Za-z][A-Za-z0-9]*): (.*)$',
+      ).firstMatch(line);
+      if (match == null) return line;
+      final code = match.group(2)!;
+      final label = _reportSyncIssueCodeLabelByStableId(code);
+      if (label == null) return line;
+      return '${match.group(1)}: $code：$label '
+          '${_localizedValidationReason(match.group(3)!)}';
+    })
+    .join('\n');
+
+String _localizedValidationReason(String reason) => switch (reason) {
+  r'$ contains unknown or missing fields.' => '不明な項目または必須項目の不足があります。',
+  _ => reason,
+};
+
+({String? operationDate, String? sourceRecordId}) _validationIdentity(
+  Object? decoded,
+) {
+  if (decoded is! Map) return (operationDate: null, sourceRecordId: null);
+  final root = Map<String, Object?>.from(decoded);
+  final payloadValue = root['payload'];
+  final payload = payloadValue is Map
+      ? Map<String, Object?>.from(payloadValue)
+      : const <String, Object?>{};
+  final recordsValue = payload['records'];
+  final firstRecord = recordsValue is List && recordsValue.isNotEmpty
+      ? recordsValue.first
+      : null;
+  final record = firstRecord is Map
+      ? Map<String, Object?>.from(firstRecord)
+      : const <String, Object?>{};
+
+  String? nonEmptyString(Object? value) =>
+      value is String && value.trim().isNotEmpty ? value : null;
+
+  return (
+    operationDate:
+        nonEmptyString(record['operationDate']) ??
+        nonEmptyString(payload['operationDate']) ??
+        nonEmptyString(root['operationDate']),
+    sourceRecordId:
+        nonEmptyString(record['sourceRecordId']) ??
+        nonEmptyString(payload['sourceRecordId']) ??
+        nonEmptyString(root['sourceRecordId']),
+  );
+}
 
 String _errorText(Object error) => switch (error) {
   _ChatGptPromptCopyException() => 'CHATGPT PROMPTをコピーできませんでした',

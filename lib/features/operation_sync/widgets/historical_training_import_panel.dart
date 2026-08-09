@@ -50,7 +50,7 @@ class _HistoricalTrainingImportPanelState
     final workflow = widget.workflow;
     if (workflow == null) return;
     if (_range == null) {
-      setState(() => _inputError = 'Select a date range first.');
+      setState(() => _inputError = '先に期間を選択してください。');
       return;
     }
     try {
@@ -68,7 +68,7 @@ class _HistoricalTrainingImportPanelState
       final value = await _clipboard.readText();
       if (!mounted) return;
       if (value == null || value.isEmpty) {
-        setState(() => _inputError = 'Clipboard does not contain text.');
+        setState(() => _inputError = 'クリップボードにテキストがありません。');
         return;
       }
       _controller.text = value;
@@ -88,11 +88,11 @@ class _HistoricalTrainingImportPanelState
     final workflow = widget.workflow;
     if (workflow == null) return;
     if (_range == null) {
-      setState(() => _inputError = 'Select a date range first.');
+      setState(() => _inputError = '先に期間を選択してください。');
       return;
     }
     if (_controller.text.isEmpty) {
-      setState(() => _inputError = 'Paste response JSON before validation.');
+      setState(() => _inputError = '検証前に応答JSONを貼り付けてください。');
       return;
     }
     setState(() {
@@ -141,7 +141,7 @@ class _HistoricalTrainingImportPanelState
       _inputError = null;
       _validationError = null;
       _applyError = null;
-      _message = 'DATE RANGE SELECTED · COPY A NEW PROMPT';
+      _message = 'DATE RANGE SELECTED · 新しいプロンプトをコピーしてください';
     });
   }
 
@@ -154,8 +154,8 @@ class _HistoricalTrainingImportPanelState
       builder: (context) => AlertDialog(
         title: const Text('IMPORT HISTORICAL TRAINING?'),
         content: Text(
-          '${preview.newCount} new Training v2 records will be created. '
-          'Existing records will not be changed or deleted.',
+          'Training v2の新規記録を${preview.newCount}件作成します。'
+          '既存の記録は変更または削除されません。',
         ),
         actions: [
           TextButton(
@@ -173,7 +173,7 @@ class _HistoricalTrainingImportPanelState
     setState(() {
       _busy = true;
       _applyError = null;
-      _message = 'IMPORTING · DO NOT CLOSE THIS PAGE';
+      _message = 'IMPORTING · この画面を閉じないでください';
     });
     try {
       final result = await workflow.apply(preview);
@@ -229,14 +229,12 @@ class _HistoricalTrainingImportPanelState
               ),
             ),
             AppSpacing.gapSM,
-            const Text(
-              'Use monthly or shorter ranges when the retained records are long.',
-            ),
+            const Text('保持されている記録が長い場合は、1か月以内の期間を選択してください。'),
             AppSpacing.gapMD,
-            _HistoricalActionButton(
-              text: 'COPY CHATGPT PROMPT',
-              icon: Icons.content_copy,
+            OutlinedButton.icon(
               onPressed: widget.workflow != null && !_busy ? _copyPrompt : null,
+              icon: const Icon(Icons.content_copy),
+              label: const Text('COPY CHATGPT PROMPT'),
             ),
           ],
         ),
@@ -254,7 +252,7 @@ class _HistoricalTrainingImportPanelState
             OperationTextField(
               controller: _controller,
               label: 'RESPONSE JSON',
-              hint: 'Paste the copied JSON object here.',
+              hint: 'コピーしたJSONオブジェクトをここへ貼り付けてください。',
               maxLines: 10,
               onChanged: (_) => setState(() {
                 _preview = null;
@@ -306,8 +304,8 @@ class _HistoricalTrainingImportPanelState
       if (widget.workflow == null) ...[
         AppSpacing.gapSM,
         const Text(
-          'Historical Training import is available on Web/PWA with '
-          'persistent storage.',
+          'Historical Trainingのインポートは、永続ストレージを利用できる'
+          'Web/PWAで使用できます。',
         ),
       ],
     ],
