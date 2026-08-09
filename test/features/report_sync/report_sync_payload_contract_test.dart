@@ -218,6 +218,29 @@ void main() {
     },
   );
 
+  test('Training Schema 2 accepts and preserves a null session name', () async {
+    final response = const ReportSyncCodec().create(
+      direction: ReportSyncDirection.response,
+      exchangeType: ReportSyncExchangeType.training,
+      exchangeId: 'training-schema-2-null-name',
+      operationDate: '2026-08-01',
+      createdAt: DateTime.utc(2026, 8, 2),
+      schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+      payload: _trainingV2Payload(sessionName: null),
+    );
+    final strict = const ReportSyncCodec().decode(
+      const ReportSyncCodec().encode(response),
+    );
+
+    final mapped = await TrainingReportSyncPayloadAdapter(
+      _EmptyCustomExercises(),
+      idGenerator: TrainingRecordIdGenerator(nextInt: (_) => 0),
+    ).decodeResponse(strict);
+
+    expect(mapped.session.sessionName, isNull);
+    expect(mapped.session.exercises, hasLength(1));
+  });
+
   test('Schema 2 detailed validation exposes a safe JSON path', () {
     final payload = _trainingV2Payload();
     final session = Map<String, Object?>.from(payload['session'] as Map);
@@ -306,13 +329,13 @@ void main() {
   });
 }
 
-Map<String, Object?> _trainingV2Payload() => {
+Map<String, Object?> _trainingV2Payload({Object? sessionName = 'Session'}) => {
   'operationDate': '2026-08-01',
   'sourceRecordId': 'TR-2026-08-01',
   'session': {
     'session': {
       'localDate': '2026-08-01',
-      'name': 'Session',
+      'name': sessionName,
       'grade': 'a',
       'memo': null,
       'dynamicStretchCompleted': false,

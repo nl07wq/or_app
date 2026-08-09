@@ -332,7 +332,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(_importLabel(widget.exchangeType)),
-        content: Text('${preview.envelope.operationDate} の内容を保存しますか？'),
+        content: Text('${preview.operationDate} の内容を保存しますか？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -902,7 +902,7 @@ class _MorningBriefPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final payload = preview.envelope.payload;
+    final payload = preview.envelope!.payload;
     final source = Map<String, Object?>.from(payload['source'] as Map);
     final content = Map<String, Object?>.from(payload['content'] as Map);
     final analysis = Map<String, Object?>.from(
@@ -917,7 +917,7 @@ class _MorningBriefPreviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(preview.disposition.name.toUpperCase()),
-          Text('Operation Date  ${preview.envelope.operationDate}'),
+          Text('Operation Date  ${preview.operationDate}'),
           Text('STATUS Source Date  ${source['sourceOperationDate']}'),
           Text('Source Record ID  ${source['sourceRecordId']}'),
           Text(
@@ -990,49 +990,57 @@ class _PreviewCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(preview.disposition.name.toUpperCase()),
-        Text('Operation Date  ${preview.envelope.operationDate}'),
+        Text('Operation Date  ${preview.operationDate}'),
         Text('CREATE  ${preview.createCount}'),
         Text('NO CHANGES  ${preview.noChangeCount}'),
         Text('CONFLICT  ${preview.conflictCount}'),
-        if (preview.envelope.exchangeType == ReportSyncExchangeType.training)
-          ..._trainingPreviewLines(preview.envelope.payload),
+        if (preview.exchangeType == ReportSyncExchangeType.training)
+          ..._trainingPreviewLines(preview),
         if (preview.message != null) Text(preview.message!),
       ],
     ),
   );
 }
 
-List<Widget> _trainingPreviewLines(Map<String, Object?> payload) {
-  final session = Map<String, Object?>.from(payload['session'] as Map);
-  final header = Map<String, Object?>.from(session['session'] as Map);
-  final exercises = session['exercises'] as List;
-  final cardio = session['cardio'] as List;
+List<Widget> _trainingPreviewLines(ReportSyncResponsePreview preview) {
+  final historicalPayload = Map<String, Object?>.from(
+    preview.trainingPreview!.envelope['payload']! as Map,
+  );
+  final records = List<Object?>.from(historicalPayload['records']! as List);
   return [
     AppSpacing.gapSM,
-    Text('Record ID  ${payload['recordId']}'),
-    Text('Session  ${header['name']}  Grade ${header['grade']}'),
-    Text('Exercises  ${exercises.length}  Cardio  ${cardio.length}'),
-    for (final raw in exercises)
+    Text('Records  ${records.length}'),
+    for (var index = 0; index < records.length; index++) ...[
       Builder(
         builder: (_) {
-          final exercise = Map<String, Object?>.from(raw as Map);
-          return Text(
-            '${exercise['exerciseName']}  '
-            '${exercise['equipment'] == null ? 'No equipment' : (exercise['equipment'] as Map)['name']}  '
-            'Sets ${(exercise['sets'] as List).length}',
+          final record = Map<String, Object?>.from(records[index] as Map);
+          final session = Map<String, Object?>.from(record['session'] as Map);
+          final header = Map<String, Object?>.from(session['session'] as Map);
+          final rawSessionName = header['name'];
+          final sessionName =
+              rawSessionName is String && rawSessionName.trim().isNotEmpty
+              ? rawSessionName
+              : 'NOT RECORDED';
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Record ${index + 1}  ${record['operationDate']}  '
+                '${record['sourceRecordId'] ?? '-'}',
+              ),
+              Text(
+                'Session  $sessionName  '
+                'Grade ${header['grade']}',
+              ),
+              Text(
+                'Exercises  ${(session['exercises'] as List).length}  '
+                'Cardio  ${(session['cardio'] as List).length}',
+              ),
+            ],
           );
         },
       ),
-    for (final raw in cardio)
-      Builder(
-        builder: (_) {
-          final entry = Map<String, Object?>.from(raw as Map);
-          return Text(
-            '${entry['type']}  ${entry['durationSeconds']} sec  '
-            '${entry['distanceKm'] ?? '-'} km',
-          );
-        },
-      ),
+    ],
   ];
 }
 
@@ -1058,7 +1066,7 @@ class _FoodPreviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(preview.disposition.name.toUpperCase()),
-          Text('Operation Date  ${preview.envelope.operationDate}'),
+          Text('Operation Date  ${preview.envelope!.operationDate}'),
           Text('受信：${preview.foodMeals.length}件'),
           Text('選択：${selectedMealIds.length}件'),
           Text('競合：${preview.conflictCount}件'),

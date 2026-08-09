@@ -28,6 +28,27 @@ void main() {
     expect(form.exercises.single.targetReps, isEmpty);
   });
 
+  test('session name accepts null and preserves a non-empty value', () {
+    final unnamed = TrainingSessionV2(date: '2026-08-03', sessionName: null);
+    final named = TrainingSessionV2(
+      date: '2026-08-03',
+      sessionName: 'Full Body',
+    );
+
+    expect(unnamed.sessionName, isNull);
+    expect(named.sessionName, 'Full Body');
+  });
+
+  test('mapper normalizes an empty session name to null', () {
+    final form = TrainingV2FormController.fromSession(_session());
+    addTearDown(form.dispose);
+    form.sessionName.text = '   ';
+
+    final result = TrainingV2FormMapper.toDomain(form);
+
+    expect(result.sessionName, isNull);
+  });
+
   test('ADD SET inherits only set type and rest', () {
     final exercise = TrainingV2ExerciseFormController();
     addTearDown(exercise.dispose);

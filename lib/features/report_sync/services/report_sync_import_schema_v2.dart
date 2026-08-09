@@ -210,7 +210,7 @@ class TrainingReportSyncPayloadSchemaV2 {
       'overallEvaluation',
     }, r'$.payload.session.session');
     _date(header['localDate'], r'$.payload.session.session.localDate');
-    _text(header['name'], r'$.payload.session.session.name');
+    _nullableString(header['name'], r'$.payload.session.session.name');
     if (allowNullSessionGrade) {
       _nullableText(header['grade'], r'$.payload.session.session.grade');
     } else {

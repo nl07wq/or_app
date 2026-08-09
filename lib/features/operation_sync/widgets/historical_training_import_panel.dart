@@ -385,18 +385,32 @@ class _PreviewRow extends StatelessWidget {
   const _PreviewRow({required this.item});
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: Icon(_icon(item.disposition)),
-    title: Text(
-      '${item.operationDate ?? 'INVALID DATE'} · '
-      '${item.disposition.stableId.toUpperCase()}',
-    ),
-    subtitle: Text(
-      '${item.sourceRecordId ?? 'SOURCE ID NOT AVAILABLE'}'
-      '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.message}').join('\n')}'}',
-    ),
-  );
+  Widget build(BuildContext context) {
+    final session = item.persistedRecord?.dataV2;
+    final sessionName = session?.sessionName;
+    final visibleSessionName = sessionName == null || sessionName.trim().isEmpty
+        ? 'NOT RECORDED'
+        : sessionName;
+    final recordDetails = session == null
+        ? ''
+        : '\nSession $visibleSessionName'
+              '\nGrade ${session.sessionGrade?.stableId ?? 'NOT RECORDED'}'
+              '\nExercises ${session.exercises.length}'
+              '\nCardio ${session.cardioEntries.length}';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(_icon(item.disposition)),
+      title: Text(
+        '${item.operationDate ?? 'INVALID DATE'} · '
+        '${item.disposition.stableId.toUpperCase()}',
+      ),
+      subtitle: Text(
+        '${item.sourceRecordId ?? 'SOURCE ID NOT AVAILABLE'}'
+        '$recordDetails'
+        '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.message}').join('\n')}'}',
+      ),
+    );
+  }
 
   static IconData _icon(OperationSyncRecordDisposition disposition) =>
       switch (disposition) {

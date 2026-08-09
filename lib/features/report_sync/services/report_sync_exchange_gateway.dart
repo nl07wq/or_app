@@ -1,11 +1,9 @@
 import '../../../core/models/meal_data.dart';
+import '../../operation_sync/services/historical_training_workflow.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../food/repository/food_meal_id_generator.dart';
 import '../../repositories/app_repository_container.dart';
-import '../../sync/models/orlo_sync_models.dart';
-import '../../sync/services/orlo_sync_canonical_codec.dart';
-import '../../training/sync/training_sync_adapter.dart';
 import '../../training/repository/training_record_id_generator.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
@@ -85,20 +83,25 @@ class ReportSyncResponsePreview {
     required this.conflictCount,
     this.message,
     this.foodMeals = const [],
-    this.trainingImportEnvelope,
+    this.trainingPreview,
     this.morningBriefSourceDigestMatches = false,
   });
 
-  final ReportSyncEnvelope envelope;
+  final ReportSyncEnvelope? envelope;
   final ReportSyncDisposition disposition;
   final int createCount;
   final int noChangeCount;
   final int conflictCount;
   final String? message;
   final List<FoodReportSyncMealPreview> foodMeals;
-  final OrloSyncEnvelope? trainingImportEnvelope;
+  final HistoricalTrainingPreview? trainingPreview;
   final bool morningBriefSourceDigestMatches;
   bool get canApply => disposition == ReportSyncDisposition.create;
+  String get operationDate =>
+      trainingPreview?.requestedStartDate ?? envelope!.operationDate;
+  ReportSyncExchangeType get exchangeType => trainingPreview == null
+      ? envelope!.exchangeType
+      : ReportSyncExchangeType.training;
 }
 
 class ReportSyncApplyResult {
@@ -160,6 +163,14 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
 
   AppRepositoryContainer get _container =>
       _containerOverride ?? AppRepositoryRegistry.container;
+
+  HistoricalTrainingWorkflowService _historicalTrainingWorkflow() =>
+      HistoricalTrainingWorkflowService(
+        database: _container.database,
+        customExercises: _container.customTrainingExercises,
+        clock: _clock,
+        idGenerator: trainingIdGenerator,
+      );
 
   @override
   Future<ReportSyncRequestPreparation> prepareRequest(
@@ -261,6 +272,12 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     if (operationDate == null) {
       throw StateError('The exchange target is not ready.');
     }
+    if (type == ReportSyncExchangeType.training) {
+      return _historicalTrainingWorkflow().buildPrompt(
+        startDate: operationDate,
+        endDate: operationDate,
+      );
+    }
     final instruction = _container.reportSyncInstructions
         .forType(type)
         .buildInstruction(
@@ -293,6 +310,13 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     String rawResponse, {
     String? targetDate,
   }) async {
+    if (type == ReportSyncExchangeType.training) {
+      if (targetDate == null) {
+        throw StateError('Training target date is required.');
+      }
+      OperationLocalDate.parse(targetDate);
+      return _previewTraining(rawResponse, targetDate);
+    }
     final response = _container.reportSyncCodec.decode(rawResponse);
     if (response.exchangeType != type ||
         response.direction != ReportSyncDirection.response) {
@@ -307,7 +331,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       expectedOperationDate: targetDate,
     );
     final preview = await switch (type) {
-      ReportSyncExchangeType.training => _previewTraining(response),
+      ReportSyncExchangeType.training => throw StateError(
+        'Training uses Historical Training preview.',
+      ),
       ReportSyncExchangeType.food => _previewFood(response),
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
       ReportSyncExchangeType.dailyDebrief => _previewDailyDebrief(response),
@@ -316,45 +342,33 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   }
 
   Future<ReportSyncResponsePreview> _previewTraining(
-    ReportSyncEnvelope response,
+    String rawResponse,
+    String targetDate,
   ) async {
-    final mapped = await TrainingReportSyncPayloadAdapter(
-      _container.customTrainingExercises,
-      idGenerator: trainingIdGenerator,
-    ).decodeForImport(response);
-    final envelope = _trainingEnvelope(response, mapped.payload);
-    final adapter = TrainingSyncAdapter(
-      repository: _container.training,
-      customExercises: _container.customTrainingExercises,
+    final preview = await _historicalTrainingWorkflow().preview(
+      rawResponse,
+      startDate: targetDate,
+      endDate: targetDate,
     );
-    final issues = [
-      ...await adapter.validatePayload(envelope),
-      ...await adapter.detectConflicts(envelope),
-    ];
-    final counts = await adapter.buildPreview(envelope);
-    final blocked = issues.any(
-      (issue) => issue.severity == SyncIssueSeverity.blockingError,
-    );
-    final conflict = issues.any(
-      (issue) => issue.severity == SyncIssueSeverity.conflict,
-    );
-    final disposition = blocked
+    final disposition = preview.invalidCount > 0 || preview.blockedCount > 0
         ? ReportSyncDisposition.blocked
-        : conflict || counts.conflict > 0
+        : preview.conflictCount > 0
         ? ReportSyncDisposition.conflict
-        : counts.noOp > 0
-        ? ReportSyncDisposition.noChanges
-        : ReportSyncDisposition.create;
+        : preview.newCount > 0
+        ? ReportSyncDisposition.create
+        : ReportSyncDisposition.noChanges;
+    final issues = [
+      for (final item in preview.records)
+        for (final issue in item.issues) issue.message,
+    ];
     return ReportSyncResponsePreview(
-      envelope: response,
+      envelope: null,
       disposition: disposition,
-      createCount: counts.create,
-      noChangeCount: counts.noOp,
-      conflictCount: counts.conflict,
-      message: issues.isEmpty
-          ? null
-          : issues.map((issue) => issue.message).join('\n'),
-      trainingImportEnvelope: envelope,
+      createCount: preview.newCount,
+      noChangeCount: preview.identicalCount + preview.excludedCount,
+      conflictCount: preview.conflictCount + preview.blockedCount,
+      message: issues.isEmpty ? null : issues.join('\n'),
+      trainingPreview: preview,
     );
   }
 
@@ -575,22 +589,18 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     if (!preview.canApply) {
       throw StateError('Blocked or conflicting response cannot be imported.');
     }
-    final response = preview.envelope;
+    final trainingPreview = preview.trainingPreview;
+    if (trainingPreview != null) {
+      await _historicalTrainingWorkflow().apply(trainingPreview);
+      return const ReportSyncApplyResult(
+        ReportSyncDisposition.create,
+        readBackVerified: true,
+      );
+    }
+    final response = preview.envelope!;
     switch (response.exchangeType) {
       case ReportSyncExchangeType.training:
-        final envelope = preview.trainingImportEnvelope;
-        if (envelope == null) {
-          throw StateError('Training preview payload is unavailable.');
-        }
-        final digest = OrloSyncCanonicalCodec.digest(envelope.payload);
-        final result = await TrainingSyncAdapter(
-          repository: _container.training,
-          customExercises: _container.customTrainingExercises,
-        ).applyAndVerify(envelope: envelope, expectedPayloadDigest: digest);
-        if (!result.success) {
-          throw StateError('Training read-back verification failed.');
-        }
-        break;
+        throw StateError('Training uses Historical Training import.');
       case ReportSyncExchangeType.food:
         return _applyFood(preview, selectedMealIds);
       case ReportSyncExchangeType.morningBrief:
@@ -606,14 +616,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           readBackVerified: true,
         );
     }
-    await _container.reportSyncPersistence.recordResponse(
-      response,
-      expectedOperationDate: response.operationDate,
-    );
-    return const ReportSyncApplyResult(
-      ReportSyncDisposition.create,
-      readBackVerified: true,
-    );
   }
 
   Future<ReportSyncApplyResult> _applyFood(
@@ -621,7 +623,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     Set<String>? selectedMealIds,
   ) async {
     try {
-      final response = preview.envelope;
+      final response = preview.envelope!;
       final selectableIds = {
         for (final item in preview.foodMeals)
           if (item.canSelect) item.previewId,
@@ -715,25 +717,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       );
     }
   }
-
-  OrloSyncEnvelope _trainingEnvelope(
-    ReportSyncEnvelope response,
-    Map<String, Object?> mappedPayload,
-  ) => OrloSyncEnvelope(
-    envelopeVersion: OrloSyncEnvelope.currentEnvelopeVersion,
-    schemaVersion: OrloSyncEnvelope.currentSchemaVersion,
-    dataType: 'training',
-    packageId: response.exchangeId,
-    idempotencyKey: (mappedPayload['session'] as Map)['recordId'] as String,
-    source: OrloSyncSource(
-      type: 'chatGptExchange',
-      generatedAt: response.createdAt,
-      producer: 'report-sync',
-      producerVersion: '1.0',
-    ),
-    operationDate: response.operationDate,
-    payload: mappedPayload,
-  );
 
   Future<MealData> _withUniqueFoodId(
     MealData meal,

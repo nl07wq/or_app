@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
+import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
+import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
 import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
@@ -668,6 +670,52 @@ void main() {
     );
   });
 
+  testWidgets('training preview hides a null session name from visible UI', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.training,
+          gateway: _FakeExchangeGateway(
+            trainingPreview: _nullNameTrainingPreview(),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('report-sync-response-input')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('report-sync-response-input')),
+        matching: find.byType(TextField),
+      ),
+      '{}',
+    );
+    await tester.scrollUntilVisible(
+      find.text('VALIDATE'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Session  NOT RECORDED'), findsOneWidget);
+    expect(find.textContaining('Session  null'), findsNothing);
+    expect(find.text('Exercises  1  Cardio  0'), findsOneWidget);
+    expect(find.text('IMPORT TRAINING'), findsOneWidget);
+  });
+
   for (final disposition in const [
     ReportSyncDisposition.noChanges,
     ReportSyncDisposition.conflict,
@@ -787,6 +835,46 @@ StatusReportSyncSourceExport _statusSourceExport() {
   );
 }
 
+HistoricalTrainingPreview _nullNameTrainingPreview() =>
+    HistoricalTrainingPreview(
+      exchangeId: 'training-null-name-preview',
+      createdAt: DateTime.utc(2026, 8, 3),
+      responseDigest: 'a' * 64,
+      packageDigest: 'b' * 64,
+      requestedStartDate: '2026-08-03',
+      requestedEndDate: '2026-08-03',
+      envelope: const {
+        'payload': {
+          'records': [
+            {
+              'operationDate': '2026-08-03',
+              'sourceRecordId': null,
+              'session': {
+                'session': {'name': null, 'grade': 'sPlus'},
+                'exercises': [
+                  {'exerciseName': 'Bench Press'},
+                ],
+                'cardio': <Object?>[],
+              },
+            },
+          ],
+        },
+      },
+      records: const [
+        HistoricalTrainingPreviewItem(
+          index: 0,
+          sourceRecordId: null,
+          operationDate: '2026-08-03',
+          sourceDigest: null,
+          targetRecordId: null,
+          domainDigest: null,
+          persistedRecord: null,
+          disposition: OperationSyncRecordDisposition.newRecord,
+          issues: [],
+        ),
+      ],
+    );
+
 class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   _FakeExchangeGateway({
     this.disposition = ReportSyncDisposition.create,
@@ -794,6 +882,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     this.previewError,
     this.legacyHistory = false,
     this.historyCount = 1,
+    this.trainingPreview,
   });
 
   static const digest =
@@ -803,6 +892,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   final Object? previewError;
   final bool legacyHistory;
   final int historyCount;
+  final HistoricalTrainingPreview? trainingPreview;
   int recordRequestCalls = 0;
   int applyCalls = 0;
   int previewCalls = 0;
@@ -942,6 +1032,17 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     if (previewError != null) throw previewError!;
     previewCalls++;
     lastPreviewTargetDate = targetDate;
+    final historical = trainingPreview;
+    if (historical != null) {
+      return ReportSyncResponsePreview(
+        envelope: null,
+        disposition: ReportSyncDisposition.create,
+        createCount: historical.newCount,
+        noChangeCount: 0,
+        conflictCount: 0,
+        trainingPreview: historical,
+      );
+    }
     return ReportSyncResponsePreview(
       envelope: response,
       disposition: disposition,

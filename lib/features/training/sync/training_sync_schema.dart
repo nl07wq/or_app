@@ -211,7 +211,7 @@ abstract final class TrainingSyncSchema {
       exerciseIds: List.unmodifiable(exerciseIds),
       session: TrainingSessionV2(
         date: localDate,
-        sessionName: _text(sessionJson, 'name'),
+        sessionName: _nullableText(sessionJson, 'name'),
         sessionGrade: grade,
         memo: _nullableText(sessionJson, 'memo'),
         dynamicStretchCompleted: dynamicStretch,

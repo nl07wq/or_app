@@ -85,6 +85,29 @@ void main() {
     },
   );
 
+  test('accepts a historical record with a null session name', () async {
+    final preview = await workflow.preview(
+      jsonEncode(
+        _envelope(
+          [_record('2026-08-03', 'source-null-name', sessionName: null)],
+          startDate: '2026-08-03',
+          endDate: '2026-08-03',
+        ),
+      ),
+      startDate: '2026-08-03',
+      endDate: '2026-08-03',
+    );
+
+    expect(preview.receivedCount, 1);
+    expect(preview.newCount, 1);
+    expect(preview.invalidCount, 0);
+    expect(preview.blockedCount, 0);
+    expect(preview.canApply, isTrue);
+    final session = preview.records.single.persistedRecord!.dataV2;
+    expect(session.sessionName, isNull);
+    expect(session.exercises, hasLength(1));
+  });
+
   test('rejects records outside the inclusive requested range', () async {
     final preview = await workflow.preview(
       jsonEncode(
@@ -349,13 +372,14 @@ Map<String, Object?> _record(
   String sourceRecordId, {
   String exerciseName = 'Bench Press',
   Object? equipment = const {'id': 'power_rack', 'name': 'Power Rack'},
+  Object? sessionName = 'Historical Training',
 }) => {
   'operationDate': date,
   'sourceRecordId': sourceRecordId,
   'session': {
     'session': {
       'localDate': date,
-      'name': 'Historical Training',
+      'name': sessionName,
       'grade': 'a',
       'memo': null,
       'dynamicStretchCompleted': true,

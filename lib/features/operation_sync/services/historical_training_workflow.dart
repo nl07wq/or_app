@@ -215,7 +215,7 @@ RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block. Its opening fence must be ```text and its closing fence must be ```.
 Inside the code block return only one JSON object. Return no heading, explanation, greeting, note, marker, comment, or text outside the code block. Do not use a json fence. The copied code-block content must start with { and end with }.
 Use format "$_format", envelopeVersion 1, schemaVersion "$_schemaVersion", direction "response", exchangeType "historicalTraining", recordType "trainingV2", sourceMode "dateRange", importMode "missingRecordsOnly", requestedStartDate "$startDate", and requestedEndDate "$endDate" exactly. Create a unique exchangeId and UTC createdAt. Set packageDigest to null. Do not calculate a digest or replace null with a placeholder.
-Do not add unknown fields, stringify numbers, or alter dates. sourceRecordId is the original external reference when known, otherwise null. It is not an app storage ID. Every record must use the existing Training Report Sync Schema 2 payload: operationDate, sourceRecordId, and session. session.localDate must equal operationDate.
+Do not add unknown fields, stringify numbers, or alter dates. sourceRecordId is the original external reference when known, otherwise null. It is not an app storage ID. Every record must use the existing Training Report Sync Schema 2 payload: operationDate, sourceRecordId, and session. session.localDate must equal operationDate. The nested session name is optional metadata: preserve a recorded non-empty name, otherwise return null. Never infer or generate a session name.
 For each exercise, equipment must be either null when no equipment is recorded, or an object containing exactly id and a non-empty name. Never return an equipment object whose name is an empty string.
 For sets preserve exactly type, weightKg, reps, rpe, and restAfterSeconds. Set type is case-sensitive and must be only "warmUp" or "main". Map a retained "warmup" label to "warmUp"; never output "warmup". reps must be a JSON integer of 1 or greater, never a decimal number or String. rpe must be null or a JSON integer from 1 through 10. restAfterSeconds must be null or a non-negative JSON integer. weightKg must be a finite non-negative JSON number. legacyUnknown is forbidden.
 For cardio use only these exact field names: purpose, type, durationSeconds, distanceKm, mets, averageHeartRateBpm, maximumHeartRateBpm, averageSpeedKmh, estimatedCaloriesKcal, weightSnapshotKg, calculationMethod, calculationVersion, and notes. Cardio purpose is case-sensitive and must be only "warmUp", "main", or "cooldown"; map a retained "warmup" label to "warmUp". Cardio type is case-sensitive and must be only "walking", "running", "exerciseBike", "elliptical", "treadmillWalking", or "treadmillRunning"; map a retained "bike" label to "exerciseBike". Map a retained maxHeartRateBpm value to maximumHeartRateBpm; never output maxHeartRateBpm. Never output calories or equipment in a cardio object. durationSeconds and heart-rate values must be JSON integers, never decimal numbers or Strings. A calories snapshot is all-or-null: estimatedCaloriesKcal, weightSnapshotKg, calculationMethod "metsAcsmV1", and calculationVersion 1. If the retained record has calories alone or any incomplete snapshot, set all four formal snapshot fields to null. Do not reconstruct a partial snapshot or infer weight.
@@ -441,6 +441,12 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
 
   static void _normalizeHistoricalAliases(Map<String, Object?> record) {
     final session = Map<String, Object?>.from(record['session'] as Map);
+    final header = Map<String, Object?>.from(session['session'] as Map);
+    final sessionName = header['name'];
+    if (sessionName is String && sessionName.trim().isEmpty) {
+      header['name'] = null;
+    }
+    session['session'] = header;
     final exercises = <Object?>[];
     for (final raw in session['exercises'] as List) {
       final exercise = Map<String, Object?>.from(raw as Map);
@@ -654,35 +660,14 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       ],
       mode: IndexedDbTransactionMode.readWrite,
       action: (transaction) async {
-        final training = await transaction.findAll(
-          IndexedDbStoreNames.trainingRecords,
-        );
-        final operationRecords = await transaction.findAll(
-          IndexedDbStoreNames.operationSyncHistory,
-        );
-        final revalidated = _classify(
-          decoded: preview.envelope,
-          responseDigest: preview.responseDigest,
-          packageDigest: preview.packageDigest,
-          mapped: preview.records,
-          existingTraining: training,
-          syncRecords: operationRecords,
-        );
-        if (!_samePlan(preview, revalidated) || !revalidated.canApply) {
-          throw StateError('Historical Training preview is stale.');
-        }
+        final revalidated = await _revalidate(preview, transaction);
         final newItems = revalidated.records
             .where(
               (item) =>
                   item.disposition == OperationSyncRecordDisposition.newRecord,
             )
             .toList();
-        for (final item in newItems) {
-          await transaction.put(
-            IndexedDbStoreNames.trainingRecords,
-            item.persistedRecord!.toRecord(),
-          );
-        }
+        await _writeAndVerifyTraining(transaction, newItems);
         final auditItems = [
           for (final item in revalidated.records)
             OperationSyncRecordItem(
@@ -725,19 +710,6 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
           IndexedDbStoreNames.operationSyncHistory,
           record.toRecord(),
         );
-        for (final item in newItems) {
-          final stored = await transaction.findById(
-            IndexedDbStoreNames.trainingRecords,
-            item.targetRecordId!,
-          );
-          if (stored == null ||
-              OperationTransferCanonicalService.encode(stored) !=
-                  OperationTransferCanonicalService.encode(
-                    item.persistedRecord!.toRecord(),
-                  )) {
-            throw StateError('Training read-back verification failed.');
-          }
-        }
         final storedAudit = await transaction.findById(
           IndexedDbStoreNames.operationSyncHistory,
           record.operationId,
@@ -752,6 +724,53 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
         return HistoricalTrainingApplyResult(record);
       },
     );
+  }
+
+  Future<HistoricalTrainingPreview> _revalidate(
+    HistoricalTrainingPreview preview,
+    IndexedDbTransaction transaction,
+  ) async {
+    final revalidated = _classify(
+      decoded: preview.envelope,
+      responseDigest: preview.responseDigest,
+      packageDigest: preview.packageDigest,
+      mapped: preview.records,
+      existingTraining: await transaction.findAll(
+        IndexedDbStoreNames.trainingRecords,
+      ),
+      syncRecords: await transaction.findAll(
+        IndexedDbStoreNames.operationSyncHistory,
+      ),
+    );
+    if (!_samePlan(preview, revalidated) || !revalidated.canApply) {
+      throw StateError('Training import preview is stale.');
+    }
+    return revalidated;
+  }
+
+  Future<void> _writeAndVerifyTraining(
+    IndexedDbTransaction transaction,
+    List<HistoricalTrainingPreviewItem> newItems,
+  ) async {
+    for (final item in newItems) {
+      await transaction.put(
+        IndexedDbStoreNames.trainingRecords,
+        item.persistedRecord!.toRecord(),
+      );
+    }
+    for (final item in newItems) {
+      final stored = await transaction.findById(
+        IndexedDbStoreNames.trainingRecords,
+        item.targetRecordId!,
+      );
+      if (stored == null ||
+          OperationTransferCanonicalService.encode(stored) !=
+              OperationTransferCanonicalService.encode(
+                item.persistedRecord!.toRecord(),
+              )) {
+        throw StateError('Training read-back verification failed.');
+      }
+    }
   }
 
   @override

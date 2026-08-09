@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/food_item.dart';
@@ -672,7 +674,7 @@ void main() {
   );
 
   test(
-    'Training Schema 2 previews and imports with an app-generated ID',
+    'Training Report Sync previews and imports a null-name historical record',
     () async {
       final container = AppRepositoryContainer.indexedDb(
         FakeIndexedDbDatabase(),
@@ -684,28 +686,35 @@ void main() {
         container: container,
         trainingIdGenerator: TrainingRecordIdGenerator(nextInt: (_) => 0),
       );
-      final response = container.reportSyncCodec.create(
-        direction: ReportSyncDirection.response,
-        exchangeType: ReportSyncExchangeType.training,
-        exchangeId: 'training-schema-2',
-        operationDate: '2026-08-01',
-        createdAt: DateTime.now().toUtc(),
-        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
-        payload: _trainingV2Payload(),
+      final response = _historicalTrainingEnvelope(
+        _trainingV2Payload(sessionName: null),
       );
 
       final preview = await gateway.previewResponse(
         ReportSyncExchangeType.training,
-        container.reportSyncCodec.encode(response),
+        jsonEncode(response),
         targetDate: '2026-08-01',
       );
       expect(preview.disposition, ReportSyncDisposition.create);
+      expect(preview.trainingPreview?.invalidCount, 0);
+      expect(preview.trainingPreview?.blockedCount, 0);
+      expect(
+        preview
+            .trainingPreview
+            ?.records
+            .single
+            .persistedRecord!
+            .dataV2
+            .sessionName,
+        isNull,
+      );
       final result = await gateway.apply(preview);
       expect(result.readBackVerified, isTrue);
       const generatedId = 'training:00000000-0000-4000-8000-000000000000';
       final stored = await container.training.findRecordById(generatedId);
       expect(stored?.id, generatedId);
       expect(stored?.id, isNot('TR-2026-08-01'));
+      expect(stored?.v2Data?.sessionName, isNull);
       expect(stored?.v2Data?.exercises.single.nextTarget?.notes, '次も継続');
     },
   );
@@ -875,13 +884,33 @@ _foodImportFixture(
   return (container: container, gateway: gateway, preview: preview);
 }
 
-Map<String, Object?> _trainingV2Payload() => {
+Map<String, Object?> _historicalTrainingEnvelope(Map<String, Object?> record) =>
+    {
+      'format': 'operation-reboot-operation-sync',
+      'envelopeVersion': 1,
+      'schemaVersion': '1.0',
+      'direction': 'response',
+      'exchangeType': 'historicalTraining',
+      'exchangeId': 'training-report-sync-response',
+      'createdAt': '2026-08-01T00:00:00.000Z',
+      'payload': {
+        'recordType': 'trainingV2',
+        'sourceMode': 'dateRange',
+        'importMode': 'missingRecordsOnly',
+        'requestedStartDate': '2026-08-01',
+        'requestedEndDate': '2026-08-01',
+        'records': [record],
+      },
+      'packageDigest': null,
+    };
+
+Map<String, Object?> _trainingV2Payload({Object? sessionName = 'Session'}) => {
   'operationDate': '2026-08-01',
   'sourceRecordId': 'TR-2026-08-01',
   'session': {
     'session': {
       'localDate': '2026-08-01',
-      'name': 'Session',
+      'name': sessionName,
       'grade': 'a',
       'memo': null,
       'dynamicStretchCompleted': false,
