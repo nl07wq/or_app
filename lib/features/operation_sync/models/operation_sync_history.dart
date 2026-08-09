@@ -320,10 +320,15 @@ class OperationSyncRecord {
   }
 
   void _validateStableContract() {
+    final supportedRecord =
+        (workflowKind == 'historicalTraining' &&
+            recordType == 'trainingV2' &&
+            const {'allAvailableRecords', 'dateRange'}.contains(sourceMode)) ||
+        (workflowKind == 'historicalDns' &&
+            recordType == 'dailyAggregateV1' &&
+            sourceMode == 'dateRange');
     if (recordVersion != currentRecordVersion ||
-        workflowKind != 'historicalTraining' ||
-        recordType != 'trainingV2' ||
-        !const {'allAvailableRecords', 'dateRange'}.contains(sourceMode) ||
+        !supportedRecord ||
         importMode != 'missingRecordsOnly') {
       throw const FormatException('Unsupported Operation Sync record.');
     }

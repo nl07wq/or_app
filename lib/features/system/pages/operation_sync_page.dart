@@ -10,8 +10,10 @@ import '../../legacy_archive/pages/dns_archive_import_page.dart';
 import '../../operation_sync/models/operation_sync_history.dart';
 import '../../operation_sync/models/operation_sync_issue.dart';
 import '../../operation_sync/models/operation_sync_state.dart';
+import '../../operation_sync/services/historical_dns_workflow.dart';
 import '../../operation_sync/services/operation_sync_transfer_coordinator.dart';
 import '../../operation_sync/services/historical_training_workflow.dart';
+import '../../operation_sync/widgets/historical_dns_import_panel.dart';
 import '../../operation_sync/widgets/historical_training_import_panel.dart';
 import '../../repositories/app_repository_container.dart';
 
@@ -19,6 +21,7 @@ class OperationSyncPage extends StatefulWidget {
   const OperationSyncPage({
     super.key,
     this.workflow,
+    this.historicalDnsWorkflow,
     this.historicalTrainingWorkflow,
   });
 
@@ -32,6 +35,7 @@ class OperationSyncPage extends StatefulWidget {
   ];
 
   final OperationSyncWorkflow? workflow;
+  final HistoricalDnsWorkflow? historicalDnsWorkflow;
   final HistoricalTrainingWorkflow? historicalTrainingWorkflow;
 
   @override
@@ -42,6 +46,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   OperationSyncWorkflow? _workflow;
   OperationSyncWorkspace? _workspace;
   OperationSyncSelection? _selection;
+  HistoricalDnsWorkflow? _historicalDnsWorkflow;
   HistoricalTrainingWorkflow? _historicalTrainingWorkflow;
   List<OperationSyncRecord> _historicalRecords = const [];
   String? _message;
@@ -62,13 +67,20 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     if (_available) {
       _workflow =
           widget.workflow ?? OperationSyncTransferCoordinator.production();
+      _historicalDnsWorkflow =
+          widget.historicalDnsWorkflow ??
+          (_productionAvailable
+              ? HistoricalDnsWorkflowService.production()
+              : null);
       _historicalTrainingWorkflow =
           widget.historicalTrainingWorkflow ??
           (_productionAvailable
               ? HistoricalTrainingWorkflowService.production()
               : null);
       _load();
-    } else if (widget.historicalTrainingWorkflow != null) {
+    } else if (widget.historicalTrainingWorkflow != null ||
+        widget.historicalDnsWorkflow != null) {
+      _historicalDnsWorkflow = widget.historicalDnsWorkflow;
       _historicalTrainingWorkflow = widget.historicalTrainingWorkflow;
       _loadHistoricalRecords();
     }
@@ -77,11 +89,11 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   Future<void> _load() async {
     try {
       final workspace = await _workflow!.load();
-      final historical = await _historicalTrainingWorkflow?.listRecords();
+      final historical = await _loadAllHistoricalRecords();
       if (mounted) {
         setState(() {
           _workspace = workspace;
-          _historicalRecords = historical ?? const [];
+          _historicalRecords = historical;
         });
       }
     } catch (error) {
@@ -91,11 +103,19 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
 
   Future<void> _loadHistoricalRecords() async {
     try {
-      final records = await _historicalTrainingWorkflow!.listRecords();
+      final records = await _loadAllHistoricalRecords();
       if (mounted) setState(() => _historicalRecords = records);
     } catch (error) {
       if (mounted) setState(() => _message = _errorMessage(error));
     }
+  }
+
+  Future<List<OperationSyncRecord>> _loadAllHistoricalRecords() async {
+    final records = <OperationSyncRecord>[
+      ...?await _historicalTrainingWorkflow?.listRecords(),
+      ...?await _historicalDnsWorkflow?.listRecords(),
+    ]..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    return List.unmodifiable(records);
   }
 
   Future<void> _export() async {
@@ -285,6 +305,11 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
           AppSpacing.gapXL,
           HistoricalTrainingImportPanel(
             workflow: _historicalTrainingWorkflow,
+            onRecordSaved: _loadHistoricalRecords,
+          ),
+          AppSpacing.gapXL,
+          HistoricalDnsImportPanel(
+            workflow: _historicalDnsWorkflow,
             onRecordSaved: _loadHistoricalRecords,
           ),
           AppSpacing.gapXL,
@@ -579,8 +604,20 @@ class _OperationSyncRecordView {
   String get packageId => legacy?.packageId ?? historical!.exchangeId;
   String get sourceType => legacy?.sourceType ?? historical!.sourceMode;
   String get transferMode => legacy?.transferMode ?? historical!.importMode;
-  String get modules => legacy?.moduleIds.join(', ') ?? 'TRAINING V2';
-  String get kind => legacy == null ? 'HISTORICAL TRAINING' : 'DEVICE TRANSFER';
+  String get modules {
+    if (legacy != null) return legacy!.moduleIds.join(', ');
+    return historical!.recordType == 'dailyAggregateV1'
+        ? 'DAILY AGGREGATE V1'
+        : 'TRAINING V2';
+  }
+
+  String get kind {
+    if (legacy != null) return 'DEVICE TRANSFER';
+    return historical!.workflowKind == 'historicalDns'
+        ? 'HISTORICAL DNS'
+        : 'HISTORICAL TRAINING';
+  }
+
   int get recordCount => legacy?.recordCount ?? historical!.receivedCount;
   int get createCount => legacy?.createCount ?? historical!.appliedCount;
   int get noChangeCount => legacy?.noChangeCount ?? historical!.identicalCount;

@@ -775,13 +775,16 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
 
   @override
   Future<List<OperationSyncRecord>> listRecords() async {
-    final records = [
-      for (final raw in await database.findAll(
-        IndexedDbStoreNames.operationSyncHistory,
-      ))
-        if (raw['recordVersion'] == OperationSyncRecord.currentRecordVersion)
-          OperationSyncRecord.fromRecord(raw),
-    ];
+    final records = <OperationSyncRecord>[];
+    for (final raw in await database.findAll(
+      IndexedDbStoreNames.operationSyncHistory,
+    )) {
+      if (raw['recordVersion'] != OperationSyncRecord.currentRecordVersion) {
+        continue;
+      }
+      final record = OperationSyncRecord.fromRecord(raw);
+      if (record.workflowKind == 'historicalTraining') records.add(record);
+    }
     records.sort((a, b) => b.completedAt.compareTo(a.completedAt));
     return List.unmodifiable(records);
   }
