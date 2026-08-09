@@ -11,6 +11,7 @@ import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 
 import '../data/beta_meal_templates.dart';
+import '../data/water_quick_presets.dart';
 import '../models/meal_template.dart';
 import '../services/beta_meal_template_resolver.dart';
 import 'food_input_fields.dart';
@@ -231,6 +232,21 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
+  void _addWaterAmount(int amountMl) {
+    final input = waterVolumeController.text.trim();
+    final currentAmount = input.isEmpty ? 0.0 : double.tryParse(input);
+    if (currentAmount == null ||
+        !currentAmount.isFinite ||
+        currentAmount < 0) {
+      return;
+    }
+
+    final nextAmount = currentAmount + amountMl;
+    waterVolumeController.text = nextAmount == nextAmount.roundToDouble()
+        ? nextAmount.toStringAsFixed(0)
+        : nextAmount.toString();
+  }
+
   void addFood() {
     final item = _currentFoodItem();
 
@@ -445,6 +461,23 @@ class _FoodInputFormState extends State<FoodInputForm> {
             const SectionHeader(
               icon: Icons.water_drop_outlined,
               title: 'Water Entry',
+            ),
+
+            AppSpacing.gapMD,
+
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: WaterQuickPresets.valuesMl
+                  .map(
+                    (amount) => OutlinedButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () => _addWaterAmount(amount),
+                      child: Text('+$amount ml'),
+                    ),
+                  )
+                  .toList(),
             ),
 
             AppSpacing.gapMD,

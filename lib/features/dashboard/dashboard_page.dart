@@ -20,6 +20,7 @@ import '../../core/models/daily_log_confirmation_status.dart';
 import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
+import '../food/data/water_quick_presets.dart';
 import '../morning/models/morning_fact.dart';
 import '../morning/models/morning_fact_state.dart';
 
@@ -869,11 +870,11 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: [250, 350, 500, 750]
+                children: WaterQuickPresets.valuesMl
                     .map(
                       (amount) => OutlinedButton(
                         onPressed: _isSaving ? null : () => _save(amount),
-                        child: Text('$amount ml'),
+                        child: Text('+$amount ml'),
                       ),
                     )
                     .toList(),
