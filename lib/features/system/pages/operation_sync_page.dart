@@ -7,7 +7,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
-import '../../legacy_archive/pages/dns_archive_import_page.dart';
 import '../../operation_sync/models/operation_sync_history.dart';
 import '../../operation_sync/models/operation_sync_issue.dart';
 import '../../operation_sync/models/operation_sync_state.dart';
@@ -17,6 +16,7 @@ import '../../operation_sync/services/historical_training_workflow.dart';
 import '../../operation_sync/widgets/historical_dns_import_panel.dart';
 import '../../operation_sync/widgets/historical_training_import_panel.dart';
 import '../../repositories/app_repository_container.dart';
+import 'device_transfer_page.dart';
 
 class OperationSyncPage extends StatefulWidget {
   const OperationSyncPage({
@@ -24,20 +24,13 @@ class OperationSyncPage extends StatefulWidget {
     this.workflow,
     this.historicalDnsWorkflow,
     this.historicalTrainingWorkflow,
+    this.stageController,
   });
-
-  static const modules = [
-    'STATUS',
-    'ACTIVITY',
-    'TRAINING',
-    'FOOD',
-    'CONFIRMATION',
-    'ARCHIVE',
-  ];
 
   final OperationSyncWorkflow? workflow;
   final HistoricalDnsWorkflow? historicalDnsWorkflow;
   final HistoricalTrainingWorkflow? historicalTrainingWorkflow;
+  final DeviceTransferStageController? stageController;
 
   @override
   State<OperationSyncPage> createState() => _OperationSyncPageState();
@@ -51,7 +44,8 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   HistoricalTrainingWorkflow? _historicalTrainingWorkflow;
   List<OperationSyncRecord> _historicalRecords = const [];
   String? _message;
-  String? _activeStage;
+  late final DeviceTransferStageController _stageController;
+  late final bool _ownsStageController;
   bool _busy = false;
 
   bool get _productionAvailable =>
@@ -65,6 +59,9 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   @override
   void initState() {
     super.initState();
+    _ownsStageController = widget.stageController == null;
+    _stageController =
+        widget.stageController ?? DeviceTransferStageController();
     if (_available) {
       _workflow =
           widget.workflow ?? OperationSyncTransferCoordinator.production();
@@ -85,6 +82,12 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
       _historicalTrainingWorkflow = widget.historicalTrainingWorkflow;
       _loadHistoricalRecords();
     }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsStageController) _stageController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -122,7 +125,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   Future<void> _export() async {
     setState(() {
       _busy = true;
-      _activeStage = 'EXPORT';
+      _stageController.value = 'EXPORT';
       _message = null;
     });
     try {
@@ -139,7 +142,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _activeStage = null;
+          _stageController.value = null;
         });
       }
     }
@@ -148,7 +151,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   Future<void> _selectPackage() async {
     setState(() {
       _busy = true;
-      _activeStage = 'VALIDATION';
+      _stageController.value = 'VALIDATION';
       _message = null;
       _selection = null;
     });
@@ -160,7 +163,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
       setState(() {
         _selection = selection;
         _workspace = workspace;
-        _activeStage = 'PREVIEW';
+        _stageController.value = 'PREVIEW';
         _message = selection.preview.canApply
             ? 'PACKAGE VALIDATED · 適用前に内容を確認してください'
             : 'VALIDATION BLOCKED · 競合を解消してから再試行してください';
@@ -201,7 +204,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     if (confirmed != true || !mounted) return;
     setState(() {
       _busy = true;
-      _activeStage = 'APPLY';
+      _stageController.value = 'APPLY';
       _message = 'APPLYING · この画面を閉じないでください';
     });
     try {
@@ -211,7 +214,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
       setState(() {
         _workspace = workspace;
         _selection = null;
-        _activeStage = 'COMPLETE';
+        _stageController.value = 'COMPLETE';
         _message = 'READ-BACK VERIFIED · TRANSFER COMPLETE';
       });
     } catch (error) {
@@ -219,7 +222,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
       if (!mounted) return;
       setState(() {
         _workspace = workspace;
-        _activeStage = 'VERIFY';
+        _stageController.value = 'VERIFY';
         _message = _errorMessage(error);
       });
     } finally {
@@ -262,10 +265,7 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
             ),
           ),
           AppSpacing.gapMD,
-          _buildStages(),
-          AppSpacing.gapMD,
-          _buildModules(),
-          if (requiresRecovery) ...[AppSpacing.gapMD, _buildRecovery(state!)],
+          if (requiresRecovery) _buildRecovery(state!),
           AppSpacing.gapMD,
           _SyncActionButton(
             key: const ValueKey('export-transfer-package'),
@@ -304,70 +304,11 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
             SelectableText(_message!),
           ],
           AppSpacing.gapXL,
-          _buildHistoricalImportActions(),
-          AppSpacing.gapXL,
           _buildHistory(),
         ],
       ),
     );
   }
-
-  Widget _buildStages() {
-    const stages = [
-      'SELECT TRANSFER PACKAGE',
-      'VALIDATION',
-      'PREVIEW',
-      'APPLY',
-      'VERIFY',
-      'COMPLETE',
-    ];
-    return OperationCard(
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        children: [
-          for (final stage in stages)
-            Chip(
-              avatar: Icon(
-                stage == _activeStage
-                    ? Icons.radio_button_checked
-                    : Icons.circle_outlined,
-                size: 18,
-              ),
-              label: Text(stage),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModules() => OperationCard(
-    child: Column(
-      children: [
-        for (final module in OperationSyncPage.modules)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              module == 'ARCHIVE'
-                  ? Icons.archive_outlined
-                  : Icons.check_circle_outline,
-            ),
-            title: Text(module),
-            trailing: module == 'ARCHIVE'
-                ? const Icon(Icons.chevron_right)
-                : const Text('AVAILABLE'),
-            onTap: module == 'ARCHIVE'
-                ? () => Navigator.push<void>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DnsArchiveImportPage(),
-                    ),
-                  )
-                : null,
-          ),
-      ],
-    ),
-  );
 
   Widget _buildHistoricalImportActions() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,

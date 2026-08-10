@@ -26,7 +26,7 @@ class DataCenterHistoryPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               AppSpacing.gapSM,
-              const Text('保存済みのSTATUSとDaily Aggregateから、体重と体脂肪率の履歴を表示します。'),
+              const Text('保存済みの正式データから、体重と体脂肪率の履歴を表示します。'),
               AppSpacing.gapMD,
               OperationButton(
                 text: 'OPEN BODY HISTORY',

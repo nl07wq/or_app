@@ -358,7 +358,6 @@ class StartupInitializationService {
     }
     controller.updateStage(InitializationStage.verifyingRepositories);
     await container.confirmation.findAll();
-    await container.legacyDailySummaries.list();
   }
 
   RepositoryException _verificationFailure(String message) {

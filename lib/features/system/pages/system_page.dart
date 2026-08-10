@@ -141,14 +141,14 @@ class _SystemPageState extends State<SystemPage> {
       padding: AppSpacing.cardPadding,
       children: [
         _SystemSection(
-          icon: Icons.sync_alt,
-          title: 'OPERATION SYNC',
+          icon: Icons.devices_outlined,
+          title: 'DEVICE TRANSFER',
           description:
               '機種変更などのデータ転送や、'
               '長期保存データの一括取り込みを行います。',
-          buttonText: 'OPEN OPERATION SYNC',
+          buttonText: 'OPEN DEVICE TRANSFER',
           onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.operationSync),
+              Navigator.pushNamed(context, AppRoutes.deviceTransfer),
         ),
         AppSpacing.gapXL,
         FutureBuilder<DailyFinalizeUndoInspection>(

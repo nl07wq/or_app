@@ -33,6 +33,10 @@ class AppRoutes {
 
   static const system = '/system';
 
+  static const deviceTransfer = '/system/device-transfer';
+
+  static const systemMonitoring = '/system/device-transfer/monitoring';
+
   static const operationSync = '/operation-sync';
 
   static const historicalTrainingImport = '/operation-sync/historical-training';

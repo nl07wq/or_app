@@ -14,6 +14,7 @@ import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/about_page.dart';
+import 'package:or_app/features/system/pages/device_transfer_page.dart';
 import 'package:or_app/features/system/pages/operation_sync_page.dart';
 import 'package:or_app/features/system/pages/profile_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -113,91 +114,95 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
-  testWidgets('SYSTEM shows storage and data health and opens OPERATION SYNC', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 1800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SystemPage(
-          dataHealthLoader: () async => const SystemDataHealthSnapshot(
-            integrity: 'READABLE',
-            recoveryStatus: 'NO RECOVERY REQUIRED',
-            healthStatus: 'HEALTHY',
+  testWidgets(
+    'SYSTEM shows storage and data health and opens DEVICE TRANSFER',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SystemPage(
+            dataHealthLoader: () async => const SystemDataHealthSnapshot(
+              integrity: 'READABLE',
+              recoveryStatus: 'NO RECOVERY REQUIRED',
+              healthStatus: 'HEALTHY',
+            ),
+            storageGateway: const _FakeStorageGateway(),
           ),
-          storageGateway: const _FakeStorageGateway(),
+          routes: {AppRoutes.deviceTransfer: (_) => const DeviceTransferPage()},
         ),
-        routes: {AppRoutes.operationSync: (_) => const OperationSyncPage()},
-      ),
-    );
+      );
 
-    expect(find.text('OPERATION SYNC'), findsWidgets);
-    expect(find.text('EXPORT'), findsNothing);
-    expect(find.text('IMPORT'), findsNothing);
-    expect(find.text('DIAGNOSTICS'), findsNothing);
-    expect(find.text('機種変更などのデータ転送や、長期保存データの一括取り込みを行います。'), findsOneWidget);
-    expect(find.textContaining('Transfer data between devices'), findsNothing);
-    expect(find.text('STORAGE'), findsOneWidget);
-    await tester.pump();
-    expect(find.text('保存方式'), findsOneWidget);
-    expect(find.text('IndexedDB'), findsOneWidget);
-    expect(find.text('推定使用量'), findsOneWidget);
-    expect(find.text('1.0 KB'), findsOneWidget);
-    expect(find.text('推定上限容量'), findsOneWidget);
-    expect(find.text('2.0 KB'), findsOneWidget);
-    expect(find.text('保存状態'), findsOneWidget);
-    expect(find.text('永続保存'), findsOneWidget);
-    for (final oldLabel in [
-      'Storage Type',
-      'Estimated Usage',
-      'Estimated Quota',
-      'Persistence',
-    ]) {
-      expect(find.text(oldLabel), findsNothing);
-    }
-    final usage = find.ancestor(
-      of: find.text('推定使用量'),
-      matching: find.byType(ListTile),
-    );
-    final quota = find.ancestor(
-      of: find.text('推定上限容量'),
-      matching: find.byType(ListTile),
-    );
-    expect(
-      find.descendant(of: usage, matching: find.text('1.0 KB')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: quota, matching: find.text('2.0 KB')),
-      findsOneWidget,
-    );
-    expect(find.textContaining('空き容量'), findsNothing);
-    expect(find.text('DATA HEALTH'), findsOneWidget);
-    await tester.pump();
-    expect(find.text('データ整合性'), findsOneWidget);
-    expect(find.text('読み取り可能'), findsOneWidget);
-    expect(find.text('復旧状態'), findsOneWidget);
-    expect(find.text('復旧は必要ありません'), findsOneWidget);
-    expect(find.text('システム状態'), findsOneWidget);
-    expect(find.text('正常'), findsOneWidget);
-    for (final internalValue in [
-      'Integrity',
-      'READABLE',
-      'Recovery Status',
-      'NO RECOVERY REQUIRED',
-      'Health Status',
-      'HEALTHY',
-    ]) {
-      expect(find.text(internalValue), findsNothing);
-    }
+      expect(find.text('DEVICE TRANSFER'), findsWidgets);
+      expect(find.text('EXPORT'), findsNothing);
+      expect(find.text('IMPORT'), findsNothing);
+      expect(find.text('DIAGNOSTICS'), findsNothing);
+      expect(find.text('機種変更などのデータ転送や、長期保存データの一括取り込みを行います。'), findsOneWidget);
+      expect(
+        find.textContaining('Transfer data between devices'),
+        findsNothing,
+      );
+      expect(find.text('STORAGE'), findsOneWidget);
+      await tester.pump();
+      expect(find.text('保存方式'), findsOneWidget);
+      expect(find.text('IndexedDB'), findsOneWidget);
+      expect(find.text('推定使用量'), findsOneWidget);
+      expect(find.text('1.0 KB'), findsOneWidget);
+      expect(find.text('推定上限容量'), findsOneWidget);
+      expect(find.text('2.0 KB'), findsOneWidget);
+      expect(find.text('保存状態'), findsOneWidget);
+      expect(find.text('永続保存'), findsOneWidget);
+      for (final oldLabel in [
+        'Storage Type',
+        'Estimated Usage',
+        'Estimated Quota',
+        'Persistence',
+      ]) {
+        expect(find.text(oldLabel), findsNothing);
+      }
+      final usage = find.ancestor(
+        of: find.text('推定使用量'),
+        matching: find.byType(ListTile),
+      );
+      final quota = find.ancestor(
+        of: find.text('推定上限容量'),
+        matching: find.byType(ListTile),
+      );
+      expect(
+        find.descendant(of: usage, matching: find.text('1.0 KB')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: quota, matching: find.text('2.0 KB')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('空き容量'), findsNothing);
+      expect(find.text('DATA HEALTH'), findsOneWidget);
+      await tester.pump();
+      expect(find.text('データ整合性'), findsOneWidget);
+      expect(find.text('読み取り可能'), findsOneWidget);
+      expect(find.text('復旧状態'), findsOneWidget);
+      expect(find.text('復旧は必要ありません'), findsOneWidget);
+      expect(find.text('システム状態'), findsOneWidget);
+      expect(find.text('正常'), findsOneWidget);
+      for (final internalValue in [
+        'Integrity',
+        'READABLE',
+        'Recovery Status',
+        'NO RECOVERY REQUIRED',
+        'Health Status',
+        'HEALTHY',
+      ]) {
+        expect(find.text(internalValue), findsNothing);
+      }
 
-    await tester.tap(find.text('OPEN OPERATION SYNC'));
-    await tester.pumpAndSettle();
-    expect(find.byType(OperationSyncPage), findsOneWidget);
-  });
+      await tester.tap(find.text('OPEN DEVICE TRANSFER'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DeviceTransferPage), findsOneWidget);
+    },
+  );
 
   testWidgets('SYSTEM localizes every Data Health state and unknown values', (
     tester,
@@ -470,15 +475,8 @@ void main() {
       find.text('Transfer data between devices with a verified package.'),
       findsOneWidget,
     );
-    for (final module in OperationSyncPage.modules) {
-      expect(find.text(module), findsOneWidget);
-    }
-    expect(find.text('SELECT TRANSFER PACKAGE'), findsWidgets);
-    expect(find.text('VALIDATION'), findsOneWidget);
-    expect(find.text('PREVIEW'), findsOneWidget);
-    expect(find.text('APPLY'), findsOneWidget);
-    expect(find.text('VERIFY'), findsOneWidget);
-    expect(find.text('COMPLETE'), findsOneWidget);
+    expect(find.text('AVAILABLE'), findsNothing);
+    expect(find.text('ARCHIVE'), findsNothing);
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('export-transfer-package')),
       300,

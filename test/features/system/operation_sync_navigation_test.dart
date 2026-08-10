@@ -1,80 +1,118 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
-import 'package:or_app/features/system/pages/operation_sync_page.dart';
+import 'package:or_app/features/system/pages/device_transfer_page.dart';
 
 void main() {
-  testWidgets('Operation Sync opens Historical Training Import', (
+  testWidgets('TASK-092 Device Transfer exposes formal child entries', (
     tester,
   ) async {
-    await _pumpEntry(tester);
+    await tester.pumpWidget(const MaterialApp(home: DeviceTransferPage()));
 
-    await _open(tester, 'HISTORICAL TRAINING IMPORT');
+    for (final label in [
+      'BACKUP & RESTORE',
+      'OPERATION SYNC',
+      'SYSTEM MONITORING',
+      'HISTORICAL TRAINING IMPORT',
+      'HISTORICAL DNS IMPORT',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final stage in [
+      'SELECT TRANSFER PACKAGE',
+      'VALIDATION',
+      'PREVIEW',
+      'APPLY',
+      'VERIFY',
+      'COMPLETE',
+    ]) {
+      expect(find.text(stage), findsOneWidget);
+    }
+  });
 
-    expect(find.byType(HistoricalTrainingImportPage), findsOneWidget);
+  testWidgets('TASK-092 child pages return through Device Transfer to System', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const Scaffold(body: Text('SYSTEM ROUTE')),
+        routes: {
+          AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
+          AppRoutes.backupRestore: (_) =>
+              Scaffold(appBar: AppBar(title: const Text('BACKUP & RESTORE'))),
+          AppRoutes.operationSync: (_) =>
+              Scaffold(appBar: AppBar(title: const Text('OPERATION SYNC'))),
+          AppRoutes.systemMonitoring: (_) =>
+              Scaffold(appBar: AppBar(title: const Text('SYSTEM MONITORING'))),
+          AppRoutes.historicalTrainingImport: (_) => Scaffold(
+            appBar: AppBar(title: const Text('HISTORICAL TRAINING IMPORT')),
+          ),
+          AppRoutes.historicalDnsImport: (_) => Scaffold(
+            appBar: AppBar(title: const Text('HISTORICAL DNS IMPORT')),
+          ),
+        },
+      ),
+    );
+    Navigator.of(
+      tester.element(find.text('SYSTEM ROUTE')),
+    ).pushNamed(AppRoutes.deviceTransfer);
+    await tester.pumpAndSettle();
+
+    for (final label in [
+      'BACKUP & RESTORE',
+      'OPERATION SYNC',
+      'SYSTEM MONITORING',
+      'HISTORICAL TRAINING IMPORT',
+      'HISTORICAL DNS IMPORT',
+    ]) {
+      await tester.scrollUntilVisible(
+        find.text(label),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, label), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(DeviceTransferPage), findsOneWidget);
+    }
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('SYSTEM ROUTE'), findsOneWidget);
+  });
+
+  testWidgets('TASK-092 removes AVAILABLE and ARCHIVE surfaces', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: DeviceTransferPage()));
+    expect(find.text('AVAILABLE'), findsNothing);
+    expect(find.text('ARCHIVE'), findsNothing);
+    expect(find.text('DNS ARCHIVE IMPORT'), findsNothing);
+  });
+
+  testWidgets('TASK-092 Device Transfer stage follows shared state', (
+    tester,
+  ) async {
+    final controller = DeviceTransferStageController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceTransferPage(stageController: controller)),
+    );
+
+    controller.value = 'PREVIEW';
+    await tester.pump();
+    final previewChip = find.ancestor(
+      of: find.text('PREVIEW'),
+      matching: find.byType(Chip),
+    );
     expect(
-      find.widgetWithText(AppBar, 'HISTORICAL TRAINING IMPORT'),
+      find.descendant(
+        of: previewChip,
+        matching: find.byIcon(Icons.radio_button_checked),
+      ),
       findsOneWidget,
     );
   });
-
-  testWidgets('Operation Sync opens Historical DNS Import with formal name', (
-    tester,
-  ) async {
-    await _pumpEntry(tester);
-
-    await _open(tester, 'HISTORICAL DNS IMPORT');
-
-    expect(find.byType(HistoricalDnsImportPage), findsOneWidget);
-    expect(
-      find.widgetWithText(AppBar, 'HISTORICAL DNS IMPORT'),
-      findsOneWidget,
-    );
-    expect(find.text('DNS HISTORICAL IMPORT'), findsNothing);
-  });
-
-  testWidgets('both Historical Import pages return to Operation Sync', (
-    tester,
-  ) async {
-    await _pumpEntry(tester);
-
-    await _open(tester, 'HISTORICAL TRAINING IMPORT');
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    expect(find.byType(OperationSyncPage), findsOneWidget);
-
-    await _open(tester, 'HISTORICAL DNS IMPORT');
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    expect(find.byType(OperationSyncPage), findsOneWidget);
-  });
-}
-
-Future<void> _pumpEntry(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(390, 1800);
-  tester.view.devicePixelRatio = 1;
-  addTearDown(tester.view.resetPhysicalSize);
-  addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(
-    MaterialApp(
-      home: const OperationSyncPage(),
-      routes: {
-        AppRoutes.historicalTrainingImport: (_) =>
-            const HistoricalTrainingImportPage(),
-        AppRoutes.historicalDnsImport: (_) => const HistoricalDnsImportPage(),
-      },
-    ),
-  );
-  await tester.pumpAndSettle();
-}
-
-Future<void> _open(WidgetTester tester, String label) async {
-  final target = find.text(label).first;
-  await tester.scrollUntilVisible(
-    target,
-    300,
-    scrollable: find.byType(Scrollable).first,
-  );
-  await tester.tap(target);
-  await tester.pumpAndSettle();
 }

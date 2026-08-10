@@ -25,12 +25,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('STATUS'), findsOneWidget);
-    expect(find.text('CONFIRMATION'), findsOneWidget);
-    expect(find.text('AVAILABLE'), findsNWidgets(5));
-    expect(find.text('ARCHIVE'), findsOneWidget);
+    expect(find.text('AVAILABLE'), findsNothing);
+    expect(find.text('ARCHIVE'), findsNothing);
     expect(find.text('COMING LATER'), findsNothing);
-    expect(find.byIcon(Icons.archive_outlined), findsOneWidget);
 
     await tester.tap(find.text('EXPORT TRANSFER PACKAGE'));
     await tester.pumpAndSettle();

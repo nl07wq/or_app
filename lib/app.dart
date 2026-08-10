@@ -24,6 +24,8 @@ import 'features/system/pages/operation_sync_page.dart';
 import 'features/system/pages/about_page.dart';
 import 'features/system/pages/profile_page.dart';
 import 'features/system/pages/system_page.dart';
+import 'features/system/pages/device_transfer_page.dart';
+import 'features/system/pages/system_monitoring_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -86,7 +88,16 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.profile: (_) => const ProfilePage(),
         AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
-        AppRoutes.operationSync: (_) => const OperationSyncPage(),
+        AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
+        AppRoutes.systemMonitoring: (_) => const SystemMonitoringPage(),
+        AppRoutes.operationSync: (context) {
+          final arguments = ModalRoute.of(context)?.settings.arguments;
+          return OperationSyncPage(
+            stageController: arguments is DeviceTransferStageController
+                ? arguments
+                : null,
+          );
+        },
         AppRoutes.historicalTrainingImport: (_) =>
             const HistoricalTrainingImportPage(),
         AppRoutes.historicalDnsImport: (_) => const HistoricalDnsImportPage(),

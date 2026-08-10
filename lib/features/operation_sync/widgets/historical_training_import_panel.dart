@@ -364,7 +364,7 @@ class _PreviewCard extends StatelessWidget {
         AppSpacing.gapMD,
         if (preview.canApply)
           _HistoricalActionButton(
-            text: 'IMPORT ALL NEW TRAINING RECORDS',
+            text: '選択したTRAININGをIMPORT',
             icon: Icons.upload_outlined,
             onPressed: onApply,
           )

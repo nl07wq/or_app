@@ -1,1 +1,0 @@
-{"format":"operation-reboot-dns-source","envelopeVersion":1,"schemaVersion":"1.0","sourceType":"dnsArchive","sourcePackageId":"dns-source-1","createdAt":"2026-08-02T00:00:00.000Z","records":[{"sourceRecordId":"dns-source-1-record-1","sourceOrder":0,"reportType":"dns","rawText":"DNS-2026-08-01\nWeight: 70 kg"}]}

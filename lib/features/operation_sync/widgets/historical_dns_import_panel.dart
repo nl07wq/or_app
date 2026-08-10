@@ -372,10 +372,7 @@ class _PreviewCard extends StatelessWidget {
               icon: const Icon(Icons.upload_outlined, size: 20),
               label: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text(
-                  'IMPORT ALL NEW DAILY AGGREGATES',
-                  style: AppTextStyles.label,
-                ),
+                child: Text('選択したDNSをIMPORT', style: AppTextStyles.label),
               ),
             ),
           )

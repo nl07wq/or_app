@@ -18,10 +18,6 @@ import '../food/repository/indexed_db_daily_meal_v2_repository.dart';
 import '../food/repository/indexed_db_food_repository.dart';
 import '../food/services/food_mixed_read_service.dart';
 import '../operation_date/repository/indexed_db_operation_state_repository.dart';
-import '../legacy_archive/repository/legacy_daily_summary_repository.dart';
-import '../legacy_archive/repository/indexed_db_legacy_daily_summary_repository.dart';
-import '../legacy_archive/services/dns_archive_codecs.dart';
-import '../legacy_archive/services/dns_archive_converter.dart';
 import '../operation_date/repository/operation_state_repository.dart';
 import '../operation_sync/repository/indexed_db_operation_sync_history_repository.dart';
 import '../operation_sync/repository/indexed_db_operation_sync_state_repository.dart';
@@ -79,11 +75,6 @@ class AppRepositoryContainer {
   final ReportSyncInstructionProviderRegistry reportSyncInstructions;
   final ReportSyncPersistenceService reportSyncPersistence;
   final ReportSyncPayloadRegistry reportSyncPayloads;
-  final LegacyDailySummaryRepository legacyDailySummaries;
-  final DnsSourceCodec dnsSourceCodec;
-  final DnsNormalizedCodec dnsNormalizedCodec;
-  final DnsArchiveConverter dnsArchiveConverter;
-  final DnsPreviewService dnsPreview;
   final FoodReportSyncApplyAdapter foodReportSyncApply;
   final ProfileRepository profile;
 
@@ -115,11 +106,6 @@ class AppRepositoryContainer {
     required this.reportSyncInstructions,
     required this.reportSyncPersistence,
     required this.reportSyncPayloads,
-    required this.legacyDailySummaries,
-    required this.dnsSourceCodec,
-    required this.dnsNormalizedCodec,
-    required this.dnsArchiveConverter,
-    required this.dnsPreview,
     required this.foodReportSyncApply,
     required this.profile,
   });
@@ -144,14 +130,6 @@ class AppRepositoryContainer {
       confirmationRepository: confirmation,
       operationStateRepository: operationState,
       payloadRegistry: reportSyncPayloads,
-    );
-    final legacyDailySummaries = IndexedDbLegacyDailySummaryRepository(
-      database,
-    );
-    final dnsArchiveConverter = DnsArchiveConverter(
-      database: database,
-      repository: legacyDailySummaries,
-      clock: DateTime.now,
     );
     final operationSyncRegistry = OperationSyncProductionRegistry.create(
       database,
@@ -207,11 +185,6 @@ class AppRepositoryContainer {
         clock: DateTime.now,
       ),
       reportSyncPayloads: reportSyncPayloads,
-      legacyDailySummaries: legacyDailySummaries,
-      dnsSourceCodec: const DnsSourceCodec(),
-      dnsNormalizedCodec: const DnsNormalizedCodec(),
-      dnsArchiveConverter: dnsArchiveConverter,
-      dnsPreview: DnsPreviewService(dnsArchiveConverter),
       foodReportSyncApply: FoodReportSyncApplyAdapter(
         repository: food,
         confirmations: confirmation,
