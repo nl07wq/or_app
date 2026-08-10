@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/section_header.dart';
 
 class DataCenterPage extends StatelessWidget {
@@ -36,6 +37,32 @@ class DataCenterPage extends StatelessWidget {
                 icon: const Icon(Icons.history),
                 label: const Text('OPEN HISTORY'),
               ),
+            ),
+          ],
+        ),
+      ),
+      AppSpacing.gapLG,
+      const SectionHeader(
+        icon: Icons.inventory_2_outlined,
+        title: 'DAILY AGGREGATE RECORDS',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'DAILY AGGREGATE RECORDS',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            AppSpacing.gapSM,
+            const Text('保存済みの日次圧縮RecordとSourceを確認・保守します。'),
+            AppSpacing.gapMD,
+            OperationButton(
+              text: 'OPEN DAILY AGGREGATE RECORDS',
+              icon: Icons.inventory_2_outlined,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.dailyAggregateRecords),
             ),
           ],
         ),

@@ -23,6 +23,11 @@ class AppRoutes {
 
   static const nutritionHistory = '/data-center/history/nutrition';
 
+  static const dailyAggregateRecords = '/data-center/daily-aggregate-records';
+
+  static const dailyAggregateDetail =
+      '/data-center/daily-aggregate-records/detail';
+
   static const backupRestore = '/backup-restore';
 
   static const orloSync = '/orlo-sync';
