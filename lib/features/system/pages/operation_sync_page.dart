@@ -240,14 +240,12 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
         key: const ValueKey('operation-sync-content'),
         padding: AppSpacing.cardPadding,
         children: [
-          const SectionHeader(icon: Icons.sync_alt, title: 'OPERATION SYNC'),
-          AppSpacing.gapXL,
           const SectionHeader(
             icon: Icons.devices_outlined,
-            title: 'DEVICE TRANSFER',
+            title: 'TRANSFER PACKAGE',
           ),
           AppSpacing.gapSM,
-          const Text('検証済みパッケージを使用して、デバイス間でデータを転送します。'),
+          const Text('整合済み端末間で、不足している対象Recordを非破壊で同期します。'),
           AppSpacing.gapMD,
           const OperationCard(
             child: Row(
@@ -264,6 +262,13 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
               ],
             ),
           ),
+          AppSpacing.gapXL,
+          const SectionHeader(
+            icon: Icons.timeline_outlined,
+            title: 'TRANSFER STEP',
+          ),
+          AppSpacing.gapSM,
+          OperationSyncStageIndicator(controller: _stageController),
           AppSpacing.gapMD,
           if (requiresRecovery) _buildRecovery(state!),
           AppSpacing.gapMD,
@@ -494,8 +499,6 @@ class HistoricalTrainingImportPage extends StatefulWidget {
 class _HistoricalTrainingImportPageState
     extends State<HistoricalTrainingImportPage> {
   HistoricalTrainingWorkflow? _workflow;
-  List<OperationSyncRecord> _records = const [];
-  String? _error;
 
   @override
   void initState() {
@@ -505,31 +508,12 @@ class _HistoricalTrainingImportPageState
         (_historicalProductionAvailable
             ? HistoricalTrainingWorkflowService.production()
             : null);
-    _loadRecords();
-  }
-
-  Future<void> _loadRecords() async {
-    try {
-      final records = await _workflow?.listRecords() ?? const [];
-      if (!mounted) return;
-      setState(() {
-        _records = List.unmodifiable(records);
-        _error = null;
-      });
-    } catch (error) {
-      if (mounted) setState(() => _error = 'OPERATION SYNC FAILED: $error');
-    }
   }
 
   @override
   Widget build(BuildContext context) => _HistoricalImportScaffold(
     title: 'HISTORICAL TRAINING IMPORT',
-    panel: HistoricalTrainingImportPanel(
-      workflow: _workflow,
-      onRecordSaved: _loadRecords,
-    ),
-    records: _records,
-    error: _error,
+    panel: HistoricalTrainingImportPanel(workflow: _workflow),
   );
 }
 
@@ -545,8 +529,6 @@ class HistoricalDnsImportPage extends StatefulWidget {
 
 class _HistoricalDnsImportPageState extends State<HistoricalDnsImportPage> {
   HistoricalDnsWorkflow? _workflow;
-  List<OperationSyncRecord> _records = const [];
-  String? _error;
 
   @override
   void initState() {
@@ -556,122 +538,26 @@ class _HistoricalDnsImportPageState extends State<HistoricalDnsImportPage> {
         (_historicalProductionAvailable
             ? HistoricalDnsWorkflowService.production()
             : null);
-    _loadRecords();
-  }
-
-  Future<void> _loadRecords() async {
-    try {
-      final records = await _workflow?.listRecords() ?? const [];
-      if (!mounted) return;
-      setState(() {
-        _records = List.unmodifiable(records);
-        _error = null;
-      });
-    } catch (error) {
-      if (mounted) setState(() => _error = 'OPERATION SYNC FAILED: $error');
-    }
   }
 
   @override
   Widget build(BuildContext context) => _HistoricalImportScaffold(
     title: 'HISTORICAL DNS IMPORT',
-    panel: HistoricalDnsImportPanel(
-      workflow: _workflow,
-      onRecordSaved: _loadRecords,
-    ),
-    records: _records,
-    error: _error,
+    panel: HistoricalDnsImportPanel(workflow: _workflow),
   );
 }
 
 class _HistoricalImportScaffold extends StatelessWidget {
   final String title;
   final Widget panel;
-  final List<OperationSyncRecord> records;
-  final String? error;
 
-  const _HistoricalImportScaffold({
-    required this.title,
-    required this.panel,
-    required this.records,
-    required this.error,
-  });
+  const _HistoricalImportScaffold({required this.title, required this.panel});
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(title)),
-    body: ListView(
-      padding: AppSpacing.cardPadding,
-      children: [
-        panel,
-        if (error != null) ...[AppSpacing.gapMD, SelectableText(error!)],
-        AppSpacing.gapXL,
-        _HistoricalRecordSection(records: records),
-      ],
-    ),
+    body: ListView(padding: AppSpacing.cardPadding, children: [panel]),
   );
-}
-
-class _HistoricalRecordSection extends StatelessWidget {
-  final List<OperationSyncRecord> records;
-
-  const _HistoricalRecordSection({required this.records});
-
-  @override
-  Widget build(BuildContext context) {
-    final views = [
-      for (final record in records) _OperationSyncRecordView.historical(record),
-    ]..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-    final recent = views.take(5).toList(growable: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SectionHeader(
-          icon: Icons.fact_check_outlined,
-          title: 'OPERATION SYNC RECORD',
-        ),
-        AppSpacing.gapSM,
-        OperationCard(
-          child: recent.isEmpty
-              ? const Row(
-                  children: [
-                    Icon(Icons.fact_check_outlined),
-                    SizedBox(width: 10),
-                    Expanded(child: Text('RECORDはありません')),
-                  ],
-                )
-              : Column(
-                  children: [
-                    for (var index = 0; index < recent.length; index++) ...[
-                      _MixedRecordRow(
-                        record: recent[index],
-                        onTap: () => _openMixedOperationSyncRecord(
-                          context,
-                          recent[index],
-                        ),
-                      ),
-                      if (index != recent.length - 1) const Divider(),
-                    ],
-                  ],
-                ),
-        ),
-        if (views.isNotEmpty) ...[
-          AppSpacing.gapSM,
-          _OperationSyncRecordArchiveButton(
-            text: 'VIEW ALL RECORDS',
-            icon: Icons.list_alt,
-            onPressed: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    _MixedOperationSyncRecordArchivePage(records: views),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
 }
 
 bool get _historicalProductionAvailable =>

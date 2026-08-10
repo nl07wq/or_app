@@ -26,7 +26,7 @@ void main() {
       'VERIFY',
       'COMPLETE',
     ]) {
-      expect(find.text(stage), findsOneWidget);
+      expect(find.text(stage), findsNothing);
     }
   });
 
@@ -90,29 +90,5 @@ void main() {
     expect(find.text('AVAILABLE'), findsNothing);
     expect(find.text('ARCHIVE'), findsNothing);
     expect(find.text('DNS ARCHIVE IMPORT'), findsNothing);
-  });
-
-  testWidgets('TASK-092 Device Transfer stage follows shared state', (
-    tester,
-  ) async {
-    final controller = DeviceTransferStageController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(
-      MaterialApp(home: DeviceTransferPage(stageController: controller)),
-    );
-
-    controller.value = 'PREVIEW';
-    await tester.pump();
-    final previewChip = find.ancestor(
-      of: find.text('PREVIEW'),
-      matching: find.byType(Chip),
-    );
-    expect(
-      find.descendant(
-        of: previewChip,
-        matching: find.byIcon(Icons.radio_button_checked),
-      ),
-      findsOneWidget,
-    );
   });
 }

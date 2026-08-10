@@ -28,6 +28,22 @@ void main() {
     expect(find.text('AVAILABLE'), findsNothing);
     expect(find.text('ARCHIVE'), findsNothing);
     expect(find.text('COMING LATER'), findsNothing);
+    expect(find.text('OPERATION SYNC'), findsOneWidget);
+    expect(find.text('TRANSFER PACKAGE'), findsOneWidget);
+    expect(find.text('TRANSFER STEP'), findsOneWidget);
+    for (final stage in [
+      'SELECT TRANSFER PACKAGE',
+      'VALIDATION',
+      'PREVIEW',
+      'APPLY',
+      'VERIFY',
+      'COMPLETE',
+    ]) {
+      expect(
+        find.text(stage),
+        stage == 'SELECT TRANSFER PACKAGE' ? findsNWidgets(2) : findsOneWidget,
+      );
+    }
 
     await tester.tap(find.text('EXPORT TRANSFER PACKAGE'));
     await tester.pumpAndSettle();
@@ -37,7 +53,7 @@ void main() {
     await tester.tap(find.text('SELECT TRANSFER PACKAGE').last);
     await tester.pumpAndSettle();
     expect(
-      find.text('PACKAGE VALIDATED · review before apply'),
+      find.text('PACKAGE VALIDATED · 適用前に内容を確認してください'),
       findsOneWidget,
     );
     expect(find.text('CREATE: 1'), findsOneWidget);
@@ -121,6 +137,19 @@ void main() {
     await tester.tap(find.text('RESELECT PACKAGE TO RESUME'));
     await tester.pumpAndSettle();
     expect(find.text('RESUME TRANSFER'), findsOneWidget);
+  });
+
+  testWidgets('Historical Import pages do not expose Operation Sync records', (
+    tester,
+  ) async {
+    for (final page in const [
+      HistoricalTrainingImportPage(),
+      HistoricalDnsImportPage(),
+    ]) {
+      await tester.pumpWidget(MaterialApp(home: page));
+      await tester.pump();
+      expect(find.text('OPERATION SYNC RECORD'), findsNothing);
+    }
   });
 
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {

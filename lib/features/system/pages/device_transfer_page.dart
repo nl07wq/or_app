@@ -48,14 +48,7 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
           title: 'DEVICE TRANSFER',
         ),
         AppSpacing.gapSM,
-        const Text('アプリ全体の保存・復元・転送・整合性確認を行います。'),
-        AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.timeline_outlined,
-          title: 'TRANSFER STEP',
-        ),
-        AppSpacing.gapSM,
-        _DeviceTransferStageIndicator(controller: _stageController),
+        const Text('端末移行・復旧・Record同期・過去記録取込の各機能を選択します。'),
         AppSpacing.gapXL,
         OperationCard(
           child: Column(
@@ -63,6 +56,7 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
               _DestinationTile(
                 icon: Icons.settings_backup_restore,
                 title: 'BACKUP & RESTORE',
+                subtitle: '全正式Dataを保存・復元し、完全な端末移行や障害復旧に使用します。',
                 onTap: () =>
                     Navigator.pushNamed(context, AppRoutes.backupRestore),
               ),
@@ -70,6 +64,7 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
               _DestinationTile(
                 icon: Icons.sync_alt,
                 title: 'OPERATION SYNC',
+                subtitle: '整合済み端末間で、不足している対象Recordを非破壊で同期します。',
                 onTap: () => Navigator.pushNamed(
                   context,
                   AppRoutes.operationSync,
@@ -87,6 +82,7 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
               _DestinationTile(
                 icon: Icons.fitness_center_outlined,
                 title: 'HISTORICAL TRAINING IMPORT',
+                subtitle: '通常OPERATION SYNCとは別に、過去のTraining Recordを取り込みます。',
                 onTap: () => Navigator.pushNamed(
                   context,
                   AppRoutes.historicalTrainingImport,
@@ -96,6 +92,7 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
               _DestinationTile(
                 icon: Icons.description_outlined,
                 title: 'HISTORICAL DNS IMPORT',
+                subtitle: '通常OPERATION SYNCとは別に、過去のLegacy DNSを取り込みます。',
                 onTap: () =>
                     Navigator.pushNamed(context, AppRoutes.historicalDnsImport),
               ),
@@ -108,8 +105,8 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
   );
 }
 
-class _DeviceTransferStageIndicator extends StatelessWidget {
-  const _DeviceTransferStageIndicator({required this.controller});
+class OperationSyncStageIndicator extends StatelessWidget {
+  const OperationSyncStageIndicator({super.key, required this.controller});
 
   static const stages = [
     'SELECT TRANSFER PACKAGE',
@@ -150,11 +147,13 @@ class _DestinationTile extends StatelessWidget {
   const _DestinationTile({
     required this.icon,
     required this.title,
+    this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
@@ -162,6 +161,7 @@ class _DestinationTile extends StatelessWidget {
     contentPadding: EdgeInsets.zero,
     leading: Icon(icon),
     title: Text(title),
+    subtitle: subtitle == null ? null : Text(subtitle!),
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
   );
