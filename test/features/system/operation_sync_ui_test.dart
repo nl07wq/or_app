@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
-import 'package:or_app/features/operation_sync/models/operation_sync_issue.dart';
+import 'package:or_app/features/operation_sync/models/operation_sync_issue.dart'
+    hide OperationSyncRecordDisposition;
 import 'package:or_app/features/operation_sync/models/operation_sync_preview.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_state.dart';
 import 'package:or_app/features/operation_sync/services/operation_sync_transfer_coordinator.dart';
+import 'package:or_app/features/operation_sync/services/historical_dns_workflow.dart';
+import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
 import 'package:or_app/features/system/pages/operation_sync_page.dart';
 
 import '../operation_sync/operation_transfer_test_fixture.dart';
@@ -52,10 +55,7 @@ void main() {
 
     await tester.tap(find.text('SELECT TRANSFER PACKAGE').last);
     await tester.pumpAndSettle();
-    expect(
-      find.text('PACKAGE VALIDATED · 適用前に内容を確認してください'),
-      findsOneWidget,
-    );
+    expect(find.text('PACKAGE VALIDATED · 適用前に内容を確認してください'), findsOneWidget);
     expect(find.text('CREATE: 1'), findsOneWidget);
     expect(find.text('NO CHANGES: 0'), findsOneWidget);
     expect(find.text('CONFLICT: 0'), findsOneWidget);
@@ -139,16 +139,31 @@ void main() {
     expect(find.text('RESUME TRANSFER'), findsOneWidget);
   });
 
-  testWidgets('Historical Import pages do not expose Operation Sync records', (
+  testWidgets('Historical Import pages expose only their dedicated records', (
     tester,
   ) async {
-    for (final page in const [
-      HistoricalTrainingImportPage(),
-      HistoricalDnsImportPage(),
+    for (final entry in [
+      (
+        page: HistoricalTrainingImportPage(
+          workflow: _FakeHistoricalTrainingWorkflow(),
+        ),
+        title: 'HISTORICAL TRAINING IMPORT RECORD',
+      ),
+      (
+        page: HistoricalDnsImportPage(workflow: _FakeHistoricalDnsWorkflow()),
+        title: 'HISTORICAL DNS IMPORT RECORD',
+      ),
     ]) {
-      await tester.pumpWidget(MaterialApp(home: page));
-      await tester.pump();
+      await tester.pumpWidget(MaterialApp(home: entry.page));
+      await tester.pumpAndSettle();
       expect(find.text('OPERATION SYNC RECORD'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text(entry.title),
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text(entry.title), findsOneWidget);
+      expect(find.text('SUCCESS'), findsOneWidget);
     }
   });
 
@@ -174,6 +189,91 @@ void main() {
     });
   }
 }
+
+class _FakeHistoricalTrainingWorkflow implements HistoricalTrainingWorkflow {
+  @override
+  String buildPrompt({required String startDate, required String endDate}) =>
+      '';
+
+  @override
+  Future<HistoricalTrainingPreview> preview(
+    String rawResponse, {
+    required String startDate,
+    required String endDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<HistoricalTrainingApplyResult> apply(
+    HistoricalTrainingPreview preview, {
+    Set<int>? selectedIndexes,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<OperationSyncRecord>> listRecords() async => [
+    _historicalRecord('historicalTraining', 'trainingV2'),
+  ];
+}
+
+class _FakeHistoricalDnsWorkflow implements HistoricalDnsWorkflow {
+  @override
+  String buildPrompt({required String startDate, required String endDate}) =>
+      '';
+
+  @override
+  Future<HistoricalDnsPreview> preview(
+    String rawResponse, {
+    required String startDate,
+    required String endDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<HistoricalDnsApplyResult> apply(
+    HistoricalDnsPreview preview, {
+    Set<int>? selectedIndexes,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<OperationSyncRecord>> listRecords() async => [
+    _historicalRecord('historicalDns', 'dailyAggregateV1'),
+  ];
+}
+
+OperationSyncRecord _historicalRecord(String workflowKind, String recordType) =>
+    OperationSyncRecord(
+      operationId: '$workflowKind:test',
+      workflowKind: workflowKind,
+      recordType: recordType,
+      sourceMode: 'dateRange',
+      startDate: '2026-08-08',
+      endDate: '2026-08-08',
+      receivedCount: 1,
+      newCount: 1,
+      identicalCount: 0,
+      conflictCount: 0,
+      invalidCount: 0,
+      excludedCount: 0,
+      blockedCount: 0,
+      appliedCount: 1,
+      skippedCount: 0,
+      exchangeId: '$workflowKind-response',
+      responseDigest: 'a' * 64,
+      packageDigest: 'b' * 64,
+      result: OperationSyncRecordResult.success,
+      failureCode: null,
+      createdAt: DateTime.utc(2026, 8, 9, 10),
+      completedAt: DateTime.utc(2026, 8, 9, 11),
+      records: [
+        OperationSyncRecordItem(
+          sourceRecordId: null,
+          operationDate: '2026-08-08',
+          sourceDigest: 'c' * 64,
+          targetRecordId: 'target',
+          disposition: OperationSyncRecordDisposition.newRecord,
+          result: OperationSyncRecordResult.success,
+          errorCode: null,
+        ),
+      ],
+    );
 
 class _FakeWorkflow implements OperationSyncWorkflow {
   _FakeWorkflow({

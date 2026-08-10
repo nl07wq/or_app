@@ -172,6 +172,7 @@ enum OperationSyncRecordResult {
 enum OperationSyncRecordDisposition {
   newRecord('new'),
   identical('identical'),
+  replaced('replaced'),
   conflict('conflict'),
   invalid('invalid'),
   excluded('excluded'),
@@ -254,6 +255,7 @@ class OperationSyncRecord {
   final int receivedCount;
   final int newCount;
   final int identicalCount;
+  final int replacedCount;
   final int conflictCount;
   final int invalidCount;
   final int excludedCount;
@@ -281,6 +283,7 @@ class OperationSyncRecord {
     required this.receivedCount,
     required this.newCount,
     required this.identicalCount,
+    this.replacedCount = 0,
     required this.conflictCount,
     required this.invalidCount,
     required this.excludedCount,
@@ -303,6 +306,7 @@ class OperationSyncRecord {
           receivedCount,
           newCount,
           identicalCount,
+          replacedCount,
           conflictCount,
           invalidCount,
           excludedCount,
@@ -346,6 +350,7 @@ class OperationSyncRecord {
     'receivedCount': receivedCount,
     'newCount': newCount,
     'identicalCount': identicalCount,
+    'replacedCount': replacedCount,
     'conflictCount': conflictCount,
     'invalidCount': invalidCount,
     'excludedCount': excludedCount,
@@ -363,7 +368,7 @@ class OperationSyncRecord {
   };
 
   factory OperationSyncRecord.fromRecord(Map<String, Object?> value) {
-    _exactFields(value, const {
+    const legacyFields = {
       'operationId',
       'recordVersion',
       'workflowKind',
@@ -389,7 +394,15 @@ class OperationSyncRecord {
       'createdAt',
       'completedAt',
       'records',
-    });
+    };
+    const currentFields = {...legacyFields, 'replacedCount'};
+    final actualFields = value.keys.toSet();
+    bool sameFields(Set<String> expected) =>
+        actualFields.length == expected.length &&
+        actualFields.difference(expected).isEmpty;
+    if (!sameFields(legacyFields) && !sameFields(currentFields)) {
+      throw const FormatException('Invalid Operation Sync record fields.');
+    }
     final rawRecords = value['records'];
     if (rawRecords is! List) {
       throw const FormatException('Invalid Operation Sync record entries.');
@@ -412,6 +425,9 @@ class OperationSyncRecord {
       receivedCount: count('receivedCount'),
       newCount: count('newCount'),
       identicalCount: count('identicalCount'),
+      replacedCount: value.containsKey('replacedCount')
+          ? count('replacedCount')
+          : 0,
       conflictCount: count('conflictCount'),
       invalidCount: count('invalidCount'),
       excludedCount: count('excludedCount'),

@@ -62,6 +62,9 @@ class HistoricalTrainingPreviewItem {
     disposition: value,
     issues: [...issues, ?issue],
   );
+
+  bool get isSelectable =>
+      disposition == OperationSyncRecordDisposition.newRecord;
 }
 
 class HistoricalTrainingPreview {
@@ -95,12 +98,12 @@ class HistoricalTrainingPreview {
   int get invalidCount => count(OperationSyncRecordDisposition.invalid);
   int get excludedCount => count(OperationSyncRecordDisposition.excluded);
   int get blockedCount => count(OperationSyncRecordDisposition.blocked);
+  int get selectableCount => records.where((item) => item.isSelectable).length;
   bool get canApply =>
       records.isNotEmpty &&
-      newCount > 0 &&
+      selectableCount > 0 &&
       conflictCount == 0 &&
-      invalidCount == 0 &&
-      blockedCount == 0;
+      invalidCount == 0;
   List<String> get dates => [
     for (final item in records)
       if (item.operationDate != null) item.operationDate!,
@@ -122,8 +125,9 @@ abstract interface class HistoricalTrainingWorkflow {
     required String endDate,
   });
   Future<HistoricalTrainingApplyResult> apply(
-    HistoricalTrainingPreview preview,
-  );
+    HistoricalTrainingPreview preview, {
+    Set<int>? selectedIndexes,
+  });
   Future<List<OperationSyncRecord>> listRecords();
 }
 
@@ -561,7 +565,11 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
     final priorItems = <OperationSyncRecordItem>[];
     for (final raw in syncRecords) {
       if (raw['recordVersion'] == OperationSyncRecord.currentRecordVersion) {
-        priorItems.addAll(OperationSyncRecord.fromRecord(raw).records);
+        final record = OperationSyncRecord.fromRecord(raw);
+        if (record.workflowKind == 'historicalTraining' &&
+            record.recordType == 'trainingV2') {
+          priorItems.addAll(record.records);
+        }
       }
     }
     final sourceSeen = <String, String>{};
@@ -583,7 +591,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       if (prior.any((entry) => entry.sourceDigest != sourceDigest)) {
         result.add(
           item.withDisposition(
-            OperationSyncRecordDisposition.conflict,
+            OperationSyncRecordDisposition.blocked,
             issue: const HistoricalTrainingIssue(
               'sourceRecordConflict',
               'The sourceRecordId was previously imported with different content.',
@@ -604,7 +612,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
           item.withDisposition(
             same
                 ? OperationSyncRecordDisposition.identical
-                : OperationSyncRecordDisposition.conflict,
+                : OperationSyncRecordDisposition.blocked,
             issue: same
                 ? null
                 : const HistoricalTrainingIssue(
@@ -618,13 +626,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       if (existingDigests.contains(domainDigest) ||
           !digestSeen.add(domainDigest)) {
         result.add(
-          item.withDisposition(
-            OperationSyncRecordDisposition.blocked,
-            issue: const HistoricalTrainingIssue(
-              'ambiguousCanonicalRecord',
-              'Matching Training content exists without proven source identity.',
-            ),
-          ),
+          item.withDisposition(OperationSyncRecordDisposition.identical),
         );
         continue;
       }
@@ -647,10 +649,25 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
 
   @override
   Future<HistoricalTrainingApplyResult> apply(
-    HistoricalTrainingPreview preview,
-  ) async {
+    HistoricalTrainingPreview preview, {
+    Set<int>? selectedIndexes,
+  }) async {
     if (!preview.canApply) {
       throw StateError('Historical Training package is blocked.');
+    }
+    final selected =
+        selectedIndexes ??
+        {
+          for (final item in preview.records)
+            if (item.isSelectable) item.index,
+        };
+    if (selected.isEmpty ||
+        selected.any(
+          (index) => !preview.records.any(
+            (item) => item.index == index && item.isSelectable,
+          ),
+        )) {
+      throw StateError('Historical Training selection is invalid.');
     }
     final now = clock().toUtc();
     return database.runTransaction(
@@ -662,10 +679,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       action: (transaction) async {
         final revalidated = await _revalidate(preview, transaction);
         final newItems = revalidated.records
-            .where(
-              (item) =>
-                  item.disposition == OperationSyncRecordDisposition.newRecord,
-            )
+            .where((item) => selected.contains(item.index) && item.isSelectable)
             .toList();
         await _writeAndVerifyTraining(transaction, newItems);
         final auditItems = [
@@ -674,29 +688,32 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
               sourceRecordId: item.sourceRecordId,
               operationDate: item.operationDate!,
               sourceDigest: item.sourceDigest!,
-              targetRecordId:
-                  item.disposition == OperationSyncRecordDisposition.newRecord
+              targetRecordId: selected.contains(item.index) && item.isSelectable
                   ? item.targetRecordId
                   : null,
-              disposition: item.disposition,
+              disposition: !selected.contains(item.index) && item.isSelectable
+                  ? OperationSyncRecordDisposition.excluded
+                  : item.disposition,
               result: OperationSyncRecordResult.success,
               errorCode: null,
             ),
         ];
+        int auditCount(OperationSyncRecordDisposition disposition) =>
+            auditItems.where((item) => item.disposition == disposition).length;
         final record = OperationSyncRecord(
           operationId: operationIdGenerator.generate(),
           sourceMode: 'dateRange',
           startDate: revalidated.startDate,
           endDate: revalidated.endDate,
           receivedCount: revalidated.receivedCount,
-          newCount: revalidated.newCount,
-          identicalCount: revalidated.identicalCount,
-          conflictCount: revalidated.conflictCount,
-          invalidCount: revalidated.invalidCount,
-          excludedCount: revalidated.excludedCount,
-          blockedCount: revalidated.blockedCount,
-          appliedCount: revalidated.newCount,
-          skippedCount: revalidated.identicalCount + revalidated.excludedCount,
+          newCount: auditCount(OperationSyncRecordDisposition.newRecord),
+          identicalCount: auditCount(OperationSyncRecordDisposition.identical),
+          conflictCount: auditCount(OperationSyncRecordDisposition.conflict),
+          invalidCount: auditCount(OperationSyncRecordDisposition.invalid),
+          excludedCount: auditCount(OperationSyncRecordDisposition.excluded),
+          blockedCount: auditCount(OperationSyncRecordDisposition.blocked),
+          appliedCount: newItems.length,
+          skippedCount: auditItems.length - newItems.length,
           exchangeId: revalidated.exchangeId,
           responseDigest: revalidated.responseDigest,
           packageDigest: revalidated.packageDigest,

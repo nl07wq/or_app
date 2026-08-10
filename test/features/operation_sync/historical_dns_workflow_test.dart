@@ -159,9 +159,100 @@ void main() {
       expect(readBack.sleepDurationMinutes, isNull);
     },
   );
+
+  test('classifies identical, different, and protected DNS records', () async {
+    final incoming = _aggregate('2026-08-08', weightKg: 95.6);
+    await repository.put(incoming);
+
+    final identical = await workflow.preview(
+      jsonEncode(_envelope([incoming.toJson()])),
+      startDate: '2026-08-08',
+      endDate: '2026-08-08',
+    );
+    expect(identical.identicalCount, 1);
+    expect(identical.records.single.isSelectable, isFalse);
+
+    final old = incoming.toJson()
+      ..['estimatedExpenditureKcal'] = null
+      ..['estimatedCalorieBalanceKcal'] = null;
+    await repository.put(DailyAggregateV1.fromJson(old));
+    final different = await workflow.preview(
+      jsonEncode(_envelope([incoming.toJson()])),
+      startDate: '2026-08-08',
+      endDate: '2026-08-08',
+    );
+    expect(different.differentCount, 1);
+    expect(different.records.single.isSelectable, isTrue);
+    expect(
+      different.records.single.differences.map((item) => item.field),
+      containsAll(<String>[
+        'estimatedExpenditureKcal',
+        'estimatedCalorieBalanceKcal',
+      ]),
+    );
+
+    final protected = incoming.toJson()..['sourceType'] = 'records';
+    await repository.put(DailyAggregateV1.fromJson(protected));
+    final blocked = await workflow.preview(
+      jsonEncode(_envelope([incoming.toJson()])),
+      startDate: '2026-08-08',
+      endDate: '2026-08-08',
+    );
+    expect(blocked.blockedCount, 1);
+    expect(blocked.records.single.isSelectable, isFalse);
+    expect(
+      (await repository.getByDate('2026-08-08'))!.sourceType,
+      DailyAggregateSourceType.records,
+    );
+  });
+
+  test(
+    'replaces selected legacy DNS and excludes unselected candidates',
+    () async {
+      final incoming = _aggregate('2026-08-08', weightKg: 95.6);
+      final old = incoming.toJson()
+        ..['estimatedExpenditureKcal'] = null
+        ..['estimatedCalorieBalanceKcal'] = null;
+      await repository.put(DailyAggregateV1.fromJson(old));
+      final preview = await workflow.preview(
+        jsonEncode(
+          _envelope([
+            incoming.toJson(),
+            _record('2026-08-09'),
+          ], endDate: '2026-08-09'),
+        ),
+        startDate: '2026-08-08',
+        endDate: '2026-08-09',
+      );
+
+      final result = await workflow.apply(preview, selectedIndexes: const {0});
+
+      expect(
+        (await repository.getByDate('2026-08-08'))!.toJson(),
+        incoming.toJson(),
+      );
+      expect(await repository.getByDate('2026-08-09'), isNull);
+      expect(result.record.replacedCount, 1);
+      expect(result.record.newCount, 0);
+      expect(result.record.excludedCount, 1);
+      expect(result.record.appliedCount, 1);
+      expect(
+        result.record.records[0].disposition,
+        OperationSyncRecordDisposition.replaced,
+      );
+      expect(
+        result.record.records[1].disposition,
+        OperationSyncRecordDisposition.excluded,
+      );
+    },
+  );
 }
 
-Map<String, Object?> _envelope(List<Map<String, Object?>> records) => {
+Map<String, Object?> _envelope(
+  List<Map<String, Object?>> records, {
+  String startDate = '2026-08-08',
+  String endDate = '2026-08-08',
+}) => {
   'format': 'operation-reboot-operation-sync',
   'envelopeVersion': 1,
   'schemaVersion': '1.0',
@@ -173,8 +264,8 @@ Map<String, Object?> _envelope(List<Map<String, Object?>> records) => {
     'recordType': 'dailyAggregateV1',
     'sourceMode': 'dateRange',
     'importMode': 'missingRecordsOnly',
-    'requestedStartDate': '2026-08-08',
-    'requestedEndDate': '2026-08-08',
+    'requestedStartDate': startDate,
+    'requestedEndDate': endDate,
     'records': records,
   },
   'packageDigest': null,

@@ -6,6 +6,7 @@ import '../../../core/models/morning_data.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../daily_aggregate/repository/daily_aggregate_repository.dart';
 import '../../repositories/app_repository_container.dart';
+import '../models/historical_import_difference.dart';
 import '../models/operation_sync_history.dart';
 import 'operation_transfer_canonical_service.dart';
 import 'operation_transfer_id_generator.dart';
@@ -23,7 +24,9 @@ class HistoricalDnsPreviewItem {
   final String? operationDate;
   final String? sourceDigest;
   final DailyAggregateV1? aggregate;
+  final DailyAggregateV1? existingAggregate;
   final OperationSyncRecordDisposition disposition;
+  final List<HistoricalImportDifference> differences;
   final List<HistoricalDnsIssue> issues;
 
   const HistoricalDnsPreviewItem({
@@ -31,7 +34,9 @@ class HistoricalDnsPreviewItem {
     required this.operationDate,
     required this.sourceDigest,
     required this.aggregate,
+    this.existingAggregate,
     required this.disposition,
+    this.differences = const [],
     required this.issues,
   });
 
@@ -43,9 +48,31 @@ class HistoricalDnsPreviewItem {
     operationDate: operationDate,
     sourceDigest: sourceDigest,
     aggregate: aggregate,
+    existingAggregate: existingAggregate,
     disposition: value,
+    differences: differences,
     issues: [...issues, ?issue],
   );
+
+  HistoricalDnsPreviewItem classified({
+    required OperationSyncRecordDisposition disposition,
+    DailyAggregateV1? existingAggregate,
+    List<HistoricalImportDifference> differences = const [],
+    HistoricalDnsIssue? issue,
+  }) => HistoricalDnsPreviewItem(
+    index: index,
+    operationDate: operationDate,
+    sourceDigest: sourceDigest,
+    aggregate: aggregate,
+    existingAggregate: existingAggregate,
+    disposition: disposition,
+    differences: differences,
+    issues: [...issues, ?issue],
+  );
+
+  bool get isSelectable =>
+      disposition == OperationSyncRecordDisposition.newRecord ||
+      disposition == OperationSyncRecordDisposition.conflict;
 }
 
 class HistoricalDnsPreview {
@@ -79,12 +106,16 @@ class HistoricalDnsPreview {
   int get invalidCount => count(OperationSyncRecordDisposition.invalid);
   int get excludedCount => count(OperationSyncRecordDisposition.excluded);
   int get blockedCount => count(OperationSyncRecordDisposition.blocked);
+  int get differentCount => conflictCount;
+  int get selectableCount => records.where((item) => item.isSelectable).length;
   bool get canApply =>
       records.isNotEmpty &&
-      newCount > 0 &&
-      conflictCount == 0 &&
+      selectableCount > 0 &&
       invalidCount == 0 &&
-      blockedCount == 0;
+      !records.any(
+        (item) =>
+            item.issues.any((issue) => issue.code == 'duplicateOperationDate'),
+      );
   List<String> get dates => [
     for (final item in records)
       if (item.operationDate != null) item.operationDate!,
@@ -108,7 +139,10 @@ abstract interface class HistoricalDnsWorkflow {
     required String endDate,
   });
 
-  Future<HistoricalDnsApplyResult> apply(HistoricalDnsPreview preview);
+  Future<HistoricalDnsApplyResult> apply(
+    HistoricalDnsPreview preview, {
+    Set<int>? selectedIndexes,
+  });
 
   Future<List<OperationSyncRecord>> listRecords();
 }
@@ -394,7 +428,9 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
         operationDate: operationDate,
         sourceDigest: sourceDigest,
         aggregate: aggregate,
+        existingAggregate: null,
         disposition: OperationSyncRecordDisposition.newRecord,
+        differences: const [],
         issues: const [],
       );
     } catch (error) {
@@ -403,7 +439,9 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
         operationDate: operationDate,
         sourceDigest: sourceDigest,
         aggregate: null,
+        existingAggregate: null,
         disposition: OperationSyncRecordDisposition.invalid,
+        differences: const [],
         issues: [
           HistoricalDnsIssue('invalidRecord', error.toString(), path: r'$'),
         ],
@@ -418,9 +456,10 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
     required List<HistoricalDnsPreviewItem> mapped,
     required List<Map<String, Object?>> existing,
   }) {
-    final existingDates = <String>{};
+    final existingByDate = <String, DailyAggregateV1>{};
     for (final raw in existing) {
-      existingDates.add(DailyAggregateV1.fromJson(raw).operationDate);
+      final aggregate = DailyAggregateV1.fromJson(raw);
+      existingByDate[aggregate.operationDate] = aggregate;
     }
     final packageDates = <String>{};
     final result = <HistoricalDnsPreviewItem>[];
@@ -440,12 +479,38 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
             ),
           ),
         );
-      } else if (existingDates.contains(date)) {
-        result.add(
-          item.withDisposition(OperationSyncRecordDisposition.identical),
-        );
       } else {
-        result.add(item);
+        final existingAggregate = existingByDate[date];
+        if (existingAggregate == null) {
+          result.add(item);
+          continue;
+        }
+        if (existingAggregate.sourceType == DailyAggregateSourceType.records) {
+          result.add(
+            item.classified(
+              disposition: OperationSyncRecordDisposition.blocked,
+              existingAggregate: existingAggregate,
+              issue: const HistoricalDnsIssue(
+                'recordsAggregateProtected',
+                'FINALIZE由来のDaily AggregateはHistorical DNSで置換できません。',
+              ),
+            ),
+          );
+          continue;
+        }
+        final differences = historicalImportDifferences(
+          existingAggregate.toJson(),
+          item.aggregate!.toJson(),
+        );
+        result.add(
+          item.classified(
+            disposition: differences.isEmpty
+                ? OperationSyncRecordDisposition.identical
+                : OperationSyncRecordDisposition.conflict,
+            existingAggregate: existingAggregate,
+            differences: differences,
+          ),
+        );
       }
     }
     return HistoricalDnsPreview(
@@ -463,9 +528,26 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
   }
 
   @override
-  Future<HistoricalDnsApplyResult> apply(HistoricalDnsPreview preview) async {
+  Future<HistoricalDnsApplyResult> apply(
+    HistoricalDnsPreview preview, {
+    Set<int>? selectedIndexes,
+  }) async {
     if (!preview.canApply) {
       throw StateError('Historical DNS package is blocked.');
+    }
+    final selected =
+        selectedIndexes ??
+        {
+          for (final item in preview.records)
+            if (item.isSelectable) item.index,
+        };
+    if (selected.isEmpty ||
+        selected.any(
+          (index) => !preview.records.any(
+            (item) => item.index == index && item.isSelectable,
+          ),
+        )) {
+      throw StateError('Historical DNS selection is invalid.');
     }
     final now = clock().toUtc();
     return database.runTransaction(
@@ -487,13 +569,10 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
         if (!_samePlan(preview, revalidated) || !revalidated.canApply) {
           throw StateError('Historical DNS import preview is stale.');
         }
-        final newItems = revalidated.records
-            .where(
-              (item) =>
-                  item.disposition == OperationSyncRecordDisposition.newRecord,
-            )
+        final appliedItems = revalidated.records
+            .where((item) => selected.contains(item.index) && item.isSelectable)
             .toList();
-        for (final item in newItems) {
+        for (final item in appliedItems) {
           await repository.putInTransaction(transaction, item.aggregate!);
         }
         final auditItems = [
@@ -502,15 +581,20 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
               sourceRecordId: null,
               operationDate: item.operationDate!,
               sourceDigest: item.sourceDigest!,
-              targetRecordId:
-                  item.disposition == OperationSyncRecordDisposition.newRecord
+              targetRecordId: selected.contains(item.index) && item.isSelectable
                   ? item.operationDate
                   : null,
-              disposition: item.disposition,
+              disposition: !selected.contains(item.index) && item.isSelectable
+                  ? OperationSyncRecordDisposition.excluded
+                  : item.disposition == OperationSyncRecordDisposition.conflict
+                  ? OperationSyncRecordDisposition.replaced
+                  : item.disposition,
               result: OperationSyncRecordResult.success,
               errorCode: null,
             ),
         ];
+        int auditCount(OperationSyncRecordDisposition disposition) =>
+            auditItems.where((item) => item.disposition == disposition).length;
         final record = OperationSyncRecord(
           operationId: operationIdGenerator.generate(),
           workflowKind: _exchangeType,
@@ -519,14 +603,15 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
           startDate: revalidated.startDate,
           endDate: revalidated.endDate,
           receivedCount: revalidated.receivedCount,
-          newCount: revalidated.newCount,
-          identicalCount: revalidated.identicalCount,
-          conflictCount: revalidated.conflictCount,
-          invalidCount: revalidated.invalidCount,
-          excludedCount: revalidated.excludedCount,
-          blockedCount: revalidated.blockedCount,
-          appliedCount: revalidated.newCount,
-          skippedCount: revalidated.identicalCount + revalidated.excludedCount,
+          newCount: auditCount(OperationSyncRecordDisposition.newRecord),
+          identicalCount: auditCount(OperationSyncRecordDisposition.identical),
+          replacedCount: auditCount(OperationSyncRecordDisposition.replaced),
+          conflictCount: auditCount(OperationSyncRecordDisposition.conflict),
+          invalidCount: auditCount(OperationSyncRecordDisposition.invalid),
+          excludedCount: auditCount(OperationSyncRecordDisposition.excluded),
+          blockedCount: auditCount(OperationSyncRecordDisposition.blocked),
+          appliedCount: appliedItems.length,
+          skippedCount: auditItems.length - appliedItems.length,
           exchangeId: revalidated.exchangeId,
           responseDigest: revalidated.responseDigest,
           packageDigest: revalidated.packageDigest,

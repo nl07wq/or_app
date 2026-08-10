@@ -30,6 +30,7 @@ class _HistoricalTrainingImportPanelState
   final ReportSyncClipboardGateway _clipboard =
       ReportSyncClipboardGateway.platform();
   HistoricalTrainingPreview? _preview;
+  Set<int> _selectedIndexes = {};
   String? _inputError;
   String? _validationError;
   String? _applyError;
@@ -74,6 +75,7 @@ class _HistoricalTrainingImportPanelState
       _controller.text = value;
       setState(() {
         _preview = null;
+        _selectedIndexes = {};
         _inputError = null;
         _validationError = null;
         _applyError = null;
@@ -98,6 +100,7 @@ class _HistoricalTrainingImportPanelState
     setState(() {
       _busy = true;
       _preview = null;
+      _selectedIndexes = {};
       _inputError = null;
       _validationError = null;
       _applyError = null;
@@ -112,6 +115,10 @@ class _HistoricalTrainingImportPanelState
       if (!mounted) return;
       setState(() {
         _preview = preview;
+        _selectedIndexes = {
+          for (final item in preview.records)
+            if (item.isSelectable) item.index,
+        };
         _message = preview.canApply
             ? 'VALIDATION COMPLETE · REVIEW BEFORE IMPORT'
             : 'VALIDATION BLOCKED';
@@ -138,6 +145,7 @@ class _HistoricalTrainingImportPanelState
       _range = value;
       _controller.clear();
       _preview = null;
+      _selectedIndexes = {};
       _inputError = null;
       _validationError = null;
       _applyError = null;
@@ -148,13 +156,18 @@ class _HistoricalTrainingImportPanelState
   Future<void> _apply() async {
     final workflow = widget.workflow;
     final preview = _preview;
-    if (workflow == null || preview == null || !preview.canApply) return;
+    if (workflow == null ||
+        preview == null ||
+        !preview.canApply ||
+        _selectedIndexes.isEmpty) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('IMPORT HISTORICAL TRAINING?'),
         content: Text(
-          'Training v2の新規記録を${preview.newCount}件作成します。'
+          'Training v2の新規記録を${_selectedIndexes.length}件作成します。'
           '既存の記録は変更または削除されません。',
         ),
         actions: [
@@ -176,10 +189,14 @@ class _HistoricalTrainingImportPanelState
       _message = 'IMPORTING · この画面を閉じないでください';
     });
     try {
-      final result = await workflow.apply(preview);
+      final result = await workflow.apply(
+        preview,
+        selectedIndexes: Set.unmodifiable(_selectedIndexes),
+      );
       if (!mounted) return;
       setState(() {
         _preview = null;
+        _selectedIndexes = {};
         _controller.clear();
         _message =
             'COMPLETE · READ-BACK VERIFIED\n'
@@ -256,6 +273,7 @@ class _HistoricalTrainingImportPanelState
               maxLines: 10,
               onChanged: (_) => setState(() {
                 _preview = null;
+                _selectedIndexes = {};
                 _inputError = null;
                 _validationError = null;
                 _applyError = null;
@@ -297,7 +315,25 @@ class _HistoricalTrainingImportPanelState
       ],
       if (_preview != null) ...[
         AppSpacing.gapMD,
-        _PreviewCard(preview: _preview!, onApply: _apply),
+        _PreviewCard(
+          preview: _preview!,
+          selectedIndexes: _selectedIndexes,
+          onSelectionChanged: (index, selected) => setState(() {
+            if (selected) {
+              _selectedIndexes.add(index);
+            } else {
+              _selectedIndexes.remove(index);
+            }
+          }),
+          onSelectAll: () => setState(() {
+            _selectedIndexes = {
+              for (final item in _preview!.records)
+                if (item.isSelectable) item.index,
+            };
+          }),
+          onClearAll: () => setState(() => _selectedIndexes = {}),
+          onApply: _selectedIndexes.isEmpty ? null : _apply,
+        ),
       ],
       if (_applyError != null) ...[AppSpacing.gapSM, _ErrorText(_applyError!)],
       if (_message != null) ...[AppSpacing.gapSM, SelectableText(_message!)],
@@ -332,8 +368,19 @@ class _ContractField extends StatelessWidget {
 
 class _PreviewCard extends StatelessWidget {
   final HistoricalTrainingPreview preview;
-  final VoidCallback onApply;
-  const _PreviewCard({required this.preview, required this.onApply});
+  final Set<int> selectedIndexes;
+  final void Function(int index, bool selected) onSelectionChanged;
+  final VoidCallback onSelectAll;
+  final VoidCallback onClearAll;
+  final VoidCallback? onApply;
+  const _PreviewCard({
+    required this.preview,
+    required this.selectedIndexes,
+    required this.onSelectionChanged,
+    required this.onSelectAll,
+    required this.onClearAll,
+    required this.onApply,
+  });
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -356,9 +403,24 @@ class _PreviewCard extends StatelessWidget {
           'REQUESTED ${preview.requestedStartDate} — '
           '${preview.requestedEndDate}',
         ),
+        Text('SELECTED ${selectedIndexes.length} / ${preview.selectableCount}'),
+        AppSpacing.gapSM,
+        Wrap(
+          spacing: AppSpacing.sm,
+          children: [
+            TextButton(onPressed: onSelectAll, child: const Text('SELECT ALL')),
+            TextButton(onPressed: onClearAll, child: const Text('CLEAR ALL')),
+          ],
+        ),
         AppSpacing.gapMD,
         for (final item in preview.records) ...[
-          _PreviewRow(item: item),
+          _PreviewRow(
+            item: item,
+            selected: selectedIndexes.contains(item.index),
+            onChanged: item.isSelectable
+                ? (value) => onSelectionChanged(item.index, value)
+                : null,
+          ),
           if (item.index != preview.records.last.index) const Divider(),
         ],
         AppSpacing.gapMD,
@@ -380,7 +442,13 @@ class _PreviewCard extends StatelessWidget {
 
 class _PreviewRow extends StatelessWidget {
   final HistoricalTrainingPreviewItem item;
-  const _PreviewRow({required this.item});
+  final bool selected;
+  final ValueChanged<bool>? onChanged;
+  const _PreviewRow({
+    required this.item,
+    required this.selected,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -395,9 +463,14 @@ class _PreviewRow extends StatelessWidget {
               '\nGrade ${session.sessionGrade?.stableId ?? 'NOT RECORDED'}'
               '\nExercises ${session.exercises.length}'
               '\nCardio ${session.cardioEntries.length}';
-    return ListTile(
+    return CheckboxListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(_icon(item.disposition)),
+      controlAffinity: ListTileControlAffinity.leading,
+      secondary: Icon(_icon(item.disposition)),
+      value: item.isSelectable && selected,
+      onChanged: onChanged == null
+          ? null
+          : (value) => onChanged!(value ?? false),
       title: Text(
         '${item.operationDate ?? 'INVALID DATE'} · '
         '${item.disposition.stableId.toUpperCase()}',
@@ -414,6 +487,7 @@ class _PreviewRow extends StatelessWidget {
       switch (disposition) {
         OperationSyncRecordDisposition.newRecord => Icons.add_circle_outline,
         OperationSyncRecordDisposition.identical => Icons.check_circle_outline,
+        OperationSyncRecordDisposition.replaced => Icons.sync_alt,
         OperationSyncRecordDisposition.conflict => Icons.warning_amber,
         OperationSyncRecordDisposition.invalid => Icons.error_outline,
         OperationSyncRecordDisposition.excluded => Icons.remove_circle_outline,

@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
-import 'package:or_app/features/operation_sync/models/operation_sync_issue.dart';
+import 'package:or_app/features/operation_sync/models/operation_sync_issue.dart'
+    hide OperationSyncRecordDisposition;
 import 'package:or_app/features/operation_sync/repository/indexed_db_operation_sync_history_repository.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -59,7 +60,61 @@ void main() {
     expect(raw, isNot(contains('rawPackage')));
     expect(raw, isNot(contains('payload')));
   });
+
+  test('historical V2 reads legacy fields and records REPLACED distinctly', () {
+    final current = _historicalRecord(replacedCount: 1);
+    final restored = OperationSyncRecord.fromRecord(current.toRecord());
+    expect(restored.recordVersion, 2);
+    expect(restored.replacedCount, 1);
+    expect(
+      restored.records.single.disposition,
+      OperationSyncRecordDisposition.replaced,
+    );
+
+    final legacy = current.toRecord()..remove('replacedCount');
+    final legacyRestored = OperationSyncRecord.fromRecord(legacy);
+    expect(legacyRestored.recordVersion, 2);
+    expect(legacyRestored.replacedCount, 0);
+  });
 }
+
+OperationSyncRecord _historicalRecord({required int replacedCount}) =>
+    OperationSyncRecord(
+      operationId: 'historical:test',
+      workflowKind: 'historicalDns',
+      recordType: 'dailyAggregateV1',
+      sourceMode: 'dateRange',
+      startDate: '2026-08-08',
+      endDate: '2026-08-08',
+      receivedCount: 1,
+      newCount: 0,
+      identicalCount: 0,
+      replacedCount: replacedCount,
+      conflictCount: 0,
+      invalidCount: 0,
+      excludedCount: 0,
+      blockedCount: 0,
+      appliedCount: 1,
+      skippedCount: 0,
+      exchangeId: 'historical-response',
+      responseDigest: 'a' * 64,
+      packageDigest: 'b' * 64,
+      result: OperationSyncRecordResult.success,
+      failureCode: null,
+      createdAt: DateTime.utc(2026, 8, 9, 10),
+      completedAt: DateTime.utc(2026, 8, 9, 11),
+      records: [
+        OperationSyncRecordItem(
+          sourceRecordId: null,
+          operationDate: '2026-08-08',
+          sourceDigest: 'c' * 64,
+          targetRecordId: '2026-08-08',
+          disposition: OperationSyncRecordDisposition.replaced,
+          result: OperationSyncRecordResult.success,
+          errorCode: null,
+        ),
+      ],
+    );
 
 OperationSyncHistory _history(
   String operationId, {

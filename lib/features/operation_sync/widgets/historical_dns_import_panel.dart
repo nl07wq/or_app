@@ -29,6 +29,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
   final ReportSyncClipboardGateway _clipboard =
       ReportSyncClipboardGateway.platform();
   HistoricalDnsPreview? _preview;
+  Set<int> _selectedIndexes = {};
   DateTimeRange? _range;
   String? _error;
   String? _message;
@@ -58,6 +59,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
       _range = value;
       _controller.clear();
       _preview = null;
+      _selectedIndexes = {};
       _error = null;
       _message = 'DATE RANGE SELECTED';
     });
@@ -91,6 +93,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
       _controller.text = value;
       setState(() {
         _preview = null;
+        _selectedIndexes = {};
         _error = null;
         _message = 'RESPONSE JSON PASTED';
       });
@@ -113,6 +116,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
     setState(() {
       _busy = true;
       _preview = null;
+      _selectedIndexes = {};
       _error = null;
       _message = null;
     });
@@ -125,6 +129,10 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
       if (!mounted) return;
       setState(() {
         _preview = value;
+        _selectedIndexes = {
+          for (final item in value.records)
+            if (item.isSelectable) item.index,
+        };
         _message = value.canApply
             ? 'VALIDATION COMPLETE · REVIEW BEFORE IMPORT'
             : 'VALIDATION BLOCKED';
@@ -139,14 +147,33 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
   Future<void> _apply() async {
     final workflow = widget.workflow;
     final preview = _preview;
-    if (workflow == null || preview == null || !preview.canApply) return;
+    if (workflow == null ||
+        preview == null ||
+        !preview.canApply ||
+        _selectedIndexes.isEmpty) {
+      return;
+    }
+    final selectedNew = preview.records
+        .where(
+          (item) =>
+              _selectedIndexes.contains(item.index) &&
+              item.disposition == OperationSyncRecordDisposition.newRecord,
+        )
+        .length;
+    final selectedDifferent = preview.records
+        .where(
+          (item) =>
+              _selectedIndexes.contains(item.index) &&
+              item.disposition == OperationSyncRecordDisposition.conflict,
+        )
+        .length;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('IMPORT LEGACY DNS?'),
         content: Text(
-          'Daily Aggregateを${preview.newCount}件作成します。'
-          '既存日のDaily Aggregateは変更または削除されません。',
+          'Daily Aggregateを$selectedNew件作成し、'
+          '$selectedDifferent件を安全に置換します。',
         ),
         actions: [
           TextButton(
@@ -167,10 +194,14 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
       _message = 'IMPORTING · この画面を閉じないでください';
     });
     try {
-      final result = await workflow.apply(preview);
+      final result = await workflow.apply(
+        preview,
+        selectedIndexes: Set.unmodifiable(_selectedIndexes),
+      );
       if (!mounted) return;
       setState(() {
         _preview = null;
+        _selectedIndexes = {};
         _controller.clear();
         _message =
             'COMPLETE · READ-BACK VERIFIED\n'
@@ -255,6 +286,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
               maxLines: 10,
               onChanged: (_) => setState(() {
                 _preview = null;
+                _selectedIndexes = {};
                 _error = null;
               }),
             ),
@@ -286,7 +318,25 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
       ],
       if (_preview != null) ...[
         AppSpacing.gapMD,
-        _PreviewCard(preview: _preview!, onApply: _apply),
+        _PreviewCard(
+          preview: _preview!,
+          selectedIndexes: _selectedIndexes,
+          onSelectionChanged: (index, selected) => setState(() {
+            if (selected) {
+              _selectedIndexes.add(index);
+            } else {
+              _selectedIndexes.remove(index);
+            }
+          }),
+          onSelectAll: () => setState(() {
+            _selectedIndexes = {
+              for (final item in _preview!.records)
+                if (item.isSelectable) item.index,
+            };
+          }),
+          onClearAll: () => setState(() => _selectedIndexes = {}),
+          onApply: _selectedIndexes.isEmpty ? null : _apply,
+        ),
       ],
       if (_error != null) ...[
         AppSpacing.gapSM,
@@ -321,9 +371,20 @@ class _ContractField extends StatelessWidget {
 
 class _PreviewCard extends StatelessWidget {
   final HistoricalDnsPreview preview;
-  final VoidCallback onApply;
+  final Set<int> selectedIndexes;
+  final void Function(int index, bool selected) onSelectionChanged;
+  final VoidCallback onSelectAll;
+  final VoidCallback onClearAll;
+  final VoidCallback? onApply;
 
-  const _PreviewCard({required this.preview, required this.onApply});
+  const _PreviewCard({
+    required this.preview,
+    required this.selectedIndexes,
+    required this.onSelectionChanged,
+    required this.onSelectAll,
+    required this.onClearAll,
+    required this.onApply,
+  });
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -335,27 +396,57 @@ class _PreviewCard extends StatelessWidget {
         Text('RECEIVED ${preview.receivedCount}'),
         Text('NEW ${preview.newCount}'),
         Text('IDENTICAL ${preview.identicalCount}'),
-        Text('CONFLICT ${preview.conflictCount}'),
+        Text('DIFFERENT ${preview.differentCount}'),
         Text('INVALID ${preview.invalidCount}'),
         Text('EXCLUDED ${preview.excludedCount}'),
         Text('BLOCKED ${preview.blockedCount}'),
         Text(
           'RANGE ${preview.startDate ?? 'N/A'} – ${preview.endDate ?? 'N/A'}',
         ),
+        Text('SELECTED ${selectedIndexes.length} / ${preview.selectableCount}'),
+        AppSpacing.gapSM,
+        Wrap(
+          spacing: AppSpacing.sm,
+          children: [
+            TextButton(onPressed: onSelectAll, child: const Text('SELECT ALL')),
+            TextButton(onPressed: onClearAll, child: const Text('CLEAR ALL')),
+          ],
+        ),
         AppSpacing.gapMD,
         for (final item in preview.records) ...[
-          ListTile(
+          CheckboxListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(_icon(item.disposition)),
+            controlAffinity: ListTileControlAffinity.leading,
+            secondary: Icon(_icon(item.disposition)),
+            value: item.isSelectable && selectedIndexes.contains(item.index),
+            onChanged: item.isSelectable
+                ? (value) => onSelectionChanged(item.index, value ?? false)
+                : null,
             title: Text(
               '${item.operationDate ?? 'INVALID DATE'} · '
-              '${item.disposition.stableId.toUpperCase()}',
+              '${_status(item.disposition)}',
             ),
             subtitle: Text(
               'SOURCE TYPE ${item.aggregate?.sourceType.name ?? 'NOT AVAILABLE'}'
               '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.code}: ${issue.message}').join('\n')}'}',
             ),
           ),
+          if (item.differences.isNotEmpty)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('DIFFERENCE PREVIEW'),
+              children: [
+                for (final difference in item.differences)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(difference.field),
+                    subtitle: Text(
+                      'CURRENT: ${_value(difference.current)}\n'
+                      'INCOMING: ${_value(difference.incoming)}',
+                    ),
+                  ),
+              ],
+            ),
           if (item.index != preview.records.last.index) const Divider(),
         ],
         AppSpacing.gapMD,
@@ -389,11 +480,25 @@ class _PreviewCard extends StatelessWidget {
       switch (disposition) {
         OperationSyncRecordDisposition.newRecord => Icons.add_circle_outline,
         OperationSyncRecordDisposition.identical => Icons.check_circle_outline,
+        OperationSyncRecordDisposition.replaced => Icons.sync_alt,
         OperationSyncRecordDisposition.conflict => Icons.warning_amber,
         OperationSyncRecordDisposition.invalid => Icons.error_outline,
         OperationSyncRecordDisposition.excluded => Icons.remove_circle_outline,
         OperationSyncRecordDisposition.blocked => Icons.block,
       };
+
+  static String _status(OperationSyncRecordDisposition disposition) =>
+      switch (disposition) {
+        OperationSyncRecordDisposition.newRecord => 'NEW',
+        OperationSyncRecordDisposition.identical => 'IDENTICAL',
+        OperationSyncRecordDisposition.conflict => 'DIFFERENT',
+        OperationSyncRecordDisposition.blocked => 'BLOCKED',
+        OperationSyncRecordDisposition.invalid => 'INVALID',
+        OperationSyncRecordDisposition.excluded => 'EXCLUDED',
+        OperationSyncRecordDisposition.replaced => 'REPLACED',
+      };
+
+  static String _value(Object? value) => value == null ? 'null' : '$value';
 }
 
 String _formatDate(DateTime value) =>

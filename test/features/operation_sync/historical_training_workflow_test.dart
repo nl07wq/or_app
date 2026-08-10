@@ -326,6 +326,85 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'imports only selected NEW records and audits unselected records',
+    () async {
+      final preview = await workflow.preview(
+        jsonEncode(
+          _envelope([
+            _record('2026-06-01', 'source-1'),
+            _record('2026-06-02', 'source-2'),
+          ], endDate: '2026-06-02'),
+        ),
+        startDate: '2026-06-01',
+        endDate: '2026-06-02',
+      );
+
+      final result = await workflow.apply(preview, selectedIndexes: const {1});
+      final stored = await database.findAll(
+        IndexedDbStoreNames.trainingRecords,
+      );
+
+      expect(stored, hasLength(1));
+      expect(stored.single['localDate'], '2026-06-02');
+      expect(result.record.newCount, 1);
+      expect(result.record.excludedCount, 1);
+      expect(result.record.appliedCount, 1);
+      expect(
+        result.record.records[0].disposition,
+        OperationSyncRecordDisposition.excluded,
+      );
+      expect(
+        result.record.records[1].disposition,
+        OperationSyncRecordDisposition.newRecord,
+      );
+    },
+  );
+
+  test(
+    'classifies proven equality as IDENTICAL and unsafe change as BLOCKED',
+    () async {
+      final original = jsonEncode(
+        _envelope([_record('2026-06-01', 'source-1')], endDate: '2026-06-01'),
+      );
+      final first = await workflow.preview(
+        original,
+        startDate: '2026-06-01',
+        endDate: '2026-06-01',
+      );
+      await workflow.apply(first);
+
+      final identical = await workflow.preview(
+        original,
+        startDate: '2026-06-01',
+        endDate: '2026-06-01',
+      );
+      expect(identical.identicalCount, 1);
+      expect(identical.records.single.isSelectable, isFalse);
+
+      final changedRecord = _record('2026-06-01', 'source-1');
+      final session = Map<String, Object?>.from(
+        changedRecord['session']! as Map,
+      );
+      final header = Map<String, Object?>.from(session['session']! as Map)
+        ..['memo'] = 'changed';
+      session['session'] = header;
+      changedRecord['session'] = session;
+      final blocked = await workflow.preview(
+        jsonEncode(_envelope([changedRecord], endDate: '2026-06-01')),
+        startDate: '2026-06-01',
+        endDate: '2026-06-01',
+      );
+      expect(blocked.blockedCount, 1);
+      expect(blocked.conflictCount, 0);
+      expect(blocked.records.single.isSelectable, isFalse);
+      expect(
+        await database.findAll(IndexedDbStoreNames.trainingRecords),
+        hasLength(1),
+      );
+    },
+  );
 }
 
 HistoricalTrainingWorkflowService _workflow(FakeIndexedDbDatabase database) {
