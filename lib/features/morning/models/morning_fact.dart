@@ -2,9 +2,9 @@ class MorningFact {
   static const Object _unset = Object();
 
   final DateTime date;
-  final double weight;
+  final double? weight;
   final double? bodyFat;
-  final Duration sleepDuration;
+  final Duration? sleepDuration;
   final int? sleepScore;
   final double workHours;
   final int footPain;
@@ -29,9 +29,9 @@ class MorningFact {
 
   MorningFact copyWith({
     DateTime? date,
-    double? weight,
+    Object? weight = _unset,
     Object? bodyFat = _unset,
-    Duration? sleepDuration,
+    Object? sleepDuration = _unset,
     Object? sleepScore = _unset,
     double? workHours,
     int? footPain,
@@ -42,9 +42,11 @@ class MorningFact {
   }) {
     return MorningFact(
       date: date ?? this.date,
-      weight: weight ?? this.weight,
+      weight: weight == _unset ? this.weight : weight as double?,
       bodyFat: bodyFat == _unset ? this.bodyFat : bodyFat as double?,
-      sleepDuration: sleepDuration ?? this.sleepDuration,
+      sleepDuration: sleepDuration == _unset
+          ? this.sleepDuration
+          : sleepDuration as Duration?,
       sleepScore: sleepScore == _unset ? this.sleepScore : sleepScore as int?,
       workHours: workHours ?? this.workHours,
       footPain: footPain ?? this.footPain,
@@ -60,12 +62,12 @@ class MorningFact {
   factory MorningFact.fromJson(Map<String, dynamic> json) {
     return MorningFact(
       date: DateTime.parse(json['date'] as String),
-      weight: (json['weight'] as num).toDouble(),
+      weight: (json['weight'] as num?)?.toDouble(),
       bodyFat: (json['bodyFat'] as num?)?.toDouble(),
-      sleepDuration: Duration(microseconds: json['sleepDuration'] as int),
-      sleepScore: json.containsKey('sleepScore')
-          ? (json['sleepScore'] as num?)?.toInt()
-          : 0,
+      sleepDuration: (json['sleepDuration'] as int?) == null
+          ? null
+          : Duration(microseconds: json['sleepDuration'] as int),
+      sleepScore: (json['sleepScore'] as num?)?.toInt(),
       workHours: (json['workHours'] as num).toDouble(),
       footPain: json['footPain'] as int,
       condition: (json['condition'] as num?)?.toInt(),
@@ -80,7 +82,7 @@ class MorningFact {
       'date': date.toIso8601String(),
       'weight': weight,
       'bodyFat': bodyFat,
-      'sleepDuration': sleepDuration.inMicroseconds,
+      'sleepDuration': sleepDuration?.inMicroseconds,
       'sleepScore': sleepScore,
       'workHours': workHours,
       'footPain': footPain,

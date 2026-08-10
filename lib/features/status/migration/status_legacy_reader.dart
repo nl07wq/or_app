@@ -113,8 +113,6 @@ class StatusLegacyReader {
 
   static void _validateSchema(Map<String, dynamic> json) {
     if (json['date'] is! String ||
-        json['weight'] is! num ||
-        json['sleepHours'] is! num ||
         json['memo'] is! String ||
         json['workType'] is! String) {
       throw const FormatException('Missing required STATUS field.');
@@ -124,7 +122,9 @@ class StatusLegacyReader {
       throw const FormatException('Invalid STATUS workType.');
     }
     for (final key in [
+      'weight',
       'bodyFat',
+      'sleepHours',
       'sleepScore',
       'footPain',
       'condition',
@@ -156,7 +156,7 @@ class StatusLegacyReader {
       data.sleepHours,
       data.workHours,
     ]) {
-      if (!value.isFinite) {
+      if (value != null && !value.isFinite) {
         throw const FormatException('STATUS numeric value must be finite.');
       }
     }

@@ -48,7 +48,7 @@ class MorningBriefRequestPayloadBuilder {
       'morningFact': {
         'body': {'weightKg': fact.weight, 'bodyFatPercent': fact.bodyFat},
         'recovery': {
-          'sleepDurationMinutes': fact.sleepDuration.inMinutes,
+          'sleepDurationMinutes': fact.sleepDuration?.inMinutes,
           'sleepScore': fact.sleepScore,
         },
         'condition': {

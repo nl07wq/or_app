@@ -14,18 +14,33 @@ class OperationEngine {
   static const _hydrationTargetMl = 3500.0;
   static const _proteinTargetGrams = 100.0;
 
-  double estimateTDEE(OperationInput input) {
+  double? estimateTDEE(OperationInput input, {double? weightKg}) {
+    final resolvedWeight = weightKg ?? input.morning.weight;
+    if (resolvedWeight == null) return null;
+    return estimateTDEEFromFacts(
+      weightKg: resolvedWeight,
+      workHours: input.morning.workHours,
+    );
+  }
+
+  double estimateTDEEFromFacts({
+    required double weightKg,
+    required double workHours,
+  }) {
     const bmrPerKilogram = 22.0;
     const workCaloriesPerHour = 100.0;
 
-    final bmr = input.morning.weight * bmrPerKilogram;
-    final workModifier = input.morning.workHours * workCaloriesPerHour;
+    final bmr = weightKg * bmrPerKilogram;
+    final workModifier = workHours * workCaloriesPerHour;
     return bmr + workModifier;
   }
 
   OperationStatus generateOperationStatus(OperationInput input) {
-    final sleepHours =
-        input.morning.sleepDuration.inMinutes / Duration.minutesPerHour;
+    final sleepDuration = input.morning.sleepDuration;
+    if (sleepDuration == null) {
+      throw StateError('Sleep duration is not recorded.');
+    }
+    final sleepHours = sleepDuration.inMinutes / Duration.minutesPerHour;
 
     if (sleepHours >= 7) return OperationStatus.green;
     if (sleepHours >= 5) return OperationStatus.yellow;

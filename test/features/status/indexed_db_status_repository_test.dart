@@ -208,14 +208,53 @@ void main() {
       ),
     );
   });
+
+  test(
+    'task091: saves and reads independently unmeasured STATUS facts',
+    () async {
+      await repository.save(
+        _morning(
+          '2026-07-26T08:00:00',
+          weight: null,
+          bodyFat: null,
+          sleepHours: null,
+          sleepScore: null,
+        ),
+      );
+
+      final readBack = await repository.findByLocalDate('2026-07-26');
+      expect(readBack!.weight, isNull);
+      expect(readBack.bodyFat, isNull);
+      expect(readBack.sleepHours, isNull);
+      expect(readBack.sleepScore, isNull);
+    },
+  );
+
+  test('task091: old missing STATUS facts decode as null instead of zero', () {
+    final restored = MorningData.fromJson({
+      'date': '2026-07-26T08:00:00',
+      'footPain': 2,
+      'workType': 'work',
+      'workStart': '09:00',
+      'workEnd': '18:00',
+      'workBreak': '1:00',
+      'workHours': 8,
+      'memo': '',
+    });
+
+    expect(restored.weight, isNull);
+    expect(restored.bodyFat, isNull);
+    expect(restored.sleepHours, isNull);
+    expect(restored.sleepScore, isNull);
+  });
 }
 
 MorningData _morning(
   String date, {
-  required double weight,
-  double bodyFat = 18,
-  double sleepHours = 7,
-  int sleepScore = 80,
+  required double? weight,
+  double? bodyFat = 18,
+  double? sleepHours = 7,
+  int? sleepScore = 80,
   int footPain = 2,
   String memo = '',
 }) {

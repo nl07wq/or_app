@@ -16,6 +16,7 @@ import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
 import '../services/daily_command_read_model_builder.dart';
+import '../services/daily_estimated_total_burn_service.dart';
 import '../widgets/daily_command_item.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
@@ -156,13 +157,22 @@ class _DailyCommandPage extends StatelessWidget {
         .requireCurrent();
     final morningBrief = await AppRepositoryRegistry.container.morningBriefs
         .readByLocalDate(state.operationDate.value);
+    final status = morningFactNotifier.value;
+    final burnWeight =
+        await RecentStatusWeightResolver(
+          AppRepositoryRegistry.container.status,
+        ).resolve(
+          operationDate: state.operationDate.value,
+          currentWeightKg: status?.weight,
+        );
     return DailyCommandReadModelBuilder.build(
       operationState: state,
-      status: morningFactNotifier.value,
+      status: status,
       food: foodSummaryNotifier.value,
       training: trainingSummaryNotifier.value,
       activity: activitySummaryNotifier.value,
       morningBrief: morningBrief,
+      burnWeightKg: burnWeight,
     );
   }
 }

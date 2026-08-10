@@ -123,7 +123,8 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
                 ),
               ),
               onSelectedItemChanged: (value) {
-                hour = value;
+                if (hour == value) return;
+                setState(() => hour = value);
                 _updateController();
               },
               children: List.generate(
@@ -166,7 +167,8 @@ class _OperationTimePickerState extends State<OperationTimePicker> {
                 ),
               ),
               onSelectedItemChanged: (value) {
-                selectedMinute = value;
+                if (selectedMinute == value) return;
+                setState(() => selectedMinute = value);
                 _updateController();
               },
               children: List.generate(60 ~/ widget.minuteStep, (index) {

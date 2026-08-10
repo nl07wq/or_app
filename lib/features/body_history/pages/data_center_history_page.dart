@@ -47,7 +47,7 @@ class DataCenterHistoryPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               AppSpacing.gapSM,
-              const Text('保存済みDaily Aggregateから、摂取・推定消費・カロリー収支の履歴を表示します。'),
+              const Text('保存済みの正式データから、摂取・推定消費・カロリー収支の履歴を表示します。'),
               AppSpacing.gapMD,
               OperationButton(
                 text: 'OPEN NUTRITION HISTORY',

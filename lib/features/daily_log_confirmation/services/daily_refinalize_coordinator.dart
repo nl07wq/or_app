@@ -1,5 +1,6 @@
 import '../../../core/models/daily_log_confirmation.dart';
 import '../../operation_date/models/operation_local_date.dart';
+import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../models/daily_log_confirmation_lifecycle.dart';
 import '../models/persisted_daily_log_confirmation_record.dart';
 import '../repository/daily_log_confirmation_repository.dart';
@@ -13,6 +14,11 @@ typedef BuildRefinalizedDailyConfirmation =
       double? estimatedTotalBurnKcal,
       DateTime confirmedAt,
     );
+typedef BuildRefinalizedDailyAggregate =
+    Future<DailyAggregateV1> Function(
+      String localDate,
+      double? estimatedExpenditureKcal,
+    );
 
 class DailyRefinalizeCoordinator {
   static final Set<String> _activeDates = <String>{};
@@ -21,6 +27,7 @@ class DailyRefinalizeCoordinator {
   final DailyLogConfirmationSourceSnapshotReader _sourceReader;
   final DailyLogRefinalizeTransaction _transaction;
   final BuildRefinalizedDailyConfirmation buildDailyConfirmation;
+  final BuildRefinalizedDailyAggregate? buildDailyAggregate;
   final DateTime Function() _now;
 
   DailyRefinalizeCoordinator(
@@ -28,6 +35,7 @@ class DailyRefinalizeCoordinator {
     this._sourceReader,
     this._transaction, {
     required this.buildDailyConfirmation,
+    this.buildDailyAggregate,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
@@ -131,11 +139,17 @@ class DailyRefinalizeCoordinator {
         );
       }
 
+      final dailyAggregate = await buildDailyAggregate?.call(
+        localDate,
+        snapshot.estimatedTotalBurnKcal,
+      );
+
       return await _transaction.refinalize(
         localDate: localDate,
         snapshot: snapshot,
         expectedSources: sourcesAfter,
         refinalizedAt: timestamp,
+        dailyAggregate: dailyAggregate,
       );
     } on DailyLogConfirmationLifecycleException {
       rethrow;

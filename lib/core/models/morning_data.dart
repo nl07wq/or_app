@@ -13,11 +13,11 @@ class MorningData {
   final String date;
 
   // BODY
-  final double weight;
-  final double bodyFat;
+  final double? weight;
+  final double? bodyFat;
 
   // RECOVERY
-  final double sleepHours;
+  final double? sleepHours;
   final int? sleepScore;
   final SleepType sleepType;
 
@@ -81,22 +81,17 @@ class MorningData {
             (value) => value.name == sleepTypeValue,
             orElse: () => throw const FormatException('Invalid sleep type.'),
           );
-    final sleepScore = json.containsKey('sleepScore')
-        ? (json['sleepScore'] as num?)?.toInt()
-        : 0;
-    if (sleepType == SleepType.sleep && sleepScore == null) {
-      throw const FormatException('Sleep score is required for sleep.');
-    }
+    final sleepScore = (json['sleepScore'] as num?)?.toInt();
     if (sleepScore != null && (sleepScore < 0 || sleepScore > 100)) {
       throw const FormatException('Invalid sleep score.');
     }
     return MorningData(
       date: json['date'] as String,
 
-      weight: (json['weight'] as num).toDouble(),
-      bodyFat: (json['bodyFat'] ?? 0).toDouble(),
+      weight: (json['weight'] as num?)?.toDouble(),
+      bodyFat: (json['bodyFat'] as num?)?.toDouble(),
 
-      sleepHours: (json['sleepHours'] as num).toDouble(),
+      sleepHours: (json['sleepHours'] as num?)?.toDouble(),
       sleepScore: sleepScore,
       sleepType: sleepType,
 

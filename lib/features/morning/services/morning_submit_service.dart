@@ -47,14 +47,6 @@ class MorningSubmitService {
   }) async {
     // 必須入力チェック
 
-    if (weightText.trim().isEmpty) {
-      return '体重を入力してください';
-    }
-
-    if (sleepText.trim().isEmpty) {
-      return '睡眠時間を入力してください';
-    }
-
     if (workType == WorkType.work || workType == WorkType.halfDay) {
       if (workStart.trim().isEmpty ||
           workEnd.trim().isEmpty ||
@@ -65,21 +57,24 @@ class MorningSubmitService {
 
     // 数値変換
 
-    final weight = double.tryParse(weightText.trim());
+    final weightInput = weightText.trim();
+    final weight = weightInput.isEmpty ? null : double.tryParse(weightInput);
 
-    if (weight == null) {
+    if (weightInput.isNotEmpty && weight == null) {
       return '体重は数字で入力してください';
     }
 
-    final bodyFat = double.tryParse(bodyFatText.trim());
+    final bodyFatInput = bodyFatText.trim();
+    final bodyFat = bodyFatInput.isEmpty ? null : double.tryParse(bodyFatInput);
 
-    if (bodyFat == null) {
+    if (bodyFatInput.isNotEmpty && bodyFat == null) {
       return '体脂肪率を入力してください';
     }
 
-    final sleep = _parseTime(sleepText);
+    final sleepInput = sleepText.trim();
+    final sleep = sleepInput.isEmpty ? null : _parseTime(sleepInput);
 
-    if (sleep == null) {
+    if (sleepInput.isNotEmpty && sleep == null) {
       return '睡眠時間は 7:30 の形式で入力してください';
     }
 
@@ -88,9 +83,6 @@ class MorningSubmitService {
         ? null
         : int.tryParse(sleepScoreInput);
 
-    if (sleepType == SleepType.sleep && sleepScore == null) {
-      return '睡眠スコアを入力してください';
-    }
     if (sleepScoreInput.isNotEmpty && sleepScore == null) {
       return '睡眠スコアを入力してください';
     }

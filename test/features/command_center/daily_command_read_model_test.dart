@@ -39,27 +39,32 @@ void main() {
       ]);
     });
 
-    test('hotfix: uses operation-date Morning Brief for command status', () {
-      final model = _build(status: _status(), morningBrief: _morningBrief());
+    test('task088: current-date Morning Brief owns all command content', () {
+      final first = _build(status: _status(), morningBrief: _morningBrief());
+      final afterOtherStatusUpdate = _build(
+        status: _status(weight: 75),
+        morningBrief: _morningBrief(),
+      );
 
-      expect(model.operationStatus?.name, 'yellow');
-      expect(model.statusReason, 'formal situation');
-      expect(model.commanderIntent, 'formal intent');
-      expect(model.morningBriefSummary, 'formal argo comment');
+      for (final model in [first, afterOtherStatusUpdate]) {
+        expect(model.operationStatus?.name, 'yellow');
+        expect(model.statusReason, 'formal situation');
+        expect(model.commanderIntent, 'formal intent');
+        expect(model.morningBriefSummary, 'formal argo comment');
+      }
     });
 
-    test(
-      'hotfix: ignores a different-date Morning Brief and stays STANDBY',
-      () {
-        final model = _build(
-          status: _status(),
-          morningBrief: _morningBrief(localDate: '2026-07-31'),
-        );
+    test('task088: different-date records do not replace STANDBY', () {
+      final model = _build(
+        status: _status(),
+        morningBrief: _morningBrief(localDate: '2026-07-31'),
+      );
 
-        expect(model.operationStatus, isNull);
-        expect(model.statusReason, '当日のMORNING BRIEFが未登録です。');
-      },
-    );
+      expect(model.operationStatus, isNull);
+      expect(model.statusReason, '当日のMORNING BRIEFが未登録です。');
+      expect(model.commanderIntent, isNull);
+      expect(model.morningBriefSummary, isNull);
+    });
 
     test('derives REVIEW READY when required modules are valid', () {
       final model = _build(
@@ -181,9 +186,9 @@ MorningBriefRecord _morningBrief({String localDate = '2026-08-01'}) =>
       updatedAt: DateTime.utc(2026, 8, 1),
     );
 
-MorningFact _status() => MorningFact(
+MorningFact _status({double weight = 80}) => MorningFact(
   date: DateTime(2026, 8, 1),
-  weight: 80,
+  weight: weight,
   bodyFat: 20,
   sleepDuration: const Duration(hours: 8),
   sleepScore: 80,

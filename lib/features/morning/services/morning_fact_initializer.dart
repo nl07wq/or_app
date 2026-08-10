@@ -12,10 +12,11 @@ class MorningFactInitializer {
       }
 
       return MorningInitialValues(
-        weight: latest.weight.toString(),
-        bodyFat: latest.bodyFat.toString(),
-        sleep: _formatTime(latest.sleepHours),
+        weight: latest.weight?.toString() ?? '',
+        bodyFat: latest.bodyFat?.toString() ?? '',
+        sleep: latest.sleepHours == null ? '' : _formatTime(latest.sleepHours!),
         sleepScore: latest.sleepScore?.toString() ?? '',
+        hasPreviousRecord: true,
       );
     } catch (_) {
       return const MorningInitialValues.empty();

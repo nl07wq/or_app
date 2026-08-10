@@ -61,9 +61,19 @@ abstract final class DailyLogConfirmationValidation {
   static bool _isValidStatus(MorningFact? morning) {
     if (morning == null) return false;
 
-    return morning.weight.isFinite &&
-        morning.bodyFat?.isFinite == true &&
-        morning.sleepDuration >= Duration.zero &&
+    return (morning.weight == null ||
+            (morning.weight!.isFinite &&
+                morning.weight! >= 40 &&
+                morning.weight! <= 180)) &&
+        (morning.bodyFat == null ||
+            (morning.bodyFat!.isFinite &&
+                morning.bodyFat! >= 0 &&
+                morning.bodyFat! <= 60)) &&
+        (morning.sleepDuration == null ||
+            (morning.sleepDuration! >= Duration.zero &&
+                morning.sleepDuration! < const Duration(hours: 24))) &&
+        (morning.sleepScore == null ||
+            (morning.sleepScore! >= 0 && morning.sleepScore! <= 100)) &&
         morning.workHours.isFinite;
   }
 

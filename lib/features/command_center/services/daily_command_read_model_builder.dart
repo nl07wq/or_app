@@ -17,6 +17,7 @@ abstract final class DailyCommandReadModelBuilder {
     required FoodSummary? food,
     required TrainingSummary? training,
     required ActivitySummary activity,
+    double? burnWeightKg,
     MorningBriefRecord? morningBrief,
     bool isHistoricalView = false,
   }) {
@@ -35,9 +36,6 @@ abstract final class DailyCommandReadModelBuilder {
             activity: activity,
           );
     final engine = const OperationEngine();
-    final snapshot = input == null
-        ? null
-        : engine.generateCommanderSnapshot(input);
     final phase = operationState.phase;
     final currentMorningBrief =
         morningBrief?.localDate == operationState.operationDate.value
@@ -55,10 +53,8 @@ abstract final class DailyCommandReadModelBuilder {
             ),
       statusReason:
           currentMorningBrief?.situationAnalysis ?? '当日のMORNING BRIEFが未登録です。',
-      commanderIntent:
-          currentMorningBrief?.commanderIntent ?? snapshot?.commanderIntent,
-      morningBriefSummary:
-          currentMorningBrief?.argoComment ?? snapshot?.summary,
+      commanderIntent: currentMorningBrief?.commanderIntent,
+      morningBriefSummary: currentMorningBrief?.argoComment,
       statusModuleState: _requiredState(
         recorded: status != null,
         valid: validation.statusValid,
@@ -85,8 +81,11 @@ abstract final class DailyCommandReadModelBuilder {
       isHistoricalView: isHistoricalView,
       estimatedTotalBurnKcal: input == null
           ? null
-          : engine.estimateTDEE(input) +
-                (training?.trainingCardioCaloriesKcal ?? 0),
+          : switch (engine.estimateTDEE(input, weightKg: burnWeightKg)) {
+              final double base =>
+                base + (training?.trainingCardioCaloriesKcal ?? 0),
+              null => null,
+            },
     );
   }
 

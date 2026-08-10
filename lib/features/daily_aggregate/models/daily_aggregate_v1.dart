@@ -68,10 +68,10 @@ class DailyAggregateV1 {
   final double? proteinG;
   final double? fatG;
   final double? carbsG;
-  final double hydrationMl;
+  final double? hydrationMl;
   final int? officialSteps;
   final int? measuredSteps;
-  final bool trainingPerformed;
+  final bool? trainingPerformed;
   final int? digestiveCount;
   final List<DailyAggregateDigestiveEventV1> digestiveEvents;
   final String? operationStatus;
@@ -175,10 +175,10 @@ class DailyAggregateV1 {
         proteinG: _double(json, 'proteinG'),
         fatG: _double(json, 'fatG'),
         carbsG: _double(json, 'carbsG'),
-        hydrationMl: _requiredDouble(json, 'hydrationMl'),
+        hydrationMl: _double(json, 'hydrationMl'),
         officialSteps: _int(json, 'officialSteps'),
         measuredSteps: _int(json, 'measuredSteps'),
-        trainingPerformed: _bool(json, 'trainingPerformed'),
+        trainingPerformed: _nullableBool(json, 'trainingPerformed'),
         digestiveCount: _int(json, 'digestiveCount'),
         digestiveEvents: _digestiveEvents(json),
         operationStatus: _operationStatus(json),
@@ -217,12 +217,6 @@ class DailyAggregateV1 {
     return (value as num?)?.toDouble();
   }
 
-  static double _requiredDouble(Map<String, Object?> json, String key) {
-    final value = json[key];
-    if (value is! num) throw FormatException('Invalid $key.');
-    return value.toDouble();
-  }
-
   static int? _int(Map<String, Object?> json, String key) {
     final value = json[key];
     if (value != null && value is! int) {
@@ -231,10 +225,12 @@ class DailyAggregateV1 {
     return value as int?;
   }
 
-  static bool _bool(Map<String, Object?> json, String key) {
+  static bool? _nullableBool(Map<String, Object?> json, String key) {
     final value = json[key];
-    if (value is! bool) throw FormatException('Invalid $key.');
-    return value;
+    if (value != null && value is! bool) {
+      throw FormatException('Invalid $key.');
+    }
+    return value as bool?;
   }
 
   static List<DailyAggregateDigestiveEventV1> _digestiveEvents(

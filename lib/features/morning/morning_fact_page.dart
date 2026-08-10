@@ -48,11 +48,16 @@ class _MorningFactPageState extends State<MorningFactPage> {
     if (widget.data != null) {
       final data = widget.data!;
 
-      weightController.text = data.weight.toString();
-      bodyFatController.text = data.bodyFat.toString();
+      weightController.text = data.weight?.toString() ?? '';
+      bodyFatController.text = data.bodyFat?.toString() ?? '';
+      weightUnmeasured = data.weight == null;
+      bodyFatUnmeasured = data.bodyFat == null;
 
-      sleepController.text = _formatTime(data.sleepHours);
+      sleepController.text = data.sleepHours == null
+          ? ''
+          : _formatTime(data.sleepHours!);
       sleepScoreController.text = data.sleepScore?.toString() ?? '';
+      sleepTimeUnmeasured = data.sleepHours == null;
       selectedSleepType = data.sleepType;
 
       footPainController.text = data.footPain.toString();
@@ -88,6 +93,11 @@ class _MorningFactPageState extends State<MorningFactPage> {
       sleepScoreController.text = values.sleepScore;
 
       setState(() {
+        if (values.hasPreviousRecord) {
+          weightUnmeasured = values.weight.isEmpty;
+          bodyFatUnmeasured = values.bodyFat.isEmpty;
+          sleepTimeUnmeasured = values.sleep.isEmpty;
+        }
         _operationLocalDate = operationLocalDate;
         _initialValuesLoaded = true;
       });
@@ -116,6 +126,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
   WorkType selectedWorkType = WorkType.work;
   SleepType selectedSleepType = SleepType.sleep;
+  bool weightUnmeasured = false;
+  bool bodyFatUnmeasured = false;
+  bool sleepTimeUnmeasured = false;
 
   String _formatTime(double hours) {
     final totalMinutes = (hours * 60).round();
@@ -157,6 +170,20 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     BodyCard(
                       weightController: weightController,
                       bodyFatController: bodyFatController,
+                      weightUnmeasured: weightUnmeasured,
+                      bodyFatUnmeasured: bodyFatUnmeasured,
+                      onWeightUnmeasured: () => setState(() {
+                        weightController.clear();
+                        weightUnmeasured = true;
+                      }),
+                      onWeightMeasured: () =>
+                          setState(() => weightUnmeasured = false),
+                      onBodyFatUnmeasured: () => setState(() {
+                        bodyFatController.clear();
+                        bodyFatUnmeasured = true;
+                      }),
+                      onBodyFatMeasured: () =>
+                          setState(() => bodyFatUnmeasured = false),
                     ),
 
                     AppSpacing.gapMD,
@@ -165,6 +192,14 @@ class _MorningFactPageState extends State<MorningFactPage> {
                       sleepController: sleepController,
                       sleepScoreController: sleepScoreController,
                       sleepType: selectedSleepType,
+                      sleepTimeUnmeasured: sleepTimeUnmeasured,
+                      onSleepTimeUnmeasured: () => setState(() {
+                        sleepController.clear();
+                        sleepScoreController.clear();
+                        sleepTimeUnmeasured = true;
+                      }),
+                      onSleepTimeMeasured: () =>
+                          setState(() => sleepTimeUnmeasured = false),
                       onSleepTypeChanged: (value) {
                         setState(() {
                           selectedSleepType = value;

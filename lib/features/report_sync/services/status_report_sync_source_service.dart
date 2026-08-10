@@ -131,10 +131,6 @@ class StatusReportSyncSourceService {
     final sourceData = Map<String, Object?>.from(data);
     const requiredFields = {
       'date',
-      'weight',
-      'bodyFat',
-      'sleepHours',
-      'sleepScore',
       'footPain',
       'workType',
       'workStart',
@@ -171,9 +167,9 @@ class StatusReportSyncSourceService {
 
   void _validateRawData(String operationDate, Map<String, Object?> rawData) {
     if (rawData['date'] is! String ||
-        rawData['weight'] is! num ||
-        rawData['bodyFat'] is! num ||
-        rawData['sleepHours'] is! num ||
+        (rawData['weight'] != null && rawData['weight'] is! num) ||
+        (rawData['bodyFat'] != null && rawData['bodyFat'] is! num) ||
+        (rawData['sleepHours'] != null && rawData['sleepHours'] is! num) ||
         (rawData['sleepScore'] != null && rawData['sleepScore'] is! int) ||
         rawData['footPain'] is! int ||
         rawData['workType'] is! String ||
@@ -231,23 +227,24 @@ class StatusReportSyncSourceService {
     if (record.updatedAt.isBefore(record.createdAt)) {
       _invalid(date, 'updatedAt');
     }
-    if (!data.weight.isFinite || data.weight < 40 || data.weight > 180) {
+    if (data.weight != null &&
+        (!data.weight!.isFinite || data.weight! < 40 || data.weight! > 180)) {
       _invalid(date, 'weight');
     }
-    if (!data.bodyFat.isFinite || data.bodyFat < 0 || data.bodyFat > 60) {
+    if (data.bodyFat != null &&
+        (!data.bodyFat!.isFinite || data.bodyFat! < 0 || data.bodyFat! > 60)) {
       _invalid(date, 'bodyFat');
     }
-    if (!data.sleepHours.isFinite ||
-        data.sleepHours < 0 ||
-        data.sleepHours >= 24) {
+    if (data.sleepHours != null &&
+        (!data.sleepHours!.isFinite ||
+            data.sleepHours! < 0 ||
+            data.sleepHours! >= 24)) {
       _invalid(date, 'sleepHours');
     }
-    final sleepMinutes = data.sleepHours * 60;
-    if ((sleepMinutes - sleepMinutes.round()).abs() > 0.000000001) {
+    final sleepMinutes = data.sleepHours == null ? null : data.sleepHours! * 60;
+    if (sleepMinutes != null &&
+        (sleepMinutes - sleepMinutes.round()).abs() > 0.000000001) {
       _invalid(date, 'sleepHours');
-    }
-    if (data.sleepType == SleepType.sleep && data.sleepScore == null) {
-      _invalid(date, 'sleepScore');
     }
     if (data.sleepScore != null &&
         (data.sleepScore! < 0 || data.sleepScore! > 100)) {
@@ -324,7 +321,9 @@ class StatusReportSyncSourceService {
           bodyFatPercent: data.bodyFat,
         ),
         recovery: StatusReportSyncRecoverySource(
-          sleepDurationMinutes: (data.sleepHours * 60).round(),
+          sleepDurationMinutes: data.sleepHours == null
+              ? null
+              : (data.sleepHours! * 60).round(),
           sleepScore: data.sleepScore,
         ),
         condition: StatusReportSyncConditionSource(
@@ -349,12 +348,14 @@ class StatusReportSyncSourceService {
         previousDayComparison: StatusReportSyncPreviousDayComparison(
           previousOperationDate: previousOperationDate,
           previousStatusAvailable: previousData != null,
-          weightDifferenceKg: previousData == null
+          weightDifferenceKg:
+              previousData?.weight == null || data.weight == null
               ? null
-              : _decimalDifference(data.weight, previousData.weight),
-          bodyFatDifferencePoint: previousData == null
+              : _decimalDifference(data.weight!, previousData!.weight!),
+          bodyFatDifferencePoint:
+              previousData?.bodyFat == null || data.bodyFat == null
               ? null
-              : _decimalDifference(data.bodyFat, previousData.bodyFat),
+              : _decimalDifference(data.bodyFat!, previousData!.bodyFat!),
         ),
       );
     } catch (error) {
@@ -429,15 +430,15 @@ class StatusReportSyncSourceService {
       'SOURCE RECORD VERSION: ${source.sourceRecordVersion}',
       '',
       '[BODY]',
-      'WEIGHT KG: ${_number(source.body.weightKg)}',
-      'BODY FAT PERCENT: ${_number(source.body.bodyFatPercent)}',
+      'WEIGHT KG: ${_nullable(source.body.weightKg)}',
+      'BODY FAT PERCENT: ${_nullable(source.body.bodyFatPercent)}',
       'PREVIOUS DAY OPERATION DATE: ${comparison.previousOperationDate}',
       'PREVIOUS DAY STATUS AVAILABLE: ${comparison.previousStatusAvailable}',
       'PREVIOUS DAY WEIGHT DIFFERENCE KG: ${_available(comparison.weightDifferenceKg)}',
       'PREVIOUS DAY BODY FAT DIFFERENCE POINT: ${_available(comparison.bodyFatDifferencePoint)}',
       '',
       '[RECOVERY]',
-      'SLEEP DURATION MINUTES: ${source.recovery.sleepDurationMinutes}',
+      'SLEEP DURATION MINUTES: ${_nullable(source.recovery.sleepDurationMinutes)}',
       'SLEEP SCORE: ${_nullable(source.recovery.sleepScore)}',
       '',
       '[CONDITION]',

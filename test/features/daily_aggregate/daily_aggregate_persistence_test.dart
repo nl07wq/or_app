@@ -126,7 +126,7 @@ Future<_Fixture> _fixture({double Function()? weight}) async {
       date: DateTime.parse(date.value),
       confirmedAt: DateTime.utc(2026, 8, 9, 12),
     ),
-    buildDailyAggregate: (date) async => _aggregate(
+    buildDailyAggregate: (date, _) async => _aggregate(
       date,
       weightKg: weight?.call() ?? 80.5,
       trainingPerformed: true,

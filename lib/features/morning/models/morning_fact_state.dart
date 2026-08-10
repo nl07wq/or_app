@@ -33,9 +33,9 @@ Future<void> refreshMorningFact({String? localDate}) async {
           date: DateTime.parse(latestRecord.date),
           weight: latestRecord.weight,
           bodyFat: latestRecord.bodyFat,
-          sleepDuration: Duration(
-            minutes: (latestRecord.sleepHours * 60).round(),
-          ),
+          sleepDuration: latestRecord.sleepHours == null
+              ? null
+              : Duration(minutes: (latestRecord.sleepHours! * 60).round()),
           sleepScore: latestRecord.sleepScore,
           workHours: latestRecord.workHours,
           footPain: latestRecord.footPain,

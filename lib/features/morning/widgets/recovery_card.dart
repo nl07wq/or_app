@@ -11,6 +11,9 @@ class RecoveryCard extends StatelessWidget {
   final TextEditingController sleepScoreController;
   final SleepType sleepType;
   final ValueChanged<SleepType> onSleepTypeChanged;
+  final bool sleepTimeUnmeasured;
+  final VoidCallback onSleepTimeUnmeasured;
+  final VoidCallback onSleepTimeMeasured;
 
   const RecoveryCard({
     super.key,
@@ -18,6 +21,9 @@ class RecoveryCard extends StatelessWidget {
     required this.sleepScoreController,
     required this.sleepType,
     required this.onSleepTypeChanged,
+    required this.sleepTimeUnmeasured,
+    required this.onSleepTimeUnmeasured,
+    required this.onSleepTimeMeasured,
   });
 
   @override
@@ -52,16 +58,29 @@ class RecoveryCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          TimeInputCard(
-            title: "Sleep Time",
-            controller: sleepController,
-            initialHour: 8,
-            initialMinute: 0,
-          ),
+          if (sleepTimeUnmeasured)
+            _UnmeasuredField(
+              title: 'Sleep Time',
+              onMeasure: onSleepTimeMeasured,
+            )
+          else ...[
+            TimeInputCard(
+              title: "Sleep Time",
+              controller: sleepController,
+              initialHour: 8,
+              initialMinute: 0,
+            ),
+            _UnmeasuredAction(
+              key: const ValueKey('Sleep Time-unmeasured-toggle'),
+              onPressed: onSleepTimeUnmeasured,
+            ),
+          ],
 
           const SizedBox(height: 20),
 
-          if (sleepType == SleepType.sleep) ...[
+          if (sleepTimeUnmeasured)
+            const _UnmeasuredValue(title: 'Sleep Score')
+          else if (sleepType == SleepType.sleep)
             WheelInputCard(
               key: ValueKey('sleep-score-${sleepType.name}'),
               title: "Sleep Score",
@@ -71,8 +90,8 @@ class RecoveryCard extends StatelessWidget {
               max: 100,
               step: 1,
               initialValue: 80,
-            ),
-          ] else ...[
+            )
+          else ...[
             const Row(
               children: [
                 Expanded(
@@ -99,4 +118,70 @@ class RecoveryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _UnmeasuredField extends StatelessWidget {
+  const _UnmeasuredField({required this.title, required this.onMeasure});
+
+  final String title;
+  final VoidCallback onMeasure;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      TextButton(
+        key: ValueKey('$title-unmeasured-toggle'),
+        onPressed: onMeasure,
+        child: const Text(
+          '未計測',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.lightBlueAccent,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _UnmeasuredAction extends StatelessWidget {
+  const _UnmeasuredAction({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerRight,
+    child: TextButton(onPressed: onPressed, child: const Text('未計測')),
+  );
+}
+
+class _UnmeasuredValue extends StatelessWidget {
+  const _UnmeasuredValue({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          '未計測',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.lightBlueAccent,
+          ),
+        ),
+      ),
+    ],
+  );
 }

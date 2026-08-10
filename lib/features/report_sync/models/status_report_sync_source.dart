@@ -23,8 +23,8 @@ class StatusReportSyncBodySource {
     required this.bodyFatPercent,
   });
 
-  final double weightKg;
-  final double bodyFatPercent;
+  final double? weightKg;
+  final double? bodyFatPercent;
 }
 
 class StatusReportSyncRecoverySource {
@@ -33,7 +33,7 @@ class StatusReportSyncRecoverySource {
     required this.sleepScore,
   });
 
-  final int sleepDurationMinutes;
+  final int? sleepDurationMinutes;
   final int? sleepScore;
 }
 

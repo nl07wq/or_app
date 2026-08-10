@@ -30,6 +30,7 @@ import '../activity/models/activity_summary_state.dart';
 import '../training/models/training_summary_state.dart';
 import '../command_center/models/daily_command_read_model.dart';
 import '../command_center/services/daily_command_read_model_builder.dart';
+import '../command_center/services/daily_estimated_total_burn_service.dart';
 import '../command_center/widgets/daily_command_item.dart';
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
@@ -352,6 +353,13 @@ class _DailyCommandSummary extends StatelessWidget {
         .requireCurrent();
     final morningBrief = await AppRepositoryRegistry.container.morningBriefs
         .readByLocalDate(state.operationDate.value);
+    final burnWeight =
+        await RecentStatusWeightResolver(
+          AppRepositoryRegistry.container.status,
+        ).resolve(
+          operationDate: state.operationDate.value,
+          currentWeightKg: morningFact?.weight,
+        );
     return DailyCommandReadModelBuilder.build(
       operationState: state,
       status: morningFact,
@@ -359,6 +367,7 @@ class _DailyCommandSummary extends StatelessWidget {
       training: trainingSummary,
       activity: activitySummary,
       morningBrief: morningBrief,
+      burnWeightKg: burnWeight,
     );
   }
 }
@@ -482,14 +491,18 @@ class _ProgressCard extends StatelessWidget {
         label: 'WEIGHT',
         value: morningFact == null
             ? '--'
-            : '${morningFact!.weight.toStringAsFixed(1)} kg',
+            : morningFact!.weight == null
+            ? '未計測'
+            : '${morningFact!.weight!.toStringAsFixed(1)} kg',
         labelFirst: large,
       ),
       _ProgressSummaryMetric(
         label: 'SLEEP',
         value: morningFact == null
             ? '--'
-            : _formatSleep(morningFact!.sleepDuration),
+            : morningFact!.sleepDuration == null
+            ? '未計測'
+            : _formatSleep(morningFact!.sleepDuration!),
         labelFirst: large,
       ),
       _ProgressSummaryMetric(

@@ -15,7 +15,11 @@ typedef BuildDailyConfirmation =
       OperationLocalDate localDate,
       double? estimatedTotalBurnKcal,
     );
-typedef BuildDailyAggregate = Future<DailyAggregateV1> Function(String date);
+typedef BuildDailyAggregate =
+    Future<DailyAggregateV1> Function(
+      String date,
+      double? estimatedExpenditureKcal,
+    );
 
 class DailyFinalizeCoordinator {
   static final Set<String> _activeFinalizeKeys = <String>{};
@@ -192,7 +196,13 @@ class DailyFinalizeCoordinator {
       final finalizedDate = state.operationDate;
       final attempt = state.activeAttempt!;
       final nextDate = finalizedDate.addDays(1);
-      final aggregate = await buildDailyAggregate(finalizedDate.value);
+      final storedConfirmation = await _confirmations.findByLocalDate(
+        finalizedDate.value,
+      );
+      final aggregate = await buildDailyAggregate(
+        finalizedDate.value,
+        storedConfirmation?.estimatedTotalBurnKcal,
+      );
       state = await _transaction.advanceAndIssueUndoEntitlement(
         expectedState: state,
         dailyAggregate: aggregate,

@@ -342,7 +342,7 @@ Future<_Fixture> _fixture(
       date: DateTime.parse(date.value),
       confirmedAt: DateTime.utc(2026, 7, 31, 12, 1),
     ),
-    buildDailyAggregate: (date) async => _aggregate(date),
+    buildDailyAggregate: (date, _) async => _aggregate(date),
     now: () => DateTime.utc(2026, 7, 31, 12),
   );
   fixture = _Fixture(

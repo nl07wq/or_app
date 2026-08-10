@@ -70,7 +70,11 @@ class _StatusReviewSection extends StatelessWidget {
                 _ResponsiveReviewRow(
                   key: const ValueKey('status-weight-body-fat-row'),
                   children: [
-                    Text('Weight ${morning!.weight.toStringAsFixed(1)} kg'),
+                    Text(
+                      morning!.weight == null
+                          ? 'Weight 未計測'
+                          : 'Weight ${morning!.weight!.toStringAsFixed(1)} kg',
+                    ),
                     Text(
                       'Body Fat '
                       '${morning!.bodyFat == null ? 'Not recorded' : '${morning!.bodyFat!.toStringAsFixed(1)}%'}',
@@ -81,7 +85,11 @@ class _StatusReviewSection extends StatelessWidget {
                 _ResponsiveReviewRow(
                   key: const ValueKey('status-sleep-score-row'),
                   children: [
-                    Text('Sleep ${_formatSleep(morning!.sleepDuration)}'),
+                    Text(
+                      morning!.sleepDuration == null
+                          ? 'Sleep 未計測'
+                          : 'Sleep ${_formatSleep(morning!.sleepDuration!)}',
+                    ),
                     Text(
                       'Sleep Score ${morning!.sleepScore?.toString() ?? '未計測'}',
                     ),

@@ -4,6 +4,8 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../import_export/services/backup_canonical_codec.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/models/operation_state.dart';
+import '../../daily_aggregate/models/daily_aggregate_v1.dart';
+import '../../daily_aggregate/repository/daily_aggregate_repository.dart';
 import '../models/daily_log_confirmation_lifecycle.dart';
 import '../models/daily_log_confirmation_lifecycle_projection.dart';
 import '../models/persisted_daily_log_confirmation_record.dart';
@@ -15,18 +17,21 @@ class DailyLogRefinalizeTransaction {
   final IndexedDbDatabase _database;
   final DailyLogConfirmationLifecycleStore _confirmations;
   final DailyLogConfirmationSourceSnapshotReader _sourceReader;
+  final DailyAggregateRepository? _dailyAggregates;
 
   const DailyLogRefinalizeTransaction(
     this._database,
     this._confirmations,
-    this._sourceReader,
-  );
+    this._sourceReader, {
+    DailyAggregateRepository? dailyAggregates,
+  }) : _dailyAggregates = dailyAggregates;
 
   Future<PersistedDailyLogConfirmationRecord> refinalize({
     required String localDate,
     required DailyLogConfirmation snapshot,
     required DailyLogConfirmationSourceSnapshot expectedSources,
     required DateTime refinalizedAt,
+    DailyAggregateV1? dailyAggregate,
   }) {
     final target = OperationLocalDate.parse(localDate);
     final recordId = PersistedDailyLogConfirmationRecord.canonicalId(localDate);
@@ -34,6 +39,7 @@ class DailyLogRefinalizeTransaction {
       storeNames: [
         IndexedDbStoreNames.dailyLogConfirmations,
         IndexedDbStoreNames.operationState,
+        if (dailyAggregate != null) IndexedDbStoreNames.dailyAggregateRecords,
         ...DailyLogConfirmationSourceSnapshotReader.stores,
       ],
       mode: IndexedDbTransactionMode.readWrite,
@@ -227,6 +233,14 @@ class DailyLogRefinalizeTransaction {
             '再確定後のRevision、SnapshotまたはDigestが一致しません。',
             recordId: recordId,
           );
+        }
+
+        if (dailyAggregate != null) {
+          final repository = _dailyAggregates;
+          if (repository == null) {
+            throw StateError('Daily Aggregate repository is required.');
+          }
+          await repository.putInTransaction(transaction, dailyAggregate);
         }
 
         final sourcesAfter = await _sourceReader.readInTransaction(

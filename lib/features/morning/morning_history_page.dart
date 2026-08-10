@@ -130,17 +130,23 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                       _HistoryDetailRow(
                         icon: Icons.monitor_weight_outlined,
                         label: '体重',
-                        value: '${data.weight.toStringAsFixed(1)} kg',
+                        value: data.weight == null
+                            ? '未計測'
+                            : '${data.weight!.toStringAsFixed(1)} kg',
                       ),
                       _HistoryDetailRow(
                         icon: Icons.percent,
                         label: '体脂肪',
-                        value: '${data.bodyFat.toStringAsFixed(1)} %',
+                        value: data.bodyFat == null
+                            ? '未計測'
+                            : '${data.bodyFat!.toStringAsFixed(1)} %',
                       ),
                       _HistoryDetailRow(
                         icon: Icons.bedtime_outlined,
                         label: '睡眠',
-                        value: formatTime(data.sleepHours),
+                        value: data.sleepHours == null
+                            ? '未計測'
+                            : formatTime(data.sleepHours!),
                       ),
                       _HistoryDetailRow(
                         icon: Icons.category_outlined,

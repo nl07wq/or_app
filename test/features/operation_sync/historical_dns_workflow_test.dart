@@ -130,6 +130,35 @@ void main() {
     expect(restored.conditionFactSummary, isEmpty);
     expect(restored.toJson(), isNot(contains('estimatedExpenditureKcal')));
   });
+
+  test(
+    'task091: nullable Historical DNS facts persist without inference',
+    () async {
+      final record = <String, Object?>{
+        'operationDate': '2026-08-08',
+        'sourceType': 'legacyDns',
+      };
+      final preview = await workflow.preview(
+        jsonEncode(_envelope([record])),
+        startDate: '2026-08-08',
+        endDate: '2026-08-08',
+      );
+
+      expect(preview.invalidCount, 0);
+      expect(preview.canApply, isTrue);
+      expect(preview.records.single.aggregate!.hydrationMl, isNull);
+      expect(preview.records.single.aggregate!.trainingPerformed, isNull);
+      expect(preview.records.single.aggregate!.weightKg, isNull);
+      expect(preview.records.single.aggregate!.sleepDurationMinutes, isNull);
+
+      await workflow.apply(preview);
+      final readBack = await repository.getByDate('2026-08-08');
+      expect(readBack!.hydrationMl, isNull);
+      expect(readBack.trainingPerformed, isNull);
+      expect(readBack.weightKg, isNull);
+      expect(readBack.sleepDurationMinutes, isNull);
+    },
+  );
 }
 
 Map<String, Object?> _envelope(List<Map<String, Object?>> records) => {
