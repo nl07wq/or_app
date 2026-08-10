@@ -16,6 +16,8 @@ import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_state.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -31,6 +33,7 @@ void main() {
     foodSummaryNotifier.value = null;
     activitySummaryNotifier.value = const ActivitySummary.empty();
     trainingSummaryNotifier.value = null;
+    morningBriefRevisionNotifier.value = 0;
   });
 
   testWidgets('uses the approved two-column order and full-width ACTIVITY', (
@@ -204,37 +207,38 @@ void main() {
     },
   );
 
-  for (final statusCase in [
-    (hours: 8, name: 'green'),
-    (hours: 6, name: 'yellow'),
-    (hours: 4, name: 'red'),
-  ]) {
-    testWidgets('DAILY COMMAND shows ${statusCase.name} status lamp', (
-      tester,
-    ) async {
-      final database = FakeIndexedDbDatabase();
-      seedOperationState(database, '2026-07-28');
-      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
-      addTearDown(AppRepositoryRegistry.resetForTesting);
-      morningFactNotifier.value = _morning().copyWith(
-        sleepDuration: Duration(hours: statusCase.hours),
-      );
-      await _pumpDashboard(tester, width: 390);
-      await tester.pumpAndSettle();
+  testWidgets('DAILY COMMAND uses same-date MB and refreshes without restart', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    await AppRepositoryRegistry.container.morningBriefs.create(
+      _brief('2026-07-27', intent: 'OTHER DATE INTENT'),
+    );
 
-      expect(
-        find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
-        findsOneWidget,
-      );
-      final lamp = tester.widget<Icon>(
-        find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
-      );
-      expect(lamp.size, 18);
-      expect(find.text(statusCase.name.toUpperCase()), findsOneWidget);
-      expect(find.text('ARGO COMMENT'), findsOneWidget);
-      expect(find.text('MORNING BRIEF SUMMARY'), findsNothing);
-    });
-  }
+    await _pumpDashboard(tester, width: 390);
+    await tester.pumpAndSettle();
+    expect(find.text('STANDBY'), findsOneWidget);
+    expect(find.text('OTHER DATE INTENT'), findsNothing);
+
+    await AppRepositoryRegistry.container.morningBriefs.create(
+      _brief('2026-07-28', intent: 'LIVE COMMANDER INTENT'),
+    );
+    notifyMorningBriefChanged();
+    await tester.pumpAndSettle();
+
+    expect(find.text('GREEN'), findsOneWidget);
+    expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
+    expect(find.text('COMMANDER INTENT'), findsOneWidget);
+    expect(find.text('ARGO COMMENT'), findsNothing);
+    expect(find.text('BODY'), findsNothing);
+    expect(find.text('RECOVERY'), findsNothing);
+    expect(find.text('CARRYOVER'), findsNothing);
+    expect(find.text('OVERALL'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('keeps missing STATUS, FOOD, TRAINING, and ACTIVITY contracts', (
     tester,
@@ -739,5 +743,27 @@ MorningFact _morning() {
     footPain: 1,
     medications: const [],
     freeNotes: null,
+  );
+}
+
+MorningBriefRecord _brief(String date, {required String intent}) {
+  final timestamp = DateTime.utc(2026, 7, 28);
+  return MorningBriefRecord(
+    localDate: date,
+    requestId: 'request-$date',
+    requestDigest:
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    responseDigest:
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    generatedAt: timestamp,
+    importedAt: timestamp,
+    situationAnalysis: 'FORMAL SITUATION',
+    operationStatus: MorningBriefOperationStatus.green,
+    commanderIntent: intent,
+    argoComment: 'MUST NOT DISPLAY',
+    strategicResourceDecision: 'FORMAL RESOURCE',
+    actions: const [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
   );
 }

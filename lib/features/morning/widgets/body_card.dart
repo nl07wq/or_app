@@ -59,7 +59,10 @@ class BodyCard extends StatelessWidget {
           const SizedBox(height: 32),
 
           if (bodyFatUnmeasured)
-            _UnmeasuredField(title: 'Body Fat', onMeasure: onBodyFatMeasured)
+            _UnmeasuredField(
+              title: 'Body Fat',
+              onMeasure: weightUnmeasured ? null : onBodyFatMeasured,
+            )
           else ...[
             WheelInputCard(
               title: "Body Fat",
@@ -85,7 +88,7 @@ class _UnmeasuredField extends StatelessWidget {
   const _UnmeasuredField({required this.title, required this.onMeasure});
 
   final String title;
-  final VoidCallback onMeasure;
+  final VoidCallback? onMeasure;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -93,18 +96,28 @@ class _UnmeasuredField extends StatelessWidget {
       Expanded(
         child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
-      TextButton(
-        key: ValueKey('$title-unmeasured-toggle'),
-        onPressed: onMeasure,
-        child: const Text(
+      if (onMeasure == null)
+        const Text(
           '未計測',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: Colors.lightBlueAccent,
           ),
+        )
+      else
+        TextButton(
+          key: ValueKey('$title-unmeasured-toggle'),
+          onPressed: onMeasure,
+          child: const Text(
+            '未計測',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.lightBlueAccent,
+            ),
+          ),
         ),
-      ),
     ],
   );
 }

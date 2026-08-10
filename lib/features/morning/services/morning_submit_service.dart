@@ -65,11 +65,14 @@ class MorningSubmitService {
     }
 
     final bodyFatInput = bodyFatText.trim();
-    final bodyFat = bodyFatInput.isEmpty ? null : double.tryParse(bodyFatInput);
+    final parsedBodyFat = bodyFatInput.isEmpty
+        ? null
+        : double.tryParse(bodyFatInput);
 
-    if (bodyFatInput.isNotEmpty && bodyFat == null) {
+    if (bodyFatInput.isNotEmpty && parsedBodyFat == null) {
       return '体脂肪率を入力してください';
     }
+    final bodyFat = weight == null ? null : parsedBodyFat;
 
     final sleepInput = sleepText.trim();
     final sleep = sleepInput.isEmpty ? null : _parseTime(sleepInput);

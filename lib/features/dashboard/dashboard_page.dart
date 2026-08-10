@@ -35,6 +35,7 @@ import '../command_center/widgets/daily_command_item.dart';
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../report_sync/models/morning_brief_state.dart';
 
 import 'widgets/daily_log_card.dart';
 import 'log_confirmation_review_page.dart';
@@ -114,11 +115,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                             title: 'DAILY COMMAND',
                                           ),
                                           AppSpacing.gapSM,
-                                          _DailyCommandSummary(
-                                            morningFact: morningFact,
-                                            foodSummary: foodSummary,
-                                            trainingSummary: trainingSummary,
-                                            activitySummary: activitySummary,
+                                          ValueListenableBuilder<int>(
+                                            valueListenable:
+                                                morningBriefRevisionNotifier,
+                                            builder: (context, _, __) =>
+                                                _DailyCommandSummary(
+                                                  morningFact: morningFact,
+                                                  foodSummary: foodSummary,
+                                                  trainingSummary:
+                                                      trainingSummary,
+                                                  activitySummary:
+                                                      activitySummary,
+                                                ),
                                           ),
                                           AppSpacing.gapXL,
                                           SectionHeader(
@@ -324,23 +332,12 @@ class _DailyCommandSummary extends StatelessWidget {
                 value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
                 status: model.operationStatus,
               ),
-              Text(model.statusReason),
-              if (model.commanderIntent != null) ...[
-                AppSpacing.gapMD,
-                DailyCommandItem(
-                  icon: Icons.flag_outlined,
-                  label: 'COMMANDER INTENT',
-                  value: model.commanderIntent!,
-                ),
-              ],
-              if (model.morningBriefSummary != null) ...[
-                AppSpacing.gapMD,
-                DailyCommandItem(
-                  icon: Icons.lightbulb_outline,
-                  label: 'ARGO COMMENT',
-                  value: model.morningBriefSummary!,
-                ),
-              ],
+              AppSpacing.gapMD,
+              DailyCommandItem(
+                icon: Icons.flag_outlined,
+                label: 'COMMANDER INTENT',
+                value: model.commanderIntent ?? '—',
+              ),
             ],
           ),
         );

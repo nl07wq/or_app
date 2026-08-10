@@ -1,24 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
+import 'package:or_app/core/models/work_type.dart';
+import 'package:or_app/core/repositories/morning_repository.dart';
 import 'package:or_app/core/widgets/inputs/hud/hud_input_card.dart';
 import 'package:or_app/core/widgets/inputs/time/operation_time_picker.dart';
 import 'package:or_app/core/widgets/inputs/time/time_input_card.dart';
 import 'package:or_app/core/widgets/inputs/wheel/wheel_input_card.dart';
 import 'package:or_app/features/morning/widgets/body_card.dart';
 import 'package:or_app/features/morning/widgets/recovery_card.dart';
+import 'package:or_app/features/morning/services/morning_submit_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('task091 hotfix: Weight unmeasured toggle hides only Weight', (
+  testWidgets('task102 close: Weight unmeasured also hides Body Fat', (
     tester,
   ) async {
     final weight = TextEditingController(text: '100.0');
     final bodyFat = TextEditingController(text: '20.0');
     var weightUnmeasured = false;
+    var bodyFatUnmeasured = false;
+    var bodyFatWasUnmeasured = false;
+    var bodyFatText = '';
 
     await _pump(
       tester,
@@ -27,14 +35,22 @@ void main() {
           weightController: weight,
           bodyFatController: bodyFat,
           weightUnmeasured: weightUnmeasured,
-          bodyFatUnmeasured: false,
+          bodyFatUnmeasured: bodyFatUnmeasured,
           onWeightUnmeasured: () => setState(() {
+            bodyFatWasUnmeasured = bodyFatUnmeasured;
+            bodyFatText = bodyFat.text;
             weight.clear();
+            bodyFat.clear();
             weightUnmeasured = true;
+            bodyFatUnmeasured = true;
           }),
-          onWeightMeasured: () => setState(() => weightUnmeasured = false),
+          onWeightMeasured: () => setState(() {
+            weightUnmeasured = false;
+            bodyFatUnmeasured = bodyFatWasUnmeasured;
+            if (!bodyFatWasUnmeasured) bodyFat.text = bodyFatText;
+          }),
           onBodyFatUnmeasured: () {},
-          onBodyFatMeasured: () {},
+          onBodyFatMeasured: () => setState(() => bodyFatUnmeasured = false),
         ),
       ),
       width: 390,
@@ -59,14 +75,21 @@ void main() {
     );
     await tester.pump();
     expect(find.byType(HUDInputCard), findsNothing);
-    expect(find.byType(WheelInputCard), findsOneWidget);
+    expect(find.byType(WheelInputCard), findsNothing);
     expect(weight.text, isEmpty);
+    expect(bodyFat.text, isEmpty);
     _expectUnmeasuredValueStyle(tester, 'Weight');
+    expect(find.text('未計測'), findsNWidgets(2));
+    expect(
+      find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
+      findsNothing,
+    );
 
     await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
     await tester.pump();
     expect(find.byType(HUDInputCard), findsOneWidget);
     expect(find.byType(WheelInputCard), findsOneWidget);
+    expect(bodyFat.text, '20.0');
   });
 
   testWidgets('task091 hotfix: Body Fat unmeasured toggle is independent', (
@@ -74,7 +97,9 @@ void main() {
   ) async {
     final weight = TextEditingController(text: '100.0');
     final bodyFat = TextEditingController(text: '20.0');
+    var weightUnmeasured = false;
     var bodyFatUnmeasured = false;
+    var bodyFatWasUnmeasured = false;
 
     await _pump(
       tester,
@@ -82,10 +107,19 @@ void main() {
         builder: (context, setState) => BodyCard(
           weightController: weight,
           bodyFatController: bodyFat,
-          weightUnmeasured: false,
+          weightUnmeasured: weightUnmeasured,
           bodyFatUnmeasured: bodyFatUnmeasured,
-          onWeightUnmeasured: () {},
-          onWeightMeasured: () {},
+          onWeightUnmeasured: () => setState(() {
+            bodyFatWasUnmeasured = bodyFatUnmeasured;
+            weight.clear();
+            bodyFat.clear();
+            weightUnmeasured = true;
+            bodyFatUnmeasured = true;
+          }),
+          onWeightMeasured: () => setState(() {
+            weightUnmeasured = false;
+            bodyFatUnmeasured = bodyFatWasUnmeasured;
+          }),
           onBodyFatUnmeasured: () => setState(() {
             bodyFat.clear();
             bodyFatUnmeasured = true;
@@ -107,6 +141,40 @@ void main() {
     expect(find.byType(WheelInputCard), findsNothing);
     expect(bodyFat.text, isEmpty);
     _expectUnmeasuredValueStyle(tester, 'Body Fat');
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('Weight-unmeasured-toggle')),
+        matching: find.byType(TextButton),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
+    await tester.pump();
+    expect(find.byType(HUDInputCard), findsOneWidget);
+    expect(find.byType(WheelInputCard), findsNothing);
+  });
+
+  test('task102 close: Weight null always saves Body Fat as null', () async {
+    final error = await MorningSubmitService.submit(
+      workType: WorkType.holiday,
+      weightText: '',
+      bodyFatText: '20.0',
+      sleepText: '8:00',
+      sleepScoreText: '80',
+      sleepType: SleepType.sleep,
+      footPainText: '0',
+      workStart: '',
+      workEnd: '',
+      workBreak: '',
+      memo: '',
+      operationLocalDate: '2026-08-11',
+    );
+
+    expect(error, isNull);
+    final saved = (await MorningRepository.getAll()).single;
+    expect(saved.weight, isNull);
+    expect(saved.bodyFat, isNull);
   });
 
   testWidgets('task091 recovery hotfix: Sleep Time unmeasured hides both', (

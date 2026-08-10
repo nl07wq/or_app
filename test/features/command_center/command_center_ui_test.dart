@@ -41,11 +41,17 @@ void main() {
     await _pump(tester, width: 390);
 
     expect(find.textContaining('2026-08-01'), findsOneWidget);
-    expect(find.textContaining('STANDBY'), findsWidgets);
-    expect(find.textContaining('STATUSを入力'), findsOneWidget);
+    expect(find.text('DAILY ASSESSMENT'), findsOneWidget);
+    expect(find.text('NOT AVAILABLE'), findsWidgets);
+    expect(find.textContaining('STATUSを入力'), findsNothing);
     expect(find.text('COMMANDER INTENT'), findsNothing);
     expect(find.text('ARGO COMMENT'), findsNothing);
-    await _scrollDailyCommand(tester, -900);
+    await tester.scrollUntilVisible(
+      find.text('FINALIZE BLOCKED'),
+      500,
+      scrollable: _dailyCommandScrollable(),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('daily-review-finalize-blocked')),
@@ -83,29 +89,26 @@ void main() {
     );
     await _pump(tester, width: 900);
 
-    await _scrollDailyCommand(tester, -350);
-    expect(find.textContaining('OPERATION STATUS'), findsOneWidget);
-    expect(find.textContaining('COMMANDER INTENT'), findsOneWidget);
-    expect(find.text('ARGO COMMENT'), findsOneWidget);
-    expect(find.byIcon(Icons.flag_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
-    final labels = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((widget) => widget.data)
-        .whereType<String>()
-        .toList();
-    final statusIndex = labels.indexWhere(
-      (value) => value.startsWith('OPERATION STATUS'),
+    expect(find.text('DAILY ASSESSMENT'), findsOneWidget);
+    expect(find.text('OPERATION STATUS'), findsNothing);
+    expect(find.text('COMMANDER INTENT'), findsNothing);
+    expect(find.text('ARGO COMMENT'), findsNothing);
+    expect(find.text('PRIMARY CONSTRAINT'), findsOneWidget);
+    expect(find.text('AVAILABLE RESOURCE'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('OPERATION MODULES'),
+      500,
+      scrollable: _dailyCommandScrollable(),
     );
-    final intentIndex = labels.indexWhere(
-      (value) => value.startsWith('COMMANDER INTENT'),
-    );
-    final briefIndex = labels.indexOf('ARGO COMMENT');
-    expect(statusIndex, lessThan(intentIndex));
-    expect(intentIndex, lessThan(briefIndex));
-    await _scrollDailyCommand(tester, -900);
+    await tester.pumpAndSettle();
     expect(find.text('Recorded'), findsNWidgets(3));
     expect(find.text('Optional'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('FINALIZE READY'),
+      500,
+      scrollable: _dailyCommandScrollable(),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('FINALIZE READY'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('daily-review-finalize-ready')),
@@ -440,6 +443,11 @@ void main() {
     });
   }
 }
+
+Finder _dailyCommandScrollable() => find.descendant(
+  of: find.byKey(const ValueKey('daily-command-list')),
+  matching: find.byType(Scrollable),
+);
 
 MorningBriefRecord _morningBriefV2(String date) {
   const digest =

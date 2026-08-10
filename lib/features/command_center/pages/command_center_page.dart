@@ -15,11 +15,15 @@ import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
+import '../core/daily_assessment_rule_engine.dart';
+import '../models/daily_assessment.dart';
+import '../services/daily_assessment_fact_loader.dart';
 import '../services/daily_command_read_model_builder.dart';
 import '../services/daily_estimated_total_burn_service.dart';
-import '../widgets/daily_command_item.dart';
+import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
+import '../../report_sync/models/morning_brief_state.dart';
 
 class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({super.key});
@@ -130,29 +134,35 @@ class _DailyCommandPage extends StatelessWidget {
         foodSummaryNotifier,
         trainingSummaryNotifier,
         activitySummaryNotifier,
+        morningBriefRevisionNotifier,
       ]),
-      builder: (context, _) => FutureBuilder<DailyCommandReadModel>(
-        key: ValueKey(refreshToken),
-        future: _loadModel(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
-            return _ErrorContent(onRetry: onRefresh);
-          }
-          final model = snapshot.requireData;
-          return _DailyCommandContent(
-            model: model,
-            isRecovering: isRecovering,
-            onRecover: onRecover,
-          );
-        },
-      ),
+      builder: (context, _) =>
+          FutureBuilder<
+            ({DailyCommandReadModel model, DailyAssessment assessment})
+          >(
+            key: ValueKey(refreshToken),
+            future: _loadModel(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError || !snapshot.hasData) {
+                return _ErrorContent(onRetry: onRefresh);
+              }
+              final result = snapshot.requireData;
+              return _DailyCommandContent(
+                model: result.model,
+                assessment: result.assessment,
+                isRecovering: isRecovering,
+                onRecover: onRecover,
+              );
+            },
+          ),
     );
   }
 
-  Future<DailyCommandReadModel> _loadModel() async {
+  Future<({DailyCommandReadModel model, DailyAssessment assessment})>
+  _loadModel() async {
     final state = await AppRepositoryRegistry.container.operationState
         .requireCurrent();
     final morningBrief = await AppRepositoryRegistry.container.morningBriefs
@@ -165,7 +175,7 @@ class _DailyCommandPage extends StatelessWidget {
           operationDate: state.operationDate.value,
           currentWeightKg: status?.weight,
         );
-    return DailyCommandReadModelBuilder.build(
+    final model = DailyCommandReadModelBuilder.build(
       operationState: state,
       status: status,
       food: foodSummaryNotifier.value,
@@ -174,17 +184,26 @@ class _DailyCommandPage extends StatelessWidget {
       morningBrief: morningBrief,
       burnWeightKg: burnWeight,
     );
+    final facts = await DailyAssessmentFactLoader(
+      AppRepositoryRegistry.container,
+    ).load(state);
+    return (
+      model: model,
+      assessment: const DailyAssessmentRuleEngine().evaluate(facts),
+    );
   }
 }
 
 class _DailyCommandContent extends StatelessWidget {
   const _DailyCommandContent({
     required this.model,
+    required this.assessment,
     required this.isRecovering,
     required this.onRecover,
   });
 
   final DailyCommandReadModel model;
+  final DailyAssessment assessment;
   final bool isRecovering;
   final VoidCallback onRecover;
 
@@ -206,9 +225,12 @@ class _DailyCommandContent extends StatelessWidget {
           },
         ),
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.flag_outlined, title: 'DAILY COMMAND'),
+        const SectionHeader(
+          icon: Icons.assessment_outlined,
+          title: 'DAILY ASSESSMENT',
+        ),
         AppSpacing.gapSM,
-        _CommandSummary(model: model),
+        DailyAssessmentView(assessment: assessment),
         AppSpacing.gapXL,
         const SectionHeader(
           icon: Icons.widgets_outlined,
@@ -360,45 +382,6 @@ class _DailyCommandContent extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CommandSummary extends StatelessWidget {
-  const _CommandSummary({required this.model});
-  final DailyCommandReadModel model;
-
-  @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DailyCommandItem(
-          icon: model.operationStatus == null
-              ? Icons.cancel_outlined
-              : Icons.check_circle_outline,
-          label: 'OPERATION STATUS',
-          value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
-          status: model.operationStatus,
-        ),
-        Text(model.statusReason),
-        if (model.commanderIntent != null) ...[
-          AppSpacing.gapMD,
-          DailyCommandItem(
-            icon: Icons.flag_outlined,
-            label: 'COMMANDER INTENT',
-            value: model.commanderIntent!,
-          ),
-        ],
-        if (model.morningBriefSummary != null) ...[
-          AppSpacing.gapMD,
-          DailyCommandItem(
-            icon: Icons.lightbulb_outline,
-            label: 'ARGO COMMENT',
-            value: model.morningBriefSummary!,
-          ),
-        ],
-      ],
-    ),
-  );
 }
 
 class _KeyValueCard extends StatelessWidget {

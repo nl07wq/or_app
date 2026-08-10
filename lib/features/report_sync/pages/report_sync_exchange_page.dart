@@ -13,6 +13,7 @@ import '../../operation_date/models/operation_local_date.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
+import '../models/morning_brief_state.dart';
 import '../services/report_sync_clipboard_gateway.dart';
 import '../services/report_sync_exchange_gateway.dart';
 import '../services/report_sync_persistence_service.dart';
@@ -360,6 +361,9 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       );
       if (!result.readBackVerified) {
         throw StateError('Read-back verification failed.');
+      }
+      if (widget.exchangeType == ReportSyncExchangeType.morningBrief) {
+        notifyMorningBriefChanged();
       }
       _responseController.clear();
       _preview = null;

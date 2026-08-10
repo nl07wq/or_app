@@ -49,9 +49,11 @@ class _MorningFactPageState extends State<MorningFactPage> {
       final data = widget.data!;
 
       weightController.text = data.weight?.toString() ?? '';
-      bodyFatController.text = data.bodyFat?.toString() ?? '';
+      bodyFatController.text = data.weight == null
+          ? ''
+          : data.bodyFat?.toString() ?? '';
       weightUnmeasured = data.weight == null;
-      bodyFatUnmeasured = data.bodyFat == null;
+      bodyFatUnmeasured = data.weight == null || data.bodyFat == null;
 
       sleepController.text = data.sleepHours == null
           ? ''
@@ -95,7 +97,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
       setState(() {
         if (values.hasPreviousRecord) {
           weightUnmeasured = values.weight.isEmpty;
-          bodyFatUnmeasured = values.bodyFat.isEmpty;
+          bodyFatUnmeasured = weightUnmeasured || values.bodyFat.isEmpty;
+          if (weightUnmeasured) {
+            bodyFatController.clear();
+          }
           sleepTimeUnmeasured = values.sleep.isEmpty;
         }
         _operationLocalDate = operationLocalDate;
@@ -129,6 +134,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
   bool weightUnmeasured = false;
   bool bodyFatUnmeasured = false;
   bool sleepTimeUnmeasured = false;
+  bool? _bodyFatUnmeasuredBeforeWeight;
+  String? _bodyFatTextBeforeWeight;
 
   String _formatTime(double hours) {
     final totalMinutes = (hours * 60).round();
@@ -173,17 +180,33 @@ class _MorningFactPageState extends State<MorningFactPage> {
                       weightUnmeasured: weightUnmeasured,
                       bodyFatUnmeasured: bodyFatUnmeasured,
                       onWeightUnmeasured: () => setState(() {
+                        _bodyFatUnmeasuredBeforeWeight = bodyFatUnmeasured;
+                        _bodyFatTextBeforeWeight = bodyFatController.text;
                         weightController.clear();
+                        bodyFatController.clear();
                         weightUnmeasured = true;
+                        bodyFatUnmeasured = true;
                       }),
-                      onWeightMeasured: () =>
-                          setState(() => weightUnmeasured = false),
+                      onWeightMeasured: () => setState(() {
+                        weightUnmeasured = false;
+                        final wasBodyFatUnmeasured =
+                            _bodyFatUnmeasuredBeforeWeight ?? true;
+                        bodyFatUnmeasured = wasBodyFatUnmeasured;
+                        if (!wasBodyFatUnmeasured) {
+                          bodyFatController.text =
+                              _bodyFatTextBeforeWeight ?? '';
+                        }
+                        _bodyFatUnmeasuredBeforeWeight = null;
+                        _bodyFatTextBeforeWeight = null;
+                      }),
                       onBodyFatUnmeasured: () => setState(() {
                         bodyFatController.clear();
                         bodyFatUnmeasured = true;
                       }),
-                      onBodyFatMeasured: () =>
-                          setState(() => bodyFatUnmeasured = false),
+                      onBodyFatMeasured: () {
+                        if (weightUnmeasured) return;
+                        setState(() => bodyFatUnmeasured = false);
+                      },
                     ),
 
                     AppSpacing.gapMD,
