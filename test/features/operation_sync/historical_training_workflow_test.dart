@@ -32,12 +32,78 @@ void main() {
     expect(prompt, contains('requestedEndDate "2026-06-30"'));
     expect(prompt, isNot(contains('ALL AVAILABLE RECORDS')));
     expect(prompt, contains('Do not output a record before 2026-06-01'));
+    expect(prompt, contains('formal recordId when known'));
+    expect(prompt, contains('Never generate, infer, or reconstruct recordId'));
+    expect(prompt, contains('"recordId": null'));
     expect(
       () =>
           workflow.buildPrompt(startDate: '2026-06-30', endDate: '2026-06-01'),
       throwsFormatException,
     );
   });
+
+  test(
+    'accepts optional formal recordId and validates existing ID formats',
+    () async {
+      const formalId = 'training:11111111-1111-4111-8111-111111111111';
+      const legacyId = 'legacy-training:1234abcd:0001';
+
+      final withoutId = await workflow.preview(
+        jsonEncode(
+          _envelope([_record('2026-06-01', 'old-json')], endDate: '2026-06-01'),
+        ),
+        startDate: '2026-06-01',
+        endDate: '2026-06-01',
+      );
+      expect(withoutId.records.single.recordId, isNull);
+      expect(withoutId.newCount, 1);
+
+      for (final recordId in [formalId, legacyId]) {
+        final preview = await workflow.preview(
+          jsonEncode(
+            _envelope(
+              [
+                _record(
+                  '2026-06-02',
+                  'with-$recordId',
+                  includeRecordId: true,
+                  recordId: recordId,
+                ),
+              ],
+              startDate: '2026-06-02',
+              endDate: '2026-06-02',
+            ),
+          ),
+          startDate: '2026-06-02',
+          endDate: '2026-06-02',
+        );
+        expect(preview.invalidCount, 0);
+        expect(preview.records.single.recordId, recordId);
+        expect(preview.records.single.targetRecordId, recordId);
+        expect(preview.records.single.persistedRecord!.id, recordId);
+      }
+
+      final invalid = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-03',
+                'invalid-id',
+                includeRecordId: true,
+                recordId: 'training:not-a-uuid',
+              ),
+            ],
+            startDate: '2026-06-03',
+            endDate: '2026-06-03',
+          ),
+        ),
+        startDate: '2026-06-03',
+        endDate: '2026-06-03',
+      );
+      expect(invalid.invalidCount, 1);
+    },
+  );
 
   test(
     'strictly validates the historical envelope and package digest',
@@ -363,7 +429,7 @@ void main() {
   );
 
   test(
-    'classifies proven equality as IDENTICAL and unsafe change as BLOCKED',
+    'bridges legacy JSON by sourceRecordId and classifies changes as DIFFERENT',
     () async {
       final original = jsonEncode(
         _envelope([_record('2026-06-01', 'source-1')], endDate: '2026-06-01'),
@@ -391,18 +457,205 @@ void main() {
         ..['memo'] = 'changed';
       session['session'] = header;
       changedRecord['session'] = session;
-      final blocked = await workflow.preview(
+      final different = await workflow.preview(
         jsonEncode(_envelope([changedRecord], endDate: '2026-06-01')),
         startDate: '2026-06-01',
         endDate: '2026-06-01',
       );
-      expect(blocked.blockedCount, 1);
-      expect(blocked.conflictCount, 0);
-      expect(blocked.records.single.isSelectable, isFalse);
+      expect(different.blockedCount, 0);
+      expect(different.differentCount, 1);
+      expect(different.records.single.isSelectable, isTrue);
+      expect(different.records.single.differences, isNotEmpty);
       expect(
         await database.findAll(IndexedDbStoreNames.trainingRecords),
         hasLength(1),
       );
+    },
+  );
+
+  test(
+    'classifies formal identity and replaces canonical content safely',
+    () async {
+      const recordId = 'training:22222222-2222-4222-8222-222222222222';
+      final initial = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-10',
+                'formal-source',
+                includeRecordId: true,
+                recordId: recordId,
+              ),
+            ],
+            startDate: '2026-06-10',
+            endDate: '2026-06-10',
+          ),
+        ),
+        startDate: '2026-06-10',
+        endDate: '2026-06-10',
+      );
+      await workflow.apply(initial);
+      final storedBefore = Map<String, Object?>.from(
+        (await database.findById(
+          IndexedDbStoreNames.trainingRecords,
+          recordId,
+        ))!,
+      );
+      storedBefore['createdAt'] = '2026-06-10T01:00:00.000Z';
+      storedBefore['updatedAt'] = '2026-06-10T01:00:00.000Z';
+      database.seed(
+        IndexedDbStoreNames.trainingRecords,
+        recordId,
+        storedBefore,
+      );
+
+      final identical = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-10',
+                'formal-source',
+                includeRecordId: true,
+                recordId: recordId,
+              ),
+            ],
+            startDate: '2026-06-10',
+            endDate: '2026-06-10',
+          ),
+        ),
+        startDate: '2026-06-10',
+        endDate: '2026-06-10',
+      );
+      expect(identical.identicalCount, 1);
+
+      final different = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-10',
+                'formal-source',
+                includeRecordId: true,
+                recordId: recordId,
+                memo: 'incoming correction',
+              ),
+            ],
+            startDate: '2026-06-10',
+            endDate: '2026-06-10',
+          ),
+        ),
+        startDate: '2026-06-10',
+        endDate: '2026-06-10',
+      );
+      expect(different.differentCount, 1);
+      expect(
+        different.records.single.differences.map((value) => value.field),
+        contains('session.memo'),
+      );
+
+      final result = await workflow.apply(different);
+      final readBack = await database.findById(
+        IndexedDbStoreNames.trainingRecords,
+        recordId,
+      );
+      expect(readBack!['id'], recordId);
+      expect(readBack['createdAt'], '2026-06-10T01:00:00.000Z');
+      expect(readBack['updatedAt'], '2026-08-04T01:00:00.000Z');
+      expect((readBack['data'] as Map)['memo'], 'incoming correction');
+      expect(result.record.replacedCount, 1);
+      expect(result.record.conflictCount, 0);
+      expect(
+        result.record.records.single.disposition,
+        OperationSyncRecordDisposition.replaced,
+      );
+    },
+  );
+
+  test(
+    'blocks unsafe identity and preserves unselected DIFFERENT records',
+    () async {
+      const recordId = 'training:33333333-3333-4333-8333-333333333333';
+      final initial = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-20',
+                'original',
+                includeRecordId: true,
+                recordId: recordId,
+              ),
+            ],
+            startDate: '2026-06-20',
+            endDate: '2026-06-20',
+          ),
+        ),
+        startDate: '2026-06-20',
+        endDate: '2026-06-20',
+      );
+      await workflow.apply(initial);
+
+      final wrongDate = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-21',
+                'wrong-date',
+                includeRecordId: true,
+                recordId: recordId,
+              ),
+            ],
+            startDate: '2026-06-21',
+            endDate: '2026-06-21',
+          ),
+        ),
+        startDate: '2026-06-21',
+        endDate: '2026-06-21',
+      );
+      expect(wrongDate.blockedCount, 1);
+
+      final noIdentity = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [_record('2026-06-20', 'unrelated-source', memo: 'different')],
+            startDate: '2026-06-20',
+            endDate: '2026-06-20',
+          ),
+        ),
+        startDate: '2026-06-20',
+        endDate: '2026-06-20',
+      );
+      expect(noIdentity.blockedCount, 1);
+
+      final different = await workflow.preview(
+        jsonEncode(
+          _envelope(
+            [
+              _record(
+                '2026-06-20',
+                'original',
+                includeRecordId: true,
+                recordId: recordId,
+                memo: 'not selected',
+              ),
+              _record('2026-06-22', 'new-selected'),
+            ],
+            startDate: '2026-06-20',
+            endDate: '2026-06-22',
+          ),
+        ),
+        startDate: '2026-06-20',
+        endDate: '2026-06-22',
+      );
+      await workflow.apply(different, selectedIndexes: const {1});
+      final unchanged = await database.findById(
+        IndexedDbStoreNames.trainingRecords,
+        recordId,
+      );
+      expect((unchanged!['data'] as Map)['memo'], isNull);
     },
   );
 }
@@ -449,18 +702,22 @@ Map<String, Object?> _envelope(
 Map<String, Object?> _record(
   String date,
   String sourceRecordId, {
+  bool includeRecordId = false,
+  String? recordId,
   String exerciseName = 'Bench Press',
   Object? equipment = const {'id': 'power_rack', 'name': 'Power Rack'},
   Object? sessionName = 'Historical Training',
+  String? memo,
 }) => {
   'operationDate': date,
+  if (includeRecordId) 'recordId': recordId,
   'sourceRecordId': sourceRecordId,
   'session': {
     'session': {
       'localDate': date,
       'name': sessionName,
       'grade': 'a',
-      'memo': null,
+      'memo': memo,
       'dynamicStretchCompleted': true,
       'cooldownStretchCompleted': true,
       'overallEvaluation': null,

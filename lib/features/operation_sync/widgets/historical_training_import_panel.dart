@@ -392,7 +392,7 @@ class _PreviewCard extends StatelessWidget {
         Text('RECEIVED ${preview.receivedCount}'),
         Text('NEW ${preview.newCount}'),
         Text('IDENTICAL ${preview.identicalCount}'),
-        Text('CONFLICT ${preview.conflictCount}'),
+        Text('DIFFERENT ${preview.differentCount}'),
         Text('INVALID ${preview.invalidCount}'),
         Text('EXCLUDED ${preview.excludedCount}'),
         Text('BLOCKED ${preview.blockedCount}'),
@@ -421,6 +421,22 @@ class _PreviewCard extends StatelessWidget {
                 ? (value) => onSelectionChanged(item.index, value)
                 : null,
           ),
+          if (item.differences.isNotEmpty)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('DIFFERENCE PREVIEW'),
+              children: [
+                for (final difference in item.differences)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(difference.field),
+                    subtitle: Text(
+                      'CURRENT: ${_differenceValue(difference.current)}\n'
+                      'INCOMING: ${_differenceValue(difference.incoming)}',
+                    ),
+                  ),
+              ],
+            ),
           if (item.index != preview.records.last.index) const Divider(),
         ],
         AppSpacing.gapMD,
@@ -473,9 +489,10 @@ class _PreviewRow extends StatelessWidget {
           : (value) => onChanged!(value ?? false),
       title: Text(
         '${item.operationDate ?? 'INVALID DATE'} · '
-        '${item.disposition.stableId.toUpperCase()}',
+        '${_status(item.disposition)}',
       ),
       subtitle: Text(
+        'RECORD ID ${item.recordId ?? 'NOT AVAILABLE'}\n'
         '${item.sourceRecordId ?? 'SOURCE ID NOT AVAILABLE'}'
         '$recordDetails'
         '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.message}').join('\n')}'}',
@@ -492,6 +509,17 @@ class _PreviewRow extends StatelessWidget {
         OperationSyncRecordDisposition.invalid => Icons.error_outline,
         OperationSyncRecordDisposition.excluded => Icons.remove_circle_outline,
         OperationSyncRecordDisposition.blocked => Icons.block,
+      };
+
+  static String _status(OperationSyncRecordDisposition disposition) =>
+      switch (disposition) {
+        OperationSyncRecordDisposition.newRecord => 'NEW',
+        OperationSyncRecordDisposition.identical => 'IDENTICAL',
+        OperationSyncRecordDisposition.conflict => 'DIFFERENT',
+        OperationSyncRecordDisposition.blocked => 'BLOCKED',
+        OperationSyncRecordDisposition.invalid => 'INVALID',
+        OperationSyncRecordDisposition.excluded => 'EXCLUDED',
+        OperationSyncRecordDisposition.replaced => 'REPLACED',
       };
 }
 
@@ -547,3 +575,5 @@ String _formatDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+String _differenceValue(Object? value) => value == null ? 'null' : '$value';

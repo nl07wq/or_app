@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/operation_sync/models/historical_import_difference.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/services/historical_dns_workflow.dart';
 import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
@@ -55,6 +56,8 @@ void main() {
     await _selectRangeAndValidate(tester);
 
     expect(find.text('SELECTED 2 / 2'), findsOneWidget);
+    expect(find.text('DIFFERENT 1'), findsOneWidget);
+    expect(find.text('DIFFERENCE PREVIEW'), findsOneWidget);
     final checkboxes = find.byType(Checkbox);
     expect(checkboxes, findsNWidgets(4));
     expect(tester.widget<Checkbox>(checkboxes.at(0)).onChanged, isNotNull);
@@ -217,7 +220,14 @@ class _TrainingWorkflow implements HistoricalTrainingWorkflow {
         targetRecordId: 'two',
         domainDigest: 'b',
         persistedRecord: null,
-        disposition: OperationSyncRecordDisposition.newRecord,
+        disposition: OperationSyncRecordDisposition.conflict,
+        differences: [
+          HistoricalImportDifference(
+            field: 'session.session.memo',
+            current: null,
+            incoming: 'corrected',
+          ),
+        ],
         issues: [],
       ),
       HistoricalTrainingPreviewItem(

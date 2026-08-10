@@ -13,6 +13,7 @@ import '../../training/repository/custom_training_exercise_repository.dart';
 import '../../training/repository/training_record_id_generator.dart';
 import '../../training/services/exercise_name_localization.dart';
 import '../../training/services/training_v2_canonical_service.dart';
+import '../models/historical_import_difference.dart';
 import '../models/operation_sync_history.dart';
 import 'operation_transfer_canonical_service.dart';
 import 'operation_transfer_id_generator.dart';
@@ -27,6 +28,7 @@ class HistoricalTrainingIssue {
 
 class HistoricalTrainingPreviewItem {
   final int index;
+  final String? recordId;
   final String? sourceRecordId;
   final String? operationDate;
   final String? sourceDigest;
@@ -34,10 +36,12 @@ class HistoricalTrainingPreviewItem {
   final String? domainDigest;
   final PersistedTrainingRecord? persistedRecord;
   final OperationSyncRecordDisposition disposition;
+  final List<HistoricalImportDifference> differences;
   final List<HistoricalTrainingIssue> issues;
 
   const HistoricalTrainingPreviewItem({
     required this.index,
+    this.recordId,
     required this.sourceRecordId,
     required this.operationDate,
     required this.sourceDigest,
@@ -45,6 +49,7 @@ class HistoricalTrainingPreviewItem {
     required this.domainDigest,
     required this.persistedRecord,
     required this.disposition,
+    this.differences = const [],
     required this.issues,
   });
 
@@ -53,6 +58,7 @@ class HistoricalTrainingPreviewItem {
     HistoricalTrainingIssue? issue,
   }) => HistoricalTrainingPreviewItem(
     index: index,
+    recordId: recordId,
     sourceRecordId: sourceRecordId,
     operationDate: operationDate,
     sourceDigest: sourceDigest,
@@ -60,11 +66,33 @@ class HistoricalTrainingPreviewItem {
     domainDigest: domainDigest,
     persistedRecord: persistedRecord,
     disposition: value,
+    differences: differences,
+    issues: [...issues, ?issue],
+  );
+
+  HistoricalTrainingPreviewItem classified({
+    required OperationSyncRecordDisposition disposition,
+    required String? targetRecordId,
+    required PersistedTrainingRecord persistedRecord,
+    List<HistoricalImportDifference> differences = const [],
+    HistoricalTrainingIssue? issue,
+  }) => HistoricalTrainingPreviewItem(
+    index: index,
+    recordId: recordId,
+    sourceRecordId: sourceRecordId,
+    operationDate: operationDate,
+    sourceDigest: sourceDigest,
+    targetRecordId: targetRecordId,
+    domainDigest: domainDigest,
+    persistedRecord: persistedRecord,
+    disposition: disposition,
+    differences: differences,
     issues: [...issues, ?issue],
   );
 
   bool get isSelectable =>
-      disposition == OperationSyncRecordDisposition.newRecord;
+      disposition == OperationSyncRecordDisposition.newRecord ||
+      disposition == OperationSyncRecordDisposition.conflict;
 }
 
 class HistoricalTrainingPreview {
@@ -95,15 +123,13 @@ class HistoricalTrainingPreview {
   int get newCount => count(OperationSyncRecordDisposition.newRecord);
   int get identicalCount => count(OperationSyncRecordDisposition.identical);
   int get conflictCount => count(OperationSyncRecordDisposition.conflict);
+  int get differentCount => conflictCount;
   int get invalidCount => count(OperationSyncRecordDisposition.invalid);
   int get excludedCount => count(OperationSyncRecordDisposition.excluded);
   int get blockedCount => count(OperationSyncRecordDisposition.blocked);
   int get selectableCount => records.where((item) => item.isSelectable).length;
   bool get canApply =>
-      records.isNotEmpty &&
-      selectableCount > 0 &&
-      conflictCount == 0 &&
-      invalidCount == 0;
+      records.isNotEmpty && selectableCount > 0 && invalidCount == 0;
   List<String> get dates => [
     for (final item in records)
       if (item.operationDate != null) item.operationDate!,
@@ -168,6 +194,7 @@ class HistoricalTrainingWorkflowService implements HistoricalTrainingWorkflow {
     final exampleRecord = Map<String, Object?>.from(
       const TrainingReportSyncPayloadSchemaV2().minimalResponseExample,
     );
+    exampleRecord['recordId'] = null;
     exampleRecord['operationDate'] = '<RECORDED_OPERATION_DATE>';
     final session = Map<String, Object?>.from(exampleRecord['session'] as Map);
     final header = Map<String, Object?>.from(session['session'] as Map);
@@ -213,13 +240,13 @@ class HistoricalTrainingWorkflowService implements HistoricalTrainingWorkflow {
 Create one Operation Reboot Historical Training response from every formal Training Record you retain in this conversation or its available context whose operationDate is from $startDate through $endDate, inclusive.
 
 SOURCE CONTRACT
-This prompt is not source data. Use only formal Training Records already retained from $startDate through $endDate, inclusive. Do not output a record before $startDate or after $endDate. Do not include STATUS, ACTIVITY, FOOD, Daily Summary, Morning Brief, Daily Debrief, or inferred records. Output every retained Training Record in the requested range exactly once. Preserve each record's date, sourceRecordId when known, and the recorded Exercise, Set, and Cardio order. Do not invent missing values, internal IDs, formal Training IDs, equipment, evaluation, next target, calories, weight, or snapshots. Keep null, numeric zero, and empty text distinct.
+This prompt is not source data. Use only formal Training Records already retained from $startDate through $endDate, inclusive. Do not output a record before $startDate or after $endDate. Do not include STATUS, ACTIVITY, FOOD, Daily Summary, Morning Brief, Daily Debrief, or inferred records. Output every retained Training Record in the requested range exactly once. Preserve each record's date, formal recordId when known, sourceRecordId when known, and the recorded Exercise, Set, and Cardio order. Do not invent missing values, equipment, evaluation, next target, calories, weight, or snapshots. Keep null, numeric zero, and empty text distinct.
 
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block. Its opening fence must be ```text and its closing fence must be ```.
 Inside the code block return only one JSON object. Return no heading, explanation, greeting, note, marker, comment, or text outside the code block. Do not use a json fence. The copied code-block content must start with { and end with }.
 Use format "$_format", envelopeVersion 1, schemaVersion "$_schemaVersion", direction "response", exchangeType "historicalTraining", recordType "trainingV2", sourceMode "dateRange", importMode "missingRecordsOnly", requestedStartDate "$startDate", and requestedEndDate "$endDate" exactly. Create a unique exchangeId and UTC createdAt. Set packageDigest to null. Do not calculate a digest or replace null with a placeholder.
-Do not add unknown fields, stringify numbers, or alter dates. sourceRecordId is the original external reference when known, otherwise null. It is not an app storage ID. Every record must use the existing Training Report Sync Schema 2 payload: operationDate, sourceRecordId, and session. session.localDate must equal operationDate. The nested session name is optional metadata: preserve a recorded non-empty name, otherwise return null. Never infer or generate a session name.
+Do not add unknown fields, stringify numbers, or alter dates. recordId is the formal persisted Training Record ID. When the source contains recordId, return exactly the same value without changing it. When the source does not contain recordId, return null. Never generate, infer, or reconstruct recordId. sourceRecordId is the original external reference when known, otherwise null. It is not an app storage ID. Every record must contain exactly operationDate, recordId, sourceRecordId, and session. session.localDate must equal operationDate. The nested session name is optional metadata: preserve a recorded non-empty name, otherwise return null. Never infer or generate a session name.
 For each exercise, equipment must be either null when no equipment is recorded, or an object containing exactly id and a non-empty name. Never return an equipment object whose name is an empty string.
 For sets preserve exactly type, weightKg, reps, rpe, and restAfterSeconds. Set type is case-sensitive and must be only "warmUp" or "main". Map a retained "warmup" label to "warmUp"; never output "warmup". reps must be a JSON integer of 1 or greater, never a decimal number or String. rpe must be null or a JSON integer from 1 through 10. restAfterSeconds must be null or a non-negative JSON integer. weightKg must be a finite non-negative JSON number. legacyUnknown is forbidden.
 For cardio use only these exact field names: purpose, type, durationSeconds, distanceKm, mets, averageHeartRateBpm, maximumHeartRateBpm, averageSpeedKmh, estimatedCaloriesKcal, weightSnapshotKg, calculationMethod, calculationVersion, and notes. Cardio purpose is case-sensitive and must be only "warmUp", "main", or "cooldown"; map a retained "warmup" label to "warmUp". Cardio type is case-sensitive and must be only "walking", "running", "exerciseBike", "elliptical", "treadmillWalking", or "treadmillRunning"; map a retained "bike" label to "exerciseBike". Map a retained maxHeartRateBpm value to maximumHeartRateBpm; never output maxHeartRateBpm. Never output calories or equipment in a cardio object. durationSeconds and heart-rate values must be JSON integers, never decimal numbers or Strings. A calories snapshot is all-or-null: estimatedCaloriesKcal, weightSnapshotKg, calculationMethod "metsAcsmV1", and calculationVersion 1. If the retained record has calories alone or any incomplete snapshot, set all four formal snapshot fields to null. Do not reconstruct a partial snapshot or infer weight.
@@ -351,6 +378,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
     required String requestedStartDate,
     required String requestedEndDate,
   }) async {
+    String? recordId;
     String? sourceRecordId;
     String? operationDate;
     String? sourceDigest;
@@ -358,6 +386,16 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       if (raw is! Map) throw const FormatException('Record must be an object.');
       final sourceValue = Map<String, Object?>.from(raw);
       final value = _deepCopyMap(sourceValue);
+      final rawRecordId = value.remove('recordId');
+      if (rawRecordId != null) {
+        if (rawRecordId is! String) {
+          throw const FormatException(
+            'Historical Training recordId must be a string or null.',
+          );
+        }
+        PersistedTrainingRecord.validateId(rawRecordId);
+        recordId = rawRecordId;
+      }
       sourceRecordId = value['sourceRecordId'] as String?;
       operationDate = value['operationDate'] as String?;
       sourceDigest = OperationTransferCanonicalService.digest(sourceValue);
@@ -374,10 +412,9 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
         );
       }
       final stableKey = '$packageDigest:$index:$sourceDigest';
-      final targetId = _stableTargetIds.putIfAbsent(
-        stableKey,
-        idGenerator.generate,
-      );
+      final targetId =
+          recordId ??
+          _stableTargetIds.putIfAbsent(stableKey, idGenerator.generate);
       final envelope = ReportSyncEnvelope(
         schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
         direction: ReportSyncDirection.response,
@@ -410,6 +447,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       );
       return HistoricalTrainingPreviewItem(
         index: index,
+        recordId: recordId,
         sourceRecordId: sourceRecordId,
         operationDate: operationDate,
         sourceDigest: sourceDigest,
@@ -425,6 +463,7 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
           : null;
       return HistoricalTrainingPreviewItem(
         index: index,
+        recordId: recordId,
         sourceRecordId: sourceRecordId,
         operationDate: operationDate,
         sourceDigest: sourceDigest,
@@ -545,21 +584,15 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
     required List<Map<String, Object?>> existingTraining,
     required List<Map<String, Object?>> syncRecords,
   }) {
-    final existingDigests = <String>{};
+    final existingById = <String, PersistedTrainingRecord>{};
+    final invalidExistingIds = <String>{};
     for (final raw in existingTraining) {
       try {
         final record = PersistedTrainingRecord.fromRecord(raw);
-        if (record.recordVersion ==
-            PersistedTrainingRecord.version2RecordVersion) {
-          existingDigests.add(
-            TrainingV2CanonicalService.digest(
-              localDate: record.localDate,
-              session: record.dataV2,
-            ),
-          );
-        }
-      } on FormatException {
-        // Existing integrity errors are surfaced as an ambiguous block below.
+        existingById[record.id] = record;
+      } catch (_) {
+        final id = raw['id'];
+        if (id is String) invalidExistingIds.add(id);
       }
     }
     final priorItems = <OperationSyncRecordItem>[];
@@ -572,42 +605,36 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
         }
       }
     }
-    final sourceSeen = <String, String>{};
-    final digestSeen = <String>{};
+    final sourceSeen = <String, HistoricalTrainingPreviewItem>{};
+    final recordIdSeen = <String, HistoricalTrainingPreviewItem>{};
     final result = <HistoricalTrainingPreviewItem>[];
     for (final item in mapped) {
       if (item.disposition == OperationSyncRecordDisposition.invalid) {
         result.add(item);
         continue;
       }
-      final sourceId = item.sourceRecordId;
-      final sourceDigest = item.sourceDigest!;
-      final domainDigest = item.domainDigest!;
-      final prior = sourceId == null
-          ? const <OperationSyncRecordItem>[]
-          : priorItems
-                .where((entry) => entry.sourceRecordId == sourceId)
-                .toList();
-      if (prior.any((entry) => entry.sourceDigest != sourceDigest)) {
+      final incomingRecordId = item.recordId;
+      if (incomingRecordId != null &&
+          invalidExistingIds.contains(incomingRecordId)) {
         result.add(
           item.withDisposition(
             OperationSyncRecordDisposition.blocked,
             issue: const HistoricalTrainingIssue(
-              'sourceRecordConflict',
-              'The sourceRecordId was previously imported with different content.',
+              'targetRecordInvalid',
+              'The formal Training Record cannot be read safely.',
             ),
           ),
         );
         continue;
       }
-      if (prior.any((entry) => entry.sourceDigest == sourceDigest)) {
-        result.add(
-          item.withDisposition(OperationSyncRecordDisposition.identical),
+
+      if (incomingRecordId != null &&
+          recordIdSeen.containsKey(incomingRecordId)) {
+        final previous = recordIdSeen[incomingRecordId]!;
+        final same = _sameCanonical(
+          previous.persistedRecord!,
+          item.persistedRecord!,
         );
-        continue;
-      }
-      if (sourceId != null && sourceSeen.containsKey(sourceId)) {
-        final same = sourceSeen[sourceId] == sourceDigest;
         result.add(
           item.withDisposition(
             same
@@ -616,21 +643,121 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
             issue: same
                 ? null
                 : const HistoricalTrainingIssue(
-                    'duplicateSourceRecordId',
-                    'The package repeats sourceRecordId with different content.',
+                    'duplicateRecordId',
+                    'The package repeats recordId with different content.',
                   ),
           ),
         );
         continue;
       }
-      if (existingDigests.contains(domainDigest) ||
-          !digestSeen.add(domainDigest)) {
+      if (incomingRecordId != null) {
+        recordIdSeen[incomingRecordId] = item;
+        final existing = existingById[incomingRecordId];
+        result.add(existing == null ? item : _classifyAgainst(item, existing));
+        continue;
+      }
+
+      final sourceId = item.sourceRecordId;
+      if (sourceId != null && sourceSeen.containsKey(sourceId)) {
+        final previous = sourceSeen[sourceId]!;
+        final same = _sameCanonical(
+          previous.persistedRecord!,
+          item.persistedRecord!,
+        );
         result.add(
-          item.withDisposition(OperationSyncRecordDisposition.identical),
+          same
+              ? item.classified(
+                  disposition: OperationSyncRecordDisposition.identical,
+                  targetRecordId: previous.targetRecordId,
+                  persistedRecord: _candidateForId(
+                    item,
+                    previous.targetRecordId!,
+                  ),
+                )
+              : item.withDisposition(
+                  OperationSyncRecordDisposition.blocked,
+                  issue: const HistoricalTrainingIssue(
+                    'duplicateSourceRecordId',
+                    'The package repeats sourceRecordId with different content.',
+                  ),
+                ),
         );
         continue;
       }
-      if (sourceId != null) sourceSeen[sourceId] = sourceDigest;
+      if (sourceId != null) sourceSeen[sourceId] = item;
+
+      final priorTargetIds = sourceId == null
+          ? const <String>{}
+          : priorItems
+                .where((entry) => entry.sourceRecordId == sourceId)
+                .map((entry) => entry.targetRecordId)
+                .whereType<String>()
+                .toSet();
+      if (priorTargetIds.length == 1) {
+        final targetId = priorTargetIds.single;
+        final existing = existingById[targetId];
+        if (existing == null) {
+          result.add(
+            item.withDisposition(
+              OperationSyncRecordDisposition.blocked,
+              issue: const HistoricalTrainingIssue(
+                'historyBridgeTargetMissing',
+                'The unique Historical identity bridge no longer has a Training Record.',
+              ),
+            ),
+          );
+        } else {
+          result.add(_classifyAgainst(item, existing));
+        }
+        continue;
+      }
+      if (priorTargetIds.length > 1) {
+        result.add(
+          item.withDisposition(
+            OperationSyncRecordDisposition.blocked,
+            issue: const HistoricalTrainingIssue(
+              'historyBridgeAmbiguous',
+              'The sourceRecordId maps to more than one Training Record.',
+            ),
+          ),
+        );
+        continue;
+      }
+
+      final canonicalMatches = existingById.values
+          .where(
+            (existing) =>
+                _canCompare(existing) &&
+                _sameCanonical(existing, item.persistedRecord!),
+          )
+          .toList();
+      if (canonicalMatches.isNotEmpty) {
+        final existing = canonicalMatches.length == 1
+            ? canonicalMatches.single
+            : null;
+        result.add(
+          existing == null
+              ? item.withDisposition(OperationSyncRecordDisposition.identical)
+              : _classifyAgainst(item, existing),
+        );
+        continue;
+      }
+
+      final sameDateExists = existingById.values.any(
+        (existing) => existing.localDate == item.operationDate,
+      );
+      if (sameDateExists) {
+        result.add(
+          item.withDisposition(
+            OperationSyncRecordDisposition.blocked,
+            issue: const HistoricalTrainingIssue(
+              'formalIdentityUnavailable',
+              'A Training Record exists on this date, but Formal Identity cannot be established.',
+            ),
+          ),
+        );
+        continue;
+      }
       result.add(item);
     }
     return HistoricalTrainingPreview(
@@ -646,6 +773,87 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       records: List.unmodifiable(result),
     );
   }
+
+  static HistoricalTrainingPreviewItem _classifyAgainst(
+    HistoricalTrainingPreviewItem item,
+    PersistedTrainingRecord existing,
+  ) {
+    if (!_canCompare(existing)) {
+      return item.withDisposition(
+        OperationSyncRecordDisposition.blocked,
+        issue: const HistoricalTrainingIssue(
+          'targetRecordVersionUnsupported',
+          'The matched Training Record is not a replaceable v2 record.',
+        ),
+      );
+    }
+    if (existing.localDate != item.operationDate) {
+      return item.withDisposition(
+        OperationSyncRecordDisposition.blocked,
+        issue: const HistoricalTrainingIssue(
+          'localDateConflict',
+          'Formal Identity matched, but the Training localDate is different.',
+        ),
+      );
+    }
+    final incoming = PersistedTrainingRecord.v2(
+      id: existing.id,
+      localDate: item.operationDate!,
+      createdAt: existing.createdAt,
+      updatedAt: item.persistedRecord!.updatedAt,
+      data: item.persistedRecord!.dataV2,
+    );
+    final differences = historicalImportDifferences(
+      _canonicalValue(existing),
+      _canonicalValue(incoming),
+    );
+    if (differences.isNotEmpty && existing.migrationSource != null) {
+      return item.withDisposition(
+        OperationSyncRecordDisposition.blocked,
+        issue: const HistoricalTrainingIssue(
+          'targetRecordReadOnly',
+          'The matched Training Record is read-only and cannot be replaced.',
+        ),
+      );
+    }
+    return item.classified(
+      disposition: differences.isEmpty
+          ? OperationSyncRecordDisposition.identical
+          : OperationSyncRecordDisposition.conflict,
+      targetRecordId: existing.id,
+      persistedRecord: incoming,
+      differences: differences,
+    );
+  }
+
+  static PersistedTrainingRecord _candidateForId(
+    HistoricalTrainingPreviewItem item,
+    String targetId,
+  ) => PersistedTrainingRecord.v2(
+    id: targetId,
+    localDate: item.operationDate!,
+    createdAt: item.persistedRecord!.createdAt,
+    updatedAt: item.persistedRecord!.updatedAt,
+    data: item.persistedRecord!.dataV2,
+  );
+
+  static bool _canCompare(PersistedTrainingRecord record) =>
+      record.recordVersion == PersistedTrainingRecord.version2RecordVersion;
+
+  static Map<String, Object?> _canonicalValue(PersistedTrainingRecord record) =>
+      TrainingV2CanonicalService.value(
+        localDate: record.localDate,
+        session: record.dataV2,
+      );
+
+  static bool _sameCanonical(
+    PersistedTrainingRecord current,
+    PersistedTrainingRecord incoming,
+  ) =>
+      _canCompare(current) &&
+      _canCompare(incoming) &&
+      OperationTransferCanonicalService.encode(_canonicalValue(current)) ==
+          OperationTransferCanonicalService.encode(_canonicalValue(incoming));
 
   @override
   Future<HistoricalTrainingApplyResult> apply(
@@ -678,21 +886,26 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
       mode: IndexedDbTransactionMode.readWrite,
       action: (transaction) async {
         final revalidated = await _revalidate(preview, transaction);
-        final newItems = revalidated.records
+        final appliedItems = revalidated.records
             .where((item) => selected.contains(item.index) && item.isSelectable)
             .toList();
-        await _writeAndVerifyTraining(transaction, newItems);
+        await _writeAndVerifyTraining(transaction, appliedItems, now);
         final auditItems = [
           for (final item in revalidated.records)
             OperationSyncRecordItem(
               sourceRecordId: item.sourceRecordId,
               operationDate: item.operationDate!,
               sourceDigest: item.sourceDigest!,
-              targetRecordId: selected.contains(item.index) && item.isSelectable
+              targetRecordId:
+                  (selected.contains(item.index) && item.isSelectable) ||
+                      item.disposition ==
+                          OperationSyncRecordDisposition.identical
                   ? item.targetRecordId
                   : null,
               disposition: !selected.contains(item.index) && item.isSelectable
                   ? OperationSyncRecordDisposition.excluded
+                  : item.disposition == OperationSyncRecordDisposition.conflict
+                  ? OperationSyncRecordDisposition.replaced
                   : item.disposition,
               result: OperationSyncRecordResult.success,
               errorCode: null,
@@ -708,12 +921,13 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
           receivedCount: revalidated.receivedCount,
           newCount: auditCount(OperationSyncRecordDisposition.newRecord),
           identicalCount: auditCount(OperationSyncRecordDisposition.identical),
+          replacedCount: auditCount(OperationSyncRecordDisposition.replaced),
           conflictCount: auditCount(OperationSyncRecordDisposition.conflict),
           invalidCount: auditCount(OperationSyncRecordDisposition.invalid),
           excludedCount: auditCount(OperationSyncRecordDisposition.excluded),
           blockedCount: auditCount(OperationSyncRecordDisposition.blocked),
-          appliedCount: newItems.length,
-          skippedCount: auditItems.length - newItems.length,
+          appliedCount: appliedItems.length,
+          skippedCount: auditItems.length - appliedItems.length,
           exchangeId: revalidated.exchangeId,
           responseDigest: revalidated.responseDigest,
           packageDigest: revalidated.packageDigest,
@@ -767,24 +981,58 @@ ${const JsonEncoder.withIndent('  ').convert(example)}
 
   Future<void> _writeAndVerifyTraining(
     IndexedDbTransaction transaction,
-    List<HistoricalTrainingPreviewItem> newItems,
+    List<HistoricalTrainingPreviewItem> appliedItems,
+    DateTime now,
   ) async {
-    for (final item in newItems) {
+    final expectedById = <String, PersistedTrainingRecord>{};
+    for (final item in appliedItems) {
+      final targetId = item.targetRecordId!;
+      final PersistedTrainingRecord expected;
+      if (item.disposition == OperationSyncRecordDisposition.conflict) {
+        final currentValue = await transaction.findById(
+          IndexedDbStoreNames.trainingRecords,
+          targetId,
+        );
+        if (currentValue == null) {
+          throw StateError('Training replace target is missing.');
+        }
+        final current = PersistedTrainingRecord.fromRecord(currentValue);
+        if (!_canCompare(current) ||
+            current.migrationSource != null ||
+            current.id != targetId ||
+            current.localDate != item.operationDate) {
+          throw StateError('Training replace target is not safe.');
+        }
+        expected = PersistedTrainingRecord.v2(
+          id: current.id,
+          localDate: current.localDate,
+          createdAt: current.createdAt,
+          updatedAt: now,
+          data: item.persistedRecord!.dataV2,
+        );
+      } else {
+        expected = item.persistedRecord!;
+      }
       await transaction.put(
         IndexedDbStoreNames.trainingRecords,
-        item.persistedRecord!.toRecord(),
+        expected.toRecord(),
       );
+      expectedById[targetId] = expected;
     }
-    for (final item in newItems) {
+    for (final item in appliedItems) {
       final stored = await transaction.findById(
         IndexedDbStoreNames.trainingRecords,
         item.targetRecordId!,
       );
-      if (stored == null ||
-          OperationTransferCanonicalService.encode(stored) !=
-              OperationTransferCanonicalService.encode(
-                item.persistedRecord!.toRecord(),
-              )) {
+      final expected = expectedById[item.targetRecordId!]!;
+      if (stored == null) {
+        throw StateError('Training read-back verification failed.');
+      }
+      final readBack = PersistedTrainingRecord.fromRecord(stored);
+      if (readBack.id != expected.id ||
+          readBack.createdAt != expected.createdAt ||
+          readBack.updatedAt != expected.updatedAt ||
+          !_sameCanonical(readBack, expected)) {
         throw StateError('Training read-back verification failed.');
       }
     }
