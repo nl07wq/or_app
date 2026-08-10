@@ -69,10 +69,10 @@ class RecoveryCard extends StatelessWidget {
               controller: sleepController,
               initialHour: 8,
               initialMinute: 0,
-            ),
-            _UnmeasuredAction(
-              key: const ValueKey('Sleep Time-unmeasured-toggle'),
-              onPressed: onSleepTimeUnmeasured,
+              headerAction: _UnmeasuredAction(
+                key: const ValueKey('Sleep Time-unmeasured-toggle'),
+                onPressed: onSleepTimeUnmeasured,
+              ),
             ),
           ],
 

@@ -9,6 +9,7 @@ class TimeInputCard extends StatefulWidget {
 
   final int initialHour;
   final int initialMinute;
+  final Widget? headerAction;
 
   const TimeInputCard({
     super.key,
@@ -17,6 +18,7 @@ class TimeInputCard extends StatefulWidget {
     this.minuteStep = 1,
     this.initialHour = 0,
     this.initialMinute = 0,
+    this.headerAction,
   });
 
   @override
@@ -68,6 +70,8 @@ class _TimeInputCardState extends State<TimeInputCard> {
                   ),
                 ),
               ),
+
+            if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 

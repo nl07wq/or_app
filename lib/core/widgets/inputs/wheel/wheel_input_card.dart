@@ -14,6 +14,7 @@ class WheelInputCard extends StatefulWidget {
 
   final double? initialValue;
   final bool preserveEmpty;
+  final Widget? headerAction;
 
   /// 数値→表示名
   final Map<int, String>? labels;
@@ -28,6 +29,7 @@ class WheelInputCard extends StatefulWidget {
     required this.step,
     this.initialValue,
     this.preserveEmpty = false,
+    this.headerAction,
     this.labels,
   });
 
@@ -84,6 +86,8 @@ class _WheelInputCardState extends State<WheelInputCard> {
                   ),
                 ),
               ),
+
+            if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 

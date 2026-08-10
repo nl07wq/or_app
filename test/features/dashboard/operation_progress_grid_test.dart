@@ -88,6 +88,34 @@ void main() {
     }
   });
 
+  testWidgets('OPERATION DATE uses normal value typography without overflow', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    for (final width in [390.0, 900.0]) {
+      await _pumpDashboard(tester, width: width);
+      await tester.pumpAndSettle();
+
+      final operationDateCard = find.ancestor(
+        of: find.text('OPERATION DATE'),
+        matching: find.byType(OperationCard),
+      );
+      final dateFinder = find.descendant(
+        of: operationDateCard,
+        matching: find.text('2026-07-28'),
+      );
+      final date = tester.widget<Text>(dateFinder);
+      final textTheme = Theme.of(tester.element(dateFinder)).textTheme;
+      expect(date.style?.fontSize, textTheme.titleSmall?.fontSize);
+      expect(date.style?.fontSize, isNot(textTheme.headlineSmall?.fontSize));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('keeps existing values, targets, progress, and module states', (
     tester,
   ) async {

@@ -13,6 +13,7 @@ class HUDInputCard extends StatefulWidget {
   final double step;
 
   final double initialValue;
+  final Widget? headerAction;
 
   const HUDInputCard({
     super.key,
@@ -23,6 +24,7 @@ class HUDInputCard extends StatefulWidget {
     required this.max,
     required this.step,
     required this.initialValue,
+    this.headerAction,
   });
 
   @override
@@ -72,6 +74,8 @@ class _HUDInputCardState extends State<HUDInputCard> {
                   ),
                 ),
               ),
+
+            if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 

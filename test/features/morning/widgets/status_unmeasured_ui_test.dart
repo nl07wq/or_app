@@ -37,6 +37,18 @@ void main() {
           onBodyFatMeasured: () {},
         ),
       ),
+      width: 390,
+    );
+
+    _expectHeaderActionSeparated(
+      tester,
+      actionKey: const ValueKey('Weight-unmeasured-toggle'),
+      input: find.byType(HUDInputCard),
+    );
+    _expectHeaderActionSeparated(
+      tester,
+      actionKey: const ValueKey('Body Fat-unmeasured-toggle'),
+      input: find.byType(WheelInputCard),
     );
 
     await tester.tap(
@@ -81,6 +93,7 @@ void main() {
           onBodyFatMeasured: () => setState(() => bodyFatUnmeasured = false),
         ),
       ),
+      width: 390,
     );
 
     await tester.tap(
@@ -120,6 +133,13 @@ void main() {
           onSleepTimeMeasured: () => setState(() => timeUnmeasured = false),
         ),
       ),
+      width: 390,
+    );
+
+    _expectHeaderActionSeparated(
+      tester,
+      actionKey: const ValueKey('Sleep Time-unmeasured-toggle'),
+      input: find.byType(TimeInputCard),
     );
 
     await tester.tap(
@@ -230,14 +250,36 @@ void main() {
   });
 }
 
-Future<void> _pump(WidgetTester tester, Widget child) async {
-  await tester.binding.setSurfaceSize(const Size(900, 1200));
+Future<void> _pump(
+  WidgetTester tester,
+  Widget child, {
+  double width = 900,
+}) async {
+  await tester.binding.setSurfaceSize(Size(width, 1200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: child)),
     ),
   );
+}
+
+void _expectHeaderActionSeparated(
+  WidgetTester tester, {
+  required ValueKey<String> actionKey,
+  required Finder input,
+}) {
+  final action = find.byKey(actionKey);
+  final complete = find.descendant(
+    of: input,
+    matching: find.widgetWithText(FilledButton, '完了'),
+  );
+  final actionRect = tester.getRect(action);
+  final completeRect = tester.getRect(complete);
+
+  expect(actionRect.right, closeTo(tester.getRect(input).right, 0.1));
+  expect(actionRect.bottom, lessThan(completeRect.top));
+  expect(actionRect.overlaps(completeRect), isFalse);
 }
 
 void _expectUnmeasuredValueStyle(WidgetTester tester, String title) {

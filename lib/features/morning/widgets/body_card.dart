@@ -49,10 +49,10 @@ class BodyCard extends StatelessWidget {
               max: 180,
               step: 0.1,
               initialValue: 100,
-            ),
-            _UnmeasuredAction(
-              key: const ValueKey('Weight-unmeasured-toggle'),
-              onPressed: onWeightUnmeasured,
+              headerAction: _UnmeasuredAction(
+                key: const ValueKey('Weight-unmeasured-toggle'),
+                onPressed: onWeightUnmeasured,
+              ),
             ),
           ],
 
@@ -69,10 +69,10 @@ class BodyCard extends StatelessWidget {
               max: 60,
               step: 0.1,
               initialValue: 20,
-            ),
-            _UnmeasuredAction(
-              key: const ValueKey('Body Fat-unmeasured-toggle'),
-              onPressed: onBodyFatUnmeasured,
+              headerAction: _UnmeasuredAction(
+                key: const ValueKey('Body Fat-unmeasured-toggle'),
+                onPressed: onBodyFatUnmeasured,
+              ),
             ),
           ],
         ],

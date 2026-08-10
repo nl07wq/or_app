@@ -272,7 +272,7 @@ class _OperationDateCard extends StatelessWidget {
                 AppSpacing.gapXS,
                 Text(
                   snapshot.data?.value ?? 'LOADING...',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ],
             ),
