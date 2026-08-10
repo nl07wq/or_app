@@ -9,16 +9,28 @@ void main() {
     'maps canonical assessment labels without changing canonical values',
     () {
       const cases = <(DailyAssessmentMetric, String, String)>[
-        (DailyAssessmentMetric.weightTrend, 'RAPID LOSS', '減量ペース速め'),
-        (DailyAssessmentMetric.sleepTime, 'SUFFICIENT', '十分'),
-        (DailyAssessmentMetric.sleepScore, 'GOOD', '良好'),
-        (DailyAssessmentMetric.plantarFasciitis, 'SEVERE CONSTRAINT', '強い制約'),
-        (DailyAssessmentMetric.work, 'REST DAY', '公休日'),
-        (DailyAssessmentMetric.calorieBalance, 'NEAR BALANCE', 'ほぼ収支均衡'),
-        (DailyAssessmentMetric.protein, 'TARGET MET', '目標達成'),
-        (DailyAssessmentMetric.hydration, 'ADEQUATE', '概ね十分'),
-        (DailyAssessmentMetric.steps, 'LOW LOAD', '低負荷'),
-        (DailyAssessmentMetric.trainingReadiness, 'NOT AVAILABLE', '評価不可'),
+        (DailyAssessmentMetric.weightTrend, 'RAPID LOSS', '減量ペースがやや速くなっています。'),
+        (DailyAssessmentMetric.sleepTime, 'SUFFICIENT', '十分な睡眠時間を確保できています。'),
+        (DailyAssessmentMetric.sleepScore, 'GOOD', '睡眠の質は良好です。'),
+        (
+          DailyAssessmentMetric.plantarFasciitis,
+          'SEVERE CONSTRAINT',
+          '足底症状が非常に強く、活動負荷を制限する必要があります。',
+        ),
+        (DailyAssessmentMetric.work, 'REST DAY', '勤務による追加負荷はありません。'),
+        (
+          DailyAssessmentMetric.calorieBalance,
+          'NEAR BALANCE',
+          '前日のカロリー収支はほぼ均衡しています。',
+        ),
+        (DailyAssessmentMetric.protein, 'TARGET MET', 'たんぱく質は目標量を確保できています。'),
+        (DailyAssessmentMetric.hydration, 'ADEQUATE', '水分摂取量は概ね確保できています。'),
+        (DailyAssessmentMetric.steps, 'LOW LOAD', '前日の歩行負荷は低い状態です。'),
+        (
+          DailyAssessmentMetric.trainingReadiness,
+          'NOT AVAILABLE',
+          '現在の記録ではトレーニング間隔を評価できません。',
+        ),
       ];
 
       for (final entry in cases) {
@@ -32,10 +44,22 @@ void main() {
         expect(dailyAssessmentSpecificLabel(item), entry.$3);
         expect(item.specificAssessment, entry.$2);
       }
-      expect(dailyAssessmentConstraintLabel('PLANTAR FASCIITIS'), '足底筋膜炎');
-      expect(dailyAssessmentConstraintLabel('WEIGHT TREND'), '体重推移');
-      expect(dailyAssessmentResourceLabel('RECOVERY CAPACITY'), '回復余力');
-      expect(dailyAssessmentResourceLabel('REST DAY'), '公休日');
+      expect(
+        dailyAssessmentConstraintLabel('PLANTAR FASCIITIS'),
+        '足底症状が強く、活動負荷を抑える必要があります。',
+      );
+      expect(
+        dailyAssessmentConstraintLabel('WEIGHT TREND'),
+        '減量ペースが速いため、体重推移を確認する必要があります。',
+      );
+      expect(
+        dailyAssessmentResourceLabel('RECOVERY CAPACITY'),
+        '十分な回復状態を確保できています。',
+      );
+      expect(
+        dailyAssessmentResourceLabel('REST DAY'),
+        '公休日のため、勤務負荷のない時間を利用できます。',
+      );
     },
   );
 
@@ -76,17 +100,19 @@ void main() {
         expect(find.text(level.label), findsWidgets);
       }
       expect(find.text('PRIMARY CONSTRAINT'), findsOneWidget);
-      expect(find.text('足底筋膜炎'), findsOneWidget);
+      expect(find.text('足底症状が強く、活動負荷を抑える必要があります。'), findsOneWidget);
       expect(find.text('AVAILABLE RESOURCE'), findsOneWidget);
-      expect(find.text('回復余力'), findsOneWidget);
-      expect(find.text('順調な減量ペース'), findsOneWidget);
-      expect(find.text('概ね十分'), findsOneWidget);
-      expect(find.text('中程度'), findsOneWidget);
-      expect(find.text('長時間勤務'), findsOneWidget);
-      expect(find.text('赤字過大'), findsOneWidget);
-      expect(find.text('目標達成'), findsOneWidget);
-      expect(find.text('高負荷'), findsOneWidget);
-      expect(find.text('評価不可'), findsOneWidget);
+      expect(find.text('十分な回復状態を確保できています。'), findsOneWidget);
+      expect(find.text('減量ペースは目標範囲で推移しています。'), findsOneWidget);
+      expect(find.text('睡眠時間は概ね確保できています。'), findsOneWidget);
+      expect(find.text('足底症状は中程度です。'), findsOneWidget);
+      expect(find.text('長時間勤務による負荷が見込まれます。'), findsOneWidget);
+      expect(find.text('前日のカロリー赤字が過大です。'), findsOneWidget);
+      expect(find.text('水分摂取量は目標を達成しています。'), findsOneWidget);
+      expect(find.text('前日の歩行負荷は高い状態です。'), findsOneWidget);
+      expect(find.text('現在の記録ではトレーニング間隔を評価できません。'), findsOneWidget);
+      expect(find.text('順調な減量ペース'), findsNothing);
+      expect(find.text('評価不可'), findsNothing);
       expect(find.text('—'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
