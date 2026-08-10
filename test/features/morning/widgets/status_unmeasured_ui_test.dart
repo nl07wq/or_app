@@ -24,9 +24,6 @@ void main() {
     final weight = TextEditingController(text: '100.0');
     final bodyFat = TextEditingController(text: '20.0');
     var weightUnmeasured = false;
-    var bodyFatUnmeasured = false;
-    var bodyFatWasUnmeasured = false;
-    var bodyFatText = '';
 
     await _pump(
       tester,
@@ -35,22 +32,12 @@ void main() {
           weightController: weight,
           bodyFatController: bodyFat,
           weightUnmeasured: weightUnmeasured,
-          bodyFatUnmeasured: bodyFatUnmeasured,
           onWeightUnmeasured: () => setState(() {
-            bodyFatWasUnmeasured = bodyFatUnmeasured;
-            bodyFatText = bodyFat.text;
             weight.clear();
             bodyFat.clear();
             weightUnmeasured = true;
-            bodyFatUnmeasured = true;
           }),
-          onWeightMeasured: () => setState(() {
-            weightUnmeasured = false;
-            bodyFatUnmeasured = bodyFatWasUnmeasured;
-            if (!bodyFatWasUnmeasured) bodyFat.text = bodyFatText;
-          }),
-          onBodyFatUnmeasured: () {},
-          onBodyFatMeasured: () => setState(() => bodyFatUnmeasured = false),
+          onWeightMeasured: () => setState(() => weightUnmeasured = false),
         ),
       ),
       width: 390,
@@ -61,10 +48,9 @@ void main() {
       actionKey: const ValueKey('Weight-unmeasured-toggle'),
       input: find.byType(HUDInputCard),
     );
-    _expectHeaderActionSeparated(
-      tester,
-      actionKey: const ValueKey('Body Fat-unmeasured-toggle'),
-      input: find.byType(WheelInputCard),
+    expect(
+      find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
+      findsNothing,
     );
 
     await tester.tap(
@@ -89,70 +75,36 @@ void main() {
     await tester.pump();
     expect(find.byType(HUDInputCard), findsOneWidget);
     expect(find.byType(WheelInputCard), findsOneWidget);
-    expect(bodyFat.text, '20.0');
+    expect(
+      find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
+      findsNothing,
+    );
   });
 
-  testWidgets('task091 hotfix: Body Fat unmeasured toggle is independent', (
+  testWidgets('task103: Body Fat has no independent unmeasured action', (
     tester,
   ) async {
     final weight = TextEditingController(text: '100.0');
     final bodyFat = TextEditingController(text: '20.0');
-    var weightUnmeasured = false;
-    var bodyFatUnmeasured = false;
-    var bodyFatWasUnmeasured = false;
 
     await _pump(
       tester,
-      StatefulBuilder(
-        builder: (context, setState) => BodyCard(
-          weightController: weight,
-          bodyFatController: bodyFat,
-          weightUnmeasured: weightUnmeasured,
-          bodyFatUnmeasured: bodyFatUnmeasured,
-          onWeightUnmeasured: () => setState(() {
-            bodyFatWasUnmeasured = bodyFatUnmeasured;
-            weight.clear();
-            bodyFat.clear();
-            weightUnmeasured = true;
-            bodyFatUnmeasured = true;
-          }),
-          onWeightMeasured: () => setState(() {
-            weightUnmeasured = false;
-            bodyFatUnmeasured = bodyFatWasUnmeasured;
-          }),
-          onBodyFatUnmeasured: () => setState(() {
-            bodyFat.clear();
-            bodyFatUnmeasured = true;
-          }),
-          onBodyFatMeasured: () => setState(() => bodyFatUnmeasured = false),
-        ),
+      BodyCard(
+        weightController: weight,
+        bodyFatController: bodyFat,
+        weightUnmeasured: false,
+        onWeightUnmeasured: () {},
+        onWeightMeasured: () {},
       ),
       width: 390,
     );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
-        matching: find.byType(TextButton),
-      ),
-    );
-    await tester.pump();
     expect(find.byType(HUDInputCard), findsOneWidget);
-    expect(find.byType(WheelInputCard), findsNothing);
-    expect(bodyFat.text, isEmpty);
-    _expectUnmeasuredValueStyle(tester, 'Body Fat');
-
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const ValueKey('Weight-unmeasured-toggle')),
-        matching: find.byType(TextButton),
-      ),
+    expect(find.byType(WheelInputCard), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
+      findsNothing,
     );
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
-    await tester.pump();
-    expect(find.byType(HUDInputCard), findsOneWidget);
-    expect(find.byType(WheelInputCard), findsNothing);
   });
 
   test('task102 close: Weight null always saves Body Fat as null', () async {

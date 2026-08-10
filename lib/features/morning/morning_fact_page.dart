@@ -53,7 +53,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
           ? ''
           : data.bodyFat?.toString() ?? '';
       weightUnmeasured = data.weight == null;
-      bodyFatUnmeasured = data.weight == null || data.bodyFat == null;
 
       sleepController.text = data.sleepHours == null
           ? ''
@@ -97,7 +96,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
       setState(() {
         if (values.hasPreviousRecord) {
           weightUnmeasured = values.weight.isEmpty;
-          bodyFatUnmeasured = weightUnmeasured || values.bodyFat.isEmpty;
           if (weightUnmeasured) {
             bodyFatController.clear();
           }
@@ -132,10 +130,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
   WorkType selectedWorkType = WorkType.work;
   SleepType selectedSleepType = SleepType.sleep;
   bool weightUnmeasured = false;
-  bool bodyFatUnmeasured = false;
   bool sleepTimeUnmeasured = false;
-  bool? _bodyFatUnmeasuredBeforeWeight;
-  String? _bodyFatTextBeforeWeight;
 
   String _formatTime(double hours) {
     final totalMinutes = (hours * 60).round();
@@ -178,35 +173,13 @@ class _MorningFactPageState extends State<MorningFactPage> {
                       weightController: weightController,
                       bodyFatController: bodyFatController,
                       weightUnmeasured: weightUnmeasured,
-                      bodyFatUnmeasured: bodyFatUnmeasured,
                       onWeightUnmeasured: () => setState(() {
-                        _bodyFatUnmeasuredBeforeWeight = bodyFatUnmeasured;
-                        _bodyFatTextBeforeWeight = bodyFatController.text;
                         weightController.clear();
                         bodyFatController.clear();
                         weightUnmeasured = true;
-                        bodyFatUnmeasured = true;
                       }),
-                      onWeightMeasured: () => setState(() {
-                        weightUnmeasured = false;
-                        final wasBodyFatUnmeasured =
-                            _bodyFatUnmeasuredBeforeWeight ?? true;
-                        bodyFatUnmeasured = wasBodyFatUnmeasured;
-                        if (!wasBodyFatUnmeasured) {
-                          bodyFatController.text =
-                              _bodyFatTextBeforeWeight ?? '';
-                        }
-                        _bodyFatUnmeasuredBeforeWeight = null;
-                        _bodyFatTextBeforeWeight = null;
-                      }),
-                      onBodyFatUnmeasured: () => setState(() {
-                        bodyFatController.clear();
-                        bodyFatUnmeasured = true;
-                      }),
-                      onBodyFatMeasured: () {
-                        if (weightUnmeasured) return;
-                        setState(() => bodyFatUnmeasured = false);
-                      },
+                      onWeightMeasured: () =>
+                          setState(() => weightUnmeasured = false),
                     ),
 
                     AppSpacing.gapMD,
