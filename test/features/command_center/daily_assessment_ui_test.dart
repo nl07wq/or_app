@@ -2,8 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/models/daily_assessment.dart';
 import 'package:or_app/features/command_center/widgets/daily_assessment_card.dart';
+import 'package:or_app/features/command_center/widgets/daily_assessment_label_mapper.dart';
 
 void main() {
+  test(
+    'maps canonical assessment labels without changing canonical values',
+    () {
+      const cases = <(DailyAssessmentMetric, String, String)>[
+        (DailyAssessmentMetric.weightTrend, 'RAPID LOSS', '減量ペース速め'),
+        (DailyAssessmentMetric.sleepTime, 'SUFFICIENT', '十分'),
+        (DailyAssessmentMetric.sleepScore, 'GOOD', '良好'),
+        (DailyAssessmentMetric.plantarFasciitis, 'SEVERE CONSTRAINT', '強い制約'),
+        (DailyAssessmentMetric.work, 'REST DAY', '公休日'),
+        (DailyAssessmentMetric.calorieBalance, 'NEAR BALANCE', 'ほぼ収支均衡'),
+        (DailyAssessmentMetric.protein, 'TARGET MET', '目標達成'),
+        (DailyAssessmentMetric.hydration, 'ADEQUATE', '概ね十分'),
+        (DailyAssessmentMetric.steps, 'LOW LOAD', '低負荷'),
+        (DailyAssessmentMetric.trainingReadiness, 'NOT AVAILABLE', '評価不可'),
+      ];
+
+      for (final entry in cases) {
+        final item = DailyAssessmentItem(
+          module: DailyAssessmentModule.body,
+          metric: entry.$1,
+          rawValue: null,
+          specificAssessment: entry.$2,
+          level: null,
+        );
+        expect(dailyAssessmentSpecificLabel(item), entry.$3);
+        expect(item.specificAssessment, entry.$2);
+      }
+      expect(dailyAssessmentConstraintLabel('PLANTAR FASCIITIS'), '足底筋膜炎');
+      expect(dailyAssessmentConstraintLabel('WEIGHT TREND'), '体重推移');
+      expect(dailyAssessmentResourceLabel('RECOVERY CAPACITY'), '回復余力');
+      expect(dailyAssessmentResourceLabel('REST DAY'), '公休日');
+    },
+  );
+
   testWidgets('shows structured assessment, levels, and neutral unavailable', (
     tester,
   ) async {
@@ -41,10 +76,17 @@ void main() {
         expect(find.text(level.label), findsWidgets);
       }
       expect(find.text('PRIMARY CONSTRAINT'), findsOneWidget);
-      expect(find.text('PLANTAR FASCIITIS'), findsOneWidget);
+      expect(find.text('足底筋膜炎'), findsOneWidget);
       expect(find.text('AVAILABLE RESOURCE'), findsOneWidget);
-      expect(find.text('RECOVERY CAPACITY'), findsOneWidget);
-      expect(find.text('NOT AVAILABLE'), findsOneWidget);
+      expect(find.text('回復余力'), findsOneWidget);
+      expect(find.text('順調な減量ペース'), findsOneWidget);
+      expect(find.text('概ね十分'), findsOneWidget);
+      expect(find.text('中程度'), findsOneWidget);
+      expect(find.text('長時間勤務'), findsOneWidget);
+      expect(find.text('赤字過大'), findsOneWidget);
+      expect(find.text('目標達成'), findsOneWidget);
+      expect(find.text('高負荷'), findsOneWidget);
+      expect(find.text('評価不可'), findsOneWidget);
       expect(find.text('—'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }

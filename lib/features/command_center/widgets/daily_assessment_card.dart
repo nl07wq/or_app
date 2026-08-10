@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../models/daily_assessment.dart';
+import 'daily_assessment_label_mapper.dart';
 
 class DailyAssessmentView extends StatelessWidget {
   const DailyAssessmentView({super.key, required this.assessment});
@@ -25,12 +26,16 @@ class DailyAssessmentView extends StatelessWidget {
         ],
         _StringListCard(
           title: 'PRIMARY CONSTRAINT',
-          values: assessment.primaryConstraints,
+          values: assessment.primaryConstraints
+              .map(dailyAssessmentConstraintLabel)
+              .toList(growable: false),
         ),
         AppSpacing.gapSM,
         _StringListCard(
           title: 'AVAILABLE RESOURCE',
-          values: assessment.availableResources,
+          values: assessment.availableResources
+              .map(dailyAssessmentResourceLabel)
+              .toList(growable: false),
         ),
       ],
     );
@@ -79,7 +84,7 @@ class _AssessmentItem extends StatelessWidget {
             AppSpacing.gapXS,
             Text(_valueLabel(item)),
             AppSpacing.gapXS,
-            Text(item.specificAssessment),
+            Text(dailyAssessmentSpecificLabel(item)),
           ],
         ),
       ),
