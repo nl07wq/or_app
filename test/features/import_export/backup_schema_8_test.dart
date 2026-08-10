@@ -48,7 +48,7 @@ void main() {
       ).create();
 
       expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(package.data.keys, BackupSections.schema9);
+      expect(package.data.keys, BackupSections.schema11);
       expect(package.data[BackupSections.profile], [
         {
           'version': 1,
@@ -58,7 +58,7 @@ void main() {
           'nationality': '日本',
         },
       ]);
-      expect(package.includedSections, hasLength(15));
+      expect(package.includedSections, hasLength(16));
 
       await repository.save(ProfileModel.validated(userName: 'Changed'));
       final service = BackupImportService(
@@ -80,17 +80,16 @@ void main() {
   );
 
   test(
-    'Schema 2 through 7 omit Profile and preserve the current record',
+    'Schema 2 through 7 REPLACE ALL clears the newer Profile store',
     () async {
-      final database = FakeIndexedDbDatabase();
-      final repository = IndexedDbProfileRepository(
-        database,
-        clock: () => timestamp,
-      );
-      await repository.save(ProfileModel.validated(userName: 'Preserved'));
-      final controller = AppInitializationController()..markReady();
-
       for (var schema = 2; schema <= 7; schema++) {
+        final database = FakeIndexedDbDatabase();
+        final repository = IndexedDbProfileRepository(
+          database,
+          clock: () => timestamp,
+        );
+        await repository.save(ProfileModel.validated(userName: 'Old value'));
+        final controller = AppInitializationController()..markReady();
         final data = {
           for (final section in BackupSections.forSchema(schema))
             section: <Map<String, Object?>>[],
@@ -119,7 +118,11 @@ void main() {
         final plan = await service.dryRun(package, BackupImportMode.replaceAll);
         final result = await service.execute(plan);
         expect(result.success, isTrue, reason: 'schema $schema');
-        expect((await repository.findCurrent())!.userName, 'Preserved');
+        expect(
+          await repository.findCurrent(),
+          isNull,
+          reason: 'schema $schema',
+        );
       }
     },
   );

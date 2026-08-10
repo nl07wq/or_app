@@ -36,30 +36,27 @@ void main() {
     );
   });
 
-  test(
-    'exports Schema 9.0 UTF-8 JSON through the shared file gateway',
-    () async {
-      final result = await _service(
-        database: database,
-        controller: controller,
-        gateway: gateway,
-        clock: () => DateTime(2026, 7, 27, 21, 35),
-      ).export();
+  test('exports Schema 11 UTF-8 JSON with the fixed file name', () async {
+    final result = await _service(
+      database: database,
+      controller: controller,
+      gateway: gateway,
+      clock: () => DateTime(2026, 7, 27, 21, 35),
+    ).export();
 
-      expect(result.delivery, BackupFileDelivery.shared);
-      expect(result.fileName, 'operation_reboot_backup_2026-07-27_213500.json');
-      expect(gateway.fileName, result.fileName);
-      expect(utf8.decode(utf8.encode(gateway.content!)), gateway.content);
+    expect(result.delivery, BackupFileDelivery.shared);
+    expect(result.fileName, 'operation_reboot_backup.json');
+    expect(gateway.fileName, result.fileName);
+    expect(utf8.decode(utf8.encode(gateway.content!)), gateway.content);
 
-      final package = const BackupPackageCodec().decode(gateway.content!);
-      expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(package.data.keys, containsAll(BackupSections.all));
-      expect(package.data, isNot(contains('activity_drafts')));
-      expect(package.data, isNot(contains('migration_metadata')));
-      expect(package.data, isNot(contains('migration_quarantine')));
-      expect(database.transactionCount, 1);
-    },
-  );
+    final package = const BackupPackageCodec().decode(gateway.content!);
+    expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
+    expect(package.data.keys, containsAll(BackupSections.all));
+    expect(package.data, isNot(contains('activity_drafts')));
+    expect(package.data, isNot(contains('migration_metadata')));
+    expect(package.data, isNot(contains('migration_quarantine')));
+    expect(database.transactionCount, 1);
+  });
 
   test(
     'reports share cancellation without changing the exported package',
@@ -92,14 +89,21 @@ void main() {
     expect(database.transactionCount, 1);
   });
 
-  test('file name uses local timestamp and contains only safe characters', () {
-    final fileName = BackupFileExportService.fileNameFor(
-      DateTime(2026, 12, 3, 4, 5, 6),
-    );
+  test(
+    'file name is fixed while package metadata keeps its timestamp',
+    () async {
+      final result = await _service(
+        database: database,
+        controller: controller,
+        gateway: gateway,
+        clock: () => DateTime.utc(2026, 12, 3, 4, 5, 6),
+      ).export();
 
-    expect(fileName, 'operation_reboot_backup_2026-12-03_040506.json');
-    expect(fileName, matches(RegExp(r'^[a-z0-9_-]+\.json$')));
-  });
+      expect(result.fileName, BackupFileExportService.fileName);
+      expect(result.fileName, 'operation_reboot_backup.json');
+      expect(result.package.exportedAt, DateTime.utc(2026, 12, 3, 4, 5, 6));
+    },
+  );
 
   test('unsupported platform reports export as unavailable safely', () async {
     final gateway = UnsupportedBackupFileGateway();

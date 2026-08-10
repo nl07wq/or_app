@@ -5,6 +5,7 @@ import '../../repositories/app_repository_container.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../models/backup_package.dart';
 import 'backup_import_planner.dart';
+import 'backup_canonical_codec.dart';
 import 'backup_store_registry.dart';
 import '../../system/models/profile_model.dart';
 
@@ -54,8 +55,14 @@ class BackupImportService {
     }
     _executing = true;
     var committed = false;
+    final controllerBefore = _controller.value;
+    Map<String, List<Map<String, Object?>>>? preRestoreState;
     _controller.markMaintenance();
     try {
+      final affectedSections = approvedPlan.mode == BackupImportMode.replaceAll
+          ? BackupSections.all
+          : approvedPlan.package.includedSections;
+      preRestoreState = await _captureState(affectedSections);
       final currentPlan = await BackupImportPlanner(
         _database,
       ).createPlan(approvedPlan.package, approvedPlan.mode);
@@ -66,14 +73,19 @@ class BackupImportService {
         );
       }
       final sections = approvedPlan.package.includedSections.toList();
+      final transactionSections =
+          approvedPlan.mode == BackupImportMode.replaceAll
+          ? BackupSections.all
+          : sections;
       await _database.runTransaction<void>(
         storeNames: [
-          for (final section in sections) BackupStoreRegistry.stores[section]!,
+          for (final section in transactionSections)
+            BackupStoreRegistry.stores[section]!,
         ],
         mode: IndexedDbTransactionMode.readWrite,
         action: (transaction) async {
           if (approvedPlan.mode == BackupImportMode.replaceAll) {
-            for (final section in approvedPlan.package.includedSections) {
+            for (final section in BackupSections.all) {
               await transaction.clear(BackupStoreRegistry.stores[section]!);
             }
           }
@@ -121,6 +133,22 @@ class BackupImportService {
               await transaction.findAll(BackupStoreRegistry.stores[section]!),
             );
           }
+          if (approvedPlan.mode == BackupImportMode.replaceAll) {
+            for (final section in BackupSections.all.where(
+              (section) =>
+                  !approvedPlan.package.includedSections.contains(section),
+            )) {
+              final records = await transaction.findAll(
+                BackupStoreRegistry.stores[section]!,
+              );
+              if (records.isNotEmpty) {
+                throw BackupException(
+                  'post_import_verification_failed',
+                  '$section was not cleared for the restored schema.',
+                );
+              }
+            }
+          }
         },
       );
       committed = true;
@@ -146,10 +174,34 @@ class BackupImportService {
         recoveryRequired: recoveryRequired,
       );
     } catch (error) {
+      if (committed && preRestoreState != null) {
+        try {
+          await _restoreCapturedState(preRestoreState);
+          await _verifyCapturedState(preRestoreState);
+          await _restore();
+          if (!await _validateCurrentDatabase()) {
+            throw const BackupException(
+              'import_failed',
+              'CRITICAL RESTORE FAILURE: Original database validation failed.',
+            );
+          }
+          _controller.value = controllerBefore;
+        } catch (rollbackError) {
+          _controller.markFailed(
+            errorCode: 'import_failed',
+            errorMessage:
+                'CRITICAL RESTORE FAILURE: ${rollbackError.toString()}',
+          );
+          return BackupImportResult.failure(
+            errorCode: 'import_failed',
+            message: 'CRITICAL RESTORE FAILURE: ${rollbackError.toString()}',
+          );
+        }
+      }
       final healthy = await _validateCurrentDatabase();
       final backupError = error is BackupException ? error : null;
-      if (!committed && healthy) {
-        _controller.markReady();
+      if (healthy) {
+        _controller.value = controllerBefore;
       } else {
         _controller.markFailed(
           errorCode: backupError?.code ?? 'import_failed',
@@ -162,6 +214,55 @@ class BackupImportService {
       );
     } finally {
       _executing = false;
+    }
+  }
+
+  Future<Map<String, List<Map<String, Object?>>>> _captureState(
+    Iterable<String> sections,
+  ) async {
+    final captured = <String, List<Map<String, Object?>>>{};
+    for (final section in sections) {
+      captured[section] = await _database.findAll(
+        BackupStoreRegistry.stores[section]!,
+      );
+    }
+    return captured;
+  }
+
+  Future<void> _restoreCapturedState(
+    Map<String, List<Map<String, Object?>>> captured,
+  ) {
+    return _database.runTransaction<void>(
+      storeNames: [
+        for (final section in captured.keys)
+          BackupStoreRegistry.stores[section]!,
+      ],
+      mode: IndexedDbTransactionMode.readWrite,
+      action: (transaction) async {
+        for (final section in captured.keys) {
+          final store = BackupStoreRegistry.stores[section]!;
+          await transaction.clear(store);
+          for (final record in captured[section]!) {
+            await transaction.put(store, record);
+          }
+        }
+      },
+    );
+  }
+
+  Future<void> _verifyCapturedState(
+    Map<String, List<Map<String, Object?>>> captured,
+  ) async {
+    for (final entry in captured.entries) {
+      final restored = await _database.findAll(
+        BackupStoreRegistry.stores[entry.key]!,
+      );
+      if (!_rawRecordListsEqual(restored, entry.value)) {
+        throw BackupException(
+          'import_failed',
+          'CRITICAL RESTORE FAILURE: ${entry.key} was not restored.',
+        );
+      }
     }
   }
 
@@ -281,6 +382,21 @@ class BackupImportService {
       if (!BackupStoreRegistry.envelopesEqual(first[index], second[index])) {
         return false;
       }
+    }
+    return true;
+  }
+
+  static bool _rawRecordListsEqual(
+    List<Map<String, Object?>> first,
+    List<Map<String, Object?>> second,
+  ) {
+    if (first.length != second.length) return false;
+    final firstEncoded = first.map(BackupCanonicalCodec.encode).toList()
+      ..sort();
+    final secondEncoded = second.map(BackupCanonicalCodec.encode).toList()
+      ..sort();
+    for (var index = 0; index < firstEncoded.length; index++) {
+      if (firstEncoded[index] != secondEncoded[index]) return false;
     }
     return true;
   }

@@ -15,6 +15,8 @@ class BackupFileExportResult {
 }
 
 class BackupFileExportService {
+  static const fileName = 'operation_reboot_backup.json';
+
   final BackupExportService _exportService;
   final BackupFileGateway _fileGateway;
 
@@ -26,7 +28,6 @@ class BackupFileExportService {
 
   Future<BackupFileExportResult> export() async {
     final package = await _exportService.create(origin: _fileGateway.origin);
-    final fileName = fileNameFor(package.exportedAt.toLocal());
     final delivery = await _fileGateway.shareOrSave(
       fileName: fileName,
       content: BackupExportService.prettyEncode(package),
@@ -36,14 +37,5 @@ class BackupFileExportService {
       fileName: fileName,
       delivery: delivery,
     );
-  }
-
-  static String fileNameFor(DateTime localTimestamp) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return 'operation_reboot_backup_'
-        '${localTimestamp.year}-${two(localTimestamp.month)}-'
-        '${two(localTimestamp.day)}_'
-        '${two(localTimestamp.hour)}${two(localTimestamp.minute)}'
-        '${two(localTimestamp.second)}.json';
   }
 }

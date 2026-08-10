@@ -23,7 +23,7 @@ void main() {
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-  test('Schema 9 exports fifteen sections including Profile', () async {
+  test('Schema 11 exports all sixteen sections including aggregates', () async {
     final database = FakeIndexedDbDatabase();
     final controller = AppInitializationController()..markReady();
     _seedOperationState(database, timestamp);
@@ -49,8 +49,8 @@ void main() {
       clock: () => timestamp,
     ).create();
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.data.keys, BackupSections.schema9);
-    expect(package.data, hasLength(15));
+    expect(package.data.keys, BackupSections.schema11);
+    expect(package.data, hasLength(16));
     expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
     expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
     expect(package.data[BackupSections.reportSyncHistory], hasLength(1));
@@ -99,7 +99,7 @@ void main() {
     ]);
   });
 
-  test('Schema 2 through 6 REPLACE ALL preserves newer stores', () async {
+  test('Schema 2 through 6 REPLACE ALL clears newer formal stores', () async {
     for (final schemaVersion in [2, 3, 4, 5, 6]) {
       final database = FakeIndexedDbDatabase();
       final controller = AppInitializationController()..markReady();
@@ -143,11 +143,11 @@ void main() {
       expect((await service.execute(plan)).success, isTrue);
       expect(
         await database.findAll(IndexedDbStoreNames.morningBriefRecords),
-        schemaVersion < 6 ? hasLength(1) : isEmpty,
+        isEmpty,
       );
       expect(
         await database.findAll(IndexedDbStoreNames.legacyDailySummaryRecords),
-        hasLength(1),
+        isEmpty,
       );
     }
   });

@@ -56,9 +56,7 @@ class WebBackupFileGateway implements BackupFileGateway {
         fileName.toJS,
         options,
       );
-      final shareData = JSObject()
-        ..['files'] = <JSAny?>[file].toJS
-        ..['title'] = 'BACKUP'.toJS;
+      final shareData = JSObject()..['files'] = <JSAny?>[file].toJS;
       final canShare = _navigator
           .callMethod<JSBoolean>('canShare'.toJS, shareData)
           .toDart;

@@ -15,7 +15,7 @@ void main() {
     final gateway = WebBackupFileGateway(
       share: (fileName, bytes) async {
         shared = true;
-        expect(fileName, 'operation_reboot_backup_2026-07-27_213500.json');
+        expect(fileName, 'operation_reboot_backup.json');
         expect(utf8.decode(bytes), '{"schemaVersion":2}');
         return BackupFileDelivery.shared;
       },
@@ -23,7 +23,7 @@ void main() {
     );
 
     final result = await gateway.shareOrSave(
-      fileName: 'operation_reboot_backup_2026-07-27_213500.json',
+      fileName: 'operation_reboot_backup.json',
       content: '{"schemaVersion":2}',
     );
 
@@ -72,12 +72,12 @@ void main() {
     );
 
     final result = await gateway.shareOrSave(
-      fileName: 'operation_reboot_backup_2026-07-27_213500.json',
+      fileName: 'operation_reboot_backup.json',
       content: '{"memo":"日本語"}',
     );
 
     expect(result, BackupFileDelivery.downloaded);
-    expect(downloadedName, 'operation_reboot_backup_2026-07-27_213500.json');
+    expect(downloadedName, 'operation_reboot_backup.json');
     expect(utf8.decode(downloadedBytes!), '{"memo":"日本語"}');
   });
 }
