@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import 'commander_analysis_snapshot.dart';
 import 'commander_snapshot.dart';
 import 'daily_operation_decision.dart';
@@ -306,7 +304,7 @@ class OperationEngine {
     required TrainingSummary? training,
     required String primaryAction,
   }) {
-    final recommendations = LinkedHashSet<String>();
+    final recommendations = <String>{};
 
     final hydrationRecommendation = _hydrationRecommendation(food);
 

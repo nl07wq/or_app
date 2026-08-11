@@ -122,7 +122,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                           ValueListenableBuilder<int>(
                                             valueListenable:
                                                 morningBriefRevisionNotifier,
-                                            builder: (context, _, __) =>
+                                            builder: (context, _, _) =>
                                                 _DailyCommandSummary(
                                                   morningFact: morningFact,
                                                   foodSummary: foodSummary,
@@ -919,7 +919,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
         ),
       );
 
-      if (!mounted) return;
+      if (!mounted || !widget.dashboardContext.mounted) return;
 
       Navigator.of(context).pop();
       ScaffoldMessenger.of(

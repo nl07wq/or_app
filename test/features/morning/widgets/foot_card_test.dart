@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/repositories/morning_repository.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
@@ -337,6 +338,7 @@ void main() {
 
     final error = await MorningSubmitService.submit(
       workType: WorkType.holiday,
+      sleepType: SleepType.sleep,
       weightText: '72.5',
       bodyFatText: '18',
       sleepText: '7:30',

@@ -96,33 +96,42 @@ void main() {
     );
   });
 
-  test('missing required source field is not defaulted', () async {
+  test('nullable STATUS facts remain null without defaulting', () async {
     final raw = _record(date).toRecord();
-    (raw['data'] as Map).remove('bodyFat');
+    final data = raw['data'] as Map;
+    data
+      ..remove('weight')
+      ..remove('bodyFat')
+      ..remove('sleepHours')
+      ..remove('sleepScore');
     database.seed(IndexedDbStoreNames.statusRecords, 'status:$date', raw);
 
-    await expectLater(
-      service.generate(operationDate: date, exportedAt: firstExport),
-      throwsA(
-        isA<StatusReportSyncSourceException>()
-            .having((error) => error.code, 'code', 'statusSourceIncomplete')
-            .having((error) => error.field, 'field', 'bodyFat'),
-      ),
+    final result = await service.generate(
+      operationDate: date,
+      exportedAt: firstExport,
     );
+
+    expect(result.source.body.weightKg, isNull);
+    expect(result.source.body.bodyFatPercent, isNull);
+    expect(result.source.recovery.sleepDurationMinutes, isNull);
+    expect(result.source.recovery.sleepScore, isNull);
   });
 
-  test('invalid required current value blocks export', () async {
-    _seed(database, _record(date, sleepScore: 101));
+  test(
+    'invalid current value blocks export without fabricated field',
+    () async {
+      _seed(database, _record(date, sleepScore: 101));
 
-    await expectLater(
-      service.generate(operationDate: date, exportedAt: firstExport),
-      throwsA(
-        isA<StatusReportSyncSourceException>()
-            .having((error) => error.code, 'code', 'statusSourceInvalid')
-            .having((error) => error.field, 'field', 'sleepScore'),
-      ),
-    );
-  });
+      await expectLater(
+        service.generate(operationDate: date, exportedAt: firstExport),
+        throwsA(
+          isA<StatusReportSyncSourceException>()
+              .having((error) => error.code, 'code', 'statusSourceInvalid')
+              .having((error) => error.field, 'field', isNull),
+        ),
+      );
+    },
+  );
 
   test('unknown work stable ID is rejected without fallback', () async {
     final raw = _record(date).toRecord();

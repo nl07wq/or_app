@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/navigation/app_routes.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -267,44 +266,6 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
       ),
     );
   }
-
-  Widget _buildHistoricalImportActions() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const SectionHeader(
-        icon: Icons.history_outlined,
-        title: 'HISTORICAL IMPORT',
-      ),
-      AppSpacing.gapSM,
-      OperationCard(
-        child: Column(
-          children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.fitness_center_outlined),
-              title: const Text('HISTORICAL TRAINING IMPORT'),
-              subtitle: const Text('過去の正式Training Recordを指定期間から取り込みます。'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(
-                context,
-                AppRoutes.historicalTrainingImport,
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.description_outlined),
-              title: const Text('HISTORICAL DNS IMPORT'),
-              subtitle: const Text('過去のLegacy DNSをDaily Aggregateとして取り込みます。'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.historicalDnsImport),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
 
   Widget _buildRecovery(OperationSyncState state) => OperationCard(
     child: Column(

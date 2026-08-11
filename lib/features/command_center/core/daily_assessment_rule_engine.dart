@@ -162,12 +162,13 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _sleepScore(int? score) {
-    if (score == null)
+    if (score == null) {
       return _notAvailable(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepScore,
       );
-    if (score >= 85)
+    }
+    if (score >= 85) {
       return _item(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepScore,
@@ -175,7 +176,8 @@ class DailyAssessmentRuleEngine {
         'GOOD',
         DailyAssessmentLevel.support,
       );
-    if (score >= 75)
+    }
+    if (score >= 75) {
       return _item(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepScore,
@@ -183,7 +185,8 @@ class DailyAssessmentRuleEngine {
         'NORMAL',
         DailyAssessmentLevel.stable,
       );
-    if (score >= 65)
+    }
+    if (score >= 65) {
       return _item(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepScore,
@@ -191,7 +194,8 @@ class DailyAssessmentRuleEngine {
         'FAIR',
         DailyAssessmentLevel.watch,
       );
-    if (score >= 50)
+    }
+    if (score >= 50) {
       return _item(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepScore,
@@ -199,6 +203,7 @@ class DailyAssessmentRuleEngine {
         'LOW',
         DailyAssessmentLevel.adjust,
       );
+    }
     return _item(
       DailyAssessmentModule.recovery,
       DailyAssessmentMetric.sleepScore,
@@ -217,11 +222,12 @@ class DailyAssessmentRuleEngine {
       5: ('SEVERE CONSTRAINT', DailyAssessmentLevel.limit),
     };
     final result = labels[level];
-    if (result == null)
+    if (result == null) {
       return _notAvailable(
         DailyAssessmentModule.condition,
         DailyAssessmentMetric.plantarFasciitis,
       );
+    }
     return _item(
       DailyAssessmentModule.condition,
       DailyAssessmentMetric.plantarFasciitis,
@@ -232,12 +238,13 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _work(WorkType? type, double? hours) {
-    if (type == null || hours == null)
+    if (type == null || hours == null) {
       return _notAvailable(
         DailyAssessmentModule.workLoad,
         DailyAssessmentMetric.work,
       );
-    if (type == WorkType.holiday)
+    }
+    if (type == WorkType.holiday) {
       return _item(
         DailyAssessmentModule.workLoad,
         DailyAssessmentMetric.work,
@@ -245,12 +252,14 @@ class DailyAssessmentRuleEngine {
         'REST DAY',
         DailyAssessmentLevel.support,
       );
-    if (!type.isWorking || hours <= 0)
+    }
+    if (!type.isWorking || hours <= 0) {
       return _notAvailable(
         DailyAssessmentModule.workLoad,
         DailyAssessmentMetric.work,
       );
-    if (hours <= 8)
+    }
+    if (hours <= 8) {
       return _item(
         DailyAssessmentModule.workLoad,
         DailyAssessmentMetric.work,
@@ -258,7 +267,8 @@ class DailyAssessmentRuleEngine {
         'STANDARD LOAD',
         DailyAssessmentLevel.stable,
       );
-    if (hours <= 10)
+    }
+    if (hours <= 10) {
       return _item(
         DailyAssessmentModule.workLoad,
         DailyAssessmentMetric.work,
@@ -266,6 +276,7 @@ class DailyAssessmentRuleEngine {
         'HIGH LOAD',
         DailyAssessmentLevel.watch,
       );
+    }
     return _item(
       DailyAssessmentModule.workLoad,
       DailyAssessmentMetric.work,
@@ -277,11 +288,12 @@ class DailyAssessmentRuleEngine {
 
   DailyAssessmentItem _weightTrend(List<BodyHistoryDataPoint> history) {
     final points = history.where((point) => point.weightKg != null).toList();
-    if (points.length != 14)
+    if (points.length != 14) {
       return _notAvailable(
         DailyAssessmentModule.body,
         DailyAssessmentMetric.weightTrend,
       );
+    }
     final previous =
         points.take(7).fold<double>(0, (sum, point) => sum + point.weightKg!) /
         7;
@@ -289,7 +301,7 @@ class DailyAssessmentRuleEngine {
         points.skip(7).fold<double>(0, (sum, point) => sum + point.weightKg!) /
         7;
     final change = double.parse((recent - previous).toStringAsFixed(6));
-    if (change < -0.90)
+    if (change < -0.90) {
       return _item(
         DailyAssessmentModule.body,
         DailyAssessmentMetric.weightTrend,
@@ -297,7 +309,8 @@ class DailyAssessmentRuleEngine {
         'RAPID LOSS',
         DailyAssessmentLevel.watch,
       );
-    if (change <= -0.30)
+    }
+    if (change <= -0.30) {
       return _item(
         DailyAssessmentModule.body,
         DailyAssessmentMetric.weightTrend,
@@ -305,7 +318,8 @@ class DailyAssessmentRuleEngine {
         'ON TRACK',
         DailyAssessmentLevel.support,
       );
-    if (change < -0.10)
+    }
+    if (change < -0.10) {
       return _item(
         DailyAssessmentModule.body,
         DailyAssessmentMetric.weightTrend,
@@ -313,7 +327,8 @@ class DailyAssessmentRuleEngine {
         'SLOW PROGRESS',
         DailyAssessmentLevel.stable,
       );
-    if (change <= 0.10)
+    }
+    if (change <= 0.10) {
       return _item(
         DailyAssessmentModule.body,
         DailyAssessmentMetric.weightTrend,
@@ -321,6 +336,7 @@ class DailyAssessmentRuleEngine {
         'PLATEAU WATCH',
         DailyAssessmentLevel.watch,
       );
+    }
     return _item(
       DailyAssessmentModule.body,
       DailyAssessmentMetric.weightTrend,
@@ -331,12 +347,13 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _calorieBalance(double? value) {
-    if (value == null)
+    if (value == null) {
       return _notAvailable(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
       );
-    if (value < -1300)
+    }
+    if (value < -1300) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
@@ -344,7 +361,8 @@ class DailyAssessmentRuleEngine {
         'EXTREME DEFICIT',
         DailyAssessmentLevel.limit,
       );
-    if (value < -1000)
+    }
+    if (value < -1000) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
@@ -352,7 +370,8 @@ class DailyAssessmentRuleEngine {
         'VERY LARGE DEFICIT',
         DailyAssessmentLevel.adjust,
       );
-    if (value < -800)
+    }
+    if (value < -800) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
@@ -360,7 +379,8 @@ class DailyAssessmentRuleEngine {
         'LARGE DEFICIT',
         DailyAssessmentLevel.watch,
       );
-    if (value <= -300)
+    }
+    if (value <= -300) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
@@ -368,7 +388,8 @@ class DailyAssessmentRuleEngine {
         'TARGET DEFICIT',
         DailyAssessmentLevel.support,
       );
-    if (value <= 200)
+    }
+    if (value <= 200) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
@@ -376,7 +397,8 @@ class DailyAssessmentRuleEngine {
         'NEAR BALANCE',
         DailyAssessmentLevel.stable,
       );
-    if (value <= 500)
+    }
+    if (value <= 500) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.calorieBalance,
@@ -384,6 +406,7 @@ class DailyAssessmentRuleEngine {
         'SURPLUS WATCH',
         DailyAssessmentLevel.watch,
       );
+    }
     return _item(
       DailyAssessmentModule.nutrition,
       DailyAssessmentMetric.calorieBalance,
@@ -394,12 +417,13 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _protein(double? value) {
-    if (value == null)
+    if (value == null) {
       return _notAvailable(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.protein,
       );
-    if (value >= 130)
+    }
+    if (value >= 130) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.protein,
@@ -407,7 +431,8 @@ class DailyAssessmentRuleEngine {
         'TARGET MET',
         DailyAssessmentLevel.support,
       );
-    if (value >= 110)
+    }
+    if (value >= 110) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.protein,
@@ -415,7 +440,8 @@ class DailyAssessmentRuleEngine {
         'ADEQUATE',
         DailyAssessmentLevel.stable,
       );
-    if (value >= 90)
+    }
+    if (value >= 90) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.protein,
@@ -423,7 +449,8 @@ class DailyAssessmentRuleEngine {
         'BELOW TARGET',
         DailyAssessmentLevel.watch,
       );
-    if (value >= 70)
+    }
+    if (value >= 70) {
       return _item(
         DailyAssessmentModule.nutrition,
         DailyAssessmentMetric.protein,
@@ -431,6 +458,7 @@ class DailyAssessmentRuleEngine {
         'LOW',
         DailyAssessmentLevel.adjust,
       );
+    }
     return _item(
       DailyAssessmentModule.nutrition,
       DailyAssessmentMetric.protein,
@@ -441,12 +469,13 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _hydration(double? value) {
-    if (value == null)
+    if (value == null) {
       return _notAvailable(
         DailyAssessmentModule.hydration,
         DailyAssessmentMetric.hydration,
       );
-    if (value >= 2500)
+    }
+    if (value >= 2500) {
       return _item(
         DailyAssessmentModule.hydration,
         DailyAssessmentMetric.hydration,
@@ -454,7 +483,8 @@ class DailyAssessmentRuleEngine {
         'TARGET MET',
         DailyAssessmentLevel.support,
       );
-    if (value >= 2000)
+    }
+    if (value >= 2000) {
       return _item(
         DailyAssessmentModule.hydration,
         DailyAssessmentMetric.hydration,
@@ -462,7 +492,8 @@ class DailyAssessmentRuleEngine {
         'ADEQUATE',
         DailyAssessmentLevel.stable,
       );
-    if (value >= 1500)
+    }
+    if (value >= 1500) {
       return _item(
         DailyAssessmentModule.hydration,
         DailyAssessmentMetric.hydration,
@@ -470,7 +501,8 @@ class DailyAssessmentRuleEngine {
         'BELOW TARGET',
         DailyAssessmentLevel.watch,
       );
-    if (value >= 1000)
+    }
+    if (value >= 1000) {
       return _item(
         DailyAssessmentModule.hydration,
         DailyAssessmentMetric.hydration,
@@ -478,6 +510,7 @@ class DailyAssessmentRuleEngine {
         'LOW',
         DailyAssessmentLevel.adjust,
       );
+    }
     return _item(
       DailyAssessmentModule.hydration,
       DailyAssessmentMetric.hydration,
@@ -488,12 +521,13 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _steps(int? value) {
-    if (value == null)
+    if (value == null) {
       return _notAvailable(
         DailyAssessmentModule.recentLoad,
         DailyAssessmentMetric.steps,
       );
-    if (value <= 6000)
+    }
+    if (value <= 6000) {
       return _item(
         DailyAssessmentModule.recentLoad,
         DailyAssessmentMetric.steps,
@@ -501,7 +535,8 @@ class DailyAssessmentRuleEngine {
         'LOW LOAD',
         DailyAssessmentLevel.stable,
       );
-    if (value <= 10000)
+    }
+    if (value <= 10000) {
       return _item(
         DailyAssessmentModule.recentLoad,
         DailyAssessmentMetric.steps,
@@ -509,7 +544,8 @@ class DailyAssessmentRuleEngine {
         'MODERATE LOAD',
         DailyAssessmentLevel.stable,
       );
-    if (value <= 14000)
+    }
+    if (value <= 14000) {
       return _item(
         DailyAssessmentModule.recentLoad,
         DailyAssessmentMetric.steps,
@@ -517,6 +553,7 @@ class DailyAssessmentRuleEngine {
         'HIGH LOAD',
         DailyAssessmentLevel.watch,
       );
+    }
     return _item(
       DailyAssessmentModule.recentLoad,
       DailyAssessmentMetric.steps,

@@ -57,6 +57,7 @@ void main() {
     );
     final statusError = await MorningSubmitService.submit(
       workType: WorkType.holiday,
+      sleepType: SleepType.sleep,
       weightText: '80',
       bodyFatText: '20',
       sleepText: '7:30',

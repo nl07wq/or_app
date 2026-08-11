@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
+import 'package:or_app/features/operation_sync/models/operation_sync_history.dart'
+    hide OperationSyncRecordDisposition;
 import 'package:or_app/features/operation_sync/models/operation_sync_issue.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_state.dart';
 import 'package:or_app/features/operation_sync/models/operation_transfer_package.dart';

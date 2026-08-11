@@ -302,7 +302,8 @@ Map<String, Object?> _deepCopy(Map source) => {
 
 Object? _deepCopyValue(Object? value) {
   if (value is Map) return _deepCopy(value);
-  if (value is Iterable)
+  if (value is Iterable) {
     return [for (final item in value) _deepCopyValue(item)];
+  }
   return value;
 }

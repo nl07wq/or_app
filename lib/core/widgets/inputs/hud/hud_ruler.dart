@@ -144,7 +144,7 @@ class _HUDRulerState extends State<HUDRuler> with TickerProviderStateMixin {
 
           child: AnimatedBuilder(
             animation: _controller,
-            builder: (_, __) {
+            builder: (_, _) {
               return HUDScale(
                 value: _displayValue,
                 animation: _controller.value,

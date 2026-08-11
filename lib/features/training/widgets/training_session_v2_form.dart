@@ -253,6 +253,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
         widget.onChanged();
       }
     } on TrainingTimeValidationException catch (error) {
+      if (!context.mounted) return;
       _showError(context, error.message);
     }
   }
@@ -272,6 +273,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
         widget.onChanged();
       }
     } on TrainingTimeValidationException catch (error) {
+      if (!context.mounted) return;
       _showError(context, error.message);
     }
   }

@@ -258,7 +258,7 @@ TrainingSessionV2 _timedSession({CardioEntryV2? cardio}) => TrainingSessionV2(
   date: '2026-08-11',
   startTime: '2026-08-11T10:00:00+09:00',
   endTime: '2026-08-11T12:00:00+09:00',
-  cardioEntries: [if (cardio != null) cardio],
+  cardioEntries: [?cardio],
 );
 
 CardioEntryV2 _cardio({int durationSeconds = 1800}) => CardioEntryV2(

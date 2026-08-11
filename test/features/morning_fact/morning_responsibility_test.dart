@@ -12,6 +12,7 @@ void main() {
   test('new Morning save leaves bowel movement unconfirmed', () async {
     final error = await MorningSubmitService.submit(
       workType: WorkType.holiday,
+      sleepType: SleepType.sleep,
       weightText: '72.5',
       bodyFatText: '18',
       sleepText: '7:30',
@@ -54,6 +55,7 @@ void main() {
       final error = await MorningSubmitService.submit(
         existingData: legacy,
         workType: WorkType.holiday,
+        sleepType: SleepType.sleep,
         weightText: '73',
         bodyFatText: '18',
         sleepText: '7:30',
