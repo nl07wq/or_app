@@ -408,9 +408,10 @@ class _ProgressCard extends StatelessWidget {
         : const <String>[];
 
     final energyStatus =
-        trainingSummary?.energyCalculationStatus ??
+        trainingSummary?.totalEnergyCalculationStatus ??
         TrainingEnergyCalculationStatus.complete;
-    final cardioCalories = trainingSummary?.trainingCardioCaloriesKcal ?? 0;
+    final exerciseCalories =
+        trainingSummary?.trainingEstimatedCaloriesKcal ?? 0;
     final estimatedTotalBurn = _estimatedTotalBurn(
       estimatedTDEE,
       trainingSummary,
@@ -426,7 +427,7 @@ class _ProgressCard extends StatelessWidget {
                   flex: 2,
                   child: _buildSummary(
                     context,
-                    cardioCalories: cardioCalories,
+                    exerciseCalories: exerciseCalories,
                     energyStatus: energyStatus,
                     estimatedTotalBurn: estimatedTotalBurn,
                     large: true,
@@ -452,7 +453,7 @@ class _ProgressCard extends StatelessWidget {
               children: [
                 _buildSummary(
                   context,
-                  cardioCalories: cardioCalories,
+                  exerciseCalories: exerciseCalories,
                   energyStatus: energyStatus,
                   estimatedTotalBurn: estimatedTotalBurn,
                   large: false,
@@ -478,7 +479,7 @@ class _ProgressCard extends StatelessWidget {
 
   Widget _buildSummary(
     BuildContext context, {
-    required double cardioCalories,
+    required double exerciseCalories,
     required TrainingEnergyCalculationStatus energyStatus,
     required double? estimatedTotalBurn,
     required bool large,
@@ -510,12 +511,12 @@ class _ProgressCard extends StatelessWidget {
         labelFirst: large,
       ),
       _ProgressSummaryMetric(
-        label: 'EXERCISE\nCARDIO ONLY',
+        label: 'EXERCISE',
         value: switch (energyStatus) {
           TrainingEnergyCalculationStatus.complete =>
-            '${cardioCalories.toStringAsFixed(0)} kcal',
+            '${exerciseCalories.toStringAsFixed(0)} kcal',
           TrainingEnergyCalculationStatus.partial =>
-            '${cardioCalories.toStringAsFixed(0)} kcal\nPartial',
+            '${exerciseCalories.toStringAsFixed(0)} kcal\nPartial',
           TrainingEnergyCalculationStatus.notCalculated => 'Not calculated',
         },
         labelFirst: large,
@@ -676,10 +677,10 @@ double? _estimatedTotalBurn(
 ) {
   if (baseBurn == null) return null;
   final status =
-      trainingSummary?.energyCalculationStatus ??
+      trainingSummary?.totalEnergyCalculationStatus ??
       TrainingEnergyCalculationStatus.complete;
   if (status == TrainingEnergyCalculationStatus.notCalculated) return null;
-  return baseBurn + (trainingSummary?.trainingCardioCaloriesKcal ?? 0);
+  return baseBurn + (trainingSummary?.trainingEstimatedCaloriesKcal ?? 0);
 }
 
 class _ProgressSummaryMetric extends StatelessWidget {

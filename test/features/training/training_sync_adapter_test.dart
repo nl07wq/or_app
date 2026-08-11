@@ -187,6 +187,45 @@ void main() {
     expect(cardio.calculationVersion, 1);
   });
 
+  test('round-trips optional Training time and Strength snapshot', () async {
+    adapter = TrainingSyncAdapter(
+      repository: repository,
+      customExercises: _CustomExercises(),
+      weightResolver: TrainingStatusWeightResolver(
+        repository: _StatusRepository({'2026-08-01': _status(80)}),
+      ),
+    );
+    final envelope = _envelope(
+      change: (payload) {
+        final session = _session(payload);
+        session['startTime'] = '2026-08-01T10:00:00+09:00';
+        session['endTime'] = '2026-08-01T11:00:00+09:00';
+        session['estimatedStrengthCaloriesKcal'] = null;
+        session['strengthWeightSnapshotKg'] = null;
+        session['strengthCalculationMethod'] = null;
+        session['strengthCalculationVersion'] = null;
+      },
+    );
+
+    expect(await adapter.validatePayload(envelope), isEmpty);
+    final result = await adapter.applyAndVerify(
+      envelope: envelope,
+      expectedPayloadDigest: 'strength',
+    );
+    expect(result.success, isTrue);
+    final record = await repository.findRecordById(_id(1));
+    expect(record?.id, _id(1));
+    expect(record?.v2Data?.startTime, '2026-08-01T10:00:00+09:00');
+    expect(record?.v2Data?.endTime, '2026-08-01T11:00:00+09:00');
+    expect(record?.v2Data?.estimatedStrengthCaloriesKcal, 294);
+    expect(record?.v2Data?.strengthWeightSnapshotKg, 80);
+    expect(
+      record?.v2Data?.strengthCalculationMethod,
+      'strengthSessionMetsAcsmV1',
+    );
+    expect(record?.v2Data?.strengthCalculationVersion, 1);
+  });
+
   test('does not use another date STATUS weight', () async {
     adapter = TrainingSyncAdapter(
       repository: repository,

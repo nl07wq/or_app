@@ -590,7 +590,7 @@ void main() {
     _expectProgressTilesFit(tester);
   });
 
-  testWidgets('distinguishes complete, partial, and uncomputed cardio energy', (
+  testWidgets('shows total Training energy without CARDIO ONLY', (
     tester,
   ) async {
     morningFactNotifier.value = _morning();
@@ -601,14 +601,18 @@ void main() {
       duration: null,
       sessionName: null,
       trainingCardioCaloriesKcal: 32,
+      trainingStrengthCaloriesKcal: 68,
+      trainingEstimatedCaloriesKcal: 100,
       computedCardioCount: 1,
       uncomputedCardioCount: 0,
       energyCalculationStatus: TrainingEnergyCalculationStatus.complete,
+      totalEnergyCalculationStatus: TrainingEnergyCalculationStatus.complete,
       energyCalculationVersion: 1,
     );
     await _pumpDashboard(tester, width: 800);
-    expect(find.text('32 kcal'), findsOneWidget);
-    expect(find.text('2812 kcal'), findsOneWidget);
+    expect(find.text('100 kcal'), findsOneWidget);
+    expect(find.text('2880 kcal'), findsOneWidget);
+    expect(find.textContaining('CARDIO ONLY'), findsNothing);
 
     trainingSummaryNotifier.value = const TrainingSummary(
       completed: true,
@@ -617,14 +621,17 @@ void main() {
       duration: null,
       sessionName: null,
       trainingCardioCaloriesKcal: 32,
+      trainingStrengthCaloriesKcal: 68,
+      trainingEstimatedCaloriesKcal: 100,
       computedCardioCount: 1,
       uncomputedCardioCount: 1,
       energyCalculationStatus: TrainingEnergyCalculationStatus.partial,
+      totalEnergyCalculationStatus: TrainingEnergyCalculationStatus.partial,
       energyCalculationVersion: 1,
     );
     await tester.pump();
-    expect(find.text('32 kcal\nPartial'), findsOneWidget);
-    expect(find.text('2812 kcal\nPartial'), findsOneWidget);
+    expect(find.text('100 kcal\nPartial'), findsOneWidget);
+    expect(find.text('2880 kcal\nPartial'), findsOneWidget);
 
     trainingSummaryNotifier.value = const TrainingSummary(
       completed: true,
@@ -635,6 +642,8 @@ void main() {
       computedCardioCount: 0,
       uncomputedCardioCount: 1,
       energyCalculationStatus: TrainingEnergyCalculationStatus.notCalculated,
+      totalEnergyCalculationStatus:
+          TrainingEnergyCalculationStatus.notCalculated,
       energyCalculationVersion: 1,
     );
     await tester.pump();

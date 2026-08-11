@@ -200,16 +200,40 @@ class TrainingReportSyncPayloadSchemaV2 {
       'cardio',
     }, r'$.payload.session');
     final header = _map(session['session'], r'$.payload.session.session');
-    _exact(header, const {
-      'localDate',
-      'name',
-      'grade',
-      'memo',
-      'dynamicStretchCompleted',
-      'cooldownStretchCompleted',
-      'overallEvaluation',
-    }, r'$.payload.session.session');
+    _fields(
+      header,
+      const {
+        'localDate',
+        'startTime',
+        'endTime',
+        'name',
+        'grade',
+        'memo',
+        'dynamicStretchCompleted',
+        'cooldownStretchCompleted',
+        'overallEvaluation',
+        'estimatedStrengthCaloriesKcal',
+        'strengthWeightSnapshotKg',
+        'strengthCalculationMethod',
+        'strengthCalculationVersion',
+      },
+      const {
+        'localDate',
+        'name',
+        'grade',
+        'memo',
+        'dynamicStretchCompleted',
+        'cooldownStretchCompleted',
+        'overallEvaluation',
+      },
+      r'$.payload.session.session',
+    );
     _date(header['localDate'], r'$.payload.session.session.localDate');
+    _nullableString(
+      header['startTime'],
+      r'$.payload.session.session.startTime',
+    );
+    _nullableString(header['endTime'], r'$.payload.session.session.endTime');
     _nullableString(header['name'], r'$.payload.session.session.name');
     if (allowNullSessionGrade) {
       _nullableText(header['grade'], r'$.payload.session.session.grade');
@@ -228,6 +252,22 @@ class TrainingReportSyncPayloadSchemaV2 {
     _nullableString(
       header['overallEvaluation'],
       r'$.payload.session.session.overallEvaluation',
+    );
+    _nullableNumber(
+      header['estimatedStrengthCaloriesKcal'],
+      r'$.payload.session.session.estimatedStrengthCaloriesKcal',
+    );
+    _nullableNumber(
+      header['strengthWeightSnapshotKg'],
+      r'$.payload.session.session.strengthWeightSnapshotKg',
+    );
+    _nullableString(
+      header['strengthCalculationMethod'],
+      r'$.payload.session.session.strengthCalculationMethod',
+    );
+    _nullableInteger(
+      header['strengthCalculationVersion'],
+      r'$.payload.session.session.strengthCalculationVersion',
     );
     final exercises = _list(
       session['exercises'],
@@ -325,12 +365,18 @@ class TrainingReportSyncPayloadSchemaV2 {
     'session': {
       'session': {
         'localDate': '2000-01-01',
+        'startTime': null,
+        'endTime': null,
         'name': '<SESSION_NAME>',
         'grade': 'a',
         'memo': null,
         'dynamicStretchCompleted': false,
         'cooldownStretchCompleted': false,
         'overallEvaluation': null,
+        'estimatedStrengthCaloriesKcal': null,
+        'strengthWeightSnapshotKg': null,
+        'strengthCalculationMethod': null,
+        'strengthCalculationVersion': null,
       },
       'exercises': [
         {

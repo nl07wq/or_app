@@ -41,12 +41,18 @@ abstract final class TrainingCardioEnergyService {
   }) {
     return TrainingSessionV2(
       date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
       sessionName: session.sessionName,
       sessionGrade: session.sessionGrade,
       memo: session.memo,
       dynamicStretchCompleted: session.dynamicStretchCompleted,
       cooldownStretchCompleted: session.cooldownStretchCompleted,
       overallEvaluation: session.overallEvaluation,
+      estimatedStrengthCaloriesKcal: session.estimatedStrengthCaloriesKcal,
+      strengthWeightSnapshotKg: session.strengthWeightSnapshotKg,
+      strengthCalculationMethod: session.strengthCalculationMethod,
+      strengthCalculationVersion: session.strengthCalculationVersion,
       exercises: session.exercises,
       cardioEntries: [
         for (final entry in session.cardioEntries)

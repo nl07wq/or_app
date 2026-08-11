@@ -6,7 +6,7 @@ import '../../features/repositories/app_repository_container.dart';
 import '../../features/training/migration/training_legacy_reader.dart';
 import '../../features/training/models/persisted_training_record.dart';
 import '../../features/training/repository/training_record_id_generator.dart';
-import '../../features/training/services/training_cardio_energy_service.dart';
+import '../../features/training/services/training_energy_service.dart';
 import '../../features/training/services/training_status_weight_resolver.dart';
 import '../models/training_session.dart';
 import '../models/training_session_v2.dart';
@@ -190,11 +190,11 @@ class TrainingRepository {
 
   static Future<TrainingSessionV2> _prepareV2(TrainingSessionV2 session) async {
     double? statusWeight;
-    if (TrainingCardioEnergyService.requiresStatusWeight(session)) {
+    if (TrainingEnergyService.requiresStatusWeight(session)) {
       final localDate = PersistedTrainingRecord.localDateFromV2Session(session);
       statusWeight = await TrainingStatusWeightResolver().resolve(localDate);
     }
-    return TrainingCardioEnergyService.applyForSave(
+    return TrainingEnergyService.applyForSave(
       session: session,
       statusWeightKg: statusWeight,
     );

@@ -24,6 +24,8 @@ class TrainingSessionV2Form extends StatelessWidget {
         children: [
           const SectionHeader(icon: Icons.event_note, title: 'SESSION'),
           AppSpacing.gapMD,
+          _TrainingTimeActions(controller: controller, onChanged: onChanged),
+          AppSpacing.gapSM,
           TextField(
             controller: controller.sessionName,
             decoration: const InputDecoration(labelText: 'Session Name'),
@@ -69,6 +71,52 @@ class TrainingSessionV2Form extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TrainingTimeActions extends StatelessWidget {
+  final TrainingV2FormController controller;
+  final VoidCallback onChanged;
+
+  const _TrainingTimeActions({
+    required this.controller,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start = controller.startTime;
+    final end = controller.endTime;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Start Time  ${start ?? 'NOT RECORDED'}'),
+        AppSpacing.gapSM,
+        OutlinedButton.icon(
+          onPressed: start == null
+              ? () {
+                  controller.startTraining(DateTime.now());
+                  onChanged();
+                }
+              : null,
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('START TRAINING'),
+        ),
+        AppSpacing.gapSM,
+        Text('End Time  ${end ?? 'NOT RECORDED'}'),
+        AppSpacing.gapSM,
+        OutlinedButton.icon(
+          onPressed: start != null && end == null
+              ? () {
+                  controller.endTraining(DateTime.now());
+                  onChanged();
+                }
+              : null,
+          icon: const Icon(Icons.stop),
+          label: const Text('END TRAINING'),
+        ),
+      ],
     );
   }
 }

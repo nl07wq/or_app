@@ -6,6 +6,7 @@ import '../models/training_record_read_model.dart';
 import '../repository/custom_training_exercise_repository.dart';
 import '../repository/training_session_repository.dart';
 import '../services/training_cardio_energy_service.dart';
+import '../services/training_energy_service.dart';
 import '../services/training_status_weight_resolver.dart';
 import '../services/training_v2_canonical_service.dart';
 import 'training_sync_instruction_provider.dart';
@@ -56,11 +57,10 @@ class TrainingSyncAdapter implements OrloSyncAdapter {
         throw const FormatException('Invalid cardio calories snapshot.');
       }
     }
-    final weight =
-        TrainingCardioEnergyService.requiresStatusWeight(decoded.session)
+    final weight = TrainingEnergyService.requiresStatusWeight(decoded.session)
         ? await _weightResolver.resolve(decoded.session.date.substring(0, 10))
         : null;
-    final session = TrainingCardioEnergyService.applyForSave(
+    final session = TrainingEnergyService.applyForSave(
       session: decoded.session,
       statusWeightKg: weight,
     );

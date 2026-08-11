@@ -26,12 +26,18 @@ abstract final class TrainingSyncSchema {
   static const sessionFields = {
     'recordId',
     'localDate',
+    'startTime',
+    'endTime',
     'name',
     'grade',
     'memo',
     'dynamicStretchCompleted',
     'cooldownStretchCompleted',
     'overallEvaluation',
+    'estimatedStrengthCaloriesKcal',
+    'strengthWeightSnapshotKg',
+    'strengthCalculationMethod',
+    'strengthCalculationVersion',
   };
   static const exerciseFields = {
     'exerciseId',
@@ -211,12 +217,30 @@ abstract final class TrainingSyncSchema {
       exerciseIds: List.unmodifiable(exerciseIds),
       session: TrainingSessionV2(
         date: localDate,
+        startTime: _nullableText(sessionJson, 'startTime'),
+        endTime: _nullableText(sessionJson, 'endTime'),
         sessionName: _nullableText(sessionJson, 'name'),
         sessionGrade: grade,
         memo: _nullableText(sessionJson, 'memo'),
         dynamicStretchCompleted: dynamicStretch,
         cooldownStretchCompleted: cooldownStretch,
         overallEvaluation: _nullableText(sessionJson, 'overallEvaluation'),
+        estimatedStrengthCaloriesKcal: _nullableNumber(
+          sessionJson,
+          'estimatedStrengthCaloriesKcal',
+        ),
+        strengthWeightSnapshotKg: _nullableNumber(
+          sessionJson,
+          'strengthWeightSnapshotKg',
+        ),
+        strengthCalculationMethod: _nullableText(
+          sessionJson,
+          'strengthCalculationMethod',
+        ),
+        strengthCalculationVersion: _nullableInteger(
+          sessionJson,
+          'strengthCalculationVersion',
+        ),
         exercises: exercises,
         cardioEntries: cardio,
       ),

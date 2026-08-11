@@ -14,6 +14,7 @@ Exercise fields: ${TrainingSyncSchema.exerciseFields.join(', ')}
 Equipment fields: ${TrainingSyncSchema.equipmentFields.join(', ')}
 Set fields: ${TrainingSyncSchema.setFields.join(', ')}
 Cardio fields: ${TrainingSyncSchema.cardioFields.join(', ')}
+Preserve startTime and endTime only when formally recorded as offset ISO-8601 datetimes; otherwise set both to null and never infer either time. A Strength Calories Snapshot must contain estimatedStrengthCaloriesKcal, strengthWeightSnapshotKg, strengthCalculationMethod=strengthSessionMetsAcsmV1, and strengthCalculationVersion=1 together, or all four fields must be null. Never infer or reconstruct the snapshot.
 exerciseIdはexerciseNameの正式な正規化Identity Keyです。推測は禁止です。
 grade、Set type、Cardio purpose/type、Equipment IDはStable IDを使用してください。
 Weightはkg、RestとDurationは秒、Distanceはkm、Speedはkm/hです。

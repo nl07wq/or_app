@@ -7,9 +7,12 @@ class TrainingSummary {
   final Duration? duration;
   final String? sessionName;
   final double? trainingCardioCaloriesKcal;
+  final double? trainingStrengthCaloriesKcal;
+  final double? trainingEstimatedCaloriesKcal;
   final int? computedCardioCount;
   final int? uncomputedCardioCount;
   final TrainingEnergyCalculationStatus? energyCalculationStatus;
+  final TrainingEnergyCalculationStatus? totalEnergyCalculationStatus;
   final int? energyCalculationVersion;
 
   const TrainingSummary({
@@ -19,9 +22,12 @@ class TrainingSummary {
     required this.duration,
     required this.sessionName,
     this.trainingCardioCaloriesKcal,
+    this.trainingStrengthCaloriesKcal,
+    this.trainingEstimatedCaloriesKcal,
     this.computedCardioCount,
     this.uncomputedCardioCount,
     this.energyCalculationStatus,
+    this.totalEnergyCalculationStatus,
     this.energyCalculationVersion,
   });
 
@@ -33,11 +39,17 @@ class TrainingSummary {
     'sessionName': sessionName,
     if (trainingCardioCaloriesKcal != null)
       'trainingCardioCaloriesKcal': trainingCardioCaloriesKcal,
+    if (trainingStrengthCaloriesKcal != null)
+      'trainingStrengthCaloriesKcal': trainingStrengthCaloriesKcal,
+    if (trainingEstimatedCaloriesKcal != null)
+      'trainingEstimatedCaloriesKcal': trainingEstimatedCaloriesKcal,
     if (computedCardioCount != null) 'computedCardioCount': computedCardioCount,
     if (uncomputedCardioCount != null)
       'uncomputedCardioCount': uncomputedCardioCount,
     if (energyCalculationStatus != null)
       'energyCalculationStatus': energyCalculationStatus!.name,
+    if (totalEnergyCalculationStatus != null)
+      'totalEnergyCalculationStatus': totalEnergyCalculationStatus!.name,
     if (energyCalculationVersion != null)
       'energyCalculationVersion': energyCalculationVersion,
   };
@@ -53,10 +65,17 @@ class TrainingSummary {
         sessionName: json['sessionName'] as String?,
         trainingCardioCaloriesKcal: (json['trainingCardioCaloriesKcal'] as num?)
             ?.toDouble(),
+        trainingStrengthCaloriesKcal:
+            (json['trainingStrengthCaloriesKcal'] as num?)?.toDouble(),
+        trainingEstimatedCaloriesKcal:
+            (json['trainingEstimatedCaloriesKcal'] as num?)?.toDouble(),
         computedCardioCount: (json['computedCardioCount'] as num?)?.toInt(),
         uncomputedCardioCount: (json['uncomputedCardioCount'] as num?)?.toInt(),
         energyCalculationStatus: _decodeEnergyStatus(
           json['energyCalculationStatus'],
+        ),
+        totalEnergyCalculationStatus: _decodeEnergyStatus(
+          json['totalEnergyCalculationStatus'],
         ),
         energyCalculationVersion: (json['energyCalculationVersion'] as num?)
             ?.toInt(),

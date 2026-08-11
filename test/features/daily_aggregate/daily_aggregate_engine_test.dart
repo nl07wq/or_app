@@ -211,6 +211,33 @@ void main() {
       expect(repository.requestedRange, ('2026-07-28', '2026-08-03'));
     },
   );
+
+  test('task106: finalized expenditure includes Strength calories', () async {
+    final training = TrainingRecordReadModel.v2(
+      id: 'training:00112233-4455-4677-8899-aabbccddeeff',
+      localDate: '2026-08-10',
+      createdAt: DateTime.utc(2026, 8, 10),
+      updatedAt: DateTime.utc(2026, 8, 10),
+      data: TrainingSessionV2(
+        date: '2026-08-10',
+        startTime: '2026-08-10T10:00:00+09:00',
+        endTime: '2026-08-10T11:00:00+09:00',
+        estimatedStrengthCaloriesKcal: 367.5,
+        strengthWeightSnapshotKg: 100,
+        strengthCalculationMethod: 'strengthSessionMetsAcsmV1',
+        strengthCalculationVersion: 1,
+      ),
+    );
+    final burn = await DailyEstimatedTotalBurnService(
+      statusRepository: _RangeStatusRepository(
+        current: _status(date: '2026-08-10'),
+        history: const [],
+      ),
+      trainingRepository: _TrainingRepository([training]),
+    ).calculate('2026-08-10');
+
+    expect(burn, closeTo(95.6 * 22 + 8 * 100 + 367.5, 0.000001));
+  });
 }
 
 DailyAggregateEngine _engine({

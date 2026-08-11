@@ -486,12 +486,18 @@ TrainingSession _legacySession() => TrainingSession(
 
 TrainingSessionV2 _completeSession() => TrainingSessionV2(
   date: '2026-07-29T18:30:00+09:00',
+  startTime: '2026-07-29T18:30:00+09:00',
+  endTime: '2026-07-29T20:30:00+09:00',
   sessionName: 'Upper Body',
   sessionGrade: TrainingSessionGrade.aPlus,
   memo: 'Before session',
   dynamicStretchCompleted: true,
   cooldownStretchCompleted: false,
   overallEvaluation: 'Good control\nNo pain',
+  estimatedStrengthCaloriesKcal: 355.74,
+  strengthWeightSnapshotKg: 96.8,
+  strengthCalculationMethod: 'strengthSessionMetsAcsmV1',
+  strengthCalculationVersion: 1,
   exercises: [
     _exercise(order: 1),
     _exercise(order: 2, exerciseName: 'Squat'),

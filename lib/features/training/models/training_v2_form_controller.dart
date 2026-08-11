@@ -9,6 +9,15 @@ import '../../../core/models/training_set_v2.dart';
 
 class TrainingV2FormController {
   final String date;
+  String? startTime;
+  String? endTime;
+  final String? initialStartTime;
+  final String? initialEndTime;
+  final int initialCardioDurationSeconds;
+  double? estimatedStrengthCaloriesKcal;
+  double? strengthWeightSnapshotKg;
+  String? strengthCalculationMethod;
+  int? strengthCalculationVersion;
   final sessionName = TextEditingController();
   final sessionMemo = TextEditingController();
   final overallEvaluation = TextEditingController();
@@ -23,11 +32,23 @@ class TrainingV2FormController {
       date = localDate == null
           ? (now ?? DateTime.now()).toIso8601String()
           : '${localDate}T00:00:00.000',
+      initialStartTime = null,
+      initialEndTime = null,
+      initialCardioDurationSeconds = 0,
       exercises = [TrainingV2ExerciseFormController()],
       cardioEntries = [];
 
   TrainingV2FormController.fromSession(TrainingSessionV2 session)
     : date = session.date,
+      startTime = session.startTime,
+      endTime = session.endTime,
+      initialStartTime = session.startTime,
+      initialEndTime = session.endTime,
+      initialCardioDurationSeconds = session.cardioDurationSeconds,
+      estimatedStrengthCaloriesKcal = session.estimatedStrengthCaloriesKcal,
+      strengthWeightSnapshotKg = session.strengthWeightSnapshotKg,
+      strengthCalculationMethod = session.strengthCalculationMethod,
+      strengthCalculationVersion = session.strengthCalculationVersion,
       exercises = session.exercises
           .map(TrainingV2ExerciseFormController.fromDomain)
           .toList(),
@@ -43,6 +64,25 @@ class TrainingV2FormController {
   }
 
   void addExercise() => exercises.add(TrainingV2ExerciseFormController());
+
+  void startTraining(DateTime now) {
+    startTime = TrainingSessionV2.formatOffsetDateTime(now);
+    endTime = null;
+    _clearStrengthSnapshot();
+  }
+
+  void endTraining(DateTime now) {
+    if (startTime == null) return;
+    endTime = TrainingSessionV2.formatOffsetDateTime(now);
+    _clearStrengthSnapshot();
+  }
+
+  void _clearStrengthSnapshot() {
+    estimatedStrengthCaloriesKcal = null;
+    strengthWeightSnapshotKg = null;
+    strengthCalculationMethod = null;
+    strengthCalculationVersion = null;
+  }
 
   void removeExercise(TrainingV2ExerciseFormController value) {
     value.dispose();

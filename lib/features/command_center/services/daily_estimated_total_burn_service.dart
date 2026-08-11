@@ -1,7 +1,7 @@
 import '../../../core/engine/operation_engine.dart';
 import '../../status/repositories/status_repository.dart';
 import '../../training/repository/training_session_repository.dart';
-import '../../training/services/training_cardio_energy_service.dart';
+import '../../training/services/training_energy_service.dart';
 
 class RecentStatusWeightResolver {
   final StatusRepository _statusRepository;
@@ -53,14 +53,15 @@ class DailyEstimatedTotalBurnService {
     final records = await _trainingRepository.findRecordsByLocalDate(
       operationDate,
     );
-    final cardio = TrainingCardioEnergyService.summarize(
+    final exercise = TrainingEnergyService.summarize(
       preferredRecords: records,
       localDate: operationDate,
-    ).trainingCardioCaloriesKcal;
+    ).trainingEstimatedCaloriesKcal;
+    if (exercise == null) return null;
     final base = const OperationEngine().estimateTDEEFromFacts(
       weightKg: weight,
       workHours: status.workHours,
     );
-    return base + (cardio ?? 0);
+    return base + exercise;
   }
 }

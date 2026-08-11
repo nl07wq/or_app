@@ -10,6 +10,7 @@ import '../models/persisted_training_record.dart';
 import '../models/progression_result.dart';
 import '../services/training_exercise_identity.dart';
 import '../services/training_cardio_energy_service.dart';
+import '../services/training_energy_service.dart';
 import '../services/training_v2_personal_record_service.dart';
 import '../services/training_v2_previous_service.dart';
 import '../services/training_v2_progression_service.dart';
@@ -39,6 +40,22 @@ class TrainingV2RecordDetail extends StatelessWidget {
                   ),
                   AppSpacing.gapSM,
                   const Text('READ ONLY — Training Record v2'),
+                  Text('Start Time ${session.startTime ?? 'Not recorded'}'),
+                  Text('End Time ${session.endTime ?? 'Not recorded'}'),
+                  Text(
+                    'Session Duration ${_duration(session.sessionDuration)}',
+                  ),
+                  Text(
+                    'Strength Duration ${_duration(session.strengthDuration)}',
+                  ),
+                  Text(
+                    'Strength Calories '
+                    '${_calories(session.estimatedStrengthCaloriesKcal)}',
+                  ),
+                  Text(
+                    'Training Estimated Calories '
+                    '${_calories(TrainingEnergyService.totalForSession(session))}',
+                  ),
                   if (session.sessionName != null)
                     Text('Session ${session.sessionName}'),
                   if (session.sessionGrade != null)
@@ -276,3 +293,16 @@ String _calculationLabel(CardioEntryV2 entry) {
   }
   return '${entry.calculationMethod} v${entry.calculationVersion}';
 }
+
+String _duration(Duration? value) {
+  if (value == null) return 'Not calculated';
+  final hours = value.inHours;
+  final minutes = value.inMinutes.remainder(60);
+  final seconds = value.inSeconds.remainder(60);
+  return '${hours.toString().padLeft(2, '0')}:'
+      '${minutes.toString().padLeft(2, '0')}:'
+      '${seconds.toString().padLeft(2, '0')}';
+}
+
+String _calories(double? value) =>
+    value == null ? 'Not calculated' : '${_number(value)} kcal';

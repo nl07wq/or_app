@@ -71,14 +71,36 @@ abstract final class TrainingV2FormMapper {
       );
     }
     try {
+      final strengthInputsUnchanged =
+          form.startTime == form.initialStartTime &&
+          form.endTime == form.initialEndTime &&
+          cardio.fold<int>(
+                0,
+                (total, entry) => total + entry.durationSeconds,
+              ) ==
+              form.initialCardioDurationSeconds;
       return TrainingSessionV2(
         date: form.date,
+        startTime: form.startTime,
+        endTime: form.endTime,
         sessionName: form.sessionName.text,
         sessionGrade: form.sessionGrade,
         memo: form.sessionMemo.text,
         dynamicStretchCompleted: form.dynamicStretchCompleted,
         cooldownStretchCompleted: form.cooldownStretchCompleted,
         overallEvaluation: form.overallEvaluation.text,
+        estimatedStrengthCaloriesKcal: strengthInputsUnchanged
+            ? form.estimatedStrengthCaloriesKcal
+            : null,
+        strengthWeightSnapshotKg: strengthInputsUnchanged
+            ? form.strengthWeightSnapshotKg
+            : null,
+        strengthCalculationMethod: strengthInputsUnchanged
+            ? form.strengthCalculationMethod
+            : null,
+        strengthCalculationVersion: strengthInputsUnchanged
+            ? form.strengthCalculationVersion
+            : null,
         exercises: exercises,
         cardioEntries: cardio,
       );
