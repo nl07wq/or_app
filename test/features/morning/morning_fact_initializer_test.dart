@@ -143,6 +143,74 @@ void main() {
     expect(memo.controller.text, isEmpty);
   });
 
+  testWidgets('unmeasured toggles restore the latest measured STATUS values', (
+    tester,
+  ) async {
+    await MorningRepository.save(
+      _record(
+        date: DateTime(2026, 7, 25),
+        weight: 71.5,
+        bodyFat: 17.5,
+        sleepHours: 7.5,
+        sleepScore: 82,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MorningFactPage(
+          operationDateService: await operationDateServiceFor('2026-07-31'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var body = tester.widget<BodyCard>(find.byType(BodyCard));
+    body.onWeightUnmeasured();
+    await tester.pump();
+    body = tester.widget<BodyCard>(find.byType(BodyCard));
+    expect(body.weightController.text, isEmpty);
+    expect(body.bodyFatController.text, isEmpty);
+    body.onWeightMeasured();
+    await tester.pump();
+    body = tester.widget<BodyCard>(find.byType(BodyCard));
+    expect(body.weightController.text, '71.5');
+    expect(body.bodyFatController.text, '17.5');
+
+    body.weightController.text = '72.1';
+    body.bodyFatController.text = '17.2';
+    body.onWeightUnmeasured();
+    await tester.pump();
+    body = tester.widget<BodyCard>(find.byType(BodyCard));
+    body.onWeightMeasured();
+    await tester.pump();
+    body = tester.widget<BodyCard>(find.byType(BodyCard));
+    expect(body.weightController.text, '72.1');
+    expect(body.bodyFatController.text, '17.2');
+
+    var recovery = tester.widget<RecoveryCard>(find.byType(RecoveryCard));
+    recovery.onSleepTimeUnmeasured();
+    await tester.pump();
+    recovery = tester.widget<RecoveryCard>(find.byType(RecoveryCard));
+    expect(recovery.sleepController.text, isEmpty);
+    expect(recovery.sleepScoreController.text, isEmpty);
+    recovery.onSleepTimeMeasured();
+    await tester.pump();
+    recovery = tester.widget<RecoveryCard>(find.byType(RecoveryCard));
+    expect(recovery.sleepController.text, '7:30');
+    expect(recovery.sleepScoreController.text, '82');
+
+    recovery.sleepController.text = '8:05';
+    recovery.sleepScoreController.text = '91';
+    recovery.onSleepTimeUnmeasured();
+    await tester.pump();
+    recovery = tester.widget<RecoveryCard>(find.byType(RecoveryCard));
+    recovery.onSleepTimeMeasured();
+    await tester.pump();
+    recovery = tester.widget<RecoveryCard>(find.byType(RecoveryCard));
+    expect(recovery.sleepController.text, '8:05');
+    expect(recovery.sleepScoreController.text, '91');
+  });
+
   testWidgets('Operation Date gate hides new STATUS form until resolved', (
     tester,
   ) async {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/training_session_v2.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/operation_flip_tile.dart';
 import '../../../core/widgets/section_header.dart';
 import '../models/training_v2_form_controller.dart';
 
@@ -415,56 +416,16 @@ class _FlipCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
+    return OperationFlipTile(
       key: ValueKey('flip-cell-$index'),
+      value: digit,
+      valueKey: ValueKey('flip-digit-$index-$digit'),
       width: width,
       height: (width * 1.35).clamp(42.0, 52.0),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => AnimatedBuilder(
-                animation: animation,
-                child: child,
-                builder: (context, child) => Opacity(
-                  opacity: animation.value,
-                  child: Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.rotationX((1 - animation.value) * 0.45),
-                    child: child,
-                  ),
-                ),
-              ),
-              child: Text(
-                digit,
-                key: ValueKey('flip-digit-$index-$digit'),
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  height: 1,
-                ),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.center,
-            child: Container(
-              height: 1,
-              color: colorScheme.outlineVariant.withValues(alpha: 0.55),
-            ),
-          ),
-        ],
+      textStyle: Theme.of(context).textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        height: 1,
       ),
     );
   }

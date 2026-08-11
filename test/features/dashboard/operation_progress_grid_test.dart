@@ -5,6 +5,7 @@ import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
+import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
@@ -91,7 +92,7 @@ void main() {
     }
   });
 
-  testWidgets('OPERATION DATE uses normal value typography without overflow', (
+  testWidgets('OPERATION DATE uses three static flip tiles without overflow', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -99,24 +100,161 @@ void main() {
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
 
-    for (final width in [390.0, 900.0]) {
+    for (final width in [320.0, 390.0, 900.0]) {
       await _pumpDashboard(tester, width: width);
       await tester.pumpAndSettle();
 
-      final operationDateCard = find.ancestor(
-        of: find.text('OPERATION DATE'),
-        matching: find.byType(OperationCard),
-      );
-      final dateFinder = find.descendant(
-        of: operationDateCard,
-        matching: find.text('2026-07-28'),
-      );
-      final date = tester.widget<Text>(dateFinder);
-      final textTheme = Theme.of(tester.element(dateFinder)).textTheme;
-      expect(date.style?.fontSize, textTheme.titleSmall?.fontSize);
-      expect(date.style?.fontSize, isNot(textTheme.headlineSmall?.fontSize));
+      expect(find.text('JUL'), findsOneWidget);
+      expect(find.text('28'), findsOneWidget);
+      expect(find.text('TUE'), findsOneWidget);
+      expect(find.text('2026-07-28'), findsNothing);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('successful DAILY REVIEW return flips only changed date tiles', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-08-11');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    tester.view.physicalSize = const Size(390, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const DashboardPage(),
+        routes: {
+          AppRoutes.logConfirmationReview: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                seedOperationState(database, '2026-08-12');
+                Navigator.pop(context, true);
+              },
+              child: const Text('COMPLETE FINALIZE'),
+            ),
+          ),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('11'), findsOneWidget);
+    expect(find.text('TUE'), findsOneWidget);
+
+    await tester.tap(find.text('DAILY REVIEW'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('COMPLETE FINALIZE'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('11'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
+    expect(find.text('TUE'), findsOneWidget);
+    expect(find.text('WED'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('11'), findsNothing);
+    expect(find.text('12'), findsOneWidget);
+    expect(find.text('TUE'), findsNothing);
+    expect(find.text('WED'), findsOneWidget);
+
+    morningFactNotifier.value = _morning();
+    await tester.pump();
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
+    expect(find.text('WED'), findsOneWidget);
+  });
+
+  testWidgets('failed DAILY REVIEW return does not refresh or flip date', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-08-11');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const DashboardPage(),
+        routes: {
+          AppRoutes.logConfirmationReview: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                seedOperationState(database, '2026-08-12');
+                Navigator.pop(context, false);
+              },
+              child: const Text('FAIL FINALIZE'),
+            ),
+          ),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('DAILY REVIEW'));
+    await tester.tap(find.text('DAILY REVIEW'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('FAIL FINALIZE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('11'), findsOneWidget);
+    expect(find.text('TUE'), findsOneWidget);
+    expect(find.text('12'), findsNothing);
+    expect(find.text('WED'), findsNothing);
+  });
+
+  testWidgets('month crossing flips month day and weekday tiles', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-08-31');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const DashboardPage(),
+        routes: {
+          AppRoutes.logConfirmationReview: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                seedOperationState(database, '2026-09-01');
+                Navigator.pop(context, true);
+              },
+              child: const Text('COMPLETE MONTH FINALIZE'),
+            ),
+          ),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('DAILY REVIEW'));
+    await tester.tap(find.text('DAILY REVIEW'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('COMPLETE MONTH FINALIZE'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('SEP'), findsOneWidget);
+    expect(find.text('31'), findsOneWidget);
+    expect(find.text('01'), findsOneWidget);
+    expect(find.text('MON'), findsOneWidget);
+    expect(find.text('TUE'), findsOneWidget);
   });
 
   testWidgets('keeps existing values, targets, progress, and module states', (

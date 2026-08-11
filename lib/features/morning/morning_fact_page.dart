@@ -131,6 +131,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
   SleepType selectedSleepType = SleepType.sleep;
   bool weightUnmeasured = false;
   bool sleepTimeUnmeasured = false;
+  String? _measuredWeight;
+  String? _measuredBodyFat;
+  String? _measuredSleepTime;
+  String? _measuredSleepScore;
 
   String _formatTime(double hours) {
     final totalMinutes = (hours * 60).round();
@@ -155,6 +159,42 @@ class _MorningFactPageState extends State<MorningFactPage> {
     );
   }
 
+  void _markBodyUnmeasured() {
+    _measuredWeight = weightController.text;
+    _measuredBodyFat = bodyFatController.text;
+    setState(() {
+      weightController.clear();
+      bodyFatController.clear();
+      weightUnmeasured = true;
+    });
+  }
+
+  void _restoreMeasuredBody() {
+    setState(() {
+      weightController.text = _measuredWeight ?? '';
+      bodyFatController.text = _measuredBodyFat ?? '';
+      weightUnmeasured = false;
+    });
+  }
+
+  void _markSleepTimeUnmeasured() {
+    _measuredSleepTime = sleepController.text;
+    _measuredSleepScore = sleepScoreController.text;
+    setState(() {
+      sleepController.clear();
+      sleepScoreController.clear();
+      sleepTimeUnmeasured = true;
+    });
+  }
+
+  void _restoreMeasuredSleepTime() {
+    setState(() {
+      sleepController.text = _measuredSleepTime ?? '';
+      sleepScoreController.text = _measuredSleepScore ?? '';
+      sleepTimeUnmeasured = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,13 +213,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
                       weightController: weightController,
                       bodyFatController: bodyFatController,
                       weightUnmeasured: weightUnmeasured,
-                      onWeightUnmeasured: () => setState(() {
-                        weightController.clear();
-                        bodyFatController.clear();
-                        weightUnmeasured = true;
-                      }),
-                      onWeightMeasured: () =>
-                          setState(() => weightUnmeasured = false),
+                      onWeightUnmeasured: _markBodyUnmeasured,
+                      onWeightMeasured: _restoreMeasuredBody,
                     ),
 
                     AppSpacing.gapMD,
@@ -189,13 +224,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
                       sleepScoreController: sleepScoreController,
                       sleepType: selectedSleepType,
                       sleepTimeUnmeasured: sleepTimeUnmeasured,
-                      onSleepTimeUnmeasured: () => setState(() {
-                        sleepController.clear();
-                        sleepScoreController.clear();
-                        sleepTimeUnmeasured = true;
-                      }),
-                      onSleepTimeMeasured: () =>
-                          setState(() => sleepTimeUnmeasured = false),
+                      onSleepTimeUnmeasured: _markSleepTimeUnmeasured,
+                      onSleepTimeMeasured: _restoreMeasuredSleepTime,
                       onSleepTypeChanged: (value) {
                         setState(() {
                           selectedSleepType = value;

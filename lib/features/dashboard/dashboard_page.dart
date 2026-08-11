@@ -10,6 +10,7 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/operation_flip_tile.dart';
 import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
@@ -50,6 +51,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late Future<OperationLocalDate> _operationDateFuture =
       const OperationDateService().current();
+  int _operationDateTransitionToken = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +110,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                           _OperationDateCard(
                                             operationDateFuture:
                                                 _operationDateFuture,
+                                            transitionToken:
+                                                _operationDateTransitionToken,
                                           ),
                                           AppSpacing.gapLG,
                                           SectionHeader(
@@ -193,7 +197,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         );
                                                         if (changed == true &&
                                                             mounted) {
-                                                          await _refreshOperationDate();
+                                                          await _refreshOperationDate(
+                                                            animateTransition:
+                                                                true,
+                                                          );
                                                         }
                                                       },
                                               );
@@ -236,11 +243,14 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _refreshOperationDate() async {
+  Future<void> _refreshOperationDate({bool animateTransition = false}) async {
     final operationDate = await const OperationDateService().current();
     if (!mounted) return;
     setState(() {
       _operationDateFuture = Future.value(operationDate);
+      if (animateTransition) {
+        _operationDateTransitionToken++;
+      }
     });
   }
 
@@ -253,42 +263,121 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _OperationDateCard extends StatelessWidget {
-  const _OperationDateCard({required this.operationDateFuture});
+class _OperationDateCard extends StatefulWidget {
+  const _OperationDateCard({
+    required this.operationDateFuture,
+    required this.transitionToken,
+  });
 
   final Future<OperationLocalDate> operationDateFuture;
+  final int transitionToken;
+
+  @override
+  State<_OperationDateCard> createState() => _OperationDateCardState();
+}
+
+class _OperationDateCardState extends State<_OperationDateCard> {
+  OperationLocalDate? _displayedDate;
+  int _consumedTransitionToken = 0;
 
   @override
   Widget build(BuildContext context) => FutureBuilder(
-    future: operationDateFuture,
-    builder: (context, snapshot) => OperationCard(
-      child: Row(
-        children: [
-          Icon(
-            Icons.calendar_today_outlined,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          AppSpacing.gapSM,
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    future: widget.operationDateFuture,
+    builder: (context, snapshot) {
+      var animate = false;
+      if (snapshot.connectionState == ConnectionState.done &&
+          snapshot.hasData) {
+        final nextDate = snapshot.requireData;
+        animate =
+            widget.transitionToken != _consumedTransitionToken &&
+            _displayedDate != null &&
+            _displayedDate != nextDate;
+        _displayedDate = nextDate;
+        _consumedTransitionToken = widget.transitionToken;
+      }
+      final date = _displayedDate;
+      return OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                AppSpacing.gapSM,
                 Text(
                   'OPERATION DATE',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
-                AppSpacing.gapXS,
-                Text(
-                  snapshot.data?.value ?? 'LOADING...',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
               ],
             ),
-          ),
-        ],
-      ),
-    ),
+            AppSpacing.gapSM,
+            if (date == null)
+              Text('LOADING...', style: Theme.of(context).textTheme.titleSmall)
+            else
+              _OperationDateFlipRow(date: date, animate: animate),
+          ],
+        ),
+      );
+    },
   );
+}
+
+class _OperationDateFlipRow extends StatelessWidget {
+  const _OperationDateFlipRow({required this.date, required this.animate});
+
+  static const _months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
+  static const _weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+  final OperationLocalDate date;
+  final bool animate;
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = date.asUtcDate;
+    final values = [
+      _months[parsed.month - 1],
+      parsed.day.toString().padLeft(2, '0'),
+      _weekdays[parsed.weekday - 1],
+    ];
+    return Semantics(
+      label: 'OPERATION DATE ${date.value}',
+      child: ExcludeSemantics(
+        child: Row(
+          children: [
+            for (var index = 0; index < values.length; index++) ...[
+              if (index > 0) AppSpacing.gapSM,
+              Expanded(
+                child: OperationFlipTile(
+                  key: ValueKey('operation-date-tile-$index'),
+                  value: values[index],
+                  valueKey: ValueKey(
+                    'operation-date-value-$index-${values[index]}',
+                  ),
+                  animate: animate,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DailyCommandSummary extends StatelessWidget {
