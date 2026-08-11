@@ -30,7 +30,6 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.clipboardWriter,
     this.clipboardGateway,
     this.onApplied,
-    this.embedded = false,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -39,7 +38,6 @@ class ReportSyncExchangePage extends StatelessWidget {
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
   final VoidCallback? onApplied;
-  final bool embedded;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -51,7 +49,6 @@ class ReportSyncExchangePage extends StatelessWidget {
       clipboardWriter: clipboardWriter,
       clipboardGateway: clipboardGateway,
       onApplied: onApplied,
-      embedded: embedded,
     ),
   );
 }
@@ -65,7 +62,6 @@ class ReportSyncExchangePanel extends StatefulWidget {
     this.clipboardWriter,
     this.clipboardGateway,
     this.onApplied,
-    this.embedded = false,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -74,7 +70,6 @@ class ReportSyncExchangePanel extends StatefulWidget {
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
   final VoidCallback? onApplied;
-  final bool embedded;
 
   @override
   State<ReportSyncExchangePanel> createState() =>
@@ -528,8 +523,6 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     final ready = _hasValidTargetDate;
     return ListView(
       key: ValueKey('report-sync-${widget.exchangeType.stableId}'),
-      shrinkWrap: widget.embedded,
-      physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
       padding: AppSpacing.cardPadding,
       children: [
         SectionHeader(

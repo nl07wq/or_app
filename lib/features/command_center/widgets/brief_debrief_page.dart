@@ -229,7 +229,24 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
   }
 
   void _refresh() {
-    if (mounted) setState(() => _records = _load());
+    final records = _load();
+    if (mounted) {
+      setState(() {
+        _records = records;
+      });
+    }
+  }
+
+  Future<void> _openCreateFlow() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+        ),
+      ),
+    );
+    _refresh();
   }
 
   @override
@@ -239,67 +256,94 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
     future: _records,
     builder: (context, snapshot) => ListView(
       key: const ValueKey('daily-debrief-content'),
-      padding: EdgeInsets.zero,
+      padding: AppSpacing.cardPadding,
       children: [
-        ReportSyncExchangePanel(
-          exchangeType: ReportSyncExchangeType.dailyDebrief,
-          onApplied: _refresh,
-          embedded: true,
+        const SectionHeader(
+          icon: Icons.nightlight_outlined,
+          title: 'DAILY DEBRIEF',
         ),
-        Padding(
-          padding: AppSpacing.cardPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SectionHeader(icon: Icons.history, title: 'HISTORY'),
-              AppSpacing.gapSM,
-              if (snapshot.hasError)
-                OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
-              else if (!snapshot.hasData)
-                const Center(child: CircularProgressIndicator())
-              else if (snapshot.data!.isEmpty)
-                const OperationCard(child: Text('NO DAILY DEBRIEF HISTORY'))
-              else
-                OperationCard(
-                  child: Column(
-                    children: [
-                      for (
-                        var index = 0;
-                        index < snapshot.data!.length;
-                        index++
-                      ) ...[
-                        ListTile(
-                          key: ValueKey(
-                            'daily-debrief-history-${snapshot.data![index].record.localDate}',
-                          ),
-                          leading: const Icon(Icons.nightlight_outlined),
-                          title: Text(
-                            'OPERATION DATE  ${snapshot.data![index].record.localDate}',
-                          ),
-                          subtitle: Text(
-                            'REVISION  ${snapshot.data![index].record.revision}  '
-                            'STATUS  ${snapshot.data![index].status.name.toUpperCase()}\n'
-                            'IMPORTED AT  ${snapshot.data![index].record.updatedAt.toLocal()}',
-                          ),
-                          onTap: () => Navigator.push<void>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => _DailyDebriefDetailPage(
-                                record: snapshot.data![index].record,
-                                status: snapshot.data![index].status,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (index != snapshot.data!.length - 1) const Divider(),
-                      ],
-                    ],
+        AppSpacing.gapSM,
+        if (snapshot.hasError)
+          OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
+        else if (!snapshot.hasData)
+          const Center(child: CircularProgressIndicator())
+        else if (snapshot.data!.isEmpty)
+          const OperationCard(child: Text('DAILY DEBRIEFはまだありません。'))
+        else
+          OperationCard(
+            child: ListTile(
+              key: const ValueKey('current-daily-debrief'),
+              leading: const Icon(Icons.nightlight_outlined),
+              title: Text(
+                'OPERATION DATE  ${snapshot.data!.first.record.localDate}',
+              ),
+              subtitle: Text(
+                'REVISION  ${snapshot.data!.first.record.revision}  '
+                'STATUS  ${snapshot.data!.first.status.name.toUpperCase()}',
+              ),
+              onTap: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _DailyDebriefDetailPage(
+                    record: snapshot.data!.first.record,
+                    status: snapshot.data!.first.status,
                   ),
                 ),
-              AppSpacing.gapLG,
-            ],
+              ),
+            ),
           ),
+        AppSpacing.gapMD,
+        OperationButton(
+          key: const ValueKey('open-daily-debrief-report-sync'),
+          text: 'CREATE DAILY DEBRIEF',
+          icon: Icons.add_circle_outline,
+          onPressed: appInitializationController.value.isReadOnly
+              ? null
+              : _openCreateFlow,
         ),
+        AppSpacing.gapXL,
+        const SectionHeader(icon: Icons.history, title: 'HISTORY'),
+        AppSpacing.gapSM,
+        if (snapshot.hasError)
+          OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
+        else if (!snapshot.hasData)
+          const Center(child: CircularProgressIndicator())
+        else if (snapshot.data!.isEmpty)
+          const OperationCard(child: Text('NO DAILY DEBRIEF HISTORY'))
+        else
+          OperationCard(
+            child: Column(
+              children: [
+                for (var index = 0; index < snapshot.data!.length; index++) ...[
+                  ListTile(
+                    key: ValueKey(
+                      'daily-debrief-history-${snapshot.data![index].record.localDate}',
+                    ),
+                    leading: const Icon(Icons.nightlight_outlined),
+                    title: Text(
+                      'OPERATION DATE  ${snapshot.data![index].record.localDate}',
+                    ),
+                    subtitle: Text(
+                      'REVISION  ${snapshot.data![index].record.revision}  '
+                      'STATUS  ${snapshot.data![index].status.name.toUpperCase()}\n'
+                      'IMPORTED AT  ${snapshot.data![index].record.updatedAt.toLocal()}',
+                    ),
+                    onTap: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _DailyDebriefDetailPage(
+                          record: snapshot.data![index].record,
+                          status: snapshot.data![index].status,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (index != snapshot.data!.length - 1) const Divider(),
+                ],
+              ],
+            ),
+          ),
+        AppSpacing.gapLG,
       ],
     ),
   );

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
@@ -12,6 +13,7 @@ import 'package:or_app/features/operation_date/models/operation_active_attempt.d
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
@@ -160,20 +162,28 @@ void main() {
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.byType(ReportSyncExchangePanel), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('NO DAILY DEBRIEF HISTORY'),
-      1000,
-      scrollable: find.descendant(
-        of: find.byKey(const ValueKey('daily-debrief-content')),
-        matching: find.byType(Scrollable),
-      ).first,
-    );
+    expect(find.byType(ReportSyncExchangePanel), findsNothing);
+    expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
     expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
-      findsNothing,
+      findsOneWidget,
     );
+    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('open-daily-debrief-report-sync')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+    expect(find.byType(ReportSyncExchangePanel), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('report-sync-target-date')),
+      findsOneWidget,
+    );
+    expect(find.text('COPY CHATGPT PROMPT'), findsOneWidget);
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
     expect(find.textContaining('施設'), findsNothing);
   });
 
@@ -243,19 +253,83 @@ void main() {
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.byType(ReportSyncExchangePanel), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('NO DAILY DEBRIEF HISTORY'),
-      1000,
-      scrollable: find.descendant(
-        of: find.byKey(const ValueKey('daily-debrief-content')),
-        matching: find.byType(Scrollable),
-      ).first,
-    );
+    expect(find.byType(ReportSyncExchangePanel), findsNothing);
+    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
     expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
-      findsNothing,
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('keeps existing debrief visible with creation action', (
+    tester,
+  ) async {
+    final timestamp = DateTime.utc(2026, 8, 1, 23);
+    final record = DailyDebriefRecord.initial(
+      localDate: '2026-08-01',
+      sources: const DailyDebriefSources(
+        dailyAggregate: DailyDebriefDailyAggregateReference(
+          operationDate: '2026-08-01',
+          sourceType: 'records',
+          recordDigest:
+              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        ),
+        confirmation: DailyDebriefConfirmationReference(
+          recordId: 'confirmation:2026-08-01',
+          recordVersion: 2,
+          revision: 1,
+          snapshotDigest: '1234abcd',
+          recordDigest:
+              'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        ),
+        morningBrief: null,
+      ),
+      analysis: DailyDebriefAnalysis(
+        commanderIntentEvaluation: null,
+        domainEvaluations: DailyDebriefDomainEvaluations(
+          body: 'BODY REVIEW',
+          recovery: null,
+          condition: null,
+          work: null,
+          nutrition: null,
+          hydration: null,
+          activity: null,
+          training: null,
+        ),
+        crossAnalysis: DailyDebriefCrossAnalysis(
+          keyFactors: [],
+          interactions: [],
+          constraints: [],
+          resources: [],
+        ),
+        executionEvaluation: DailyDebriefExecutionEvaluation(
+          successes: [],
+          adjustments: [],
+        ),
+        nextDayHandoff: DailyDebriefNextDayHandoff(watchPoints: []),
+      ),
+      responseDigest:
+          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      timestamp: timestamp,
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      record.localDate,
+      record.toRecord(),
+    );
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
+    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+      findsOneWidget,
     );
   });
 
