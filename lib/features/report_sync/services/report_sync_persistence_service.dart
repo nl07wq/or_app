@@ -7,13 +7,16 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../food/models/persisted_food_record.dart';
 import '../models/morning_brief_record.dart';
+import '../models/daily_debrief_record.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import '../repository/report_sync_history_repository.dart';
+import '../repository/daily_debrief_repository.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_validator.dart';
 import 'status_report_sync_source_service.dart';
+import 'daily_debrief_source_service.dart';
 
 class ReportSyncImportFailure implements Exception {
   const ReportSyncImportFailure({
@@ -508,6 +511,141 @@ class ReportSyncPersistenceService {
         recordId: record.localDate,
       );
     }
+  }
+
+  Future<ReportSyncHistory> importDailyDebrief(
+    ReportSyncEnvelope response, {
+    required DailyDebriefSourceService sourceService,
+    required DailyDebriefRepository repository,
+  }) async {
+    if (response.direction != ReportSyncDirection.response ||
+        response.exchangeType != ReportSyncExchangeType.dailyDebrief ||
+        response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        'Daily Debrief Schema 2.0 response required.',
+      );
+    }
+    await validator.validateResponse(
+      response,
+      expectedOperationDate: response.operationDate,
+    );
+    final currentSource = await sourceService.requireEligible(
+      response.operationDate,
+    );
+    final payloadSource = DailyDebriefSources.fromJson(
+      Map<String, Object?>.from(response.payload['sources'] as Map),
+    );
+    if (!_equal(payloadSource.toJson(), currentSource.references.toJson())) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.integrityFailure,
+        'Daily Debrief source changed before import.',
+      );
+    }
+    final analysis = DailyDebriefAnalysis.fromJson(
+      Map<String, Object?>.from(response.payload['analysis'] as Map),
+    );
+    final responseDigest = ReportSyncCanonicalService.digest(response.payload);
+    final now = clock().toUtc();
+    var history = _history(response, completedAt: now);
+    return database.runTransaction<ReportSyncHistory>(
+      storeNames: const [
+        IndexedDbStoreNames.dailyDebriefRecords,
+        IndexedDbStoreNames.reportSyncHistory,
+      ],
+      mode: IndexedDbTransactionMode.readWrite,
+      action: (transaction) async {
+        final existingValue = await transaction.findById(
+          IndexedDbStoreNames.dailyDebriefRecords,
+          response.operationDate,
+        );
+        final existing = existingValue == null
+            ? null
+            : DailyDebriefRecord.fromRecord(existingValue);
+        final isNoChange =
+            existing != null &&
+            existing.responseDigest == responseDigest &&
+            _equal(existing.sources.toJson(), payloadSource.toJson()) &&
+            _equal(existing.analysis.toJson(), analysis.toJson());
+        final record = existing == null
+            ? DailyDebriefRecord.initial(
+                localDate: response.operationDate,
+                sources: payloadSource,
+                analysis: analysis,
+                responseDigest: responseDigest,
+                timestamp: now,
+              )
+            : isNoChange
+            ? existing
+            : existing.revise(
+                sources: payloadSource,
+                analysis: analysis,
+                responseDigest: responseDigest,
+                timestamp: now,
+              );
+        if (!isNoChange) {
+          await repository.putInTransaction(transaction, record);
+        }
+        if (isNoChange) {
+          history = ReportSyncHistory(
+            exchangeId: response.exchangeId,
+            exchangeType: response.exchangeType,
+            direction: response.direction,
+            operationDate: response.operationDate,
+            requestId: _legacyRequestId(response),
+            requestDigest: _legacyRequestDigest(response),
+            responseDigest: responseDigest,
+            confirmationDigest: response.confirmationDigest,
+            startedAt: response.createdAt,
+            completedAt: now,
+            result: ReportSyncHistoryResult.noChange,
+            packageDigest: response.packageDigest,
+          );
+        }
+        final existingHistory = await transaction.findById(
+          IndexedDbStoreNames.reportSyncHistory,
+          history.exchangeId,
+        );
+        if (existingHistory != null &&
+            !_equal(existingHistory, history.toRecord())) {
+          throw const ReportSyncException(
+            ReportSyncIssueCode.recordConflict,
+            'exchangeId already exists with different data.',
+          );
+        }
+        if (existingHistory == null) {
+          await transaction.put(
+            IndexedDbStoreNames.reportSyncHistory,
+            history.toRecord(),
+          );
+        }
+        final savedRecord = await transaction.findById(
+          IndexedDbStoreNames.dailyDebriefRecords,
+          response.operationDate,
+        );
+        final savedHistory = await transaction.findById(
+          IndexedDbStoreNames.reportSyncHistory,
+          history.exchangeId,
+        );
+        if (savedRecord == null ||
+            savedHistory == null ||
+            !_equal(
+              DailyDebriefRecord.fromRecord(savedRecord).toRecord(),
+              record.toRecord(),
+            ) ||
+            !_equal(
+              ReportSyncHistory.fromRecord(savedHistory).toRecord(),
+              history.toRecord(),
+            )) {
+          throw const ReportSyncImportFailure(
+            code: 'daily_debrief_read_back_failed',
+            stage: 'DAILY DEBRIEF READ-BACK',
+            message: 'Daily Debrief import read-back failed.',
+          );
+        }
+        return history;
+      },
+    );
   }
 
   Future<ReportSyncHistory> _apply(

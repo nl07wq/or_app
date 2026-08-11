@@ -1,5 +1,7 @@
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_issue.dart';
+import '../models/daily_debrief_record.dart';
+import '../models/report_sync_record_utils.dart';
 import 'report_sync_import_schema_v2.dart';
 
 abstract interface class ReportSyncPayloadSchema {
@@ -23,6 +25,7 @@ class ReportSyncPayloadRegistry {
     const TrainingReportSyncPayloadSchema(),
     const FoodReportSyncPayloadSchema(),
     const MorningBriefReportSyncPayloadSchema(),
+    const DailyDebriefReportSyncPayloadSchema(),
   ]);
 
   ReportSyncPayloadSchema forType(ReportSyncExchangeType type) =>
@@ -49,6 +52,11 @@ class ReportSyncPayloadRegistry {
             envelope.payload,
           );
           return;
+        case ReportSyncExchangeType.dailyDebrief:
+          const DailyDebriefReportSyncPayloadSchema().validateResponse(
+            envelope.payload,
+          );
+          return;
       }
     }
     final schema = forType(envelope.exchangeType);
@@ -58,6 +66,116 @@ class ReportSyncPayloadRegistry {
       schema.validateResponse(envelope.payload);
     }
   }
+}
+
+class DailyDebriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
+  const DailyDebriefReportSyncPayloadSchema();
+
+  @override
+  ReportSyncExchangeType get exchangeType =>
+      ReportSyncExchangeType.dailyDebrief;
+
+  @override
+  void validateRequest(Map<String, Object?> payload) {
+    throw const ReportSyncException(
+      ReportSyncIssueCode.schemaMismatch,
+      'Daily Debrief uses Schema 2.0 response envelopes only.',
+    );
+  }
+
+  @override
+  void validateResponse(Map<String, Object?> payload) {
+    const fields = {'operationDate', 'recordVersion', 'sources', 'analysis'};
+    if (payload.keys.toSet().difference(fields).isNotEmpty ||
+        fields.difference(payload.keys.toSet()).isNotEmpty) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        'Daily Debrief payload fields do not match the schema.',
+      );
+    }
+    try {
+      final operationDate = ReportSyncRecordUtils.localDate(
+        payload,
+        'operationDate',
+      );
+      if (payload['recordVersion'] != DailyDebriefRecord.currentRecordVersion) {
+        throw const FormatException('recordVersion must be 1.');
+      }
+      final sources = DailyDebriefSources.fromJson(
+        Map<String, Object?>.from(payload['sources'] as Map),
+      );
+      DailyDebriefAnalysis.fromJson(
+        Map<String, Object?>.from(payload['analysis'] as Map),
+      );
+      if (sources.dailyAggregate.operationDate != operationDate) {
+        throw const FormatException('Source operationDate does not match.');
+      }
+      if (sources.morningBrief == null &&
+          (Map<String, Object?>.from(
+                payload['analysis'] as Map,
+              ))['commanderIntentEvaluation'] !=
+              null) {
+        throw const FormatException(
+          'Commander Intent evaluation requires Morning Brief.',
+        );
+      }
+    } on ReportSyncException {
+      rethrow;
+    } catch (error) {
+      throw ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        error.toString(),
+      );
+    }
+  }
+
+  @override
+  Map<String, Object?> get minimalResponseExample => {
+    'operationDate': '2000-01-01',
+    'recordVersion': 1,
+    'sources': {
+      'dailyAggregate': {
+        'operationDate': '2000-01-01',
+        'sourceType': 'records',
+        'recordDigest': _exampleDigest,
+      },
+      'confirmation': {
+        'recordId': 'confirmation:2000-01-01',
+        'recordVersion': 2,
+        'revision': 1,
+        'snapshotDigest': '00000000',
+        'recordDigest': _exampleDigest,
+      },
+      'morningBrief': null,
+    },
+    'analysis': {
+      'commanderIntentEvaluation': null,
+      'domainEvaluations': {
+        'body': null,
+        'recovery': null,
+        'condition': null,
+        'work': null,
+        'nutrition': null,
+        'hydration': null,
+        'activity': null,
+        'training': null,
+      },
+      'crossAnalysis': {
+        'keyFactors': <Object?>[],
+        'interactions': <Object?>[],
+        'constraints': <Object?>[],
+        'resources': <Object?>[],
+      },
+      'executionEvaluation': {
+        'successes': <Object?>[],
+        'adjustments': <Object?>[],
+      },
+      'nextDayHandoff': {'watchPoints': <Object?>[]},
+    },
+  };
+
+  static const _exampleDigest =
+      '0000000000000000000000000000000000000000000000000000000000000000';
 }
 
 class TrainingReportSyncPayloadSchema implements ReportSyncPayloadSchema {

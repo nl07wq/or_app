@@ -32,6 +32,7 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
+import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
 import 'package:or_app/features/status/models/persisted_status_record.dart';
@@ -65,11 +66,7 @@ void main() {
       expect(decoded.includedSections, BackupSections.all.toSet());
       expect(decoded.data, hasLength(16));
       for (final section in BackupSections.all) {
-        expect(
-          decoded.data[section],
-          hasLength(section == BackupSections.dailyDebriefRecords ? 0 : 1),
-          reason: section,
-        );
+        expect(decoded.data[section], hasLength(1), reason: section);
       }
 
       final target = FakeIndexedDbDatabase();
@@ -496,6 +493,61 @@ Map<String, Map<String, Object?>> _completeRecords(DateTime timestamp) {
       ],
       createdAt: timestamp,
       updatedAt: timestamp,
+    ).toRecord(),
+    BackupSections.dailyDebriefRecords: DailyDebriefRecord.initial(
+      localDate: localDate,
+      sources: DailyDebriefSources(
+        dailyAggregate: DailyDebriefDailyAggregateReference(
+          operationDate: localDate,
+          sourceType: 'records',
+          recordDigest: digest,
+        ),
+        confirmation: DailyDebriefConfirmationReference(
+          recordId: 'confirmation:$localDate',
+          recordVersion: 2,
+          revision: 1,
+          snapshotDigest: '1234abcd',
+          recordDigest: digest,
+        ),
+        morningBrief: DailyDebriefMorningBriefReference(
+          localDate: localDate,
+          recordVersion: 2,
+          responseDigest: digest,
+          recordDigest: digest,
+        ),
+      ),
+      analysis: DailyDebriefAnalysis(
+        commanderIntentEvaluation: DailyDebriefCommanderIntentEvaluation(
+          outcome: DailyDebriefCommanderIntentOutcome.partiallyAchieved,
+          rationale: 'rationale',
+          evidence: const ['fact'],
+        ),
+        domainEvaluations: DailyDebriefDomainEvaluations(
+          body: null,
+          recovery: 'recovery',
+          condition: null,
+          work: null,
+          nutrition: 'nutrition',
+          hydration: null,
+          activity: 'activity',
+          training: null,
+        ),
+        crossAnalysis: DailyDebriefCrossAnalysis(
+          keyFactors: const ['factor'],
+          interactions: const [],
+          constraints: const [],
+          resources: const [],
+        ),
+        executionEvaluation: DailyDebriefExecutionEvaluation(
+          successes: const ['success'],
+          adjustments: const [],
+        ),
+        nextDayHandoff: DailyDebriefNextDayHandoff(
+          watchPoints: const ['watch'],
+        ),
+      ),
+      responseDigest: digest,
+      timestamp: timestamp,
     ).toRecord(),
     BackupSections.reportSyncHistory: ReportSyncHistory(
       exchangeId: 'report-exchange-1',

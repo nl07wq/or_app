@@ -6,6 +6,7 @@ import '../../../core/models/training_session_v2.dart';
 import '../../../core/models/training_set_v2.dart';
 import '../../training/sync/training_sync_schema.dart';
 import '../models/report_sync_envelope.dart';
+import '../models/daily_debrief_record.dart';
 import 'report_sync_payload_registry.dart';
 import 'report_sync_import_schema_v2.dart';
 
@@ -17,6 +18,8 @@ abstract interface class ReportSyncInstructionProvider {
     String? confirmationDigest,
     String? sourceRecordId,
     String? sourceDigest,
+    DailyDebriefSources? dailyDebriefSources,
+    Map<String, Object?>? dailyDebriefSource,
   });
 }
 
@@ -33,7 +36,19 @@ class StandardReportSyncInstructionProvider
     String? confirmationDigest,
     String? sourceRecordId,
     String? sourceDigest,
+    DailyDebriefSources? dailyDebriefSources,
+    Map<String, Object?>? dailyDebriefSource,
   }) {
+    if (exchangeType == ReportSyncExchangeType.dailyDebrief) {
+      if (dailyDebriefSources == null || dailyDebriefSource == null) {
+        throw StateError('Daily Debrief requires formal source data.');
+      }
+      return _buildDailyDebriefInstruction(
+        operationDate,
+        dailyDebriefSources,
+        dailyDebriefSource,
+      );
+    }
     if (exchangeType == ReportSyncExchangeType.morningBrief) {
       if (sourceRecordId == null || sourceDigest == null) {
         throw StateError('Morning Brief requires STATUS source identity.');
@@ -106,6 +121,81 @@ Create a unique exchangeId and a UTC createdAt timestamp. The packageDigest must
 
 The complete response field structure is shown below. Placeholder values describe types only and are not facts. Replace every placeholder from the supplied $_sourceName; use null only where the schema permits it.
 ${const JsonEncoder.withIndent('  ').convert(responseExample)}
+'''
+        .trim();
+  }
+
+  String _buildDailyDebriefInstruction(
+    String operationDate,
+    DailyDebriefSources sources,
+    Map<String, Object?> source,
+  ) {
+    final hasMorningBrief = sources.morningBrief != null;
+    final analysis = <String, Object?>{
+      'commanderIntentEvaluation': hasMorningBrief
+          ? {
+              'outcome': 'achieved',
+              'rationale': '<Japanese non-empty analysis>',
+              'evidence': <Object?>[],
+            }
+          : null,
+      'domainEvaluations': {
+        'body': '<Japanese analysis or null>',
+        'recovery': '<Japanese analysis or null>',
+        'condition': '<Japanese analysis or null>',
+        'work': '<Japanese analysis or null>',
+        'nutrition': '<Japanese analysis or null>',
+        'hydration': '<Japanese analysis or null>',
+        'activity': '<Japanese analysis or null>',
+        'training': null,
+      },
+      'crossAnalysis': {
+        'keyFactors': <Object?>[],
+        'interactions': <Object?>[],
+        'constraints': <Object?>[],
+        'resources': <Object?>[],
+      },
+      'executionEvaluation': {
+        'successes': <Object?>[],
+        'adjustments': <Object?>[],
+      },
+      'nextDayHandoff': {'watchPoints': <Object?>[]},
+    };
+    final response = <String, Object?>{
+      'format': ReportSyncEnvelope.formatId,
+      'envelopeVersion': ReportSyncEnvelope.currentEnvelopeVersion,
+      'schemaVersion': ReportSyncEnvelope.importSchemaVersion2,
+      'direction': ReportSyncDirection.response.stableId,
+      'exchangeType': ReportSyncExchangeType.dailyDebrief.stableId,
+      'exchangeId': '<UNIQUE_RESPONSE_ID>',
+      'operationDate': operationDate,
+      'createdAt': '<UTC_TIMESTAMP>',
+      'confirmationDigest': null,
+      'payload': {
+        'operationDate': operationDate,
+        'recordVersion': DailyDebriefRecord.currentRecordVersion,
+        'sources': sources.toJson(),
+        'analysis': analysis,
+      },
+      'packageDigest': null,
+    };
+    return '''
+Create the formal Operation Reboot DAILY DEBRIEF for $operationDate.
+
+SOURCE CONTRACT
+Use only the FORMAL SOURCE JSON below. DAILY AGGREGATE is the sole fact source. CONFIRMATION is identity and lifecycle metadata only; do not use its snapshot as another fact source. MORNING BRIEF, when present, supplies only OPERATION STATUS, COMMANDER INTENT, and ACTIONS. Do not use another date, Daily Assessment, History Context, or legacyDns data.
+Preserve every source fact exactly. Do not recalculate nutrition, expenditure, calorie balance, steps, body changes, digestive data, or any other fact. Preserve null as null. Do not infer or complete missing facts.
+Analyze relationships across domains instead of merely repeating the facts. Compare Morning Brief intent with execution only when Morning Brief exists. When Morning Brief is absent, commanderIntentEvaluation must be null. When a domain has no formal fact, its evaluation must be null. In particular, do not claim training was not performed when there is no formal training fact.
+Do not create dailySummary, overallSummary, debriefSummary, executionSummary, carryover, Commander Intent, next-day actions, or priorities. nextDayHandoff contains WATCH POINTS only.
+
+RESPONSE CONTRACT
+Return exactly one fenced Plain Text code block labelled text. Inside it return exactly one JSON object and no Markdown or explanation. Use schemaVersion "2.0", recordVersion 1, exchangeType "dailyDebrief", operationDate "$operationDate", confirmationDigest null, and packageDigest null. Preserve the sources object below byte-for-value in meaning and field content. Do not add, remove, rename, or omit fields. Nullable fields must be explicit null. Array fields must be present and may be []. Every string and array item must be non-empty after trimming. Use only these outcome values: achieved, partiallyAchieved, notAchieved, notAssessable.
+
+FORMAL SOURCE JSON
+${const JsonEncoder.withIndent('  ').convert(source)}
+
+COMPLETE RESPONSE SHAPE
+${const JsonEncoder.withIndent('  ').convert(response)}
 '''
         .trim();
   }
@@ -245,18 +335,22 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Convert the Meal Data pasted after this prompt for $date into Operation Reboot Food Import Schema Version 1.',
     ReportSyncExchangeType.morningBrief =>
       'Prepare the formal STATUS Source for Morning Brief review on $date.',
+    ReportSyncExchangeType.dailyDebrief =>
+      'Prepare the formal DAILY DEBRIEF analysis for $date.',
   };
 
   String get _sourceName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Record',
     ReportSyncExchangeType.food => 'Meal Data',
     ReportSyncExchangeType.morningBrief => 'STATUS Source',
+    ReportSyncExchangeType.dailyDebrief => 'DAILY AGGREGATE Source',
   };
 
   String get _schemaName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Import Schema Version 2',
     ReportSyncExchangeType.food => 'Food Import Schema Version 2',
     ReportSyncExchangeType.morningBrief => 'Morning Brief source review',
+    ReportSyncExchangeType.dailyDebrief => 'Daily Debrief Schema Version 1',
   };
 
   String _sourceRules() => switch (exchangeType) {
@@ -266,6 +360,8 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Convert only recorded meals and food items. Do not infer nutrition, convert null to zero, register Food Catalog or Recipe data, convert implicitly to Daily Meal v2, infer reference or provenance, or create an unrecorded meal. Return only Food import JSON.',
     ReportSyncExchangeType.morningBrief =>
       'Use only formal Body, Previous Day Comparison, Recovery, Condition, Work, and Carryover facts. Bowel information is out of scope. Do not complete a missing fact.',
+    ReportSyncExchangeType.dailyDebrief =>
+      'Use only the formal Daily Debrief source projection.',
   };
 
   String _fieldRules(String? confirmationDigest) => switch (exchangeType) {
@@ -275,6 +371,8 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Do not create mealId or any internal ID. Every meal contains exactly sourceMealId, mealType, items, memo, and waterMl. sourceMealId is the original reference ID only when it can be confirmed, otherwise null. Every food item contains exactly name, calories, protein, fat, carbohydrate, quantity, amount, baseAmount, baseUnit, and amountMode. quantity is the recorded count multiplier and must be an integer of 1 or greater. amount and baseAmount must be finite positive numbers when present. amount, baseAmount, and baseUnit are one measurement tuple: provide all three together or set all three to null. Allowed baseUnit values are g and mL. Allowed amountMode values are physicalAmount and baseMultiplier; amountMode may be null only when it was not recorded, and a non-null amountMode requires the complete measurement tuple. For physicalAmount, amount is the consumed physical amount and the nutrition multiplier is amount divided by baseAmount. For baseMultiplier, amount is the recorded multiplier and the consumed physical amount is baseAmount multiplied by amount. When the measurement tuple is present, calories, protein, fat, and carbohydrate are the recorded nutrition basis corresponding to baseAmount, not consumed totals. Do not infer a missing measurement field, mode, unit, count, or nutrition value. Keep multiple meals separate. Operation Reboot generates permanent Meal IDs. Preserve the recorded mealType. Nullable fields must be null when unrecorded.',
     ReportSyncExchangeType.morningBrief =>
       'Return the formal Morning Brief Schema Version 2 response only.',
+    ReportSyncExchangeType.dailyDebrief =>
+      'Return the formal Daily Debrief Schema Version 1 payload only.',
   };
 
   static const _legacyDigestPlaceholder =

@@ -6,6 +6,7 @@ import '../../food/repository/food_meal_id_generator.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/repository/training_record_id_generator.dart';
 import '../models/report_sync_envelope.dart';
+import '../models/daily_debrief_record.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import '../models/status_report_sync_source.dart';
@@ -13,6 +14,7 @@ import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_adapters.dart';
 import 'report_sync_persistence_service.dart';
 import 'status_report_sync_source_service.dart';
+import 'daily_debrief_source_service.dart';
 
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
 
@@ -58,6 +60,8 @@ class ReportSyncRequestPreparation {
     this.statusSourceError,
     this.statusLabel = 'REQUEST NOT READY',
     this.blockingReason,
+    this.dailyDebriefSource,
+    this.eligibleDates = const [],
   });
 
   final ReportSyncEnvelope? envelope;
@@ -67,6 +71,8 @@ class ReportSyncRequestPreparation {
   final StatusReportSyncSourceException? statusSourceError;
   final String statusLabel;
   final String? blockingReason;
+  final DailyDebriefSourcePackage? dailyDebriefSource;
+  final List<String> eligibleDates;
   bool get isReady => operationDate != null;
   bool get canCopySource => sourceText != null;
 }
@@ -82,6 +88,8 @@ class ReportSyncResponsePreview {
     this.foodMeals = const [],
     this.trainingPreview,
     this.morningBriefSourceDigestMatches = false,
+    this.dailyDebriefRecord,
+    this.dailyDebriefLifecycle,
   });
 
   final ReportSyncEnvelope? envelope;
@@ -93,6 +101,8 @@ class ReportSyncResponsePreview {
   final List<FoodReportSyncMealPreview> foodMeals;
   final HistoricalTrainingPreview? trainingPreview;
   final bool morningBriefSourceDigestMatches;
+  final DailyDebriefRecord? dailyDebriefRecord;
+  final DailyDebriefLifecycleStatus? dailyDebriefLifecycle;
   bool get canApply => disposition == ReportSyncDisposition.create;
   String get operationDate =>
       trainingPreview?.requestedStartDate ?? envelope!.operationDate;
@@ -214,6 +224,26 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
             blockingReason: error.message,
           );
         }
+      case ReportSyncExchangeType.dailyDebrief:
+        final eligible = await _container.dailyDebriefSources.eligibleDates();
+        final selected =
+            targetDate ??
+            await _container.dailyDebriefSources.defaultEligibleDate();
+        if (selected == null || !eligible.contains(selected)) {
+          return ReportSyncRequestPreparation(
+            eligibleDates: eligible,
+            blockingReason: 'DAILY DEBRIEFを生成できる確定済み日付がありません。',
+          );
+        }
+        final source = await _container.dailyDebriefSources.requireEligible(
+          selected,
+        );
+        return ReportSyncRequestPreparation(
+          operationDate: selected,
+          dailyDebriefSource: source,
+          eligibleDates: eligible,
+          statusLabel: 'READY',
+        );
     }
   }
 
@@ -247,6 +277,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           operationDate: operationDate,
           sourceRecordId: preparation.statusSourceExport?.source.sourceRecordId,
           sourceDigest: preparation.statusSourceExport?.sourceDigest,
+          dailyDebriefSources: preparation.dailyDebriefSource?.references,
+          dailyDebriefSource: preparation.dailyDebriefSource?.promptSource,
         );
     if (type != ReportSyncExchangeType.morningBrief) return instruction;
 
@@ -298,8 +330,51 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       ),
       ReportSyncExchangeType.food => _previewFood(response),
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
+      ReportSyncExchangeType.dailyDebrief => _previewDailyDebrief(response),
     };
     return preview;
+  }
+
+  Future<ReportSyncResponsePreview> _previewDailyDebrief(
+    ReportSyncEnvelope response,
+  ) async {
+    if (response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.schemaMismatch,
+        'Daily Debrief requires Schema 2.0.',
+      );
+    }
+    final source = await _container.dailyDebriefSources.requireEligible(
+      response.operationDate,
+    );
+    final payloadSources = DailyDebriefSources.fromJson(
+      Map<String, Object?>.from(response.payload['sources'] as Map),
+    );
+    if (ReportSyncCanonicalService.encode(payloadSources.toJson()) !=
+        ReportSyncCanonicalService.encode(source.references.toJson())) {
+      return ReportSyncResponsePreview(
+        envelope: response,
+        disposition: ReportSyncDisposition.blocked,
+        createCount: 0,
+        noChangeCount: 0,
+        conflictCount: 1,
+        message: 'SOURCE REFERENCESが現在の正式Sourceと一致しません。',
+      );
+    }
+    final existing = await _container.dailyDebriefs.readByLocalDate(
+      response.operationDate,
+    );
+    return ReportSyncResponsePreview(
+      envelope: response,
+      disposition: ReportSyncDisposition.create,
+      createCount: 1,
+      noChangeCount: 0,
+      conflictCount: 0,
+      dailyDebriefRecord: existing,
+      dailyDebriefLifecycle: existing == null
+          ? null
+          : await _container.dailyDebriefSources.projectLifecycle(existing),
+    );
   }
 
   Future<ReportSyncResponsePreview> _previewTraining(
@@ -553,6 +628,16 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           ReportSyncDisposition.create,
           readBackVerified: true,
         );
+      case ReportSyncExchangeType.dailyDebrief:
+        await _container.reportSyncPersistence.importDailyDebrief(
+          response,
+          sourceService: _container.dailyDebriefSources,
+          repository: _container.dailyDebriefs,
+        );
+        return const ReportSyncApplyResult(
+          ReportSyncDisposition.create,
+          readBackVerified: true,
+        );
     }
   }
 
@@ -689,6 +774,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   ) => switch (type) {
     ReportSyncExchangeType.morningBrief =>
       _container.morningBriefs.readByLocalDate(localDate),
+    ReportSyncExchangeType.dailyDebrief =>
+      _container.dailyDebriefs.readByLocalDate(localDate),
     _ => Future<Object?>.value(),
   };
 }

@@ -29,6 +29,7 @@ import '../operation_sync/services/operation_sync_validator.dart';
 import '../operation_sync/services/operation_transfer_codec.dart';
 import '../operation_sync/services/operation_transfer_export_service.dart';
 import '../report_sync/repository/indexed_db_report_sync_repositories.dart';
+import '../report_sync/repository/daily_debrief_repository.dart';
 import '../report_sync/repository/morning_brief_repository.dart';
 import '../report_sync/repository/report_sync_history_repository.dart';
 import '../report_sync/services/report_sync_codec.dart';
@@ -37,6 +38,7 @@ import '../report_sync/services/report_sync_persistence_service.dart';
 import '../report_sync/services/report_sync_payload_registry.dart';
 import '../report_sync/services/report_sync_payload_adapters.dart';
 import '../report_sync/services/report_sync_validator.dart';
+import '../report_sync/services/daily_debrief_source_service.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
 import '../system/repository/indexed_db_profile_repository.dart';
@@ -59,6 +61,7 @@ class AppRepositoryContainer {
   final TrainingSessionRepository training;
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
+  final DailyLogConfirmationLifecycleStore confirmationLifecycle;
   final DailyAggregateRepository dailyAggregates;
   final OperationStateRepository operationState;
   final OperationSyncStateRepository operationSyncState;
@@ -67,6 +70,8 @@ class AppRepositoryContainer {
   final OperationSyncCoreService operationSyncCore;
   final OperationTransferExportService operationTransferExport;
   final MorningBriefRepository morningBriefs;
+  final DailyDebriefRepository dailyDebriefs;
+  final DailyDebriefSourceService dailyDebriefSources;
   final ReportSyncHistoryRepository reportSyncHistory;
   final ReportSyncCodec reportSyncCodec;
   final ReportSyncValidator reportSyncValidator;
@@ -89,6 +94,7 @@ class AppRepositoryContainer {
     required this.training,
     required this.customTrainingExercises,
     required this.confirmation,
+    required this.confirmationLifecycle,
     required this.dailyAggregates,
     required this.operationState,
     required this.operationSyncState,
@@ -97,6 +103,8 @@ class AppRepositoryContainer {
     required this.operationSyncCore,
     required this.operationTransferExport,
     required this.morningBriefs,
+    required this.dailyDebriefs,
+    required this.dailyDebriefSources,
     required this.reportSyncHistory,
     required this.reportSyncCodec,
     required this.reportSyncValidator,
@@ -117,6 +125,9 @@ class AppRepositoryContainer {
     const operationTransferCodec = OperationTransferCodec();
     final operationState = IndexedDbOperationStateRepository(database);
     final confirmation = IndexedDbDailyLogConfirmationRepository(database);
+    final dailyAggregates = IndexedDbDailyAggregateRepository(database);
+    final morningBriefs = IndexedDbMorningBriefRepository(database);
+    final dailyDebriefs = IndexedDbDailyDebriefRepository(database);
     final reportSyncHistory = IndexedDbReportSyncHistoryRepository(database);
     final reportSyncPayloads = ReportSyncPayloadRegistry.standard();
     final reportSyncCodec = ReportSyncCodec(
@@ -158,7 +169,8 @@ class AppRepositoryContainer {
         database,
       ),
       confirmation: confirmation,
-      dailyAggregates: IndexedDbDailyAggregateRepository(database),
+      confirmationLifecycle: confirmation,
+      dailyAggregates: dailyAggregates,
       operationState: operationState,
       operationSyncState: operationSyncState,
       operationSyncHistory: operationSyncHistory,
@@ -168,7 +180,14 @@ class AppRepositoryContainer {
         registry: operationSyncRegistry,
         operationStateRepository: operationState,
       ),
-      morningBriefs: IndexedDbMorningBriefRepository(database),
+      morningBriefs: morningBriefs,
+      dailyDebriefs: dailyDebriefs,
+      dailyDebriefSources: DailyDebriefSourceService(
+        dailyAggregates: dailyAggregates,
+        confirmations: confirmation,
+        morningBriefs: morningBriefs,
+        operationState: operationState,
+      ),
       reportSyncHistory: reportSyncHistory,
       reportSyncCodec: reportSyncCodec,
       reportSyncValidator: reportSyncValidator,

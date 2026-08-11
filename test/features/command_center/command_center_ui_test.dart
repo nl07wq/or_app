@@ -160,8 +160,16 @@ void main() {
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.byType(ReportSyncExchangePanel), findsNothing);
-    expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
+    expect(find.byType(ReportSyncExchangePanel), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('NO DAILY DEBRIEF HISTORY'),
+      1000,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('daily-debrief-content')),
+        matching: find.byType(Scrollable),
+      ).first,
+    );
+    expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
       findsNothing,
@@ -235,7 +243,15 @@ void main() {
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
+    expect(find.byType(ReportSyncExchangePanel), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('NO DAILY DEBRIEF HISTORY'),
+      1000,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('daily-debrief-content')),
+        matching: find.byType(Scrollable),
+      ).first,
+    );
     expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),

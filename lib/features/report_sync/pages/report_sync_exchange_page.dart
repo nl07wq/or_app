@@ -12,6 +12,7 @@ import '../../import_export/services/backup_file_gateway.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
+import '../models/daily_debrief_record.dart';
 import '../models/report_sync_issue.dart';
 import '../models/morning_brief_state.dart';
 import '../services/report_sync_clipboard_gateway.dart';
@@ -28,6 +29,8 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.fileGateway,
     this.clipboardWriter,
     this.clipboardGateway,
+    this.onApplied,
+    this.embedded = false,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -35,6 +38,8 @@ class ReportSyncExchangePage extends StatelessWidget {
   final BackupFileGateway? fileGateway;
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
+  final VoidCallback? onApplied;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -45,6 +50,8 @@ class ReportSyncExchangePage extends StatelessWidget {
       fileGateway: fileGateway,
       clipboardWriter: clipboardWriter,
       clipboardGateway: clipboardGateway,
+      onApplied: onApplied,
+      embedded: embedded,
     ),
   );
 }
@@ -57,6 +64,8 @@ class ReportSyncExchangePanel extends StatefulWidget {
     this.fileGateway,
     this.clipboardWriter,
     this.clipboardGateway,
+    this.onApplied,
+    this.embedded = false,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -64,6 +73,8 @@ class ReportSyncExchangePanel extends StatefulWidget {
   final BackupFileGateway? fileGateway;
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
+  final VoidCallback? onApplied;
+  final bool embedded;
 
   @override
   State<ReportSyncExchangePanel> createState() =>
@@ -102,7 +113,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
 
   bool get _usesTargetDate =>
       _isImportOnly ||
-      widget.exchangeType == ReportSyncExchangeType.morningBrief;
+      widget.exchangeType == ReportSyncExchangeType.morningBrief ||
+      widget.exchangeType == ReportSyncExchangeType.dailyDebrief;
 
   bool get _hasValidSelectedDate {
     if (!_usesTargetDate) return false;
@@ -235,6 +247,38 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   }
 
   Future<void> _selectTargetDate() async {
+    if (widget.exchangeType == ReportSyncExchangeType.dailyDebrief) {
+      final dates = _request?.eligibleDates ?? const <String>[];
+      final selected = await showDialog<String>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('ELIGIBLE DATE'),
+          children: [
+            for (final date in dates)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, date),
+                child: Text(date),
+              ),
+          ],
+        ),
+      );
+      if (selected == null || !mounted) return;
+      final request = await _gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+        targetDate: selected,
+      );
+      if (!mounted) return;
+      setState(() {
+        _request = request;
+        _targetDateController.text = selected;
+        _preview = null;
+        _clearExportFeedback();
+        _importMessage = null;
+        _importActionError = null;
+        _importError = null;
+      });
+      return;
+    }
     final current = DateTime.tryParse(_targetDateController.text);
     final selected = await showDatePicker(
       context: context,
@@ -379,6 +423,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       );
       _request = request;
       _history = await _gateway.history(widget.exchangeType);
+      widget.onApplied?.call();
     } catch (error) {
       _importError = _importErrorText(error);
     } finally {
@@ -483,6 +528,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     final ready = _hasValidTargetDate;
     return ListView(
       key: ValueKey('report-sync-${widget.exchangeType.stableId}'),
+      shrinkWrap: widget.embedded,
+      physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
       padding: AppSpacing.cardPadding,
       children: [
         SectionHeader(
@@ -727,6 +774,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             )
           else if (widget.exchangeType == ReportSyncExchangeType.morningBrief)
             _MorningBriefPreviewCard(preview: _preview!)
+          else if (widget.exchangeType == ReportSyncExchangeType.dailyDebrief)
+            _DailyDebriefPreviewCard(preview: _preview!)
           else
             _PreviewCard(preview: _preview!),
           if (!_preview!.canApply) ...[
@@ -1016,6 +1065,66 @@ class _MorningBriefPreviewCard extends StatelessWidget {
             'Existing Morning Brief  ${preview.conflictCount > 0 ? 'YES' : 'NO'}',
           ),
           Text('Disposition  ${preview.disposition.name.toUpperCase()}'),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyDebriefPreviewCard extends StatelessWidget {
+  const _DailyDebriefPreviewCard({required this.preview});
+
+  final ReportSyncResponsePreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = preview.envelope!.payload;
+    final analysis = DailyDebriefAnalysis.fromJson(
+      Map<String, Object?>.from(payload['analysis'] as Map),
+    );
+    final current = preview.dailyDebriefRecord;
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('OPERATION DATE  ${preview.operationDate}'),
+          Text(
+            'CURRENT REVISION  '
+            '${current == null ? 'CREATE' : 'REVISION UPDATE (${current.revision + 1})'}',
+          ),
+          Text(
+            'SOURCE STATUS  '
+            '${preview.dailyDebriefLifecycle?.name.toUpperCase() ?? 'CURRENT'}',
+          ),
+          AppSpacing.gapSM,
+          Text(
+            'DOMAIN EVALUATIONS',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          ...analysis.domainEvaluations.toJson().entries.map(
+            (entry) => Text(
+              '${entry.key.toUpperCase()}  ${entry.value ?? 'NOT RECORDED'}',
+            ),
+          ),
+          AppSpacing.gapSM,
+          Text(
+            'CROSS ANALYSIS',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text('KEY FACTORS  ${analysis.crossAnalysis.keyFactors.length}'),
+          Text('INTERACTIONS  ${analysis.crossAnalysis.interactions.length}'),
+          Text('CONSTRAINTS  ${analysis.crossAnalysis.constraints.length}'),
+          Text('RESOURCES  ${analysis.crossAnalysis.resources.length}'),
+          AppSpacing.gapSM,
+          Text(
+            'EXECUTION EVALUATION',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text('SUCCESSES  ${analysis.executionEvaluation.successes.length}'),
+          Text(
+            'ADJUSTMENTS  ${analysis.executionEvaluation.adjustments.length}',
+          ),
+          Text('WATCH POINTS  ${analysis.nextDayHandoff.watchPoints.length}'),
         ],
       ),
     );
@@ -1387,30 +1496,35 @@ String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'TRAINING REPORT SYNC',
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
   ReportSyncExchangeType.morningBrief => 'MORNING BRIEF REPORT SYNC',
+  ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
 };
 
 IconData _icon(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => Icons.fitness_center,
   ReportSyncExchangeType.food => Icons.restaurant_outlined,
   ReportSyncExchangeType.morningBrief => Icons.wb_sunny_outlined,
+  ReportSyncExchangeType.dailyDebrief => Icons.nightlight_outlined,
 };
 
 String _importLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'IMPORT TRAINING',
   ReportSyncExchangeType.food => 'IMPORT FOOD',
   ReportSyncExchangeType.morningBrief => 'IMPORT MORNING BRIEF',
+  ReportSyncExchangeType.dailyDebrief => 'IMPORT DAILY DEBRIEF',
 };
 
 String _sourceName(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'Training Record',
   ReportSyncExchangeType.food => 'Meal Data',
   ReportSyncExchangeType.morningBrief => 'STATUS Source',
+  ReportSyncExchangeType.dailyDebrief => 'DAILY AGGREGATE Source',
 };
 
 String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'COPY TRAINING RECORD',
   ReportSyncExchangeType.food => 'COPY MEAL DATA',
   ReportSyncExchangeType.morningBrief => 'STATUS SOURCE',
+  ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF SOURCE',
 };
 
 String _formatLocalDate(DateTime value) =>

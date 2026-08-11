@@ -1,10 +1,12 @@
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
+import '../models/daily_debrief_record.dart';
 import '../models/morning_brief_record.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import '../services/report_sync_canonical_service.dart';
 import 'morning_brief_repository.dart';
+import 'daily_debrief_repository.dart';
 import 'report_sync_history_repository.dart';
 
 abstract class _ImmutableRepository<T> {
@@ -76,6 +78,55 @@ class IndexedDbMorningBriefRepository
     final values = await all();
     values.sort((a, b) => b.localDate.compareTo(a.localDate));
     return List.unmodifiable(values);
+  }
+}
+
+class IndexedDbDailyDebriefRepository implements DailyDebriefRepository {
+  final IndexedDbDatabase _database;
+
+  const IndexedDbDailyDebriefRepository(this._database);
+
+  @override
+  Future<DailyDebriefRecord?> readByLocalDate(String localDate) async {
+    final value = await _database.findById(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      localDate,
+    );
+    return value == null ? null : DailyDebriefRecord.fromRecord(value);
+  }
+
+  @override
+  Future<List<DailyDebriefRecord>> list() async {
+    final records = [
+      for (final value in await _database.findAll(
+        IndexedDbStoreNames.dailyDebriefRecords,
+      ))
+        DailyDebriefRecord.fromRecord(value),
+    ];
+    records.sort((a, b) => b.localDate.compareTo(a.localDate));
+    return List.unmodifiable(records);
+  }
+
+  @override
+  Future<DailyDebriefRecord> putInTransaction(
+    IndexedDbTransaction transaction,
+    DailyDebriefRecord record,
+  ) async {
+    final encoded = record.toRecord();
+    await transaction.put(IndexedDbStoreNames.dailyDebriefRecords, encoded);
+    final value = await transaction.findById(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      record.localDate,
+    );
+    if (value == null) {
+      throw StateError('Daily Debrief read-back is missing.');
+    }
+    final readBack = DailyDebriefRecord.fromRecord(value);
+    if (ReportSyncCanonicalService.encode(readBack.toRecord()) !=
+        ReportSyncCanonicalService.encode(encoded)) {
+      throw StateError('Daily Debrief read-back mismatch.');
+    }
+    return readBack;
   }
 }
 

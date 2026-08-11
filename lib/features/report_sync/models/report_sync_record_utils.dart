@@ -1,5 +1,7 @@
 abstract final class ReportSyncRecordUtils {
   static final _digestPattern = RegExp(r'^[0-9a-f]{64}$');
+  static bool isDigest(Object? value) =>
+      value is String && _digestPattern.hasMatch(value);
   static void exactFields(Map<String, Object?> json, Set<String> fields) {
     if (json.keys.toSet().difference(fields).isNotEmpty ||
         fields.difference(json.keys.toSet()).isNotEmpty) {
