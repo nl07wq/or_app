@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/repositories/training_repository.dart';
@@ -7,9 +8,13 @@ import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_menu_button.dart';
 import '../../core/widgets/section_header.dart';
+import '../../data/indexed_db/indexed_db_database.dart';
+import 'models/active_training_draft.dart';
 import 'models/training_record_read_model.dart';
 import 'models/training_summary_state.dart';
 import 'models/training_v2_form_controller.dart';
+import 'repository/active_training_draft_repository.dart';
+import 'repository/indexed_db_active_training_draft_repository.dart';
 import 'services/training_cardio_calorie_calculator.dart';
 import 'services/training_status_weight_resolver.dart';
 import 'services/training_v2_form_mapper.dart';
@@ -21,8 +26,13 @@ import 'widgets/training_session_v2_form.dart';
 
 class TrainingEntryPage extends StatefulWidget {
   final TrainingRecordReadModel? existingRecord;
+  final ActiveTrainingDraftRepository? activeTrainingDraftRepository;
 
-  const TrainingEntryPage({super.key, this.existingRecord});
+  const TrainingEntryPage({
+    super.key,
+    this.existingRecord,
+    this.activeTrainingDraftRepository,
+  });
 
   @override
   State<TrainingEntryPage> createState() => _TrainingEntryPageState();
@@ -38,12 +48,14 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   String? _operationLocalDate;
   Object? _dateLoadError;
   bool _isLoadingDate = false;
+  late final Future<ActiveTrainingDraftRepository?> _draftRepository;
 
   bool get _isEditing => widget.existingRecord != null;
 
   @override
   void initState() {
     super.initState();
+    _draftRepository = _createDraftRepository();
     final existing = widget.existingRecord;
     if (existing != null && (!existing.isEditable || existing.v2Data == null)) {
       throw StateError('This TRAINING record is read-only.');
@@ -60,12 +72,31 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     }
   }
 
+  Future<ActiveTrainingDraftRepository?> _createDraftRepository() async {
+    final injected = widget.activeTrainingDraftRepository;
+    if (injected != null) return injected;
+    if (!kIsWeb) return null;
+    return IndexedDbActiveTrainingDraftRepository(
+      await openIndexedDbDatabase(),
+    );
+  }
+
   Future<void> _initializeNewSession() async {
     try {
       final localDate = (await const OperationDateService().current()).value;
       if (!mounted) return;
       _form.dispose();
       _form = TrainingV2FormController.newSession(localDate: localDate);
+      final draft = await (await _draftRepository)?.findByOperationDate(
+        localDate,
+      );
+      if (!mounted) return;
+      if (draft != null) {
+        _form.restoreDraftTimes(
+          startTime: draft.startTime,
+          endTime: draft.endTime,
+        );
+      }
       _operationLocalDate = localDate;
       _expandedItem = _form.exercises.first;
       setState(() => _isLoadingDate = false);
@@ -125,6 +156,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           DateTime.parse(session.date),
         );
         await TrainingRepository.saveNewV2(session);
+        await (await _draftRepository)?.deleteByOperationDate(
+          session.date.substring(0, 10),
+        );
       }
       await refreshTrainingSummary();
       _hasSaved = true;
@@ -149,6 +183,63 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       ),
     );
     Navigator.pop(context, true);
+  }
+
+  Future<void> _startTraining() =>
+      _updateActiveDraft(() => _form.startTraining(DateTime.now()));
+
+  Future<void> _endTraining() =>
+      _updateActiveDraft(() => _form.endTraining(DateTime.now()));
+
+  Future<void> _undoEnd() => _updateActiveDraft(_form.undoEnd);
+
+  Future<void> _editStartTime(TimeOfDay value) =>
+      _updateActiveDraft(() => _form.editStartTime(value, now: DateTime.now()));
+
+  Future<void> _editEndTime(TimeOfDay value) =>
+      _updateActiveDraft(() => _form.editEndTime(value));
+
+  Future<void> _updateActiveDraft(VoidCallback update) async {
+    if (_isEditing) {
+      update();
+      if (mounted) setState(() {});
+      return;
+    }
+    final previousStart = _form.startTime;
+    final previousEnd = _form.endTime;
+    try {
+      update();
+      final start = _form.startTime;
+      if (start == null) {
+        throw const TrainingTimeValidationException(
+          'Active Training DraftにはStart Timeが必要です。',
+        );
+      }
+      final operationDate = _form.date.substring(0, 10);
+      final repository = await _draftRepository;
+      await repository?.save(
+        ActiveTrainingDraft(
+          operationDate: operationDate,
+          startTime: start,
+          endTime: _form.endTime,
+        ),
+      );
+      if (mounted) setState(() {});
+    } on TrainingTimeValidationException catch (error) {
+      _form.restoreDraftTimes(startTime: previousStart, endTime: previousEnd);
+      if (mounted) _showTimeError(error.message);
+    } catch (_) {
+      _form.restoreDraftTimes(startTime: previousStart, endTime: previousEnd);
+      if (mounted) {
+        _showTimeError('Training Sessionの時刻を保存できませんでした。');
+      }
+    }
+  }
+
+  void _showTimeError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showError(String message) {
@@ -253,6 +344,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                 TrainingSessionV2Form(
                   controller: _form,
                   onChanged: () => setState(() {}),
+                  onStartTraining: _startTraining,
+                  onEndTraining: _endTraining,
+                  onUndoEnd: _undoEnd,
+                  onEditStartTime: _editStartTime,
+                  onEditEndTime: _editEndTime,
                 ),
                 AppSpacing.gapXL,
                 const SectionHeader(

@@ -11,6 +11,7 @@ abstract final class IndexedDbStoreNames {
   static const trainingRecords = 'training_records';
   static const activityRecords = 'activity_records';
   static const activityDrafts = 'activity_drafts';
+  static const activeTrainingDrafts = 'active_training_drafts';
   static const dailyLogConfirmations = 'daily_log_confirmations';
   static const migrationMetadata = 'migration_metadata';
   static const migrationQuarantine = 'migration_quarantine';
@@ -49,7 +50,7 @@ abstract final class IndexedDbStoreNames {
     dailyAggregateRecords,
   ];
 
-  static const drafts = [activityDrafts];
+  static const drafts = [activityDrafts, activeTrainingDrafts];
 
   static const all = [...legacy, ...canonical, ...drafts];
 }

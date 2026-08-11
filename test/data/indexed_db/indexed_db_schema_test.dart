@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v10 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v12 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 10);
+    expect(IndexedDbSchema.databaseVersion, 12);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -40,7 +40,10 @@ void main() {
       IndexedDbSchema.storeDefinitions.map((definition) => definition.name),
       IndexedDbStoreNames.all,
     );
-    expect(IndexedDbStoreNames.drafts, [IndexedDbStoreNames.activityDrafts]);
+    expect(IndexedDbStoreNames.drafts, [
+      IndexedDbStoreNames.activityDrafts,
+      IndexedDbStoreNames.activeTrainingDrafts,
+    ]);
   });
 
   test('defines date and migration indexes with required uniqueness', () {
@@ -89,6 +92,14 @@ void main() {
     expect(
       definitions[IndexedDbStoreNames.activityDrafts]!.indexes
           .singleWhere((index) => index.name == IndexedDbIndexNames.byLocalDate)
+          .unique,
+      isTrue,
+    );
+    expect(
+      definitions[IndexedDbStoreNames.activeTrainingDrafts]!.indexes
+          .singleWhere(
+            (index) => index.name == IndexedDbIndexNames.byOperationDate,
+          )
           .unique,
       isTrue,
     );
@@ -436,5 +447,25 @@ void main() {
       ),
       hasLength(1),
     );
+  });
+
+  test('v11 to v12 adds only the Active Training Draft store', () {
+    final v11Stores = IndexedDbStoreNames.all
+        .where((name) => name != IndexedDbStoreNames.activeTrainingDrafts)
+        .toSet();
+    final added = IndexedDbSchema.storeDefinitions
+        .where((definition) => !v11Stores.contains(definition.name))
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.activeTrainingDrafts,
+    ]);
+    expect(added.single.keyPath, 'id');
+    expect(
+      added.single.indexes.single.name,
+      IndexedDbIndexNames.byOperationDate,
+    );
+    expect(added.single.indexes.single.keyPath, 'operationDate');
+    expect(added.single.indexes.single.unique, isTrue);
   });
 }

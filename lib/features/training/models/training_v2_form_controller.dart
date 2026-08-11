@@ -7,6 +7,15 @@ import '../../../core/models/training_exercise_v2.dart';
 import '../../../core/models/training_session_v2.dart';
 import '../../../core/models/training_set_v2.dart';
 
+class TrainingTimeValidationException implements Exception {
+  final String message;
+
+  const TrainingTimeValidationException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class TrainingV2FormController {
   final String date;
   String? startTime;
@@ -77,11 +86,83 @@ class TrainingV2FormController {
     _clearStrengthSnapshot();
   }
 
+  void undoEnd() {
+    if (endTime == null) return;
+    endTime = null;
+    _clearStrengthSnapshot();
+  }
+
+  void restoreDraftTimes({String? startTime, String? endTime}) {
+    if (startTime == null && endTime != null) {
+      throw const TrainingTimeValidationException(
+        'Start TimeなしでEnd Timeを復元できません。',
+      );
+    }
+    TrainingSessionV2(date: date, startTime: startTime, endTime: endTime);
+    this.startTime = startTime;
+    this.endTime = endTime;
+    _clearStrengthSnapshot();
+  }
+
+  void editStartTime(TimeOfDay value, {required DateTime now}) {
+    final currentStart = startTime;
+    if (currentStart == null) return;
+    final candidate = _replaceTime(currentStart, value);
+    final candidateInstant = DateTime.parse(candidate);
+    final currentEnd = endTime;
+    if (currentEnd == null && candidateInstant.isAfter(now)) {
+      throw const TrainingTimeValidationException(
+        'Start Timeは現在時刻より未来に設定できません。',
+      );
+    }
+    if (currentEnd != null &&
+        !DateTime.parse(currentEnd).isAfter(candidateInstant)) {
+      throw const TrainingTimeValidationException(
+        'Start TimeはEnd Timeより前に設定してください。',
+      );
+    }
+    startTime = candidate;
+    _clearStrengthSnapshot();
+  }
+
+  void editEndTime(TimeOfDay value) {
+    final currentStart = startTime;
+    final currentEnd = endTime;
+    if (currentStart == null || currentEnd == null) return;
+    final candidate = _replaceTime(currentEnd, value);
+    final startInstant = DateTime.parse(currentStart);
+    final endInstant = DateTime.parse(candidate);
+    if (!endInstant.isAfter(startInstant)) {
+      throw const TrainingTimeValidationException(
+        'End TimeはStart Timeより後に設定してください。',
+      );
+    }
+    final cardioDuration = _validCardioDurationSeconds();
+    if (cardioDuration != null &&
+        cardioDuration > endInstant.difference(startInstant).inSeconds) {
+      throw const TrainingTimeValidationException(
+        'Session DurationはCardio Duration合計以上にしてください。',
+      );
+    }
+    endTime = candidate;
+    _clearStrengthSnapshot();
+  }
+
   void _clearStrengthSnapshot() {
     estimatedStrengthCaloriesKcal = null;
     strengthWeightSnapshotKg = null;
     strengthCalculationMethod = null;
     strengthCalculationVersion = null;
+  }
+
+  int? _validCardioDurationSeconds() {
+    var total = 0;
+    for (final cardio in cardioEntries) {
+      final duration = _tryParseDurationSeconds(cardio.duration.text);
+      if (duration == null) return null;
+      total += duration;
+    }
+    return total;
   }
 
   void removeExercise(TrainingV2ExerciseFormController value) {
@@ -107,6 +188,30 @@ class TrainingV2FormController {
       cardio.dispose();
     }
   }
+}
+
+String _replaceTime(String source, TimeOfDay value) {
+  final match = RegExp(
+    r'^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$',
+  ).firstMatch(source);
+  if (match == null) {
+    throw const TrainingTimeValidationException('Formal Timeを読み取れませんでした。');
+  }
+  final hour = value.hour.toString().padLeft(2, '0');
+  final minute = value.minute.toString().padLeft(2, '0');
+  return '${match.group(1)}T$hour:$minute:00.000${match.group(2)}';
+}
+
+int? _tryParseDurationSeconds(String source) {
+  final parts = source.trim().split(':');
+  if (parts.length != 2 && parts.length != 3) return null;
+  final values = parts.map(int.tryParse).toList(growable: false);
+  if (values.any((value) => value == null || value < 0)) return null;
+  final hours = parts.length == 3 ? values[0]! : 0;
+  final minutes = parts.length == 3 ? values[1]! : values[0]!;
+  final seconds = parts.length == 3 ? values[2]! : values[1]!;
+  if (seconds > 59 || parts.length == 3 && minutes > 59) return null;
+  return hours * 3600 + minutes * 60 + seconds;
 }
 
 class TrainingV2ExerciseFormController {

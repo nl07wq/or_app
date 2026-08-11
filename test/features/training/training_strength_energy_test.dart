@@ -100,10 +100,12 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) => TrainingSessionV2Form(
-              controller: controller,
-              onChanged: () => setState(() {}),
+          body: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (context, setState) => TrainingSessionV2Form(
+                controller: controller,
+                onChanged: () => setState(() {}),
+              ),
             ),
           ),
         ),
@@ -119,6 +121,120 @@ void main() {
     await tester.tap(find.text('END TRAINING'));
     await tester.pump();
     expect(controller.endTime, isNotNull);
+  });
+
+  testWidgets('shows human time, live elapsed, duration, and undo end', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 8, 11, 21, 19);
+    final controller = TrainingV2FormController.newSession(
+      localDate: '2026-08-11',
+    )..startTraining(now);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (context, setState) => TrainingSessionV2Form(
+                controller: controller,
+                now: () => now,
+                onChanged: () => setState(() {}),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('21:19'), findsOneWidget);
+    expect(find.text('ELAPSED'), findsOneWidget);
+    expect(find.text('00:00:00'), findsOneWidget);
+    now = now.add(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('00:00:02'), findsOneWidget);
+
+    await tester.tap(find.text('END TRAINING'));
+    await tester.pump();
+    expect(find.text('DURATION'), findsOneWidget);
+    expect(find.text('00:00:02'), findsOneWidget);
+    expect(find.text('UNDO END'), findsOneWidget);
+
+    final originalStart = controller.startTime;
+    await tester.tap(find.text('UNDO END'));
+    await tester.pump();
+    expect(controller.startTime, originalStart);
+    expect(controller.endTime, isNull);
+    expect(find.text('ELAPSED'), findsOneWidget);
+  });
+
+  test('edits formal times, rejects invalid values, and clears snapshots', () {
+    final saved = TrainingEnergyService.applyForSave(
+      session: _timedSession(cardio: _cardio()),
+      statusWeightKg: 100,
+    );
+    final controller = TrainingV2FormController.fromSession(saved);
+    addTearDown(controller.dispose);
+
+    expect(
+      () => controller.editStartTime(
+        const TimeOfDay(hour: 12, minute: 0),
+        now: DateTime(2026, 8, 11, 12),
+      ),
+      throwsA(isA<TrainingTimeValidationException>()),
+    );
+    expect(
+      () => controller.editEndTime(const TimeOfDay(hour: 10, minute: 20)),
+      throwsA(isA<TrainingTimeValidationException>()),
+    );
+
+    controller.editEndTime(const TimeOfDay(hour: 11, minute: 30));
+    expect(controller.endTime, '2026-08-11T11:30:00.000+09:00');
+    expect(controller.estimatedStrengthCaloriesKcal, isNull);
+    expect(controller.strengthWeightSnapshotKg, isNull);
+    expect(controller.strengthCalculationMethod, isNull);
+    expect(controller.strengthCalculationVersion, isNull);
+
+    controller.undoEnd();
+    expect(controller.startTime, '2026-08-11T10:00:00+09:00');
+    expect(controller.endTime, isNull);
+    expect(
+      () => controller.editStartTime(
+        const TimeOfDay(hour: 23, minute: 0),
+        now: DateTime(2026, 8, 11, 22),
+      ),
+      throwsA(isA<TrainingTimeValidationException>()),
+    );
+  });
+
+  testWidgets('marks a next-day end time without exposing ISO text', (
+    tester,
+  ) async {
+    final controller = TrainingV2FormController.fromSession(
+      TrainingSessionV2(
+        date: '2026-08-11',
+        startTime: '2026-08-11T23:45:00+09:00',
+        endTime: '2026-08-12T00:30:00+09:00',
+      ),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: TrainingSessionV2Form(
+              controller: controller,
+              onChanged: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('23:45'), findsOneWidget);
+    expect(find.text('翌 00:30'), findsOneWidget);
+    expect(find.textContaining('2026-08-11T'), findsNothing);
+    expect(find.text('00:45:00'), findsOneWidget);
   });
 }
 

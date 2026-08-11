@@ -90,7 +90,7 @@ abstract final class IndexedDbIndexNames {
 
 abstract final class IndexedDbSchema {
   static const databaseName = 'operation_reboot_db';
-  static const databaseVersion = 11;
+  static const databaseVersion = 12;
   static const oldestCompatibleDatabaseVersion = 3;
   static const keyPath = 'id';
 
@@ -287,6 +287,16 @@ abstract final class IndexedDbSchema {
         IndexedDbIndexDefinition(
           name: IndexedDbIndexNames.byLocalDate,
           keyPath: 'localDate',
+          unique: true,
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.activeTrainingDrafts,
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byOperationDate,
+          keyPath: 'operationDate',
           unique: true,
         ),
       ],

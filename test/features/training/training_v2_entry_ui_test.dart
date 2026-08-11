@@ -13,6 +13,8 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/models/persisted_status_record.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
+import 'package:or_app/features/training/repository/active_training_draft_repository.dart';
+import 'package:or_app/features/training/repository/indexed_db_active_training_draft_repository.dart';
 import 'package:or_app/features/training/training_entry_page.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
 
@@ -553,6 +555,103 @@ void main() {
     expect(records.single['recordVersion'], 2);
   });
 
+  testWidgets('Active Training Draft restores and is deleted after save', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    final drafts = IndexedDbActiveTrainingDraftRepository(database);
+    await _pump(
+      tester,
+      database: database,
+      activeTrainingDraftRepository: drafts,
+    );
+
+    await tester.tap(find.text('START TRAINING'));
+    await tester.pump();
+    final operationDate =
+        (await database.findAll(
+              IndexedDbStoreNames.operationState,
+            )).single['operationDate']
+            as String;
+    final draftId = 'active-training-draft:$operationDate';
+    expect(
+      database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
+      containsPair('endTime', null),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pump(
+      tester,
+      database: database,
+      activeTrainingDraftRepository: drafts,
+      settle: false,
+    );
+    expect(find.text('ELAPSED'), findsOneWidget);
+    expect(find.text('END TRAINING'), findsOneWidget);
+
+    await tester.tap(find.text('END TRAINING'));
+    await tester.pump();
+    expect(
+      database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
+      containsPair('endTime', isNotNull),
+    );
+    expect(find.text('DURATION'), findsOneWidget);
+
+    await tester.tap(find.text('UNDO END'));
+    await tester.pump();
+    expect(
+      database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
+      containsPair('endTime', null),
+    );
+
+    _setExercise(tester, 'Squat');
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.ensureVisible(find.text('SAVE TRAINING'));
+    await tester.tap(find.text('SAVE TRAINING'));
+    await tester.pumpAndSettle();
+
+    expect(
+      database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
+      isNull,
+    );
+    expect(
+      await database.findAll(IndexedDbStoreNames.trainingRecords),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('failed formal save preserves the Active Training Draft', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    final drafts = IndexedDbActiveTrainingDraftRepository(database);
+    await _pump(
+      tester,
+      database: database,
+      activeTrainingDraftRepository: drafts,
+    );
+    await tester.tap(find.text('START TRAINING'));
+    await tester.pump();
+    _setExercise(tester, 'Squat');
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    database.failNextPutForStore = IndexedDbStoreNames.trainingRecords;
+
+    await tester.ensureVisible(find.text('SAVE TRAINING'));
+    await tester.tap(find.text('SAVE TRAINING'));
+    await tester.pump();
+
+    expect(
+      await database.findAll(IndexedDbStoreNames.activeTrainingDrafts),
+      hasLength(1),
+    );
+    expect(
+      await database.findAll(IndexedDbStoreNames.trainingRecords),
+      isEmpty,
+    );
+  });
+
   testWidgets('built-in equipment display keeps stable saved identity', (
     tester,
   ) async {
@@ -580,10 +679,7 @@ void main() {
     tester,
   ) async {
     final now = DateTime.now();
-    final localDate =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
+    const localDate = '2026-07-31';
     final database = FakeIndexedDbDatabase();
     final status = PersistedStatusRecord(
       id: PersistedStatusRecord.canonicalId(localDate),
@@ -679,6 +775,8 @@ Future<FakeIndexedDbDatabase> _pump(
   Brightness brightness = Brightness.light,
   TrainingRecordReadModel? existingRecord,
   FakeIndexedDbDatabase? database,
+  ActiveTrainingDraftRepository? activeTrainingDraftRepository,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
@@ -696,9 +794,17 @@ Future<FakeIndexedDbDatabase> _pump(
       theme: brightness == Brightness.dark
           ? ThemeData.dark()
           : ThemeData.light(),
-      home: TrainingEntryPage(existingRecord: existingRecord),
+      home: TrainingEntryPage(
+        existingRecord: existingRecord,
+        activeTrainingDraftRepository: activeTrainingDraftRepository,
+      ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+  }
   return targetDatabase;
 }

@@ -125,11 +125,11 @@ class StartupInitializationService {
     try {
       final database = await _openDatabase();
       controller.updateStage(InitializationStage.upgradingSchema);
-      if (IndexedDbSchema.databaseVersion != 11) {
+      if (IndexedDbSchema.databaseVersion != 12) {
         throw RepositoryException(
           operation: 'startup.schema',
           code: RepositoryErrorCode.verificationFailed,
-          cause: StateError('IndexedDB Schema Version 9 is required.'),
+          cause: StateError('IndexedDB Schema Version 12 is required.'),
         );
       }
 
