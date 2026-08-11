@@ -461,11 +461,6 @@ void main() {
       source: 'STATUS Source',
       button: 'COPY CHATGPT PROMPT',
     ),
-    (
-      type: ReportSyncExchangeType.dailyDebrief,
-      source: 'Finalized Daily Data',
-      button: 'COPY FINALIZED DAILY DATA',
-    ),
   ]) {
     testWidgets('${module.type.name} exposes its formal plain-text export', (
       tester,

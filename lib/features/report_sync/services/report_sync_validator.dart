@@ -1,4 +1,3 @@
-import '../../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/repository/operation_state_repository.dart';
 import '../models/report_sync_envelope.dart';
@@ -9,12 +8,10 @@ import 'report_sync_payload_registry.dart';
 
 class ReportSyncValidator {
   final ReportSyncHistoryRepository historyRepository;
-  final DailyLogConfirmationStore confirmationRepository;
   final OperationStateRepository operationStateRepository;
   final ReportSyncPayloadRegistry payloadRegistry;
   ReportSyncValidator({
     required this.historyRepository,
-    required this.confirmationRepository,
     required this.operationStateRepository,
     ReportSyncPayloadRegistry? payloadRegistry,
   }) : payloadRegistry =
@@ -31,12 +28,8 @@ class ReportSyncValidator {
       );
     }
     final state = await operationStateRepository.requireCurrent();
-    final expectedDate =
-        expectedOperationDate ??
-        (response.exchangeType == ReportSyncExchangeType.dailyDebrief
-            ? state.lastFinalizedDate?.value
-            : state.operationDate.value);
-    if (expectedDate == null || expectedDate != response.operationDate) {
+    final expectedDate = expectedOperationDate ?? state.operationDate.value;
+    if (expectedDate != response.operationDate) {
       throw const ReportSyncException(
         ReportSyncIssueCode.operationDateMismatch,
         'operationDate does not match the active exchange target.',
@@ -50,24 +43,6 @@ class ReportSyncValidator {
       );
     }
     payloadRegistry.validate(response);
-    if (response.exchangeType == ReportSyncExchangeType.dailyDebrief) {
-      final confirmation = await confirmationRepository.findByLocalDate(
-        response.operationDate,
-      );
-      if (confirmation == null) {
-        throw const ReportSyncException(
-          ReportSyncIssueCode.confirmationDigestMismatch,
-          'The operation date is not confirmed.',
-        );
-      }
-      final current = ReportSyncCanonicalService.digest(confirmation.toJson());
-      if (current != response.confirmationDigest) {
-        throw const ReportSyncException(
-          ReportSyncIssueCode.confirmationDigestMismatch,
-          'The current confirmation digest differs.',
-        );
-      }
-    }
   }
 
   void validatePayload(ReportSyncEnvelope envelope) {

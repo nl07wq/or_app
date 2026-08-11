@@ -249,33 +249,13 @@ void main() {
     );
   });
 
-  test('requires confirmation digest only on Daily Debrief response', () {
-    final response = codec.create(
-      direction: ReportSyncDirection.response,
-      exchangeType: ReportSyncExchangeType.dailyDebrief,
-      exchangeId: 'exchange-3',
-      requestId: 'request-3',
-      operationDate: '2026-08-02',
-      createdAt: DateTime.utc(2026, 8, 2),
-      requestDigest: digest,
-      payload: const {},
-    );
-    expect(
-      () => codec.decode(codec.encode(response)),
-      throwsA(isA<ReportSyncException>()),
-    );
-  });
-
-  test('registry provides all four exchange instructions', () {
+  test('registry provides all active exchange instructions', () {
     final registry = ReportSyncInstructionProviderRegistry.standard();
     for (final type in ReportSyncExchangeType.values) {
       final text = registry
           .forType(type)
           .buildInstruction(
             operationDate: '2026-08-02',
-            confirmationDigest: type == ReportSyncExchangeType.dailyDebrief
-                ? 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-                : null,
             sourceRecordId: type == ReportSyncExchangeType.morningBrief
                 ? 'status:2026-08-02'
                 : null,
@@ -357,18 +337,6 @@ void main() {
     expect(morning, contains('operationStatusはgreen/yellow/red'));
     expect(morning, contains('actionIdはアプリが生成'));
     expect(morning, contains('単一のPlain Textコードブロック'));
-
-    const confirmation =
-        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-    final debrief = registry
-        .forType(ReportSyncExchangeType.dailyDebrief)
-        .buildInstruction(
-          operationDate: '2026-08-02',
-          confirmationDigest: confirmation,
-        );
-    expect(debrief, contains('Finalized Daily Data pasted after this prompt'));
-    expect(debrief, contains(confirmation));
-    expect(debrief, contains('Do not complete unconfirmed information'));
   });
 
   test(
@@ -456,13 +424,12 @@ void main() {
   );
 
   test(
-    'defines four exchange types, two directions, and preserves null vs zero',
+    'defines active exchange types, two directions, and preserves null vs zero',
     () {
       expect(ReportSyncExchangeType.values.map((value) => value.stableId), [
         'training',
         'food',
         'morningBrief',
-        'dailyDebrief',
       ]);
       expect(ReportSyncDirection.values.map((value) => value.stableId), [
         'request',

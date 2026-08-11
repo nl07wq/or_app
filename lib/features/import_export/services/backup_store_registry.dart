@@ -12,7 +12,6 @@ import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_sync/models/operation_sync_history.dart';
-import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/morning_brief_record.dart';
 import '../../report_sync/models/report_sync_history.dart';
 import '../../legacy_archive/models/dns_archive_models.dart';
@@ -72,7 +71,10 @@ abstract final class BackupStoreRegistry {
       case BackupSections.morningBriefRecords:
         MorningBriefRecord.fromRecord(record);
       case BackupSections.dailyDebriefRecords:
-        DailyDebriefRecord.fromRecord(record);
+        throw const BackupException(
+          'unsupported_record',
+          'Daily Debrief records are not supported by the current schema.',
+        );
       case BackupSections.reportSyncHistory:
         ReportSyncHistory.fromRecord(record);
       case BackupSections.legacyDailySummaryRecords:

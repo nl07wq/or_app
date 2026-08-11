@@ -1387,35 +1387,30 @@ String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'TRAINING REPORT SYNC',
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
   ReportSyncExchangeType.morningBrief => 'MORNING BRIEF REPORT SYNC',
-  ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
 };
 
 IconData _icon(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => Icons.fitness_center,
   ReportSyncExchangeType.food => Icons.restaurant_outlined,
   ReportSyncExchangeType.morningBrief => Icons.wb_sunny_outlined,
-  ReportSyncExchangeType.dailyDebrief => Icons.nightlight_outlined,
 };
 
 String _importLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'IMPORT TRAINING',
   ReportSyncExchangeType.food => 'IMPORT FOOD',
   ReportSyncExchangeType.morningBrief => 'IMPORT MORNING BRIEF',
-  ReportSyncExchangeType.dailyDebrief => 'IMPORT DAILY DEBRIEF',
 };
 
 String _sourceName(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'Training Record',
   ReportSyncExchangeType.food => 'Meal Data',
   ReportSyncExchangeType.morningBrief => 'STATUS Source',
-  ReportSyncExchangeType.dailyDebrief => 'Finalized Daily Data',
 };
 
 String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'COPY TRAINING RECORD',
   ReportSyncExchangeType.food => 'COPY MEAL DATA',
   ReportSyncExchangeType.morningBrief => 'STATUS SOURCE',
-  ReportSyncExchangeType.dailyDebrief => 'COPY FINALIZED DAILY DATA',
 };
 
 String _formatLocalDate(DateTime value) =>
@@ -1471,7 +1466,6 @@ String _reportSyncIssueCodeLabel(ReportSyncIssueCode code) => switch (code) {
   ReportSyncIssueCode.requestDigestMismatch => 'リクエストダイジェスト不一致',
   ReportSyncIssueCode.responseDigestMismatch => 'レスポンスダイジェスト不一致',
   ReportSyncIssueCode.recordConflict => 'レコード競合',
-  ReportSyncIssueCode.confirmationDigestMismatch => '確定ダイジェスト不一致',
   ReportSyncIssueCode.requestNotFound => 'リクエスト未検出',
   ReportSyncIssueCode.duplicateNoChange => '重複・変更なし',
 };
@@ -1553,7 +1547,6 @@ String _errorText(Object error) => switch (error) {
     ReportSyncIssueCode.responseDigestMismatch =>
       'JSONの整合性を確認できません。ChatGPTの返答を変更せずに貼り付けてください。',
     ReportSyncIssueCode.recordConflict => '同じIDの異なる記録が存在するため取り込めません。',
-    ReportSyncIssueCode.confirmationDigestMismatch => '確定情報が一致しないため取り込めません。',
     ReportSyncIssueCode.requestNotFound ||
     ReportSyncIssueCode.duplicateNoChange => value.message,
   },

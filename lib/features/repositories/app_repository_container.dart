@@ -28,7 +28,6 @@ import '../operation_sync/services/operation_sync_production_registry.dart';
 import '../operation_sync/services/operation_sync_validator.dart';
 import '../operation_sync/services/operation_transfer_codec.dart';
 import '../operation_sync/services/operation_transfer_export_service.dart';
-import '../report_sync/repository/daily_debrief_repository.dart';
 import '../report_sync/repository/indexed_db_report_sync_repositories.dart';
 import '../report_sync/repository/morning_brief_repository.dart';
 import '../report_sync/repository/report_sync_history_repository.dart';
@@ -68,7 +67,6 @@ class AppRepositoryContainer {
   final OperationSyncCoreService operationSyncCore;
   final OperationTransferExportService operationTransferExport;
   final MorningBriefRepository morningBriefs;
-  final DailyDebriefRepository dailyDebriefs;
   final ReportSyncHistoryRepository reportSyncHistory;
   final ReportSyncCodec reportSyncCodec;
   final ReportSyncValidator reportSyncValidator;
@@ -99,7 +97,6 @@ class AppRepositoryContainer {
     required this.operationSyncCore,
     required this.operationTransferExport,
     required this.morningBriefs,
-    required this.dailyDebriefs,
     required this.reportSyncHistory,
     required this.reportSyncCodec,
     required this.reportSyncValidator,
@@ -127,7 +124,6 @@ class AppRepositoryContainer {
     );
     final reportSyncValidator = ReportSyncValidator(
       historyRepository: reportSyncHistory,
-      confirmationRepository: confirmation,
       operationStateRepository: operationState,
       payloadRegistry: reportSyncPayloads,
     );
@@ -173,7 +169,6 @@ class AppRepositoryContainer {
         operationStateRepository: operationState,
       ),
       morningBriefs: IndexedDbMorningBriefRepository(database),
-      dailyDebriefs: IndexedDbDailyDebriefRepository(database),
       reportSyncHistory: reportSyncHistory,
       reportSyncCodec: reportSyncCodec,
       reportSyncValidator: reportSyncValidator,

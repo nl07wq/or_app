@@ -6,7 +6,7 @@ REPORT SYNC imports one ordinary module record. DNS conversion preserves histori
 
 ## 2. Common Envelope
 
-The envelope uses `operation-reboot-report-sync`, envelope version `1`, schema `1.0`, directions `request` and `response`, and exchange types `training`, `food`, `morningBrief`, and `dailyDebrief`. Strict parsing rejects unknown fields, types, versions, numeric strings, and digest mismatch. `requestId` and `requestDigest` remain readable for legacy/internal request records but are not required in a new standalone response.
+The envelope uses `operation-reboot-report-sync`, envelope version `1`, schema `1.0`, directions `request` and `response`, and exchange types `training`, `food`, and `morningBrief`. Strict parsing rejects unknown fields, types, versions, numeric strings, and digest mismatch. `requestId` and `requestDigest` remain readable for legacy/internal request records but are not required in a new standalone response.
 
 ## 3. Training Request / Response
 
@@ -20,27 +20,23 @@ The user gives ChatGPT the formal plain-text Meal Data for the displayed Operati
 
 The user gives ChatGPT the formal plain-text Morning Fact for the current open Operation Date. Responses contain generated time and content: situation analysis, green/yellow/red status, commander intent, ARGO comment, strategic resource decision, and ordered actions. The application does not fill missing prose. Import validates the response date directly against `operation_state/current`; saved request history is not required.
 
-## 6. Daily Debrief Request / Response
+## 6. ChatGPT Instruction Rules
 
-The user gives ChatGPT the formal plain-text Finalized Daily Data. The prompt embeds the finalized Operation Date and exact confirmation digest. Responses repeat that confirmation digest and contain the existing Daily Debrief content fields. Import compares the response directly with the current finalized date and persisted confirmation; saved request history is not required. Finalized module records and snapshots are never rewritten.
+Each exchange instruction is specialized for Training Record, Meal Data, or Morning Fact; it embeds the actual Operation Date and includes the complete response schema. Output is JSON only with no Markdown fence, unknown field, numeric string, invented fact, changed identity/date, or null-to-zero conversion. The prompt itself is not source data, and only the next formal plain-text record is analyzed.
 
-## 7. ChatGPT Instruction Rules
-
-Each exchange instruction is specialized for Training Record, Meal Data, Morning Fact, or Finalized Daily Data; it embeds the actual Operation Date and includes the complete response schema. Output is JSON only with no Markdown fence, unknown field, numeric string, invented fact, changed identity/date, or null-to-zero conversion. The prompt itself is not source data, and only the next formal plain-text record is analyzed.
-
-## 8. DNS Source Format
+## 7. DNS Source Format
 
 Daily use sends the original concatenated DNS Archive plain text directly to ChatGPT. The app does not generate, copy, or export a DNS Source JSON. The legacy/internal `operation-reboot-dns-source` codec remains readable for compatibility and tests but is disconnected from the production UI.
 
-## 9. DNS Normalized Format
+## 8. DNS Normalized Format
 
 The standalone `operation-reboot-dns-normalized` response carries generated time and parsed records. Each response record has operation date, parse status, structured data, warnings, and minimal unmapped fragments. ChatGPT does not create package IDs, record IDs, or digests; the app derives deterministic conversion identity after strict validation. The legacy normalized form with source identity remains readable internally.
 
-## 10. Legacy Daily Summary
+## 9. Legacy Daily Summary
 
 Record version 1 is keyed by `localDate` in `legacy_daily_summary_records`. It stores source identity, preserved summary sections, warnings, unmapped fragments, source text SHA-256, and timestamps. Raw DNS text is not persisted.
 
-## 11. DNS Mapping Table
+## 10. DNS Mapping Table
 
 | DNS section | Legacy summary section |
 |---|---|

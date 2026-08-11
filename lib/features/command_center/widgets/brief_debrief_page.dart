@@ -5,7 +5,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/morning_brief_record.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
@@ -200,88 +199,27 @@ class _ArchiveButton extends StatelessWidget {
   );
 }
 
-class _DailyDebriefView extends StatefulWidget {
+class _DailyDebriefView extends StatelessWidget {
   const _DailyDebriefView();
 
   @override
-  State<_DailyDebriefView> createState() => _DailyDebriefViewState();
-}
-
-class _DailyDebriefViewState extends State<_DailyDebriefView> {
-  late Future<List<DailyDebriefRecord>> _records;
-
-  @override
-  void initState() {
-    super.initState();
-    _records = _load();
-  }
-
-  Future<List<DailyDebriefRecord>> _load() async {
-    final records = (await AppRepositoryRegistry.container.dailyDebriefs.list())
-        .toList();
-    records.sort((a, b) => b.localDate.compareTo(a.localDate));
-    return records;
-  }
-
-  Future<void> _openSync() async {
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ReportSyncExchangePage(
-          exchangeType: ReportSyncExchangeType.dailyDebrief,
-        ),
+  Widget build(BuildContext context) => ListView(
+    key: const ValueKey('daily-debrief-content'),
+    padding: AppSpacing.cardPadding,
+    children: [
+      const SectionHeader(
+        icon: Icons.nightlight_outlined,
+        title: 'DAILY DEBRIEF',
       ),
-    );
-    if (mounted) _reload();
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<List<DailyDebriefRecord>>(
-    future: _records,
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (snapshot.hasError) return _LoadError(onRetry: _reload);
-      final records = snapshot.data ?? const [];
-      return ListView(
-        key: const ValueKey('daily-debrief-content'),
-        padding: AppSpacing.cardPadding,
-        children: [
-          const SectionHeader(
-            icon: Icons.nightlight_outlined,
-            title: 'DAILY DEBRIEF',
-          ),
-          AppSpacing.gapSM,
-          if (records.isEmpty)
-            const OperationCard(child: Text('DAILY DEBRIEFはまだありません。'))
-          else
-            _DailyDebriefCard(record: records.first),
-          AppSpacing.gapMD,
-          OperationButton(
-            key: const ValueKey('open-daily-debrief-report-sync'),
-            text: 'REPORT SYNC',
-            icon: Icons.sync,
-            onPressed: appInitializationController.value.isReadOnly
-                ? null
-                : _openSync,
-          ),
-          AppSpacing.gapXL,
-          const SectionHeader(icon: Icons.history, title: 'HISTORY'),
-          AppSpacing.gapSM,
-          _DailyDebriefHistory(records: records),
-          AppSpacing.gapLG,
-        ],
-      );
-    },
+      AppSpacing.gapSM,
+      const OperationCard(child: Text('DAILY DEBRIEFはまだありません。')),
+      AppSpacing.gapXL,
+      const SectionHeader(icon: Icons.history, title: 'HISTORY'),
+      AppSpacing.gapSM,
+      const OperationCard(child: Text('NO DAILY DEBRIEF HISTORY')),
+      AppSpacing.gapLG,
+    ],
   );
-
-  void _reload() {
-    final records = _load();
-    setState(() {
-      _records = records;
-    });
-  }
 }
 
 class _MorningBriefCard extends StatelessWidget {
@@ -913,45 +851,6 @@ class _TodayActions extends StatelessWidget {
   );
 }
 
-class _DailyDebriefCard extends StatelessWidget {
-  const _DailyDebriefCard({required this.record});
-  final DailyDebriefRecord record;
-
-  @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(record.localDate, style: Theme.of(context).textTheme.titleMedium),
-        AppSpacing.gapSM,
-        Text('DAILY SUMMARY\n${record.dailySummary}'),
-        AppSpacing.gapSM,
-        Text(
-          'COMMANDER INTENT EVALUATION\n${record.commanderIntentEvaluation}',
-        ),
-        AppSpacing.gapSM,
-        Text('SUCCESSES\n${record.successes.join('\n')}'),
-        AppSpacing.gapSM,
-        Text('ISSUES\n${record.issues.join('\n')}'),
-        AppSpacing.gapSM,
-        Text('NUTRITION\n${record.nutritionEvaluation}'),
-        AppSpacing.gapSM,
-        Text('ACTIVITY\n${record.activityEvaluation}'),
-        AppSpacing.gapSM,
-        Text('TRAINING\n${record.trainingEvaluation}'),
-        AppSpacing.gapSM,
-        Text('RECOVERY\n${record.recoveryEvaluation}'),
-        AppSpacing.gapSM,
-        Text('CARRYOVER\n${record.carryover.join('\n')}'),
-        AppSpacing.gapSM,
-        Text('TOMORROW\n${record.tomorrowConsiderations.join('\n')}'),
-        AppSpacing.gapSM,
-        Text('CONFIRMATION DIGEST\n${record.confirmationDigest}'),
-      ],
-    ),
-  );
-}
-
 class _MorningBriefHistory extends StatelessWidget {
   const _MorningBriefHistory({required this.records});
   final List<MorningBriefRecord> records;
@@ -1083,30 +982,6 @@ class _MorningBriefArchivePage extends StatelessWidget {
         onTap: () => _openMorningBriefDetail(context, records[index]),
       ),
     ),
-  );
-}
-
-class _DailyDebriefHistory extends StatelessWidget {
-  const _DailyDebriefHistory({required this.records});
-  final List<DailyDebriefRecord> records;
-
-  @override
-  Widget build(BuildContext context) => OperationCard(
-    child: records.isEmpty
-        ? const Text('NO DAILY DEBRIEF HISTORY')
-        : Column(
-            children: [
-              for (var index = 0; index < records.length; index++) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.nightlight_outlined),
-                  title: Text(records[index].localDate),
-                  subtitle: Text('${records[index].importedAt.toLocal()}'),
-                ),
-                if (index != records.length - 1) const Divider(),
-              ],
-            ],
-          ),
   );
 }
 

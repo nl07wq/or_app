@@ -13,7 +13,6 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
-import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
@@ -165,7 +164,7 @@ void main() {
     expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.textContaining('施設'), findsNothing);
   });
@@ -226,30 +225,6 @@ void main() {
         updatedAt: timestamp,
       ),
     );
-    await AppRepositoryRegistry.container.dailyDebriefs.create(
-      DailyDebriefRecord(
-        localDate: '2026-07-31',
-        requestId: 'legacy-request',
-        requestDigest: digest,
-        responseDigest: digest,
-        confirmationDigest: digest,
-        generatedAt: timestamp,
-        importedAt: timestamp,
-        dailySummary: 'Daily summary',
-        commanderIntentEvaluation: 'Intent evaluation',
-        successes: const ['Success'],
-        issues: const ['Issue'],
-        nutritionEvaluation: 'Nutrition evaluation',
-        activityEvaluation: 'Activity evaluation',
-        trainingEvaluation: 'Training evaluation',
-        recoveryEvaluation: 'Recovery evaluation',
-        carryover: const ['Carryover'],
-        tomorrowConsiderations: const ['Tomorrow'],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      ),
-    );
-
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
     await tester.pumpAndSettle();
@@ -260,10 +235,12 @@ void main() {
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.textContaining('Daily summary'), findsOneWidget);
-    expect(find.textContaining('Intent evaluation'), findsOneWidget);
-    expect(find.textContaining(digest), findsOneWidget);
-    expect(find.text('2026-07-31'), findsWidgets);
+    expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
+    expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('open-daily-debrief-report-sync')),
+      findsNothing,
+    );
   });
 
   testWidgets(

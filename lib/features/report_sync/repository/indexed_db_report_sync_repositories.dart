@@ -1,11 +1,9 @@
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
-import '../models/daily_debrief_record.dart';
 import '../models/morning_brief_record.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
 import '../services/report_sync_canonical_service.dart';
-import 'daily_debrief_repository.dart';
 import 'morning_brief_repository.dart';
 import 'report_sync_history_repository.dart';
 
@@ -75,32 +73,6 @@ class IndexedDbMorningBriefRepository
       read(localDate);
   @override
   Future<List<MorningBriefRecord>> list() async {
-    final values = await all();
-    values.sort((a, b) => b.localDate.compareTo(a.localDate));
-    return List.unmodifiable(values);
-  }
-}
-
-class IndexedDbDailyDebriefRepository
-    extends _ImmutableRepository<DailyDebriefRecord>
-    implements DailyDebriefRepository {
-  const IndexedDbDailyDebriefRepository(IndexedDbDatabase database)
-    : super(database, IndexedDbStoreNames.dailyDebriefRecords);
-  @override
-  String id(DailyDebriefRecord value) => value.localDate;
-  @override
-  DailyDebriefRecord decode(Map<String, Object?> value) =>
-      DailyDebriefRecord.fromRecord(value);
-  @override
-  Map<String, Object?> encode(DailyDebriefRecord value) => value.toRecord();
-  @override
-  Future<DailyDebriefRecord> create(DailyDebriefRecord record) =>
-      createValue(record);
-  @override
-  Future<DailyDebriefRecord?> readByLocalDate(String localDate) =>
-      read(localDate);
-  @override
-  Future<List<DailyDebriefRecord>> list() async {
     final values = await all();
     values.sort((a, b) => b.localDate.compareTo(a.localDate));
     return List.unmodifiable(values);

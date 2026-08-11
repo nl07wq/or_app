@@ -31,7 +31,6 @@ import 'package:or_app/features/legacy_archive/models/dns_archive_models.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
-import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
@@ -66,7 +65,11 @@ void main() {
       expect(decoded.includedSections, BackupSections.all.toSet());
       expect(decoded.data, hasLength(16));
       for (final section in BackupSections.all) {
-        expect(decoded.data[section], hasLength(1), reason: section);
+        expect(
+          decoded.data[section],
+          hasLength(section == BackupSections.dailyDebriefRecords ? 0 : 1),
+          reason: section,
+        );
       }
 
       final target = FakeIndexedDbDatabase();
@@ -491,27 +494,6 @@ Map<String, Map<String, Object?>> _completeRecords(DateTime timestamp) {
         MorningBriefAction(actionId: 'a2', text: 'second', priority: 'P2'),
         MorningBriefAction(actionId: 'a1', text: 'first', priority: 'P1'),
       ],
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    ).toRecord(),
-    BackupSections.dailyDebriefRecords: DailyDebriefRecord(
-      localDate: localDate,
-      requestId: 'request-1',
-      requestDigest: digest,
-      responseDigest: digest,
-      confirmationDigest: digest,
-      generatedAt: timestamp,
-      importedAt: timestamp,
-      dailySummary: 'summary',
-      commanderIntentEvaluation: 'evaluation',
-      successes: const ['second', 'first'],
-      issues: const [],
-      nutritionEvaluation: 'nutrition',
-      activityEvaluation: 'activity',
-      trainingEvaluation: 'training',
-      recoveryEvaluation: 'recovery',
-      carryover: const [],
-      tomorrowConsiderations: const ['tomorrow'],
       createdAt: timestamp,
       updatedAt: timestamp,
     ).toRecord(),

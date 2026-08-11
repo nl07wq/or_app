@@ -11,8 +11,7 @@ enum ReportSyncDirection {
 enum ReportSyncExchangeType {
   training('training'),
   food('food'),
-  morningBrief('morningBrief'),
-  dailyDebrief('dailyDebrief');
+  morningBrief('morningBrief');
 
   const ReportSyncExchangeType(this.stableId);
   final String stableId;

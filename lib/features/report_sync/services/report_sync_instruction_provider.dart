@@ -34,10 +34,6 @@ class StandardReportSyncInstructionProvider
     String? sourceRecordId,
     String? sourceDigest,
   }) {
-    if (exchangeType == ReportSyncExchangeType.dailyDebrief &&
-        confirmationDigest == null) {
-      throw StateError('Daily Debrief requires a confirmation digest.');
-    }
     if (exchangeType == ReportSyncExchangeType.morningBrief) {
       if (sourceRecordId == null || sourceDigest == null) {
         throw StateError('Morning Brief requires STATUS source identity.');
@@ -249,23 +245,18 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Convert the Meal Data pasted after this prompt for $date into Operation Reboot Food Import Schema Version 1.',
     ReportSyncExchangeType.morningBrief =>
       'Prepare the formal STATUS Source for Morning Brief review on $date.',
-    ReportSyncExchangeType.dailyDebrief =>
-      'Use the Finalized Daily Data pasted after this prompt for $date to generate Operation Reboot Daily Debrief Import Schema Version 1.',
   };
 
   String get _sourceName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Record',
     ReportSyncExchangeType.food => 'Meal Data',
     ReportSyncExchangeType.morningBrief => 'STATUS Source',
-    ReportSyncExchangeType.dailyDebrief => 'Finalized Daily Data',
   };
 
   String get _schemaName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Import Schema Version 2',
     ReportSyncExchangeType.food => 'Food Import Schema Version 2',
     ReportSyncExchangeType.morningBrief => 'Morning Brief source review',
-    ReportSyncExchangeType.dailyDebrief =>
-      'Daily Debrief Import Schema Version 1',
   };
 
   String _sourceRules() => switch (exchangeType) {
@@ -275,8 +266,6 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Convert only recorded meals and food items. Do not infer nutrition, convert null to zero, register Food Catalog or Recipe data, convert implicitly to Daily Meal v2, infer reference or provenance, or create an unrecorded meal. Return only Food import JSON.',
     ReportSyncExchangeType.morningBrief =>
       'Use only formal Body, Previous Day Comparison, Recovery, Condition, Work, and Carryover facts. Bowel information is out of scope. Do not complete a missing fact.',
-    ReportSyncExchangeType.dailyDebrief =>
-      'Use only finalized facts. Use Morning Brief only when included. Do not complete unconfirmed information or alter Confirmation or Snapshot facts. Produce commanderIntentEvaluation, dailySummary, successes, issues, nutritionEvaluation, activityEvaluation, trainingEvaluation, recoveryEvaluation, carryover, and tomorrowConsiderations. The confirmationDigest is fixed by the schema and must not change. Return only Daily Debrief import JSON.',
   };
 
   String _fieldRules(String? confirmationDigest) => switch (exchangeType) {
@@ -286,8 +275,6 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Do not create mealId or any internal ID. Every meal contains exactly sourceMealId, mealType, items, memo, and waterMl. sourceMealId is the original reference ID only when it can be confirmed, otherwise null. Every food item contains exactly name, calories, protein, fat, carbohydrate, quantity, amount, baseAmount, baseUnit, and amountMode. quantity is the recorded count multiplier and must be an integer of 1 or greater. amount and baseAmount must be finite positive numbers when present. amount, baseAmount, and baseUnit are one measurement tuple: provide all three together or set all three to null. Allowed baseUnit values are g and mL. Allowed amountMode values are physicalAmount and baseMultiplier; amountMode may be null only when it was not recorded, and a non-null amountMode requires the complete measurement tuple. For physicalAmount, amount is the consumed physical amount and the nutrition multiplier is amount divided by baseAmount. For baseMultiplier, amount is the recorded multiplier and the consumed physical amount is baseAmount multiplied by amount. When the measurement tuple is present, calories, protein, fat, and carbohydrate are the recorded nutrition basis corresponding to baseAmount, not consumed totals. Do not infer a missing measurement field, mode, unit, count, or nutrition value. Keep multiple meals separate. Operation Reboot generates permanent Meal IDs. Preserve the recorded mealType. Nullable fields must be null when unrecorded.',
     ReportSyncExchangeType.morningBrief =>
       'Return the formal Morning Brief Schema Version 2 response only.',
-    ReportSyncExchangeType.dailyDebrief =>
-      'The content fields are dailySummary, commanderIntentEvaluation, successes, issues, nutritionEvaluation, activityEvaluation, trainingEvaluation, recoveryEvaluation, carryover, and tomorrowConsiderations. The fixed confirmationDigest is $confirmationDigest.',
   };
 
   static const _legacyDigestPlaceholder =

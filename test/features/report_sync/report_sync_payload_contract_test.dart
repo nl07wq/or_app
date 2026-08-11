@@ -22,7 +22,7 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 void main() {
   final registry = ReportSyncPayloadRegistry.standard();
 
-  test('registers strict schemas for all four exchange types', () {
+  test('registers strict schemas for all active exchange types', () {
     for (final type in ReportSyncExchangeType.values) {
       expect(registry.forType(type).exchangeType, type);
       expect(registry.forType(type).minimalResponseExample, isNotEmpty);
@@ -77,12 +77,11 @@ void main() {
     );
   });
 
-  test('formal payload fixtures match all four schemas', () {
+  test('formal payload fixtures match all active schemas', () {
     for (final entry in <ReportSyncExchangeType, String>{
       ReportSyncExchangeType.training: 'training',
       ReportSyncExchangeType.food: 'food',
       ReportSyncExchangeType.morningBrief: 'morning_brief',
-      ReportSyncExchangeType.dailyDebrief: 'daily_debrief',
     }.entries) {
       final schema = registry.forType(entry.key);
       schema.validateRequest(_fixture('${entry.value}_request.json'));

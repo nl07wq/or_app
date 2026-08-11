@@ -171,13 +171,8 @@ class ReportSyncCodec {
   }
 
   void _validateConfirmationRule(ReportSyncEnvelope value) {
-    final required =
-        value.direction == ReportSyncDirection.response &&
-        value.exchangeType == ReportSyncExchangeType.dailyDebrief;
-    if (required != (value.confirmationDigest != null)) {
-      _invalid(
-        'confirmationDigest is only required for Daily Debrief responses.',
-      );
+    if (value.confirmationDigest != null) {
+      _invalid('confirmationDigest is not supported by active exchanges.');
     }
   }
 
@@ -199,10 +194,6 @@ class ReportSyncCodec {
                   payload['requestId'] != envelope.requestId ||
                   payload['requestDigest'] != envelope.requestDigest))) {
         _invalid('Legacy request identity does not match the envelope.');
-      }
-      if (envelope.exchangeType == ReportSyncExchangeType.dailyDebrief &&
-          payload['confirmationDigest'] != envelope.confirmationDigest) {
-        _invalid('Payload confirmationDigest does not match the envelope.');
       }
     }
   }

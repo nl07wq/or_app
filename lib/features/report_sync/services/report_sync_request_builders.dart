@@ -1,6 +1,4 @@
-import '../../../core/models/daily_log_confirmation.dart';
 import '../../morning/models/morning_fact.dart';
-import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_registry.dart';
 
 class TrainingRequestPayloadBuilder {
@@ -65,33 +63,6 @@ class MorningBriefRequestPayloadBuilder {
       'generationRequirements': generationRequirements,
     };
     const MorningBriefReportSyncPayloadSchema().validateRequest(payload);
-    return payload;
-  }
-}
-
-class DailyDebriefRequestPayloadBuilder {
-  const DailyDebriefRequestPayloadBuilder();
-
-  Map<String, Object?> build({
-    required String operationDate,
-    required DailyLogConfirmation confirmation,
-    required Map<String, Object?> finalizedSnapshot,
-    Object? morningBrief,
-    Object? commanderIntent,
-    Object? generationRequirements,
-  }) {
-    final confirmationJson = Map<String, Object?>.from(confirmation.toJson());
-    final digest = ReportSyncCanonicalService.digest(confirmationJson);
-    final payload = <String, Object?>{
-      'operationDate': operationDate,
-      'confirmationDigest': digest,
-      'confirmation': confirmationJson,
-      'finalizedSnapshot': finalizedSnapshot,
-      'morningBrief': morningBrief,
-      'commanderIntent': commanderIntent,
-      'generationRequirements': generationRequirements,
-    };
-    const DailyDebriefReportSyncPayloadSchema().validateRequest(payload);
     return payload;
   }
 }

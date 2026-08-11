@@ -11,7 +11,6 @@ import '../models/report_sync_issue.dart';
 import '../models/status_report_sync_source.dart';
 import 'report_sync_canonical_service.dart';
 import 'report_sync_payload_adapters.dart';
-import 'report_sync_plain_text_exporter.dart';
 import 'report_sync_persistence_service.dart';
 import 'status_report_sync_source_service.dart';
 
@@ -54,7 +53,6 @@ class ReportSyncRequestPreparation {
   const ReportSyncRequestPreparation({
     this.envelope,
     this.operationDate,
-    this.confirmationDigest,
     this.sourceText,
     this.statusSourceExport,
     this.statusSourceError,
@@ -64,7 +62,6 @@ class ReportSyncRequestPreparation {
 
   final ReportSyncEnvelope? envelope;
   final String? operationDate;
-  final String? confirmationDigest;
   final String? sourceText;
   final StatusReportSyncSourceExport? statusSourceExport;
   final StatusReportSyncSourceException? statusSourceError;
@@ -179,16 +176,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   }) async {
     final state = await _container.operationState.requireCurrent();
     if (targetDate != null) OperationLocalDate.parse(targetDate);
-    final operationDate = type == ReportSyncExchangeType.dailyDebrief
-        ? state.lastFinalizedDate?.value
-        : targetDate ?? state.operationDate.value;
-    if (operationDate == null) {
-      return const ReportSyncRequestPreparation(
-        statusLabel: 'FINALIZE REQUIRED',
-        blockingReason:
-            'Finalize the operation date before creating a request.',
-      );
-    }
+    final operationDate = targetDate ?? state.operationDate.value;
 
     switch (type) {
       case ReportSyncExchangeType.training:
@@ -226,31 +214,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
             blockingReason: error.message,
           );
         }
-      case ReportSyncExchangeType.dailyDebrief:
-        final confirmation = await _container.confirmation.findByLocalDate(
-          operationDate,
-        );
-        if (confirmation == null) {
-          return const ReportSyncRequestPreparation(
-            statusLabel: 'BLOCKED',
-            blockingReason:
-                'Daily confirmation is required for the finalized operation date.',
-          );
-        }
-        final morningBrief = await _container.morningBriefs.readByLocalDate(
-          operationDate,
-        );
-        return ReportSyncRequestPreparation(
-          operationDate: operationDate,
-          confirmationDigest: ReportSyncCanonicalService.digest(
-            confirmation.toJson(),
-          ),
-          sourceText: const ReportSyncPlainTextExporter().finalizedDailyData(
-            operationDate: operationDate,
-            confirmation: confirmation,
-            morningBrief: morningBrief,
-          ),
-        );
     }
   }
 
@@ -282,7 +245,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         .forType(type)
         .buildInstruction(
           operationDate: operationDate,
-          confirmationDigest: preparation.confirmationDigest,
           sourceRecordId: preparation.statusSourceExport?.source.sourceRecordId,
           sourceDigest: preparation.statusSourceExport?.sourceDigest,
         );
@@ -336,7 +298,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       ),
       ReportSyncExchangeType.food => _previewFood(response),
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
-      ReportSyncExchangeType.dailyDebrief => _previewDailyDebrief(response),
     };
     return preview;
   }
@@ -545,24 +506,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     }
   }
 
-  Future<ReportSyncResponsePreview> _previewDailyDebrief(
-    ReportSyncEnvelope response,
-  ) async {
-    final existing = await _container.dailyDebriefs.readByLocalDate(
-      response.operationDate,
-    );
-    if (existing == null) {
-      return _preview(response, ReportSyncDisposition.create);
-    }
-    final digest = ReportSyncCanonicalService.digest(response.payload);
-    return _preview(
-      response,
-      existing.responseDigest == digest
-          ? ReportSyncDisposition.noChanges
-          : ReportSyncDisposition.conflict,
-    );
-  }
-
   ReportSyncResponsePreview _preview(
     ReportSyncEnvelope response,
     ReportSyncDisposition disposition, {
@@ -606,12 +549,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         return _applyFood(preview, selectedMealIds);
       case ReportSyncExchangeType.morningBrief:
         await _container.reportSyncPersistence.importMorningBrief(response);
-        return const ReportSyncApplyResult(
-          ReportSyncDisposition.create,
-          readBackVerified: true,
-        );
-      case ReportSyncExchangeType.dailyDebrief:
-        await _container.reportSyncPersistence.importDailyDebrief(response);
         return const ReportSyncApplyResult(
           ReportSyncDisposition.create,
           readBackVerified: true,
@@ -752,8 +689,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   ) => switch (type) {
     ReportSyncExchangeType.morningBrief =>
       _container.morningBriefs.readByLocalDate(localDate),
-    ReportSyncExchangeType.dailyDebrief =>
-      _container.dailyDebriefs.readByLocalDate(localDate),
     _ => Future<Object?>.value(),
   };
 }

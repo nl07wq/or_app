@@ -4,7 +4,6 @@ enum ReportSyncIssueCode {
   requestDigestMismatch('requestDigestMismatch'),
   responseDigestMismatch('responseDigestMismatch'),
   operationDateMismatch('operationDateMismatch'),
-  confirmationDigestMismatch('confirmationDigestMismatch'),
   exchangeTypeMismatch('exchangeTypeMismatch'),
   schemaMismatch('schemaMismatch'),
   recordConflict('recordConflict'),

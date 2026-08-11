@@ -25,7 +25,7 @@ void main() {
   final now = DateTime.utc(2026, 8, 3, 9);
 
   test(
-    'production gateway prepares all four exchanges from formal facts',
+    'production gateway prepares all active exchanges from formal facts',
     () async {
       final container = AppRepositoryContainer.indexedDb(
         FakeIndexedDbDatabase(),
@@ -78,12 +78,7 @@ void main() {
       for (final type in ReportSyncExchangeType.values) {
         final prepared = await gateway.prepareRequest(type);
         expect(prepared.isReady, isTrue, reason: type.stableId);
-        expect(
-          prepared.operationDate,
-          type == ReportSyncExchangeType.dailyDebrief
-              ? '2026-08-02'
-              : '2026-08-03',
-        );
+        expect(prepared.operationDate, '2026-08-03');
         if (type == ReportSyncExchangeType.training ||
             type == ReportSyncExchangeType.food) {
           expect(prepared.sourceText, isNull, reason: type.stableId);
@@ -97,10 +92,6 @@ void main() {
           expect(prepared.statusSourceExport, isNotNull);
         }
       }
-      final debrief = (await gateway.prepareRequest(
-        ReportSyncExchangeType.dailyDebrief,
-      ));
-      expect(debrief.confirmationDigest, isNotNull);
       final morning = await gateway.prepareRequest(
         ReportSyncExchangeType.morningBrief,
       );
@@ -305,7 +296,7 @@ void main() {
       final container = AppRepositoryContainer.indexedDb(
         FakeIndexedDbDatabase(),
       );
-      final initial = await container.operationState.createInitial(
+      await container.operationState.createInitial(
         OperationLocalDate.parse('2026-08-03'),
       );
       final gateway = ProductionReportSyncExchangeGateway(
@@ -330,32 +321,6 @@ void main() {
       expect(morning.sourceText, isNull);
       expect(morning.statusLabel, 'MISSING');
       expect(morning.blockingReason, '対象日のSTATUSがありません。');
-
-      final debrief = await gateway.prepareRequest(
-        ReportSyncExchangeType.dailyDebrief,
-      );
-      expect(debrief.statusLabel, 'FINALIZE REQUIRED');
-      expect(
-        debrief.blockingReason,
-        'Finalize the operation date before creating a request.',
-      );
-
-      await container.operationState.save(
-        initial.copyWith(
-          lastFinalizedDate: OperationLocalDate.parse('2026-08-02'),
-          revision: initial.revision + 1,
-          updatedAt: initial.updatedAt.add(const Duration(microseconds: 1)),
-        ),
-        expectedRevision: initial.revision,
-      );
-      final missingConfirmation = await gateway.prepareRequest(
-        ReportSyncExchangeType.dailyDebrief,
-      );
-      expect(missingConfirmation.statusLabel, 'BLOCKED');
-      expect(
-        missingConfirmation.blockingReason,
-        'Daily confirmation is required for the finalized operation date.',
-      );
     },
   );
 

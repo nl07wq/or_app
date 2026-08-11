@@ -6,7 +6,6 @@ import '../../../core/models/meal_data.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../food/models/persisted_food_record.dart';
-import '../models/daily_debrief_record.dart';
 import '../models/morning_brief_record.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
@@ -50,10 +49,7 @@ class ReportSyncPersistenceService {
     required this.clock,
   });
 
-  Future<ReportSyncHistory> recordRequest(
-    ReportSyncEnvelope request, {
-    String? confirmationDigest,
-  }) {
+  Future<ReportSyncHistory> recordRequest(ReportSyncEnvelope request) {
     if (request.direction != ReportSyncDirection.request) {
       throw const ReportSyncException(
         ReportSyncIssueCode.schemaMismatch,
@@ -66,18 +62,6 @@ class ReportSyncPersistenceService {
         'Legacy request identity is required for request history.',
       );
     }
-    final payloadConfirmation =
-        request.exchangeType == ReportSyncExchangeType.dailyDebrief
-        ? request.payload['confirmationDigest'] as String?
-        : null;
-    if (confirmationDigest != null &&
-        payloadConfirmation != null &&
-        confirmationDigest != payloadConfirmation) {
-      throw const ReportSyncException(
-        ReportSyncIssueCode.confirmationDigestMismatch,
-        'Request confirmationDigest does not match its payload.',
-      );
-    }
     final now = clock().toUtc();
     return historyRepository.create(
       ReportSyncHistory(
@@ -87,7 +71,7 @@ class ReportSyncPersistenceService {
         operationDate: request.operationDate,
         requestId: request.requestId!,
         requestDigest: request.requestDigest!,
-        confirmationDigest: confirmationDigest ?? payloadConfirmation,
+        confirmationDigest: null,
         startedAt: request.createdAt,
         completedAt: now,
         result: ReportSyncHistoryResult.success,
@@ -524,67 +508,6 @@ class ReportSyncPersistenceService {
         recordId: record.localDate,
       );
     }
-  }
-
-  Future<ReportSyncHistory> importDailyDebrief(
-    ReportSyncEnvelope response,
-  ) async {
-    if (response.exchangeType != ReportSyncExchangeType.dailyDebrief) {
-      throw const ReportSyncException(
-        ReportSyncIssueCode.exchangeTypeMismatch,
-        'Daily Debrief response required.',
-      );
-    }
-    await validator.validateResponse(response);
-    final payload = response.payload;
-    final content = Map<String, Object?>.from(payload['content'] as Map);
-    final now = clock().toUtc();
-    final generated = DateTime.tryParse(
-      payload['generatedAt'] is String ? payload['generatedAt'] as String : '',
-    );
-    if (generated == null || !generated.isUtc) {
-      throw const ReportSyncException(
-        ReportSyncIssueCode.schemaMismatch,
-        'generatedAt is invalid.',
-      );
-    }
-    List<String> list(String key) {
-      final value = content[key];
-      if (value is! List || value.any((v) => v is! String || v.isEmpty)) {
-        throw ReportSyncException(
-          ReportSyncIssueCode.schemaMismatch,
-          '$key is invalid.',
-        );
-      }
-      return value.cast<String>();
-    }
-
-    final record = DailyDebriefRecord(
-      localDate: response.operationDate,
-      requestId: _legacyRequestId(response),
-      requestDigest: _legacyRequestDigest(response),
-      responseDigest: ReportSyncCanonicalService.digest(payload),
-      confirmationDigest: response.confirmationDigest!,
-      generatedAt: generated,
-      importedAt: now,
-      dailySummary: _string(content, 'dailySummary'),
-      commanderIntentEvaluation: _string(content, 'commanderIntentEvaluation'),
-      successes: list('successes'),
-      issues: list('issues'),
-      nutritionEvaluation: _string(content, 'nutritionEvaluation'),
-      activityEvaluation: _string(content, 'activityEvaluation'),
-      trainingEvaluation: _string(content, 'trainingEvaluation'),
-      recoveryEvaluation: _string(content, 'recoveryEvaluation'),
-      carryover: list('carryover'),
-      tomorrowConsiderations: list('tomorrowConsiderations'),
-      createdAt: now,
-      updatedAt: now,
-    );
-    return _apply(
-      response,
-      domainStore: IndexedDbStoreNames.dailyDebriefRecords,
-      domainRecord: record.toRecord(),
-    );
   }
 
   Future<ReportSyncHistory> _apply(

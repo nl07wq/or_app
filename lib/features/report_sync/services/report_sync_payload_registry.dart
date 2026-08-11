@@ -23,7 +23,6 @@ class ReportSyncPayloadRegistry {
     const TrainingReportSyncPayloadSchema(),
     const FoodReportSyncPayloadSchema(),
     const MorningBriefReportSyncPayloadSchema(),
-    const DailyDebriefReportSyncPayloadSchema(),
   ]);
 
   ReportSyncPayloadSchema forType(ReportSyncExchangeType type) =>
@@ -50,8 +49,6 @@ class ReportSyncPayloadRegistry {
             envelope.payload,
           );
           return;
-        case ReportSyncExchangeType.dailyDebrief:
-          _fail('Schema 2.0 is not supported for this exchange type.');
       }
     }
     final schema = forType(envelope.exchangeType);
@@ -407,102 +404,6 @@ class MorningBriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
       'actions': [
         {'actionId': '<ID>', 'text': '<TEXT>', 'priority': 'high'},
       ],
-    },
-  };
-}
-
-class DailyDebriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
-  const DailyDebriefReportSyncPayloadSchema();
-  @override
-  ReportSyncExchangeType get exchangeType =>
-      ReportSyncExchangeType.dailyDebrief;
-
-  @override
-  void validateRequest(Map<String, Object?> value) {
-    _exact(value, const {
-      'operationDate',
-      'confirmationDigest',
-      'confirmation',
-      'finalizedSnapshot',
-      'morningBrief',
-      'commanderIntent',
-      'generationRequirements',
-    });
-    _date(value['operationDate'], 'operationDate');
-    _digest(value['confirmationDigest'], 'confirmationDigest');
-    for (final key in const [
-      'confirmation',
-      'finalizedSnapshot',
-      'morningBrief',
-      'commanderIntent',
-      'generationRequirements',
-    ]) {
-      _nullable(value[key], key);
-    }
-  }
-
-  @override
-  void validateResponse(Map<String, Object?> value) {
-    _responseIdentity(value, const {
-      'confirmationDigest',
-      'generatedAt',
-      'content',
-    });
-    _digest(value['confirmationDigest'], 'confirmationDigest');
-    _utc(value['generatedAt'], 'generatedAt');
-    final content = _map(value['content'], 'content');
-    _exact(content, const {
-      'dailySummary',
-      'commanderIntentEvaluation',
-      'successes',
-      'issues',
-      'nutritionEvaluation',
-      'activityEvaluation',
-      'trainingEvaluation',
-      'recoveryEvaluation',
-      'carryover',
-      'tomorrowConsiderations',
-    });
-    for (final key in const [
-      'dailySummary',
-      'commanderIntentEvaluation',
-      'nutritionEvaluation',
-      'activityEvaluation',
-      'trainingEvaluation',
-      'recoveryEvaluation',
-    ]) {
-      _text(content[key], key);
-    }
-    for (final key in const [
-      'successes',
-      'issues',
-      'carryover',
-      'tomorrowConsiderations',
-    ]) {
-      final list = _list(content[key], key);
-      if (list.any((entry) => entry is! String || entry.trim().isEmpty)) {
-        _fail('$key is invalid.');
-      }
-    }
-  }
-
-  @override
-  Map<String, Object?> get minimalResponseExample => {
-    'operationDate': '2000-01-01',
-    'confirmationDigest':
-        '0000000000000000000000000000000000000000000000000000000000000000',
-    'generatedAt': '2000-01-01T00:00:00.000Z',
-    'content': {
-      'dailySummary': '<TEXT>',
-      'commanderIntentEvaluation': '<TEXT>',
-      'successes': ['<TEXT>'],
-      'issues': ['<TEXT>'],
-      'nutritionEvaluation': '<TEXT>',
-      'activityEvaluation': '<TEXT>',
-      'trainingEvaluation': '<TEXT>',
-      'recoveryEvaluation': '<TEXT>',
-      'carryover': ['<TEXT>'],
-      'tomorrowConsiderations': ['<TEXT>'],
     },
   };
 }
