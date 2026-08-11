@@ -121,10 +121,10 @@ void main() {
         find.ancestor(of: month, matching: find.byType(Expanded)),
         findsNothing,
       );
-      expect(tester.getSize(month), const Size(48, 36));
-      expect(tester.getSize(day), const Size(40, 36));
-      expect(tester.getSize(weekday), const Size(48, 36));
-      expect(tester.getSize(row).width, 148);
+      expect(tester.getSize(month), const Size(52, 36));
+      expect(tester.getSize(day), const Size(52, 36));
+      expect(tester.getSize(weekday), const Size(52, 36));
+      expect(tester.getSize(row).width, 168);
       expect(
         tester.getSize(row).width,
         lessThan(tester.getSize(operationDateCard).width * 0.75),

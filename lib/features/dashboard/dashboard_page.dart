@@ -328,8 +328,7 @@ class _OperationDateCardState extends State<_OperationDateCard> {
 class _OperationDateFlipRow extends StatelessWidget {
   const _OperationDateFlipRow({required this.date, required this.animate});
 
-  static const _monthAndWeekdayWidth = 48.0;
-  static const _dayWidth = 40.0;
+  static const _tileWidth = 52.0;
   static const _tileHeight = 36.0;
   static const _tileGap = 6.0;
 
@@ -375,7 +374,7 @@ class _OperationDateFlipRow extends StatelessWidget {
                 valueKey: ValueKey(
                   'operation-date-value-$index-${values[index]}',
                 ),
-                width: index == 1 ? _dayWidth : _monthAndWeekdayWidth,
+                width: _tileWidth,
                 height: _tileHeight,
                 animate: animate,
               ),
