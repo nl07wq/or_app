@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
@@ -141,11 +142,27 @@ void main() {
     expect(find.text('DATA CENTER'), findsWidgets);
     await tester.tap(find.text('BRIEF / DEBRIEF').first);
     await tester.pumpAndSettle();
-    expect(find.text('MORNING BRIEF'), findsWidgets);
+    expect(find.text('DAILY BRIEF'), findsWidgets);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
-    expect(find.text('MORNING BRIEFはまだありません。'), findsOneWidget);
-    expect(find.text('MORNING BRIEF BACK NUMBER'), findsOneWidget);
+    expect(find.text('MORNING BRIEF'), findsNothing);
+    expect(find.text('DAILY BRIEFはまだありません。'), findsOneWidget);
+    expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
+    expect(find.text('CREATE DAILY BRIEF'), findsOneWidget);
+    expect(find.text('REPORT SYNC'), findsNothing);
+    final briefHeaders = tester
+        .widgetList<SectionHeader>(find.byType(SectionHeader))
+        .toList();
+    expect(
+      briefHeaders.singleWhere((value) => value.title == 'DAILY BRIEF').icon,
+      Icons.light_mode_outlined,
+    );
+    expect(
+      briefHeaders
+          .singleWhere((value) => value.title == 'DAILY BRIEF BACK NUMBER')
+          .icon,
+      Icons.auto_stories_outlined,
+    );
     expect(
       find.byKey(const ValueKey('open-morning-brief-report-sync')),
       findsOneWidget,
@@ -170,6 +187,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    final debriefHeaders = tester
+        .widgetList<SectionHeader>(find.byType(SectionHeader))
+        .toList();
+    expect(
+      debriefHeaders
+          .singleWhere((value) => value.title == 'DAILY DEBRIEF BACK NUMBER')
+          .icon,
+      Icons.auto_stories_outlined,
+    );
     await tester.tap(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
     );
@@ -249,7 +275,7 @@ void main() {
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
     expect(find.text('MB-2026-08-01'), findsOneWidget);
-    expect(find.text('MORNING BRIEF BACK NUMBER'), findsOneWidget);
+    expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
@@ -362,7 +388,8 @@ void main() {
         find.byKey(const ValueKey('morning-brief-status-lamp-yellow')),
         findsNWidgets(2),
       );
-      expect(find.byIcon(Icons.assignment_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.assignment_outlined), findsNothing);
+      expect(find.byIcon(Icons.light_mode_outlined), findsNWidgets(2));
       expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
       expect(find.byIcon(Icons.monitor_weight_outlined), findsOneWidget);
       expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
@@ -381,7 +408,7 @@ void main() {
         find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
       );
       await tester.pumpAndSettle();
-      expect(find.text('MORNING BRIEF BACK NUMBER'), findsOneWidget);
+      expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
         findsOneWidget,
@@ -490,7 +517,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(TabBar),
-            matching: find.text('MORNING BRIEF'),
+            matching: find.text('DAILY BRIEF'),
           ),
         );
         await tester.pumpAndSettle();

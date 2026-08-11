@@ -28,7 +28,7 @@ class BriefDebriefPage extends StatelessWidget {
         ),
         TabBar(
           tabs: [
-            Tab(text: 'MORNING BRIEF'),
+            Tab(text: 'DAILY BRIEF'),
             Tab(text: 'DAILY DEBRIEF'),
           ],
         ),
@@ -103,14 +103,19 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const SectionHeader(
+                    icon: Icons.light_mode_outlined,
+                    title: 'DAILY BRIEF',
+                  ),
+                  AppSpacing.gapSM,
                   if (current == null)
-                    const OperationCard(child: Text('MORNING BRIEFはまだありません。'))
+                    const OperationCard(child: Text('DAILY BRIEFはまだありません。'))
                   else
                     _MorningBriefCard(record: current),
                   AppSpacing.gapMD,
                   OperationButton(
                     key: const ValueKey('open-morning-brief-report-sync'),
-                    text: 'REPORT SYNC',
+                    text: 'CREATE DAILY BRIEF',
                     icon: Icons.sync,
                     onPressed: appInitializationController.value.isReadOnly
                         ? null
@@ -119,7 +124,7 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
                   AppSpacing.gapXL,
                   const SectionHeader(
                     icon: Icons.auto_stories_outlined,
-                    title: 'MORNING BRIEF BACK NUMBER',
+                    title: 'DAILY BRIEF BACK NUMBER',
                   ),
                   AppSpacing.gapSM,
                   _MorningBriefHistory(records: backNumbers),
@@ -302,7 +307,10 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
               : _openCreateFlow,
         ),
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.history, title: 'HISTORY'),
+        const SectionHeader(
+          icon: Icons.auto_stories_outlined,
+          title: 'DAILY DEBRIEF BACK NUMBER',
+        ),
         AppSpacing.gapSM,
         if (snapshot.hasError)
           OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
@@ -555,7 +563,7 @@ class _BriefHeader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.assignment_outlined,
+              Icons.light_mode_outlined,
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 10),
@@ -564,7 +572,7 @@ class _BriefHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'MORNING BRIEF',
+                    'DAILY BRIEF',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.1,
@@ -1195,7 +1203,7 @@ class _MorningBriefDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('MORNING BRIEF')),
+    appBar: AppBar(title: const Text('DAILY BRIEF')),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [_MorningBriefCard(record: record)],
@@ -1210,7 +1218,7 @@ class _MorningBriefArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('MORNING BRIEF BACK NUMBER')),
+    appBar: AppBar(title: const Text('DAILY BRIEF BACK NUMBER')),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: records.length,
