@@ -123,13 +123,14 @@ void main() {
     expect(controller.endTime, isNotNull);
   });
 
-  testWidgets('shows human time, live elapsed, duration, and undo end', (
+  testWidgets('shows flip elapsed, duration, and resumes the same session', (
     tester,
   ) async {
-    var now = DateTime(2026, 8, 11, 21, 19);
+    final start = DateTime(2026, 8, 11, 21, 19);
+    var now = start.add(const Duration(seconds: 34));
     final controller = TrainingV2FormController.newSession(
       localDate: '2026-08-11',
-    )..startTraining(now);
+    )..startTraining(start);
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -149,19 +150,29 @@ void main() {
 
     expect(find.text('21:19'), findsOneWidget);
     expect(find.text('ELAPSED'), findsOneWidget);
-    expect(find.text('00:00:00'), findsOneWidget);
-    now = now.add(const Duration(seconds: 2));
+    expect(_flipTimerLabel(tester, 'ELAPSED'), 'ELAPSED 00:00:34');
+    expect(find.byKey(const ValueKey('flip-cell-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('flip-cell-5')), findsOneWidget);
+    expect(find.text(':'), findsNWidgets(2));
+
+    now = now.add(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('00:00:02'), findsOneWidget);
+    expect(_flipTimerLabel(tester, 'ELAPSED'), 'ELAPSED 00:00:35');
+    expect(find.byKey(const ValueKey('flip-digit-5-4')), findsOneWidget);
+    expect(find.byKey(const ValueKey('flip-digit-5-5')), findsOneWidget);
+    expect(find.byKey(const ValueKey('flip-digit-4-3')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('flip-digit-5-4')), findsNothing);
 
     await tester.tap(find.text('END TRAINING'));
     await tester.pump();
     expect(find.text('DURATION'), findsOneWidget);
-    expect(find.text('00:00:02'), findsOneWidget);
-    expect(find.text('UNDO END'), findsOneWidget);
+    expect(_flipTimerLabel(tester, 'DURATION'), 'DURATION 00:00:35');
+    expect(find.text('UNDO END'), findsNothing);
+    expect(find.text('RESUME TRAINING'), findsOneWidget);
 
     final originalStart = controller.startTime;
-    await tester.tap(find.text('UNDO END'));
+    await tester.tap(find.text('RESUME TRAINING'));
     await tester.pump();
     expect(controller.startTime, originalStart);
     expect(controller.endTime, isNull);
@@ -234,9 +245,14 @@ void main() {
     expect(find.text('23:45'), findsOneWidget);
     expect(find.text('翌 00:30'), findsOneWidget);
     expect(find.textContaining('2026-08-11T'), findsNothing);
-    expect(find.text('00:45:00'), findsOneWidget);
+    expect(_flipTimerLabel(tester, 'DURATION'), 'DURATION 00:45:00');
   });
 }
+
+String? _flipTimerLabel(WidgetTester tester, String label) => tester
+    .widget<Semantics>(find.byKey(ValueKey('flip-timer-$label')))
+    .properties
+    .label;
 
 TrainingSessionV2 _timedSession({CardioEntryV2? cardio}) => TrainingSessionV2(
   date: '2026-08-11',

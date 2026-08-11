@@ -32,7 +32,20 @@ class RecoveryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(icon: Icons.hotel, title: "RECOVERY"),
+          Row(
+            children: [
+              const Expanded(
+                child: SectionHeader(icon: Icons.hotel, title: "RECOVERY"),
+              ),
+              _UnmeasuredToggle(
+                key: const ValueKey('Sleep Time-unmeasured-toggle'),
+                selected: sleepTimeUnmeasured,
+                onPressed: sleepTimeUnmeasured
+                    ? onSleepTimeMeasured
+                    : onSleepTimeUnmeasured,
+              ),
+            ],
+          ),
 
           const SizedBox(height: 20),
 
@@ -59,20 +72,13 @@ class RecoveryCard extends StatelessWidget {
           const SizedBox(height: 20),
 
           if (sleepTimeUnmeasured)
-            _UnmeasuredField(
-              title: 'Sleep Time',
-              onMeasure: onSleepTimeMeasured,
-            )
+            const _UnmeasuredValue(title: 'Sleep Time')
           else ...[
             TimeInputCard(
               title: "Sleep Time",
               controller: sleepController,
               initialHour: 8,
               initialMinute: 0,
-              headerAction: _UnmeasuredAction(
-                key: const ValueKey('Sleep Time-unmeasured-toggle'),
-                onPressed: onSleepTimeUnmeasured,
-              ),
             ),
           ],
 
@@ -120,43 +126,21 @@ class RecoveryCard extends StatelessWidget {
   }
 }
 
-class _UnmeasuredField extends StatelessWidget {
-  const _UnmeasuredField({required this.title, required this.onMeasure});
+class _UnmeasuredToggle extends StatelessWidget {
+  const _UnmeasuredToggle({
+    super.key,
+    required this.selected,
+    required this.onPressed,
+  });
 
-  final String title;
-  final VoidCallback onMeasure;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      TextButton(
-        key: ValueKey('$title-unmeasured-toggle'),
-        onPressed: onMeasure,
-        child: const Text(
-          '未計測',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.lightBlueAccent,
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
-class _UnmeasuredAction extends StatelessWidget {
-  const _UnmeasuredAction({super.key, required this.onPressed});
-
+  final bool selected;
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerRight,
-    child: TextButton(onPressed: onPressed, child: const Text('未計測')),
+  Widget build(BuildContext context) => ChoiceChip(
+    label: const Text('未計測'),
+    selected: selected,
+    onSelected: (_) => onPressed(),
   );
 }
 

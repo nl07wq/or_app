@@ -230,7 +230,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
               }
             },
             icon: const Icon(Icons.undo),
-            label: const Text('UNDO END'),
+            label: const Text('RESUME TRAINING'),
           ),
         ],
       ],
@@ -320,13 +320,169 @@ class _DurationField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: Text(label)),
-        Text(value, style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+        AppSpacing.gapSM,
+        _FlipTimer(label: label, value: value),
       ],
     );
   }
+}
+
+class _FlipTimer extends StatelessWidget {
+  static const _digitGap = 4.0;
+  static const _separatorWidth = 14.0;
+
+  final String label;
+  final String value;
+
+  const _FlipTimer({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!RegExp(r'^\d{2}:\d{2}:\d{2}$').hasMatch(value)) {
+      return Semantics(
+        key: ValueKey('flip-timer-$label'),
+        label: '$label $value',
+        child: ExcludeSemantics(
+          child: Text(
+            value,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      );
+    }
+    final digits = value.replaceAll(':', '').split('');
+    return Semantics(
+      key: ValueKey('flip-timer-$label'),
+      label: '$label $value',
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : 280.0;
+            final fixedWidth = _digitGap * 3 + _separatorWidth * 2;
+            final cellWidth = ((availableWidth - fixedWidth) / 6).clamp(
+              28.0,
+              38.0,
+            );
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _FlipCell(index: 0, digit: digits[0], width: cellWidth),
+                const SizedBox(width: _digitGap),
+                _FlipCell(index: 1, digit: digits[1], width: cellWidth),
+                const _FlipSeparator(),
+                _FlipCell(index: 2, digit: digits[2], width: cellWidth),
+                const SizedBox(width: _digitGap),
+                _FlipCell(index: 3, digit: digits[3], width: cellWidth),
+                const _FlipSeparator(),
+                _FlipCell(index: 4, digit: digits[4], width: cellWidth),
+                const SizedBox(width: _digitGap),
+                _FlipCell(index: 5, digit: digits[5], width: cellWidth),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FlipCell extends StatelessWidget {
+  final int index;
+  final String digit;
+  final double width;
+
+  const _FlipCell({
+    required this.index,
+    required this.digit,
+    required this.width,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      key: ValueKey('flip-cell-$index'),
+      width: width,
+      height: (width * 1.35).clamp(42.0, 52.0),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => AnimatedBuilder(
+                animation: animation,
+                child: child,
+                builder: (context, child) => Opacity(
+                  opacity: animation.value,
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.rotationX((1 - animation.value) * 0.45),
+                    child: child,
+                  ),
+                ),
+              ),
+              child: Text(
+                digit,
+                key: ValueKey('flip-digit-$index-$digit'),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              height: 1,
+              color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FlipSeparator extends StatelessWidget {
+  const _FlipSeparator();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+    width: _FlipTimer._separatorWidth,
+    child: Center(
+      child: Text(
+        ':',
+        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+      ),
+    ),
+  );
 }
 
 TimeOfDay _timeOfDay(String source) => TimeOfDay(

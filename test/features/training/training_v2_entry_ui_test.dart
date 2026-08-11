@@ -597,7 +597,7 @@ void main() {
     );
     expect(find.text('DURATION'), findsOneWidget);
 
-    await tester.tap(find.text('UNDO END'));
+    await tester.tap(find.text('RESUME TRAINING'));
     await tester.pump();
     expect(
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),

@@ -43,29 +43,30 @@ void main() {
       width: 390,
     );
 
-    _expectHeaderActionSeparated(
+    _expectSectionToggle(
       tester,
+      title: 'BODY',
       actionKey: const ValueKey('Weight-unmeasured-toggle'),
       input: find.byType(HUDInputCard),
+      selected: false,
     );
     expect(
       find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
       findsNothing,
     );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const ValueKey('Weight-unmeasured-toggle')),
-        matching: find.byType(TextButton),
-      ),
-    );
+    await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
     await tester.pump();
     expect(find.byType(HUDInputCard), findsNothing);
     expect(find.byType(WheelInputCard), findsNothing);
     expect(weight.text, isEmpty);
     expect(bodyFat.text, isEmpty);
     _expectUnmeasuredValueStyle(tester, 'Weight');
-    expect(find.text('未計測'), findsNWidgets(2));
+    expect(find.text('未計測'), findsNWidgets(3));
+    expect(
+      _choiceChip(tester, const ValueKey('Weight-unmeasured-toggle')).selected,
+      isTrue,
+    );
     expect(
       find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
       findsNothing,
@@ -156,22 +157,28 @@ void main() {
       width: 390,
     );
 
-    _expectHeaderActionSeparated(
+    _expectSectionToggle(
       tester,
+      title: 'RECOVERY',
       actionKey: const ValueKey('Sleep Time-unmeasured-toggle'),
       input: find.byType(TimeInputCard),
+      selected: false,
     );
 
     await tester.tap(
-      find.descendant(
-        of: find.byKey(const ValueKey('Sleep Time-unmeasured-toggle')),
-        matching: find.byType(TextButton),
-      ),
+      find.byKey(const ValueKey('Sleep Time-unmeasured-toggle')),
     );
     await tester.pump();
     expect(find.byType(TimeInputCard), findsNothing);
     expect(find.byType(WheelInputCard), findsNothing);
-    expect(find.text('未計測'), findsNWidgets(2));
+    expect(find.text('未計測'), findsNWidgets(3));
+    expect(
+      _choiceChip(
+        tester,
+        const ValueKey('Sleep Time-unmeasured-toggle'),
+      ).selected,
+      isTrue,
+    );
     expect(
       find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),
       findsNothing,
@@ -284,28 +291,39 @@ Future<void> _pump(
   );
 }
 
-void _expectHeaderActionSeparated(
+void _expectSectionToggle(
   WidgetTester tester, {
+  required String title,
   required ValueKey<String> actionKey,
   required Finder input,
+  required bool selected,
 }) {
   final action = find.byKey(actionKey);
-  final complete = find.descendant(
-    of: input,
-    matching: find.widgetWithText(FilledButton, '完了'),
-  );
   final actionRect = tester.getRect(action);
-  final completeRect = tester.getRect(complete);
+  final inputRect = tester.getRect(input);
+  final titleRect = tester.getRect(find.text(title));
 
-  expect(actionRect.right, closeTo(tester.getRect(input).right, 0.1));
-  expect(actionRect.bottom, lessThan(completeRect.top));
-  expect(actionRect.overlaps(completeRect), isFalse);
+  expect(find.descendant(of: input, matching: action), findsNothing);
+  expect(actionRect.right, closeTo(inputRect.right, 0.1));
+  expect(actionRect.bottom, lessThan(inputRect.top));
+  expect(actionRect.center.dy, closeTo(titleRect.center.dy, 8));
+  expect(_choiceChip(tester, actionKey).selected, selected);
 }
 
+ChoiceChip _choiceChip(WidgetTester tester, ValueKey<String> actionKey) =>
+    tester.widget<ChoiceChip>(
+      find.descendant(
+        of: find.byKey(actionKey),
+        matching: find.byType(ChoiceChip),
+      ),
+    );
+
 void _expectUnmeasuredValueStyle(WidgetTester tester, String title) {
-  final toggle = find.byKey(ValueKey('$title-unmeasured-toggle'));
+  final valueRow = find
+      .ancestor(of: find.text(title), matching: find.byType(Row))
+      .first;
   final text = tester.widget<Text>(
-    find.descendant(of: toggle, matching: find.text('未計測')),
+    find.descendant(of: valueRow, matching: find.text('未計測')),
   );
   expect(text.style?.fontSize, 20);
   expect(text.style?.fontWeight, FontWeight.w600);
