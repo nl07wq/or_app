@@ -108,6 +108,33 @@ void main() {
       expect(find.text('28'), findsOneWidget);
       expect(find.text('TUE'), findsOneWidget);
       expect(find.text('2026-07-28'), findsNothing);
+      final row = find.byKey(const ValueKey('operation-date-flip-row'));
+      final month = find.byKey(const ValueKey('operation-date-tile-0'));
+      final day = find.byKey(const ValueKey('operation-date-tile-1'));
+      final weekday = find.byKey(const ValueKey('operation-date-tile-2'));
+      final operationDateCard = find.ancestor(
+        of: find.text('OPERATION DATE'),
+        matching: find.byType(OperationCard),
+      );
+
+      expect(
+        find.ancestor(of: month, matching: find.byType(Expanded)),
+        findsNothing,
+      );
+      expect(tester.getSize(month), const Size(48, 36));
+      expect(tester.getSize(day), const Size(40, 36));
+      expect(tester.getSize(weekday), const Size(48, 36));
+      expect(tester.getSize(row).width, 148);
+      expect(
+        tester.getSize(row).width,
+        lessThan(tester.getSize(operationDateCard).width * 0.75),
+      );
+      expect(tester.getTopLeft(day).dx - tester.getTopRight(month).dx, 6);
+      expect(tester.getTopLeft(weekday).dx - tester.getTopRight(day).dx, 6);
+      expect(
+        tester.getTopLeft(row).dx,
+        lessThan(tester.getCenter(operationDateCard).dx),
+      );
       expect(tester.takeException(), isNull);
     }
   });

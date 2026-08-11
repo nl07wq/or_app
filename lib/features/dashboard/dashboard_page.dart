@@ -328,6 +328,11 @@ class _OperationDateCardState extends State<_OperationDateCard> {
 class _OperationDateFlipRow extends StatelessWidget {
   const _OperationDateFlipRow({required this.date, required this.animate});
 
+  static const _monthAndWeekdayWidth = 48.0;
+  static const _dayWidth = 40.0;
+  static const _tileHeight = 36.0;
+  static const _tileGap = 6.0;
+
   static const _months = [
     'JAN',
     'FEB',
@@ -359,18 +364,20 @@ class _OperationDateFlipRow extends StatelessWidget {
       label: 'OPERATION DATE ${date.value}',
       child: ExcludeSemantics(
         child: Row(
+          key: const ValueKey('operation-date-flip-row'),
+          mainAxisSize: MainAxisSize.min,
           children: [
             for (var index = 0; index < values.length; index++) ...[
-              if (index > 0) AppSpacing.gapSM,
-              Expanded(
-                child: OperationFlipTile(
-                  key: ValueKey('operation-date-tile-$index'),
-                  value: values[index],
-                  valueKey: ValueKey(
-                    'operation-date-value-$index-${values[index]}',
-                  ),
-                  animate: animate,
+              if (index > 0) const SizedBox(width: _tileGap),
+              OperationFlipTile(
+                key: ValueKey('operation-date-tile-$index'),
+                value: values[index],
+                valueKey: ValueKey(
+                  'operation-date-value-$index-${values[index]}',
                 ),
+                width: index == 1 ? _dayWidth : _monthAndWeekdayWidth,
+                height: _tileHeight,
+                animate: animate,
               ),
             ],
           ],
