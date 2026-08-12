@@ -18,6 +18,7 @@ abstract interface class ReportSyncInstructionProvider {
     String? confirmationDigest,
     String? sourceRecordId,
     String? sourceDigest,
+    Map<String, Object?>? recentContext,
     DailyDebriefSources? dailyDebriefSources,
     Map<String, Object?>? dailyDebriefSource,
   });
@@ -36,6 +37,7 @@ class StandardReportSyncInstructionProvider
     String? confirmationDigest,
     String? sourceRecordId,
     String? sourceDigest,
+    Map<String, Object?>? recentContext,
     DailyDebriefSources? dailyDebriefSources,
     Map<String, Object?>? dailyDebriefSource,
   }) {
@@ -51,12 +53,13 @@ class StandardReportSyncInstructionProvider
     }
     if (exchangeType == ReportSyncExchangeType.morningBrief) {
       if (sourceRecordId == null || sourceDigest == null) {
-        throw StateError('Morning Brief requires STATUS source identity.');
+        throw StateError('Daily Brief requires STATUS source identity.');
       }
       return _buildMorningBriefInstruction(
         operationDate,
         sourceRecordId,
         sourceDigest,
+        recentContext ?? const <String, Object?>{},
       );
     }
     final importSchema2 =
@@ -183,14 +186,17 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
 Create the formal Operation Reboot DAILY DEBRIEF for $operationDate.
 
 SOURCE CONTRACT
-Use only the FORMAL SOURCE JSON below. DAILY AGGREGATE is the sole fact source. CONFIRMATION is identity and lifecycle metadata only; do not use its snapshot as another fact source. MORNING BRIEF, when present, supplies only OPERATION STATUS, COMMANDER INTENT, and ACTIONS. Do not use another date, Daily Assessment, History Context, or legacyDns data.
+Use only the FORMAL SOURCE JSON below. DAILY AGGREGATE is the current-day fact source. RECENT CONTEXT is derived mechanically from records-source Daily Aggregates in the D-6 through D window and is supporting context only. CONFIRMATION is identity and lifecycle metadata only; do not use its snapshot as another fact source. DAILY BRIEF, when present, supplies only OPERATION STATUS, COMMANDER INTENT, and ACTIONS. Do not use another history source, a date after $operationDate, Daily Assessment, or legacyDns data.
 Preserve every source fact exactly. Do not recalculate nutrition, expenditure, calorie balance, steps, body changes, digestive data, or any other fact. Preserve null as null. Do not infer or complete missing facts.
 Analyze relationships across domains instead of merely repeating or re-listing source values. Cite only the facts needed as evidence, and center each domain evaluation on what those facts support. Do not infer trends from a single value or invent events, feelings, causes, or outcomes that the FORMAL SOURCE JSON does not confirm. Treat anything unsupported by the source as not confirmed.
 In human-readable analysis text, use natural Japanese descriptions rather than exposing internal field identifiers or raw boolean expressions such as trainingPerformed=false or officialSteps. Do not change their meaning, and keep all schema field names unchanged in the JSON structure and sources object.
-Compare Morning Brief intent with execution only when Morning Brief exists. When Morning Brief is absent, commanderIntentEvaluation must be null. DOMAIN EVALUATIONS body, recovery, condition, work, nutrition, hydration, activity, and training are each string or null. When a domain has no formal fact to evaluate, its evaluation must be explicit null; do not turn absence into prose such as not performed, none, no problem, good, or not assessable. In particular, when trainingPerformed is false and there is no formal Training fact to evaluate, domainEvaluations.training must be null. The false fact may still support cross-analysis against a Morning Brief instruction to avoid additional training load, but it must not create a Training domain evaluation.
+Compare DAILY BRIEF intent with execution only when DAILY BRIEF exists. When DAILY BRIEF is absent, commanderIntentEvaluation must be null. DOMAIN EVALUATIONS body, recovery, condition, work, nutrition, hydration, activity, and training are each string or null. When a domain has no formal fact to evaluate, its evaluation must be explicit null; do not turn absence into prose such as not performed, none, no problem, good, or not assessable. In particular, when trainingPerformed is false and there is no formal Training fact to evaluate, domainEvaluations.training must be null. The false fact may still support cross-analysis against a DAILY BRIEF instruction to avoid additional training load, but it must not create a Training domain evaluation.
 In human-readable analysis text only, format quoted numeric facts at a natural display precision and remove apparent floating-point artifacts. For example, render 62.06999999999999 as 62.07g, 295.53999999999996 as 295.54g, and -355.5999999999999 as -355.6kcal. Keep naturally integral facts such as steps, hydration mL, sleep minutes, and work minutes integral. Respect meaningful source precision; do not force every number to an integer or to one decimal place. This formatting applies only to analysis prose: do not alter, round, recalculate, estimate, or re-save any FORMAL SOURCE JSON value, and do not change or recalculate any source digest.
-executionEvaluation.adjustments must contain only actionable improvements supported by formal facts and analysis. Do not add an item merely saying that something cannot be confirmed or evaluated. nextDayHandoff.watchPoints may contain only fact-supported matters worth checking in the next Morning Routine; it must not decide the next-day operation or create carryover.
+executionEvaluation.adjustments must contain only actionable improvements supported by formal facts and analysis. Do not add an item merely saying that something cannot be confirmed or evaluated. nextDayHandoff.watchPoints may contain only fact-supported matters worth checking in the next STATUS; it must not decide the next-day operation or create carryover.
 Do not create dailySummary, overallSummary, debriefSummary, executionSummary, carryover, Commander Intent, next-day actions, or priorities. nextDayHandoff contains WATCH POINTS only.
+
+${_recentContextAnalysisContract(currentFact: 'the target-day finalized DAILY AGGREGATE')}
+${_humanReadableAnalysisContract()}
 
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block whose opening fence is ```text and whose closing fence is ```. Return nothing outside that code block: no explanation, heading, greeting, note, preface, afterword, or additional code block. Inside the code block, return exactly one JSON object and no prose, comments, headings, or multiple JSON values. The user will use ChatGPT's code-block copy action; the copied content must start with { and end with } without the fences.
@@ -210,6 +216,7 @@ ${const JsonEncoder.withIndent('  ').convert(response)}
     String operationDate,
     String sourceRecordId,
     String sourceDigest,
+    Map<String, Object?> recentContext,
   ) {
     final responseExample = <String, Object?>{
       'format': ReportSyncEnvelope.formatId,
@@ -294,9 +301,31 @@ decisionとrationaleは日本語Plain Text必須、targetResourceとexecutionは
 
 完全なResponse構造は次のとおりです。Placeholderは型の説明であり事実ではありません。
 ${const JsonEncoder.withIndent('  ').convert(responseExample)}
+
+CURRENT FACT AND RECENT CONTEXT CONTRACT
+This final contract supersedes any earlier wording that limits analysis to STATUS alone. The target-date STATUS is the CURRENT FACT and always has priority. RECENT CONTEXT is supporting context derived only from records-source Daily Aggregates for D-7 through D-1. Do not use target-day unfinalized data, future data, legacyDns, Body History, Nutrition History, or STATUS History as Recent Context.
+${_recentContextAnalysisContract(currentFact: 'the target-day STATUS')}
+${_humanReadableAnalysisContract()}
+
+RECENT CONTEXT JSON
+${const JsonEncoder.withIndent('  ').convert(recentContext)}
 '''
         .trim();
   }
+
+  String _recentContextAnalysisContract({required String currentFact}) =>
+      '''
+RECENT CONTEXT ANALYSIS CONTRACT
+Prioritize $currentFact. Use RECENT CONTEXT only to interpret the current fact in its recent direction and range. Each metric contains average, start, end, and validCount over non-null values. Numeric zero is a valid fact; null is missing and must never become zero. Do not invent UP, DOWN, or STABLE labels. Do not mechanically dismiss a current value because it is a single-day value. Describe a direction only when the supplied context supports it, avoid strong trend claims when validCount is small, and never infer an unrecorded cause.
+For plantarFasciitisLevel, a higher level means a stronger symptom and a lower level means a lighter symptom. For activity, use only officialSteps. Never mention, compare, or infer measured steps, raw steps, device steps, or the reason for a difference. Expenditure and calorie balance values are stored facts; never recalculate them from other metrics.
+''';
+
+  String _humanReadableAnalysisContract() => '''
+HUMAN-READABLE ANALYSIS CONTRACT
+In Japanese analysis prose only, add thousands separators to numbers of four or more digits: 2330 becomes 2,330; 3250 becomes 3,250; 6952 becomes 6,952; and 2685.6 becomes 2,685.6. Continue removing apparent floating-point artifacts at a natural precision. Do not alter any source JSON value, stored value, unit, or digest.
+Render duration minutes as H:MM in prose, with two minute digits: 229 minutes is 3:49, 360 is 6:00, 60 is 1:00, and 522 is 8:42. Keep source and derived duration values in minutes.
+Write natural Japanese and do not expose internal terms such as trainingPerformed=false, officialSteps, Formal Fact, sourceType=records, or Operational Impact. Refer to the user-facing products as DAILY BRIEF and STATUS, never MORNING BRIEF or MORNING ROUTINE in analysis prose. Do not list irrelevant unknowns or statements that something cannot be confirmed. Use notAssessable, null, or a concise rationale only when missing information directly prevents a required evaluation. Adjustments and WATCH POINTS must be supported by current facts or Recent Context; do not add speculative items.
+''';
 
   String _buildImportOnlyInstruction(
     String operationDate,

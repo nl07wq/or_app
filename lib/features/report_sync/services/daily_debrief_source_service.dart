@@ -1,5 +1,6 @@
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../daily_aggregate/repository/daily_aggregate_repository.dart';
+import '../../daily_aggregate/services/recent_context_builder.dart';
 import '../../daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
@@ -33,12 +34,14 @@ class DailyDebriefSourcePackage {
 
 class DailyDebriefSourceService {
   final DailyAggregateRepository dailyAggregates;
+  final RecentContextBuilder recentContextBuilder;
   final DailyLogConfirmationLifecycleStore confirmations;
   final MorningBriefRepository morningBriefs;
   final OperationStateRepository operationState;
 
   const DailyDebriefSourceService({
     required this.dailyAggregates,
+    required this.recentContextBuilder,
     required this.confirmations,
     required this.morningBriefs,
     required this.operationState,
@@ -75,6 +78,10 @@ class DailyDebriefSourceService {
       );
     }
     final morningBrief = await morningBriefs.readByLocalDate(localDate);
+    final recentContext = await recentContextBuilder.build(
+      targetDate: localDate,
+      window: RecentContextWindow.dailyDebrief,
+    );
     final references = DailyDebriefSources(
       dailyAggregate: DailyDebriefDailyAggregateReference(
         operationDate: localDate,
@@ -107,6 +114,7 @@ class DailyDebriefSourceService {
       promptSource: {
         'operationDate': localDate,
         'dailyAggregate': aggregate.toJson(),
+        'recentContext': recentContext.toJson(),
         'confirmation': {
           'recordId': confirmation.id,
           'recordVersion': confirmation.recordVersion,

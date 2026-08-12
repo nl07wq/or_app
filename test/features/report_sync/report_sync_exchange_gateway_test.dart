@@ -77,6 +77,10 @@ void main() {
 
       for (final type in ReportSyncExchangeType.values) {
         final prepared = await gateway.prepareRequest(type);
+        if (type == ReportSyncExchangeType.dailyDebrief) {
+          expect(prepared.isReady, isFalse);
+          continue;
+        }
         expect(prepared.isReady, isTrue, reason: type.stableId);
         expect(prepared.operationDate, '2026-08-03');
         if (type == ReportSyncExchangeType.training ||
@@ -105,6 +109,15 @@ void main() {
       expect(morningPrompt, contains('SOURCE DATA END'));
       expect(morningPrompt, contains(morningSource));
       expect(morningPrompt.split(morningSource), hasLength(2));
+      expect(morningPrompt, contains('RECENT CONTEXT JSON'));
+      expect(morningPrompt, contains('"windowStart": "2026-07-27"'));
+      expect(morningPrompt, contains('"windowEnd": "2026-08-02"'));
+      expect(
+        morningPrompt,
+        contains('The target-date STATUS is the CURRENT FACT'),
+      );
+      expect(morningPrompt, contains('2330 becomes 2,330'));
+      expect(morningPrompt, contains('229 minutes is 3:49'));
       expect(morningPrompt, contains('"schemaVersion": "2.0"'));
       expect(morningPrompt, contains('"packageDigest": null'));
       expect(morningPrompt, isNot(contains('"actionId":')));

@@ -8,6 +8,7 @@ import '../daily_log_confirmation/repository/daily_log_confirmation_repository.d
 import '../daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import '../daily_aggregate/repository/daily_aggregate_repository.dart';
 import '../daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
+import '../daily_aggregate/services/recent_context_builder.dart';
 import '../food/repository/food_repository.dart';
 import '../food/repository/food_catalog_repository.dart';
 import '../food/repository/food_recipe_repository.dart';
@@ -63,6 +64,7 @@ class AppRepositoryContainer {
   final DailyLogConfirmationStore confirmation;
   final DailyLogConfirmationLifecycleStore confirmationLifecycle;
   final DailyAggregateRepository dailyAggregates;
+  final RecentContextBuilder recentContextBuilder;
   final OperationStateRepository operationState;
   final OperationSyncStateRepository operationSyncState;
   final OperationSyncHistoryRepository operationSyncHistory;
@@ -96,6 +98,7 @@ class AppRepositoryContainer {
     required this.confirmation,
     required this.confirmationLifecycle,
     required this.dailyAggregates,
+    required this.recentContextBuilder,
     required this.operationState,
     required this.operationSyncState,
     required this.operationSyncHistory,
@@ -126,6 +129,7 @@ class AppRepositoryContainer {
     final operationState = IndexedDbOperationStateRepository(database);
     final confirmation = IndexedDbDailyLogConfirmationRepository(database);
     final dailyAggregates = IndexedDbDailyAggregateRepository(database);
+    final recentContextBuilder = RecentContextBuilder(dailyAggregates);
     final morningBriefs = IndexedDbMorningBriefRepository(database);
     final dailyDebriefs = IndexedDbDailyDebriefRepository(database);
     final reportSyncHistory = IndexedDbReportSyncHistoryRepository(database);
@@ -171,6 +175,7 @@ class AppRepositoryContainer {
       confirmation: confirmation,
       confirmationLifecycle: confirmation,
       dailyAggregates: dailyAggregates,
+      recentContextBuilder: recentContextBuilder,
       operationState: operationState,
       operationSyncState: operationSyncState,
       operationSyncHistory: operationSyncHistory,
@@ -184,6 +189,7 @@ class AppRepositoryContainer {
       dailyDebriefs: dailyDebriefs,
       dailyDebriefSources: DailyDebriefSourceService(
         dailyAggregates: dailyAggregates,
+        recentContextBuilder: recentContextBuilder,
         confirmations: confirmation,
         morningBriefs: morningBriefs,
         operationState: operationState,

@@ -158,6 +158,14 @@ void main() {
         preparation,
       );
       expect(prompt, contains('"dailyAggregate"'));
+      expect(prompt, contains('"recentContext"'));
+      expect(prompt, contains('"windowStart": "2026-08-03"'));
+      expect(prompt, contains('"windowEnd": "2026-08-09"'));
+      expect(prompt, contains('records-source Daily Aggregates'));
+      expect(prompt, contains('2330 becomes 2,330'));
+      expect(prompt, contains('229 minutes is 3:49'));
+      expect(prompt, contains('use only officialSteps'));
+      expect(prompt, contains('never MORNING BRIEF or MORNING ROUTINE'));
       expect(prompt, contains('"commanderIntentEvaluation": null'));
       expect(prompt, contains('exactly one fenced Plain Text code block'));
       expect(prompt, contains('opening fence is ```text'));

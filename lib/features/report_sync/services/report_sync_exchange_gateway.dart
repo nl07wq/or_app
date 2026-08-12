@@ -1,4 +1,6 @@
 import '../../../core/models/meal_data.dart';
+import '../../daily_aggregate/models/recent_context.dart';
+import '../../daily_aggregate/services/recent_context_builder.dart';
 import '../../operation_sync/services/historical_training_workflow.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/models/operation_state.dart';
@@ -61,6 +63,7 @@ class ReportSyncRequestPreparation {
     this.statusLabel = 'REQUEST NOT READY',
     this.blockingReason,
     this.dailyDebriefSource,
+    this.recentContext,
     this.eligibleDates = const [],
   });
 
@@ -72,6 +75,7 @@ class ReportSyncRequestPreparation {
   final String statusLabel;
   final String? blockingReason;
   final DailyDebriefSourcePackage? dailyDebriefSource;
+  final RecentContext? recentContext;
   final List<String> eligibleDates;
   bool get isReady => operationDate != null;
   bool get canCopySource => sourceText != null;
@@ -203,10 +207,15 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           final source = await StatusReportSyncSourceService(
             _container.database,
           ).generate(operationDate: operationDate, exportedAt: _clock());
+          final recentContext = await _container.recentContextBuilder.build(
+            targetDate: operationDate,
+            window: RecentContextWindow.dailyBrief,
+          );
           return ReportSyncRequestPreparation(
             operationDate: operationDate,
             sourceText: source.plainText,
             statusSourceExport: source,
+            recentContext: recentContext,
             statusLabel: 'READY',
           );
         } on StatusReportSyncSourceException catch (error) {
@@ -277,6 +286,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           operationDate: operationDate,
           sourceRecordId: preparation.statusSourceExport?.source.sourceRecordId,
           sourceDigest: preparation.statusSourceExport?.sourceDigest,
+          recentContext: preparation.recentContext?.toJson(),
           dailyDebriefSources: preparation.dailyDebriefSource?.references,
           dailyDebriefSource: preparation.dailyDebriefSource?.promptSource,
         );
