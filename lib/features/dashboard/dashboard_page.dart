@@ -321,7 +321,7 @@ class _OperationDateCardState extends State<_OperationDateCard> {
   );
 }
 
-class _OperationDateFlipRow extends StatelessWidget {
+class _OperationDateFlipRow extends StatefulWidget {
   const _OperationDateFlipRow({required this.date, required this.animate});
 
   static const _tileWidth = 52.0;
@@ -348,37 +348,66 @@ class _OperationDateFlipRow extends StatelessWidget {
   final bool animate;
 
   @override
-  Widget build(BuildContext context) {
-    final parsed = date.asUtcDate;
-    final values = [
-      _months[parsed.month - 1],
-      parsed.day.toString().padLeft(2, '0'),
-      _weekdays[parsed.weekday - 1],
+  State<_OperationDateFlipRow> createState() => _OperationDateFlipRowState();
+}
+
+class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
+  Map<int, Duration> _startDelays = const {};
+
+  @override
+  void didUpdateWidget(covariant _OperationDateFlipRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.animate || oldWidget.date == widget.date) {
+      _startDelays = const {};
+      return;
+    }
+    final previousValues = _values(oldWidget.date);
+    final nextValues = _values(widget.date);
+    final changedIndices = [
+      for (var index = 0; index < nextValues.length; index++)
+        if (previousValues[index] != nextValues[index]) index,
     ];
+    _startDelays = {
+      for (var order = 0; order < changedIndices.length; order++)
+        changedIndices[order]: OperationMechanicalFlipTile.stagger * order,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _values(widget.date);
     return Semantics(
-      label: 'OPERATION DATE ${date.value}',
+      label: 'OPERATION DATE ${widget.date.value}',
       child: ExcludeSemantics(
         child: Row(
           key: const ValueKey('operation-date-flip-row'),
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var index = 0; index < values.length; index++) ...[
-              if (index > 0) const SizedBox(width: _tileGap),
-              OperationFlipTile(
+              if (index > 0)
+                const SizedBox(width: _OperationDateFlipRow._tileGap),
+              OperationMechanicalFlipTile(
                 key: ValueKey('operation-date-tile-$index'),
                 value: values[index],
-                valueKey: ValueKey(
-                  'operation-date-value-$index-${values[index]}',
-                ),
-                width: _tileWidth,
-                height: _tileHeight,
-                animate: animate,
+                width: _OperationDateFlipRow._tileWidth,
+                height: _OperationDateFlipRow._tileHeight,
+                animate: widget.animate,
+                startDelay: _startDelays[index] ?? Duration.zero,
               ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  List<String> _values(OperationLocalDate date) {
+    final parsed = date.asUtcDate;
+    return [
+      _OperationDateFlipRow._months[parsed.month - 1],
+      parsed.day.toString().padLeft(2, '0'),
+      _OperationDateFlipRow._weekdays[parsed.weekday - 1],
+    ];
   }
 }
 

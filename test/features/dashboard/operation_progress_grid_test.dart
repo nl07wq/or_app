@@ -10,6 +10,7 @@ import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/operation_flip_tile.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
@@ -195,18 +196,81 @@ void main() {
 
     await tester.pump();
     await tester.pump();
+    final monthTile = find.byKey(const ValueKey('operation-date-tile-0'));
+    final dayTile = find.byKey(const ValueKey('operation-date-tile-1'));
+    final weekdayTile = find.byKey(const ValueKey('operation-date-tile-2'));
+    expect(
+      find.descendant(
+        of: monthTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-static')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: weekdayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsNothing,
+    );
     expect(find.text('AUG'), findsOneWidget);
-    expect(find.text('11'), findsOneWidget);
-    expect(find.text('12'), findsOneWidget);
+    expect(find.text('11'), findsWidgets);
+    expect(find.text('12'), findsWidgets);
     expect(find.text('TUE'), findsOneWidget);
-    expect(find.text('WED'), findsOneWidget);
+    expect(find.text('WED'), findsNothing);
     expect(tester.takeException(), isNull);
 
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 59));
+    expect(
+      find.descendant(
+        of: weekdayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsNothing,
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: weekdayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.descendant(
+        of: dayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-new-lower')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: weekdayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('11'), findsNothing);
     expect(find.text('12'), findsOneWidget);
     expect(find.text('TUE'), findsNothing);
     expect(find.text('WED'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: dayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-static')),
+      ),
+      findsOneWidget,
+    );
 
     morningFactNotifier.value = _morning();
     await tester.pump();
@@ -354,11 +418,35 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('AUG'), findsOneWidget);
-    expect(find.text('SEP'), findsOneWidget);
+    final tiles = [
+      for (var index = 0; index < 3; index++)
+        tester.widget<OperationMechanicalFlipTile>(
+          find.byKey(ValueKey('operation-date-tile-$index')),
+        ),
+    ];
+    expect(
+      OperationMechanicalFlipTile.duration,
+      const Duration(milliseconds: 320),
+    );
+    expect(tiles[0].startDelay, Duration.zero);
+    expect(tiles[1].startDelay, const Duration(milliseconds: 60));
+    expect(tiles[2].startDelay, const Duration(milliseconds: 120));
+    expect(find.text('AUG'), findsWidgets);
+    expect(find.text('SEP'), findsWidgets);
     expect(find.text('31'), findsOneWidget);
-    expect(find.text('01'), findsOneWidget);
+    expect(find.text('01'), findsNothing);
     expect(find.text('MON'), findsOneWidget);
+    expect(find.text('TUE'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('AUG'), findsNothing);
+    expect(find.text('SEP'), findsOneWidget);
+    expect(find.text('31'), findsNothing);
+    expect(find.text('01'), findsOneWidget);
+    expect(find.text('MON'), findsNothing);
     expect(find.text('TUE'), findsOneWidget);
   });
 
