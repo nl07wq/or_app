@@ -535,11 +535,18 @@ void main() {
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
     expect(find.text('INVALIDATED  ·  REVISION 1'), findsOneWidget);
     expect(find.text('COMMANDER INTENT EVALUATION'), findsOneWidget);
-    expect(find.text('OUTCOME'), findsOneWidget);
-    expect(find.text('PARTIALLY ACHIEVED'), findsOneWidget);
+    expect(find.text('OUTCOME'), findsNothing);
+    expect(find.text('PARTIALLY ACHIEVED'), findsNothing);
     expect(find.text('partiallyAchieved'), findsNothing);
-    expect(find.text('RATIONALE'), findsOneWidget);
-    expect(find.text('EVIDENCE'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('daily-debrief-outcome-partiallyAchieved')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.adjust), findsOneWidget);
+    expect(find.text('評価理由'), findsOneWidget);
+    expect(find.text('判定根拠'), findsOneWidget);
+    expect(find.text('RATIONALE'), findsNothing);
+    expect(find.text('EVIDENCE'), findsNothing);
     expect(find.text('EVIDENCE ITEM'), findsOneWidget);
     expect(find.text('EXECUTION EVALUATION'), findsOneWidget);
     expect(find.text('SUCCESSES'), findsOneWidget);
@@ -596,9 +603,79 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('OLDER BODY REVIEW'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('daily-debrief-outcome-partiallyAchieved')),
+      findsOneWidget,
+    );
+    expect(find.text('評価理由'), findsOneWidget);
+    expect(find.text('判定根拠'), findsOneWidget);
     expect(find.text('SOURCE REFERENCES'), findsOneWidget);
     expect(find.text('PREVIOUS REVISIONS'), findsOneWidget);
   });
+
+  for (final outcomeCase in const [
+    (DailyDebriefCommanderIntentOutcome.achieved, Icons.check_circle, 'green'),
+    (
+      DailyDebriefCommanderIntentOutcome.partiallyAchieved,
+      Icons.adjust,
+      'amber',
+    ),
+    (DailyDebriefCommanderIntentOutcome.notAchieved, Icons.cancel, 'error'),
+    (
+      DailyDebriefCommanderIntentOutcome.notAssessable,
+      Icons.help_outline,
+      'outline',
+    ),
+  ]) {
+    testWidgets('maps ${outcomeCase.$1.name} to its semantic outcome visual', (
+      tester,
+    ) async {
+      final record = _dailyDebriefRecord(
+        localDate: '2026-08-01',
+        bodyEvaluation: 'BODY REVIEW',
+        recoveryEvaluation: 'RECOVERY REVIEW',
+        outcome: outcomeCase.$1,
+        timestamp: DateTime.utc(2026, 8, 1, 23),
+      );
+      database.seed(
+        IndexedDbStoreNames.dailyDebriefRecords,
+        record.localDate,
+        record.toRecord(),
+      );
+
+      await _pump(tester, width: 390);
+      await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('DAILY DEBRIEF').first);
+      await tester.pumpAndSettle();
+
+      final indicator = find.byKey(
+        ValueKey('daily-debrief-outcome-${outcomeCase.$1.name}'),
+      );
+      final icon = tester.widget<Icon>(indicator);
+      final colorScheme = Theme.of(tester.element(indicator)).colorScheme;
+      final expectedColor = switch (outcomeCase.$3) {
+        'green' => Colors.green,
+        'amber' => Colors.amber,
+        'error' => colorScheme.error,
+        _ => colorScheme.outline,
+      };
+      expect(icon.icon, outcomeCase.$2);
+      expect(icon.color, expectedColor);
+      expect(find.text(outcomeCase.$1.name), findsNothing);
+      expect(find.text('OUTCOME'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('current-daily-debrief')),
+          matching: find.byType(Divider),
+        ),
+        findsNWidgets(5),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    });
+  }
 
   testWidgets(
     'separates current Morning Brief and exposes five back numbers with detail',
@@ -795,6 +872,9 @@ DailyDebriefRecord _dailyDebriefRecord({
   required String localDate,
   required String bodyEvaluation,
   required DateTime timestamp,
+  String? recoveryEvaluation,
+  DailyDebriefCommanderIntentOutcome outcome =
+      DailyDebriefCommanderIntentOutcome.partiallyAchieved,
 }) => DailyDebriefRecord.initial(
   localDate: localDate,
   sources: DailyDebriefSources(
@@ -823,13 +903,13 @@ DailyDebriefRecord _dailyDebriefRecord({
   ),
   analysis: DailyDebriefAnalysis(
     commanderIntentEvaluation: DailyDebriefCommanderIntentEvaluation(
-      outcome: DailyDebriefCommanderIntentOutcome.partiallyAchieved,
+      outcome: outcome,
       rationale: 'RATIONALE BODY',
       evidence: const ['EVIDENCE ITEM'],
     ),
     domainEvaluations: DailyDebriefDomainEvaluations(
       body: bodyEvaluation,
-      recovery: null,
+      recovery: recoveryEvaluation,
       condition: null,
       work: null,
       nutrition: null,

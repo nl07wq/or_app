@@ -385,7 +385,7 @@ class _DailyDebriefDetail extends StatelessWidget {
               _CommanderIntentEvaluationSection(
                 evaluation: analysis.commanderIntentEvaluation,
               ),
-              const SizedBox(height: 24),
+              const _DailyDebriefMajorDivider(),
               _DebriefListSection(
                 icon: Icons.checklist_outlined,
                 title: 'EXECUTION EVALUATION',
@@ -394,7 +394,7 @@ class _DailyDebriefDetail extends StatelessWidget {
                   ('ADJUSTMENTS', analysis.executionEvaluation.adjustments),
                 ],
               ),
-              const SizedBox(height: 24),
+              const _DailyDebriefMajorDivider(),
               _DebriefListSection(
                 icon: Icons.hub_outlined,
                 title: 'CROSS ANALYSIS',
@@ -405,11 +405,11 @@ class _DailyDebriefDetail extends StatelessWidget {
                   ('RESOURCES', analysis.crossAnalysis.resources),
                 ],
               ),
-              const SizedBox(height: 24),
+              const _DailyDebriefMajorDivider(),
               _DomainEvaluationsSection(
                 evaluations: analysis.domainEvaluations,
               ),
-              const SizedBox(height: 24),
+              const _DailyDebriefMajorDivider(),
               _DebriefListSection(
                 icon: Icons.visibility_outlined,
                 title: 'NEXT-DAY HANDOFF',
@@ -506,35 +506,64 @@ class _CommanderIntentEvaluationSection extends StatelessWidget {
       if (evaluation == null)
         const _DebriefMetadata(text: 'NOT RECORDED')
       else ...[
-        const _DebriefSubsectionLabel('OUTCOME'),
-        const SizedBox(height: 6),
-        Text(
-          _outcomeLabel(evaluation!.outcome),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Theme.of(context).colorScheme.primary,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.7,
-          ),
-        ),
+        _CommanderIntentOutcomeIndicator(outcome: evaluation!.outcome),
         const SizedBox(height: 18),
-        const _DebriefSubsectionLabel('RATIONALE'),
+        const _DebriefSubsectionLabel('評価理由'),
         const SizedBox(height: 8),
         _ReadableText(evaluation!.rationale),
         const SizedBox(height: 18),
-        _DebriefListGroup(label: 'EVIDENCE', values: evaluation!.evidence),
+        _DebriefListGroup(label: '判定根拠', values: evaluation!.evidence),
       ],
     ],
   );
 }
 
-String _outcomeLabel(DailyDebriefCommanderIntentOutcome outcome) =>
-    switch (outcome) {
-      DailyDebriefCommanderIntentOutcome.achieved => 'ACHIEVED',
-      DailyDebriefCommanderIntentOutcome.partiallyAchieved =>
-        'PARTIALLY ACHIEVED',
-      DailyDebriefCommanderIntentOutcome.notAchieved => 'NOT ACHIEVED',
-      DailyDebriefCommanderIntentOutcome.notAssessable => 'NOT ASSESSABLE',
+class _CommanderIntentOutcomeIndicator extends StatelessWidget {
+  const _CommanderIntentOutcomeIndicator({required this.outcome});
+
+  final DailyDebriefCommanderIntentOutcome outcome;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color) = switch (outcome) {
+      DailyDebriefCommanderIntentOutcome.achieved => (
+        Icons.check_circle,
+        Colors.green,
+      ),
+      DailyDebriefCommanderIntentOutcome.partiallyAchieved => (
+        Icons.adjust,
+        Colors.amber,
+      ),
+      DailyDebriefCommanderIntentOutcome.notAchieved => (
+        Icons.cancel,
+        Theme.of(context).colorScheme.error,
+      ),
+      DailyDebriefCommanderIntentOutcome.notAssessable => (
+        Icons.help_outline,
+        Theme.of(context).colorScheme.outline,
+      ),
     };
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Icon(
+        icon,
+        key: ValueKey('daily-debrief-outcome-${outcome.name}'),
+        size: 30,
+        color: color,
+      ),
+    );
+  }
+}
+
+class _DailyDebriefMajorDivider extends StatelessWidget {
+  const _DailyDebriefMajorDivider();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 24),
+    child: Divider(height: 1),
+  );
+}
 
 class _DebriefListSection extends StatelessWidget {
   const _DebriefListSection({

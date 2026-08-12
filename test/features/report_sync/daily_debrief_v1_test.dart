@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/data/indexed_db/indexed_db_database_contract.dart';
@@ -162,7 +164,7 @@ void main() {
       expect(prompt, contains('"windowStart": "2026-08-03"'));
       expect(prompt, contains('"windowEnd": "2026-08-09"'));
       expect(prompt, contains('records-source Daily Aggregates'));
-      expect(prompt, contains('2330 becomes 2,330'));
+      expect(prompt, contains('2139.23kcal as 2,139kcal'));
       expect(prompt, contains('229 minutes is 3:49'));
       expect(prompt, contains('use only officialSteps'));
       expect(prompt, contains('never MORNING BRIEF or MORNING ROUTINE'));
@@ -195,7 +197,10 @@ void main() {
       expect(prompt, contains('When a domain has no formal fact'));
       expect(prompt, contains('62.06999999999999 as 62.07g'));
       expect(prompt, contains('295.53999999999996 as 295.54g'));
-      expect(prompt, contains('-355.5999999999999 as -355.6kcal'));
+      expect(prompt, contains('2139.23kcal as 2,139kcal'));
+      expect(prompt, contains('2685.6kcal as 2,686kcal'));
+      expect(prompt, contains('-355.6kcal as -356kcal'));
+      expect(prompt, isNot(contains('2685.6 becomes 2,685.6')));
       expect(prompt, contains('formatting applies only to analysis prose'));
       expect(prompt, contains('do not alter, round, recalculate'));
       expect(
@@ -211,6 +216,33 @@ void main() {
       expect(prompt, contains('raw boolean expressions'));
       expect(prompt, contains('cannot be confirmed or evaluated'));
       expect(prompt, contains('must not decide the next-day operation'));
+      expect(prompt, contains('must be no more than two sentences'));
+      expect(prompt, contains('evidence must contain at most 3'));
+      expect(prompt, contains('successes must contain at most 3'));
+      expect(prompt, contains('adjustments must contain at most 2'));
+      expect(
+        prompt,
+        contains('Each crossAnalysis array must contain at most 2'),
+      );
+      expect(prompt, contains('may be []'));
+      expect(
+        prompt,
+        contains('domain evaluation should generally be one sentence'),
+      );
+      expect(prompt, contains('watchPoints must contain at most 3'));
+      expect(prompt, contains('do not repeatedly list sleep'));
+      expect(prompt, contains('whether a break was actually used for rest'));
+      expect(prompt, contains('whether sleep began immediately after work'));
+      expect(prompt, contains('what happened after returning home'));
+      expect(prompt, contains('use 睡眠 and 睡眠スコア'));
+      expect(prompt, contains('Never write Sleep Score or SLEEP SCORE'));
+      expect(
+        prompt,
+        contains('never expose 正式歩数, Official Steps, or officialSteps'),
+      );
+      expect(prompt, contains('Continue to ignore measured or raw steps'));
+      expect(prompt, contains('Invalid JSON cannot be imported'));
+      expect(prompt, contains('Do not rely on the app to repair smart quotes'));
       expect(prompt, isNot(contains('"dailySummary":')));
       expect(prompt, isNot(contains('"carryover":')));
       expect(prompt, isNot(contains('"data"')));
@@ -235,6 +267,70 @@ void main() {
         expect(
           () => container.reportSyncCodec.decode(malformed),
           throwsA(anything),
+        );
+      }
+
+      final normalizationResponse = container.reportSyncCodec.create(
+        direction: ReportSyncDirection.response,
+        exchangeType: ReportSyncExchangeType.dailyDebrief,
+        exchangeId: 'dd-normalization',
+        operationDate: date,
+        createdAt: timestamp,
+        confirmationDigest: null,
+        payload: {
+          'operationDate': date,
+          'recordVersion': 1,
+          'sources': source.references.toJson(),
+          'analysis': _analysis(body: '本人は“休養”を選択した').toJson(),
+        },
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+      );
+      final normalizationRaw = container.reportSyncCodec.encode(
+        normalizationResponse,
+      );
+      for (final normalizedInput in [
+        normalizationRaw,
+        '  \n$normalizationRaw\n  ',
+        '\uFEFF$normalizationRaw',
+        '```text\n$normalizationRaw\n```',
+        '```json\n$normalizationRaw\n```',
+        '```\n$normalizationRaw\n```',
+      ]) {
+        final preview = await gateway.previewResponse(
+          ReportSyncExchangeType.dailyDebrief,
+          normalizedInput,
+          targetDate: date,
+        );
+        expect(preview.disposition, ReportSyncDisposition.create);
+        final previewAnalysis = Map<String, Object?>.from(
+          preview.envelope!.payload['analysis']! as Map,
+        );
+        final domains = Map<String, Object?>.from(
+          previewAnalysis['domainEvaluations']! as Map,
+        );
+        expect(domains['body'], '本人は“休養”を選択した');
+      }
+
+      final unknownFields = Map<String, Object?>.from(
+        jsonDecode(normalizationRaw) as Map,
+      )..['unknownField'] = true;
+      final invalidDigest = Map<String, Object?>.from(
+        jsonDecode(normalizationRaw) as Map,
+      )..['packageDigest'] = 'not-a-valid-digest';
+      for (final invalidInput in [
+        normalizationRaw.replaceAll('"', '”'),
+        '$normalizationRaw}',
+        normalizationRaw.substring(0, normalizationRaw.length - 1),
+        '```text\n${jsonEncode(unknownFields)}\n```',
+        jsonEncode(invalidDigest),
+      ]) {
+        await expectLater(
+          gateway.previewResponse(
+            ReportSyncExchangeType.dailyDebrief,
+            invalidInput,
+            targetDate: date,
+          ),
+          throwsA(isA<ReportSyncException>()),
         );
       }
 

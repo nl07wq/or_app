@@ -321,7 +321,10 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       OperationLocalDate.parse(targetDate);
       return _previewTraining(rawResponse, targetDate);
     }
-    final response = _container.reportSyncCodec.decode(rawResponse);
+    final normalizedResponse = type == ReportSyncExchangeType.dailyDebrief
+        ? _normalizeDailyDebriefResponseInput(rawResponse)
+        : rawResponse;
+    final response = _container.reportSyncCodec.decode(normalizedResponse);
     if (response.exchangeType != type ||
         response.direction != ReportSyncDirection.response) {
       throw const ReportSyncException(
@@ -343,6 +346,18 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       ReportSyncExchangeType.dailyDebrief => _previewDailyDebrief(response),
     };
     return preview;
+  }
+
+  String _normalizeDailyDebriefResponseInput(String input) {
+    var normalized = input.trim();
+    if (normalized.startsWith('\uFEFF')) {
+      normalized = normalized.substring(1).trim();
+    }
+    final fenced = RegExp(
+      r'^```(?:text|json)?[ \t]*\r?\n([\s\S]*)\r?\n```$',
+    ).firstMatch(normalized);
+    if (fenced != null) normalized = fenced.group(1)!.trim();
+    return normalized;
   }
 
   Future<ReportSyncResponsePreview> _previewDailyDebrief(
