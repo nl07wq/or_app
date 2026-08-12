@@ -98,7 +98,7 @@ class DailyLogSection extends StatelessWidget {
         targetDate: confirmationStatus.date,
       ),
     );
-    if (changed == true && context.mounted) {
+    if (changed == true) {
       await onReviewCompleted?.call(previousOperationDate);
     }
   }

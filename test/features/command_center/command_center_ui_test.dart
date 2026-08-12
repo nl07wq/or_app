@@ -198,12 +198,20 @@ void main() {
         tester,
         width: 390,
         reviewPageBuilder: (context) => Scaffold(
-          body: TextButton(
-            onPressed: () {
-              seedOperationState(database, '2026-08-12');
-              Navigator.pop(context, true);
-            },
-            child: const Text('COMPLETE CC FINALIZE'),
+          body: Column(
+            children: [
+              TextButton(
+                onPressed: () {
+                  seedOperationState(database, '2026-08-12');
+                  morningFactNotifier.value = _status();
+                },
+                child: const Text('RESTORE NEXT DATE'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('COMPLETE CC FINALIZE'),
+              ),
+            ],
           ),
         ),
       );
@@ -220,6 +228,8 @@ void main() {
       await tester.pump();
       expect(_dailyCommandScrollPosition(tester).pixels, greaterThan(0));
       await tester.tap(find.text('DAILY REVIEW'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('RESTORE NEXT DATE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('COMPLETE CC FINALIZE'));
       await tester.pump();
