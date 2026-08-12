@@ -49,9 +49,14 @@ void main() {
     expect(find.text('COMMANDER INTENT'), findsNothing);
     expect(find.text('ARGO COMMENT'), findsNothing);
     expect(find.text('OPERATION MODULES'), findsNothing);
-    expect(find.text('DAILY REVIEW'), findsNothing);
-    expect(find.text('FINALIZE BLOCKED'), findsNothing);
-    expect(find.text('STATUS, FOOD, ACTIVITY'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('DAILY LOG'),
+      300,
+      scrollable: _dailyCommandScrollable(),
+    );
+    expect(find.text('DAILY REVIEW'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
     expect(find.text('VIEW DAILY REVIEW'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -89,9 +94,14 @@ void main() {
     expect(find.text('PRIMARY CONSTRAINT'), findsOneWidget);
     expect(find.text('AVAILABLE RESOURCE'), findsOneWidget);
     expect(find.text('OPERATION MODULES'), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsNothing);
-    expect(find.text('DAILY REVIEW'), findsNothing);
-    expect(find.text('FINALIZE READY'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('DAILY LOG'),
+      300,
+      scrollable: _dailyCommandScrollable(),
+    );
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(4));
+    expect(find.text('DAILY REVIEW'), findsOneWidget);
+    expect(find.text('FINALIZE READY'), findsOneWidget);
     expect(find.text('VIEW DAILY REVIEW'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
     expect(
@@ -108,6 +118,52 @@ void main() {
       ),
       findsNothing,
     );
+  });
+
+  testWidgets('shared DAILY LOG opens the existing routes', (tester) async {
+    morningFactNotifier.value = _status();
+    foodSummaryNotifier.value = const FoodSummary(
+      calories: 1800,
+      protein: 100,
+      fat: 60,
+      carbohydrates: 200,
+      hydrationMl: 2000,
+      mealCount: 3,
+    );
+    activitySummaryNotifier.value = const ActivitySummary(
+      steps: 5000,
+      measuredSteps: 5000,
+      isRecorded: true,
+      calculationBasis: ActivityCalculationBasis(
+        rawSteps: 5000,
+        currentCarryOver: 0,
+        previousCarryOverDeduction: 0,
+        officialSteps: 5000,
+      ),
+    );
+    await _pump(tester, width: 900);
+    await tester.scrollUntilVisible(
+      find.text('DAILY LOG'),
+      300,
+      scrollable: _dailyCommandScrollable(),
+    );
+
+    for (final entry in const [
+      ('STATUS completed', 'STATUS ROUTE'),
+      ('FOOD completed', 'FOOD ROUTE'),
+      ('TRAINING not recorded optional', 'TRAINING ROUTE'),
+      ('ACTIVITY completed', 'ACTIVITY ROUTE'),
+    ]) {
+      await tester.tap(find.bySemanticsLabel(entry.$1));
+      await tester.pumpAndSettle();
+      expect(find.text(entry.$2), findsOneWidget);
+      Navigator.of(tester.element(find.text(entry.$2))).pop();
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.text('DAILY REVIEW'));
+    await tester.pumpAndSettle();
+    expect(find.text('DAILY REVIEW ROUTE'), findsOneWidget);
   });
 
   testWidgets('separates BRIEF DEBRIEF content from report sync pages', (
@@ -461,7 +517,12 @@ void main() {
 
     await _pump(tester, width: 390);
     expect(find.textContaining('RECOVERY REQUIRED'), findsOneWidget);
-    expect(find.text('DAILY REVIEW'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('DAILY LOG'),
+      300,
+      scrollable: _dailyCommandScrollable(),
+    );
+    expect(find.text('DAILY REVIEW'), findsOneWidget);
     expect(find.text('RESUME FINALIZE'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
   });
@@ -500,6 +561,11 @@ void main() {
     });
   }
 }
+
+Finder _dailyCommandScrollable() => find.descendant(
+  of: find.byKey(const ValueKey('daily-command-list')),
+  matching: find.byType(Scrollable),
+);
 
 DailyDebriefRecord _dailyDebriefRecord({
   required String localDate,
@@ -622,6 +688,8 @@ Future<void> _pump(
         AppRoutes.food: (_) => const Scaffold(body: Text('FOOD ROUTE')),
         AppRoutes.training: (_) => const Scaffold(body: Text('TRAINING ROUTE')),
         AppRoutes.activity: (_) => const Scaffold(body: Text('ACTIVITY ROUTE')),
+        AppRoutes.logConfirmationReview: (_) =>
+            const Scaffold(body: Text('DAILY REVIEW ROUTE')),
         AppRoutes.backupRestore: (_) =>
             const Scaffold(body: Text('BACKUP ROUTE')),
       },

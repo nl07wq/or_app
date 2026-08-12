@@ -154,8 +154,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: const DashboardPage(),
-        routes: {
-          AppRoutes.logConfirmationReview: (context) => Scaffold(
+        onGenerateRoute: (settings) => PageRouteBuilder<Object?>(
+          settings: settings,
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+          pageBuilder: (context, _, _) => Scaffold(
             body: TextButton(
               onPressed: () {
                 seedOperationState(database, '2026-08-12');
@@ -164,7 +167,7 @@ void main() {
               child: const Text('COMPLETE FINALIZE'),
             ),
           ),
-        },
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -182,9 +185,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('COMPLETE FINALIZE'));
     await tester.pump();
-    await tester.pump();
 
     expect(_dashboardScrollPosition(tester).pixels, 0);
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('11'), findsOneWidget);
+    expect(find.text('12'), findsNothing);
+    expect(find.text('TUE'), findsOneWidget);
+    expect(find.text('WED'), findsNothing);
+
+    await tester.pump();
+    await tester.pump();
     expect(find.text('AUG'), findsOneWidget);
     expect(find.text('11'), findsOneWidget);
     expect(find.text('12'), findsOneWidget);
@@ -192,7 +202,7 @@ void main() {
     expect(find.text('WED'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('11'), findsNothing);
     expect(find.text('12'), findsOneWidget);
     expect(find.text('TUE'), findsNothing);
@@ -311,8 +321,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: const DashboardPage(),
-        routes: {
-          AppRoutes.logConfirmationReview: (context) => Scaffold(
+        onGenerateRoute: (settings) => PageRouteBuilder<Object?>(
+          settings: settings,
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+          pageBuilder: (context, _, _) => Scaffold(
             body: TextButton(
               onPressed: () {
                 seedOperationState(database, '2026-09-01');
@@ -321,7 +334,7 @@ void main() {
               child: const Text('COMPLETE MONTH FINALIZE'),
             ),
           ),
-        },
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -329,6 +342,15 @@ void main() {
     await tester.tap(find.text('DAILY REVIEW'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('COMPLETE MONTH FINALIZE'));
+    await tester.pump();
+
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('SEP'), findsNothing);
+    expect(find.text('31'), findsOneWidget);
+    expect(find.text('01'), findsNothing);
+    expect(find.text('MON'), findsOneWidget);
+    expect(find.text('TUE'), findsNothing);
+
     await tester.pump();
     await tester.pump();
 

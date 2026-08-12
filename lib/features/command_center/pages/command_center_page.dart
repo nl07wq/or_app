@@ -5,6 +5,7 @@ import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../activity/models/activity_summary_state.dart';
+import '../../dashboard/widgets/daily_log_card.dart';
 import '../../food/models/food_summary_state.dart';
 import '../../morning/models/morning_fact_state.dart';
 import '../../repositories/app_repository_container.dart';
@@ -118,6 +119,7 @@ class _DailyCommandPage extends StatelessWidget {
               return _DailyCommandContent(
                 model: result.model,
                 assessment: result.assessment,
+                onRefresh: onRefresh,
               );
             },
           ),
@@ -158,10 +160,15 @@ class _DailyCommandPage extends StatelessWidget {
 }
 
 class _DailyCommandContent extends StatelessWidget {
-  const _DailyCommandContent({required this.model, required this.assessment});
+  const _DailyCommandContent({
+    required this.model,
+    required this.assessment,
+    required this.onRefresh,
+  });
 
   final DailyCommandReadModel model;
   final DailyAssessment assessment;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -187,6 +194,15 @@ class _DailyCommandContent extends StatelessWidget {
         ),
         AppSpacing.gapSM,
         DailyAssessmentView(assessment: assessment),
+        AppSpacing.gapXL,
+        DailyLogSection(
+          morningFact: morningFactNotifier.value,
+          foodSummary: foodSummaryNotifier.value,
+          activitySummary: activitySummaryNotifier.value,
+          trainingSummary: trainingSummaryNotifier.value,
+          estimatedTotalBurn: model.estimatedTotalBurnKcal,
+          onReviewCompleted: (_) async => onRefresh(),
+        ),
         AppSpacing.gapLG,
       ],
     );

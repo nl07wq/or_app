@@ -3,11 +3,106 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
+import '../../../core/models/daily_log_confirmation_status.dart';
+import '../../../core/navigation/app_routes.dart';
+import '../../../core/services/daily_log_confirmation_state.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
+import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../morning/models/morning_fact.dart';
+import '../../operation_date/models/operation_local_date.dart';
+import '../log_confirmation_review_page.dart';
+
+typedef DailyLogReviewCompleted =
+    Future<void> Function(OperationLocalDate previousOperationDate);
+
+class DailyLogSection extends StatelessWidget {
+  const DailyLogSection({
+    super.key,
+    required this.morningFact,
+    required this.foodSummary,
+    required this.activitySummary,
+    required this.trainingSummary,
+    required this.estimatedTotalBurn,
+    this.onReviewCompleted,
+  });
+
+  final MorningFact? morningFact;
+  final FoodSummary? foodSummary;
+  final ActivitySummary activitySummary;
+  final TrainingSummary? trainingSummary;
+  final double? estimatedTotalBurn;
+  final DailyLogReviewCompleted? onReviewCompleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final isReadOnly = appInitializationController.value.isReadOnly;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.fact_check_outlined,
+          title: 'DAILY LOG',
+        ),
+        AppSpacing.gapSM,
+        ValueListenableBuilder<DailyLogConfirmationStatus>(
+          valueListenable: dailyLogConfirmationNotifier,
+          builder: (context, confirmationStatus, _) => DailyLogCard(
+            morningFact: morningFact,
+            foodSummary: foodSummary,
+            activitySummary: activitySummary,
+            trainingSummary: trainingSummary,
+            onStatusTap: isReadOnly
+                ? null
+                : () => Navigator.pushNamed(context, AppRoutes.morning),
+            onFoodTap: isReadOnly
+                ? null
+                : () => Navigator.pushNamed(context, AppRoutes.food),
+            onTrainingTap: isReadOnly
+                ? null
+                : () => Navigator.pushNamed(context, AppRoutes.training),
+            onActivityTap: isReadOnly
+                ? null
+                : () => Navigator.pushNamed(context, AppRoutes.activity),
+            onReview: isReadOnly
+                ? null
+                : () => _openReview(
+                    context,
+                    confirmationStatus: confirmationStatus,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openReview(
+    BuildContext context, {
+    required DailyLogConfirmationStatus confirmationStatus,
+  }) async {
+    final previousOperationDate = OperationLocalDate.fromDateTime(
+      confirmationStatus.date,
+    );
+    final changed = await Navigator.pushNamed(
+      context,
+      AppRoutes.logConfirmationReview,
+      arguments: LogConfirmationReviewPage(
+        morning: morningFact,
+        food: foodSummary,
+        activity: activitySummary,
+        training: trainingSummary,
+        estimatedTotalBurn: estimatedTotalBurn,
+        targetDate: confirmationStatus.date,
+      ),
+    );
+    if (changed == true && context.mounted) {
+      await onReviewCompleted?.call(previousOperationDate);
+    }
+  }
+}
 
 class DailyLogCard extends StatelessWidget {
   const DailyLogCard({
@@ -204,7 +299,7 @@ class _FinalizeReadiness extends StatelessWidget {
         .map(DailyLogConfirmationValidation.moduleLabel)
         .join(', ');
     return Semantics(
-      key: const ValueKey('dashboard-finalize-readiness'),
+      key: const ValueKey('daily-log-finalize-readiness'),
       label: ready ? 'FINALIZE READY' : 'FINALIZE BLOCKED $blockers',
       container: true,
       child: ExcludeSemantics(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/engine/activity_summary.dart';
@@ -15,9 +17,7 @@ import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
-import '../../core/services/daily_log_confirmation_state.dart';
 import '../../core/widgets/confirmed_log_message.dart';
-import '../../core/models/daily_log_confirmation_status.dart';
 import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
@@ -39,7 +39,6 @@ import '../operation_date/services/operation_date_service.dart';
 import '../report_sync/models/morning_brief_state.dart';
 
 import 'widgets/daily_log_card.dart';
-import 'log_confirmation_review_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -161,88 +160,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   ),
                                           ),
                                           AppSpacing.gapXL,
-                                          SectionHeader(
-                                            icon: Icons.fact_check_outlined,
-                                            title: 'DAILY LOG',
-                                          ),
-                                          AppSpacing.gapSM,
-                                          ValueListenableBuilder<
-                                            DailyLogConfirmationStatus
-                                          >(
-                                            valueListenable:
-                                                dailyLogConfirmationNotifier,
-                                            builder: (context, confirmationStatus, _) {
-                                              return DailyLogCard(
-                                                morningFact: morningFact,
-                                                foodSummary: foodSummary,
-                                                activitySummary:
-                                                    activitySummary,
-                                                trainingSummary:
-                                                    trainingSummary,
-                                                onStatusTap: isReadOnly
-                                                    ? null
-                                                    : () => Navigator.pushNamed(
-                                                        context,
-                                                        AppRoutes.morning,
-                                                      ),
-                                                onFoodTap: isReadOnly
-                                                    ? null
-                                                    : () => Navigator.pushNamed(
-                                                        context,
-                                                        AppRoutes.food,
-                                                      ),
-                                                onTrainingTap: isReadOnly
-                                                    ? null
-                                                    : () => Navigator.pushNamed(
-                                                        context,
-                                                        AppRoutes.training,
-                                                      ),
-                                                onActivityTap: isReadOnly
-                                                    ? null
-                                                    : () => Navigator.pushNamed(
-                                                        context,
-                                                        AppRoutes.activity,
-                                                      ),
-                                                onReview: isReadOnly
-                                                    ? null
-                                                    : () async {
-                                                        final changed = await Navigator.pushNamed(
-                                                          context,
-                                                          AppRoutes
-                                                              .logConfirmationReview,
-                                                          arguments: LogConfirmationReviewPage(
-                                                            morning:
-                                                                morningFact,
-                                                            food: foodSummary,
-                                                            activity:
-                                                                activitySummary,
-                                                            training:
-                                                                trainingSummary,
-                                                            estimatedTotalBurn:
-                                                                _estimatedTotalBurn(
-                                                                  estimatedTDEE,
-                                                                  trainingSummary,
-                                                                ),
-                                                            targetDate:
-                                                                confirmationStatus
-                                                                    .date,
-                                                          ),
-                                                        );
-                                                        if (changed == true &&
-                                                            mounted) {
-                                                          if (_scrollController
-                                                              .hasClients) {
-                                                            _scrollController
-                                                                .jumpTo(0);
-                                                          }
-                                                          await _refreshOperationDate(
-                                                            animateTransition:
-                                                                true,
-                                                          );
-                                                        }
-                                                      },
-                                              );
-                                            },
+                                          DailyLogSection(
+                                            morningFact: morningFact,
+                                            foodSummary: foodSummary,
+                                            activitySummary: activitySummary,
+                                            trainingSummary: trainingSummary,
+                                            estimatedTotalBurn:
+                                                _estimatedTotalBurn(
+                                                  estimatedTDEE,
+                                                  trainingSummary,
+                                                ),
+                                            onReviewCompleted:
+                                                _showFinalizeDateTransition,
                                           ),
                                           AppSpacing.gapXL,
                                           SectionHeader(
@@ -281,15 +210,44 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _refreshOperationDate({bool animateTransition = false}) async {
-    final operationDate = await const OperationDateService().current();
+  Future<void> _showFinalizeDateTransition(
+    OperationLocalDate previousOperationDate,
+  ) async {
+    final nextOperationDate = await const OperationDateService().current();
+    if (!mounted) return;
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    setState(() {
+      _operationDateFuture = Future.value(previousOperationDate);
+    });
+    await _waitUntilDashboardIsVisible();
+    if (!mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     setState(() {
-      _operationDateFuture = Future.value(operationDate);
-      if (animateTransition) {
-        _operationDateTransitionToken++;
-      }
+      _operationDateFuture = Future.value(nextOperationDate);
+      _operationDateTransitionToken++;
     });
+  }
+
+  Future<void> _waitUntilDashboardIsVisible() async {
+    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
+    if (secondaryAnimation == null ||
+        secondaryAnimation.status == AnimationStatus.dismissed) {
+      return;
+    }
+    final completer = Completer<void>();
+    void listener(AnimationStatus status) {
+      if (status == AnimationStatus.dismissed && !completer.isCompleted) {
+        secondaryAnimation.removeStatusListener(listener);
+        completer.complete();
+      }
+    }
+
+    secondaryAnimation.addStatusListener(listener);
+    listener(secondaryAnimation.status);
+    await completer.future;
   }
 
   void _showQuickWaterInput(BuildContext context) {
