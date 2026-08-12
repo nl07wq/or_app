@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/widgets/operation_flip_tile.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
@@ -13,6 +14,7 @@ import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
@@ -42,7 +44,12 @@ void main() {
   ) async {
     await _pump(tester, width: 390);
 
-    expect(find.textContaining('2026-08-01'), findsOneWidget);
+    expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+    expect(find.text('AUG'), findsOneWidget);
+    expect(find.text('01'), findsOneWidget);
+    expect(find.text('SAT'), findsOneWidget);
+    expect(find.text('OPERATION DATE'), findsOneWidget);
+    expect(find.text('CYCLE STATE'), findsOneWidget);
     expect(find.text('DAILY ASSESSMENT'), findsOneWidget);
     expect(find.text('NOT AVAILABLE'), findsWidgets);
     expect(find.textContaining('STATUSを入力'), findsNothing);
@@ -59,6 +66,23 @@ void main() {
     expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
     expect(find.text('VIEW DAILY REVIEW'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('CURRENT OPERATION shared calendar fits at 320px', (
+    tester,
+  ) async {
+    await _pump(tester, width: 320);
+
+    final row = find.byKey(const ValueKey('operation-date-flip-row'));
+    expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+    expect(tester.getSize(row).width, 168);
+    for (var index = 0; index < 3; index++) {
+      expect(
+        tester.getSize(find.byKey(ValueKey('operation-date-tile-$index'))),
+        const Size(52, 36),
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -164,6 +188,161 @@ void main() {
     await tester.tap(find.text('DAILY REVIEW'));
     await tester.pumpAndSettle();
     expect(find.text('DAILY REVIEW ROUTE'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Command Center finalize returns to top and flips its shared calendar once',
+    (tester) async {
+      seedOperationState(database, '2026-08-11');
+      await _pump(
+        tester,
+        width: 390,
+        reviewPageBuilder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () {
+              seedOperationState(database, '2026-08-12');
+              Navigator.pop(context, true);
+            },
+            child: const Text('COMPLETE CC FINALIZE'),
+          ),
+        ),
+      );
+
+      await tester.scrollUntilVisible(
+        find.text('DAILY REVIEW'),
+        300,
+        scrollable: _dailyCommandScrollable(),
+      );
+      await Scrollable.ensureVisible(
+        tester.element(find.text('DAILY REVIEW')),
+        alignment: 0.5,
+      );
+      await tester.pump();
+      expect(_dailyCommandScrollPosition(tester).pixels, greaterThan(0));
+      await tester.tap(find.text('DAILY REVIEW'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('COMPLETE CC FINALIZE'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(_dailyCommandScrollPosition(tester).pixels, 0);
+      expect(find.text('AUG'), findsOneWidget);
+      final dayTile = find.byKey(const ValueKey('operation-date-tile-1'));
+      final weekdayTile = find.byKey(const ValueKey('operation-date-tile-2'));
+      expect(
+        find.descendant(
+          of: dayTile,
+          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: weekdayTile,
+          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        ),
+        findsNothing,
+      );
+      final tiles = [
+        for (var index = 0; index < 3; index++)
+          tester.widget<OperationMechanicalFlipTile>(
+            find.byKey(ValueKey('operation-date-tile-$index')),
+          ),
+      ];
+      expect(tiles[0].animationDuration, const Duration(milliseconds: 320));
+      expect(tiles[1].animationDuration, const Duration(milliseconds: 360));
+      expect(tiles[2].animationDuration, const Duration(milliseconds: 320));
+      expect(tiles[1].firstPhaseRatio, closeTo(200 / 360, 0.0001));
+      expect(tiles[1].startDelay, Duration.zero);
+      expect(tiles[2].startDelay, const Duration(milliseconds: 60));
+
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: weekdayTile,
+          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('12'), findsOneWidget);
+      expect(find.text('WED'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: dayTile,
+          matching: find.byKey(const ValueKey('mechanical-flip-static')),
+        ),
+        findsOneWidget,
+      );
+
+      morningFactNotifier.value = _status();
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: dayTile,
+          matching: find.byKey(const ValueKey('mechanical-flip-static')),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('12'), findsOneWidget);
+
+      await tester.tap(find.text('BRIEF / DEBRIEF').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('DAILY COMMAND').first);
+      await tester.pumpAndSettle();
+      expect(find.text('12'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('Command Center cancelled review preserves scroll and date', (
+    tester,
+  ) async {
+    seedOperationState(database, '2026-08-11');
+    await _pump(
+      tester,
+      width: 390,
+      reviewPageBuilder: (context) => Scaffold(
+        body: TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('CANCEL CC FINALIZE'),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text('DAILY REVIEW'),
+      300,
+      scrollable: _dailyCommandScrollable(),
+    );
+    await Scrollable.ensureVisible(
+      tester.element(find.text('DAILY REVIEW')),
+      alignment: 0.5,
+    );
+    await tester.pump();
+    final previousOffset = _dailyCommandScrollPosition(tester).pixels;
+    expect(previousOffset, greaterThan(0));
+    await tester.tap(find.text('DAILY REVIEW'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CANCEL CC FINALIZE'));
+    await tester.pumpAndSettle();
+
+    expect(_dailyCommandScrollPosition(tester).pixels, greaterThan(0));
+    expect(
+      (await AppRepositoryRegistry.container.operationState.requireCurrent())
+          .operationDate
+          .value,
+      '2026-08-11',
+    );
+    expect(
+      find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      findsNothing,
+    );
   });
 
   testWidgets('separates BRIEF DEBRIEF content from report sync pages', (
@@ -599,6 +778,9 @@ Finder _dailyCommandScrollable() => find.descendant(
   matching: find.byType(Scrollable),
 );
 
+ScrollPosition _dailyCommandScrollPosition(WidgetTester tester) =>
+    tester.state<ScrollableState>(_dailyCommandScrollable()).position;
+
 DailyDebriefRecord _dailyDebriefRecord({
   required String localDate,
   required String bodyEvaluation,
@@ -719,6 +901,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required double width,
   ThemeData? theme,
+  WidgetBuilder? reviewPageBuilder,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -728,13 +911,24 @@ Future<void> _pump(
     MaterialApp(
       theme: theme,
       home: const CommandCenterPage(),
+      onGenerateRoute: reviewPageBuilder == null
+          ? null
+          : (settings) => settings.name == AppRoutes.logConfirmationReview
+                ? PageRouteBuilder<Object?>(
+                    settings: settings,
+                    transitionDuration: Duration.zero,
+                    reverseTransitionDuration: Duration.zero,
+                    pageBuilder: (context, _, _) => reviewPageBuilder(context),
+                  )
+                : null,
       routes: {
         AppRoutes.morning: (_) => const Scaffold(body: Text('STATUS ROUTE')),
         AppRoutes.food: (_) => const Scaffold(body: Text('FOOD ROUTE')),
         AppRoutes.training: (_) => const Scaffold(body: Text('TRAINING ROUTE')),
         AppRoutes.activity: (_) => const Scaffold(body: Text('ACTIVITY ROUTE')),
-        AppRoutes.logConfirmationReview: (_) =>
-            const Scaffold(body: Text('DAILY REVIEW ROUTE')),
+        if (reviewPageBuilder == null)
+          AppRoutes.logConfirmationReview: (_) =>
+              const Scaffold(body: Text('DAILY REVIEW ROUTE')),
         AppRoutes.backupRestore: (_) =>
             const Scaffold(body: Text('BACKUP ROUTE')),
       },

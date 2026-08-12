@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -8,6 +10,9 @@ import '../../activity/models/activity_summary_state.dart';
 import '../../dashboard/widgets/daily_log_card.dart';
 import '../../food/models/food_summary_state.dart';
 import '../../morning/models/morning_fact_state.dart';
+import '../../operation_date/models/operation_local_date.dart';
+import '../../operation_date/services/operation_date_service.dart';
+import '../../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
@@ -83,7 +88,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
   }
 }
 
-class _DailyCommandPage extends StatelessWidget {
+class _DailyCommandPage extends StatefulWidget {
   const _DailyCommandPage({
     required this.refreshToken,
     required this.onRefresh,
@@ -93,37 +98,82 @@ class _DailyCommandPage extends StatelessWidget {
   final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        morningFactNotifier,
-        foodSummaryNotifier,
-        trainingSummaryNotifier,
-        activitySummaryNotifier,
-        morningBriefRevisionNotifier,
-      ]),
-      builder: (context, _) =>
-          FutureBuilder<
-            ({DailyCommandReadModel model, DailyAssessment assessment})
-          >(
-            key: ValueKey(refreshToken),
-            future: _loadModel(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError || !snapshot.hasData) {
-                return _ErrorContent(onRetry: onRefresh);
-              }
-              final result = snapshot.requireData;
-              return _DailyCommandContent(
-                model: result.model,
-                assessment: result.assessment,
-                onRefresh: onRefresh,
-              );
-            },
-          ),
-    );
+  State<_DailyCommandPage> createState() => _DailyCommandPageState();
+}
+
+class _DailyCommandPageState extends State<_DailyCommandPage> {
+  late Future<OperationLocalDate> _operationDateFuture =
+      const OperationDateService().current();
+  late Future<({DailyCommandReadModel model, DailyAssessment assessment})>
+  _modelFuture = _loadModel();
+  late final List<Listenable> _modelSources = [
+    morningFactNotifier,
+    foodSummaryNotifier,
+    trainingSummaryNotifier,
+    activitySummaryNotifier,
+    morningBriefRevisionNotifier,
+  ];
+  int _operationDateTransitionToken = 0;
+  final ScrollController _scrollController = ScrollController();
+  Completer<void>? _dateDisplayedCompleter;
+  OperationLocalDate? _expectedDisplayedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final source in _modelSources) {
+      source.addListener(_reloadModel);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DailyCommandPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _modelFuture = _loadModel();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final source in _modelSources) {
+      source.removeListener(_reloadModel);
+    }
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      FutureBuilder<
+        ({DailyCommandReadModel model, DailyAssessment assessment})
+      >(
+        future: _modelFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return _ErrorContent(onRetry: widget.onRefresh);
+          }
+          final result = snapshot.requireData;
+          return _DailyCommandContent(
+            model: result.model,
+            assessment: result.assessment,
+            operationDateFuture: _operationDateFuture,
+            operationDateTransitionToken: _operationDateTransitionToken,
+            scrollController: _scrollController,
+            onReviewCompleted: _showFinalizeDateTransition,
+            onOperationDateDisplayed: _handleOperationDateDisplayed,
+          );
+        },
+      );
+
+  void _reloadModel() {
+    if (!mounted) return;
+    setState(() {
+      _modelFuture = _loadModel();
+    });
   }
 
   Future<({DailyCommandReadModel model, DailyAssessment assessment})>
@@ -157,23 +207,87 @@ class _DailyCommandPage extends StatelessWidget {
       assessment: const DailyAssessmentRuleEngine().evaluate(facts),
     );
   }
+
+  Future<void> _showFinalizeDateTransition(
+    OperationLocalDate previousOperationDate,
+  ) async {
+    final nextOperationDate = await const OperationDateService().current();
+    if (!mounted) return;
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    final dateDisplayedCompleter = Completer<void>();
+    _dateDisplayedCompleter = dateDisplayedCompleter;
+    _expectedDisplayedDate = previousOperationDate;
+    setState(() {
+      _operationDateFuture = Future.value(previousOperationDate);
+    });
+    await _waitUntilCommandCenterIsVisible();
+    if (!mounted) return;
+    await dateDisplayedCompleter.future;
+    if (!mounted) return;
+    setState(() {
+      _operationDateFuture = Future.value(nextOperationDate);
+      _operationDateTransitionToken++;
+    });
+    await Future<void>.delayed(
+      OperationDateFlipCalendar.maximumTransitionDuration,
+    );
+    if (mounted) widget.onRefresh();
+  }
+
+  void _handleOperationDateDisplayed(OperationLocalDate date) {
+    final completer = _dateDisplayedCompleter;
+    if (date != _expectedDisplayedDate || completer == null) return;
+    _dateDisplayedCompleter = null;
+    _expectedDisplayedDate = null;
+    if (!completer.isCompleted) completer.complete();
+  }
+
+  Future<void> _waitUntilCommandCenterIsVisible() async {
+    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
+    if (secondaryAnimation == null ||
+        secondaryAnimation.status == AnimationStatus.dismissed) {
+      return;
+    }
+    final completer = Completer<void>();
+    void listener(AnimationStatus status) {
+      if (status == AnimationStatus.dismissed && !completer.isCompleted) {
+        secondaryAnimation.removeStatusListener(listener);
+        completer.complete();
+      }
+    }
+
+    secondaryAnimation.addStatusListener(listener);
+    listener(secondaryAnimation.status);
+    await completer.future;
+  }
 }
 
 class _DailyCommandContent extends StatelessWidget {
   const _DailyCommandContent({
     required this.model,
     required this.assessment,
-    required this.onRefresh,
+    required this.operationDateFuture,
+    required this.operationDateTransitionToken,
+    required this.scrollController,
+    required this.onReviewCompleted,
+    required this.onOperationDateDisplayed,
   });
 
   final DailyCommandReadModel model;
   final DailyAssessment assessment;
-  final VoidCallback onRefresh;
+  final Future<OperationLocalDate> operationDateFuture;
+  final int operationDateTransitionToken;
+  final ScrollController scrollController;
+  final DailyLogReviewCompleted onReviewCompleted;
+  final ValueChanged<OperationLocalDate> onOperationDateDisplayed;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       key: const ValueKey('daily-command-list'),
+      controller: scrollController,
       padding: AppSpacing.cardPadding,
       children: [
         const SectionHeader(
@@ -181,11 +295,11 @@ class _DailyCommandContent extends StatelessWidget {
           title: 'CURRENT OPERATION',
         ),
         AppSpacing.gapSM,
-        _KeyValueCard(
-          values: {
-            'Operation Date': model.operationDate,
-            'Cycle State': _cycleLabel(model.cycleState),
-          },
+        _CurrentOperationCard(
+          operationDateFuture: operationDateFuture,
+          operationDateTransitionToken: operationDateTransitionToken,
+          cycleState: model.cycleState,
+          onOperationDateDisplayed: onOperationDateDisplayed,
         ),
         AppSpacing.gapXL,
         const SectionHeader(
@@ -201,7 +315,7 @@ class _DailyCommandContent extends StatelessWidget {
           activitySummary: activitySummaryNotifier.value,
           trainingSummary: trainingSummaryNotifier.value,
           estimatedTotalBurn: model.estimatedTotalBurnKcal,
-          onReviewCompleted: (_) async => onRefresh(),
+          onReviewCompleted: onReviewCompleted,
         ),
         AppSpacing.gapLG,
       ],
@@ -209,17 +323,37 @@ class _DailyCommandContent extends StatelessWidget {
   }
 }
 
-class _KeyValueCard extends StatelessWidget {
-  const _KeyValueCard({required this.values});
-  final Map<String, String> values;
+class _CurrentOperationCard extends StatelessWidget {
+  const _CurrentOperationCard({
+    required this.operationDateFuture,
+    required this.operationDateTransitionToken,
+    required this.cycleState,
+    required this.onOperationDateDisplayed,
+  });
+
+  final Future<OperationLocalDate> operationDateFuture;
+  final int operationDateTransitionToken;
+  final DailyCommandCycleState cycleState;
+  final ValueChanged<OperationLocalDate> onOperationDateDisplayed;
+
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Wrap(
-      spacing: 24,
-      runSpacing: 12,
-      children: values.entries
-          .map((entry) => Text('${entry.key}\n${entry.value}'))
-          .toList(),
+    child: Column(
+      key: const ValueKey('current-operation-card-content'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('OPERATION DATE', style: Theme.of(context).textTheme.labelLarge),
+        AppSpacing.gapSM,
+        OperationDateFlipCalendar(
+          operationDateFuture: operationDateFuture,
+          transitionToken: operationDateTransitionToken,
+          onDateDisplayed: onOperationDateDisplayed,
+        ),
+        AppSpacing.gapMD,
+        Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
+        AppSpacing.gapXS,
+        Text(_cycleLabel(cycleState)),
+      ],
     ),
   );
 }

@@ -12,7 +12,6 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
-import '../../core/widgets/operation_flip_tile.dart';
 import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
@@ -36,6 +35,7 @@ import '../command_center/widgets/daily_command_item.dart';
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../report_sync/models/morning_brief_state.dart';
 
 import 'widgets/daily_log_card.dart';
@@ -259,7 +259,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _OperationDateCard extends StatefulWidget {
+class _OperationDateCard extends StatelessWidget {
   const _OperationDateCard({
     required this.operationDateFuture,
     required this.transitionToken,
@@ -269,152 +269,31 @@ class _OperationDateCard extends StatefulWidget {
   final int transitionToken;
 
   @override
-  State<_OperationDateCard> createState() => _OperationDateCardState();
-}
-
-class _OperationDateCardState extends State<_OperationDateCard> {
-  OperationLocalDate? _displayedDate;
-  int _consumedTransitionToken = 0;
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder(
-    future: widget.operationDateFuture,
-    builder: (context, snapshot) {
-      var animate = false;
-      if (snapshot.connectionState == ConnectionState.done &&
-          snapshot.hasData) {
-        final nextDate = snapshot.requireData;
-        animate =
-            widget.transitionToken != _consumedTransitionToken &&
-            _displayedDate != null &&
-            _displayedDate != nextDate;
-        _displayedDate = nextDate;
-        _consumedTransitionToken = widget.transitionToken;
-      }
-      final date = _displayedDate;
-      return OperationCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                AppSpacing.gapSM,
-                Text(
-                  'OPERATION DATE',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ],
+            Icon(
+              Icons.calendar_today_outlined,
+              color: Theme.of(context).colorScheme.primary,
             ),
             AppSpacing.gapSM,
-            if (date == null)
-              Text('LOADING...', style: Theme.of(context).textTheme.titleSmall)
-            else
-              _OperationDateFlipRow(date: date, animate: animate),
+            Text(
+              'OPERATION DATE',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
           ],
         ),
-      );
-    },
+        AppSpacing.gapSM,
+        OperationDateFlipCalendar(
+          operationDateFuture: operationDateFuture,
+          transitionToken: transitionToken,
+        ),
+      ],
+    ),
   );
-}
-
-class _OperationDateFlipRow extends StatefulWidget {
-  const _OperationDateFlipRow({required this.date, required this.animate});
-
-  static const _tileWidth = 52.0;
-  static const _tileHeight = 36.0;
-  static const _tileGap = 6.0;
-
-  static const _months = [
-    'JAN',
-    'FEB',
-    'MAR',
-    'APR',
-    'MAY',
-    'JUN',
-    'JUL',
-    'AUG',
-    'SEP',
-    'OCT',
-    'NOV',
-    'DEC',
-  ];
-  static const _weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-
-  final OperationLocalDate date;
-  final bool animate;
-
-  @override
-  State<_OperationDateFlipRow> createState() => _OperationDateFlipRowState();
-}
-
-class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
-  Map<int, Duration> _startDelays = const {};
-
-  @override
-  void didUpdateWidget(covariant _OperationDateFlipRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!widget.animate || oldWidget.date == widget.date) {
-      _startDelays = const {};
-      return;
-    }
-    final previousValues = _values(oldWidget.date);
-    final nextValues = _values(widget.date);
-    final changedIndices = [
-      for (var index = 0; index < nextValues.length; index++)
-        if (previousValues[index] != nextValues[index]) index,
-    ];
-    _startDelays = {
-      for (var order = 0; order < changedIndices.length; order++)
-        changedIndices[order]: OperationMechanicalFlipTile.stagger * order,
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final values = _values(widget.date);
-    return Semantics(
-      label: 'OPERATION DATE ${widget.date.value}',
-      child: ExcludeSemantics(
-        child: Row(
-          key: const ValueKey('operation-date-flip-row'),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < values.length; index++) ...[
-              if (index > 0)
-                const SizedBox(width: _OperationDateFlipRow._tileGap),
-              OperationMechanicalFlipTile(
-                key: ValueKey('operation-date-tile-$index'),
-                value: values[index],
-                width: _OperationDateFlipRow._tileWidth,
-                height: _OperationDateFlipRow._tileHeight,
-                animate: widget.animate,
-                startDelay: _startDelays[index] ?? Duration.zero,
-                animationDuration: index == 1
-                    ? OperationMechanicalFlipTile.dayDuration
-                    : OperationMechanicalFlipTile.duration,
-                firstPhaseRatio: index == 1
-                    ? OperationMechanicalFlipTile.dayFirstPhaseRatio
-                    : OperationMechanicalFlipTile.defaultFirstPhaseRatio,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<String> _values(OperationLocalDate date) {
-    final parsed = date.asUtcDate;
-    return [
-      _OperationDateFlipRow._months[parsed.month - 1],
-      parsed.day.toString().padLeft(2, '0'),
-      _OperationDateFlipRow._weekdays[parsed.weekday - 1],
-    ];
-  }
 }
 
 class _DailyCommandSummary extends StatelessWidget {

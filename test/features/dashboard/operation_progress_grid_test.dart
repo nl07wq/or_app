@@ -17,6 +17,7 @@ import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_state.dart';
@@ -118,6 +119,7 @@ void main() {
         matching: find.byType(OperationCard),
       );
 
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
       expect(
         find.ancestor(of: month, matching: find.byType(Expanded)),
         findsNothing,
