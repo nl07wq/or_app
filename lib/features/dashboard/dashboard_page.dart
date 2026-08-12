@@ -393,6 +393,12 @@ class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
                 height: _OperationDateFlipRow._tileHeight,
                 animate: widget.animate,
                 startDelay: _startDelays[index] ?? Duration.zero,
+                animationDuration: index == 1
+                    ? OperationMechanicalFlipTile.dayDuration
+                    : OperationMechanicalFlipTile.duration,
+                firstPhaseRatio: index == 1
+                    ? OperationMechanicalFlipTile.dayFirstPhaseRatio
+                    : OperationMechanicalFlipTile.defaultFirstPhaseRatio,
               ),
             ],
           ],

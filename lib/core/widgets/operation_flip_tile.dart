@@ -110,10 +110,15 @@ class OperationMechanicalFlipTile extends StatefulWidget {
     this.textStyle,
     this.animate = true,
     this.startDelay = Duration.zero,
-  });
+    this.animationDuration = duration,
+    this.firstPhaseRatio = defaultFirstPhaseRatio,
+  }) : assert(firstPhaseRatio > 0 && firstPhaseRatio < 1);
 
   static const duration = Duration(milliseconds: 320);
+  static const dayDuration = Duration(milliseconds: 360);
   static const stagger = Duration(milliseconds: 60);
+  static const defaultFirstPhaseRatio = 0.5;
+  static const dayFirstPhaseRatio = 5 / 9;
 
   final String value;
   final double? width;
@@ -121,6 +126,8 @@ class OperationMechanicalFlipTile extends StatefulWidget {
   final TextStyle? textStyle;
   final bool animate;
   final Duration startDelay;
+  final Duration animationDuration;
+  final double firstPhaseRatio;
 
   @override
   State<OperationMechanicalFlipTile> createState() =>
@@ -142,13 +149,16 @@ class _OperationMechanicalFlipTileState
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: OperationMechanicalFlipTile.duration,
+      duration: widget.animationDuration,
     )..addStatusListener(_handleStatus);
   }
 
   @override
   void didUpdateWidget(covariant OperationMechanicalFlipTile oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.animationDuration != widget.animationDuration) {
+      _controller.duration = widget.animationDuration;
+    }
     if (oldWidget.value == widget.value) return;
     _startTimer?.cancel();
     _controller.reset();
@@ -233,6 +243,7 @@ class _OperationMechanicalFlipTileState
                 oldValue: _oldValue!,
                 newValue: _targetValue!,
                 progress: _controller.value,
+                firstPhaseRatio: widget.firstPhaseRatio,
                 textStyle: textStyle,
               ),
             ),
@@ -245,20 +256,24 @@ class _MechanicalFlipFrame extends StatelessWidget {
     required this.oldValue,
     required this.newValue,
     required this.progress,
+    required this.firstPhaseRatio,
     required this.textStyle,
   });
 
   final String oldValue;
   final String newValue;
   final double progress;
+  final double firstPhaseRatio;
   final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
-    final firstPhase = progress < 0.5;
+    final firstPhase = progress < firstPhaseRatio;
     final phaseProgress = firstPhase
-        ? Curves.easeInCubic.transform(progress * 2)
-        : Curves.easeOutCubic.transform((progress - 0.5) * 2);
+        ? Curves.easeInCubic.transform(progress / firstPhaseRatio)
+        : Curves.easeOutCubic.transform(
+            (progress - firstPhaseRatio) / (1 - firstPhaseRatio),
+          );
     return Stack(
       fit: StackFit.expand,
       children: [

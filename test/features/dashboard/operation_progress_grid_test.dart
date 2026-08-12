@@ -248,6 +248,21 @@ void main() {
     expect(
       find.descendant(
         of: dayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: weekdayTile,
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(
+      find.descendant(
+        of: dayTile,
         matching: find.byKey(const ValueKey('mechanical-flip-new-lower')),
       ),
       findsOneWidget,
@@ -428,6 +443,16 @@ void main() {
       OperationMechanicalFlipTile.duration,
       const Duration(milliseconds: 320),
     );
+    expect(
+      OperationMechanicalFlipTile.dayDuration,
+      const Duration(milliseconds: 360),
+    );
+    expect(tiles[0].animationDuration, const Duration(milliseconds: 320));
+    expect(tiles[1].animationDuration, const Duration(milliseconds: 360));
+    expect(tiles[2].animationDuration, const Duration(milliseconds: 320));
+    expect(tiles[0].firstPhaseRatio, 0.5);
+    expect(tiles[1].firstPhaseRatio, closeTo(200 / 360, 0.0001));
+    expect(tiles[2].firstPhaseRatio, 0.5);
     expect(tiles[0].startDelay, Duration.zero);
     expect(tiles[1].startDelay, const Duration(milliseconds: 60));
     expect(tiles[2].startDelay, const Duration(milliseconds: 120));
