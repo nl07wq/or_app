@@ -373,76 +373,73 @@ class _DailyDebriefDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final analysis = record.analysis;
     return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _DailyDebriefHeader(record: record, status: status),
-          AppSpacing.gapMD,
-          _DebriefSection(
-            title: 'COMMANDER INTENT EVALUATION',
-            values: analysis.commanderIntentEvaluation == null
-                ? const ['NOT RECORDED']
-                : [
-                    'OUTCOME  ${analysis.commanderIntentEvaluation!.outcome.name}',
-                    'RATIONALE  ${analysis.commanderIntentEvaluation!.rationale}',
-                    'EVIDENCE',
-                    ...analysis.commanderIntentEvaluation!.evidence,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DailyDebriefHeader(record: record, status: status),
+              const SizedBox(height: 28),
+              _CommanderIntentEvaluationSection(
+                evaluation: analysis.commanderIntentEvaluation,
+              ),
+              const SizedBox(height: 24),
+              _DebriefListSection(
+                icon: Icons.checklist_outlined,
+                title: 'EXECUTION EVALUATION',
+                groups: [
+                  ('SUCCESSES', analysis.executionEvaluation.successes),
+                  ('ADJUSTMENTS', analysis.executionEvaluation.adjustments),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _DebriefListSection(
+                icon: Icons.hub_outlined,
+                title: 'CROSS ANALYSIS',
+                groups: [
+                  ('KEY FACTORS', analysis.crossAnalysis.keyFactors),
+                  ('INTERACTIONS', analysis.crossAnalysis.interactions),
+                  ('CONSTRAINTS', analysis.crossAnalysis.constraints),
+                  ('RESOURCES', analysis.crossAnalysis.resources),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _DomainEvaluationsSection(
+                evaluations: analysis.domainEvaluations,
+              ),
+              const SizedBox(height: 24),
+              _DebriefListSection(
+                icon: Icons.visibility_outlined,
+                title: 'NEXT-DAY HANDOFF',
+                groups: [('WATCH POINTS', analysis.nextDayHandoff.watchPoints)],
+              ),
+              if (includeAuditSections) ...[
+                const SizedBox(height: 24),
+                _DebriefAuditSection(
+                  title: 'SOURCE REFERENCES',
+                  values: [
+                    'DAILY AGGREGATE  ${record.sources.dailyAggregate.recordDigest}',
+                    'CONFIRMATION  ${record.sources.confirmation.recordDigest}',
+                    'MORNING BRIEF  '
+                        '${record.sources.morningBrief?.recordDigest ?? 'NOT RECORDED'}',
                   ],
-          ),
-          _DebriefSection(
-            title: 'EXECUTION EVALUATION',
-            values: [
-              'SUCCESSES',
-              ...analysis.executionEvaluation.successes,
-              'ADJUSTMENTS',
-              ...analysis.executionEvaluation.adjustments,
-            ],
-          ),
-          _DebriefSection(
-            title: 'CROSS ANALYSIS',
-            values: [
-              'KEY FACTORS',
-              ...analysis.crossAnalysis.keyFactors,
-              'INTERACTIONS',
-              ...analysis.crossAnalysis.interactions,
-              'CONSTRAINTS',
-              ...analysis.crossAnalysis.constraints,
-              'RESOURCES',
-              ...analysis.crossAnalysis.resources,
-            ],
-          ),
-          _DebriefSection(
-            title: 'DOMAIN EVALUATIONS',
-            values: [
-              for (final entry in analysis.domainEvaluations.toJson().entries)
-                '${entry.key.toUpperCase()}  ${entry.value ?? 'NOT ASSESSED'}',
-            ],
-          ),
-          _DebriefSection(
-            title: 'NEXT-DAY HANDOFF',
-            values: ['WATCH POINTS', ...analysis.nextDayHandoff.watchPoints],
-          ),
-          if (includeAuditSections) ...[
-            _DebriefSection(
-              title: 'SOURCE REFERENCES',
-              values: [
-                'DAILY AGGREGATE  ${record.sources.dailyAggregate.recordDigest}',
-                'CONFIRMATION  ${record.sources.confirmation.recordDigest}',
-                'MORNING BRIEF  '
-                    '${record.sources.morningBrief?.recordDigest ?? 'NOT RECORDED'}',
+                ),
+                const SizedBox(height: 16),
+                _DebriefAuditSection(
+                  title: 'PREVIOUS REVISIONS',
+                  values: record.previousRevisions.isEmpty
+                      ? const ['NONE']
+                      : [
+                          for (final revision in record.previousRevisions)
+                            'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
+                        ],
+                ),
               ],
-            ),
-            _DebriefSection(
-              title: 'PREVIOUS REVISIONS',
-              values: record.previousRevisions.isEmpty
-                  ? const ['NONE']
-                  : [
-                      for (final revision in record.previousRevisions)
-                        'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
-                    ],
-            ),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -492,8 +489,213 @@ class _DailyDebriefHeader extends StatelessWidget {
   );
 }
 
-class _DebriefSection extends StatelessWidget {
-  const _DebriefSection({required this.title, required this.values});
+class _CommanderIntentEvaluationSection extends StatelessWidget {
+  const _CommanderIntentEvaluationSection({required this.evaluation});
+
+  final DailyDebriefCommanderIntentEvaluation? evaluation;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const _BriefSectionTitle(
+        icon: Icons.flag_outlined,
+        title: 'COMMANDER INTENT EVALUATION',
+      ),
+      const SizedBox(height: 16),
+      if (evaluation == null)
+        const _DebriefMetadata(text: 'NOT RECORDED')
+      else ...[
+        const _DebriefSubsectionLabel('OUTCOME'),
+        const SizedBox(height: 6),
+        Text(
+          _outcomeLabel(evaluation!.outcome),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.7,
+          ),
+        ),
+        const SizedBox(height: 18),
+        const _DebriefSubsectionLabel('RATIONALE'),
+        const SizedBox(height: 8),
+        _ReadableText(evaluation!.rationale),
+        const SizedBox(height: 18),
+        _DebriefListGroup(label: 'EVIDENCE', values: evaluation!.evidence),
+      ],
+    ],
+  );
+}
+
+String _outcomeLabel(DailyDebriefCommanderIntentOutcome outcome) =>
+    switch (outcome) {
+      DailyDebriefCommanderIntentOutcome.achieved => 'ACHIEVED',
+      DailyDebriefCommanderIntentOutcome.partiallyAchieved =>
+        'PARTIALLY ACHIEVED',
+      DailyDebriefCommanderIntentOutcome.notAchieved => 'NOT ACHIEVED',
+      DailyDebriefCommanderIntentOutcome.notAssessable => 'NOT ASSESSABLE',
+    };
+
+class _DebriefListSection extends StatelessWidget {
+  const _DebriefListSection({
+    required this.icon,
+    required this.title,
+    required this.groups,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<(String, List<String>)> groups;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _BriefSectionTitle(icon: icon, title: title),
+      const SizedBox(height: 16),
+      for (var index = 0; index < groups.length; index++) ...[
+        _DebriefListGroup(label: groups[index].$1, values: groups[index].$2),
+        if (index != groups.length - 1) const SizedBox(height: 18),
+      ],
+    ],
+  );
+}
+
+class _DebriefListGroup extends StatelessWidget {
+  const _DebriefListGroup({required this.label, required this.values});
+
+  final String label;
+  final List<String> values;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _DebriefSubsectionLabel(label),
+      if (values.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        for (final value in values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('•', style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(width: 10),
+                Expanded(child: _ReadableText(value)),
+              ],
+            ),
+          ),
+      ],
+    ],
+  );
+}
+
+class _DomainEvaluationsSection extends StatelessWidget {
+  const _DomainEvaluationsSection({required this.evaluations});
+
+  final DailyDebriefDomainEvaluations evaluations;
+
+  @override
+  Widget build(BuildContext context) {
+    final domains = <(String, IconData, String?)>[
+      ('BODY', Icons.monitor_weight_outlined, evaluations.body),
+      ('RECOVERY', Icons.bedtime_outlined, evaluations.recovery),
+      ('CONDITION', Icons.health_and_safety_outlined, evaluations.condition),
+      ('WORK', Icons.work_outline, evaluations.work),
+      ('NUTRITION', Icons.restaurant_outlined, evaluations.nutrition),
+      ('HYDRATION', Icons.water_drop_outlined, evaluations.hydration),
+      ('ACTIVITY', Icons.directions_walk_outlined, evaluations.activity),
+      ('TRAINING', Icons.fitness_center_outlined, evaluations.training),
+    ].where((domain) => domain.$3 != null).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _BriefSectionTitle(
+          icon: Icons.analytics_outlined,
+          title: 'DOMAIN EVALUATIONS',
+        ),
+        const SizedBox(height: 8),
+        for (var index = 0; index < domains.length; index++)
+          _DebriefDomainBlock(
+            icon: domains[index].$2,
+            title: domains[index].$1,
+            body: domains[index].$3!,
+            showDivider: index != domains.length - 1,
+          ),
+      ],
+    );
+  }
+}
+
+class _DebriefDomainBlock extends StatelessWidget {
+  const _DebriefDomainBlock({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.showDivider,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DebriefSubsectionLabel(title),
+                  const SizedBox(height: 8),
+                  _ReadableText(body),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (showDivider) const Divider(height: 1),
+    ],
+  );
+}
+
+class _DebriefSubsectionLabel extends StatelessWidget {
+  const _DebriefSubsectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.7,
+    ),
+  );
+}
+
+class _DebriefMetadata extends StatelessWidget {
+  const _DebriefMetadata({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(text, style: Theme.of(context).textTheme.bodyMedium);
+}
+
+class _DebriefAuditSection extends StatelessWidget {
+  const _DebriefAuditSection({required this.title, required this.values});
 
   final String title;
   final List<String> values;
@@ -504,7 +706,12 @@ class _DebriefSection extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
         AppSpacing.gapSM,
         for (final value in values) SelectableText(value),
       ],

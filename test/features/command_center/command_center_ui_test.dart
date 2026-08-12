@@ -343,7 +343,35 @@ void main() {
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
     expect(find.text('DD-2026-08-02'), findsOneWidget);
     expect(find.textContaining('LATEST BODY REVIEW'), findsOneWidget);
-    expect(find.textContaining('NOT ASSESSED'), findsWidgets);
+    expect(find.text('DAILY DEBRIEF'), findsWidgets);
+    expect(find.text('INVALIDATED  ·  REVISION 1'), findsOneWidget);
+    expect(find.text('COMMANDER INTENT EVALUATION'), findsOneWidget);
+    expect(find.text('OUTCOME'), findsOneWidget);
+    expect(find.text('PARTIALLY ACHIEVED'), findsOneWidget);
+    expect(find.text('partiallyAchieved'), findsNothing);
+    expect(find.text('RATIONALE'), findsOneWidget);
+    expect(find.text('EVIDENCE'), findsOneWidget);
+    expect(find.text('EVIDENCE ITEM'), findsOneWidget);
+    expect(find.text('EXECUTION EVALUATION'), findsOneWidget);
+    expect(find.text('SUCCESSES'), findsOneWidget);
+    expect(find.text('SUCCESS ITEM'), findsOneWidget);
+    expect(find.text('ADJUSTMENTS'), findsOneWidget);
+    expect(find.text('ADJUSTMENT ITEM'), findsOneWidget);
+    expect(find.text('CROSS ANALYSIS'), findsOneWidget);
+    expect(find.text('KEY FACTORS'), findsOneWidget);
+    expect(find.text('INTERACTIONS'), findsOneWidget);
+    expect(find.text('CONSTRAINTS'), findsOneWidget);
+    expect(find.text('RESOURCES'), findsOneWidget);
+    expect(find.text('DOMAIN EVALUATIONS'), findsOneWidget);
+    expect(find.text('BODY'), findsOneWidget);
+    expect(find.text('RECOVERY'), findsNothing);
+    expect(find.text('TRAINING'), findsNothing);
+    expect(find.byIcon(Icons.monitor_weight_outlined), findsOneWidget);
+    expect(find.text('NEXT-DAY HANDOFF'), findsOneWidget);
+    expect(find.text('WATCH POINTS'), findsOneWidget);
+    expect(find.text('WATCH ITEM'), findsOneWidget);
+    expect(find.textContaining('CURRENT REVISION'), findsNothing);
+    expect(find.textContaining('STATUS ACTIVE'), findsNothing);
     expect(
       find.byKey(const ValueKey('daily-debrief-history-2026-08-02')),
       findsNothing,
@@ -369,6 +397,10 @@ void main() {
           )
           .first,
     );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+    );
+    await tester.pump();
 
     await tester.tap(
       find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
@@ -588,10 +620,21 @@ DailyDebriefRecord _dailyDebriefRecord({
       recordDigest:
           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     ),
-    morningBrief: null,
+    morningBrief: DailyDebriefMorningBriefReference(
+      localDate: localDate,
+      recordVersion: 2,
+      responseDigest:
+          'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+      recordDigest:
+          'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    ),
   ),
   analysis: DailyDebriefAnalysis(
-    commanderIntentEvaluation: null,
+    commanderIntentEvaluation: DailyDebriefCommanderIntentEvaluation(
+      outcome: DailyDebriefCommanderIntentOutcome.partiallyAchieved,
+      rationale: 'RATIONALE BODY',
+      evidence: const ['EVIDENCE ITEM'],
+    ),
     domainEvaluations: DailyDebriefDomainEvaluations(
       body: bodyEvaluation,
       recovery: null,
@@ -603,16 +646,18 @@ DailyDebriefRecord _dailyDebriefRecord({
       training: null,
     ),
     crossAnalysis: DailyDebriefCrossAnalysis(
-      keyFactors: const [],
-      interactions: const [],
-      constraints: const [],
-      resources: const [],
+      keyFactors: const ['KEY FACTOR ITEM'],
+      interactions: const ['INTERACTION ITEM'],
+      constraints: const ['CONSTRAINT ITEM'],
+      resources: const ['RESOURCE ITEM'],
     ),
     executionEvaluation: DailyDebriefExecutionEvaluation(
-      successes: const [],
-      adjustments: const [],
+      successes: const ['SUCCESS ITEM'],
+      adjustments: const ['ADJUSTMENT ITEM'],
     ),
-    nextDayHandoff: DailyDebriefNextDayHandoff(watchPoints: const []),
+    nextDayHandoff: DailyDebriefNextDayHandoff(
+      watchPoints: const ['WATCH ITEM'],
+    ),
   ),
   responseDigest:
       'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',

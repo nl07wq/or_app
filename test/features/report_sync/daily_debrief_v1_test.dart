@@ -159,17 +159,27 @@ void main() {
       );
       expect(prompt, contains('"dailyAggregate"'));
       expect(prompt, contains('"commanderIntentEvaluation": null'));
+      expect(prompt, contains('exactly one fenced Plain Text code block'));
+      expect(prompt, contains('opening fence is ```text'));
+      expect(prompt, contains('closing fence is ```'));
+      expect(prompt, contains('Return nothing outside that code block'));
       expect(
         prompt,
-        contains('Return exactly one JSON object and nothing else'),
+        contains('Inside the code block, return exactly one JSON object'),
       );
-      expect(prompt, contains('no Markdown fence'));
+      expect(
+        prompt,
+        contains('copied content must start with { and end with }'),
+      );
+      expect(prompt, contains('ASCII half-width double quotation marks'));
+      expect(prompt, contains('Never use smart or curly quotes'));
       expect(prompt, contains('Do not add unknown fields'));
       expect(prompt, contains('omit required fields'));
       expect(prompt, contains('Nullable fields must be explicit null'));
       expect(prompt, contains('use [] when empty'));
-      expect(prompt, contains('every opening and closing brace matches'));
-      expect(prompt, contains('every opening and closing bracket matches'));
+      expect(prompt, contains('object and array nesting is balanced'));
+      expect(prompt, contains('every opening brace, bracket, and ASCII quote'));
+      expect(prompt, contains('no extra or missing closing brace'));
       expect(prompt, contains('there is no trailing comma'));
       expect(prompt, contains('trainingPerformed is false'));
       expect(prompt, contains('domainEvaluations.training must be null'));
@@ -186,9 +196,13 @@ void main() {
       );
       expect(prompt, contains('instead of merely repeating or re-listing'));
       expect(prompt, contains('does not confirm'));
+      expect(
+        prompt,
+        contains('rather than exposing internal field identifiers'),
+      );
+      expect(prompt, contains('raw boolean expressions'));
       expect(prompt, contains('cannot be confirmed or evaluated'));
       expect(prompt, contains('must not decide the next-day operation'));
-      expect(prompt, isNot(contains('```text')));
       expect(prompt, isNot(contains('"dailySummary":')));
       expect(prompt, isNot(contains('"carryover":')));
       expect(prompt, isNot(contains('"data"')));
@@ -204,6 +218,17 @@ void main() {
         ),
         throwsA(anything),
       );
+      for (final malformed in const [
+        '{“format”:“operation-reboot-report-sync”}',
+        '{"format":"operation-reboot-report-sync"',
+        '{"format":"operation-reboot-report-sync",}',
+        '```text\n{"format":"operation-reboot-report-sync"}\n```',
+      ]) {
+        expect(
+          () => container.reportSyncCodec.decode(malformed),
+          throwsA(anything),
+        );
+      }
 
       final changedSources = DailyDebriefSources(
         dailyAggregate: DailyDebriefDailyAggregateReference(
