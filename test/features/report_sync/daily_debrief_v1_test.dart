@@ -159,8 +159,51 @@ void main() {
       );
       expect(prompt, contains('"dailyAggregate"'));
       expect(prompt, contains('"commanderIntentEvaluation": null'));
+      expect(
+        prompt,
+        contains('Return exactly one JSON object and nothing else'),
+      );
+      expect(prompt, contains('no Markdown fence'));
+      expect(prompt, contains('Do not add unknown fields'));
+      expect(prompt, contains('omit required fields'));
+      expect(prompt, contains('Nullable fields must be explicit null'));
+      expect(prompt, contains('use [] when empty'));
+      expect(prompt, contains('every opening and closing brace matches'));
+      expect(prompt, contains('every opening and closing bracket matches'));
+      expect(prompt, contains('there is no trailing comma'));
+      expect(prompt, contains('trainingPerformed is false'));
+      expect(prompt, contains('domainEvaluations.training must be null'));
+      expect(prompt, contains('body, recovery, condition, work, nutrition'));
+      expect(prompt, contains('When a domain has no formal fact'));
+      expect(prompt, contains('62.06999999999999 as 62.07g'));
+      expect(prompt, contains('295.53999999999996 as 295.54g'));
+      expect(prompt, contains('-355.5999999999999 as -355.6kcal'));
+      expect(prompt, contains('formatting applies only to analysis prose'));
+      expect(prompt, contains('do not alter, round, recalculate'));
+      expect(
+        prompt,
+        contains('do not change or recalculate any source digest'),
+      );
+      expect(prompt, contains('instead of merely repeating or re-listing'));
+      expect(prompt, contains('does not confirm'));
+      expect(prompt, contains('cannot be confirmed or evaluated'));
+      expect(prompt, contains('must not decide the next-day operation'));
+      expect(prompt, isNot(contains('```text')));
       expect(prompt, isNot(contains('"dailySummary":')));
+      expect(prompt, isNot(contains('"carryover":')));
       expect(prompt, isNot(contains('"data"')));
+      expect(prompt, contains('"fatG": 62.06999999999999'));
+      expect(prompt, contains('"carbsG": 295.53999999999996'));
+      expect(
+        prompt,
+        contains('"estimatedCalorieBalanceKcal": -355.5999999999999'),
+      );
+      expect(
+        () => container.reportSyncCodec.decode(
+          '{"format":"operation-reboot-report-sync"}}',
+        ),
+        throwsA(anything),
+      );
 
       final changedSources = DailyDebriefSources(
         dailyAggregate: DailyDebriefDailyAggregateReference(
@@ -319,10 +362,10 @@ DailyAggregateV1 _aggregate(
   actualWorkMinutes: null,
   intakeCaloriesKcal: 2000,
   estimatedExpenditureKcal: 2300,
-  estimatedCalorieBalanceKcal: -300,
+  estimatedCalorieBalanceKcal: -355.5999999999999,
   proteinG: 150,
-  fatG: 60,
-  carbsG: 200,
+  fatG: 62.06999999999999,
+  carbsG: 295.53999999999996,
   hydrationMl: hydrationMl,
   officialSteps: 8000,
   measuredSteps: 8000,
