@@ -275,27 +275,11 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         else if (snapshot.data!.isEmpty)
           const OperationCard(child: Text('DAILY DEBRIEFはまだありません。'))
         else
-          OperationCard(
-            child: ListTile(
-              key: const ValueKey('current-daily-debrief'),
-              leading: const Icon(Icons.nightlight_outlined),
-              title: Text(
-                'OPERATION DATE  ${snapshot.data!.first.record.localDate}',
-              ),
-              subtitle: Text(
-                'REVISION  ${snapshot.data!.first.record.revision}  '
-                'STATUS  ${snapshot.data!.first.status.name.toUpperCase()}',
-              ),
-              onTap: () => Navigator.push<void>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => _DailyDebriefDetailPage(
-                    record: snapshot.data!.first.record,
-                    status: snapshot.data!.first.status,
-                  ),
-                ),
-              ),
-            ),
+          _DailyDebriefDetail(
+            key: const ValueKey('current-daily-debrief'),
+            record: snapshot.data!.first.record,
+            status: snapshot.data!.first.status,
+            includeAuditSections: false,
           ),
         AppSpacing.gapMD,
         OperationButton(
@@ -316,13 +300,13 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
-        else if (snapshot.data!.isEmpty)
-          const OperationCard(child: Text('NO DAILY DEBRIEF HISTORY'))
+        else if (snapshot.data!.length <= 1)
+          const OperationCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
         else
           OperationCard(
             child: Column(
               children: [
-                for (var index = 0; index < snapshot.data!.length; index++) ...[
+                for (var index = 1; index < snapshot.data!.length; index++) ...[
                   ListTile(
                     key: ValueKey(
                       'daily-debrief-history-${snapshot.data![index].record.localDate}',
@@ -374,10 +358,16 @@ class _DailyDebriefDetailPage extends StatelessWidget {
 }
 
 class _DailyDebriefDetail extends StatelessWidget {
-  const _DailyDebriefDetail({required this.record, required this.status});
+  const _DailyDebriefDetail({
+    super.key,
+    required this.record,
+    required this.status,
+    this.includeAuditSections = true,
+  });
 
   final DailyDebriefRecord record;
   final DailyDebriefLifecycleStatus status;
+  final bool includeAuditSections;
 
   @override
   Widget build(BuildContext context) {
@@ -386,9 +376,7 @@ class _DailyDebriefDetail extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('OPERATION DATE  ${record.localDate}'),
-          Text('CURRENT REVISION  ${record.revision}'),
-          Text('STATUS  ${status.name.toUpperCase()}'),
+          _DailyDebriefHeader(record: record, status: status),
           AppSpacing.gapMD,
           _DebriefSection(
             title: 'COMMANDER INTENT EVALUATION',
@@ -402,10 +390,12 @@ class _DailyDebriefDetail extends StatelessWidget {
                   ],
           ),
           _DebriefSection(
-            title: 'DOMAIN EVALUATIONS',
+            title: 'EXECUTION EVALUATION',
             values: [
-              for (final entry in analysis.domainEvaluations.toJson().entries)
-                '${entry.key.toUpperCase()}  ${entry.value ?? 'NOT RECORDED'}',
+              'SUCCESSES',
+              ...analysis.executionEvaluation.successes,
+              'ADJUSTMENTS',
+              ...analysis.executionEvaluation.adjustments,
             ],
           ),
           _DebriefSection(
@@ -422,40 +412,84 @@ class _DailyDebriefDetail extends StatelessWidget {
             ],
           ),
           _DebriefSection(
-            title: 'EXECUTION EVALUATION',
+            title: 'DOMAIN EVALUATIONS',
             values: [
-              'SUCCESSES',
-              ...analysis.executionEvaluation.successes,
-              'ADJUSTMENTS',
-              ...analysis.executionEvaluation.adjustments,
+              for (final entry in analysis.domainEvaluations.toJson().entries)
+                '${entry.key.toUpperCase()}  ${entry.value ?? 'NOT ASSESSED'}',
             ],
           ),
           _DebriefSection(
             title: 'NEXT-DAY HANDOFF',
             values: ['WATCH POINTS', ...analysis.nextDayHandoff.watchPoints],
           ),
-          _DebriefSection(
-            title: 'SOURCE REFERENCES',
-            values: [
-              'DAILY AGGREGATE  ${record.sources.dailyAggregate.recordDigest}',
-              'CONFIRMATION  ${record.sources.confirmation.recordDigest}',
-              'MORNING BRIEF  '
-                  '${record.sources.morningBrief?.recordDigest ?? 'NOT RECORDED'}',
-            ],
-          ),
-          _DebriefSection(
-            title: 'PREVIOUS REVISIONS',
-            values: record.previousRevisions.isEmpty
-                ? const ['NONE']
-                : [
-                    for (final revision in record.previousRevisions)
-                      'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
-                  ],
-          ),
+          if (includeAuditSections) ...[
+            _DebriefSection(
+              title: 'SOURCE REFERENCES',
+              values: [
+                'DAILY AGGREGATE  ${record.sources.dailyAggregate.recordDigest}',
+                'CONFIRMATION  ${record.sources.confirmation.recordDigest}',
+                'MORNING BRIEF  '
+                    '${record.sources.morningBrief?.recordDigest ?? 'NOT RECORDED'}',
+              ],
+            ),
+            _DebriefSection(
+              title: 'PREVIOUS REVISIONS',
+              values: record.previousRevisions.isEmpty
+                  ? const ['NONE']
+                  : [
+                      for (final revision in record.previousRevisions)
+                        'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
+                    ],
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+class _DailyDebriefHeader extends StatelessWidget {
+  const _DailyDebriefHeader({required this.record, required this.status});
+
+  final DailyDebriefRecord record;
+  final DailyDebriefLifecycleStatus status;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.nightlight_outlined,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        AppSpacing.gapSM,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'DAILY DEBRIEF',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              Text('DD-${record.localDate}'),
+              Text(
+                '${status.name.toUpperCase()}  ·  REVISION ${record.revision}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _DebriefSection extends StatelessWidget {

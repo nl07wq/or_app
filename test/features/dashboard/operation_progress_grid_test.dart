@@ -146,7 +146,7 @@ void main() {
     seedOperationState(database, '2026-08-11');
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
-    tester.view.physicalSize = const Size(390, 3000);
+    tester.view.physicalSize = const Size(390, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -172,12 +172,19 @@ void main() {
     expect(find.text('11'), findsOneWidget);
     expect(find.text('TUE'), findsOneWidget);
 
+    await Scrollable.ensureVisible(
+      tester.element(find.text('DAILY REVIEW')),
+      alignment: 0.5,
+    );
+    await tester.pump();
+    expect(_dashboardScrollPosition(tester).pixels, greaterThan(0));
     await tester.tap(find.text('DAILY REVIEW'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('COMPLETE FINALIZE'));
     await tester.pump();
     await tester.pump();
 
+    expect(_dashboardScrollPosition(tester).pixels, 0);
     expect(find.text('AUG'), findsOneWidget);
     expect(find.text('11'), findsOneWidget);
     expect(find.text('12'), findsOneWidget);
@@ -205,7 +212,7 @@ void main() {
     seedOperationState(database, '2026-08-11');
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
-    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.physicalSize = const Size(800, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -227,7 +234,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('DAILY REVIEW'));
+    await Scrollable.ensureVisible(
+      tester.element(find.text('DAILY REVIEW')),
+      alignment: 0.5,
+    );
+    await tester.pump();
+    final scrollOffset = _dashboardScrollPosition(tester).pixels;
+    expect(scrollOffset, greaterThan(0));
     await tester.tap(find.text('DAILY REVIEW'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('FAIL FINALIZE'));
@@ -238,6 +251,49 @@ void main() {
     expect(find.text('TUE'), findsOneWidget);
     expect(find.text('12'), findsNothing);
     expect(find.text('WED'), findsNothing);
+    expect(_dashboardScrollPosition(tester).pixels, scrollOffset);
+  });
+
+  testWidgets('normal module navigation preserves Dashboard scroll position', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-08-11');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    tester.view.physicalSize = const Size(800, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const DashboardPage(),
+        routes: {
+          AppRoutes.morning: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('RETURN TO DASHBOARD'),
+            ),
+          ),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await Scrollable.ensureVisible(
+      tester.element(find.bySemanticsLabel('STATUS incomplete')),
+      alignment: 0.5,
+    );
+    await tester.pump();
+    final scrollOffset = _dashboardScrollPosition(tester).pixels;
+    expect(scrollOffset, greaterThan(0));
+
+    await tester.tap(find.bySemanticsLabel('STATUS incomplete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('RETURN TO DASHBOARD'));
+    await tester.pumpAndSettle();
+
+    expect(_dashboardScrollPosition(tester).pixels, scrollOffset);
   });
 
   testWidgets('month crossing flips month day and weekday tiles', (
@@ -835,6 +891,14 @@ Finder _operationSummary() => find.byKey(const ValueKey('operation-summary'));
 
 Finder _progressTiles() =>
     find.byKey(const ValueKey('operation-progress-tiles'));
+
+Finder _dashboardScrollable() => find.descendant(
+  of: find.byKey(const ValueKey('dashboard-scroll-view')),
+  matching: find.byType(Scrollable),
+);
+
+ScrollPosition _dashboardScrollPosition(WidgetTester tester) =>
+    tester.state<ScrollableState>(_dashboardScrollable()).position;
 
 void _expectTileText(String label, String text) {
   expect(

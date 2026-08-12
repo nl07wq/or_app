@@ -52,6 +52,13 @@ class _DashboardPageState extends State<DashboardPage> {
   late Future<OperationLocalDate> _operationDateFuture =
       const OperationDateService().current();
   int _operationDateTransitionToken = 0;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +100,8 @@ class _DashboardPageState extends State<DashboardPage> {
                               final useLargeLayout =
                                   dashboardConstraints.maxWidth >= 900;
                               return ListView(
+                                key: const ValueKey('dashboard-scroll-view'),
+                                controller: _scrollController,
                                 padding: AppSpacing.cardPadding,
                                 children: [
                                   Center(
@@ -170,6 +179,30 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     activitySummary,
                                                 trainingSummary:
                                                     trainingSummary,
+                                                onStatusTap: isReadOnly
+                                                    ? null
+                                                    : () => Navigator.pushNamed(
+                                                        context,
+                                                        AppRoutes.morning,
+                                                      ),
+                                                onFoodTap: isReadOnly
+                                                    ? null
+                                                    : () => Navigator.pushNamed(
+                                                        context,
+                                                        AppRoutes.food,
+                                                      ),
+                                                onTrainingTap: isReadOnly
+                                                    ? null
+                                                    : () => Navigator.pushNamed(
+                                                        context,
+                                                        AppRoutes.training,
+                                                      ),
+                                                onActivityTap: isReadOnly
+                                                    ? null
+                                                    : () => Navigator.pushNamed(
+                                                        context,
+                                                        AppRoutes.activity,
+                                                      ),
                                                 onReview: isReadOnly
                                                     ? null
                                                     : () async {
@@ -197,6 +230,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         );
                                                         if (changed == true &&
                                                             mounted) {
+                                                          if (_scrollController
+                                                              .hasClients) {
+                                                            _scrollController
+                                                                .jumpTo(0);
+                                                          }
                                                           await _refreshOperationDate(
                                                             animateTransition:
                                                                 true,

@@ -59,6 +59,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.bySemanticsLabel('ACTIVITY incomplete'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
     expect(find.text('DAILY REVIEW'), findsOneWidget);
   });
 
@@ -76,9 +78,42 @@ void main() {
     expect(find.bySemanticsLabel('FOOD completed'), findsOneWidget);
     expect(find.bySemanticsLabel('TRAINING completed'), findsOneWidget);
     expect(find.bySemanticsLabel('ACTIVITY completed'), findsOneWidget);
+    expect(find.text('FINALIZE READY'), findsOneWidget);
   });
 
-  testWidgets('STATUS required validation rejects a missing body fat value', (
+  testWidgets('DAILY LOG rows open existing module routes', (tester) async {
+    morningFactNotifier.value = _morning();
+    foodSummaryNotifier.value = _food();
+    activitySummaryNotifier.value = _activity();
+    final openedRoutes = <String?>[];
+
+    await _pumpDashboard(
+      tester,
+      onGenerateRoute: (settings) {
+        openedRoutes.add(settings.name);
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => Scaffold(body: Text('ROUTE ${settings.name}')),
+        );
+      },
+    );
+
+    expect(find.text('FINALIZE READY'), findsOneWidget);
+    for (final entry in const [
+      ('STATUS completed', AppRoutes.morning),
+      ('FOOD completed', AppRoutes.food),
+      ('TRAINING not recorded optional', AppRoutes.training),
+      ('ACTIVITY completed', AppRoutes.activity),
+    ]) {
+      await tester.tap(find.bySemanticsLabel(entry.$1));
+      await tester.pumpAndSettle();
+      expect(openedRoutes.last, entry.$2);
+      Navigator.of(tester.element(find.text('ROUTE ${entry.$2}'))).pop();
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('STATUS completion preserves nullable body fat contract', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -95,7 +130,7 @@ void main() {
       ),
     );
 
-    expect(find.bySemanticsLabel('STATUS incomplete'), findsOneWidget);
+    expect(find.bySemanticsLabel('STATUS completed'), findsOneWidget);
   });
 
   testWidgets('DAILY LOG uses required error for incomplete Activity', (

@@ -17,6 +17,10 @@ class DailyLogCard extends StatelessWidget {
     required this.activitySummary,
     required this.trainingSummary,
     required this.onReview,
+    this.onStatusTap,
+    this.onFoodTap,
+    this.onTrainingTap,
+    this.onActivityTap,
   });
 
   final MorningFact? morningFact;
@@ -24,6 +28,10 @@ class DailyLogCard extends StatelessWidget {
   final ActivitySummary activitySummary;
   final TrainingSummary? trainingSummary;
   final VoidCallback? onReview;
+  final VoidCallback? onStatusTap;
+  final VoidCallback? onFoodTap;
+  final VoidCallback? onTrainingTap;
+  final VoidCallback? onActivityTap;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +76,7 @@ class DailyLogCard extends StatelessWidget {
                     child: _DailyLogEntryStatus(
                       label: 'STATUS',
                       state: statusState,
+                      onTap: onStatusTap,
                     ),
                   ),
                   SizedBox(
@@ -75,6 +84,7 @@ class DailyLogCard extends StatelessWidget {
                     child: _DailyLogEntryStatus(
                       label: 'FOOD',
                       state: foodState,
+                      onTap: onFoodTap,
                     ),
                   ),
                   SizedBox(
@@ -82,6 +92,7 @@ class DailyLogCard extends StatelessWidget {
                     child: _DailyLogEntryStatus(
                       label: 'TRAINING',
                       state: trainingState,
+                      onTap: onTrainingTap,
                     ),
                   ),
                   SizedBox(
@@ -89,12 +100,15 @@ class DailyLogCard extends StatelessWidget {
                     child: _DailyLogEntryStatus(
                       label: 'ACTIVITY',
                       state: activityState,
+                      onTap: onActivityTap,
                     ),
                   ),
                 ],
               );
             },
           ),
+          AppSpacing.gapMD,
+          _FinalizeReadiness(validation: validation),
           AppSpacing.gapMD,
           OperationButton(
             icon: Icons.fact_check_outlined,
@@ -110,10 +124,15 @@ class DailyLogCard extends StatelessWidget {
 enum _DailyLogEntryState { completed, requiredInvalid, optionalMissing }
 
 class _DailyLogEntryStatus extends StatelessWidget {
-  const _DailyLogEntryStatus({required this.label, required this.state});
+  const _DailyLogEntryStatus({
+    required this.label,
+    required this.state,
+    required this.onTap,
+  });
 
   final String label;
   final _DailyLogEntryState state;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -139,13 +158,78 @@ class _DailyLogEntryStatus extends StatelessWidget {
     return Semantics(
       label: '$label $semanticsState',
       container: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
+                  Icon(icon, color: color, size: 24),
+                  AppSpacing.gapXS,
+                  Icon(
+                    Icons.chevron_right,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FinalizeReadiness extends StatelessWidget {
+  const _FinalizeReadiness({required this.validation});
+
+  final DailyLogValidationResult validation;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = validation.canFinalize;
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = ready ? colorScheme.primary : colorScheme.error;
+    final blockers = validation.blockingModules
+        .map(DailyLogConfirmationValidation.moduleLabel)
+        .join(', ');
+    return Semantics(
+      key: const ValueKey('dashboard-finalize-readiness'),
+      label: ready ? 'FINALIZE READY' : 'FINALIZE BLOCKED $blockers',
+      container: true,
       child: ExcludeSemantics(
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+            Icon(
+              ready ? Icons.check_circle_outline : Icons.error_outline,
+              color: color,
             ),
-            Icon(icon, color: color, size: 24),
+            AppSpacing.gapSM,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ready ? 'FINALIZE READY' : 'FINALIZE BLOCKED',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: color),
+                  ),
+                  if (!ready) Text(blockers),
+                ],
+              ),
+            ),
           ],
         ),
       ),

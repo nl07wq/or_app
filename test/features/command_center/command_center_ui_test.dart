@@ -181,7 +181,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
-    expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
+    expect(find.text('NO DAILY DEBRIEF BACK NUMBER'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
       findsOneWidget,
@@ -281,7 +281,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
-    expect(find.text('NO DAILY DEBRIEF HISTORY'), findsOneWidget);
+    expect(find.text('NO DAILY DEBRIEF BACK NUMBER'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
       findsOneWidget,
@@ -292,57 +292,25 @@ void main() {
     tester,
   ) async {
     final timestamp = DateTime.utc(2026, 8, 1, 23);
-    final record = DailyDebriefRecord.initial(
+    final record = _dailyDebriefRecord(
+      localDate: '2026-08-02',
+      bodyEvaluation: 'LATEST BODY REVIEW',
+      timestamp: timestamp.add(const Duration(days: 1)),
+    );
+    final olderRecord = _dailyDebriefRecord(
       localDate: '2026-08-01',
-      sources: const DailyDebriefSources(
-        dailyAggregate: DailyDebriefDailyAggregateReference(
-          operationDate: '2026-08-01',
-          sourceType: 'records',
-          recordDigest:
-              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        ),
-        confirmation: DailyDebriefConfirmationReference(
-          recordId: 'confirmation:2026-08-01',
-          recordVersion: 2,
-          revision: 1,
-          snapshotDigest: '1234abcd',
-          recordDigest:
-              'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        ),
-        morningBrief: null,
-      ),
-      analysis: DailyDebriefAnalysis(
-        commanderIntentEvaluation: null,
-        domainEvaluations: DailyDebriefDomainEvaluations(
-          body: 'BODY REVIEW',
-          recovery: null,
-          condition: null,
-          work: null,
-          nutrition: null,
-          hydration: null,
-          activity: null,
-          training: null,
-        ),
-        crossAnalysis: DailyDebriefCrossAnalysis(
-          keyFactors: [],
-          interactions: [],
-          constraints: [],
-          resources: [],
-        ),
-        executionEvaluation: DailyDebriefExecutionEvaluation(
-          successes: [],
-          adjustments: [],
-        ),
-        nextDayHandoff: DailyDebriefNextDayHandoff(watchPoints: []),
-      ),
-      responseDigest:
-          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      bodyEvaluation: 'OLDER BODY REVIEW',
       timestamp: timestamp,
     );
     database.seed(
       IndexedDbStoreNames.dailyDebriefRecords,
       record.localDate,
       record.toRecord(),
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      olderRecord.localDate,
+      olderRecord.toRecord(),
     );
 
     await _pump(tester, width: 390);
@@ -352,11 +320,42 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
-    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    expect(find.text('DD-2026-08-02'), findsOneWidget);
+    expect(find.textContaining('LATEST BODY REVIEW'), findsOneWidget);
+    expect(find.textContaining('NOT ASSESSED'), findsWidgets);
     expect(
-      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
-      findsOneWidget,
+      find.byKey(const ValueKey('daily-debrief-history-2026-08-02')),
+      findsNothing,
     );
+    await tester.scrollUntilVisible(
+      find.text('CREATE DAILY DEBRIEF'),
+      500,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('daily-debrief-content')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+      500,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('daily-debrief-content')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('OLDER BODY REVIEW'), findsOneWidget);
+    expect(find.text('SOURCE REFERENCES'), findsOneWidget);
+    expect(find.text('PREVIOUS REVISIONS'), findsOneWidget);
   });
 
   testWidgets(
@@ -541,6 +540,58 @@ void main() {
 Finder _dailyCommandScrollable() => find.descendant(
   of: find.byKey(const ValueKey('daily-command-list')),
   matching: find.byType(Scrollable),
+);
+
+DailyDebriefRecord _dailyDebriefRecord({
+  required String localDate,
+  required String bodyEvaluation,
+  required DateTime timestamp,
+}) => DailyDebriefRecord.initial(
+  localDate: localDate,
+  sources: DailyDebriefSources(
+    dailyAggregate: DailyDebriefDailyAggregateReference(
+      operationDate: localDate,
+      sourceType: 'records',
+      recordDigest:
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    ),
+    confirmation: DailyDebriefConfirmationReference(
+      recordId: 'confirmation:$localDate',
+      recordVersion: 2,
+      revision: 1,
+      snapshotDigest: '1234abcd',
+      recordDigest:
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    ),
+    morningBrief: null,
+  ),
+  analysis: DailyDebriefAnalysis(
+    commanderIntentEvaluation: null,
+    domainEvaluations: DailyDebriefDomainEvaluations(
+      body: bodyEvaluation,
+      recovery: null,
+      condition: null,
+      work: null,
+      nutrition: null,
+      hydration: null,
+      activity: null,
+      training: null,
+    ),
+    crossAnalysis: DailyDebriefCrossAnalysis(
+      keyFactors: const [],
+      interactions: const [],
+      constraints: const [],
+      resources: const [],
+    ),
+    executionEvaluation: DailyDebriefExecutionEvaluation(
+      successes: const [],
+      adjustments: const [],
+    ),
+    nextDayHandoff: DailyDebriefNextDayHandoff(watchPoints: const []),
+  ),
+  responseDigest:
+      'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+  timestamp: timestamp,
 );
 
 MorningBriefRecord _morningBriefV2(String date) {
