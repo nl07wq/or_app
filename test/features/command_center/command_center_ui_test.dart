@@ -48,25 +48,16 @@ void main() {
     expect(find.textContaining('STATUSを入力'), findsNothing);
     expect(find.text('COMMANDER INTENT'), findsNothing);
     expect(find.text('ARGO COMMENT'), findsNothing);
-    await tester.scrollUntilVisible(
-      find.text('FINALIZE BLOCKED'),
-      500,
-      scrollable: _dailyCommandScrollable(),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('daily-review-finalize-blocked')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('daily-review-blockers')), findsOneWidget);
-    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
-    expect(find.textContaining('不足:'), findsNothing);
-    expect(find.text('FINALIZE DAY'), findsOneWidget);
+    expect(find.text('OPERATION MODULES'), findsNothing);
+    expect(find.text('DAILY REVIEW'), findsNothing);
+    expect(find.text('FINALIZE BLOCKED'), findsNothing);
+    expect(find.text('STATUS, FOOD, ACTIVITY'), findsNothing);
+    expect(find.text('VIEW DAILY REVIEW'), findsNothing);
+    expect(find.text('FINALIZE DAY'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('uses shared state and approved Daily Command order', (
+  testWidgets('keeps assessment while retiring operation hub sections', (
     tester,
   ) async {
     morningFactNotifier.value = _status();
@@ -97,25 +88,12 @@ void main() {
     expect(find.text('ARGO COMMENT'), findsNothing);
     expect(find.text('PRIMARY CONSTRAINT'), findsOneWidget);
     expect(find.text('AVAILABLE RESOURCE'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('OPERATION MODULES'),
-      500,
-      scrollable: _dailyCommandScrollable(),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Recorded'), findsNWidgets(3));
-    expect(find.text('Optional'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('FINALIZE READY'),
-      500,
-      scrollable: _dailyCommandScrollable(),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('FINALIZE READY'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('daily-review-finalize-ready')),
-      findsOneWidget,
-    );
+    expect(find.text('OPERATION MODULES'), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(find.text('DAILY REVIEW'), findsNothing);
+    expect(find.text('FINALIZE READY'), findsNothing);
+    expect(find.text('VIEW DAILY REVIEW'), findsNothing);
+    expect(find.text('FINALIZE DAY'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('daily-command-list')),
@@ -214,28 +192,15 @@ void main() {
   });
 
   testWidgets('keeps Data Center inside Command Center tabs', (tester) async {
-    await _pump(tester, width: 390);
+    await _pump(tester, width: 900);
 
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(-250, 0),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('DATA CENTER').first);
+    await tester.tap(find.widgetWithText(TextButton, 'DATA CENTER').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('SYSTEM STATE'), findsOneWidget);
-    expect(find.text('2026-08-01'), findsOneWidget);
-    expect(find.text('BACKUP SCHEMA 3.0'), findsOneWidget);
-    await tester.drag(
-      find.byKey(const ValueKey('data-center-content')),
-      const Offset(0, -1000),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('NORMAL SYNC'), findsNothing);
-    expect(find.text('OPEN ORLO SYNC'), findsNothing);
-    expect(find.text('SYSTEM MONITORING'), findsOneWidget);
-    expect(find.textContaining('OPERATION SYNC'), findsNothing);
+    expect(find.byKey(const ValueKey('data-center-content')), findsOneWidget);
+    expect(find.text('HISTORY'), findsNWidgets(2));
+    expect(find.text('OPEN HISTORY'), findsOneWidget);
+    expect(find.text('DAILY AGGREGATE RECORDS'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
 
@@ -471,7 +436,7 @@ void main() {
     });
   }
 
-  testWidgets('shows recovery action instead of normal finalize', (
+  testWidgets('keeps recovery cycle state without review actions', (
     tester,
   ) async {
     final date = OperationLocalDate.parse('2026-08-01');
@@ -495,10 +460,9 @@ void main() {
     );
 
     await _pump(tester, width: 390);
-    await _scrollDailyCommand(tester, -900);
-
-    expect(find.text('RECOVERY REQUIRED'), findsOneWidget);
-    expect(find.text('RESUME FINALIZE'), findsOneWidget);
+    expect(find.textContaining('RECOVERY REQUIRED'), findsOneWidget);
+    expect(find.text('DAILY REVIEW'), findsNothing);
+    expect(find.text('RESUME FINALIZE'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsNothing);
   });
 
@@ -536,11 +500,6 @@ void main() {
     });
   }
 }
-
-Finder _dailyCommandScrollable() => find.descendant(
-  of: find.byKey(const ValueKey('daily-command-list')),
-  matching: find.byType(Scrollable),
-);
 
 DailyDebriefRecord _dailyDebriefRecord({
   required String localDate,

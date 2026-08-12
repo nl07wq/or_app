@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/navigation/app_routes.dart';
-import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../activity/models/activity_summary_state.dart';
-import '../../dashboard/log_confirmation_review_page.dart';
 import '../../food/models/food_summary_state.dart';
 import '../../morning/models/morning_fact_state.dart';
-import '../../operation_date/models/daily_finalize_result.dart';
-import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../models/daily_command_read_model.dart';
@@ -36,7 +31,6 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
   late final PageController _pageController;
   var _currentPage = 1;
   var _refreshToken = 0;
-  var _isRecovering = false;
 
   @override
   void initState() {
@@ -76,9 +70,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
                 const BriefDebriefPage(),
                 _DailyCommandPage(
                   refreshToken: _refreshToken,
-                  isRecovering: _isRecovering,
                   onRefresh: _refresh,
-                  onRecover: _recover,
                 ),
                 const DataCenterPage(),
               ],
@@ -88,43 +80,16 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
       ),
     );
   }
-
-  Future<void> _recover() async {
-    if (_isRecovering) return;
-    setState(() => _isRecovering = true);
-    try {
-      await DailyFinalizeCoordinatorFactory.production().recover();
-      if (mounted) _refresh();
-    } on DailyFinalizeException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('復旧に失敗しました: ${error.code.name}')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('日次確定処理を再開できませんでした。')));
-      }
-    } finally {
-      if (mounted) setState(() => _isRecovering = false);
-    }
-  }
 }
 
 class _DailyCommandPage extends StatelessWidget {
   const _DailyCommandPage({
     required this.refreshToken,
-    required this.isRecovering,
     required this.onRefresh,
-    required this.onRecover,
   });
 
   final int refreshToken;
-  final bool isRecovering;
   final VoidCallback onRefresh;
-  final VoidCallback onRecover;
 
   @override
   Widget build(BuildContext context) {
@@ -153,8 +118,6 @@ class _DailyCommandPage extends StatelessWidget {
               return _DailyCommandContent(
                 model: result.model,
                 assessment: result.assessment,
-                isRecovering: isRecovering,
-                onRecover: onRecover,
               );
             },
           ),
@@ -195,17 +158,10 @@ class _DailyCommandPage extends StatelessWidget {
 }
 
 class _DailyCommandContent extends StatelessWidget {
-  const _DailyCommandContent({
-    required this.model,
-    required this.assessment,
-    required this.isRecovering,
-    required this.onRecover,
-  });
+  const _DailyCommandContent({required this.model, required this.assessment});
 
   final DailyCommandReadModel model;
   final DailyAssessment assessment;
-  final bool isRecovering;
-  final VoidCallback onRecover;
 
   @override
   Widget build(BuildContext context) {
@@ -231,155 +187,8 @@ class _DailyCommandContent extends StatelessWidget {
         ),
         AppSpacing.gapSM,
         DailyAssessmentView(assessment: assessment),
-        AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.widgets_outlined,
-          title: 'OPERATION MODULES',
-        ),
-        AppSpacing.gapSM,
-        ..._moduleCards(context),
-        AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.fact_check_outlined,
-          title: 'DAILY REVIEW',
-        ),
-        AppSpacing.gapSM,
-        _reviewCard(context),
         AppSpacing.gapLG,
       ],
-    );
-  }
-
-  List<Widget> _moduleCards(BuildContext context) {
-    final entries = [
-      ('STATUS', model.statusModuleState, AppRoutes.morning),
-      ('FOOD', model.foodModuleState, AppRoutes.food),
-      ('TRAINING', model.trainingModuleState, AppRoutes.training),
-      ('ACTIVITY', model.activityModuleState, AppRoutes.activity),
-    ];
-    return [
-      for (final entry in entries) ...[
-        OperationCard(
-          child: Row(
-            children: [
-              Icon(
-                _moduleIcon(entry.$2),
-                color: _moduleColor(context, entry.$2),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Text(entry.$1)),
-              Text(_moduleLabel(entry.$2)),
-              IconButton(
-                tooltip: '${entry.$1}を開く',
-                onPressed: model.isHistoricalView
-                    ? null
-                    : () => Navigator.pushNamed(context, entry.$3),
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-        ),
-        AppSpacing.gapSM,
-      ],
-    ];
-  }
-
-  Widget _reviewCard(BuildContext context) {
-    if (model.recoveryRequired) {
-      return OperationCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'RECOVERY REQUIRED',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            AppSpacing.gapSM,
-            Text('対象日 ${model.operationDate} / ${model.persistentPhase.name}'),
-            AppSpacing.gapMD,
-            OperationButton(
-              icon: Icons.restart_alt_outlined,
-              text: isRecovering ? 'RECOVERING...' : 'RESUME FINALIZE',
-              onPressed: isRecovering ? null : onRecover,
-            ),
-          ],
-        ),
-      );
-    }
-    final blockers = model.finalizeBlockingReasons
-        .map(DailyLogConfirmationValidation.moduleLabel)
-        .join(', ');
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                model.canFinalize
-                    ? Icons.check_circle_outline
-                    : Icons.cancel_outlined,
-                key: ValueKey(
-                  model.canFinalize
-                      ? 'daily-review-finalize-ready'
-                      : 'daily-review-finalize-blocked',
-                ),
-                color: model.canFinalize
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                model.canFinalize ? 'FINALIZE READY' : 'FINALIZE BLOCKED',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ],
-          ),
-          if (blockers.isNotEmpty) ...[
-            AppSpacing.gapSM,
-            Row(
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  key: const ValueKey('daily-review-blockers'),
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(width: 8),
-                Expanded(child: Text(blockers)),
-              ],
-            ),
-          ],
-          AppSpacing.gapMD,
-          OperationButton(
-            icon: Icons.preview_outlined,
-            text: 'VIEW DAILY REVIEW',
-            onPressed: model.isHistoricalView
-                ? null
-                : () => _openReview(context),
-          ),
-          AppSpacing.gapSM,
-          OperationButton(
-            icon: Icons.verified_outlined,
-            text: 'FINALIZE DAY',
-            onPressed: model.canFinalize ? () => _openReview(context) : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _openReview(BuildContext context) {
-    Navigator.pushNamed(
-      context,
-      AppRoutes.logConfirmationReview,
-      arguments: LogConfirmationReviewPage(
-        morning: morningFactNotifier.value,
-        food: foodSummaryNotifier.value,
-        activity: activitySummaryNotifier.value,
-        training: trainingSummaryNotifier.value,
-        estimatedTotalBurn: model.estimatedTotalBurnKcal,
-        targetDate: DateTime.parse(model.operationDate),
-      ),
     );
   }
 }
@@ -459,23 +268,3 @@ String _cycleLabel(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.finalizing => 'FINALIZING',
   DailyCommandCycleState.recoveryRequired => 'RECOVERY REQUIRED',
 };
-
-String _moduleLabel(DailyCommandModuleState state) => switch (state) {
-  DailyCommandModuleState.missing => 'Missing',
-  DailyCommandModuleState.recorded => 'Recorded',
-  DailyCommandModuleState.invalid => 'Invalid',
-  DailyCommandModuleState.optionalMissing => 'Optional',
-};
-
-IconData _moduleIcon(DailyCommandModuleState state) => switch (state) {
-  DailyCommandModuleState.recorded => Icons.check_circle_outline,
-  DailyCommandModuleState.optionalMissing => Icons.circle_outlined,
-  _ => Icons.error_outline,
-};
-
-Color _moduleColor(BuildContext context, DailyCommandModuleState state) =>
-    state == DailyCommandModuleState.recorded
-    ? Theme.of(context).colorScheme.primary
-    : state == DailyCommandModuleState.optionalMissing
-    ? Theme.of(context).colorScheme.onSurfaceVariant
-    : Theme.of(context).colorScheme.error;
