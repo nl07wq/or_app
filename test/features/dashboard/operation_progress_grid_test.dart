@@ -164,20 +164,20 @@ void main() {
         find.ancestor(of: month, matching: find.byType(Expanded)),
         findsNothing,
       );
-      expect(tester.getSize(month), const Size(52, 36));
-      expect(tester.getSize(day), const Size(52, 36));
-      expect(tester.getSize(weekday), const Size(52, 36));
-      expect(tester.getSize(row).width, 168);
+      expect(tester.getSize(month), const Size(46, 36));
+      expect(tester.getSize(day), const Size(46, 36));
+      expect(tester.getSize(weekday), const Size(46, 36));
+      expect(tester.getSize(row).width, 150);
       expect(
         tester.getSize(row).width,
         lessThan(tester.getSize(operationDateCard).width * 0.75),
       );
       expect(tester.getTopLeft(day).dx - tester.getTopRight(month).dx, 6);
       expect(tester.getTopLeft(weekday).dx - tester.getTopRight(day).dx, 6);
-      expect(tester.getSize(clock), const Size(138, 36));
+      expect(tester.getSize(clock), const Size(156, 36));
       for (var index = 0; index < 6; index++) {
         final tile = find.byKey(ValueKey('dashboard-time-tile-$index'));
-        expect(tester.getSize(tile), const Size(18, 36));
+        expect(tester.getSize(tile), const Size(21, 36));
         if (index > 0) {
           final previous = find.byKey(
             ValueKey('dashboard-time-tile-${index - 1}'),
@@ -188,6 +188,14 @@ void main() {
           );
         }
       }
+      expect(
+        find.byKey(const ValueKey('dashboard-time-colon-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('dashboard-time-colon-2')),
+        findsOneWidget,
+      );
       expect(
         tester.getTopLeft(row).dx,
         lessThan(tester.getCenter(operationDateCard).dx),
@@ -200,6 +208,7 @@ void main() {
       } else {
         expect(tester.getTopLeft(clock).dy, tester.getTopLeft(row).dy);
         expect(tester.getTopLeft(clock).dx - tester.getTopRight(row).dx, 12);
+        expect(tester.getTopRight(clock).dx - tester.getTopLeft(row).dx, 318);
       }
       expect(tester.takeException(), isNull);
     }

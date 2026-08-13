@@ -297,6 +297,7 @@ class _OperationDateCard extends StatelessWidget {
             OperationDateFlipCalendar(
               operationDateFuture: operationDateFuture,
               transitionToken: transitionToken,
+              tileWidth: 46,
             ),
             const _DashboardLiveFlipClock(),
           ],
@@ -309,8 +310,8 @@ class _OperationDateCard extends StatelessWidget {
 class _DashboardLiveFlipClock extends StatefulWidget {
   const _DashboardLiveFlipClock();
 
-  static const tileWidth = 18.0;
-  static const tileHeight = OperationDateFlipCalendar.tileHeight;
+  static const tileWidth = 21.0;
+  static const tileHeight = OperationDateFlipCalendar.defaultTileHeight;
   static const tileGap = 6.0;
 
   @override
@@ -418,7 +419,22 @@ class _DashboardLiveFlipClockState extends State<_DashboardLiveFlipClock>
           children: [
             for (var index = 0; index < values.length; index++) ...[
               if (index > 0)
-                const SizedBox(width: _DashboardLiveFlipClock.tileGap),
+                SizedBox(
+                  width: _DashboardLiveFlipClock.tileGap,
+                  child: index == 2 || index == 4
+                      ? Center(
+                          child: Text(
+                            ':',
+                            key: ValueKey('dashboard-time-colon-${index ~/ 2}'),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  height: 1,
+                                ),
+                          ),
+                        )
+                      : null,
+                ),
               OperationMechanicalFlipTile(
                 key: ValueKey('dashboard-time-tile-$index'),
                 value: values[index],

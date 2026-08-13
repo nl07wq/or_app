@@ -9,16 +9,22 @@ class OperationDateFlipCalendar extends StatefulWidget {
     required this.transitionToken,
     super.key,
     this.onDateDisplayed,
+    this.tileWidth = defaultTileWidth,
+    this.tileHeight = defaultTileHeight,
+    this.tileGap = defaultTileGap,
   });
 
-  static const tileWidth = 52.0;
-  static const tileHeight = 36.0;
-  static const tileGap = 6.0;
+  static const defaultTileWidth = 52.0;
+  static const defaultTileHeight = 36.0;
+  static const defaultTileGap = 6.0;
   static const maximumTransitionDuration = Duration(milliseconds: 440);
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final ValueChanged<OperationLocalDate>? onDateDisplayed;
+  final double tileWidth;
+  final double tileHeight;
+  final double tileGap;
 
   @override
   State<OperationDateFlipCalendar> createState() =>
@@ -53,13 +59,25 @@ class _OperationDateFlipCalendarState extends State<OperationDateFlipCalendar> {
       final date = _displayedDate;
       return date == null
           ? Text('LOADING...', style: Theme.of(context).textTheme.titleSmall)
-          : _OperationDateFlipRow(date: date, animate: animate);
+          : _OperationDateFlipRow(
+              date: date,
+              animate: animate,
+              tileWidth: widget.tileWidth,
+              tileHeight: widget.tileHeight,
+              tileGap: widget.tileGap,
+            );
     },
   );
 }
 
 class _OperationDateFlipRow extends StatefulWidget {
-  const _OperationDateFlipRow({required this.date, required this.animate});
+  const _OperationDateFlipRow({
+    required this.date,
+    required this.animate,
+    required this.tileWidth,
+    required this.tileHeight,
+    required this.tileGap,
+  });
 
   static const _months = [
     'JAN',
@@ -79,6 +97,9 @@ class _OperationDateFlipRow extends StatefulWidget {
 
   final OperationLocalDate date;
   final bool animate;
+  final double tileWidth;
+  final double tileHeight;
+  final double tileGap;
 
   @override
   State<_OperationDateFlipRow> createState() => _OperationDateFlipRowState();
@@ -117,13 +138,12 @@ class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var index = 0; index < values.length; index++) ...[
-              if (index > 0)
-                const SizedBox(width: OperationDateFlipCalendar.tileGap),
+              if (index > 0) SizedBox(width: widget.tileGap),
               OperationMechanicalFlipTile(
                 key: ValueKey('operation-date-tile-$index'),
                 value: values[index],
-                width: OperationDateFlipCalendar.tileWidth,
-                height: OperationDateFlipCalendar.tileHeight,
+                width: widget.tileWidth,
+                height: widget.tileHeight,
                 animate: widget.animate,
                 startDelay: _startDelays[index] ?? Duration.zero,
                 animationDuration: index == 1
