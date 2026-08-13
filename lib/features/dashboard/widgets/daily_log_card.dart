@@ -22,6 +22,16 @@ import '../../repositories/app_repository_container.dart';
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
 
+@visibleForTesting
+Future<void> executeDailyLogFinalize({
+  required Future<void> Function() finalize,
+  required OperationLocalDate previousOperationDate,
+  required DailyLogReviewCompleted? onReviewCompleted,
+}) async {
+  await finalize();
+  await onReviewCompleted?.call(previousOperationDate);
+}
+
 class DailyLogSection extends StatefulWidget {
   const DailyLogSection({
     super.key,
@@ -135,12 +145,18 @@ class _DailyLogSectionState extends State<DailyLogSection> {
     final state = await AppRepositoryRegistry.container.operationState
         .requireCurrent();
     final previousDate = state.operationDate;
+    final onReviewCompleted = widget.onReviewCompleted;
     try {
-      await DailyFinalizeCoordinatorFactory.production().finalize(
-        targetLocalDate: previousDate,
+      await executeDailyLogFinalize(
+        finalize: () async {
+          await DailyFinalizeCoordinatorFactory.production().finalize(
+            targetLocalDate: previousDate,
+          );
+        },
+        previousOperationDate: previousDate,
+        onReviewCompleted: onReviewCompleted,
       );
       if (!mounted) return;
-      await widget.onReviewCompleted?.call(previousDate);
       _reloadCloseState();
     } catch (error) {
       if (!mounted) return;

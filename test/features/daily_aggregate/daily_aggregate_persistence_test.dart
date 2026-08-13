@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 import 'package:or_app/features/daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
 import 'package:or_app/features/daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
@@ -58,15 +59,55 @@ void main() {
     expect(saved?.trainingPerformed, isTrue);
   });
 
-  test('undo last finalize deletes the target aggregate', () async {
-    final fixture = await _fixture();
-    await fixture.close('2026-08-09');
-    final inspection = await fixture.undo.inspect();
+  test(
+    'undo restores prepared close and preserves finalized artifacts',
+    () async {
+      final fixture = await _fixture();
+      await fixture.close('2026-08-09');
+      final confirmationBefore = await fixture.confirmations
+          .findPersistedByLocalDate('2026-08-09');
+      final aggregateBefore = await fixture.aggregates.getByDate('2026-08-09');
+      final debriefRecord = <String, Object?>{
+        'localDate': '2026-08-09',
+        'revision': 3,
+        'previousRevisions': const [1, 2],
+      };
+      fixture.database.seed(
+        IndexedDbStoreNames.dailyDebriefRecords,
+        '2026-08-09',
+        debriefRecord,
+      );
+      final inspection = await fixture.undo.inspect();
 
-    await fixture.undo.undo(expectedRevision: inspection.revision);
+      await fixture.undo.undo(expectedRevision: inspection.revision);
 
-    expect(await fixture.aggregates.getByDate('2026-08-09'), isNull);
-  });
+      final state = await fixture.operationState.requireCurrent();
+      expect(state.operationDate.value, '2026-08-09');
+      expect(state.phase, OperationPhase.awaitingDebrief);
+      expect(state.lastFinalizedDate, isNull);
+      expect(state.undoableFinalizeDate, isNull);
+      expect(state.activeAttempt?.confirmationId, 'confirmation:2026-08-09');
+      expect(
+        (await fixture.confirmations.findPersistedByLocalDate(
+          '2026-08-09',
+        ))?.toRecord(),
+        confirmationBefore?.toRecord(),
+      );
+      expect(
+        (await fixture.aggregates.getByDate('2026-08-09'))?.toJson(),
+        aggregateBefore?.toJson(),
+      );
+      expect(
+        fixture.database.rawRecord(
+          IndexedDbStoreNames.dailyDebriefRecords,
+          '2026-08-09',
+        ),
+        debriefRecord,
+      );
+      await fixture.coordinator.validateAwaitingState(state);
+      expect((await fixture.undo.inspect()).canUndo, isFalse);
+    },
+  );
 
   test('prepared daily debrief does not issue finalize undo', () async {
     final fixture = await _fixture();
@@ -146,6 +187,7 @@ Future<_Fixture> _fixture({double Function()? weight}) async {
     now: () => DateTime.utc(2026, 8, 9, 12),
   );
   return _Fixture(
+    database: database,
     aggregates: aggregates,
     confirmations: confirmations,
     operationState: operationState,
@@ -187,6 +229,7 @@ DailyAggregateV1 _aggregate(
 
 class _Fixture {
   const _Fixture({
+    required this.database,
     required this.aggregates,
     required this.confirmations,
     required this.operationState,
@@ -194,6 +237,7 @@ class _Fixture {
     required this.undo,
   });
 
+  final FakeIndexedDbDatabase database;
   final IndexedDbDailyAggregateRepository aggregates;
   final IndexedDbDailyLogConfirmationRepository confirmations;
   final IndexedDbOperationStateRepository operationState;

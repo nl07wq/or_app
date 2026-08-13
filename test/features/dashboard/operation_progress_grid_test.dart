@@ -14,9 +14,11 @@ import 'package:or_app/core/widgets/operation_flip_tile.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
+import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
@@ -37,6 +39,39 @@ void main() {
     activitySummaryNotifier.value = const ActivitySummary.empty();
     trainingSummaryNotifier.value = null;
     morningBriefRevisionNotifier.value = 0;
+  });
+
+  test('finalize success is consumed once by its origin owner', () async {
+    final date = OperationLocalDate.parse('2026-08-11');
+    var finalized = 0;
+    var consumed = 0;
+
+    await executeDailyLogFinalize(
+      finalize: () async => finalized++,
+      previousOperationDate: date,
+      onReviewCompleted: (received) async {
+        expect(received, date);
+        consumed++;
+      },
+    );
+
+    expect(finalized, 1);
+    expect(consumed, 1);
+  });
+
+  test('finalize failure is not consumed by an origin owner', () async {
+    var consumed = 0;
+
+    await expectLater(
+      executeDailyLogFinalize(
+        finalize: () async => throw StateError('finalize failed'),
+        previousOperationDate: OperationLocalDate.parse('2026-08-11'),
+        onReviewCompleted: (_) async => consumed++,
+      ),
+      throwsStateError,
+    );
+
+    expect(consumed, 0);
   });
 
   testWidgets('uses the approved two-column order and full-width ACTIVITY', (
@@ -142,7 +177,7 @@ void main() {
     }
   });
 
-  testWidgets('successful DAILY REVIEW return flips only changed date tiles', (
+  testWidgets('Dashboard finalize owner returns top and flips changed tiles', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -178,18 +213,25 @@ void main() {
     expect(find.text('11'), findsOneWidget);
     expect(find.text('TUE'), findsOneWidget);
 
-    await Scrollable.ensureVisible(
-      tester.element(find.text('DAILY REVIEW')),
-      alignment: 0.5,
+    await tester.scrollUntilVisible(
+      find.byType(DailyLogSection),
+      300,
+      scrollable: _dashboardScrollable(),
     );
     await tester.pump();
     expect(_dashboardScrollPosition(tester).pixels, greaterThan(0));
-    await tester.tap(find.text('DAILY REVIEW'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('COMPLETE FINALIZE'));
+    final owner = tester.widget<DailyLogSection>(find.byType(DailyLogSection));
+    seedOperationState(database, '2026-08-12');
+    final transition = owner.onReviewCompleted!(
+      OperationLocalDate.parse('2026-08-11'),
+    );
     await tester.pump();
+    await tester.pump();
+    await transition;
 
     expect(_dashboardScrollPosition(tester).pixels, 0);
+    expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'COMMAND CENTER'), findsNothing);
     expect(find.text('AUG'), findsOneWidget);
     expect(find.text('11'), findsOneWidget);
     expect(find.text('12'), findsNothing);

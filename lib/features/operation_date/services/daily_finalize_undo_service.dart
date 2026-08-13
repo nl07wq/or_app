@@ -3,8 +3,8 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../activity/models/activity_draft.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../daily_log_confirmation/services/daily_log_confirmation_source_snapshot.dart';
-import '../../daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
 import '../../import_export/services/backup_canonical_codec.dart';
+import '../models/operation_active_attempt.dart';
 import '../models/operation_local_date.dart';
 import '../models/operation_state.dart';
 
@@ -134,28 +134,31 @@ class DailyFinalizeUndoService {
           final confirmationsBefore = await transaction.findAll(
             IndexedDbStoreNames.dailyLogConfirmations,
           );
-          final otherConfirmationsBefore = _confirmationDigest(
-            confirmationsBefore,
-            excludedId: context.targetConfirmation.id,
+          final confirmationRecordsBefore = _recordsDigest(confirmationsBefore);
+          final aggregateRecordsBefore = _recordsDigest(
+            await transaction.findAll(
+              IndexedDbStoreNames.dailyAggregateRecords,
+            ),
           );
-
-          await transaction.deleteById(
-            IndexedDbStoreNames.dailyLogConfirmations,
-            context.targetConfirmation.id,
+          final confirmationDigest = BackupCanonicalCodec.digest(
+            context.targetConfirmation.data.toJson(),
           );
-          await IndexedDbDailyAggregateRepository(
-            _database,
-          ).deleteByDateInTransaction(transaction, context.target.value);
 
           final nextState = OperationState(
             operationDate: context.target,
-            phase: OperationPhase.open,
+            phase: OperationPhase.awaitingDebrief,
             revision: context.state.revision + 1,
             lastFinalizedDate: null,
             undoableFinalizeDate: null,
             undoableFinalizeConfirmationId: null,
             undoableFinalizeCreatedAt: null,
-            activeAttempt: null,
+            activeAttempt: OperationActiveAttempt(
+              idempotencyKey: 'daily-finalize:${context.target.value}',
+              targetLocalDate: context.target,
+              startedAt: context.targetConfirmation.updatedAt,
+              confirmationId: context.targetConfirmation.id,
+              confirmationDigest: confirmationDigest,
+            ),
             createdAt: context.state.createdAt,
             updatedAt: _nextTimestamp(context.state.updatedAt),
           );
@@ -168,11 +171,15 @@ class DailyFinalizeUndoService {
             IndexedDbStoreNames.dailyLogConfirmations,
             context.targetConfirmation.id,
           );
-          if (targetReadBack != null) {
+          if (targetReadBack == null ||
+              !_sameRecord(
+                targetReadBack,
+                context.targetConfirmation.toRecord(),
+              )) {
             throw const DailyFinalizeUndoException(
               code: DailyFinalizeUndoErrorCode.readBackFailed,
               stage: 'confirmationReadBack',
-              message: '対象Confirmationの削除を確認できません。',
+              message: '対象Confirmationの不変性確認に失敗しました。',
             );
           }
 
@@ -188,16 +195,21 @@ class DailyFinalizeUndoService {
           final confirmationsAfter = await transaction.findAll(
             IndexedDbStoreNames.dailyLogConfirmations,
           );
-          final otherConfirmationsAfter = _confirmationDigest(
-            confirmationsAfter,
-            excludedId: context.targetConfirmation.id,
-          );
-          if (confirmationsAfter.length != confirmationsBefore.length - 1 ||
-              otherConfirmationsAfter != otherConfirmationsBefore) {
+          if (_recordsDigest(confirmationsAfter) != confirmationRecordsBefore) {
             throw const DailyFinalizeUndoException(
               code: DailyFinalizeUndoErrorCode.readBackFailed,
-              stage: 'otherConfirmationsReadBack',
-              message: '対象外Confirmationの不変性確認に失敗しました。',
+              stage: 'confirmationsReadBack',
+              message: 'Confirmationの不変性確認に失敗しました。',
+            );
+          }
+          final aggregatesAfter = await transaction.findAll(
+            IndexedDbStoreNames.dailyAggregateRecords,
+          );
+          if (_recordsDigest(aggregatesAfter) != aggregateRecordsBefore) {
+            throw const DailyFinalizeUndoException(
+              code: DailyFinalizeUndoErrorCode.readBackFailed,
+              stage: 'dailyAggregatesReadBack',
+              message: 'Daily Aggregateの不変性確認に失敗しました。',
             );
           }
 
@@ -361,13 +373,6 @@ class DailyFinalizeUndoService {
     );
     return result;
   }
-
-  String _confirmationDigest(
-    Iterable<Map<String, Object?>> records, {
-    required String excludedId,
-  }) => _recordsDigest(
-    records.where((record) => record['id'] != excludedId).toList(),
-  );
 
   String _recordsDigest(List<Map<String, Object?>> records) {
     final encoded = [

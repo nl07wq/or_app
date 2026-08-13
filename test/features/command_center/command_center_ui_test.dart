@@ -9,6 +9,7 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
+import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
@@ -230,50 +231,30 @@ void main() {
     'Command Center finalize returns to top and flips its shared calendar once',
     (tester) async {
       seedOperationState(database, '2026-08-11');
-      await _pump(
-        tester,
-        width: 390,
-        reviewPageBuilder: (context) => Scaffold(
-          body: Column(
-            children: [
-              TextButton(
-                onPressed: () {
-                  seedOperationState(database, '2026-08-12');
-                  morningFactNotifier.value = _status();
-                },
-                child: const Text('RESTORE NEXT DATE'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('COMPLETE CC FINALIZE'),
-              ),
-            ],
-          ),
-        ),
-      );
+      await _pump(tester, width: 390);
 
       await tester.scrollUntilVisible(
-        find.text('DAILY REVIEW'),
+        find.byType(DailyLogSection),
         300,
         scrollable: _dailyCommandScrollable(),
       );
-      await Scrollable.ensureVisible(
-        tester.element(find.text('DAILY REVIEW')),
-        alignment: 0.5,
-      );
       await tester.pump();
       expect(_dailyCommandScrollPosition(tester).pixels, greaterThan(0));
-      await tester.tap(find.text('DAILY REVIEW'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('RESTORE NEXT DATE'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('COMPLETE CC FINALIZE'));
+      final owner = tester.widget<DailyLogSection>(
+        find.byType(DailyLogSection),
+      );
+      seedOperationState(database, '2026-08-12');
+      final transition = owner.onReviewCompleted!(
+        OperationLocalDate.parse('2026-08-11'),
+      );
       await tester.pump();
       await tester.pump();
       await tester.pump();
       await tester.pump();
 
       expect(_dailyCommandScrollPosition(tester).pixels, 0);
+      expect(find.widgetWithText(AppBar, 'COMMAND CENTER'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsNothing);
       expect(find.text('AUG'), findsOneWidget);
       final dayTile = find.byKey(const ValueKey('operation-date-tile-1'));
       final weekdayTile = find.byKey(const ValueKey('operation-date-tile-2'));
@@ -314,6 +295,7 @@ void main() {
         findsOneWidget,
       );
       await tester.pumpAndSettle();
+      await transition;
       expect(find.text('12'), findsOneWidget);
       expect(find.text('WED'), findsOneWidget);
       expect(
