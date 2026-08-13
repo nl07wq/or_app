@@ -98,7 +98,7 @@ class DailyFinalizeUndoService {
             targetDate: context.target.value,
             canUndo: true,
             revision: context.state.revision,
-            isAwaitingDailyClose: context.isAwaitingDailyClose,
+            isAwaitingDailyClose: false,
           );
         },
       );
@@ -106,12 +106,10 @@ class DailyFinalizeUndoService {
       final state = await _requireStateOutsideTransaction();
       return DailyFinalizeUndoInspection(
         currentOperationDate: state.operationDate.value,
-        targetDate: state.phase == OperationPhase.awaitingDebrief
-            ? state.operationDate.value
-            : state.undoableFinalizeDate?.value ?? '',
+        targetDate: state.undoableFinalizeDate?.value ?? '',
         canUndo: false,
         revision: state.revision,
-        isAwaitingDailyClose: state.phase == OperationPhase.awaitingDebrief,
+        isAwaitingDailyClose: false,
         blockingError: error,
       );
     }
@@ -149,25 +147,18 @@ class DailyFinalizeUndoService {
             _database,
           ).deleteByDateInTransaction(transaction, context.target.value);
 
-          final nextState = context.isAwaitingDailyClose
-              ? context.state.copyWith(
-                  phase: OperationPhase.open,
-                  revision: context.state.revision + 1,
-                  clearActiveAttempt: true,
-                  updatedAt: _nextTimestamp(context.state.updatedAt),
-                )
-              : OperationState(
-                  operationDate: context.target,
-                  phase: OperationPhase.open,
-                  revision: context.state.revision + 1,
-                  lastFinalizedDate: null,
-                  undoableFinalizeDate: null,
-                  undoableFinalizeConfirmationId: null,
-                  undoableFinalizeCreatedAt: null,
-                  activeAttempt: null,
-                  createdAt: context.state.createdAt,
-                  updatedAt: _nextTimestamp(context.state.updatedAt),
-                );
+          final nextState = OperationState(
+            operationDate: context.target,
+            phase: OperationPhase.open,
+            revision: context.state.revision + 1,
+            lastFinalizedDate: null,
+            undoableFinalizeDate: null,
+            undoableFinalizeConfirmationId: null,
+            undoableFinalizeCreatedAt: null,
+            activeAttempt: null,
+            createdAt: context.state.createdAt,
+            updatedAt: _nextTimestamp(context.state.updatedAt),
+          );
           await transaction.put(
             IndexedDbStoreNames.operationState,
             nextState.toRecord(),
@@ -239,21 +230,15 @@ class DailyFinalizeUndoService {
 
   Future<_UndoContext> _inspect(IndexedDbTransaction transaction) async {
     final state = await _requireState(transaction);
-    final isAwaitingDailyClose = state.phase == OperationPhase.awaitingDebrief;
-    if (!isAwaitingDailyClose &&
-        (state.phase != OperationPhase.open || state.activeAttempt != null)) {
+    if (state.phase != OperationPhase.open || state.activeAttempt != null) {
       throw const DailyFinalizeUndoException(
         code: DailyFinalizeUndoErrorCode.operationStateNotOpen,
         stage: 'operationState',
         message: 'Operation StateがUNDO可能な通常状態ではありません。',
       );
     }
-    final target = isAwaitingDailyClose
-        ? state.operationDate
-        : state.undoableFinalizeDate;
-    final confirmationId = isAwaitingDailyClose
-        ? state.activeAttempt?.confirmationId
-        : state.undoableFinalizeConfirmationId;
+    final target = state.undoableFinalizeDate;
+    final confirmationId = state.undoableFinalizeConfirmationId;
     if (target == null || confirmationId == null) {
       throw const DailyFinalizeUndoException(
         code: DailyFinalizeUndoErrorCode.noUndoableFinalize,
@@ -261,7 +246,7 @@ class DailyFinalizeUndoService {
         message: '取り消せる直前のFINALIZEはありません。',
       );
     }
-    if (!isAwaitingDailyClose && target != state.operationDate.addDays(-1)) {
+    if (target != state.operationDate.addDays(-1)) {
       throw const DailyFinalizeUndoException(
         code: DailyFinalizeUndoErrorCode.targetIsNotPreviousDay,
         stage: 'operationState',
@@ -302,37 +287,34 @@ class DailyFinalizeUndoService {
       );
     }
 
-    if (!isAwaitingDailyClose) {
-      final currentSources = await _sourceReader.readInTransaction(
-        transaction,
-        state.operationDate.value,
+    final currentSources = await _sourceReader.readInTransaction(
+      transaction,
+      state.operationDate.value,
+    );
+    if (currentSources.records.isNotEmpty) {
+      throw const DailyFinalizeUndoException(
+        code: DailyFinalizeUndoErrorCode.currentDateHasRecords,
+        stage: 'currentDateSources',
+        message: '現在のOperation Dateに入力済みデータがあります。',
       );
-      if (currentSources.records.isNotEmpty) {
-        throw const DailyFinalizeUndoException(
-          code: DailyFinalizeUndoErrorCode.currentDateHasRecords,
-          stage: 'currentDateSources',
-          message: '現在のOperation Dateに入力済みデータがあります。',
-        );
-      }
-      final drafts = await transaction.findAll(
-        IndexedDbStoreNames.activityDrafts,
+    }
+    final drafts = await transaction.findAll(
+      IndexedDbStoreNames.activityDrafts,
+    );
+    for (final raw in drafts) {
+      if (raw['localDate'] != state.operationDate.value) continue;
+      ActivityDraft.fromRecord(raw);
+      throw const DailyFinalizeUndoException(
+        code: DailyFinalizeUndoErrorCode.currentDateHasDraft,
+        stage: 'currentDateDraft',
+        message: '現在のOperation DateにACTIVITY Draftがあります。',
       );
-      for (final raw in drafts) {
-        if (raw['localDate'] != state.operationDate.value) continue;
-        ActivityDraft.fromRecord(raw);
-        throw const DailyFinalizeUndoException(
-          code: DailyFinalizeUndoErrorCode.currentDateHasDraft,
-          stage: 'currentDateDraft',
-          message: '現在のOperation DateにACTIVITY Draftがあります。',
-        );
-      }
     }
 
     return _UndoContext(
       state: state,
       target: target,
       targetConfirmation: targetConfirmation,
-      isAwaitingDailyClose: isAwaitingDailyClose,
     );
   }
 
@@ -414,11 +396,9 @@ class _UndoContext {
     required this.state,
     required this.target,
     required this.targetConfirmation,
-    required this.isAwaitingDailyClose,
   });
 
   final OperationState state;
   final OperationLocalDate target;
   final PersistedDailyLogConfirmationRecord targetConfirmation;
-  final bool isAwaitingDailyClose;
 }

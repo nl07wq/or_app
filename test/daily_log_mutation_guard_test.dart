@@ -12,13 +12,10 @@ void main() {
   tearDown(AppRepositoryRegistry.resetForTesting);
 
   for (final label in ['STATUS', 'FOOD', 'ACTIVITY', 'TRAINING']) {
-    test('$label normal save is blocked while awaiting debrief', () async {
+    test('$label normal save remains allowed while awaiting debrief', () async {
       _installState(OperationPhase.awaitingDebrief);
 
-      await expectLater(
-        DailyLogMutationGuard.assertDateMutable(DateTime(2026, 8, 13)),
-        throwsA(isA<ConfirmedDailyLogException>()),
-      );
+      await DailyLogMutationGuard.assertDateMutable(DateTime(2026, 8, 13));
     });
   }
 

@@ -136,7 +136,6 @@ void main() {
             phase: OperationPhase.open,
             finalizeReady: false,
             onPrimaryAction: null,
-            onUndo: null,
           ),
         ),
       ),
@@ -706,18 +705,7 @@ void main() {
     expect(find.text('Est. Total Burn —'), findsOneWidget);
     expect(find.text('Calorie Balance —'), findsOneWidget);
     expect(find.text('必須記録を完了してください: STATUS, FOOD, ACTIVITY'), findsOneWidget);
-    expect(find.text('CONFIRM'), findsOneWidget);
-    expect(
-      tester
-          .widget<ElevatedButton>(
-            find.ancestor(
-              of: find.text('CONFIRM'),
-              matching: find.byType(ElevatedButton),
-            ),
-          )
-          .onPressed,
-      isNull,
-    );
+    expect(find.text('CONFIRM'), findsNothing);
   });
 
   testWidgets('Quick Water remains visible without inventing a meal', (
@@ -755,17 +743,7 @@ void main() {
     );
 
     expect(find.textContaining('必須記録を完了してください:'), findsNothing);
-    expect(
-      tester
-          .widget<ElevatedButton>(
-            find.ancestor(
-              of: find.text('CONFIRM'),
-              matching: find.byType(ElevatedButton),
-            ),
-          )
-          .onPressed,
-      isNotNull,
-    );
+    expect(find.text('CONFIRM'), findsNothing);
   });
 
   testWidgets('an invalid existing Training blocks finalization', (
@@ -787,17 +765,7 @@ void main() {
     );
 
     expect(find.text('必須記録を完了してください: TRAINING'), findsOneWidget);
-    expect(
-      tester
-          .widget<ElevatedButton>(
-            find.ancestor(
-              of: find.text('CONFIRM'),
-              matching: find.byType(ElevatedButton),
-            ),
-          )
-          .onPressed,
-      isNull,
-    );
+    expect(find.text('CONFIRM'), findsNothing);
   });
 
   testWidgets('confirmed detail uses the shared Snapshot-only review body', (
@@ -1121,8 +1089,8 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('CONFIRM'), findsOneWidget);
-    expect(find.text('BACK TO EDIT'), findsOneWidget);
+    expect(find.text('CONFIRM'), findsNothing);
+    expect(find.text('BACK TO EDIT'), findsNothing);
   });
 
   testWidgets('Daily Review exposes sections and actions to semantics', (
@@ -1149,8 +1117,8 @@ void main() {
     ]) {
       expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
     }
-    expect(find.bySemanticsLabel(RegExp('CONFIRM')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('BACK TO EDIT')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('CONFIRM')), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('BACK TO EDIT')), findsNothing);
     semantics.dispose();
   });
 
@@ -1438,7 +1406,6 @@ Future<void> _pumpDailyLogCard(
           phase: OperationPhase.open,
           finalizeReady: false,
           onPrimaryAction: null,
-          onUndo: null,
         ),
       ),
     ),

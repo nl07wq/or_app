@@ -21,7 +21,7 @@ void main() {
     expect(find.text('UNDO DAILY CLOSE'), findsNothing);
   });
 
-  testWidgets('awaiting daily log exposes finalize and one undo action', (
+  testWidgets('awaiting daily log exposes finalize without close undo', (
     tester,
   ) async {
     await _pumpCard(
@@ -33,7 +33,7 @@ void main() {
     expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(find.text('FINALIZE READY'), findsOneWidget);
-    expect(find.text('UNDO DAILY CLOSE'), findsOneWidget);
+    expect(find.text('UNDO DAILY CLOSE'), findsNothing);
   });
 
   testWidgets('awaiting daily log blocks finalize without active debrief', (
@@ -55,7 +55,7 @@ void main() {
     expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
   });
 
-  testWidgets('daily review confirmation prepares close once without backup', (
+  testWidgets('daily review is read-only without an extra confirm action', (
     tester,
   ) async {
     var preparationCount = 0;
@@ -73,13 +73,9 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('CONFIRM'));
-    await tester.pumpAndSettle();
-    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
-    await tester.tap(find.text('YES'));
-    await tester.pumpAndSettle();
-
-    expect(preparationCount, 1);
+    expect(find.text('CONFIRM'), findsNothing);
+    expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
+    expect(preparationCount, 0);
     expect(find.text('BACKUP'), findsNothing);
   });
 }
@@ -100,7 +96,6 @@ Future<void> _pumpCard(
           phase: phase,
           finalizeReady: finalizeReady,
           onPrimaryAction: () {},
-          onUndo: phase == OperationPhase.awaitingDebrief ? () {} : null,
         ),
       ),
     ),

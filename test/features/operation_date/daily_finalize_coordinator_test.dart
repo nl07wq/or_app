@@ -151,33 +151,49 @@ void main() {
     });
 
     test(
-      'different existing confirmation stops as integrity conflict',
+      're-create updates the same confirmation and aggregate identity',
       () async {
         final fixture = await _fixture('2026-07-31');
-        await fixture.confirmations.save(
-          completeConfirmation(
-            date: DateTime(2026, 7, 31),
-            trainingName: 'Different',
-          ).copyWith(estimatedTotalBurnKcal: 999),
+        final date = OperationLocalDate.parse('2026-07-31');
+        await fixture.coordinator.prepareDailyDebrief(targetLocalDate: date);
+        final first = await fixture.confirmations.findPersistedByLocalDate(
+          date.value,
         );
+        fixture.trainingName = 'Updated';
 
-        await expectLater(
-          fixture.coordinator.prepareDailyDebrief(
-            targetLocalDate: OperationLocalDate.parse('2026-07-31'),
-          ),
-          throwsA(
-            isA<DailyFinalizeException>().having(
-              (error) => error.code,
-              'code',
-              DailyFinalizeFailureCode.confirmationDigestMismatch,
-            ),
-          ),
+        await fixture.coordinator.prepareDailyDebrief(targetLocalDate: date);
+
+        final second = await fixture.confirmations.findPersistedByLocalDate(
+          date.value,
         );
-
         final state = await fixture.operationState.requireCurrent();
-        expect(state.phase, OperationPhase.finalizing);
+        expect(state.phase, OperationPhase.awaitingDebrief);
+        expect(second!.id, first!.id);
+        expect(second.projectedRevision, first.projectedRevision + 1);
+        expect(
+          second.projectedSnapshotDigest,
+          isNot(first.projectedSnapshotDigest),
+        );
+        expect(await fixture.confirmations.findAll(), hasLength(1));
+        expect(await fixture.aggregates.getByDate(date.value), isNotNull);
       },
     );
+
+    test('finalize rejects current source changes until re-create', () async {
+      final fixture = await _fixture('2026-07-31');
+      final date = OperationLocalDate.parse('2026-07-31');
+      await fixture.coordinator.prepareDailyDebrief(targetLocalDate: date);
+      fixture.trainingName = 'Changed after create';
+
+      await expectLater(
+        fixture.coordinator.finalize(targetLocalDate: date),
+        throwsA(isA<StateError>()),
+      );
+
+      final state = await fixture.operationState.requireCurrent();
+      expect(state.operationDate, date);
+      expect(state.phase, OperationPhase.awaitingDebrief);
+    });
 
     test(
       'backup failure keeps awaiting artifacts and finalize can retry',
@@ -364,7 +380,7 @@ Future<_Fixture> _fixture(
     confirmations,
     DailyFinalizeTransaction(
       database,
-      now: () => DateTime.utc(2026, 7, 31, 12),
+      now: () => DateTime.utc(2026, 7, 31, 12, 2),
     ),
     DailyFinalizeBackupVerifier(
       BackupExportService(
@@ -377,6 +393,7 @@ Future<_Fixture> _fixture(
     buildDailyConfirmation: (date, _) async => completeConfirmation(
       date: DateTime.parse(date.value),
       confirmedAt: DateTime.utc(2026, 7, 31, 12, 1),
+      trainingName: fixture.trainingName,
     ),
     buildDailyAggregate: (date, _) async => _aggregate(date),
     readDailyAggregate: aggregates.getByDate,
@@ -428,6 +445,7 @@ class _Fixture {
   final DailyFinalizeCoordinator coordinator;
   int restoreCount = 0;
   bool debriefActive = true;
+  String trainingName = 'Session';
 
   _Fixture({
     required this.database,

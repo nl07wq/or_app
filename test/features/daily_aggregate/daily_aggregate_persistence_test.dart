@@ -68,21 +68,20 @@ void main() {
     expect(await fixture.aggregates.getByDate('2026-08-09'), isNull);
   });
 
-  test('undo awaiting daily close reopens the same date', () async {
+  test('prepared daily debrief does not issue finalize undo', () async {
     final fixture = await _fixture();
     final date = OperationLocalDate.parse('2026-08-09');
     await fixture.coordinator.prepareDailyDebrief(targetLocalDate: date);
     final inspection = await fixture.undo.inspect();
 
-    expect(inspection.canUndo, isTrue);
-    expect(inspection.isAwaitingDailyClose, isTrue);
-    await fixture.undo.undo(expectedRevision: inspection.revision);
+    expect(inspection.canUndo, isFalse);
+    expect(inspection.isAwaitingDailyClose, isFalse);
 
     final state = await fixture.operationState.requireCurrent();
     expect(state.operationDate, date);
-    expect(state.phase, OperationPhase.open);
-    expect(await fixture.confirmations.findByLocalDate(date.value), isNull);
-    expect(await fixture.aggregates.getByDate(date.value), isNull);
+    expect(state.phase, OperationPhase.awaitingDebrief);
+    expect(await fixture.confirmations.findByLocalDate(date.value), isNotNull);
+    expect(await fixture.aggregates.getByDate(date.value), isNotNull);
   });
 
   test('re-finalize replaces the same date from the latest source', () async {

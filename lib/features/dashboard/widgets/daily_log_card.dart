@@ -15,13 +15,11 @@ import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
-import '../../operation_date/services/daily_finalize_undo_service.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../repositories/app_repository_container.dart';
 
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
-typedef DailyClosePrepared = Future<void> Function();
 
 class DailyLogSection extends StatefulWidget {
   const DailyLogSection({
@@ -32,7 +30,6 @@ class DailyLogSection extends StatefulWidget {
     required this.trainingSummary,
     required this.estimatedTotalBurn,
     this.onReviewCompleted,
-    this.onClosePrepared,
   });
 
   final MorningFact? morningFact;
@@ -41,7 +38,6 @@ class DailyLogSection extends StatefulWidget {
   final TrainingSummary? trainingSummary;
   final double? estimatedTotalBurn;
   final DailyLogReviewCompleted? onReviewCompleted;
-  final DailyClosePrepared? onClosePrepared;
 
   @override
   State<DailyLogSection> createState() => _DailyLogSectionState();
@@ -65,7 +61,9 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           future: _closeState,
           builder: (context, closeSnapshot) {
             final closeState = closeSnapshot.data;
-            final locked = closeState?.phase != OperationPhase.open;
+            final locked =
+                closeState?.phase != OperationPhase.open &&
+                closeState?.phase != OperationPhase.awaitingDebrief;
             return DailyLogCard(
               morningFact: widget.morningFact,
               foodSummary: widget.foodSummary,
@@ -91,12 +89,6 @@ class _DailyLogSectionState extends State<DailyLogSection> {
                         closeState.finalizeReady
                   ? _finalize
                   : null,
-              onUndo:
-                  isReadOnly ||
-                      closeState?.undoInspection.canUndo != true ||
-                      closeState?.phase != OperationPhase.awaitingDebrief
-                  ? null
-                  : () => _undo(closeState!.undoInspection),
             );
           },
         ),
@@ -145,21 +137,6 @@ class _DailyLogSectionState extends State<DailyLogSection> {
     }
   }
 
-  Future<void> _undo(DailyFinalizeUndoInspection inspection) async {
-    try {
-      await DailyFinalizeUndoService(
-        AppRepositoryRegistry.container.database,
-      ).undo(expectedRevision: inspection.revision);
-      await widget.onClosePrepared?.call();
-      _reloadCloseState();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('UNDO DAILY CLOSEに失敗しました: $error')),
-      );
-    }
-  }
-
   Future<_DailyCloseUiState> _loadCloseState() async {
     final container = AppRepositoryRegistry.container;
     final state = await container.operationState.requireCurrent();
@@ -172,15 +149,16 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           debrief != null &&
           await container.dailyDebriefSources.projectLifecycle(debrief) ==
               DailyDebriefLifecycleStatus.active;
+      if (finalizeReady) {
+        try {
+          await DailyFinalizeCoordinatorFactory.production()
+              .validateCurrentSourceSnapshot(state);
+        } catch (_) {
+          finalizeReady = false;
+        }
+      }
     }
-    final undoInspection = await DailyFinalizeUndoService(
-      container.database,
-    ).inspect();
-    return _DailyCloseUiState(
-      phase: state.phase,
-      finalizeReady: finalizeReady,
-      undoInspection: undoInspection,
-    );
+    return _DailyCloseUiState(phase: state.phase, finalizeReady: finalizeReady);
   }
 
   void _reloadCloseState() {
@@ -199,7 +177,6 @@ class DailyLogCard extends StatelessWidget {
     required this.phase,
     required this.finalizeReady,
     required this.onPrimaryAction,
-    required this.onUndo,
     this.onStatusTap,
     this.onFoodTap,
     this.onTrainingTap,
@@ -213,7 +190,6 @@ class DailyLogCard extends StatelessWidget {
   final OperationPhase phase;
   final bool finalizeReady;
   final VoidCallback? onPrimaryAction;
-  final VoidCallback? onUndo;
   final VoidCallback? onStatusTap;
   final VoidCallback? onFoodTap;
   final VoidCallback? onTrainingTap;
@@ -304,14 +280,6 @@ class DailyLogCard extends StatelessWidget {
                 : 'FINALIZE DAY',
             onPressed: primaryReady ? onPrimaryAction : null,
           ),
-          if (phase == OperationPhase.awaitingDebrief) ...[
-            AppSpacing.gapSM,
-            OutlinedButton.icon(
-              onPressed: onUndo,
-              icon: const Icon(Icons.undo),
-              label: const Text('UNDO DAILY CLOSE'),
-            ),
-          ],
         ],
       ),
     );
@@ -435,7 +403,7 @@ class _DailyCloseReadiness extends StatelessWidget {
                   if (!ready)
                     Text(
                       awaiting
-                          ? 'DAILY DEBRIEFが未完成です'
+                          ? 'DAILY DEBRIEF RE-CREATE REQUIRED'
                           : 'DAILY DEBRIEF REQUIRED',
                     ),
                 ],
@@ -475,13 +443,8 @@ class _DailyCloseActionButton extends StatelessWidget {
 }
 
 class _DailyCloseUiState {
-  const _DailyCloseUiState({
-    required this.phase,
-    required this.finalizeReady,
-    required this.undoInspection,
-  });
+  const _DailyCloseUiState({required this.phase, required this.finalizeReady});
 
   final OperationPhase phase;
   final bool finalizeReady;
-  final DailyFinalizeUndoInspection undoInspection;
 }

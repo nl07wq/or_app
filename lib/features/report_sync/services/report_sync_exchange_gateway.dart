@@ -712,11 +712,19 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           readBackVerified: true,
         );
       case ReportSyncExchangeType.dailyDebrief:
+        final binding = _dailyDebriefBinding;
+        if (binding == null || binding.exchangeId != response.exchangeId) {
+          throw const ReportSyncException(
+            ReportSyncIssueCode.integrityFailure,
+            'The Daily Debrief exchange binding is missing or consumed.',
+          );
+        }
         await _container.reportSyncPersistence.importDailyDebrief(
           response,
           sourceService: _container.dailyDebriefSources,
           repository: _container.dailyDebriefs,
         );
+        _dailyDebriefBinding = null;
         return const ReportSyncApplyResult(
           ReportSyncDisposition.create,
           readBackVerified: true,

@@ -45,7 +45,8 @@ class DailyLogMutationGuard {
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}';
     return state.operationDate.value == localDate &&
-        state.phase != OperationPhase.open;
+        state.phase != OperationPhase.open &&
+        state.phase != OperationPhase.awaitingDebrief;
   }
 
   static Future<bool> isDateConfirmed(DateTime date) => isDateLocked(date);

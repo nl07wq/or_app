@@ -73,8 +73,35 @@ class DailyFinalizeCoordinator {
       }
       if (state.phase == OperationPhase.awaitingDebrief) {
         _verifyAttemptKey(state);
-        await validateAwaitingState(state);
-        return _preparationResult(state);
+        final preparedConfirmation = await _buildConfirmation(
+          targetLocalDate,
+          estimatedTotalBurnKcal,
+        );
+        final startedAt = _now().toUtc();
+        try {
+          state = await _operationState.compareAndSaveRevision(
+            state.copyWith(
+              phase: OperationPhase.finalizing,
+              activeAttempt: OperationActiveAttempt(
+                idempotencyKey: 'daily-finalize:${targetLocalDate.value}',
+                targetLocalDate: targetLocalDate,
+                startedAt: startedAt,
+              ),
+              updatedAt: startedAt,
+            ),
+            expectedRevision: state.revision,
+          );
+        } on Object catch (error) {
+          throw DailyFinalizeException(
+            DailyFinalizeFailureCode.stateConflict,
+            error,
+          );
+        }
+        return _resumePreparation(
+          state,
+          estimatedTotalBurnKcal,
+          preparedConfirmation: preparedConfirmation,
+        );
       }
       if (state.phase != OperationPhase.open &&
           state.phase != OperationPhase.finalizing) {
@@ -135,6 +162,7 @@ class DailyFinalizeCoordinator {
       }
       _verifyAttemptKey(state);
       await validateAwaitingState(state);
+      await validateCurrentSourceSnapshot(state);
       await validatePreparedDailyDebrief(targetLocalDate.value);
 
       try {
@@ -197,18 +225,39 @@ class DailyFinalizeCoordinator {
     }
   }
 
+  Future<void> validateCurrentSourceSnapshot([OperationState? value]) async {
+    final state = value ?? await _operationState.requireCurrent();
+    if (state.phase != OperationPhase.awaitingDebrief) {
+      throw StateError('Operation is not awaiting a daily debrief.');
+    }
+    _verifyAttemptKey(state);
+    final stored = await _confirmations.findByLocalDate(
+      state.operationDate.value,
+    );
+    if (stored == null) {
+      throw StateError('Prepared confirmation is missing.');
+    }
+    final current = await _buildConfirmation(
+      state.operationDate,
+      stored.estimatedTotalBurnKcal,
+    );
+    final comparable = current.copyWith(confirmedAt: stored.confirmedAt);
+    if (_integrity.confirmationDigest(comparable) !=
+        state.activeAttempt!.confirmationDigest) {
+      throw StateError(
+        'Current Daily Log source changed. Re-create DAILY DEBRIEF.',
+      );
+    }
+  }
+
   Future<DailyClosePreparationResult> _resumePreparation(
     OperationState state,
     double? estimatedTotalBurnKcal, {
     DailyLogConfirmation? preparedConfirmation,
   }) async {
     try {
-      final existing = await _confirmations.findByLocalDate(
-        state.operationDate.value,
-      );
       final confirmation =
           preparedConfirmation ??
-          existing ??
           await _buildConfirmation(state.operationDate, estimatedTotalBurnKcal);
       final aggregate = await buildDailyAggregate(
         state.operationDate.value,

@@ -567,7 +567,9 @@ void main() {
       expect(await container.dailyDebriefs.readByLocalDate(date), isNull);
       expect(await container.reportSyncHistory.list(), isEmpty);
 
-      Future<void> importAnalysis(DailyDebriefAnalysis analysis) async {
+      Future<ReportSyncResponsePreview> previewAnalysis(
+        DailyDebriefAnalysis analysis,
+      ) async {
         final boundPreparation = await gateway.prepareRequest(
           ReportSyncExchangeType.dailyDebrief,
           targetDate: date,
@@ -576,22 +578,33 @@ void main() {
           ReportSyncExchangeType.dailyDebrief,
           boundPreparation,
         );
-        final preview = await gateway.previewResponse(
+        return gateway.previewResponse(
           ReportSyncExchangeType.dailyDebrief,
           jsonEncode(analysis.toJson()),
           targetDate: date,
         );
+      }
+
+      Future<void> importAnalysis(DailyDebriefAnalysis analysis) async {
+        final preview = await previewAnalysis(analysis);
         final result = await gateway.apply(preview);
         expect(result.readBackVerified, isTrue);
       }
 
-      await importAnalysis(_analysis());
+      final firstPreview = await previewAnalysis(_analysis());
+      await gateway.apply(firstPreview);
+      await expectLater(
+        gateway.apply(firstPreview),
+        throwsA(isA<ReportSyncException>()),
+      );
       await importAnalysis(_analysis(body: '更新後の評価'));
+      await importAnalysis(_analysis(body: '3回目の評価'));
       final saved = (await container.dailyDebriefs.readByLocalDate(date))!;
-      expect(saved.revision, 2);
+      expect(saved.revision, 3);
+      expect(saved.previousRevisions, hasLength(2));
       expect(
-        saved.previousRevisions.single.sources.toJson(),
-        source.references.toJson(),
+        saved.previousRevisions.map((value) => value.sources.toJson()),
+        everyElement(source.references.toJson()),
       );
       expect(
         await container.dailyDebriefSources.projectLifecycle(saved),
@@ -601,7 +614,7 @@ void main() {
         (await container.reportSyncHistory.list()).where(
           (value) => value.exchangeType == ReportSyncExchangeType.dailyDebrief,
         ),
-        hasLength(2),
+        hasLength(3),
       );
 
       await container.dailyAggregates.put(_aggregate(date, hydrationMl: 2500));

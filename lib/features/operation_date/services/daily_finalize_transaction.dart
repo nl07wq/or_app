@@ -1,6 +1,7 @@
 import '../../../core/models/daily_log_confirmation.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
+import '../../daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
@@ -53,18 +54,30 @@ class DailyFinalizeTransaction {
             IndexedDbStoreNames.dailyLogConfirmations,
             id,
           );
+          final timestamp = _now().toUtc();
           if (existingValue != null) {
             final existing = PersistedDailyLogConfirmationRecord.fromRecord(
               existingValue,
             );
             if (_digest(existing.data) != confirmationDigest) {
-              throw DailyFinalizeException(
-                DailyFinalizeFailureCode.confirmationDigestMismatch,
-                StateError('Existing confirmation has different content.'),
+              final reopened = PersistedDailyLogConfirmationRecord.reopenedFrom(
+                existing: existing,
+                reopenedAt: timestamp,
+              );
+              final updated =
+                  PersistedDailyLogConfirmationRecord.refinalizedFrom(
+                    existing: reopened,
+                    data: confirmation,
+                    sourceRecordVersions:
+                        const DailyLogConfirmationSourceRecordVersions.unknown(),
+                    refinalizedAt: timestamp,
+                  );
+              await transaction.put(
+                IndexedDbStoreNames.dailyLogConfirmations,
+                updated.toRecord(),
               );
             }
           } else {
-            final timestamp = _now().toUtc();
             await transaction.put(
               IndexedDbStoreNames.dailyLogConfirmations,
               PersistedDailyLogConfirmationRecord.initialFinalizedV2(

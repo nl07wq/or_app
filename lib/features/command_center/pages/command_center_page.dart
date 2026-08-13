@@ -164,7 +164,6 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
             operationDateTransitionToken: _operationDateTransitionToken,
             scrollController: _scrollController,
             onReviewCompleted: _showFinalizeDateTransition,
-            onClosePrepared: _reloadModel,
             onOperationDateDisplayed: _handleOperationDateDisplayed,
           );
         },
@@ -273,7 +272,6 @@ class _DailyCommandContent extends StatelessWidget {
     required this.operationDateTransitionToken,
     required this.scrollController,
     required this.onReviewCompleted,
-    required this.onClosePrepared,
     required this.onOperationDateDisplayed,
   });
 
@@ -283,7 +281,6 @@ class _DailyCommandContent extends StatelessWidget {
   final int operationDateTransitionToken;
   final ScrollController scrollController;
   final DailyLogReviewCompleted onReviewCompleted;
-  final VoidCallback onClosePrepared;
   final ValueChanged<OperationLocalDate> onOperationDateDisplayed;
 
   @override
@@ -319,7 +316,6 @@ class _DailyCommandContent extends StatelessWidget {
           trainingSummary: trainingSummaryNotifier.value,
           estimatedTotalBurn: model.estimatedTotalBurnKcal,
           onReviewCompleted: onReviewCompleted,
-          onClosePrepared: () async => onClosePrepared(),
         ),
         AppSpacing.gapLG,
       ],

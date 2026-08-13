@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/state/app_initialization_state.dart';
-import '../../../core/navigation/app_routes.dart';
 import '../../../core/services/daily_log_confirmation_service.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
@@ -13,17 +12,24 @@ import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/models/operation_state.dart';
-import '../../dashboard/log_confirmation_review_page.dart';
+import '../../operation_date/models/daily_finalize_result.dart';
+import '../../operation_date/models/operation_local_date.dart';
+import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../services/daily_estimated_total_burn_service.dart';
+
+typedef PrepareDailyDebrief =
+    Future<void> Function(String localDate, double? estimatedTotalBurnKcal);
 
 class BriefDebriefPage extends StatelessWidget {
   const BriefDebriefPage({
     super.key,
     this.dailyLogSourceLoader = DailyLogConfirmationService.loadSourceSnapshot,
+    this.prepareDailyDebrief,
   });
 
   final Future<DailyLogSourceSnapshot> Function(String localDate)
   dailyLogSourceLoader;
+  final PrepareDailyDebrief? prepareDailyDebrief;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -47,7 +53,10 @@ class BriefDebriefPage extends StatelessWidget {
           child: TabBarView(
             children: [
               const _MorningBriefView(),
-              _DailyDebriefView(sourceLoader: dailyLogSourceLoader),
+              _DailyDebriefView(
+                sourceLoader: dailyLogSourceLoader,
+                prepareDailyDebrief: prepareDailyDebrief,
+              ),
             ],
           ),
         ),
@@ -220,9 +229,13 @@ class _ArchiveButton extends StatelessWidget {
 }
 
 class _DailyDebriefView extends StatefulWidget {
-  const _DailyDebriefView({required this.sourceLoader});
+  const _DailyDebriefView({
+    required this.sourceLoader,
+    required this.prepareDailyDebrief,
+  });
 
   final Future<DailyLogSourceSnapshot> Function(String localDate) sourceLoader;
+  final PrepareDailyDebrief? prepareDailyDebrief;
 
   @override
   State<_DailyDebriefView> createState() => _DailyDebriefViewState();
@@ -279,28 +292,47 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
     if (data == null || data.eligibleDates.isEmpty) return;
     final selected = _selectedTargetDate;
     if (selected == null) return;
-    if (data.operationState.phase == OperationPhase.open &&
+    if ((data.operationState.phase == OperationPhase.open ||
+            data.operationState.phase == OperationPhase.awaitingDebrief) &&
         selected == data.operationState.operationDate.value) {
-      final sourceSnapshot = await widget.sourceLoader(selected);
-      final container = AppRepositoryRegistry.container;
-      final estimatedTotalBurn = await DailyEstimatedTotalBurnService(
-        statusRepository: container.status,
-        trainingRepository: container.training,
-      ).calculate(selected);
+      try {
+        final sourceSnapshot = await widget.sourceLoader(selected);
+        if (!sourceSnapshot.validation.canFinalize) {
+          throw DailyLogValidationException(
+            sourceSnapshot.validation.blockingModules,
+          );
+        }
+        final container = AppRepositoryRegistry.container;
+        final estimatedTotalBurn = await DailyEstimatedTotalBurnService(
+          statusRepository: container.status,
+          trainingRepository: container.training,
+        ).calculate(selected);
+        final prepare = widget.prepareDailyDebrief;
+        if (prepare == null) {
+          await DailyFinalizeCoordinatorFactory.production()
+              .prepareDailyDebrief(
+                targetLocalDate: OperationLocalDate.parse(selected),
+                estimatedTotalBurnKcal: estimatedTotalBurn,
+              );
+        } else {
+          await prepare(selected, estimatedTotalBurn);
+        }
+      } on DailyLogValidationException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        return;
+      } on DailyFinalizeException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('CREATE DAILY DEBRIEF failed: ${error.code.name}'),
+          ),
+        );
+        return;
+      }
       if (!mounted) return;
-      final changed = await Navigator.pushNamed(
-        context,
-        AppRoutes.logConfirmationReview,
-        arguments: LogConfirmationReviewPage(
-          morning: sourceSnapshot.morning,
-          food: sourceSnapshot.food,
-          activity: sourceSnapshot.activity,
-          training: sourceSnapshot.training,
-          estimatedTotalBurn: estimatedTotalBurn,
-          targetDate: DateTime.parse(selected),
-        ),
-      );
-      if (changed != true || !mounted) return;
     }
     await Navigator.push<void>(
       context,
@@ -308,6 +340,7 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         builder: (_) => ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.dailyDebrief,
           initialTargetDate: selected,
+          onApplied: _refresh,
         ),
       ),
     );

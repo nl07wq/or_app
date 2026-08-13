@@ -172,8 +172,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 ),
                                             onReviewCompleted:
                                                 _showFinalizeDateTransition,
-                                            onClosePrepared:
-                                                _refreshDailyCloseState,
                                           ),
                                           AppSpacing.gapXL,
                                           SectionHeader(
@@ -231,11 +229,6 @@ class _DashboardPageState extends State<DashboardPage> {
       _operationDateFuture = Future.value(nextOperationDate);
       _operationDateTransitionToken++;
     });
-  }
-
-  Future<void> _refreshDailyCloseState() async {
-    if (!mounted) return;
-    setState(() {});
   }
 
   Future<void> _waitUntilDashboardIsVisible() async {

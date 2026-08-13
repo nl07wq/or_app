@@ -13,7 +13,6 @@ import '../activity/models/activity_summary_state.dart';
 import '../food/models/food_summary_state.dart';
 import '../morning/models/morning_fact.dart';
 import '../morning/models/morning_fact_state.dart';
-import '../operation_date/models/operation_state.dart';
 import '../operation_date/services/daily_finalize_undo_service.dart';
 import '../repositories/app_repository_container.dart';
 import '../training/models/training_summary_state.dart';
@@ -44,9 +43,7 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
   Future<_LastFinalizeState> _load() async {
     final container = AppRepositoryRegistry.container;
     final operationState = await container.operationState.requireCurrent();
-    final target = operationState.phase == OperationPhase.awaitingDebrief
-        ? operationState.operationDate
-        : operationState.undoableFinalizeDate;
+    final target = operationState.undoableFinalizeDate;
     if (target == null) return const _LastFinalizeState.missing();
     final localDate = target.value;
     final requested = widget.targetDate;
@@ -85,11 +82,7 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(
-          inspection.isAwaitingDailyClose
-              ? 'UNDO DAILY CLOSE'
-              : 'UNDO LAST FINALIZE',
-        ),
+        title: const Text('UNDO LAST FINALIZE'),
         content: Text(
           '${state.localDate}のFINALIZEを取り消しますか？\n\n'
           'Operation Dateを${state.localDate}へ戻します。\n\n'
@@ -214,11 +207,7 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
             ],
             OperationButton(
               icon: Icons.undo,
-              text: _undoing
-                  ? 'UNDOING...'
-                  : inspection.isAwaitingDailyClose
-                  ? 'UNDO DAILY CLOSE'
-                  : 'UNDO LAST FINALIZE',
+              text: _undoing ? 'UNDOING...' : 'UNDO LAST FINALIZE',
               onPressed: inspection.canUndo && !_undoing
                   ? () => _confirmUndo(state)
                   : null,
