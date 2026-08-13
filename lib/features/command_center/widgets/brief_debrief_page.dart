@@ -341,28 +341,13 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           exchangeType: ReportSyncExchangeType.dailyDebrief,
           initialTargetDate: selected,
           onApplied: _refresh,
+          onTargetDateChanged: (value) {
+            if (mounted) setState(() => _selectedTargetDate = value);
+          },
         ),
       ),
     );
     _refresh();
-  }
-
-  Future<void> _selectTargetDate(_DailyDebriefViewData data) async {
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('ELIGIBLE DATE'),
-        children: [
-          for (final date in data.eligibleDates)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, date),
-              child: Text(date),
-            ),
-        ],
-      ),
-    );
-    if (selected == null || !mounted) return;
-    setState(() => _selectedTargetDate = selected);
   }
 
   @override
@@ -391,17 +376,6 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
             includeAuditSections: false,
           ),
         AppSpacing.gapMD,
-        if (snapshot.hasData) ...[
-          OutlinedButton.icon(
-            key: const ValueKey('daily-debrief-target-date'),
-            onPressed: snapshot.data!.eligibleDates.isEmpty
-                ? null
-                : () => _selectTargetDate(snapshot.data!),
-            icon: const Icon(Icons.calendar_month_outlined),
-            label: Text(_selectedTargetDate ?? 'SELECT ELIGIBLE DATE'),
-          ),
-          AppSpacing.gapSM,
-        ],
         OperationButton(
           key: const ValueKey('open-daily-debrief-report-sync'),
           text: 'CREATE DAILY DEBRIEF',

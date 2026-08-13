@@ -30,6 +30,7 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.clipboardWriter,
     this.clipboardGateway,
     this.onApplied,
+    this.onTargetDateChanged,
     this.initialTargetDate,
   });
 
@@ -39,6 +40,7 @@ class ReportSyncExchangePage extends StatelessWidget {
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
   final VoidCallback? onApplied;
+  final ValueChanged<String>? onTargetDateChanged;
   final String? initialTargetDate;
 
   @override
@@ -51,6 +53,7 @@ class ReportSyncExchangePage extends StatelessWidget {
       clipboardWriter: clipboardWriter,
       clipboardGateway: clipboardGateway,
       onApplied: onApplied,
+      onTargetDateChanged: onTargetDateChanged,
       initialTargetDate: initialTargetDate,
     ),
   );
@@ -65,6 +68,7 @@ class ReportSyncExchangePanel extends StatefulWidget {
     this.clipboardWriter,
     this.clipboardGateway,
     this.onApplied,
+    this.onTargetDateChanged,
     this.initialTargetDate,
   });
 
@@ -74,6 +78,7 @@ class ReportSyncExchangePanel extends StatefulWidget {
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
   final VoidCallback? onApplied;
+  final ValueChanged<String>? onTargetDateChanged;
   final String? initialTargetDate;
 
   @override
@@ -280,6 +285,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         _importActionError = null;
         _importError = null;
       });
+      widget.onTargetDateChanged?.call(selected);
       return;
     }
     final current = DateTime.tryParse(_targetDateController.text);
@@ -427,6 +433,9 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _request = request;
       _history = await _gateway.history(widget.exchangeType);
       widget.onApplied?.call();
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     } catch (error) {
       _importError = _importErrorText(error);
     } finally {

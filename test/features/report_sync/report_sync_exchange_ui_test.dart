@@ -18,6 +18,142 @@ import 'package:or_app/features/report_sync/services/report_sync_codec.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
 
 void main() {
+  testWidgets('daily debrief eligible date selection reports the new target', (
+    tester,
+  ) async {
+    final selectedDates = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+          gateway: _FakeExchangeGateway(
+            eligibleDates: const ['2026-08-02', '2026-08-01'],
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+          onTargetDateChanged: selectedDates.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dateField = find.byKey(const ValueKey('report-sync-target-date'));
+    await tester.tap(dateField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2026-08-01'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(dateField).controller?.text, '2026-08-01');
+    expect(selectedDates, ['2026-08-01']);
+  });
+
+  testWidgets('successful DD import returns to the existing top page', (
+    tester,
+  ) async {
+    final gateway = _FakeExchangeGateway(
+      responseExchangeType: ReportSyncExchangeType.dailyDebrief,
+    );
+    var applied = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReportSyncExchangePage(
+                    exchangeType: ReportSyncExchangeType.dailyDebrief,
+                    gateway: gateway,
+                    fileGateway: _FakeFileGateway(),
+                    clipboardWriter: (_) async {},
+                    onApplied: () => applied++,
+                  ),
+                ),
+              ),
+              child: const Text('OPEN IMPORT'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN IMPORT'));
+    await tester.pumpAndSettle();
+    await _validateAndConfirmImport(tester, 'IMPORT DAILY DEBRIEF');
+
+    expect(gateway.applyCalls, 1);
+    expect(applied, 1);
+    expect(find.text('OPEN IMPORT'), findsOneWidget);
+    expect(find.byType(ReportSyncExchangePage), findsNothing);
+  });
+
+  testWidgets('successful database import returns to the existing top page', (
+    tester,
+  ) async {
+    final gateway = _FakeExchangeGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReportSyncExchangePage(
+                    exchangeType: ReportSyncExchangeType.training,
+                    gateway: gateway,
+                    fileGateway: _FakeFileGateway(),
+                    clipboardWriter: (_) async {},
+                  ),
+                ),
+              ),
+              child: const Text('OPEN IMPORT'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN IMPORT'));
+    await tester.pumpAndSettle();
+    await _validateAndConfirmImport(tester, 'IMPORT TRAINING');
+
+    expect(gateway.applyCalls, 1);
+    expect(find.text('OPEN IMPORT'), findsOneWidget);
+    expect(find.byType(ReportSyncExchangePage), findsNothing);
+  });
+
+  testWidgets('failed import remains on the import page', (tester) async {
+    final gateway = _FakeExchangeGateway(applyError: StateError('failed'));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReportSyncExchangePage(
+                    exchangeType: ReportSyncExchangeType.training,
+                    gateway: gateway,
+                    fileGateway: _FakeFileGateway(),
+                    clipboardWriter: (_) async {},
+                  ),
+                ),
+              ),
+              child: const Text('OPEN IMPORT'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN IMPORT'));
+    await tester.pumpAndSettle();
+    await _validateAndConfirmImport(tester, 'IMPORT TRAINING');
+
+    expect(gateway.applyCalls, 1);
+    expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+  });
+
   testWidgets('food exchange UI is import-only and supports meal selection', (
     tester,
   ) async {
@@ -784,6 +920,38 @@ void main() {
   }
 }
 
+Future<void> _validateAndConfirmImport(
+  WidgetTester tester,
+  String importLabel,
+) async {
+  final scrollable = find.byType(Scrollable).first;
+  await tester.scrollUntilVisible(
+    find.byKey(const ValueKey('report-sync-response-input')),
+    250,
+    scrollable: scrollable,
+  );
+  await tester.enterText(
+    find.descendant(
+      of: find.byKey(const ValueKey('report-sync-response-input')),
+      matching: find.byType(TextField),
+    ),
+    '{"response":true}',
+  );
+  await tester.scrollUntilVisible(
+    find.text('VALIDATE'),
+    250,
+    scrollable: scrollable,
+  );
+  await tester.tap(find.text('VALIDATE'));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text(importLabel));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(importLabel));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('CONFIRM IMPORT'));
+  await tester.pumpAndSettle();
+}
+
 StatusReportSyncSourceExport _statusSourceExport() {
   const digest =
       'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -878,6 +1046,9 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     this.legacyHistory = false,
     this.historyCount = 1,
     this.trainingPreview,
+    this.eligibleDates = const [],
+    this.applyError,
+    this.responseExchangeType = ReportSyncExchangeType.food,
   });
 
   static const digest =
@@ -888,6 +1059,9 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   final bool legacyHistory;
   final int historyCount;
   final HistoricalTrainingPreview? trainingPreview;
+  final List<String> eligibleDates;
+  final Object? applyError;
+  final ReportSyncExchangeType responseExchangeType;
   int recordRequestCalls = 0;
   int applyCalls = 0;
   int previewCalls = 0;
@@ -897,7 +1071,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
 
   late final request = const ReportSyncCodec().create(
     direction: ReportSyncDirection.request,
-    exchangeType: ReportSyncExchangeType.food,
+    exchangeType: responseExchangeType,
     exchangeId: 'request-food',
     requestId: 'request-food',
     operationDate: '2026-08-02',
@@ -914,12 +1088,39 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     operationDate: '2026-08-02',
     createdAt: DateTime.utc(2026, 8, 2),
     requestDigest: digest,
-    payload: const {
-      'requestId': 'request-food',
-      'requestDigest': digest,
-      'operationDate': '2026-08-02',
-      'meals': <Object?>[],
-    },
+    payload: responseExchangeType == ReportSyncExchangeType.dailyDebrief
+        ? const {
+            'analysis': {
+              'commanderIntentEvaluation': null,
+              'domainEvaluations': {
+                'body': '体調は安定しました',
+                'recovery': null,
+                'condition': null,
+                'work': null,
+                'nutrition': null,
+                'hydration': null,
+                'activity': null,
+                'training': null,
+              },
+              'crossAnalysis': {
+                'keyFactors': <Object?>[],
+                'interactions': <Object?>[],
+                'constraints': <Object?>[],
+                'resources': <Object?>[],
+              },
+              'executionEvaluation': {
+                'successes': <Object?>[],
+                'adjustments': <Object?>[],
+              },
+              'nextDayHandoff': {'watchPoints': <Object?>[]},
+            },
+          }
+        : const {
+            'requestId': 'request-food',
+            'requestDigest': digest,
+            'operationDate': '2026-08-02',
+            'meals': <Object?>[],
+          },
   );
 
   @override
@@ -928,6 +1129,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     Set<String>? selectedMealIds,
   }) async {
     applyCalls++;
+    if (applyError != null) throw applyError!;
     lastSelectedMealIds = selectedMealIds;
     return ReportSyncApplyResult(
       disposition,
@@ -1016,6 +1218,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
         envelope: request,
         operationDate: targetDate ?? request.operationDate,
         sourceText: 'OPERATION REBOOT\nSOURCE: Meal Data',
+        eligibleDates: eligibleDates,
       );
 
   @override

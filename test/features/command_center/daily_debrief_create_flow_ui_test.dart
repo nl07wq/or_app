@@ -45,13 +45,22 @@ void main() {
       await tester.tap(find.text('DAILY DEBRIEF').first);
       await tester.pumpAndSettle();
 
-      expect(find.text('2026-08-12'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('daily-debrief-target-date')),
+        findsNothing,
+      );
       expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
       await tester.tap(find.text('CREATE DAILY DEBRIEF'));
       await tester.pumpAndSettle();
 
       expect(preparationCount, 1);
       expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+      expect(
+        tester
+            .widget<ReportSyncExchangePage>(find.byType(ReportSyncExchangePage))
+            .initialTargetDate,
+        '2026-08-12',
+      );
       expect(find.widgetWithText(AppBar, 'DAILY REVIEW'), findsNothing);
       expect(find.text('CONFIRM'), findsNothing);
     },
