@@ -8,6 +8,7 @@ import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
+import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
@@ -26,6 +27,41 @@ import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   late FakeIndexedDbDatabase database;
+
+  test('maps debrief lifecycle statuses to distinct formal symbols', () {
+    final lifecycleIcons = {
+      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.active),
+      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.stale),
+      dailyDebriefLifecycleIconForStatus(
+        DailyDebriefLifecycleStatus.invalidated,
+      ),
+    };
+
+    expect(
+      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.active),
+      Icons.verified_outlined,
+    );
+    expect(
+      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.stale),
+      Icons.history,
+    );
+    expect(
+      dailyDebriefLifecycleIconForStatus(
+        DailyDebriefLifecycleStatus.invalidated,
+      ),
+      Icons.block,
+    );
+    expect(lifecycleIcons, hasLength(3));
+    expect(
+      lifecycleIcons.intersection({
+        Icons.check_circle,
+        Icons.adjust,
+        Icons.cancel,
+        Icons.help_outline,
+      }),
+      isEmpty,
+    );
+  });
 
   setUp(() {
     morningFactNotifier.value = null;
@@ -572,6 +608,7 @@ void main() {
       localDate: '2026-08-02',
       bodyEvaluation: 'LATEST BODY REVIEW',
       timestamp: timestamp.add(const Duration(days: 1)),
+      revision: 7,
     );
     final olderRecord = _dailyDebriefRecord(
       localDate: '2026-08-01',
@@ -596,10 +633,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
-    expect(find.text('DD-2026-08-02'), findsOneWidget);
+    expect(find.text('DD-2026-08-02-Rev7'), findsOneWidget);
     expect(find.textContaining('LATEST BODY REVIEW'), findsOneWidget);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
-    expect(find.text('INVALIDATED  ·  REVISION 1'), findsOneWidget);
+    expect(find.textContaining('REVISION'), findsNothing);
+    expect(find.text('ACTIVE'), findsNothing);
+    expect(find.text('STALE'), findsNothing);
+    expect(find.text('INVALIDATED'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('daily-debrief-lifecycle-invalidated')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.block), findsOneWidget);
     expect(find.text('COMMANDER INTENT EVALUATION'), findsOneWidget);
     expect(find.text('OUTCOME'), findsNothing);
     expect(find.text('PARTIALLY ACHIEVED'), findsNothing);
@@ -608,7 +653,14 @@ void main() {
       find.byKey(const ValueKey('daily-debrief-outcome-partiallyAchieved')),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.adjust), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey('daily-debrief-header-outcome-partiallyAchieved'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.adjust), findsNWidgets(2));
+    expect(find.text('YELLOW'), findsNWidgets(2));
     expect(find.text('評価理由'), findsOneWidget);
     expect(find.text('判定根拠'), findsOneWidget);
     expect(find.text('RATIONALE'), findsNothing);
@@ -669,6 +721,7 @@ void main() {
       find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
     );
     await tester.pumpAndSettle();
+    expect(find.text('DD-2026-08-01-Rev1'), findsOneWidget);
     expect(find.textContaining('OLDER BODY REVIEW'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('daily-debrief-outcome-partiallyAchieved')),
@@ -682,17 +735,29 @@ void main() {
   });
 
   for (final outcomeCase in const [
-    (DailyDebriefCommanderIntentOutcome.achieved, Icons.check_circle, 'green'),
+    (
+      DailyDebriefCommanderIntentOutcome.achieved,
+      Icons.check_circle,
+      'green',
+      'GREEN',
+    ),
     (
       DailyDebriefCommanderIntentOutcome.partiallyAchieved,
       Icons.adjust,
       'amber',
+      'YELLOW',
     ),
-    (DailyDebriefCommanderIntentOutcome.notAchieved, Icons.cancel, 'error'),
+    (
+      DailyDebriefCommanderIntentOutcome.notAchieved,
+      Icons.cancel,
+      'error',
+      'RED',
+    ),
     (
       DailyDebriefCommanderIntentOutcome.notAssessable,
       Icons.help_outline,
       'outline',
+      'GRAY',
     ),
   ]) {
     testWidgets('maps ${outcomeCase.$1.name} to its semantic outcome visual', (
@@ -717,19 +782,28 @@ void main() {
       await tester.tap(find.text('DAILY DEBRIEF').first);
       await tester.pumpAndSettle();
 
-      final indicator = find.byKey(
+      final sectionIndicator = find.byKey(
         ValueKey('daily-debrief-outcome-${outcomeCase.$1.name}'),
       );
-      final icon = tester.widget<Icon>(indicator);
-      final colorScheme = Theme.of(tester.element(indicator)).colorScheme;
+      final headerIndicator = find.byKey(
+        ValueKey('daily-debrief-header-outcome-${outcomeCase.$1.name}'),
+      );
+      final sectionIcon = tester.widget<Icon>(sectionIndicator);
+      final headerIcon = tester.widget<Icon>(headerIndicator);
+      final colorScheme = Theme.of(
+        tester.element(sectionIndicator),
+      ).colorScheme;
       final expectedColor = switch (outcomeCase.$3) {
         'green' => Colors.green,
         'amber' => Colors.amber,
         'error' => colorScheme.error,
         _ => colorScheme.outline,
       };
-      expect(icon.icon, outcomeCase.$2);
-      expect(icon.color, expectedColor);
+      expect(sectionIcon.icon, outcomeCase.$2);
+      expect(sectionIcon.color, expectedColor);
+      expect(headerIcon.icon, outcomeCase.$2);
+      expect(headerIcon.color, expectedColor);
+      expect(find.text(outcomeCase.$4), findsNWidgets(2));
       expect(find.text(outcomeCase.$1.name), findsNothing);
       expect(find.text('OUTCOME'), findsNothing);
       expect(
@@ -960,11 +1034,11 @@ DailyDebriefRecord _dailyDebriefRecord({
   required String bodyEvaluation,
   required DateTime timestamp,
   String? recoveryEvaluation,
+  int revision = 1,
   DailyDebriefCommanderIntentOutcome outcome =
       DailyDebriefCommanderIntentOutcome.partiallyAchieved,
-}) => DailyDebriefRecord.initial(
-  localDate: localDate,
-  sources: DailyDebriefSources(
+}) {
+  final sources = DailyDebriefSources(
     dailyAggregate: DailyDebriefDailyAggregateReference(
       operationDate: localDate,
       sourceType: 'records',
@@ -987,8 +1061,8 @@ DailyDebriefRecord _dailyDebriefRecord({
       recordDigest:
           'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
     ),
-  ),
-  analysis: DailyDebriefAnalysis(
+  );
+  final analysis = DailyDebriefAnalysis(
     commanderIntentEvaluation: DailyDebriefCommanderIntentEvaluation(
       outcome: outcome,
       rationale: 'RATIONALE BODY',
@@ -1017,11 +1091,26 @@ DailyDebriefRecord _dailyDebriefRecord({
     nextDayHandoff: DailyDebriefNextDayHandoff(
       watchPoints: const ['WATCH ITEM'],
     ),
-  ),
-  responseDigest:
-      'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
-  timestamp: timestamp,
-);
+  );
+  const responseDigest =
+      'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+  var record = DailyDebriefRecord.initial(
+    localDate: localDate,
+    sources: sources,
+    analysis: analysis,
+    responseDigest: responseDigest,
+    timestamp: timestamp,
+  );
+  for (var nextRevision = 2; nextRevision <= revision; nextRevision++) {
+    record = record.revise(
+      sources: sources,
+      analysis: analysis,
+      responseDigest: responseDigest,
+      timestamp: timestamp.add(Duration(seconds: nextRevision - 1)),
+    );
+  }
+  return record;
+}
 
 MorningBriefRecord _morningBriefV2(String date) {
   const digest =

@@ -20,6 +20,47 @@ import '../services/daily_estimated_total_burn_service.dart';
 typedef PrepareDailyDebrief =
     Future<void> Function(String localDate, double? estimatedTotalBurnKcal);
 
+@visibleForTesting
+IconData dailyDebriefLifecycleIconForStatus(
+  DailyDebriefLifecycleStatus status,
+) => switch (status) {
+  DailyDebriefLifecycleStatus.active => Icons.verified_outlined,
+  DailyDebriefLifecycleStatus.stale => Icons.history,
+  DailyDebriefLifecycleStatus.invalidated => Icons.block,
+};
+
+typedef _CommanderIntentOutcomePresentation = ({
+  IconData icon,
+  Color color,
+  String label,
+});
+
+_CommanderIntentOutcomePresentation _commanderIntentOutcomePresentation(
+  BuildContext context,
+  DailyDebriefCommanderIntentOutcome outcome,
+) => switch (outcome) {
+  DailyDebriefCommanderIntentOutcome.achieved => (
+    icon: Icons.check_circle,
+    color: Colors.green,
+    label: 'GREEN',
+  ),
+  DailyDebriefCommanderIntentOutcome.partiallyAchieved => (
+    icon: Icons.adjust,
+    color: Colors.amber,
+    label: 'YELLOW',
+  ),
+  DailyDebriefCommanderIntentOutcome.notAchieved => (
+    icon: Icons.cancel,
+    color: Theme.of(context).colorScheme.error,
+    label: 'RED',
+  ),
+  DailyDebriefCommanderIntentOutcome.notAssessable => (
+    icon: Icons.help_outline,
+    color: Theme.of(context).colorScheme.outline,
+    label: 'GRAY',
+  ),
+};
+
 class BriefDebriefPage extends StatelessWidget {
   const BriefDebriefPage({
     super.key,
@@ -593,41 +634,62 @@ class _DailyDebriefHeader extends StatelessWidget {
   final DailyDebriefLifecycleStatus status;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Row(
-      children: [
-        Icon(
-          Icons.nightlight_outlined,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        AppSpacing.gapSM,
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'DAILY DEBRIEF',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
-              ),
-              Text('DD-${record.localDate}'),
-              Text(
-                '${status.name.toUpperCase()}  ·  REVISION ${record.revision}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+  Widget build(BuildContext context) {
+    final outcome = record.analysis.commanderIntentEvaluation?.outcome;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.nightlight_outlined,
+            color: Theme.of(context).colorScheme.primary,
           ),
-        ),
-      ],
-    ),
-  );
+          AppSpacing.gapSM,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DAILY DEBRIEF',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'DD-${record.localDate}-Rev${record.revision}',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      dailyDebriefLifecycleIconForStatus(status),
+                      key: ValueKey('daily-debrief-lifecycle-${status.name}'),
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+                if (outcome != null) ...[
+                  const SizedBox(height: 8),
+                  _CommanderIntentOutcomeIndicator(
+                    outcome: outcome,
+                    keyPrefix: 'daily-debrief-header-outcome',
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CommanderIntentEvaluationSection extends StatelessWidget {
@@ -660,37 +722,38 @@ class _CommanderIntentEvaluationSection extends StatelessWidget {
 }
 
 class _CommanderIntentOutcomeIndicator extends StatelessWidget {
-  const _CommanderIntentOutcomeIndicator({required this.outcome});
+  const _CommanderIntentOutcomeIndicator({
+    required this.outcome,
+    this.keyPrefix = 'daily-debrief-outcome',
+  });
 
   final DailyDebriefCommanderIntentOutcome outcome;
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = switch (outcome) {
-      DailyDebriefCommanderIntentOutcome.achieved => (
-        Icons.check_circle,
-        Colors.green,
-      ),
-      DailyDebriefCommanderIntentOutcome.partiallyAchieved => (
-        Icons.adjust,
-        Colors.amber,
-      ),
-      DailyDebriefCommanderIntentOutcome.notAchieved => (
-        Icons.cancel,
-        Theme.of(context).colorScheme.error,
-      ),
-      DailyDebriefCommanderIntentOutcome.notAssessable => (
-        Icons.help_outline,
-        Theme.of(context).colorScheme.outline,
-      ),
-    };
+    final presentation = _commanderIntentOutcomePresentation(context, outcome);
     return Align(
       alignment: Alignment.centerLeft,
-      child: Icon(
-        icon,
-        key: ValueKey('daily-debrief-outcome-${outcome.name}'),
-        size: 30,
-        color: color,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            presentation.icon,
+            key: ValueKey('$keyPrefix-${outcome.name}'),
+            size: 30,
+            color: presentation.color,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            presentation.label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: presentation.color,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
       ),
     );
   }
