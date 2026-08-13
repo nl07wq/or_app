@@ -11,6 +11,7 @@ import '../../features/daily_log_confirmation/migration/daily_log_confirmation_m
 import '../../features/food/migration/food_legacy_reader.dart';
 import '../../features/food/migration/food_migration_service.dart';
 import '../../features/operation_date/services/operation_state_bootstrap_service.dart';
+import '../../features/operation_date/models/operation_state.dart';
 import '../../features/operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../features/operation_date/services/daily_finalize_recovery_service.dart';
 import '../../features/repositories/app_repository_container.dart';
@@ -197,7 +198,11 @@ class StartupInitializationService {
       AppRepositoryRegistry.install(container);
 
       controller.updateStage(InitializationStage.restoringDailyState);
-      if (operationState.recoveryRequired) {
+      if (operationState.state.phase == OperationPhase.awaitingDebrief) {
+        await DailyFinalizeCoordinatorFactory.production()
+            .validateAwaitingState(operationState.state);
+        await _restore();
+      } else if (operationState.recoveryRequired) {
         controller.markReady(
           operationRecoveryRequired: true,
           operationPhase: operationState.state.phase.name,

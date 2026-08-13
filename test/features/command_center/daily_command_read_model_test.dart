@@ -25,7 +25,7 @@ void main() {
         DailyCommandModuleState.optionalMissing,
       );
       expect(model.activityModuleState, DailyCommandModuleState.missing);
-      expect(model.canFinalize, isFalse);
+      expect(model.canPrepareDailyDebrief, isFalse);
     });
 
     test('derives ACTIVE from the shared validation result', () {
@@ -74,7 +74,7 @@ void main() {
       );
 
       expect(model.cycleState, DailyCommandCycleState.reviewReady);
-      expect(model.canFinalize, isTrue);
+      expect(model.canPrepareDailyDebrief, isTrue);
       expect(model.finalizeBlockingReasons, isEmpty);
       expect(model.estimatedTotalBurnKcal, 1760);
     });
@@ -100,7 +100,15 @@ void main() {
     test('maps finalizing to FINALIZING', () {
       final model = _build(phase: OperationPhase.finalizing);
       expect(model.cycleState, DailyCommandCycleState.finalizing);
-      expect(model.canFinalize, isFalse);
+      expect(model.canPrepareDailyDebrief, isFalse);
+    });
+
+    test('maps awaiting debrief without review or recovery semantics', () {
+      final model = _build(phase: OperationPhase.awaitingDebrief);
+
+      expect(model.cycleState, DailyCommandCycleState.awaitingDebrief);
+      expect(model.canPrepareDailyDebrief, isFalse);
+      expect(model.recoveryRequired, isFalse);
     });
 
     for (final phase in [
@@ -122,7 +130,7 @@ void main() {
         isHistoricalView: true,
       );
       expect(model.cycleState, DailyCommandCycleState.reviewReady);
-      expect(model.canFinalize, isFalse);
+      expect(model.canPrepareDailyDebrief, isFalse);
     });
   });
 }

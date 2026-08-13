@@ -6,6 +6,7 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/activity/repository/indexed_db_activity_draft_repository.dart';
 import 'package:or_app/features/activity/services/activity_draft_finalize_service.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/repositories/repository_exception.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,12 +18,15 @@ void main() {
   late AppInitializationController controller;
   final now = DateTime.utc(2026, 7, 28, 12);
 
-  setUp(() {
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
     database = FakeIndexedDbDatabase();
     controller = AppInitializationController()..markReady();
     AppRepositoryRegistry.beginStartup(controller: controller);
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    await AppRepositoryRegistry.container.operationState.createInitial(
+      OperationLocalDate.parse('2026-07-28'),
+    );
   });
 
   tearDown(AppRepositoryRegistry.resetForTesting);

@@ -74,7 +74,9 @@ abstract final class DailyCommandReadModelBuilder {
       ),
       validation: validation,
       finalizeBlockingReasons: validation.blockingModules,
-      backupState: phase == OperationPhase.open
+      backupState:
+          phase == OperationPhase.open ||
+              phase == OperationPhase.awaitingDebrief
           ? DailyCommandBackupState.notRequired
           : DailyCommandBackupState.recoveryRequired,
       lastUpdatedAt: operationState.updatedAt,
@@ -95,6 +97,9 @@ abstract final class DailyCommandReadModelBuilder {
   ) {
     if (phase == OperationPhase.finalizing) {
       return DailyCommandCycleState.finalizing;
+    }
+    if (phase == OperationPhase.awaitingDebrief) {
+      return DailyCommandCycleState.awaitingDebrief;
     }
     if (phase == OperationPhase.finalizedPendingBackup ||
         phase == OperationPhase.advancing) {

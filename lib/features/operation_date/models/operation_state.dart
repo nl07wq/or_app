@@ -1,7 +1,13 @@
 import 'operation_active_attempt.dart';
 import 'operation_local_date.dart';
 
-enum OperationPhase { open, finalizing, finalizedPendingBackup, advancing }
+enum OperationPhase {
+  open,
+  finalizing,
+  awaitingDebrief,
+  finalizedPendingBackup,
+  advancing,
+}
 
 class OperationState {
   static const canonicalId = 'current';
@@ -37,7 +43,8 @@ class OperationState {
     _validate();
   }
 
-  bool get requiresRecovery => phase != OperationPhase.open;
+  bool get requiresRecovery =>
+      phase != OperationPhase.open && phase != OperationPhase.awaitingDebrief;
 
   bool get hasUndoableFinalize => undoableFinalizeDate != null;
 
@@ -214,10 +221,11 @@ class OperationState {
         activeAttempt!.targetLocalDate != operationDate) {
       throw const FormatException('Operation phase requires a valid attempt.');
     }
-    if (phase == OperationPhase.finalizedPendingBackup &&
+    if ((phase == OperationPhase.awaitingDebrief ||
+            phase == OperationPhase.finalizedPendingBackup) &&
         (activeAttempt!.confirmationId == null ||
             activeAttempt!.confirmationDigest == null)) {
-      throw const FormatException('Finalized operation lacks confirmation.');
+      throw const FormatException('Prepared operation lacks confirmation.');
     }
     if (phase == OperationPhase.advancing &&
         (activeAttempt!.confirmationId == null ||

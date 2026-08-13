@@ -8,6 +8,8 @@ import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_lo
 import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/import_export/services/backup_store_registry.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
@@ -23,6 +25,39 @@ import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
 void main() {
   const date = '2026-08-09';
   final timestamp = DateTime.utc(2026, 8, 9, 23);
+
+  test('awaiting debrief defaults to the current operation date', () async {
+    final database = FakeIndexedDbDatabase();
+    final container = AppRepositoryContainer.indexedDb(database);
+    final operationDate = OperationLocalDate.parse(date);
+    await container.operationState.createInitial(operationDate);
+    final state = await container.operationState.requireCurrent();
+    await container.operationState.save(
+      state.copyWith(
+        phase: OperationPhase.awaitingDebrief,
+        activeAttempt: OperationActiveAttempt(
+          idempotencyKey: 'daily-close:$date',
+          targetLocalDate: operationDate,
+          startedAt: timestamp,
+          confirmationId: 'confirmation:$date',
+          confirmationDigest: _digest('confirmation'),
+        ),
+        updatedAt: state.updatedAt.add(const Duration(seconds: 1)),
+      ),
+      expectedRevision: state.revision,
+    );
+    await container.confirmationLifecycle.createV2(
+      PersistedDailyLogConfirmationRecord.initialFinalizedV2(
+        id: 'confirmation:$date',
+        localDate: date,
+        data: completeConfirmation(date: DateTime(2026, 8, 9)),
+        timestamp: timestamp,
+      ),
+    );
+    await container.dailyAggregates.put(_aggregate(date));
+
+    expect(await container.dailyDebriefSources.defaultEligibleDate(), date);
+  });
 
   test('strict model creates revision 1 and preserves complete revisions', () {
     final sources = _sources(date);
@@ -173,6 +208,20 @@ void main() {
       expect(prompt, contains('opening fence is ```text'));
       expect(prompt, contains('closing fence is ```'));
       expect(prompt, contains('Return nothing outside that code block'));
+      expect(
+        prompt,
+        contains('SECTION RESPONSIBILITY AND GLOBAL NON-DUPLICATION'),
+      );
+      expect(
+        prompt,
+        contains(
+          'crossAnalysis.interactions requires a supported relationship',
+        ),
+      );
+      expect(
+        prompt,
+        contains('Empty arrays and null domain evaluations are valid'),
+      );
       expect(
         prompt,
         contains('Inside the code block, return exactly one JSON object'),

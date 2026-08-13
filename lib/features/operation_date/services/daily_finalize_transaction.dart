@@ -17,15 +17,17 @@ class DailyFinalizeTransaction {
   DailyFinalizeTransaction(this._database, {DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
-  Future<OperationState> saveConfirmationAndMarkPending({
+  Future<OperationState> savePreparedDailyClose({
     required OperationState expectedState,
     required DailyLogConfirmation confirmation,
     required String confirmationDigest,
+    required DailyAggregateV1 dailyAggregate,
   }) async {
     try {
       return await _database.runTransaction<OperationState>(
         storeNames: const [
           IndexedDbStoreNames.dailyLogConfirmations,
+          IndexedDbStoreNames.dailyAggregateRecords,
           IndexedDbStoreNames.operationState,
         ],
         mode: IndexedDbTransactionMode.readWrite,
@@ -75,8 +77,17 @@ class DailyFinalizeTransaction {
           }
 
           final attempt = current.activeAttempt!;
+          if (dailyAggregate.operationDate != localDate ||
+              dailyAggregate.sourceType != DailyAggregateSourceType.records) {
+            throw StateError(
+              'Daily Aggregate does not match the prepared date.',
+            );
+          }
+          await IndexedDbDailyAggregateRepository(
+            _database,
+          ).putInTransaction(transaction, dailyAggregate);
           final next = current.copyWith(
-            phase: OperationPhase.finalizedPendingBackup,
+            phase: OperationPhase.awaitingDebrief,
             revision: current.revision + 1,
             activeAttempt: OperationActiveAttempt(
               idempotencyKey: attempt.idempotencyKey,
@@ -113,7 +124,6 @@ class DailyFinalizeTransaction {
 
   Future<OperationState> advanceAndIssueUndoEntitlement({
     required OperationState expectedState,
-    required DailyAggregateV1 dailyAggregate,
   }) async {
     try {
       return await _database.runTransaction<OperationState>(
@@ -149,15 +159,7 @@ class DailyFinalizeTransaction {
             attempt.confirmationDigest!,
           );
           final finalizedDate = current.operationDate;
-          if (dailyAggregate.operationDate != finalizedDate.value ||
-              dailyAggregate.sourceType != DailyAggregateSourceType.records) {
-            throw StateError(
-              'Daily Aggregate does not match the finalized date.',
-            );
-          }
-          await IndexedDbDailyAggregateRepository(
-            _database,
-          ).putInTransaction(transaction, dailyAggregate);
+          await _verifyAggregate(transaction, finalizedDate.value);
           final timestamp = _nextTimestamp(current.updatedAt);
           final next = OperationState(
             operationDate: finalizedDate.addDays(1),
@@ -226,6 +228,24 @@ class DailyFinalizeTransaction {
         DailyFinalizeFailureCode.confirmationReadbackFailed,
         StateError('Confirmation read-back mismatch.'),
       );
+    }
+  }
+
+  Future<void> _verifyAggregate(
+    IndexedDbTransaction transaction,
+    String localDate,
+  ) async {
+    final value = await transaction.findById(
+      IndexedDbStoreNames.dailyAggregateRecords,
+      localDate,
+    );
+    if (value == null) {
+      throw StateError('Daily Aggregate read-back is missing.');
+    }
+    final aggregate = DailyAggregateV1.fromJson(value);
+    if (aggregate.operationDate != localDate ||
+        aggregate.sourceType != DailyAggregateSourceType.records) {
+      throw StateError('Daily Aggregate read-back is invalid.');
     }
   }
 

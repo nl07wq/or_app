@@ -9,17 +9,26 @@ import '../../../core/services/daily_log_confirmation_state.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/operation_button.dart';
+import '../../../core/theme/app_radius.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../morning/models/morning_fact.dart';
+import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/operation_local_date.dart';
+import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
+import '../../operation_date/services/daily_finalize_undo_service.dart';
+import '../../report_sync/models/daily_debrief_record.dart';
+import '../../report_sync/models/report_sync_envelope.dart';
+import '../../report_sync/pages/report_sync_exchange_page.dart';
+import '../../repositories/app_repository_container.dart';
 import '../log_confirmation_review_page.dart';
 
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
+typedef DailyClosePrepared = Future<void> Function();
 
-class DailyLogSection extends StatelessWidget {
+class DailyLogSection extends StatefulWidget {
   const DailyLogSection({
     super.key,
     required this.morningFact,
@@ -28,6 +37,7 @@ class DailyLogSection extends StatelessWidget {
     required this.trainingSummary,
     required this.estimatedTotalBurn,
     this.onReviewCompleted,
+    this.onClosePrepared,
   });
 
   final MorningFact? morningFact;
@@ -36,6 +46,14 @@ class DailyLogSection extends StatelessWidget {
   final TrainingSummary? trainingSummary;
   final double? estimatedTotalBurn;
   final DailyLogReviewCompleted? onReviewCompleted;
+  final DailyClosePrepared? onClosePrepared;
+
+  @override
+  State<DailyLogSection> createState() => _DailyLogSectionState();
+}
+
+class _DailyLogSectionState extends State<DailyLogSection> {
+  late Future<_DailyCloseUiState> _closeState = _loadCloseState();
 
   @override
   Widget build(BuildContext context) {
@@ -48,59 +66,172 @@ class DailyLogSection extends StatelessWidget {
           title: 'DAILY LOG',
         ),
         AppSpacing.gapSM,
-        ValueListenableBuilder<DailyLogConfirmationStatus>(
-          valueListenable: dailyLogConfirmationNotifier,
-          builder: (context, confirmationStatus, _) => DailyLogCard(
-            morningFact: morningFact,
-            foodSummary: foodSummary,
-            activitySummary: activitySummary,
-            trainingSummary: trainingSummary,
-            onStatusTap: isReadOnly
-                ? null
-                : () => Navigator.pushNamed(context, AppRoutes.morning),
-            onFoodTap: isReadOnly
-                ? null
-                : () => Navigator.pushNamed(context, AppRoutes.food),
-            onTrainingTap: isReadOnly
-                ? null
-                : () => Navigator.pushNamed(context, AppRoutes.training),
-            onActivityTap: isReadOnly
-                ? null
-                : () => Navigator.pushNamed(context, AppRoutes.activity),
-            onReview: isReadOnly
-                ? null
-                : () => _openReview(
-                    context,
-                    confirmationStatus: confirmationStatus,
-                  ),
-          ),
+        FutureBuilder<_DailyCloseUiState>(
+          future: _closeState,
+          builder: (context, closeSnapshot) =>
+              ValueListenableBuilder<DailyLogConfirmationStatus>(
+                valueListenable: dailyLogConfirmationNotifier,
+                builder: (context, confirmationStatus, _) {
+                  final closeState = closeSnapshot.data;
+                  final locked = closeState?.phase != OperationPhase.open;
+                  return DailyLogCard(
+                    morningFact: widget.morningFact,
+                    foodSummary: widget.foodSummary,
+                    activitySummary: widget.activitySummary,
+                    trainingSummary: widget.trainingSummary,
+                    phase: closeState?.phase ?? OperationPhase.finalizing,
+                    finalizeReady: closeState?.finalizeReady ?? false,
+                    onStatusTap: isReadOnly || locked
+                        ? null
+                        : () => Navigator.pushNamed(context, AppRoutes.morning),
+                    onFoodTap: isReadOnly || locked
+                        ? null
+                        : () => Navigator.pushNamed(context, AppRoutes.food),
+                    onTrainingTap: isReadOnly || locked
+                        ? null
+                        : () =>
+                              Navigator.pushNamed(context, AppRoutes.training),
+                    onActivityTap: isReadOnly || locked
+                        ? null
+                        : () =>
+                              Navigator.pushNamed(context, AppRoutes.activity),
+                    onPrimaryAction: isReadOnly || closeState == null
+                        ? null
+                        : closeState.phase == OperationPhase.open
+                        ? () => _openReview(
+                            confirmationStatus: confirmationStatus,
+                          )
+                        : closeState.phase == OperationPhase.awaitingDebrief &&
+                              closeState.finalizeReady
+                        ? () => _finalize(confirmationStatus)
+                        : null,
+                    onUndo:
+                        isReadOnly ||
+                            closeState?.undoInspection.canUndo != true ||
+                            closeState?.phase != OperationPhase.awaitingDebrief
+                        ? null
+                        : () => _undo(closeState!.undoInspection),
+                  );
+                },
+              ),
         ),
       ],
     );
   }
 
-  Future<void> _openReview(
-    BuildContext context, {
+  Future<void> _openReview({
     required DailyLogConfirmationStatus confirmationStatus,
   }) async {
-    final previousOperationDate = OperationLocalDate.fromDateTime(
-      confirmationStatus.date,
-    );
     final changed = await Navigator.pushNamed(
       context,
       AppRoutes.logConfirmationReview,
       arguments: LogConfirmationReviewPage(
-        morning: morningFact,
-        food: foodSummary,
-        activity: activitySummary,
-        training: trainingSummary,
-        estimatedTotalBurn: estimatedTotalBurn,
+        morning: widget.morningFact,
+        food: widget.foodSummary,
+        activity: widget.activitySummary,
+        training: widget.trainingSummary,
+        estimatedTotalBurn: widget.estimatedTotalBurn,
         targetDate: confirmationStatus.date,
       ),
     );
     if (changed == true) {
-      await onReviewCompleted?.call(previousOperationDate);
+      if (!mounted) return;
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ReportSyncExchangePage(
+            exchangeType: ReportSyncExchangeType.dailyDebrief,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      await widget.onClosePrepared?.call();
+      _reloadCloseState();
     }
+  }
+
+  Future<void> _finalize(DailyLogConfirmationStatus confirmationStatus) async {
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('FINALIZE DAY'),
+        content: const Text(
+          'Daily Debriefを含むこの日の記録を確定して\n'
+          'Operation Dateを翌日へ進めますか？',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('YES'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('NO'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    final previousDate = OperationLocalDate.fromDateTime(
+      confirmationStatus.date,
+    );
+    try {
+      await DailyFinalizeCoordinatorFactory.production().finalize(
+        targetLocalDate: previousDate,
+      );
+      if (!mounted) return;
+      await widget.onReviewCompleted?.call(previousDate);
+      _reloadCloseState();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('FINALIZE DAYに失敗しました: $error')));
+    }
+  }
+
+  Future<void> _undo(DailyFinalizeUndoInspection inspection) async {
+    try {
+      await DailyFinalizeUndoService(
+        AppRepositoryRegistry.container.database,
+      ).undo(expectedRevision: inspection.revision);
+      await widget.onClosePrepared?.call();
+      _reloadCloseState();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('UNDO DAILY CLOSEに失敗しました: $error')),
+      );
+    }
+  }
+
+  Future<_DailyCloseUiState> _loadCloseState() async {
+    final container = AppRepositoryRegistry.container;
+    final state = await container.operationState.requireCurrent();
+    var finalizeReady = false;
+    if (state.phase == OperationPhase.awaitingDebrief) {
+      final debrief = await container.dailyDebriefs.readByLocalDate(
+        state.operationDate.value,
+      );
+      finalizeReady =
+          debrief != null &&
+          await container.dailyDebriefSources.projectLifecycle(debrief) ==
+              DailyDebriefLifecycleStatus.active;
+    }
+    final undoInspection = await DailyFinalizeUndoService(
+      container.database,
+    ).inspect();
+    return _DailyCloseUiState(
+      phase: state.phase,
+      finalizeReady: finalizeReady,
+      undoInspection: undoInspection,
+    );
+  }
+
+  void _reloadCloseState() {
+    if (!mounted) return;
+    setState(() => _closeState = _loadCloseState());
   }
 }
 
@@ -111,7 +242,10 @@ class DailyLogCard extends StatelessWidget {
     required this.foodSummary,
     required this.activitySummary,
     required this.trainingSummary,
-    required this.onReview,
+    required this.phase,
+    required this.finalizeReady,
+    required this.onPrimaryAction,
+    required this.onUndo,
     this.onStatusTap,
     this.onFoodTap,
     this.onTrainingTap,
@@ -122,7 +256,10 @@ class DailyLogCard extends StatelessWidget {
   final FoodSummary? foodSummary;
   final ActivitySummary activitySummary;
   final TrainingSummary? trainingSummary;
-  final VoidCallback? onReview;
+  final OperationPhase phase;
+  final bool finalizeReady;
+  final VoidCallback? onPrimaryAction;
+  final VoidCallback? onUndo;
   final VoidCallback? onStatusTap;
   final VoidCallback? onFoodTap;
   final VoidCallback? onTrainingTap;
@@ -136,6 +273,9 @@ class DailyLogCard extends StatelessWidget {
       activity: activitySummary,
       training: trainingSummary,
     );
+    final primaryReady = phase == OperationPhase.awaitingDebrief
+        ? finalizeReady
+        : phase == OperationPhase.open && validation.canFinalize;
     final statusState = validation.statusValid
         ? _DailyLogEntryState.completed
         : _DailyLogEntryState.requiredInvalid;
@@ -203,13 +343,28 @@ class DailyLogCard extends StatelessWidget {
             },
           ),
           AppSpacing.gapMD,
-          _FinalizeReadiness(validation: validation),
-          AppSpacing.gapMD,
-          OperationButton(
-            icon: Icons.fact_check_outlined,
-            text: 'DAILY REVIEW',
-            onPressed: onReview,
+          _DailyCloseReadiness(
+            validation: validation,
+            phase: phase,
+            finalizeReady: finalizeReady,
           ),
+          AppSpacing.gapMD,
+          _DailyCloseActionButton(
+            text: phase == OperationPhase.awaitingDebrief
+                ? 'FINALIZE DAY'
+                : phase == OperationPhase.open
+                ? 'CREATE DAILY DEBRIEF'
+                : 'DAILY CLOSE IN PROGRESS',
+            onPressed: primaryReady ? onPrimaryAction : null,
+          ),
+          if (phase == OperationPhase.awaitingDebrief) ...[
+            AppSpacing.gapSM,
+            OutlinedButton.icon(
+              onPressed: onUndo,
+              icon: const Icon(Icons.undo),
+              label: const Text('UNDO DAILY CLOSE'),
+            ),
+          ],
         ],
       ),
     );
@@ -285,14 +440,22 @@ class _DailyLogEntryStatus extends StatelessWidget {
   }
 }
 
-class _FinalizeReadiness extends StatelessWidget {
-  const _FinalizeReadiness({required this.validation});
+class _DailyCloseReadiness extends StatelessWidget {
+  const _DailyCloseReadiness({
+    required this.validation,
+    required this.phase,
+    required this.finalizeReady,
+  });
 
   final DailyLogValidationResult validation;
+  final OperationPhase phase;
+  final bool finalizeReady;
 
   @override
   Widget build(BuildContext context) {
-    final ready = validation.canFinalize;
+    final awaiting = phase == OperationPhase.awaitingDebrief;
+    final ready = awaiting ? finalizeReady : validation.canFinalize;
+    final action = awaiting ? 'FINALIZE' : 'CREATE DAILY DEBRIEF';
     final colorScheme = Theme.of(context).colorScheme;
     final color = ready ? colorScheme.primary : colorScheme.error;
     final blockers = validation.blockingModules
@@ -300,7 +463,7 @@ class _FinalizeReadiness extends StatelessWidget {
         .join(', ');
     return Semantics(
       key: const ValueKey('daily-log-finalize-readiness'),
-      label: ready ? 'FINALIZE READY' : 'FINALIZE BLOCKED $blockers',
+      label: ready ? '$action READY' : '$action BLOCKED $blockers',
       container: true,
       child: ExcludeSemantics(
         child: Row(
@@ -315,13 +478,19 @@ class _FinalizeReadiness extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    ready ? 'FINALIZE READY' : 'FINALIZE BLOCKED',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleSmall?.copyWith(color: color),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        ready ? '$action READY' : '$action BLOCKED',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleSmall?.copyWith(color: color),
+                      ),
+                    ),
                   ),
-                  if (!ready) Text(blockers),
+                  if (!ready) Text(awaiting ? 'DAILY DEBRIEFが未完成です' : blockers),
                 ],
               ),
             ),
@@ -330,4 +499,42 @@ class _FinalizeReadiness extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DailyCloseActionButton extends StatelessWidget {
+  const _DailyCloseActionButton({required this.text, required this.onPressed});
+
+  final String text;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(text, style: AppTextStyles.label),
+        ),
+      ),
+    );
+  }
+}
+
+class _DailyCloseUiState {
+  const _DailyCloseUiState({
+    required this.phase,
+    required this.finalizeReady,
+    required this.undoInspection,
+  });
+
+  final OperationPhase phase;
+  final bool finalizeReady;
+  final DailyFinalizeUndoInspection undoInspection;
 }

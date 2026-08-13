@@ -9,11 +9,9 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../morning/models/morning_fact.dart';
-import '../import_export/services/backup_file_export_service.dart';
-import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/models/daily_finalize_result.dart';
+import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/services/daily_finalize_coordinator_factory.dart';
-import 'widgets/backup_prompt_dialog.dart';
 import 'widgets/daily_review_body.dart';
 
 typedef ConfirmDailyLog = Future<void> Function(double? estimatedTotalBurnKcal);
@@ -27,7 +25,6 @@ class LogConfirmationReviewPage extends StatefulWidget {
     required this.training,
     required this.estimatedTotalBurn,
     required this.targetDate,
-    this.backupExportService,
     this.confirmDailyLog,
   });
 
@@ -37,7 +34,6 @@ class LogConfirmationReviewPage extends StatefulWidget {
   final TrainingSummary? training;
   final double? estimatedTotalBurn;
   final DateTime targetDate;
-  final BackupFileExportService? backupExportService;
   final ConfirmDailyLog? confirmDailyLog;
 
   @override
@@ -57,19 +53,14 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       );
 
   Future<void> _confirmLog() async {
-    if (_isConfirming) {
-      return;
-    }
+    if (_isConfirming) return;
 
     final approved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('FINALIZE DAY'),
-        content: const Text(
-          'この日の入力を確定して\n'
-          'Operation Dateを翌日へ進めますか？',
-        ),
+        title: const Text('CREATE DAILY DEBRIEF'),
+        content: const Text('この日の入力を確定して\nDaily Debriefの作成へ進みますか？'),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
@@ -89,11 +80,10 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
     }
 
     setState(() => _isConfirming = true);
-
     try {
       final confirmDailyLog = widget.confirmDailyLog;
       if (confirmDailyLog == null) {
-        await DailyFinalizeCoordinatorFactory.production().finalize(
+        await DailyFinalizeCoordinatorFactory.production().prepareDailyDebrief(
           targetLocalDate: OperationLocalDate.parse(
             _formatLocalDate(widget.targetDate),
           ),
@@ -102,16 +92,6 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       } else {
         await confirmDailyLog(widget.estimatedTotalBurn);
       }
-
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (_) => BackupPromptDialog(
-          exportService:
-              widget.backupExportService ?? BackupFileExportService(),
-        ),
-      );
       if (!mounted) return;
       Navigator.pop(context, true);
     } on DailyLogValidationException catch (error) {
@@ -122,20 +102,14 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
       if (!mounted) return;
       setState(() => _isConfirming = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('DAILY LOGの確定に失敗しました: ${error.code.name}')),
-      );
-    } on StateError {
-      if (!mounted) return;
-      setState(() => _isConfirming = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('DAILY LOGのデータを準備できませんでした。')),
+        SnackBar(content: Text('DAILY CLOSEの準備に失敗しました: ${error.code.name}')),
       );
     } catch (_) {
       if (!mounted) return;
       setState(() => _isConfirming = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('DAILY LOGの確定に失敗しました。')));
+      ).showSnackBar(const SnackBar(content: Text('DAILY CLOSEの準備に失敗しました')));
     }
   }
 
@@ -184,12 +158,8 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
               ],
               AppSpacing.gapLG,
               const Text(
-                'FINALIZEすると、\n'
-                'Operation Dateが翌日へ進みます。\n\n'
-                '確定後も、\n'
-                'STATUS・FOOD・ACTIVITY・TRAININGは修正できます。\n\n'
-                '直前のFINALIZEを取り消す場合は、\n'
-                'SYSTEMのLAST FINALIZEを使用してください。',
+                '確認後、ConfirmationとDaily Aggregateを作成し、'
+                'Daily Debriefの作成へ進みます。Operation Dateはまだ進みません。',
               ),
             ],
           ),
@@ -204,14 +174,14 @@ class _LogConfirmationReviewPageState extends State<LogConfirmationReviewPage> {
             children: [
               OperationButton(
                 icon: Icons.verified_outlined,
-                text: _isConfirming ? 'FINALIZING...' : 'FINALIZE DAY',
+                text: _isConfirming ? 'CREATING...' : 'CONFIRM',
                 onPressed: _isConfirming || !validation.canFinalize
                     ? null
                     : _confirmLog,
               ),
               AppSpacing.gapXS,
-              Text(
-                '本日の入力を確定し、\nOperation Dateを翌日へ進める',
+              const Text(
+                'この日の入力を確定し、Daily Debriefの作成へ進みます',
                 textAlign: TextAlign.center,
               ),
               TextButton(

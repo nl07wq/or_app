@@ -216,6 +216,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         );
       }
       final operationDate = _form.date.substring(0, 10);
+      await DailyLogMutationGuard.assertDateMutable(
+        DateTime.parse(operationDate),
+      );
       final repository = await _draftRepository;
       await repository?.save(
         ActiveTrainingDraft(

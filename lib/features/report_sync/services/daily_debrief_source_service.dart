@@ -5,6 +5,7 @@ import '../../daily_log_confirmation/models/daily_log_confirmation_lifecycle.dar
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../../operation_date/repository/operation_state_repository.dart';
+import '../../operation_date/models/operation_state.dart';
 import '../models/daily_debrief_record.dart';
 import '../models/morning_brief_record.dart';
 import '../repository/morning_brief_repository.dart';
@@ -150,8 +151,12 @@ class DailyDebriefSourceService {
 
   Future<String?> defaultEligibleDate() async {
     final eligible = await eligibleDates();
-    final lastFinalized =
-        (await operationState.requireCurrent()).lastFinalizedDate?.value;
+    final state = await operationState.requireCurrent();
+    if (state.phase == OperationPhase.awaitingDebrief &&
+        eligible.contains(state.operationDate.value)) {
+      return state.operationDate.value;
+    }
+    final lastFinalized = state.lastFinalizedDate?.value;
     if (lastFinalized != null && eligible.contains(lastFinalized)) {
       return lastFinalized;
     }

@@ -194,6 +194,13 @@ void main() {
       ),
       OperationState(
         operationDate: date,
+        phase: OperationPhase.awaitingDebrief,
+        activeAttempt: confirmationAttempt,
+        createdAt: createdAt,
+        updatedAt: createdAt,
+      ),
+      OperationState(
+        operationDate: date,
         phase: OperationPhase.finalizing,
         activeAttempt: OperationActiveAttempt(
           idempotencyKey: 'attempt-1',
@@ -223,6 +230,7 @@ void main() {
       expect(OperationState.fromRecord(state.toRecord()).phase, state.phase);
     }
     expect(states.map((state) => state.requiresRecovery), [
+      isFalse,
       isFalse,
       isTrue,
       isTrue,

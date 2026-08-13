@@ -6,6 +6,7 @@ enum DailyCommandCycleState {
   standby,
   active,
   reviewReady,
+  awaitingDebrief,
   finalizing,
   recoveryRequired,
 }
@@ -53,7 +54,7 @@ class DailyCommandReadModel {
     required this.estimatedTotalBurnKcal,
   });
 
-  bool get canFinalize =>
+  bool get canPrepareDailyDebrief =>
       !isHistoricalView &&
       persistentPhase == OperationPhase.open &&
       validation.canFinalize;

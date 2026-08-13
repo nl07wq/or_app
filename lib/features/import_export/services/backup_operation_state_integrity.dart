@@ -71,7 +71,7 @@ abstract final class BackupOperationStateIntegrity {
     final records = data[BackupSections.operationState];
     return records != null &&
         records.length == 1 &&
-        OperationState.fromRecord(records.single).phase != OperationPhase.open;
+        OperationState.fromRecord(records.single).requiresRecovery;
   }
 
   static String _localDate(DateTime value) =>

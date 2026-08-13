@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
-import 'package:or_app/features/daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
 import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
-import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
+import 'package:or_app/features/daily_aggregate/repository/indexed_db_daily_aggregate_repository.dart';
 import 'package:or_app/features/daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/operation_date/models/daily_finalize_result.dart';
@@ -22,9 +21,33 @@ import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
 void main() {
   group('DailyFinalizeCoordinator', () {
     test(
-      'finalizes, verifies backup, advances once, and restores next date',
+      'prepare atomically stores confirmation and aggregate and awaits DD',
       () async {
         final fixture = await _fixture('2026-07-31');
+
+        final result = await fixture.coordinator.prepareDailyDebrief(
+          targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+        );
+
+        expect(result.operationDate.value, '2026-07-31');
+        expect(result.confirmationId, 'confirmation:2026-07-31');
+        expect(await fixture.confirmations.findAll(), hasLength(1));
+        expect(await fixture.aggregates.getByDate('2026-07-31'), isNotNull);
+        final state = await fixture.operationState.requireCurrent();
+        expect(state.operationDate.value, '2026-07-31');
+        expect(state.phase, OperationPhase.awaitingDebrief);
+        expect(state.requiresRecovery, isFalse);
+        expect(fixture.restoreCount, 0);
+      },
+    );
+
+    test(
+      'finalize validates DD, backs up, advances once, and restores',
+      () async {
+        final fixture = await _fixture('2026-07-31');
+        await fixture.coordinator.prepareDailyDebrief(
+          targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+        );
 
         final result = await fixture.coordinator.finalize(
           targetLocalDate: OperationLocalDate.parse('2026-07-31'),
@@ -32,8 +55,6 @@ void main() {
 
         expect(result.finalizedDate.value, '2026-07-31');
         expect(result.nextOperationDate.value, '2026-08-01');
-        expect(result.confirmationId, 'confirmation:2026-07-31');
-        expect(result.confirmationDigest, isNotEmpty);
         expect(result.backupPackageDigest, isNotEmpty);
         expect(fixture.restoreCount, 1);
         final state = await fixture.operationState.requireCurrent();
@@ -41,28 +62,29 @@ void main() {
         expect(state.lastFinalizedDate?.value, '2026-07-31');
         expect(state.phase, OperationPhase.open);
         expect(state.activeAttempt, isNull);
-        final persisted = PersistedDailyLogConfirmationRecord.fromRecord(
-          (await fixture.database.findById(
-            IndexedDbStoreNames.dailyLogConfirmations,
-            result.confirmationId,
-          ))!,
-        );
-        expect(persisted.recordVersion, 2);
-        expect(
-          persisted.lifecycleStatus,
-          DailyLogConfirmationLifecycleStatus.finalized,
-        );
-        expect(persisted.revision, 1);
-        expect(persisted.previousRevisions, isEmpty);
-        expect(persisted.originalSnapshotDigest, persisted.snapshotDigest);
-        expect(persisted.sourceRecordVersions!.toJson(), {
-          'status': null,
-          'food': null,
-          'activity': null,
-          'training': null,
-        });
       },
     );
+
+    test('finalize is read-only blocked when DD is not ACTIVE', () async {
+      final fixture = await _fixture('2026-07-31');
+      await fixture.coordinator.prepareDailyDebrief(
+        targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+      );
+      fixture.debriefActive = false;
+      final before = await fixture.operationState.requireCurrent();
+
+      await expectLater(
+        fixture.coordinator.finalize(
+          targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      final after = await fixture.operationState.requireCurrent();
+      expect(after.revision, before.revision);
+      expect(after.phase, OperationPhase.awaitingDebrief);
+      expect(after.operationDate, before.operationDate);
+    });
 
     for (final dates in const [
       ('2026-01-31', '2026-02-01'),
@@ -72,6 +94,9 @@ void main() {
     ]) {
       test('advances calendar date ${dates.$1} to ${dates.$2}', () async {
         final fixture = await _fixture(dates.$1);
+        await fixture.coordinator.prepareDailyDebrief(
+          targetLocalDate: OperationLocalDate.parse(dates.$1),
+        );
 
         final result = await fixture.coordinator.finalize(
           targetLocalDate: OperationLocalDate.parse(dates.$1),
@@ -81,36 +106,33 @@ void main() {
       });
     }
 
-    test(
-      'rejects a historical target without changing operation state',
-      () async {
-        final fixture = await _fixture('2026-07-31');
+    test('rejects a historical preparation target without mutation', () async {
+      final fixture = await _fixture('2026-07-31');
 
-        await expectLater(
-          fixture.coordinator.finalize(
-            targetLocalDate: OperationLocalDate.parse('2026-07-30'),
+      await expectLater(
+        fixture.coordinator.prepareDailyDebrief(
+          targetLocalDate: OperationLocalDate.parse('2026-07-30'),
+        ),
+        throwsA(
+          isA<DailyFinalizeException>().having(
+            (error) => error.code,
+            'code',
+            DailyFinalizeFailureCode.validationFailed,
           ),
-          throwsA(
-            isA<DailyFinalizeException>().having(
-              (error) => error.code,
-              'code',
-              DailyFinalizeFailureCode.validationFailed,
-            ),
-          ),
-        );
+        ),
+      );
 
-        expect(
-          (await fixture.operationState.requireCurrent()).operationDate.value,
-          '2026-07-31',
-        );
-      },
-    );
+      expect(
+        (await fixture.operationState.requireCurrent()).operationDate.value,
+        '2026-07-31',
+      );
+    });
 
-    test('revision guard permits only one concurrent finalize lock', () async {
+    test('concurrent preparation acquires one close lock', () async {
       final fixture = await _fixture('2026-07-31');
       Future<Object> run() async {
         try {
-          return await fixture.coordinator.finalize(
+          return await fixture.coordinator.prepareDailyDebrief(
             targetLocalDate: OperationLocalDate.parse('2026-07-31'),
           );
         } catch (error) {
@@ -120,11 +142,11 @@ void main() {
 
       final results = await Future.wait([run(), run()]);
 
-      expect(results.whereType<DailyFinalizeResult>(), hasLength(1));
+      expect(results.whereType<DailyClosePreparationResult>(), hasLength(1));
       expect(results.whereType<DailyFinalizeException>(), hasLength(1));
       expect(
-        (await fixture.operationState.requireCurrent()).operationDate.value,
-        '2026-08-01',
+        (await fixture.operationState.requireCurrent()).phase,
+        OperationPhase.awaitingDebrief,
       );
     });
 
@@ -140,7 +162,7 @@ void main() {
         );
 
         await expectLater(
-          fixture.coordinator.finalize(
+          fixture.coordinator.prepareDailyDebrief(
             targetLocalDate: OperationLocalDate.parse('2026-07-31'),
           ),
           throwsA(
@@ -153,20 +175,18 @@ void main() {
         );
 
         final state = await fixture.operationState.requireCurrent();
-        expect(state.operationDate.value, '2026-07-31');
         expect(state.phase, OperationPhase.finalizing);
-        expect(
-          state.activeAttempt?.failureCode,
-          DailyFinalizeFailureCode.confirmationDigestMismatch.name,
-        );
       },
     );
 
     test(
-      'backup failure keeps confirmation and resumes without duplication',
+      'backup failure keeps awaiting artifacts and finalize can retry',
       () async {
         final controller = AppInitializationController();
         final fixture = await _fixture('2026-07-31', controller: controller);
+        await fixture.coordinator.prepareDailyDebrief(
+          targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+        );
 
         await expectLater(
           fixture.coordinator.finalize(
@@ -180,21 +200,22 @@ void main() {
             ),
           ),
         );
-        var state = await fixture.operationState.requireCurrent();
-        expect(state.phase, OperationPhase.finalizedPendingBackup);
+        expect(
+          (await fixture.operationState.requireCurrent()).phase,
+          OperationPhase.awaitingDebrief,
+        );
         expect(await fixture.confirmations.findAll(), hasLength(1));
+        expect(await fixture.aggregates.getByDate('2026-07-31'), isNotNull);
 
         controller.markReady();
-        final result = await fixture.coordinator.recover();
-
+        final result = await fixture.coordinator.finalize(
+          targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+        );
         expect(result.nextOperationDate.value, '2026-08-01');
-        expect(await fixture.confirmations.findAll(), hasLength(1));
-        state = await fixture.operationState.requireCurrent();
-        expect(state.phase, OperationPhase.open);
       },
     );
 
-    test('reload in finalizing resumes from confirmation generation', () async {
+    test('reload in finalizing resumes only through awaiting DD', () async {
       final fixture = await _fixture('2026-07-31');
       final current = await fixture.operationState.requireCurrent();
       final date = current.operationDate;
@@ -212,9 +233,28 @@ void main() {
 
       final result = await fixture.coordinator.recover();
 
-      expect(result.finalizedDate, date);
-      expect(result.nextOperationDate.value, '2026-08-01');
+      expect(result, isNull);
+      expect(
+        (await fixture.operationState.requireCurrent()).phase,
+        OperationPhase.awaitingDebrief,
+      );
       expect(await fixture.confirmations.findAll(), hasLength(1));
+    });
+
+    test('reload in awaiting debrief validates without advancing', () async {
+      final fixture = await _fixture('2026-07-31');
+      final date = OperationLocalDate.parse('2026-07-31');
+      await fixture.coordinator.prepareDailyDebrief(targetLocalDate: date);
+      final before = await fixture.operationState.requireCurrent();
+
+      final result = await fixture.coordinator.recover();
+
+      final after = await fixture.operationState.requireCurrent();
+      expect(result, isNull);
+      expect(after.toRecord(), before.toRecord());
+      expect(after.phase, OperationPhase.awaitingDebrief);
+      expect(after.operationDate, date);
+      expect(fixture.restoreCount, 0);
     });
 
     test('reload in advancing completes one pending date advance', () async {
@@ -222,6 +262,7 @@ void main() {
       final date = OperationLocalDate.parse('2026-07-31');
       final confirmation = completeConfirmation(date: DateTime(2026, 7, 31));
       await fixture.confirmations.save(confirmation);
+      await fixture.aggregates.put(_aggregate(date.value));
       final digest = DailyFinalizeIntegrityService(
         fixture.operationState,
         fixture.confirmations,
@@ -245,60 +286,58 @@ void main() {
 
       final result = await fixture.coordinator.recover();
 
-      expect(result.nextOperationDate.value, '2026-08-01');
+      expect(result?.nextOperationDate.value, '2026-08-01');
       expect(
         (await fixture.operationState.requireCurrent()).operationDate.value,
         '2026-08-01',
       );
     });
 
-    test(
-      'confirmation transaction failure rolls back the confirmation',
-      () async {
-        final fixture = await _fixture('2026-07-31');
-        fixture.database.failOnTransactionNumber = 3;
+    test('preparation transaction failure rolls back all artifacts', () async {
+      final fixture = await _fixture('2026-07-31');
+      fixture.database.failOnTransactionNumber = 3;
 
-        await expectLater(
-          fixture.coordinator.finalize(
-            targetLocalDate: OperationLocalDate.parse('2026-07-31'),
-          ),
-          throwsA(isA<DailyFinalizeException>()),
-        );
-
-        expect(
-          await fixture.database.findAll(
-            IndexedDbStoreNames.dailyLogConfirmations,
-          ),
-          isEmpty,
-        );
-        expect(
-          (await fixture.operationState.requireCurrent()).operationDate.value,
-          '2026-07-31',
-        );
-      },
-    );
-
-    test(
-      'retry after completed finalize cannot advance the same date twice',
-      () async {
-        final fixture = await _fixture('2026-07-31');
-        await fixture.coordinator.finalize(
+      await expectLater(
+        fixture.coordinator.prepareDailyDebrief(
           targetLocalDate: OperationLocalDate.parse('2026-07-31'),
-        );
+        ),
+        throwsA(isA<DailyFinalizeException>()),
+      );
 
-        await expectLater(
-          fixture.coordinator.finalize(
-            targetLocalDate: OperationLocalDate.parse('2026-07-31'),
-          ),
-          throwsA(isA<DailyFinalizeException>()),
-        );
+      expect(
+        await fixture.database.findAll(
+          IndexedDbStoreNames.dailyLogConfirmations,
+        ),
+        isEmpty,
+      );
+      expect(
+        await fixture.database.findAll(
+          IndexedDbStoreNames.dailyAggregateRecords,
+        ),
+        isEmpty,
+      );
+    });
 
-        expect(
-          (await fixture.operationState.requireCurrent()).operationDate.value,
-          '2026-08-01',
-        );
-      },
-    );
+    test('completed finalize cannot advance the same date twice', () async {
+      final fixture = await _fixture('2026-07-31');
+      await fixture.coordinator.prepareDailyDebrief(
+        targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+      );
+      await fixture.coordinator.finalize(
+        targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+      );
+
+      await expectLater(
+        fixture.coordinator.finalize(
+          targetLocalDate: OperationLocalDate.parse('2026-07-31'),
+        ),
+        throwsA(isA<DailyFinalizeException>()),
+      );
+      expect(
+        (await fixture.operationState.requireCurrent()).operationDate.value,
+        '2026-08-01',
+      );
+    });
   });
 }
 
@@ -316,9 +355,9 @@ Future<_Fixture> _fixture(
     database,
     now: () => DateTime.utc(2026, 7, 31, 12),
   );
+  final aggregates = IndexedDbDailyAggregateRepository(database);
   final initialization =
       controller ?? (AppInitializationController()..markReady());
-  var restoreCount = 0;
   late _Fixture fixture;
   final coordinator = DailyFinalizeCoordinator(
     operationState,
@@ -334,21 +373,24 @@ Future<_Fixture> _fixture(
         clock: () => DateTime.utc(2026, 7, 31, 12, 5),
       ),
     ),
-    restoreNextDate: () async {
-      restoreCount++;
-      fixture.restoreCount = restoreCount;
-    },
+    restoreNextDate: () async => fixture.restoreCount++,
     buildDailyConfirmation: (date, _) async => completeConfirmation(
       date: DateTime.parse(date.value),
       confirmedAt: DateTime.utc(2026, 7, 31, 12, 1),
     ),
     buildDailyAggregate: (date, _) async => _aggregate(date),
+    readDailyAggregate: aggregates.getByDate,
+    saveDailyAggregate: aggregates.put,
+    validatePreparedDailyDebrief: (_) async {
+      if (!fixture.debriefActive) throw StateError('DD is not ACTIVE.');
+    },
     now: () => DateTime.utc(2026, 7, 31, 12),
   );
   fixture = _Fixture(
     database: database,
     operationState: operationState,
     confirmations: confirmations,
+    aggregates: aggregates,
     coordinator: coordinator,
   );
   return fixture;
@@ -382,13 +424,16 @@ class _Fixture {
   final FakeIndexedDbDatabase database;
   final IndexedDbOperationStateRepository operationState;
   final IndexedDbDailyLogConfirmationRepository confirmations;
+  final IndexedDbDailyAggregateRepository aggregates;
   final DailyFinalizeCoordinator coordinator;
   int restoreCount = 0;
+  bool debriefActive = true;
 
   _Fixture({
     required this.database,
     required this.operationState,
     required this.confirmations,
+    required this.aggregates,
     required this.coordinator,
   });
 }

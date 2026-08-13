@@ -12,6 +12,10 @@ class DailyFinalizeRecoveryService {
   Future<DailyFinalizeResult?> recoverIfRequired() async {
     final state = await _operationState.requireCurrent();
     if (state.phase == OperationPhase.open) return null;
+    if (state.phase == OperationPhase.awaitingDebrief) {
+      await _coordinator.validateAwaitingState(state);
+      return null;
+    }
     return _coordinator.recover();
   }
 }

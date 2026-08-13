@@ -1,10 +1,12 @@
-import '../repositories/daily_log_confirmation_repository.dart';
 import '../../features/daily_log_confirmation/models/daily_log_confirmation_lifecycle_projection.dart';
+import '../../features/operation_date/models/operation_state.dart';
+import '../../features/repositories/app_repository_container.dart';
+import '../repositories/daily_log_confirmation_repository.dart';
 
 class ConfirmedDailyLogException implements Exception {
   const ConfirmedDailyLogException();
 
-  static const message = 'この日のログは確認済みです。修正する場合は訂正手続きを開始してください。';
+  static const message = 'DAILY CLOSE IN PROGRESS';
 
   @override
   String toString() => message;
@@ -15,7 +17,7 @@ class DailyLogIntegrityException implements Exception {
 
   const DailyLogIntegrityException(this.cause);
 
-  static const message = 'この日の確定状態を確認できないため、記録を変更できません。';
+  static const message = 'Daily Logの状態を確認できないため、記録を変更できません。';
 
   @override
   String toString() => '$message ($cause)';
@@ -34,12 +36,23 @@ class DailyLogMutationGuard {
     }
   }
 
-  /// Finalization advances the Operation Date but never locks module records.
-  static Future<bool> isDateLocked(DateTime date) async => false;
+  static Future<bool> isDateLocked(DateTime date) async {
+    if (!AppRepositoryRegistry.hasContainer) return false;
+    final state = await AppRepositoryRegistry.container.operationState
+        .requireCurrent();
+    final localDate =
+        '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    return state.operationDate.value == localDate &&
+        state.phase != OperationPhase.open;
+  }
 
   static Future<bool> isDateConfirmed(DateTime date) => isDateLocked(date);
 
-  static Future<void> assertDateEditable(DateTime date) async {}
+  static Future<void> assertDateEditable(DateTime date) async {
+    if (await isDateLocked(date)) throw const ConfirmedDailyLogException();
+  }
 
   static Future<void> assertDateMutable(DateTime date) =>
       assertDateEditable(date);

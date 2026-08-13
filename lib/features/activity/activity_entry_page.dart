@@ -369,6 +369,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() => _isBusy = true);
     try {
       PersistenceAccess.requireWrite('activityDraft.save');
+      await DailyLogMutationGuard.assertDateMutable(_date);
       final draft = _buildDraft();
       await AppRepositoryRegistry.container.activityDrafts.save(draft);
       final stored = await AppRepositoryRegistry.container.activityDrafts
@@ -398,6 +399,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() => _isBusy = true);
     try {
       PersistenceAccess.requireWrite('activityDraft.finalize');
+      await DailyLogMutationGuard.assertDateMutable(_date);
       final repository = AppRepositoryRegistry.container.activityDrafts;
       await repository.save(_buildDraft());
       final storedDraft = await repository.findByDate(_date);

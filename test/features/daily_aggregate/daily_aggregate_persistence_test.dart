@@ -5,6 +5,7 @@ import 'package:or_app/features/daily_aggregate/repository/indexed_db_daily_aggr
 import 'package:or_app/features/daily_log_confirmation/repository/indexed_db_daily_log_confirmation_repository.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_date/repository/indexed_db_operation_state_repository.dart';
 import 'package:or_app/features/operation_date/services/daily_finalize_backup_verifier.dart';
 import 'package:or_app/features/operation_date/services/daily_finalize_coordinator.dart';
@@ -49,9 +50,7 @@ void main() {
   test('finalize generates, saves, and reads back the aggregate', () async {
     final fixture = await _fixture();
 
-    await fixture.coordinator.finalize(
-      targetLocalDate: OperationLocalDate.parse('2026-08-09'),
-    );
+    await fixture.close('2026-08-09');
 
     final saved = await fixture.aggregates.getByDate('2026-08-09');
     expect(saved?.operationDate, '2026-08-09');
@@ -61,9 +60,7 @@ void main() {
 
   test('undo last finalize deletes the target aggregate', () async {
     final fixture = await _fixture();
-    await fixture.coordinator.finalize(
-      targetLocalDate: OperationLocalDate.parse('2026-08-09'),
-    );
+    await fixture.close('2026-08-09');
     final inspection = await fixture.undo.inspect();
 
     await fixture.undo.undo(expectedRevision: inspection.revision);
@@ -71,19 +68,32 @@ void main() {
     expect(await fixture.aggregates.getByDate('2026-08-09'), isNull);
   });
 
+  test('undo awaiting daily close reopens the same date', () async {
+    final fixture = await _fixture();
+    final date = OperationLocalDate.parse('2026-08-09');
+    await fixture.coordinator.prepareDailyDebrief(targetLocalDate: date);
+    final inspection = await fixture.undo.inspect();
+
+    expect(inspection.canUndo, isTrue);
+    expect(inspection.isAwaitingDailyClose, isTrue);
+    await fixture.undo.undo(expectedRevision: inspection.revision);
+
+    final state = await fixture.operationState.requireCurrent();
+    expect(state.operationDate, date);
+    expect(state.phase, OperationPhase.open);
+    expect(await fixture.confirmations.findByLocalDate(date.value), isNull);
+    expect(await fixture.aggregates.getByDate(date.value), isNull);
+  });
+
   test('re-finalize replaces the same date from the latest source', () async {
     var weightKg = 80.5;
     final fixture = await _fixture(weight: () => weightKg);
-    await fixture.coordinator.finalize(
-      targetLocalDate: OperationLocalDate.parse('2026-08-09'),
-    );
+    await fixture.close('2026-08-09');
     final inspection = await fixture.undo.inspect();
     await fixture.undo.undo(expectedRevision: inspection.revision);
     weightKg = 79.8;
 
-    await fixture.coordinator.finalize(
-      targetLocalDate: OperationLocalDate.parse('2026-08-09'),
-    );
+    await fixture.close('2026-08-09');
 
     final saved = await fixture.aggregates.getByDate('2026-08-09');
     expect(saved?.weightKg, 79.8);
@@ -131,10 +141,15 @@ Future<_Fixture> _fixture({double Function()? weight}) async {
       weightKg: weight?.call() ?? 80.5,
       trainingPerformed: true,
     ),
+    readDailyAggregate: aggregates.getByDate,
+    saveDailyAggregate: aggregates.put,
+    validatePreparedDailyDebrief: (_) async {},
     now: () => DateTime.utc(2026, 8, 9, 12),
   );
   return _Fixture(
     aggregates: aggregates,
+    confirmations: confirmations,
+    operationState: operationState,
     coordinator: coordinator,
     undo: DailyFinalizeUndoService(
       database,
@@ -174,11 +189,21 @@ DailyAggregateV1 _aggregate(
 class _Fixture {
   const _Fixture({
     required this.aggregates,
+    required this.confirmations,
+    required this.operationState,
     required this.coordinator,
     required this.undo,
   });
 
   final IndexedDbDailyAggregateRepository aggregates;
+  final IndexedDbDailyLogConfirmationRepository confirmations;
+  final IndexedDbOperationStateRepository operationState;
   final DailyFinalizeCoordinator coordinator;
   final DailyFinalizeUndoService undo;
+
+  Future<void> close(String localDate) async {
+    final date = OperationLocalDate.parse(localDate);
+    await coordinator.prepareDailyDebrief(targetLocalDate: date);
+    await coordinator.finalize(targetLocalDate: date);
+  }
 }

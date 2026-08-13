@@ -13,6 +13,18 @@ enum DailyFinalizeFailureCode {
   stateConflict,
 }
 
+class DailyClosePreparationResult {
+  final OperationLocalDate operationDate;
+  final String confirmationId;
+  final String confirmationDigest;
+
+  const DailyClosePreparationResult({
+    required this.operationDate,
+    required this.confirmationId,
+    required this.confirmationDigest,
+  });
+}
+
 class DailyFinalizeResult {
   final OperationLocalDate finalizedDate;
   final OperationLocalDate nextOperationDate;

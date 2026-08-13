@@ -3,6 +3,7 @@ import '../../../core/services/daily_state_restore_service.dart';
 import '../../import_export/services/backup_export_service.dart';
 import '../../daily_aggregate/services/daily_aggregate_engine.dart';
 import '../../command_center/services/daily_estimated_total_burn_service.dart';
+import '../../report_sync/models/daily_debrief_record.dart';
 import '../../repositories/app_repository_container.dart';
 import 'daily_finalize_backup_verifier.dart';
 import 'daily_finalize_coordinator.dart';
@@ -37,6 +38,20 @@ abstract final class DailyFinalizeCoordinatorFactory {
           ),
       buildDailyAggregate: (date, estimatedExpenditureKcal) => aggregateEngine
           .build(date, estimatedExpenditureKcal: estimatedExpenditureKcal),
+      readDailyAggregate: container.dailyAggregates.getByDate,
+      saveDailyAggregate: container.dailyAggregates.put,
+      validatePreparedDailyDebrief: (date) async {
+        final record = await container.dailyDebriefs.readByLocalDate(date);
+        if (record == null) {
+          throw StateError('DAILY DEBRIEF is required before finalize.');
+        }
+        final lifecycle = await container.dailyDebriefSources.projectLifecycle(
+          record,
+        );
+        if (lifecycle != DailyDebriefLifecycleStatus.active) {
+          throw StateError('DAILY DEBRIEF is not ACTIVE.');
+        }
+      },
     );
   }
 }
