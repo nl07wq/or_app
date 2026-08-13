@@ -290,14 +290,14 @@ class _OperationDateCard extends StatelessWidget {
         ),
         AppSpacing.gapSM,
         Wrap(
-          spacing: 12,
+          spacing: 10,
           runSpacing: AppSpacing.sm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             OperationDateFlipCalendar(
               operationDateFuture: operationDateFuture,
               transitionToken: transitionToken,
-              tileWidth: 46,
+              tileWidth: 44,
             ),
             const _DashboardLiveFlipClock(),
           ],
@@ -310,7 +310,7 @@ class _OperationDateCard extends StatelessWidget {
 class _DashboardLiveFlipClock extends StatefulWidget {
   const _DashboardLiveFlipClock();
 
-  static const tileWidth = 21.0;
+  static const tileWidth = 23.0;
   static const tileHeight = OperationDateFlipCalendar.defaultTileHeight;
   static const tileGap = 6.0;
 

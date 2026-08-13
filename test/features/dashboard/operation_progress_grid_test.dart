@@ -164,20 +164,20 @@ void main() {
         find.ancestor(of: month, matching: find.byType(Expanded)),
         findsNothing,
       );
-      expect(tester.getSize(month), const Size(46, 36));
-      expect(tester.getSize(day), const Size(46, 36));
-      expect(tester.getSize(weekday), const Size(46, 36));
-      expect(tester.getSize(row).width, 150);
+      expect(tester.getSize(month), const Size(44, 36));
+      expect(tester.getSize(day), const Size(44, 36));
+      expect(tester.getSize(weekday), const Size(44, 36));
+      expect(tester.getSize(row).width, 144);
       expect(
         tester.getSize(row).width,
         lessThan(tester.getSize(operationDateCard).width * 0.75),
       );
       expect(tester.getTopLeft(day).dx - tester.getTopRight(month).dx, 6);
       expect(tester.getTopLeft(weekday).dx - tester.getTopRight(day).dx, 6);
-      expect(tester.getSize(clock), const Size(156, 36));
+      expect(tester.getSize(clock), const Size(168, 36));
       for (var index = 0; index < 6; index++) {
         final tile = find.byKey(ValueKey('dashboard-time-tile-$index'));
-        expect(tester.getSize(tile), const Size(21, 36));
+        expect(tester.getSize(tile), const Size(23, 36));
         if (index > 0) {
           final previous = find.byKey(
             ValueKey('dashboard-time-tile-${index - 1}'),
@@ -207,8 +207,8 @@ void main() {
         );
       } else {
         expect(tester.getTopLeft(clock).dy, tester.getTopLeft(row).dy);
-        expect(tester.getTopLeft(clock).dx - tester.getTopRight(row).dx, 12);
-        expect(tester.getTopRight(clock).dx - tester.getTopLeft(row).dx, 318);
+        expect(tester.getTopLeft(clock).dx - tester.getTopRight(row).dx, 10);
+        expect(tester.getTopRight(clock).dx - tester.getTopLeft(row).dx, 322);
       }
       expect(tester.takeException(), isNull);
     }
