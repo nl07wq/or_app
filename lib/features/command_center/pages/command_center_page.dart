@@ -338,21 +338,55 @@ class _CurrentOperationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Column(
+    child: Row(
       key: const ValueKey('current-operation-card-content'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('OPERATION DATE', style: Theme.of(context).textTheme.labelLarge),
-        AppSpacing.gapSM,
-        OperationDateFlipCalendar(
-          operationDateFuture: operationDateFuture,
-          transitionToken: operationDateTransitionToken,
-          onDateDisplayed: onOperationDateDisplayed,
+        Column(
+          key: const ValueKey('current-operation-date-group'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'OPERATION DATE',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            AppSpacing.gapSM,
+            OperationDateFlipCalendar(
+              operationDateFuture: operationDateFuture,
+              transitionToken: operationDateTransitionToken,
+              onDateDisplayed: onOperationDateDisplayed,
+            ),
+          ],
         ),
-        AppSpacing.gapMD,
-        Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
-        AppSpacing.gapXS,
-        Text(_cycleLabel(cycleState)),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Column(
+            key: const ValueKey('current-operation-cycle-group'),
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'CYCLE STATE',
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              AppSpacing.gapSM,
+              Semantics(
+                label: 'CYCLE STATE ${_cycleLabel(cycleState)}',
+                child: SizedBox(
+                  key: const ValueKey('current-operation-cycle-value'),
+                  height: OperationDateFlipCalendar.defaultTileHeight,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Icon(
+                      cycleStateIconFor(cycleState),
+                      key: const ValueKey('current-operation-cycle-icon'),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     ),
   );
@@ -418,4 +452,13 @@ String _cycleLabel(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.awaitingDebrief => 'AWAITING DEBRIEF',
   DailyCommandCycleState.finalizing => 'FINALIZING',
   DailyCommandCycleState.recoveryRequired => 'RECOVERY REQUIRED',
+};
+
+IconData cycleStateIconFor(DailyCommandCycleState state) => switch (state) {
+  DailyCommandCycleState.standby => Icons.radio_button_unchecked,
+  DailyCommandCycleState.active => Icons.change_circle,
+  DailyCommandCycleState.reviewReady => Icons.task_alt,
+  DailyCommandCycleState.awaitingDebrief => Icons.pending_actions,
+  DailyCommandCycleState.finalizing => Icons.autorenew,
+  DailyCommandCycleState.recoveryRequired => Icons.build_circle,
 };

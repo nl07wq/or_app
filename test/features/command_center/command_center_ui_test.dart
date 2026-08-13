@@ -8,6 +8,7 @@ import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
+import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
@@ -64,6 +65,33 @@ void main() {
     );
   });
 
+  test('maps every cycle state to its formal Material Symbol', () {
+    expect(
+      cycleStateIconFor(DailyCommandCycleState.standby),
+      Icons.radio_button_unchecked,
+    );
+    expect(
+      cycleStateIconFor(DailyCommandCycleState.active),
+      Icons.change_circle,
+    );
+    expect(
+      cycleStateIconFor(DailyCommandCycleState.reviewReady),
+      Icons.task_alt,
+    );
+    expect(
+      cycleStateIconFor(DailyCommandCycleState.awaitingDebrief),
+      Icons.pending_actions,
+    );
+    expect(
+      cycleStateIconFor(DailyCommandCycleState.finalizing),
+      Icons.autorenew,
+    );
+    expect(
+      cycleStateIconFor(DailyCommandCycleState.recoveryRequired),
+      Icons.build_circle,
+    );
+  });
+
   setUp(() {
     morningFactNotifier.value = null;
     foodSummaryNotifier.value = null;
@@ -112,7 +140,20 @@ void main() {
     await _pump(tester, width: 320);
 
     final row = find.byKey(const ValueKey('operation-date-flip-row'));
+    final dateGroup = find.byKey(
+      const ValueKey('current-operation-date-group'),
+    );
+    final cycleGroup = find.byKey(
+      const ValueKey('current-operation-cycle-group'),
+    );
+    final cycleValue = find.byKey(
+      const ValueKey('current-operation-cycle-value'),
+    );
     expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+    expect(find.text('OPERATION DATE'), findsOneWidget);
+    expect(find.text('CYCLE STATE'), findsOneWidget);
+    expect(find.text('STANDBY'), findsNothing);
+    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
     expect(tester.getSize(row).width, 168);
     for (var index = 0; index < 3; index++) {
       expect(
@@ -120,6 +161,17 @@ void main() {
         const Size(52, 36),
       );
     }
+    expect(tester.getTopLeft(dateGroup).dy, tester.getTopLeft(cycleGroup).dy);
+    expect(tester.getTopLeft(row).dy, tester.getTopLeft(cycleValue).dy);
+    expect(tester.getSize(cycleValue).height, 36);
+    expect(
+      tester.getTopLeft(cycleGroup).dx,
+      greaterThanOrEqualTo(tester.getTopRight(dateGroup).dx),
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-live-flip-clock')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -938,7 +990,8 @@ void main() {
     );
 
     await _pump(tester, width: 390);
-    expect(find.textContaining('RECOVERY REQUIRED'), findsOneWidget);
+    expect(find.textContaining('RECOVERY REQUIRED'), findsNothing);
+    expect(find.byIcon(Icons.build_circle), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('DAILY LOG'),
       300,
