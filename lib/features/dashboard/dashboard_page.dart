@@ -9,9 +9,11 @@ import '../../core/engine/operation_input.dart';
 import '../../core/engine/training_summary.dart';
 import '../../core/models/meal_data.dart';
 import '../../core/navigation/app_routes.dart';
+import '../../core/services/app_clock.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/operation_flip_tile.dart';
 import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
@@ -287,13 +289,148 @@ class _OperationDateCard extends StatelessWidget {
           ],
         ),
         AppSpacing.gapSM,
-        OperationDateFlipCalendar(
-          operationDateFuture: operationDateFuture,
-          transitionToken: transitionToken,
+        Wrap(
+          spacing: 12,
+          runSpacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            OperationDateFlipCalendar(
+              operationDateFuture: operationDateFuture,
+              transitionToken: transitionToken,
+            ),
+            const _DashboardLiveFlipClock(),
+          ],
         ),
       ],
     ),
   );
+}
+
+class _DashboardLiveFlipClock extends StatefulWidget {
+  const _DashboardLiveFlipClock();
+
+  static const tileWidth = 18.0;
+  static const tileHeight = OperationDateFlipCalendar.tileHeight;
+  static const tileGap = 6.0;
+
+  @override
+  State<_DashboardLiveFlipClock> createState() =>
+      _DashboardLiveFlipClockState();
+}
+
+class _DashboardLiveFlipClockState extends State<_DashboardLiveFlipClock>
+    with WidgetsBindingObserver {
+  late DateTime _displayedTime = AppClock.now();
+  Timer? _timer;
+  Animation<double>? _secondaryAnimation;
+  bool _routeVisible = true;
+  bool _appActive = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextAnimation = ModalRoute.of(context)?.secondaryAnimation;
+    if (_secondaryAnimation != nextAnimation) {
+      _secondaryAnimation?.removeStatusListener(_handleRouteStatus);
+      _secondaryAnimation = nextAnimation;
+      _secondaryAnimation?.addStatusListener(_handleRouteStatus);
+    }
+    _routeVisible =
+        nextAnimation == null ||
+        nextAnimation.status == AnimationStatus.dismissed;
+    if (_routeVisible && _appActive) {
+      _displayedTime = AppClock.now();
+      _scheduleNextTick();
+    } else {
+      _timer?.cancel();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
+    if (_appActive && _routeVisible) {
+      _syncAndSchedule();
+    } else {
+      _timer?.cancel();
+    }
+  }
+
+  void _handleRouteStatus(AnimationStatus status) {
+    final visible = status == AnimationStatus.dismissed;
+    if (_routeVisible == visible) return;
+    _routeVisible = visible;
+    if (visible && _appActive) {
+      _syncAndSchedule();
+    } else {
+      _timer?.cancel();
+    }
+  }
+
+  void _syncAndSchedule() {
+    if (!mounted) return;
+    final now = AppClock.now();
+    if (_secondStamp(now) != _secondStamp(_displayedTime)) {
+      setState(() => _displayedTime = now);
+    }
+    _scheduleNextTick();
+  }
+
+  void _scheduleNextTick() {
+    _timer?.cancel();
+    if (!_routeVisible || !_appActive) return;
+    final now = AppClock.now();
+    final delay = Duration(milliseconds: 1000 - now.millisecond);
+    _timer = Timer(delay, _syncAndSchedule);
+  }
+
+  int _secondStamp(DateTime value) => value.millisecondsSinceEpoch ~/ 1000;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _secondaryAnimation?.removeStatusListener(_handleRouteStatus);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final values = [
+      _displayedTime.hour.toString().padLeft(2, '0'),
+      _displayedTime.minute.toString().padLeft(2, '0'),
+      _displayedTime.second.toString().padLeft(2, '0'),
+    ].expand((value) => value.split('')).toList(growable: false);
+    return Semantics(
+      label:
+          'CURRENT TIME ${values[0]}${values[1]}:'
+          '${values[2]}${values[3]}:${values[4]}${values[5]}',
+      child: ExcludeSemantics(
+        child: Row(
+          key: const ValueKey('dashboard-live-flip-clock'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < values.length; index++) ...[
+              if (index > 0)
+                const SizedBox(width: _DashboardLiveFlipClock.tileGap),
+              OperationMechanicalFlipTile(
+                key: ValueKey('dashboard-time-tile-$index'),
+                value: values[index],
+                width: _DashboardLiveFlipClock.tileWidth,
+                height: _DashboardLiveFlipClock.tileHeight,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DailyCommandSummary extends StatelessWidget {

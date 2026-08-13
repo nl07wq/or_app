@@ -6,6 +6,7 @@ import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
@@ -40,6 +41,8 @@ void main() {
     trainingSummaryNotifier.value = null;
     morningBriefRevisionNotifier.value = 0;
   });
+
+  tearDown(AppClock.resetForTesting);
 
   test('finalize success is consumed once by its origin owner', () async {
     final date = OperationLocalDate.parse('2026-08-11');
@@ -129,9 +132,10 @@ void main() {
     }
   });
 
-  testWidgets('OPERATION DATE uses three static flip tiles without overflow', (
+  testWidgets('OPERATION DATE and live time use fixed flip tile dimensions', (
     tester,
   ) async {
+    AppClock.setSystemNowForTesting(() => DateTime(2026, 8, 11, 1, 36, 29));
     final database = FakeIndexedDbDatabase();
     seedOperationState(database, '2026-07-28');
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
@@ -153,6 +157,7 @@ void main() {
         of: find.text('OPERATION DATE'),
         matching: find.byType(OperationCard),
       );
+      final clock = find.byKey(const ValueKey('dashboard-live-flip-clock'));
 
       expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
       expect(
@@ -169,12 +174,111 @@ void main() {
       );
       expect(tester.getTopLeft(day).dx - tester.getTopRight(month).dx, 6);
       expect(tester.getTopLeft(weekday).dx - tester.getTopRight(day).dx, 6);
+      expect(tester.getSize(clock), const Size(138, 36));
+      for (var index = 0; index < 6; index++) {
+        final tile = find.byKey(ValueKey('dashboard-time-tile-$index'));
+        expect(tester.getSize(tile), const Size(18, 36));
+        if (index > 0) {
+          final previous = find.byKey(
+            ValueKey('dashboard-time-tile-${index - 1}'),
+          );
+          expect(
+            tester.getTopLeft(tile).dx - tester.getTopRight(previous).dx,
+            6,
+          );
+        }
+      }
       expect(
         tester.getTopLeft(row).dx,
         lessThan(tester.getCenter(operationDateCard).dx),
       );
+      if (width == 320) {
+        expect(
+          tester.getTopLeft(clock).dy,
+          greaterThan(tester.getTopLeft(row).dy),
+        );
+      } else {
+        expect(tester.getTopLeft(clock).dy, tester.getTopLeft(row).dy);
+        expect(tester.getTopLeft(clock).dx - tester.getTopRight(row).dx, 12);
+      }
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('live time flips only digits changed at a second boundary', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 8, 11, 1, 36, 29);
+    AppClock.setSystemNowForTesting(() => now);
+
+    await _pumpDashboard(tester, width: 390);
+    expect(_timeTileValues(tester), ['0', '1', '3', '6', '2', '9']);
+
+    now = DateTime(2026, 8, 11, 1, 36, 30);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+
+    expect(_timeTileValues(tester), ['0', '1', '3', '6', '3', '0']);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('dashboard-time-tile-3')),
+        matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      ),
+      findsNothing,
+    );
+    for (final index in [4, 5]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('dashboard-time-tile-$index')),
+          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        ),
+        findsOneWidget,
+      );
+    }
+  });
+
+  testWidgets('live time resyncs after Dashboard route becomes visible', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 8, 11, 1, 36, 29);
+    AppClock.setSystemNowForTesting(() => now);
+    final navigatorKey = GlobalKey<NavigatorState>();
+    tester.view.physicalSize = const Size(390, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const DashboardPage()),
+    );
+    await tester.pump();
+    expect(_timeTileValues(tester, skipOffstage: false), [
+      '0',
+      '1',
+      '3',
+      '6',
+      '2',
+      '9',
+    ]);
+
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => const Scaffold()),
+    );
+    await tester.pumpAndSettle();
+    now = DateTime(2026, 8, 11, 1, 40, 5);
+    await tester.pump(const Duration(seconds: 2));
+    expect(_timeTileValues(tester, skipOffstage: false), [
+      '0',
+      '1',
+      '3',
+      '6',
+      '2',
+      '9',
+    ]);
+
+    navigatorKey.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(_timeTileValues(tester), ['0', '1', '4', '0', '0', '5']);
   });
 
   testWidgets('Dashboard finalize owner returns top and flips changed tiles', (
@@ -1085,6 +1189,21 @@ void _expectTileText(String label, String text) {
     findsOneWidget,
   );
 }
+
+List<String> _timeTileValues(
+  WidgetTester tester, {
+  bool skipOffstage = true,
+}) => [
+  for (var index = 0; index < 6; index++)
+    tester
+        .widget<OperationMechanicalFlipTile>(
+          find.byKey(
+            ValueKey('dashboard-time-tile-$index'),
+            skipOffstage: skipOffstage,
+          ),
+        )
+        .value,
+];
 
 double? _progress(WidgetTester tester, String label) {
   return tester
