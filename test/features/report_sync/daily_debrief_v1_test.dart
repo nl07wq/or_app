@@ -16,6 +16,7 @@ import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
 import 'package:or_app/features/report_sync/repository/indexed_db_report_sync_repositories.dart';
 import 'package:or_app/features/report_sync/services/report_sync_canonical_service.dart';
 import 'package:or_app/features/report_sync/services/daily_debrief_source_service.dart';
+import 'package:or_app/features/report_sync/services/daily_debrief_analysis_response_validator.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 
@@ -57,6 +58,27 @@ void main() {
     await container.dailyAggregates.put(_aggregate(date));
 
     expect(await container.dailyDebriefSources.defaultEligibleDate(), date);
+    final gateway = ProductionReportSyncExchangeGateway(
+      container: container,
+      clock: () => timestamp,
+    );
+    final preparation = await gateway.prepareRequest(
+      ReportSyncExchangeType.dailyDebrief,
+    );
+    expect(preparation.operationDate, date);
+    gateway.instruction(ReportSyncExchangeType.dailyDebrief, preparation);
+    final preview = await gateway.previewResponse(
+      ReportSyncExchangeType.dailyDebrief,
+      jsonEncode(_analysis().toJson()),
+      targetDate: date,
+    );
+    expect(preview.operationDate, date);
+    await gateway.apply(preview);
+    final record = (await container.dailyDebriefs.readByLocalDate(date))!;
+    expect(
+      await container.dailyDebriefSources.projectLifecycle(record),
+      DailyDebriefLifecycleStatus.active,
+    );
   });
 
   test('strict model creates revision 1 and preserves complete revisions', () {
@@ -109,6 +131,53 @@ void main() {
       }),
       throwsFormatException,
     );
+  });
+
+  test('analysis-only validator enforces the complete compact schema', () {
+    const validator = DailyDebriefAnalysisResponseValidator();
+    final valid = _analysis().toJson();
+    expect(
+      validator.decode(jsonEncode(valid), hasMorningBrief: false).toJson(),
+      valid,
+    );
+
+    final missing = Map<String, Object?>.from(valid)..remove('nextDayHandoff');
+    final invalidOutcome = _deepCopy(valid);
+    invalidOutcome['commanderIntentEvaluation'] = {
+      'outcome': 'invalid',
+      'rationale': '評価',
+      'evidence': <Object?>[],
+    };
+    final invalidDomain = _deepCopy(valid);
+    (invalidDomain['domainEvaluations']! as Map<String, Object?>)['unknown'] =
+        '評価';
+    final invalidArray = _deepCopy(valid);
+    (invalidArray['crossAnalysis']! as Map<String, Object?>)['keyFactors'] =
+        '回復';
+    final emptyString = _deepCopy(valid);
+    (emptyString['domainEvaluations']! as Map<String, Object?>)['body'] = ' ';
+    final tooMany = _deepCopy(valid);
+    (tooMany['nextDayHandoff']! as Map<String, Object?>)['watchPoints'] = [
+      '1',
+      '2',
+      '3',
+      '4',
+    ];
+
+    for (final invalid in [
+      {...valid, 'unknown': true},
+      missing,
+      invalidOutcome,
+      invalidDomain,
+      invalidArray,
+      emptyString,
+      tooMany,
+    ]) {
+      expect(
+        () => validator.decode(jsonEncode(invalid), hasMorningBrief: true),
+        throwsA(isA<ReportSyncException>()),
+      );
+    }
   });
 
   test(
@@ -189,6 +258,14 @@ void main() {
       final preparation = await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
         targetDate: date,
+      );
+      await expectLater(
+        gateway.previewResponse(
+          ReportSyncExchangeType.dailyDebrief,
+          jsonEncode(_analysis().toJson()),
+          targetDate: date,
+        ),
+        throwsA(isA<ReportSyncException>()),
       );
       final prompt = gateway.instruction(
         ReportSyncExchangeType.dailyDebrief,
@@ -292,6 +369,12 @@ void main() {
       expect(prompt, contains('Continue to ignore measured or raw steps'));
       expect(prompt, contains('Invalid JSON cannot be imported'));
       expect(prompt, contains('Do not rely on the app to repair smart quotes'));
+      expect(prompt, contains('COMPLETE ANALYSIS SHAPE'));
+      expect(prompt, contains('Do not return an envelope'));
+      expect(prompt, contains('Operation Reboot retains and binds'));
+      expect(prompt, isNot(contains('COMPLETE RESPONSE SHAPE')));
+      expect(prompt, isNot(contains('"exchangeId": "<UNIQUE_RESPONSE_ID>"')));
+      expect(prompt, isNot(contains('"packageDigest": null')));
       expect(prompt, isNot(contains('"dailySummary":')));
       expect(prompt, isNot(contains('"carryover":')));
       expect(prompt, isNot(contains('"data"')));
@@ -319,23 +402,8 @@ void main() {
         );
       }
 
-      final normalizationResponse = container.reportSyncCodec.create(
-        direction: ReportSyncDirection.response,
-        exchangeType: ReportSyncExchangeType.dailyDebrief,
-        exchangeId: 'dd-normalization',
-        operationDate: date,
-        createdAt: timestamp,
-        confirmationDigest: null,
-        payload: {
-          'operationDate': date,
-          'recordVersion': 1,
-          'sources': source.references.toJson(),
-          'analysis': _analysis(body: '本人は“休養”を選択した').toJson(),
-        },
-        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
-      );
-      final normalizationRaw = container.reportSyncCodec.encode(
-        normalizationResponse,
+      final normalizationRaw = jsonEncode(
+        _analysis(body: '本人は“休養”を選択した').toJson(),
       );
       for (final normalizedInput in [
         normalizationRaw,
@@ -354,6 +422,14 @@ void main() {
         final previewAnalysis = Map<String, Object?>.from(
           preview.envelope!.payload['analysis']! as Map,
         );
+        expect(preview.envelope!.operationDate, date);
+        expect(preview.envelope!.payload['recordVersion'], 1);
+        expect(
+          preview.envelope!.payload['sources'],
+          source.references.toJson(),
+        );
+        expect(preview.envelope!.createdAt, timestamp);
+        expect(preview.envelope!.packageDigest, isNotEmpty);
         final domains = Map<String, Object?>.from(
           previewAnalysis['domainEvaluations']! as Map,
         );
@@ -363,15 +439,28 @@ void main() {
       final unknownFields = Map<String, Object?>.from(
         jsonDecode(normalizationRaw) as Map,
       )..['unknownField'] = true;
-      final invalidDigest = Map<String, Object?>.from(
-        jsonDecode(normalizationRaw) as Map,
-      )..['packageDigest'] = 'not-a-valid-digest';
       for (final invalidInput in [
         normalizationRaw.replaceAll('"', '”'),
         '$normalizationRaw}',
         normalizationRaw.substring(0, normalizationRaw.length - 1),
         '```text\n${jsonEncode(unknownFields)}\n```',
-        jsonEncode(invalidDigest),
+        container.reportSyncCodec.encode(
+          container.reportSyncCodec.create(
+            direction: ReportSyncDirection.response,
+            exchangeType: ReportSyncExchangeType.dailyDebrief,
+            exchangeId: 'legacy-full-envelope',
+            operationDate: date,
+            createdAt: timestamp,
+            confirmationDigest: null,
+            payload: {
+              'operationDate': date,
+              'recordVersion': 1,
+              'sources': source.references.toJson(),
+              'analysis': _analysis().toJson(),
+            },
+            schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+          ),
+        ),
       ]) {
         await expectLater(
           gateway.previewResponse(
@@ -382,6 +471,15 @@ void main() {
           throwsA(isA<ReportSyncException>()),
         );
       }
+
+      await container.dailyAggregates.put(_aggregate(date, hydrationMl: 2100));
+      final sourceChangedPreview = await gateway.previewResponse(
+        ReportSyncExchangeType.dailyDebrief,
+        normalizationRaw,
+        targetDate: date,
+      );
+      expect(sourceChangedPreview.disposition, ReportSyncDisposition.blocked);
+      await container.dailyAggregates.put(_aggregate(date));
 
       final changedSources = DailyDebriefSources(
         dailyAggregate: DailyDebriefDailyAggregateReference(
@@ -418,35 +516,26 @@ void main() {
       expect(await container.dailyDebriefs.readByLocalDate(date), isNull);
       expect(await container.reportSyncHistory.list(), isEmpty);
 
-      Future<void> importAnalysis(
-        DailyDebriefAnalysis analysis,
-        String id,
-      ) async {
-        final payload = {
-          'operationDate': date,
-          'recordVersion': 1,
-          'sources': source.references.toJson(),
-          'analysis': analysis.toJson(),
-        };
-        final response = container.reportSyncCodec.create(
-          direction: ReportSyncDirection.response,
-          exchangeType: ReportSyncExchangeType.dailyDebrief,
-          exchangeId: id,
-          operationDate: date,
-          createdAt: timestamp,
-          confirmationDigest: null,
-          payload: payload,
-          schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+      Future<void> importAnalysis(DailyDebriefAnalysis analysis) async {
+        final boundPreparation = await gateway.prepareRequest(
+          ReportSyncExchangeType.dailyDebrief,
+          targetDate: date,
         );
-        await container.reportSyncPersistence.importDailyDebrief(
-          response,
-          sourceService: container.dailyDebriefSources,
-          repository: container.dailyDebriefs,
+        gateway.instruction(
+          ReportSyncExchangeType.dailyDebrief,
+          boundPreparation,
         );
+        final preview = await gateway.previewResponse(
+          ReportSyncExchangeType.dailyDebrief,
+          jsonEncode(analysis.toJson()),
+          targetDate: date,
+        );
+        final result = await gateway.apply(preview);
+        expect(result.readBackVerified, isTrue);
       }
 
-      await importAnalysis(_analysis(), 'dd-1');
-      await importAnalysis(_analysis(body: '更新後の評価'), 'dd-2');
+      await importAnalysis(_analysis());
+      await importAnalysis(_analysis(body: '更新後の評価'));
       final saved = (await container.dailyDebriefs.readByLocalDate(date))!;
       expect(saved.revision, 2);
       expect(
@@ -553,3 +642,6 @@ DailyAggregateV1 _aggregate(
 );
 
 String _digest(String value) => ReportSyncCanonicalService.digest(value);
+
+Map<String, Object?> _deepCopy(Map<String, Object?> value) =>
+    Map<String, Object?>.from(jsonDecode(jsonEncode(value)) as Map);

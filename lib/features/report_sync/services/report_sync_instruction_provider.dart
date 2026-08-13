@@ -164,24 +164,6 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       },
       'nextDayHandoff': {'watchPoints': <Object?>[]},
     };
-    final response = <String, Object?>{
-      'format': ReportSyncEnvelope.formatId,
-      'envelopeVersion': ReportSyncEnvelope.currentEnvelopeVersion,
-      'schemaVersion': ReportSyncEnvelope.importSchemaVersion2,
-      'direction': ReportSyncDirection.response.stableId,
-      'exchangeType': ReportSyncExchangeType.dailyDebrief.stableId,
-      'exchangeId': '<UNIQUE_RESPONSE_ID>',
-      'operationDate': operationDate,
-      'createdAt': '<UTC_TIMESTAMP>',
-      'confirmationDigest': null,
-      'payload': {
-        'operationDate': operationDate,
-        'recordVersion': DailyDebriefRecord.currentRecordVersion,
-        'sources': sources.toJson(),
-        'analysis': analysis,
-      },
-      'packageDigest': null,
-    };
     return '''
 Create the formal Operation Reboot DAILY DEBRIEF for $operationDate.
 
@@ -210,15 +192,15 @@ ${_humanReadableAnalysisContract(includeNumericFormatting: false)}
 
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block whose opening fence is ```text and whose closing fence is ```. Return nothing outside that code block: no explanation, heading, greeting, note, preface, afterword, or additional code block. Inside the code block, return exactly one JSON object and no prose, comments, headings, or multiple JSON values. The user will use ChatGPT's code-block copy action; the copied content must start with { and end with } without the fences.
-Use only ASCII half-width double quotation marks (U+0022) for JSON syntax. Never use smart or curly quotes such as “ ” or ‘ ’. Use the exact COMPLETE RESPONSE SHAPE with schemaVersion "2.0", recordVersion 1, exchangeType "dailyDebrief", operationDate "$operationDate", confirmationDigest null, and packageDigest null. Preserve the sources object below exactly in field content and values. Do not add unknown fields, remove fields, rename fields, omit required fields, or add schema-external sections. Nullable fields must be explicit null. Required array fields must be present and use [] when empty. Every string and array item must be non-empty after trimming. Use only these outcome values: achieved, partiallyAchieved, notAchieved, notAssessable.
+Use only ASCII half-width double quotation marks (U+0022) for JSON syntax. Never use smart or curly quotes such as “ ” or ‘ ’. Return the exact COMPLETE ANALYSIS SHAPE only. Do not return an envelope, operationDate, recordVersion, sources, source digests, revision, timestamps, exchange identity, confirmationDigest, or packageDigest. Operation Reboot retains and binds all formal identity and source information. Do not add unknown fields, remove fields, rename fields, omit required fields, or add schema-external sections. Nullable fields must be explicit null. Required array fields must be present and use [] when empty. Every string and array item must be non-empty after trimming. Use only these outcome values: achieved, partiallyAchieved, notAchieved, notAssessable.
 Before returning, internally verify that the JSON is syntactically complete and structurally matches the exact schema: the root contains exactly one object; object and array nesting is balanced; every opening brace, bracket, and ASCII quote has its matching closing character; there is no extra or missing closing brace; there is no trailing comma; every required field exists; and no unknown field exists. Do not output this verification process or a checklist. The final response must contain only the verified JSON object inside the single Plain Text code block.
 Invalid JSON cannot be imported. Do not rely on the app to repair smart quotes, braces, brackets, commas, keys, fields, dates, digests, nulls, or values.
 
 FORMAL SOURCE JSON
 ${const JsonEncoder.withIndent('  ').convert(source)}
 
-COMPLETE RESPONSE SHAPE
-${const JsonEncoder.withIndent('  ').convert(response)}
+COMPLETE ANALYSIS SHAPE
+${const JsonEncoder.withIndent('  ').convert(analysis)}
 '''
         .trim();
   }

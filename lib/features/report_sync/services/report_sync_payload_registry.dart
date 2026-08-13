@@ -2,6 +2,7 @@ import '../models/report_sync_envelope.dart';
 import '../models/report_sync_issue.dart';
 import '../models/daily_debrief_record.dart';
 import '../models/report_sync_record_utils.dart';
+import 'daily_debrief_analysis_response_validator.dart';
 import 'report_sync_import_schema_v2.dart';
 
 abstract interface class ReportSyncPayloadSchema {
@@ -104,20 +105,12 @@ class DailyDebriefReportSyncPayloadSchema implements ReportSyncPayloadSchema {
       final sources = DailyDebriefSources.fromJson(
         Map<String, Object?>.from(payload['sources'] as Map),
       );
-      DailyDebriefAnalysis.fromJson(
+      const DailyDebriefAnalysisResponseValidator().validate(
         Map<String, Object?>.from(payload['analysis'] as Map),
+        hasMorningBrief: sources.morningBrief != null,
       );
       if (sources.dailyAggregate.operationDate != operationDate) {
         throw const FormatException('Source operationDate does not match.');
-      }
-      if (sources.morningBrief == null &&
-          (Map<String, Object?>.from(
-                payload['analysis'] as Map,
-              ))['commanderIntentEvaluation'] !=
-              null) {
-        throw const FormatException(
-          'Commander Intent evaluation requires Morning Brief.',
-        );
       }
     } on ReportSyncException {
       rethrow;

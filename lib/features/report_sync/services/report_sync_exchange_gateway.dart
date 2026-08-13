@@ -17,6 +17,7 @@ import 'report_sync_payload_adapters.dart';
 import 'report_sync_persistence_service.dart';
 import 'status_report_sync_source_service.dart';
 import 'daily_debrief_source_service.dart';
+import 'daily_debrief_analysis_response_validator.dart';
 
 enum ReportSyncDisposition { create, noChanges, conflict, blocked }
 
@@ -127,6 +128,20 @@ class ReportSyncApplyResult {
   final ReportSyncMealCounts? mealCounts;
 }
 
+class _DailyDebriefExchangeBinding {
+  const _DailyDebriefExchangeBinding({
+    required this.exchangeId,
+    required this.operationDate,
+    required this.createdAt,
+    required this.sources,
+  });
+
+  final String exchangeId;
+  final String operationDate;
+  final DateTime createdAt;
+  final DailyDebriefSources sources;
+}
+
 abstract interface class ReportSyncExchangeGateway {
   Future<ReportSyncRequestPreparation> prepareRequest(
     ReportSyncExchangeType type, {
@@ -171,6 +186,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   final DateTime Function() _clock;
   final TrainingRecordIdGenerator? trainingIdGenerator;
   final FoodMealIdGenerator? foodIdGenerator;
+  _DailyDebriefExchangeBinding? _dailyDebriefBinding;
+  int _dailyDebriefBindingSequence = 0;
 
   AppRepositoryContainer get _container =>
       _containerOverride ?? AppRepositoryRegistry.container;
@@ -280,6 +297,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         endDate: operationDate,
       );
     }
+    if (type == ReportSyncExchangeType.dailyDebrief) {
+      _dailyDebriefBinding = _createDailyDebriefBinding(preparation);
+    }
     final instruction = _container.reportSyncInstructions
         .forType(type)
         .buildInstruction(
@@ -321,10 +341,14 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       OperationLocalDate.parse(targetDate);
       return _previewTraining(rawResponse, targetDate);
     }
-    final normalizedResponse = type == ReportSyncExchangeType.dailyDebrief
-        ? _normalizeDailyDebriefResponseInput(rawResponse)
-        : rawResponse;
-    final response = _container.reportSyncCodec.decode(normalizedResponse);
+    if (type == ReportSyncExchangeType.dailyDebrief) {
+      if (targetDate == null) {
+        throw StateError('Daily Debrief target date is required.');
+      }
+      OperationLocalDate.parse(targetDate);
+      return _previewDailyDebriefAnalysis(rawResponse, targetDate);
+    }
+    final response = _container.reportSyncCodec.decode(rawResponse);
     if (response.exchangeType != type ||
         response.direction != ReportSyncDirection.response) {
       throw const ReportSyncException(
@@ -343,39 +367,51 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       ),
       ReportSyncExchangeType.food => _previewFood(response),
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
-      ReportSyncExchangeType.dailyDebrief => _previewDailyDebrief(response),
+      ReportSyncExchangeType.dailyDebrief => throw StateError(
+        'Daily Debrief uses analysis-only preview.',
+      ),
     };
     return preview;
   }
 
-  String _normalizeDailyDebriefResponseInput(String input) {
-    var normalized = input.trim();
-    if (normalized.startsWith('\uFEFF')) {
-      normalized = normalized.substring(1).trim();
-    }
-    final fenced = RegExp(
-      r'^```(?:text|json)?[ \t]*\r?\n([\s\S]*)\r?\n```$',
-    ).firstMatch(normalized);
-    if (fenced != null) normalized = fenced.group(1)!.trim();
-    return normalized;
-  }
-
-  Future<ReportSyncResponsePreview> _previewDailyDebrief(
-    ReportSyncEnvelope response,
+  Future<ReportSyncResponsePreview> _previewDailyDebriefAnalysis(
+    String rawResponse,
+    String targetDate,
   ) async {
-    if (response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
+    final binding = _dailyDebriefBinding;
+    if (binding == null || binding.operationDate != targetDate) {
       throw const ReportSyncException(
-        ReportSyncIssueCode.schemaMismatch,
-        'Daily Debrief requires Schema 2.0.',
+        ReportSyncIssueCode.integrityFailure,
+        'COPY CHATGPT PROMPT is required before validating this response.',
       );
     }
+    final analysis = const DailyDebriefAnalysisResponseValidator().decode(
+      rawResponse,
+      hasMorningBrief: binding.sources.morningBrief != null,
+    );
     final source = await _container.dailyDebriefSources.requireEligible(
-      response.operationDate,
+      binding.operationDate,
     );
-    final payloadSources = DailyDebriefSources.fromJson(
-      Map<String, Object?>.from(response.payload['sources'] as Map),
+    final response = _container.reportSyncCodec.create(
+      direction: ReportSyncDirection.response,
+      exchangeType: ReportSyncExchangeType.dailyDebrief,
+      exchangeId: binding.exchangeId,
+      operationDate: binding.operationDate,
+      createdAt: binding.createdAt,
+      confirmationDigest: null,
+      payload: {
+        'operationDate': binding.operationDate,
+        'recordVersion': DailyDebriefRecord.currentRecordVersion,
+        'sources': binding.sources.toJson(),
+        'analysis': analysis.toJson(),
+      },
+      schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
     );
-    if (ReportSyncCanonicalService.encode(payloadSources.toJson()) !=
+    await _container.reportSyncValidator.validateResponse(
+      response,
+      expectedOperationDate: binding.operationDate,
+    );
+    if (ReportSyncCanonicalService.encode(binding.sources.toJson()) !=
         ReportSyncCanonicalService.encode(source.references.toJson())) {
       return ReportSyncResponsePreview(
         envelope: response,
@@ -387,7 +423,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       );
     }
     final existing = await _container.dailyDebriefs.readByLocalDate(
-      response.operationDate,
+      binding.operationDate,
     );
     return ReportSyncResponsePreview(
       envelope: response,
@@ -399,6 +435,28 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       dailyDebriefLifecycle: existing == null
           ? null
           : await _container.dailyDebriefSources.projectLifecycle(existing),
+    );
+  }
+
+  _DailyDebriefExchangeBinding _createDailyDebriefBinding(
+    ReportSyncRequestPreparation preparation,
+  ) {
+    final source = preparation.dailyDebriefSource;
+    final operationDate = preparation.operationDate;
+    if (source == null ||
+        operationDate == null ||
+        source.operationDate != operationDate) {
+      throw StateError('Daily Debrief source binding is not ready.');
+    }
+    final createdAt = _clock().toUtc();
+    final sequence = _dailyDebriefBindingSequence++;
+    return _DailyDebriefExchangeBinding(
+      exchangeId:
+          'daily-debrief:$operationDate:'
+          '${createdAt.microsecondsSinceEpoch}:$sequence',
+      operationDate: operationDate,
+      createdAt: createdAt,
+      sources: source.references,
     );
   }
 
