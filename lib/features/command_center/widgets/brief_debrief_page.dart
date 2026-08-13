@@ -74,11 +74,18 @@ class _MorningBriefView extends StatefulWidget {
 
 class _MorningBriefViewState extends State<_MorningBriefView> {
   late Future<_MorningBriefData> _data;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _data = _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<_MorningBriefData> _load() async {
@@ -94,15 +101,19 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
   }
 
   Future<void> _openSync() async {
+    var imported = false;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => const ReportSyncExchangePage(
+        builder: (_) => ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.morningBrief,
+          onApplied: () => imported = true,
         ),
       ),
     );
-    if (mounted) _reload();
+    if (!mounted || !imported) return;
+    _reload();
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   @override
@@ -118,6 +129,7 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
       final backNumbers = data.backNumbers;
       return ListView(
         key: const ValueKey('morning-brief-content'),
+        controller: _scrollController,
         padding: AppSpacing.cardPadding,
         children: [
           Center(
@@ -245,6 +257,13 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
   late Future<_DailyDebriefViewData> _records = _load();
   _DailyDebriefViewData? _loadedData;
   String? _selectedTargetDate;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Future<_DailyDebriefViewData> _load() async {
     final container = AppRepositoryRegistry.container;
@@ -334,20 +353,25 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
       }
       if (!mounted) return;
     }
+    var imported = false;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.dailyDebrief,
           initialTargetDate: selected,
-          onApplied: _refresh,
+          onApplied: () => imported = true,
           onTargetDateChanged: (value) {
             if (mounted) setState(() => _selectedTargetDate = value);
           },
         ),
       ),
     );
+    if (!mounted) return;
     _refresh();
+    if (imported && _scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   @override
@@ -355,6 +379,7 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
     future: _records,
     builder: (context, snapshot) => ListView(
       key: const ValueKey('daily-debrief-content'),
+      controller: _scrollController,
       padding: AppSpacing.cardPadding,
       children: [
         const SectionHeader(
@@ -498,6 +523,10 @@ class _DailyDebriefDetail extends StatelessWidget {
             children: [
               _DailyDebriefHeader(record: record, status: status),
               const SizedBox(height: 28),
+              _DomainEvaluationsSection(
+                evaluations: analysis.domainEvaluations,
+              ),
+              const _DailyDebriefMajorDivider(),
               _CommanderIntentEvaluationSection(
                 evaluation: analysis.commanderIntentEvaluation,
               ),
@@ -520,10 +549,6 @@ class _DailyDebriefDetail extends StatelessWidget {
                   ('CONSTRAINTS', analysis.crossAnalysis.constraints),
                   ('RESOURCES', analysis.crossAnalysis.resources),
                 ],
-              ),
-              const _DailyDebriefMajorDivider(),
-              _DomainEvaluationsSection(
-                evaluations: analysis.domainEvaluations,
               ),
               const _DailyDebriefMajorDivider(),
               _DebriefListSection(

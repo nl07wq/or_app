@@ -498,6 +498,72 @@ void main() {
     );
   });
 
+  testWidgets('successful brief import return resets its main scroll', (
+    tester,
+  ) async {
+    for (final date in const [
+      '2026-08-01',
+      '2026-07-31',
+      '2026-07-30',
+      '2026-07-29',
+      '2026-07-28',
+      '2026-07-27',
+    ]) {
+      await AppRepositoryRegistry.container.morningBriefs.create(
+        _morningBriefV2(date),
+      );
+    }
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('CREATE DAILY BRIEF'));
+    await tester.pumpAndSettle();
+    expect(_morningBriefScrollPosition(tester).pixels, greaterThan(0));
+    await tester.tap(find.text('CREATE DAILY BRIEF'));
+    await tester.pumpAndSettle();
+
+    final page = tester.widget<ReportSyncExchangePage>(
+      find.byType(ReportSyncExchangePage),
+    );
+    page.onApplied!();
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+
+    expect(_morningBriefScrollPosition(tester).pixels, 0);
+    expect(find.text('DAILY BRIEF'), findsWidgets);
+    expect(find.text('MB-2026-08-01'), findsOneWidget);
+  });
+
+  testWidgets('normal back preserves daily brief scroll position', (
+    tester,
+  ) async {
+    for (final date in const [
+      '2026-08-01',
+      '2026-07-31',
+      '2026-07-30',
+      '2026-07-29',
+      '2026-07-28',
+      '2026-07-27',
+    ]) {
+      await AppRepositoryRegistry.container.morningBriefs.create(
+        _morningBriefV2(date),
+      );
+    }
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('CREATE DAILY BRIEF'));
+    await tester.pumpAndSettle();
+    final before = _morningBriefScrollPosition(tester).pixels;
+    expect(before, greaterThan(0));
+    await tester.tap(find.text('CREATE DAILY BRIEF'));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+
+    expect(_morningBriefScrollPosition(tester).pixels, before);
+  });
+
   testWidgets('keeps existing debrief visible with creation action', (
     tester,
   ) async {
@@ -568,6 +634,7 @@ void main() {
     expect(find.text('WATCH ITEM'), findsOneWidget);
     expect(find.textContaining('CURRENT REVISION'), findsNothing);
     expect(find.textContaining('STATUS ACTIVE'), findsNothing);
+    _expectDailyDebriefReadingOrder(tester);
     expect(
       find.byKey(const ValueKey('daily-debrief-history-2026-08-02')),
       findsNothing,
@@ -611,6 +678,7 @@ void main() {
     expect(find.text('判定根拠'), findsOneWidget);
     expect(find.text('SOURCE REFERENCES'), findsOneWidget);
     expect(find.text('PREVIOUS REVISIONS'), findsOneWidget);
+    _expectDailyDebriefReadingOrder(tester);
   });
 
   for (final outcomeCase in const [
@@ -864,6 +932,25 @@ Finder _dailyCommandScrollable() => find.descendant(
   of: find.byKey(const ValueKey('daily-command-list')),
   matching: find.byType(Scrollable),
 );
+
+Finder _morningBriefScrollable() => find.descendant(
+  of: find.byKey(const ValueKey('morning-brief-content')),
+  matching: find.byType(Scrollable),
+);
+
+ScrollPosition _morningBriefScrollPosition(WidgetTester tester) =>
+    tester.state<ScrollableState>(_morningBriefScrollable()).position;
+
+void _expectDailyDebriefReadingOrder(WidgetTester tester) {
+  final positions = [
+    'DOMAIN EVALUATIONS',
+    'COMMANDER INTENT EVALUATION',
+    'EXECUTION EVALUATION',
+    'CROSS ANALYSIS',
+    'NEXT-DAY HANDOFF',
+  ].map((title) => tester.getTopLeft(find.text(title)).dy).toList();
+  expect(positions, orderedEquals(positions.toList()..sort()));
+}
 
 ScrollPosition _dailyCommandScrollPosition(WidgetTester tester) =>
     tester.state<ScrollableState>(_dailyCommandScrollable()).position;

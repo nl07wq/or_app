@@ -65,7 +65,99 @@ void main() {
       expect(find.text('CONFIRM'), findsNothing);
     },
   );
+
+  testWidgets('successful import returns daily debrief content to top', (
+    tester,
+  ) async {
+    final container = await _installEligibleContainer();
+    final snapshot = _snapshot();
+    tester.view.physicalSize = const Size(390, 400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BriefDebriefPage(
+            dailyLogSourceLoader: (_) async => snapshot,
+            prepareDailyDebrief: (_, _) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+    final position = _dailyDebriefScrollPosition(tester);
+    position.jumpTo(position.maxScrollExtent / 2);
+    await tester.pump();
+    expect(_dailyDebriefScrollPosition(tester).pixels, greaterThan(0));
+    await tester.tap(find.text('CREATE DAILY DEBRIEF'));
+    await tester.pumpAndSettle();
+
+    final page = tester.widget<ReportSyncExchangePage>(
+      find.byType(ReportSyncExchangePage),
+    );
+    page.onApplied!();
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+
+    expect(_dailyDebriefScrollPosition(tester).pixels, 0);
+    expect(find.text('DAILY DEBRIEF'), findsWidgets);
+    expect(container, same(AppRepositoryRegistry.container));
+  });
+
+  testWidgets('normal back preserves daily debrief scroll position', (
+    tester,
+  ) async {
+    await _installEligibleContainer();
+    tester.view.physicalSize = const Size(390, 400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BriefDebriefPage(
+            dailyLogSourceLoader: (_) async => _snapshot(),
+            prepareDailyDebrief: (_, _) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+    final position = _dailyDebriefScrollPosition(tester);
+    position.jumpTo(position.maxScrollExtent / 2);
+    await tester.pump();
+    final before = _dailyDebriefScrollPosition(tester).pixels;
+    expect(before, greaterThan(0));
+    await tester.tap(find.text('CREATE DAILY DEBRIEF'));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+
+    expect(_dailyDebriefScrollPosition(tester).pixels, before);
+  });
 }
+
+Future<AppRepositoryContainer> _installEligibleContainer() async {
+  final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+  await container.operationState.createInitial(
+    OperationLocalDate.parse('2026-08-12'),
+  );
+  AppRepositoryRegistry.install(container);
+  return container;
+}
+
+Finder _dailyDebriefScrollable() => find.descendant(
+  of: find.byKey(const ValueKey('daily-debrief-content')),
+  matching: find.byType(Scrollable),
+);
+
+ScrollPosition _dailyDebriefScrollPosition(WidgetTester tester) =>
+    tester.state<ScrollableState>(_dailyDebriefScrollable()).position;
 
 DailyLogSourceSnapshot _snapshot() {
   final morning = MorningFact(
