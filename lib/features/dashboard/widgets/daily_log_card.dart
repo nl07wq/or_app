@@ -16,6 +16,7 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
+import '../../report_sync/models/daily_debrief_state.dart';
 import '../../repositories/app_repository_container.dart';
 
 typedef DailyLogReviewCompleted =
@@ -45,6 +46,18 @@ class DailyLogSection extends StatefulWidget {
 
 class _DailyLogSectionState extends State<DailyLogSection> {
   late Future<_DailyCloseUiState> _closeState = _loadCloseState();
+
+  @override
+  void initState() {
+    super.initState();
+    dailyDebriefRevisionNotifier.addListener(_handleDailyDebriefChanged);
+  }
+
+  @override
+  void dispose() {
+    dailyDebriefRevisionNotifier.removeListener(_handleDailyDebriefChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +176,21 @@ class _DailyLogSectionState extends State<DailyLogSection> {
 
   void _reloadCloseState() {
     if (!mounted) return;
-    setState(() => _closeState = _loadCloseState());
+    setState(() {
+      _closeState = _loadCloseState();
+    });
+  }
+
+  void _handleDailyDebriefChanged() {
+    _reloadCloseStateFor(dailyDebriefRevisionNotifier.value.operationDate);
+  }
+
+  Future<void> _reloadCloseStateFor(String operationDate) async {
+    if (!mounted || !AppRepositoryRegistry.hasContainer) return;
+    final state = await AppRepositoryRegistry.container.operationState
+        .requireCurrent();
+    if (!mounted || state.operationDate.value != operationDate) return;
+    _reloadCloseState();
   }
 }
 

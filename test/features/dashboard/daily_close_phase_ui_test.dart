@@ -6,9 +6,17 @@ import 'package:or_app/core/models/bowel_movement_record.dart';
 import 'package:or_app/features/dashboard/log_confirmation_review_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
+import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/report_sync/models/daily_debrief_state.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
+
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  tearDown(AppRepositoryRegistry.resetForTesting);
+
   testWidgets('open daily log keeps finalize visible and blocked', (
     tester,
   ) async {
@@ -78,7 +86,64 @@ void main() {
     expect(preparationCount, 0);
     expect(find.text('BACKUP'), findsNothing);
   });
+
+  testWidgets(
+    'current daily debrief refreshes shared dashboard and command readiness',
+    (tester) async {
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      AppRepositoryRegistry.install(container);
+      final operationDate = OperationLocalDate.parse('2026-08-13');
+      final initial = await container.operationState.createInitial(
+        operationDate,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                Expanded(child: _section()),
+                Expanded(child: _section()),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('DAILY DEBRIEF REQUIRED'), findsNWidgets(2));
+
+      await container.operationState.save(
+        initial.copyWith(
+          phase: OperationPhase.awaitingDebrief,
+          activeAttempt: OperationActiveAttempt(
+            idempotencyKey: 'daily-finalize:${operationDate.value}',
+            targetLocalDate: operationDate,
+            startedAt: DateTime.utc(2026, 8, 13, 12),
+            confirmationId: 'confirmation:${operationDate.value}',
+            confirmationDigest: 'confirmation-digest',
+          ),
+        ),
+        expectedRevision: initial.revision,
+      );
+      notifyDailyDebriefChanged('2026-08-12');
+      await tester.pumpAndSettle();
+      expect(find.text('DAILY DEBRIEF REQUIRED'), findsNWidgets(2));
+      expect(find.text('DAILY DEBRIEF RE-CREATE REQUIRED'), findsNothing);
+
+      notifyDailyDebriefChanged(operationDate.value);
+      await tester.pumpAndSettle();
+      expect(find.text('DAILY DEBRIEF RE-CREATE REQUIRED'), findsNWidgets(2));
+    },
+  );
 }
+
+DailyLogSection _section() => DailyLogSection(
+  morningFact: _morning(),
+  foodSummary: _food(),
+  activitySummary: _activity(),
+  trainingSummary: null,
+  estimatedTotalBurn: 2100,
+);
 
 Future<void> _pumpCard(
   WidgetTester tester, {
