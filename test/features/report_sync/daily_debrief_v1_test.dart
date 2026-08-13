@@ -19,6 +19,7 @@ import 'package:or_app/features/report_sync/services/daily_debrief_source_servic
 import 'package:or_app/features/report_sync/services/daily_debrief_analysis_response_validator.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
@@ -80,6 +81,56 @@ void main() {
       DailyDebriefLifecycleStatus.active,
     );
   });
+
+  test(
+    'ready open operation date leads eligible dates without replacing history',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      const currentDate = '2026-08-10';
+      await container.operationState.createInitial(
+        OperationLocalDate.parse(currentDate),
+      );
+      final state = await container.operationState.requireCurrent();
+      await container.operationState.save(
+        state.copyWith(
+          lastFinalizedDate: OperationLocalDate.parse(date),
+          updatedAt: state.updatedAt.add(const Duration(seconds: 1)),
+        ),
+        expectedRevision: state.revision,
+      );
+      await container.confirmationLifecycle.createV2(
+        PersistedDailyLogConfirmationRecord.initialFinalizedV2(
+          id: 'confirmation:$date',
+          localDate: date,
+          data: completeConfirmation(date: DateTime(2026, 8, 9)),
+          timestamp: timestamp,
+        ),
+      );
+      await container.dailyAggregates.put(_aggregate(date));
+      final currentValidation = DailyLogConfirmationValidation.validate(
+        morning: completeConfirmation(date: DateTime(2026, 8, 10)).morning,
+        food: completeConfirmation(date: DateTime(2026, 8, 10)).food,
+        activity: completeConfirmation(date: DateTime(2026, 8, 10)).activity!,
+        training: completeConfirmation(date: DateTime(2026, 8, 10)).training,
+      );
+
+      expect(await container.dailyDebriefSources.eligibleDates(), [date]);
+      expect(
+        await container.dailyDebriefSources.eligibleDates(
+          currentOperationDateValidation: currentValidation,
+        ),
+        [currentDate, date],
+      );
+      expect(
+        await container.dailyDebriefSources.defaultEligibleDate(
+          currentOperationDateValidation: currentValidation,
+        ),
+        currentDate,
+      );
+      expect(await container.dailyDebriefSources.defaultEligibleDate(), date);
+    },
+  );
 
   test('strict model creates revision 1 and preserves complete revisions', () {
     final sources = _sources(date);

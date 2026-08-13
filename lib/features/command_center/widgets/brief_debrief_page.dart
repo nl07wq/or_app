@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/state/app_initialization_state.dart';
+import '../../../core/navigation/app_routes.dart';
+import '../../../core/services/daily_log_confirmation_service.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -10,23 +12,32 @@ import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../operation_date/models/operation_state.dart';
+import '../../dashboard/log_confirmation_review_page.dart';
+import '../services/daily_estimated_total_burn_service.dart';
 
 class BriefDebriefPage extends StatelessWidget {
-  const BriefDebriefPage({super.key});
+  const BriefDebriefPage({
+    super.key,
+    this.dailyLogSourceLoader = DailyLogConfirmationService.loadSourceSnapshot,
+  });
+
+  final Future<DailyLogSourceSnapshot> Function(String localDate)
+  dailyLogSourceLoader;
 
   @override
-  Widget build(BuildContext context) => const DefaultTabController(
+  Widget build(BuildContext context) => DefaultTabController(
     length: 2,
     child: Column(
       children: [
-        Padding(
+        const Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SectionHeader(
             icon: Icons.article_outlined,
             title: 'BRIEF / DEBRIEF',
           ),
         ),
-        TabBar(
+        const TabBar(
           tabs: [
             Tab(text: 'DAILY BRIEF'),
             Tab(text: 'DAILY DEBRIEF'),
@@ -34,7 +45,10 @@ class BriefDebriefPage extends StatelessWidget {
         ),
         Expanded(
           child: TabBarView(
-            children: [_MorningBriefView(), _DailyDebriefView()],
+            children: [
+              const _MorningBriefView(),
+              _DailyDebriefView(sourceLoader: dailyLogSourceLoader),
+            ],
           ),
         ),
       ],
@@ -206,31 +220,49 @@ class _ArchiveButton extends StatelessWidget {
 }
 
 class _DailyDebriefView extends StatefulWidget {
-  const _DailyDebriefView();
+  const _DailyDebriefView({required this.sourceLoader});
+
+  final Future<DailyLogSourceSnapshot> Function(String localDate) sourceLoader;
 
   @override
   State<_DailyDebriefView> createState() => _DailyDebriefViewState();
 }
 
 class _DailyDebriefViewState extends State<_DailyDebriefView> {
-  late Future<
-    List<({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})>
-  >
-  _records = _load();
+  late Future<_DailyDebriefViewData> _records = _load();
+  _DailyDebriefViewData? _loadedData;
+  String? _selectedTargetDate;
 
-  Future<
-    List<({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})>
-  >
-  _load() async {
+  Future<_DailyDebriefViewData> _load() async {
     final container = AppRepositoryRegistry.container;
     final records = await container.dailyDebriefs.list();
-    return Future.wait([
+    final projected = await Future.wait([
       for (final record in records)
         (() async => (
           record: record,
           status: await container.dailyDebriefSources.projectLifecycle(record),
         ))(),
     ]);
+    final operationState = await container.operationState.requireCurrent();
+    final currentSnapshot = operationState.phase == OperationPhase.open
+        ? await widget.sourceLoader(operationState.operationDate.value)
+        : null;
+    final eligibleDates = await container.dailyDebriefSources.eligibleDates(
+      currentOperationDateValidation: currentSnapshot?.validation,
+    );
+    final defaultTargetDate = await container.dailyDebriefSources
+        .defaultEligibleDate(
+          currentOperationDateValidation: currentSnapshot?.validation,
+        );
+    final data = _DailyDebriefViewData(
+      records: projected,
+      operationState: operationState,
+      eligibleDates: eligibleDates,
+      defaultTargetDate: defaultTargetDate,
+    );
+    _loadedData = data;
+    _selectedTargetDate ??= defaultTargetDate;
+    return data;
   }
 
   void _refresh() {
@@ -243,21 +275,65 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
   }
 
   Future<void> _openCreateFlow() async {
+    final data = _loadedData;
+    if (data == null || data.eligibleDates.isEmpty) return;
+    final selected = _selectedTargetDate;
+    if (selected == null) return;
+    if (data.operationState.phase == OperationPhase.open &&
+        selected == data.operationState.operationDate.value) {
+      final sourceSnapshot = await widget.sourceLoader(selected);
+      final container = AppRepositoryRegistry.container;
+      final estimatedTotalBurn = await DailyEstimatedTotalBurnService(
+        statusRepository: container.status,
+        trainingRepository: container.training,
+      ).calculate(selected);
+      if (!mounted) return;
+      final changed = await Navigator.pushNamed(
+        context,
+        AppRoutes.logConfirmationReview,
+        arguments: LogConfirmationReviewPage(
+          morning: sourceSnapshot.morning,
+          food: sourceSnapshot.food,
+          activity: sourceSnapshot.activity,
+          training: sourceSnapshot.training,
+          estimatedTotalBurn: estimatedTotalBurn,
+          targetDate: DateTime.parse(selected),
+        ),
+      );
+      if (changed != true || !mounted) return;
+    }
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => const ReportSyncExchangePage(
+        builder: (_) => ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.dailyDebrief,
+          initialTargetDate: selected,
         ),
       ),
     );
     _refresh();
   }
 
+  Future<void> _selectTargetDate(_DailyDebriefViewData data) async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('ELIGIBLE DATE'),
+        children: [
+          for (final date in data.eligibleDates)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, date),
+              child: Text(date),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _selectedTargetDate = selected);
+  }
+
   @override
-  Widget build(
-    BuildContext context,
-  ) => FutureBuilder<List<({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})>>(
+  Widget build(BuildContext context) => FutureBuilder<_DailyDebriefViewData>(
     future: _records,
     builder: (context, snapshot) => ListView(
       key: const ValueKey('daily-debrief-content'),
@@ -272,21 +348,34 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
-        else if (snapshot.data!.isEmpty)
+        else if (snapshot.data!.records.isEmpty)
           const OperationCard(child: Text('DAILY DEBRIEFはまだありません。'))
         else
           _DailyDebriefDetail(
             key: const ValueKey('current-daily-debrief'),
-            record: snapshot.data!.first.record,
-            status: snapshot.data!.first.status,
+            record: snapshot.data!.records.first.record,
+            status: snapshot.data!.records.first.status,
             includeAuditSections: false,
           ),
         AppSpacing.gapMD,
+        if (snapshot.hasData) ...[
+          OutlinedButton.icon(
+            key: const ValueKey('daily-debrief-target-date'),
+            onPressed: snapshot.data!.eligibleDates.isEmpty
+                ? null
+                : () => _selectTargetDate(snapshot.data!),
+            icon: const Icon(Icons.calendar_month_outlined),
+            label: Text(_selectedTargetDate ?? 'SELECT ELIGIBLE DATE'),
+          ),
+          AppSpacing.gapSM,
+        ],
         OperationButton(
           key: const ValueKey('open-daily-debrief-report-sync'),
           text: 'CREATE DAILY DEBRIEF',
           icon: Icons.add_circle_outline,
-          onPressed: appInitializationController.value.isReadOnly
+          onPressed:
+              appInitializationController.value.isReadOnly ||
+                  snapshot.data?.defaultTargetDate == null
               ? null
               : _openCreateFlow,
         ),
@@ -300,37 +389,42 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
-        else if (snapshot.data!.length <= 1)
+        else if (snapshot.data!.records.length <= 1)
           const OperationCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
         else
           OperationCard(
             child: Column(
               children: [
-                for (var index = 1; index < snapshot.data!.length; index++) ...[
+                for (
+                  var index = 1;
+                  index < snapshot.data!.records.length;
+                  index++
+                ) ...[
                   ListTile(
                     key: ValueKey(
-                      'daily-debrief-history-${snapshot.data![index].record.localDate}',
+                      'daily-debrief-history-${snapshot.data!.records[index].record.localDate}',
                     ),
                     leading: const Icon(Icons.nightlight_outlined),
                     title: Text(
-                      'OPERATION DATE  ${snapshot.data![index].record.localDate}',
+                      'OPERATION DATE  ${snapshot.data!.records[index].record.localDate}',
                     ),
                     subtitle: Text(
-                      'REVISION  ${snapshot.data![index].record.revision}  '
-                      'STATUS  ${snapshot.data![index].status.name.toUpperCase()}\n'
-                      'IMPORTED AT  ${snapshot.data![index].record.updatedAt.toLocal()}',
+                      'REVISION  ${snapshot.data!.records[index].record.revision}  '
+                      'STATUS  ${snapshot.data!.records[index].status.name.toUpperCase()}\n'
+                      'IMPORTED AT  ${snapshot.data!.records[index].record.updatedAt.toLocal()}',
                     ),
                     onTap: () => Navigator.push<void>(
                       context,
                       MaterialPageRoute(
                         builder: (_) => _DailyDebriefDetailPage(
-                          record: snapshot.data![index].record,
-                          status: snapshot.data![index].status,
+                          record: snapshot.data!.records[index].record,
+                          status: snapshot.data!.records[index].status,
                         ),
                       ),
                     ),
                   ),
-                  if (index != snapshot.data!.length - 1) const Divider(),
+                  if (index != snapshot.data!.records.length - 1)
+                    const Divider(),
                 ],
               ],
             ),
@@ -339,6 +433,21 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
       ],
     ),
   );
+}
+
+class _DailyDebriefViewData {
+  const _DailyDebriefViewData({
+    required this.records,
+    required this.operationState,
+    required this.eligibleDates,
+    required this.defaultTargetDate,
+  });
+
+  final List<({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})>
+  records;
+  final OperationState operationState;
+  final List<String> eligibleDates;
+  final String? defaultTargetDate;
 }
 
 class _DailyDebriefDetailPage extends StatelessWidget {

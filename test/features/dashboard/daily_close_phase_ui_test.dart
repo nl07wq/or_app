@@ -9,14 +9,15 @@ import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 
 void main() {
-  testWidgets('open daily log exposes only create debrief action', (
+  testWidgets('open daily log keeps finalize visible and blocked', (
     tester,
   ) async {
     await _pumpCard(tester, phase: OperationPhase.open, finalizeReady: false);
 
-    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
-    expect(find.text('CREATE DAILY DEBRIEF READY'), findsOneWidget);
-    expect(find.text('FINALIZE DAY'), findsNothing);
+    expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
+    expect(find.text('FINALIZE DAY'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(find.text('DAILY DEBRIEF REQUIRED'), findsOneWidget);
     expect(find.text('UNDO DAILY CLOSE'), findsNothing);
   });
 

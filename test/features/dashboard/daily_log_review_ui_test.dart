@@ -66,9 +66,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.bySemanticsLabel('ACTIVITY incomplete'), findsOneWidget);
-    expect(find.text('CREATE DAILY DEBRIEF BLOCKED'), findsOneWidget);
-    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
-    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(find.text('DAILY DEBRIEF REQUIRED'), findsOneWidget);
+    expect(find.text('FINALIZE DAY'), findsOneWidget);
+    expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
   });
 
   testWidgets('DAILY LOG reports recorded modules as completed', (
@@ -85,7 +86,8 @@ void main() {
     expect(find.bySemanticsLabel('FOOD completed'), findsOneWidget);
     expect(find.bySemanticsLabel('TRAINING completed'), findsOneWidget);
     expect(find.bySemanticsLabel('ACTIVITY completed'), findsOneWidget);
-    expect(find.text('CREATE DAILY DEBRIEF READY'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(find.text('DAILY DEBRIEF REQUIRED'), findsOneWidget);
   });
 
   testWidgets('DAILY LOG rows open existing module routes', (tester) async {
@@ -105,7 +107,7 @@ void main() {
       },
     );
 
-    expect(find.text('CREATE DAILY DEBRIEF READY'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
     for (final entry in const [
       ('STATUS completed', AppRoutes.morning),
       ('FOOD completed', AppRoutes.food),
@@ -212,10 +214,10 @@ void main() {
     await _pumpDailyLogCard(tester, width: 320);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+    expect(find.text('FINALIZE DAY'), findsOneWidget);
   });
 
-  testWidgets('DAILY REVIEW button keeps the existing named route', (
+  testWidgets('open DAILY LOG does not expose the debrief create route', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 800);
@@ -245,27 +247,13 @@ void main() {
     );
     await tester.pump();
     await tester.scrollUntilVisible(
-      find.text('CREATE DAILY DEBRIEF'),
+      find.text('FINALIZE DAY'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await Scrollable.ensureVisible(
-      tester.element(find.text('CREATE DAILY DEBRIEF')),
-      alignment: 0.5,
-    );
-    await tester.pump();
-    await tester.tap(find.text('CREATE DAILY DEBRIEF'));
-    await tester.pumpAndSettle();
-
-    expect(find.widgetWithText(AppBar, 'DAILY REVIEW'), findsOneWidget);
-    expect(
-      tester
-          .widget<LogConfirmationReviewPage>(
-            find.byType(LogConfirmationReviewPage),
-          )
-          .targetDate,
-      operationDate,
-    );
+    expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
+    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+    expect(find.byType(LogConfirmationReviewPage), findsNothing);
   });
 
   testWidgets('finalized Dashboard uses DAILY LOG terminology and route', (

@@ -9,6 +9,10 @@ final ValueNotifier<MorningFact?> morningFactNotifier =
     ValueNotifier<MorningFact?>(null);
 
 Future<void> refreshMorningFact({String? localDate}) async {
+  morningFactNotifier.value = await loadMorningFact(localDate: localDate);
+}
+
+Future<MorningFact?> loadMorningFact({String? localDate}) async {
   final records = await MorningRepository.getAll();
   final targetLocalDate =
       localDate ?? (await const OperationDateService().current()).value;
@@ -27,7 +31,7 @@ Future<void> refreshMorningFact({String? localDate}) async {
     }
   }
 
-  morningFactNotifier.value = latestRecord == null
+  return latestRecord == null
       ? null
       : MorningFact(
           date: DateTime.parse(latestRecord.date),

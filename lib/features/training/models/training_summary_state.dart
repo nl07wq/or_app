@@ -9,10 +9,16 @@ final ValueNotifier<TrainingSummary?> trainingSummaryNotifier =
     ValueNotifier<TrainingSummary?>(null);
 
 Future<void> refreshTrainingSummary({String? localDate}) async {
+  trainingSummaryNotifier.value = await loadTrainingSummary(
+    localDate: localDate,
+  );
+}
+
+Future<TrainingSummary?> loadTrainingSummary({String? localDate}) async {
   final records = await TrainingRepository.getReadModels();
   final targetLocalDate =
       localDate ?? (await const OperationDateService().current()).value;
-  trainingSummaryNotifier.value = TrainingDailySummaryService.calculate(
+  return TrainingDailySummaryService.calculate(
     preferredRecords: records,
     localDate: targetLocalDate,
   ).toDashboardSummary();

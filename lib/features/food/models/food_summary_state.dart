@@ -9,11 +9,12 @@ final ValueNotifier<FoodSummary?> foodSummaryNotifier =
     ValueNotifier<FoodSummary?>(null);
 
 Future<void> refreshFoodSummary({String? localDate}) async {
+  foodSummaryNotifier.value = await loadFoodSummary(localDate: localDate);
+}
+
+Future<FoodSummary?> loadFoodSummary({String? localDate}) async {
   final targetLocalDate =
       localDate ?? (await const OperationDateService().current()).value;
   final records = await FoodRepository.getAll();
-  foodSummaryNotifier.value = FoodSummaryService.forLocalDate(
-    records,
-    targetLocalDate,
-  );
+  return FoodSummaryService.forLocalDate(records, targetLocalDate);
 }

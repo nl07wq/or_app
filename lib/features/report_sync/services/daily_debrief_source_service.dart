@@ -6,6 +6,7 @@ import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_rec
 import '../../daily_log_confirmation/repository/daily_log_confirmation_repository.dart';
 import '../../operation_date/repository/operation_state_repository.dart';
 import '../../operation_date/models/operation_state.dart';
+import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../models/daily_debrief_record.dart';
 import '../models/morning_brief_record.dart';
 import '../repository/morning_brief_repository.dart';
@@ -127,7 +128,9 @@ class DailyDebriefSourceService {
     );
   }
 
-  Future<List<String>> eligibleDates() async {
+  Future<List<String>> eligibleDates({
+    DailyLogValidationResult? currentOperationDateValidation,
+  }) async {
     final aggregates = await dailyAggregates.getRange(
       '0001-01-01',
       '9999-12-31',
@@ -145,14 +148,25 @@ class DailyDebriefSourceService {
         result.add(aggregate.operationDate);
       }
     }
+    final state = await operationState.requireCurrent();
+    if (state.phase == OperationPhase.open &&
+        currentOperationDateValidation?.canFinalize == true &&
+        !result.contains(state.operationDate.value)) {
+      result.add(state.operationDate.value);
+    }
     result.sort((a, b) => b.compareTo(a));
     return List.unmodifiable(result);
   }
 
-  Future<String?> defaultEligibleDate() async {
-    final eligible = await eligibleDates();
+  Future<String?> defaultEligibleDate({
+    DailyLogValidationResult? currentOperationDateValidation,
+  }) async {
+    final eligible = await eligibleDates(
+      currentOperationDateValidation: currentOperationDateValidation,
+    );
     final state = await operationState.requireCurrent();
-    if (state.phase == OperationPhase.awaitingDebrief &&
+    if ((state.phase == OperationPhase.awaitingDebrief ||
+            currentOperationDateValidation?.canFinalize == true) &&
         eligible.contains(state.operationDate.value)) {
       return state.operationDate.value;
     }

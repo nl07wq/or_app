@@ -30,6 +30,7 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.clipboardWriter,
     this.clipboardGateway,
     this.onApplied,
+    this.initialTargetDate,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -38,6 +39,7 @@ class ReportSyncExchangePage extends StatelessWidget {
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
   final VoidCallback? onApplied;
+  final String? initialTargetDate;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -49,6 +51,7 @@ class ReportSyncExchangePage extends StatelessWidget {
       clipboardWriter: clipboardWriter,
       clipboardGateway: clipboardGateway,
       onApplied: onApplied,
+      initialTargetDate: initialTargetDate,
     ),
   );
 }
@@ -62,6 +65,7 @@ class ReportSyncExchangePanel extends StatefulWidget {
     this.clipboardWriter,
     this.clipboardGateway,
     this.onApplied,
+    this.initialTargetDate,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -70,6 +74,7 @@ class ReportSyncExchangePanel extends StatefulWidget {
   final ReportSyncClipboardWriter? clipboardWriter;
   final ReportSyncClipboardGateway? clipboardGateway;
   final VoidCallback? onApplied;
+  final String? initialTargetDate;
 
   @override
   State<ReportSyncExchangePanel> createState() =>
@@ -157,7 +162,10 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _loadError = null;
     });
     try {
-      final request = await _gateway.prepareRequest(widget.exchangeType);
+      final request = await _gateway.prepareRequest(
+        widget.exchangeType,
+        targetDate: widget.initialTargetDate,
+      );
       final history = await _gateway.history(widget.exchangeType);
       if (!mounted) return;
       setState(() {

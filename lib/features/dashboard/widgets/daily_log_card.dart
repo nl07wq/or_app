@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
-import '../../../core/models/daily_log_confirmation_status.dart';
 import '../../../core/navigation/app_routes.dart';
-import '../../../core/services/daily_log_confirmation_state.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -19,10 +17,7 @@ import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../operation_date/services/daily_finalize_undo_service.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
-import '../../report_sync/models/report_sync_envelope.dart';
-import '../../report_sync/pages/report_sync_exchange_page.dart';
 import '../../repositories/app_repository_container.dart';
-import '../log_confirmation_review_page.dart';
 
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
@@ -68,89 +63,48 @@ class _DailyLogSectionState extends State<DailyLogSection> {
         AppSpacing.gapSM,
         FutureBuilder<_DailyCloseUiState>(
           future: _closeState,
-          builder: (context, closeSnapshot) =>
-              ValueListenableBuilder<DailyLogConfirmationStatus>(
-                valueListenable: dailyLogConfirmationNotifier,
-                builder: (context, confirmationStatus, _) {
-                  final closeState = closeSnapshot.data;
-                  final locked = closeState?.phase != OperationPhase.open;
-                  return DailyLogCard(
-                    morningFact: widget.morningFact,
-                    foodSummary: widget.foodSummary,
-                    activitySummary: widget.activitySummary,
-                    trainingSummary: widget.trainingSummary,
-                    phase: closeState?.phase ?? OperationPhase.finalizing,
-                    finalizeReady: closeState?.finalizeReady ?? false,
-                    onStatusTap: isReadOnly || locked
-                        ? null
-                        : () => Navigator.pushNamed(context, AppRoutes.morning),
-                    onFoodTap: isReadOnly || locked
-                        ? null
-                        : () => Navigator.pushNamed(context, AppRoutes.food),
-                    onTrainingTap: isReadOnly || locked
-                        ? null
-                        : () =>
-                              Navigator.pushNamed(context, AppRoutes.training),
-                    onActivityTap: isReadOnly || locked
-                        ? null
-                        : () =>
-                              Navigator.pushNamed(context, AppRoutes.activity),
-                    onPrimaryAction: isReadOnly || closeState == null
-                        ? null
-                        : closeState.phase == OperationPhase.open
-                        ? () => _openReview(
-                            confirmationStatus: confirmationStatus,
-                          )
-                        : closeState.phase == OperationPhase.awaitingDebrief &&
-                              closeState.finalizeReady
-                        ? () => _finalize(confirmationStatus)
-                        : null,
-                    onUndo:
-                        isReadOnly ||
-                            closeState?.undoInspection.canUndo != true ||
-                            closeState?.phase != OperationPhase.awaitingDebrief
-                        ? null
-                        : () => _undo(closeState!.undoInspection),
-                  );
-                },
-              ),
+          builder: (context, closeSnapshot) {
+            final closeState = closeSnapshot.data;
+            final locked = closeState?.phase != OperationPhase.open;
+            return DailyLogCard(
+              morningFact: widget.morningFact,
+              foodSummary: widget.foodSummary,
+              activitySummary: widget.activitySummary,
+              trainingSummary: widget.trainingSummary,
+              phase: closeState?.phase ?? OperationPhase.finalizing,
+              finalizeReady: closeState?.finalizeReady ?? false,
+              onStatusTap: isReadOnly || locked
+                  ? null
+                  : () => Navigator.pushNamed(context, AppRoutes.morning),
+              onFoodTap: isReadOnly || locked
+                  ? null
+                  : () => Navigator.pushNamed(context, AppRoutes.food),
+              onTrainingTap: isReadOnly || locked
+                  ? null
+                  : () => Navigator.pushNamed(context, AppRoutes.training),
+              onActivityTap: isReadOnly || locked
+                  ? null
+                  : () => Navigator.pushNamed(context, AppRoutes.activity),
+              onPrimaryAction: isReadOnly || closeState == null
+                  ? null
+                  : closeState.phase == OperationPhase.awaitingDebrief &&
+                        closeState.finalizeReady
+                  ? _finalize
+                  : null,
+              onUndo:
+                  isReadOnly ||
+                      closeState?.undoInspection.canUndo != true ||
+                      closeState?.phase != OperationPhase.awaitingDebrief
+                  ? null
+                  : () => _undo(closeState!.undoInspection),
+            );
+          },
         ),
       ],
     );
   }
 
-  Future<void> _openReview({
-    required DailyLogConfirmationStatus confirmationStatus,
-  }) async {
-    final changed = await Navigator.pushNamed(
-      context,
-      AppRoutes.logConfirmationReview,
-      arguments: LogConfirmationReviewPage(
-        morning: widget.morningFact,
-        food: widget.foodSummary,
-        activity: widget.activitySummary,
-        training: widget.trainingSummary,
-        estimatedTotalBurn: widget.estimatedTotalBurn,
-        targetDate: confirmationStatus.date,
-      ),
-    );
-    if (changed == true) {
-      if (!mounted) return;
-      await Navigator.push<void>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ReportSyncExchangePage(
-            exchangeType: ReportSyncExchangeType.dailyDebrief,
-          ),
-        ),
-      );
-      if (!mounted) return;
-      await widget.onClosePrepared?.call();
-      _reloadCloseState();
-    }
-  }
-
-  Future<void> _finalize(DailyLogConfirmationStatus confirmationStatus) async {
+  Future<void> _finalize() async {
     final approved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -173,9 +127,9 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       ),
     );
     if (approved != true || !mounted) return;
-    final previousDate = OperationLocalDate.fromDateTime(
-      confirmationStatus.date,
-    );
+    final state = await AppRepositoryRegistry.container.operationState
+        .requireCurrent();
+    final previousDate = state.operationDate;
     try {
       await DailyFinalizeCoordinatorFactory.production().finalize(
         targetLocalDate: previousDate,
@@ -273,9 +227,8 @@ class DailyLogCard extends StatelessWidget {
       activity: activitySummary,
       training: trainingSummary,
     );
-    final primaryReady = phase == OperationPhase.awaitingDebrief
-        ? finalizeReady
-        : phase == OperationPhase.open && validation.canFinalize;
+    final primaryReady =
+        phase == OperationPhase.awaitingDebrief && finalizeReady;
     final statusState = validation.statusValid
         ? _DailyLogEntryState.completed
         : _DailyLogEntryState.requiredInvalid;
@@ -343,18 +296,12 @@ class DailyLogCard extends StatelessWidget {
             },
           ),
           AppSpacing.gapMD,
-          _DailyCloseReadiness(
-            validation: validation,
-            phase: phase,
-            finalizeReady: finalizeReady,
-          ),
+          _DailyCloseReadiness(phase: phase, finalizeReady: finalizeReady),
           AppSpacing.gapMD,
           _DailyCloseActionButton(
-            text: phase == OperationPhase.awaitingDebrief
-                ? 'FINALIZE DAY'
-                : phase == OperationPhase.open
-                ? 'CREATE DAILY DEBRIEF'
-                : 'DAILY CLOSE IN PROGRESS',
+            text: phase == OperationPhase.finalizing
+                ? 'DAILY CLOSE IN PROGRESS'
+                : 'FINALIZE DAY',
             onPressed: primaryReady ? onPrimaryAction : null,
           ),
           if (phase == OperationPhase.awaitingDebrief) ...[
@@ -442,28 +389,23 @@ class _DailyLogEntryStatus extends StatelessWidget {
 
 class _DailyCloseReadiness extends StatelessWidget {
   const _DailyCloseReadiness({
-    required this.validation,
     required this.phase,
     required this.finalizeReady,
   });
 
-  final DailyLogValidationResult validation;
   final OperationPhase phase;
   final bool finalizeReady;
 
   @override
   Widget build(BuildContext context) {
     final awaiting = phase == OperationPhase.awaitingDebrief;
-    final ready = awaiting ? finalizeReady : validation.canFinalize;
-    final action = awaiting ? 'FINALIZE' : 'CREATE DAILY DEBRIEF';
+    final ready = awaiting && finalizeReady;
+    const action = 'FINALIZE';
     final colorScheme = Theme.of(context).colorScheme;
     final color = ready ? colorScheme.primary : colorScheme.error;
-    final blockers = validation.blockingModules
-        .map(DailyLogConfirmationValidation.moduleLabel)
-        .join(', ');
     return Semantics(
       key: const ValueKey('daily-log-finalize-readiness'),
-      label: ready ? '$action READY' : '$action BLOCKED $blockers',
+      label: ready ? '$action READY' : '$action BLOCKED DAILY DEBRIEF REQUIRED',
       container: true,
       child: ExcludeSemantics(
         child: Row(
@@ -490,7 +432,12 @@ class _DailyCloseReadiness extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!ready) Text(awaiting ? 'DAILY DEBRIEFが未完成です' : blockers),
+                  if (!ready)
+                    Text(
+                      awaiting
+                          ? 'DAILY DEBRIEFが未完成です'
+                          : 'DAILY DEBRIEF REQUIRED',
+                    ),
                 ],
               ),
             ),

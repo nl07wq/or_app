@@ -17,13 +17,19 @@ const _repository = LocalActivityRepository();
 const _summaryEngine = ActivitySummaryEngine();
 
 Future<void> refreshActivitySummary({String? localDate}) async {
+  activitySummaryNotifier.value = await loadActivitySummary(
+    localDate: localDate,
+  );
+}
+
+Future<ActivitySummary> loadActivitySummary({String? localDate}) async {
   final targetLocalDate =
       localDate ?? (await const OperationDateService().current()).value;
   final targetDate = DateTime.parse(targetLocalDate);
   final record = await _repository.findByDate(targetDate);
   final previous = await loadPreviousActivity(targetDate);
   final legacyMorning = await _loadMorning(targetDate);
-  activitySummaryNotifier.value = record == null
+  return record == null
       ? const ActivitySummary.empty()
       : _summaryEngine.generate(
           record: record,
