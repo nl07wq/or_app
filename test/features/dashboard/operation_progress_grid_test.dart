@@ -164,20 +164,20 @@ void main() {
         find.ancestor(of: month, matching: find.byType(Expanded)),
         findsNothing,
       );
-      expect(tester.getSize(month), const Size(44, 36));
-      expect(tester.getSize(day), const Size(44, 36));
-      expect(tester.getSize(weekday), const Size(44, 36));
-      expect(tester.getSize(row).width, 144);
+      expect(tester.getSize(month), const Size(42, 36));
+      expect(tester.getSize(day), const Size(42, 36));
+      expect(tester.getSize(weekday), const Size(42, 36));
+      expect(tester.getSize(row).width, 138);
       expect(
         tester.getSize(row).width,
         lessThan(tester.getSize(operationDateCard).width * 0.75),
       );
       expect(tester.getTopLeft(day).dx - tester.getTopRight(month).dx, 6);
       expect(tester.getTopLeft(weekday).dx - tester.getTopRight(day).dx, 6);
-      expect(tester.getSize(clock), const Size(168, 36));
+      expect(tester.getSize(clock), const Size(174, 36));
       for (var index = 0; index < 6; index++) {
         final tile = find.byKey(ValueKey('dashboard-time-tile-$index'));
-        expect(tester.getSize(tile), const Size(23, 36));
+        expect(tester.getSize(tile), const Size(24, 36));
         if (index > 0) {
           final previous = find.byKey(
             ValueKey('dashboard-time-tile-${index - 1}'),
@@ -196,6 +196,13 @@ void main() {
         find.byKey(const ValueKey('dashboard-time-colon-2')),
         findsOneWidget,
       );
+      final divider = find.byKey(const ValueKey('dashboard-date-time-divider'));
+      expect(divider, findsOneWidget);
+      expect(
+        tester.widget<VerticalDivider>(divider).color,
+        Theme.of(tester.element(divider)).colorScheme.outlineVariant,
+      );
+      expect(tester.getSize(divider), const Size(1, 36));
       expect(
         tester.getTopLeft(row).dx,
         lessThan(tester.getCenter(operationDateCard).dx),
