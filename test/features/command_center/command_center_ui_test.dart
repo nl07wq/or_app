@@ -661,6 +661,7 @@ void main() {
     final olderRecord = _dailyDebriefRecord(
       localDate: '2026-07-31',
       bodyEvaluation: 'OLDER BODY REVIEW',
+      rationale: 'OLDER COMMANDER RATIONALE',
       timestamp: timestamp,
     );
     database.seed(
@@ -733,18 +734,59 @@ void main() {
     expect(find.text('WATCH POINTS'), findsOneWidget);
     expect(find.text('WATCH ITEM'), findsOneWidget);
     for (final panel in const [
-      'daily-debrief-panel-domain-body',
       'daily-debrief-panel-commander-intent',
-      'daily-debrief-panel-successes',
-      'daily-debrief-panel-adjustments',
-      'daily-debrief-panel-key-factors',
-      'daily-debrief-panel-interactions',
-      'daily-debrief-panel-constraints',
-      'daily-debrief-panel-resources',
-      'daily-debrief-panel-watch-points',
+      'daily-debrief-panel-execution-evaluation',
+      'daily-debrief-panel-cross-analysis',
+      'daily-debrief-panel-next-day-handoff',
     ]) {
       expect(find.byKey(ValueKey(panel)), findsOneWidget);
     }
+    expect(
+      find.byKey(const ValueKey('daily-debrief-domain-body')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('daily-debrief-panel-domain-body')),
+      findsNothing,
+    );
+    final scheme = Theme.of(
+      tester.element(
+        find.byKey(const ValueKey('daily-debrief-panel-commander-intent')),
+      ),
+    ).colorScheme;
+    expect(
+      _panelColor(tester, 'daily-debrief-panel-commander-intent'),
+      scheme.primaryContainer,
+    );
+    expect(
+      _panelColor(tester, 'daily-debrief-panel-execution-evaluation'),
+      scheme.secondaryContainer.withValues(alpha: 0.55),
+    );
+    expect(
+      _panelColor(tester, 'daily-debrief-panel-cross-analysis'),
+      scheme.surfaceContainerLow,
+    );
+    expect(
+      _panelColor(tester, 'daily-debrief-panel-next-day-handoff'),
+      scheme.surfaceContainerHighest,
+    );
+    final executionPanel = find.byKey(
+      const ValueKey('daily-debrief-panel-execution-evaluation'),
+    );
+    expect(
+      find.descendant(
+        of: executionPanel,
+        matching: find.byKey(const ValueKey('daily-debrief-group-successes')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: executionPanel,
+        matching: find.byKey(const ValueKey('daily-debrief-group-adjustments')),
+      ),
+      findsOneWidget,
+    );
     expect(find.byIcon(Symbols.barefoot), findsOneWidget);
     expect(find.byIcon(Icons.health_and_safety_outlined), findsNothing);
     expect(find.textContaining('CURRENT REVISION'), findsNothing);
@@ -779,6 +821,33 @@ void main() {
       find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
     );
     await tester.pump();
+    final historyRow = find.byKey(
+      const ValueKey('daily-debrief-history-2026-07-31'),
+    );
+    expect(
+      find.descendant(
+        of: historyRow,
+        matching: find.byIcon(Icons.description_outlined),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: historyRow,
+        matching: find.text('OLDER COMMANDER RATIONALE'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: historyRow,
+        matching: find.byIcon(Icons.chevron_right),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('OPERATION DATE  '), findsNothing);
+    expect(find.textContaining('STATUS  '), findsNothing);
+    expect(find.textContaining('IMPORTED AT  '), findsNothing);
 
     await tester.tap(
       find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
@@ -792,7 +861,9 @@ void main() {
     );
     expect(find.text('評価理由'), findsOneWidget);
     expect(find.text('判定根拠'), findsOneWidget);
-    expect(find.text('SOURCE REFERENCES'), findsOneWidget);
+    expect(find.text('SOURCE REFERENCES'), findsNothing);
+    expect(find.textContaining('aaaaaaaaaaaaaaaa'), findsNothing);
+    expect(olderRecord.sources.dailyAggregate.recordDigest, isNotEmpty);
     expect(find.text('PREVIOUS REVISIONS'), findsOneWidget);
     _expectDailyDebriefReadingOrder(tester);
   });
@@ -824,6 +895,155 @@ void main() {
       find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('debrief back numbers match brief rows and outcome colors', (
+    tester,
+  ) async {
+    final timestamp = DateTime.utc(2026, 8, 1, 23);
+    final current = _dailyDebriefRecord(
+      localDate: '2026-08-01',
+      bodyEvaluation: 'CURRENT BODY',
+      timestamp: timestamp,
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      current.localDate,
+      current.toRecord(),
+    );
+    final cases = [
+      (
+        '2026-07-31',
+        DailyDebriefCommanderIntentOutcome.achieved,
+        'GREEN RATIONALE',
+      ),
+      (
+        '2026-07-30',
+        DailyDebriefCommanderIntentOutcome.partiallyAchieved,
+        'YELLOW RATIONALE',
+      ),
+      (
+        '2026-07-29',
+        DailyDebriefCommanderIntentOutcome.notAchieved,
+        'RED RATIONALE',
+      ),
+      (
+        '2026-07-28',
+        DailyDebriefCommanderIntentOutcome.notAssessable,
+        'GRAY RATIONALE',
+      ),
+    ];
+    for (var index = 0; index < cases.length; index++) {
+      final value = cases[index];
+      final record = _dailyDebriefRecord(
+        localDate: value.$1,
+        bodyEvaluation: 'BODY ${value.$1}',
+        rationale: value.$3,
+        outcome: value.$2,
+        revision: index + 2,
+        timestamp: timestamp.subtract(Duration(days: index + 1)),
+      );
+      database.seed(
+        IndexedDbStoreNames.dailyDebriefRecords,
+        record.localDate,
+        record.toRecord(),
+      );
+      expect(record.revision, index + 2);
+    }
+    final noEvaluation = _dailyDebriefRecord(
+      localDate: '2026-07-27',
+      bodyEvaluation: 'NO EVALUATION BODY',
+      commanderIntentRecorded: false,
+      timestamp: timestamp.subtract(const Duration(days: 5)),
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      noEvaluation.localDate,
+      noEvaluation.toRecord(),
+    );
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+
+    final colors = Theme.of(
+      tester.element(find.byKey(const ValueKey('daily-debrief-content'))),
+    ).colorScheme;
+    for (final value in cases) {
+      final row = find.byKey(ValueKey('daily-debrief-history-${value.$1}'));
+      await tester.scrollUntilVisible(
+        row,
+        400,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('daily-debrief-content')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      final expectedColor = switch (value.$2) {
+        DailyDebriefCommanderIntentOutcome.achieved => Colors.green,
+        DailyDebriefCommanderIntentOutcome.partiallyAchieved => Colors.amber,
+        DailyDebriefCommanderIntentOutcome.notAchieved => colors.error,
+        DailyDebriefCommanderIntentOutcome.notAssessable => colors.outline,
+      };
+      final dot = tester.widget<Container>(
+        find.descendant(
+          of: row,
+          matching: find.byKey(const ValueKey('back-number-outcome-dot')),
+        ),
+      );
+      expect((dot.decoration! as BoxDecoration).color, expectedColor);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byIcon(Icons.description_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text(value.$1)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text(value.$3)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)),
+        findsOneWidget,
+      );
+    }
+    expect(find.textContaining('OPERATION DATE  '), findsNothing);
+    expect(find.textContaining('STATUS  '), findsNothing);
+    expect(find.textContaining('IMPORTED AT  '), findsNothing);
+    final noEvaluationRow = find.byKey(
+      const ValueKey('daily-debrief-history-2026-07-27'),
+    );
+    await tester.scrollUntilVisible(
+      noEvaluationRow,
+      400,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('daily-debrief-content')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    final noEvaluationTile = tester.widget<ListTile>(
+      find.descendant(of: noEvaluationRow, matching: find.byType(ListTile)),
+    );
+    expect(noEvaluationTile.subtitle, isNull);
+    expect(
+      find.descendant(
+        of: noEvaluationRow,
+        matching: find.byKey(const ValueKey('back-number-outcome-dot')),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('hides empty debrief subsections in current and detail views', (
@@ -913,6 +1133,17 @@ void main() {
       record.localDate,
       record.toRecord(),
     );
+    final historical = _dailyDebriefRecord(
+      localDate: '2026-07-31',
+      bodyEvaluation: '過去日のBODY評価文です。',
+      rationale: List.filled(4, '長い日本語のCommander Intent評価理由を一覧で表示します。').join(),
+      timestamp: DateTime.utc(2026, 7, 31, 23),
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      historical.localDate,
+      historical.toRecord(),
+    );
 
     for (final width in [320.0, 390.0, 1280.0]) {
       await _pump(tester, width: width);
@@ -923,15 +1154,34 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey('daily-debrief-panel-domain-body')),
+        find.byKey(const ValueKey('daily-debrief-domain-body')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('daily-debrief-panel-domain-condition')),
+        find.byKey(const ValueKey('daily-debrief-domain-condition')),
         findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('daily-debrief-panel-domain-body')),
+        findsNothing,
       );
       expect(find.byIcon(Symbols.barefoot), findsOneWidget);
       expect(find.byIcon(Icons.health_and_safety_outlined), findsNothing);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
+        500,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('daily-debrief-content')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      final preview = tester.widget<Text>(
+        find.textContaining('長い日本語のCommander Intent評価理由').last,
+      );
+      expect(preview.maxLines, 2);
+      expect(preview.overflow, TextOverflow.ellipsis);
       expect(tester.takeException(), isNull);
     }
   });
@@ -1013,7 +1263,7 @@ void main() {
           of: find.byKey(const ValueKey('current-daily-debrief')),
           matching: find.byType(Divider),
         ),
-        findsNothing,
+        findsOneWidget,
       );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -1219,6 +1469,18 @@ Finder _morningBriefScrollable() => find.descendant(
 ScrollPosition _morningBriefScrollPosition(WidgetTester tester) =>
     tester.state<ScrollableState>(_morningBriefScrollable()).position;
 
+Color? _panelColor(WidgetTester tester, String key) {
+  final container = tester.widget<Container>(
+    find
+        .descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(Container),
+        )
+        .first,
+  );
+  return (container.decoration! as BoxDecoration).color;
+}
+
 void _expectDailyDebriefReadingOrder(WidgetTester tester) {
   final positions = [
     'DOMAIN EVALUATIONS',
@@ -1260,11 +1522,11 @@ void _expectEmptyDebriefSubsectionsHidden(WidgetTester tester) {
     findsOneWidget,
   );
   expect(
-    find.byKey(const ValueKey('daily-debrief-panel-successes')),
+    find.byKey(const ValueKey('daily-debrief-panel-execution-evaluation')),
     findsNothing,
   );
   expect(
-    find.byKey(const ValueKey('daily-debrief-panel-watch-points')),
+    find.byKey(const ValueKey('daily-debrief-panel-next-day-handoff')),
     findsNothing,
   );
 }
@@ -1278,6 +1540,8 @@ DailyDebriefRecord _dailyDebriefRecord({
   required DateTime timestamp,
   String? recoveryEvaluation,
   String? conditionEvaluation,
+  String rationale = 'RATIONALE BODY',
+  bool commanderIntentRecorded = true,
   int revision = 1,
   DailyDebriefCommanderIntentOutcome outcome =
       DailyDebriefCommanderIntentOutcome.partiallyAchieved,
@@ -1315,11 +1579,13 @@ DailyDebriefRecord _dailyDebriefRecord({
     ),
   );
   final analysis = DailyDebriefAnalysis(
-    commanderIntentEvaluation: DailyDebriefCommanderIntentEvaluation(
-      outcome: outcome,
-      rationale: 'RATIONALE BODY',
-      evidence: evidence,
-    ),
+    commanderIntentEvaluation: commanderIntentRecorded
+        ? DailyDebriefCommanderIntentEvaluation(
+            outcome: outcome,
+            rationale: rationale,
+            evidence: evidence,
+          )
+        : null,
     domainEvaluations: DailyDebriefDomainEvaluations(
       body: bodyEvaluation,
       recovery: recoveryEvaluation,
