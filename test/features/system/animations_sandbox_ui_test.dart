@@ -62,7 +62,7 @@ void main() {
   testWidgets('boot preview controls transient timeline and all scene slots', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.physicalSize = const Size(320, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -194,7 +194,7 @@ void main() {
   testWidgets('jeep stops with both wheels after the approach interval', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 1200);
+    tester.view.physicalSize = const Size(390, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -214,6 +214,75 @@ void main() {
     expect(_frontWheelTurns(tester), stoppedWheelTurns);
     expect(_rearWheelTurns(tester), stoppedWheelTurns);
     expect(find.text('00:05 / 00:06'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('boot-asset-list')),
+      300,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('asset viewer lists exactly three read-only source assets', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: BootSequencePreviewPage()));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('boot-asset-list')),
+      300,
+    );
+
+    expect(find.byKey(const ValueKey('boot-asset-card-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-asset-card-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-asset-card-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-asset-card-3')), findsNothing);
+    expect(find.text('BACKGROUND'), findsOneWidget);
+    expect(find.text('JEEP BODY'), findsOneWidget);
+    expect(find.text('WHEEL'), findsOneWidget);
+    expect(find.textContaining('base_camp_background.png'), findsWidgets);
+    expect(find.textContaining('jeep_body.png'), findsWidgets);
+    expect(find.textContaining('wheel.png'), findsWidgets);
+    expect(find.text('USAGE  USED ×2'), findsOneWidget);
+    expect(find.textContaining('front_wheel.png'), findsNothing);
+    expect(find.textContaining('rear_wheel.png'), findsNothing);
+    expect(find.text('UPLOAD'), findsNothing);
+    expect(find.text('DELETE'), findsNothing);
+    expect(find.text('REPLACE'), findsNothing);
+
+    await _openAndCloseAssetPreview(
+      tester,
+      fileName: 'base_camp_background.png',
+      assetName: 'BACKGROUND',
+      path:
+          'assets/animations/sandbox/boot_sequence/phase_01/background/'
+          'base_camp_background.png',
+      transparent: false,
+    );
+    await _openAndCloseAssetPreview(
+      tester,
+      fileName: 'jeep_body.png',
+      assetName: 'JEEP BODY',
+      path:
+          'assets/animations/sandbox/boot_sequence/phase_01/jeep/'
+          'jeep_body.png',
+      transparent: true,
+    );
+    await _openAndCloseAssetPreview(
+      tester,
+      fileName: 'wheel.png',
+      assetName: 'WHEEL',
+      path: 'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png',
+      transparent: true,
+    );
+
+    expect(find.byType(BootSequencePreviewPage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-asset-preview-dialog')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -230,8 +299,53 @@ void main() {
       find.byKey(const ValueKey('boot-sequence-placeholder')),
       findsOneWidget,
     );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('boot-asset-list')),
+      300,
+    );
+    expect(find.byKey(const ValueKey('boot-asset-card-2')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _openAndCloseAssetPreview(
+  WidgetTester tester, {
+  required String fileName,
+  required String assetName,
+  required String path,
+  required bool transparent,
+}) async {
+  final thumbnail = find.byKey(ValueKey('boot-asset-thumbnail-$fileName'));
+  await tester.ensureVisible(thumbnail);
+  await tester.tap(thumbnail);
+  await tester.pumpAndSettle();
+
+  final dialog = find.byKey(const ValueKey('boot-asset-preview-dialog'));
+  expect(dialog, findsOneWidget);
+  expect(
+    find.descendant(of: dialog, matching: find.text(assetName)),
+    findsWidgets,
+  );
+  expect(
+    find.descendant(of: dialog, matching: find.text('FILE NAME  $fileName')),
+    findsOneWidget,
+  );
+  expect(
+    find.descendant(of: dialog, matching: find.text('ASSET PATH  $path')),
+    findsOneWidget,
+  );
+  expect(
+    find.byKey(ValueKey('boot-asset-preview-source-$fileName')),
+    findsOneWidget,
+  );
+  expect(
+    find.byKey(ValueKey('transparent-asset-backdrop-preview-$fileName')),
+    transparent ? findsOneWidget : findsNothing,
+  );
+
+  await tester.tap(find.byKey(const ValueKey('close-boot-asset-preview')));
+  await tester.pumpAndSettle();
+  expect(dialog, findsNothing);
 }
 
 String _assetName(WidgetTester tester, ValueKey<String> key) =>

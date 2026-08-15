@@ -5,6 +5,48 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 
+const _bootSequenceAssets = [
+  _BootSequenceAsset(
+    name: 'BACKGROUND',
+    fileName: 'base_camp_background.png',
+    path:
+        'assets/animations/sandbox/boot_sequence/phase_01/background/'
+        'base_camp_background.png',
+    usage: '1',
+    transparent: false,
+  ),
+  _BootSequenceAsset(
+    name: 'JEEP BODY',
+    fileName: 'jeep_body.png',
+    path: 'assets/animations/sandbox/boot_sequence/phase_01/jeep/jeep_body.png',
+    usage: '1',
+    transparent: true,
+  ),
+  _BootSequenceAsset(
+    name: 'WHEEL',
+    fileName: 'wheel.png',
+    path: 'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png',
+    usage: 'USED ×2',
+    transparent: true,
+  ),
+];
+
+class _BootSequenceAsset {
+  const _BootSequenceAsset({
+    required this.name,
+    required this.fileName,
+    required this.path,
+    required this.usage,
+    required this.transparent,
+  });
+
+  final String name;
+  final String fileName;
+  final String path;
+  final String usage;
+  final bool transparent;
+}
+
 class AnimationsSandboxPage extends StatelessWidget {
   const AnimationsSandboxPage({super.key});
 
@@ -53,13 +95,6 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
   static const _sceneCount = 8;
   static const _prototypeDuration = Duration(seconds: 6);
   static const _placeholderDuration = Duration(seconds: 8);
-  static const _backgroundAsset =
-      'assets/animations/sandbox/boot_sequence/phase_01/background/'
-      'base_camp_background.png';
-  static const _jeepBodyAsset =
-      'assets/animations/sandbox/boot_sequence/phase_01/jeep/jeep_body.png';
-  static const _wheelAsset =
-      'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png';
 
   int _selectedSceneIndex = 0;
 
@@ -135,9 +170,9 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
                     key: const ValueKey('boot-sequence-placeholder'),
                     sceneIndex: _selectedSceneIndex,
                     progress: _controller.value,
-                    backgroundAsset: _backgroundAsset,
-                    jeepBodyAsset: _jeepBodyAsset,
-                    wheelAsset: _wheelAsset,
+                    backgroundAsset: _bootSequenceAssets[0].path,
+                    jeepBodyAsset: _bootSequenceAssets[1].path,
+                    wheelAsset: _bootSequenceAssets[2].path,
                     sceneLabel: _sceneLabel(_selectedSceneIndex),
                   ),
                   AppSpacing.gapMD,
@@ -216,12 +251,211 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
                 ],
               ),
             ),
+            AppSpacing.gapXL,
+            const SectionHeader(
+              icon: Icons.photo_library_outlined,
+              title: 'ASSETS',
+            ),
+            AppSpacing.gapSM,
+            Column(
+              key: const ValueKey('boot-asset-list'),
+              children: [
+                for (
+                  var index = 0;
+                  index < _bootSequenceAssets.length;
+                  index++
+                ) ...[
+                  _BootAssetCard(
+                    key: ValueKey('boot-asset-card-$index'),
+                    asset: _bootSequenceAssets[index],
+                    onTap: () => _showAssetPreview(_bootSequenceAssets[index]),
+                  ),
+                  if (index != _bootSequenceAssets.length - 1) AppSpacing.gapSM,
+                ],
+              ],
+            ),
             AppSpacing.gapLG,
           ],
         );
       },
     ),
   );
+
+  Future<void> _showAssetPreview(_BootSequenceAsset asset) => showDialog<void>(
+    context: context,
+    builder: (context) => _BootAssetPreviewDialog(asset: asset),
+  );
+}
+
+class _BootAssetCard extends StatelessWidget {
+  const _BootAssetCard({super.key, required this.asset, required this.onTap});
+
+  final _BootSequenceAsset asset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    selectable: true,
+    onTap: onTap,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          key: ValueKey('boot-asset-thumbnail-${asset.fileName}'),
+          width: 80,
+          height: 64,
+          child: _AssetImageFrame(asset: asset, thumbnail: true),
+        ),
+        SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(asset.name, style: Theme.of(context).textTheme.titleMedium),
+              AppSpacing.gapXS,
+              Text('FILE NAME  ${asset.fileName}'),
+              AppSpacing.gapXS,
+              Text('ASSET PATH  ${asset.path}', softWrap: true),
+              AppSpacing.gapXS,
+              Text('USAGE  ${asset.usage}'),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _BootAssetPreviewDialog extends StatelessWidget {
+  const _BootAssetPreviewDialog({required this.asset});
+
+  final _BootSequenceAsset asset;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewHeight = (MediaQuery.sizeOf(context).height * 0.48)
+        .clamp(180.0, 520.0)
+        .toDouble();
+    return AlertDialog(
+      key: const ValueKey('boot-asset-preview-dialog'),
+      insetPadding: const EdgeInsets.all(16),
+      title: Text(asset.name),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 880),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                key: ValueKey('boot-asset-preview-image-${asset.fileName}'),
+                width: double.infinity,
+                height: previewHeight,
+                child: _AssetImageFrame(asset: asset),
+              ),
+              AppSpacing.gapMD,
+              Text('ASSET NAME  ${asset.name}'),
+              AppSpacing.gapSM,
+              Text('FILE NAME  ${asset.fileName}'),
+              AppSpacing.gapSM,
+              Text('ASSET PATH  ${asset.path}', softWrap: true),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          key: const ValueKey('close-boot-asset-preview'),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CLOSE'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AssetImageFrame extends StatelessWidget {
+  const _AssetImageFrame({required this.asset, this.thumbnail = false});
+
+  final _BootSequenceAsset asset;
+  final bool thumbnail;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(8),
+    child: _AssetBackdrop(
+      key: asset.transparent
+          ? ValueKey(
+              'transparent-asset-backdrop-'
+              '${thumbnail ? 'thumbnail' : 'preview'}-${asset.fileName}',
+            )
+          : null,
+      transparent: asset.transparent,
+      child: Padding(
+        padding: EdgeInsets.all(thumbnail ? 4 : 12),
+        child: Image.asset(
+          asset.path,
+          key: ValueKey(
+            thumbnail
+                ? 'boot-asset-thumbnail-image-${asset.fileName}'
+                : 'boot-asset-preview-source-${asset.fileName}',
+          ),
+          fit: asset.transparent ? BoxFit.contain : BoxFit.cover,
+        ),
+      ),
+    ),
+  );
+}
+
+class _AssetBackdrop extends StatelessWidget {
+  const _AssetBackdrop({
+    super.key,
+    required this.transparent,
+    required this.child,
+  });
+
+  final bool transparent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      if (transparent)
+        CustomPaint(
+          painter: _TransparencyGridPainter(
+            light: Theme.of(context).colorScheme.surfaceContainerHighest,
+            dark: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        )
+      else
+        ColoredBox(color: Theme.of(context).colorScheme.surfaceContainer),
+      child,
+    ],
+  );
+}
+
+class _TransparencyGridPainter extends CustomPainter {
+  const _TransparencyGridPainter({required this.light, required this.dark});
+
+  final Color light;
+  final Color dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cellSize = 12.0;
+    final paint = Paint();
+    for (var y = 0.0, row = 0; y < size.height; y += cellSize, row++) {
+      for (var x = 0.0, column = 0; x < size.width; x += cellSize, column++) {
+        paint.color = (row + column).isEven ? light : dark;
+        canvas.drawRect(Rect.fromLTWH(x, y, cellSize, cellSize), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TransparencyGridPainter oldDelegate) =>
+      light != oldDelegate.light || dark != oldDelegate.dark;
 }
 
 class _BootSequencePreview extends StatelessWidget {
