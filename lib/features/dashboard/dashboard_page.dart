@@ -290,22 +290,30 @@ class _OperationDateCard extends StatelessWidget {
         ),
         AppSpacing.gapSM,
         Wrap(
+          key: const ValueKey('dashboard-date-time-row'),
           spacing: 0,
           runSpacing: AppSpacing.sm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            OperationDateFlipCalendar(
-              operationDateFuture: operationDateFuture,
-              transitionToken: transitionToken,
-              tileWidth: 42,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+              child: OperationDateFlipCalendar(
+                operationDateFuture: operationDateFuture,
+                transitionToken: transitionToken,
+                tileWidth: 42,
+              ),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: 10,
-                  height: OperationDateFlipCalendar.defaultTileHeight,
-                  child: Center(
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  child: SizedBox(
+                    height:
+                        OperationDateFlipCalendar.defaultTileHeight +
+                        AppSpacing.xs * 2,
                     child: VerticalDivider(
                       key: const ValueKey('dashboard-date-time-divider'),
                       width: 1,
@@ -314,7 +322,10 @@ class _OperationDateCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const _DashboardLiveFlipClock(),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: _DashboardLiveFlipClock(),
+                ),
               ],
             ),
           ],
@@ -330,6 +341,7 @@ class _DashboardLiveFlipClock extends StatefulWidget {
   static const tileWidth = 24.0;
   static const tileHeight = OperationDateFlipCalendar.defaultTileHeight;
   static const tileGap = 6.0;
+  static const pairGap = 3.0;
 
   @override
   State<_DashboardLiveFlipClock> createState() =>
@@ -437,7 +449,9 @@ class _DashboardLiveFlipClockState extends State<_DashboardLiveFlipClock>
             for (var index = 0; index < values.length; index++) ...[
               if (index > 0)
                 SizedBox(
-                  width: _DashboardLiveFlipClock.tileGap,
+                  width: index.isOdd
+                      ? _DashboardLiveFlipClock.pairGap
+                      : _DashboardLiveFlipClock.tileGap,
                   child: index == 2 || index == 4
                       ? Center(
                           child: Text(

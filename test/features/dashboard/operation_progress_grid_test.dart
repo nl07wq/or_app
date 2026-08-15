@@ -157,6 +157,7 @@ void main() {
         of: find.text('OPERATION DATE'),
         matching: find.byType(OperationCard),
       );
+      final dateTimeRow = find.byKey(const ValueKey('dashboard-date-time-row'));
       final clock = find.byKey(const ValueKey('dashboard-live-flip-clock'));
 
       expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
@@ -174,7 +175,7 @@ void main() {
       );
       expect(tester.getTopLeft(day).dx - tester.getTopRight(month).dx, 6);
       expect(tester.getTopLeft(weekday).dx - tester.getTopRight(day).dx, 6);
-      expect(tester.getSize(clock), const Size(174, 36));
+      expect(tester.getSize(clock), const Size(165, 36));
       for (var index = 0; index < 6; index++) {
         final tile = find.byKey(ValueKey('dashboard-time-tile-$index'));
         expect(tester.getSize(tile), const Size(24, 36));
@@ -184,7 +185,7 @@ void main() {
           );
           expect(
             tester.getTopLeft(tile).dx - tester.getTopRight(previous).dx,
-            6,
+            index.isOdd ? 3 : 6,
           );
         }
       }
@@ -202,7 +203,7 @@ void main() {
         tester.widget<VerticalDivider>(divider).color,
         Theme.of(tester.element(divider)).colorScheme.outlineVariant,
       );
-      expect(tester.getSize(divider), const Size(1, 36));
+      expect(tester.getSize(divider), const Size(1, 44));
       expect(
         tester.getTopLeft(row).dx,
         lessThan(tester.getCenter(operationDateCard).dx),
@@ -214,8 +215,16 @@ void main() {
         );
       } else {
         expect(tester.getTopLeft(clock).dy, tester.getTopLeft(row).dy);
-        expect(tester.getTopLeft(clock).dx - tester.getTopRight(row).dx, 10);
-        expect(tester.getTopRight(clock).dx - tester.getTopLeft(row).dx, 322);
+        expect(tester.getTopLeft(divider).dx - tester.getTopRight(row).dx, 8);
+        expect(tester.getTopLeft(clock).dx - tester.getTopRight(divider).dx, 8);
+        expect(tester.getTopLeft(clock).dx - tester.getTopRight(row).dx, 17);
+        expect(tester.getTopRight(clock).dx - tester.getTopLeft(row).dx, 320);
+        expect(tester.getSize(dateTimeRow).height, 44);
+        expect(tester.getTopLeft(divider).dy, tester.getTopLeft(row).dy - 4);
+        expect(
+          tester.getBottomLeft(divider).dy,
+          tester.getBottomLeft(row).dy + 4,
+        );
       }
       expect(tester.takeException(), isNull);
     }
