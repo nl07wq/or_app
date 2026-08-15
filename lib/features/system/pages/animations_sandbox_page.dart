@@ -51,11 +51,21 @@ class BootSequencePreviewPage extends StatefulWidget {
 class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
     with SingleTickerProviderStateMixin {
   static const _sceneCount = 8;
-  static const _previewDuration = Duration(seconds: 8);
+  static const _prototypeDuration = Duration(seconds: 6);
+  static const _placeholderDuration = Duration(seconds: 8);
+  static const _backgroundAsset =
+      'assets/animations/sandbox/boot_sequence/phase_01/background/'
+      'base_camp_background.png';
+  static const _jeepBodyAsset =
+      'assets/animations/sandbox/boot_sequence/phase_01/jeep/jeep_body.png';
+  static const _wheelAsset =
+      'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png';
+
+  int _selectedSceneIndex = 0;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: _previewDuration,
+    duration: _prototypeDuration,
   );
 
   @override
@@ -64,11 +74,11 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
     super.dispose();
   }
 
-  int _sceneIndex(double value) =>
-      (value * _sceneCount).floor().clamp(0, _sceneCount - 1);
-
   String _sceneLabel(int index) =>
       index == _sceneCount - 1 ? 'FINAL' : 'SCENE ${index + 1}';
+
+  Duration get _activeDuration =>
+      _selectedSceneIndex == 0 ? _prototypeDuration : _placeholderDuration;
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes.toString().padLeft(2, '0');
@@ -81,7 +91,10 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
     _controller.forward();
   }
 
-  void _pause() => _controller.stop(canceled: false);
+  void _pause() {
+    _controller.stop(canceled: false);
+    setState(() {});
+  }
 
   void _stop() {
     _controller.stop(canceled: false);
@@ -92,7 +105,11 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
 
   void _selectScene(int index) {
     _controller.stop(canceled: false);
-    _controller.value = index / _sceneCount;
+    _controller.reset();
+    setState(() {
+      _selectedSceneIndex = index;
+      _controller.duration = _activeDuration;
+    });
   }
 
   @override
@@ -101,9 +118,8 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
     body: AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final sceneIndex = _sceneIndex(_controller.value);
         final elapsed = Duration(
-          milliseconds: (_previewDuration.inMilliseconds * _controller.value)
+          milliseconds: (_activeDuration.inMilliseconds * _controller.value)
               .round(),
         );
         return ListView(
@@ -115,57 +131,30 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
+                  _BootSequencePreview(
                     key: const ValueKey('boot-sequence-placeholder'),
-                    height: 152,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.animation_outlined,
-                          size: 40,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        AppSpacing.gapSM,
-                        Text(
-                          _sceneLabel(sceneIndex),
-                          key: const ValueKey('current-scene'),
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ],
-                    ),
+                    sceneIndex: _selectedSceneIndex,
+                    progress: _controller.value,
+                    backgroundAsset: _backgroundAsset,
+                    jeepBodyAsset: _jeepBodyAsset,
+                    wheelAsset: _wheelAsset,
+                    sceneLabel: _sceneLabel(_selectedSceneIndex),
                   ),
                   AppSpacing.gapMD,
                   LinearProgressIndicator(value: _controller.value),
                   AppSpacing.gapSM,
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final current = Text(
-                        'CURRENT  ${_sceneLabel(sceneIndex)}',
-                      );
-                      final time = Text(
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      Text('CURRENT  ${_sceneLabel(_selectedSceneIndex)}'),
+                      Text(
                         '${_formatDuration(elapsed)} / '
-                        '${_formatDuration(_previewDuration)}',
+                        '${_formatDuration(_activeDuration)}',
                         key: const ValueKey('preview-time'),
-                      );
-                      if (constraints.maxWidth < 320) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [current, AppSpacing.gapXS, time],
-                        );
-                      }
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [current, time],
-                      );
-                    },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -221,7 +210,7 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
                     ChoiceChip(
                       key: ValueKey('preview-scene-$index'),
                       label: Text(_sceneLabel(index)),
-                      selected: sceneIndex == index,
+                      selected: _selectedSceneIndex == index,
                       onSelected: (_) => _selectScene(index),
                     ),
                 ],
@@ -233,6 +222,219 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
       },
     ),
   );
+}
+
+class _BootSequencePreview extends StatelessWidget {
+  const _BootSequencePreview({
+    super.key,
+    required this.sceneIndex,
+    required this.progress,
+    required this.backgroundAsset,
+    required this.jeepBodyAsset,
+    required this.wheelAsset,
+    required this.sceneLabel,
+  });
+
+  final int sceneIndex;
+  final double progress;
+  final String backgroundAsset;
+  final String jeepBodyAsset;
+  final String wheelAsset;
+  final String sceneLabel;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 800),
+      child: AspectRatio(
+        aspectRatio: 3 / 2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: sceneIndex == 0
+              ? _JeepApproachPrototype(
+                  progress: progress,
+                  backgroundAsset: backgroundAsset,
+                  jeepBodyAsset: jeepBodyAsset,
+                  wheelAsset: wheelAsset,
+                )
+              : _ScenePlaceholder(label: sceneLabel),
+        ),
+      ),
+    ),
+  );
+}
+
+class _ScenePlaceholder extends StatelessWidget {
+  const _ScenePlaceholder({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('scene-placeholder-content'),
+    alignment: Alignment.center,
+    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.animation_outlined,
+          size: 40,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        AppSpacing.gapSM,
+        Text(
+          label,
+          key: const ValueKey('current-scene'),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+      ],
+    ),
+  );
+}
+
+class _JeepApproachPrototype extends StatelessWidget {
+  const _JeepApproachPrototype({
+    required this.progress,
+    required this.backgroundAsset,
+    required this.jeepBodyAsset,
+    required this.wheelAsset,
+  });
+
+  static const _motionEnd = 0.75;
+
+  final double progress;
+  final String backgroundAsset;
+  final String jeepBodyAsset;
+  final String wheelAsset;
+
+  @override
+  Widget build(BuildContext context) {
+    final motionProgress = Curves.easeOutCubic.transform(
+      (progress / _motionEnd).clamp(0.0, 1.0).toDouble(),
+    );
+    final alignment = Alignment.lerp(
+      const Alignment(0.88, -0.58),
+      const Alignment(-0.32, 0.62),
+      motionProgress,
+    )!;
+    final scale = 0.22 + (0.70 * motionProgress);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          backgroundAsset,
+          key: const ValueKey('boot-sequence-background'),
+          fit: BoxFit.cover,
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final assemblyWidth = (constraints.maxWidth * 0.38)
+                .clamp(150.0, 320.0)
+                .toDouble();
+            return Align(
+              key: const ValueKey('jeep-assembly-position'),
+              alignment: alignment,
+              child: Transform.scale(
+                key: const ValueKey('jeep-assembly-scale'),
+                scale: scale,
+                child: _JeepAssembly(
+                  width: assemblyWidth,
+                  bodyAsset: jeepBodyAsset,
+                  wheelAsset: wheelAsset,
+                  wheelTurns: -4 * motionProgress,
+                ),
+              ),
+            );
+          },
+        ),
+        const Positioned(left: 8, top: 8, child: _SceneBadge()),
+      ],
+    );
+  }
+}
+
+class _SceneBadge extends StatelessWidget {
+  const _SceneBadge();
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.64),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Text('SCENE 1', key: ValueKey('current-scene')),
+    ),
+  );
+}
+
+class _JeepAssembly extends StatelessWidget {
+  const _JeepAssembly({
+    required this.width,
+    required this.bodyAsset,
+    required this.wheelAsset,
+    required this.wheelTurns,
+  });
+
+  final double width;
+  final String bodyAsset;
+  final String wheelAsset;
+  final double wheelTurns;
+
+  @override
+  Widget build(BuildContext context) {
+    final height = width * (941 / 1672);
+    final frontWheelSize = width * 0.205;
+    final rearWheelSize = width * 0.195;
+    return SizedBox(
+      key: const ValueKey('jeep-assembly'),
+      width: width,
+      height: height,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: width * 0.226,
+            top: height * 0.546,
+            width: frontWheelSize,
+            height: frontWheelSize,
+            child: RotationTransition(
+              key: const ValueKey('jeep-front-wheel-rotation'),
+              turns: AlwaysStoppedAnimation(wheelTurns),
+              child: Image.asset(
+                wheelAsset,
+                key: const ValueKey('jeep-front-wheel'),
+              ),
+            ),
+          ),
+          Positioned(
+            left: width * 0.760,
+            top: height * 0.558,
+            width: rearWheelSize,
+            height: rearWheelSize,
+            child: RotationTransition(
+              key: const ValueKey('jeep-rear-wheel-rotation'),
+              turns: AlwaysStoppedAnimation(wheelTurns),
+              child: Image.asset(
+                wheelAsset,
+                key: const ValueKey('jeep-rear-wheel'),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Image.asset(
+              bodyAsset,
+              key: const ValueKey('jeep-body'),
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SandboxActionButton extends StatelessWidget {
