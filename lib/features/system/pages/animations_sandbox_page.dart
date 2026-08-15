@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -345,6 +346,7 @@ class BootSequenceCalibrationPage extends StatefulWidget {
 class _BootSequenceCalibrationPageState
     extends State<BootSequenceCalibrationPage> {
   final _session = _CalibrationSession();
+  final _effectLabSession = _EffectLabSession();
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -399,7 +401,9 @@ class _BootSequenceCalibrationPageState
             icon: Icons.science_outlined,
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(builder: (_) => const _EffectLabPage()),
+              MaterialPageRoute<void>(
+                builder: (_) => _EffectLabPage(session: _effectLabSession),
+              ),
             ),
           ),
         ),
@@ -409,13 +413,9 @@ class _BootSequenceCalibrationPageState
 }
 
 class _EffectLabPage extends StatelessWidget {
-  const _EffectLabPage();
+  const _EffectLabPage({required this.session});
 
-  static const _slots = [
-    ('headlight', 'HEADLIGHT TEST'),
-    ('dust', 'DUST TEST'),
-    ('suspension', 'SUSPENSION TEST'),
-  ];
+  final _EffectLabSession session;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -423,17 +423,1580 @@ class _EffectLabPage extends StatelessWidget {
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [
-        for (var index = 0; index < _slots.length; index++) ...[
-          SectionHeader(icon: Icons.science_outlined, title: _slots[index].$2),
+        for (var index = 0; index < _effectLabEntries.length; index++) ...[
+          SectionHeader(
+            icon: _effectLabEntries[index].icon,
+            title: _effectLabEntries[index].label,
+          ),
           AppSpacing.gapSM,
           OperationCard(
-            key: ValueKey('effect-lab-${_slots[index].$1}-slot'),
-            child: const Text('DEVELOPMENT TEST SLOT'),
+            child: _SandboxActionButton(
+              key: ValueKey('open-${_effectLabEntries[index].key}-test'),
+              text: _effectLabEntries[index].label,
+              icon: _effectLabEntries[index].icon,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => switch (_effectLabEntries[index].key) {
+                    'headlight' => _HeadlightTestPage(session: session),
+                    'dust' => _DustTestPage(session: session),
+                    'suspension' => _SuspensionTestPage(session: session),
+                    'composite' => _CompositeTestPage(session: session),
+                    _ => throw StateError('Unknown effect lab entry'),
+                  },
+                ),
+              ),
+            ),
           ),
-          if (index != _slots.length - 1) AppSpacing.gapXL,
+          if (index != _effectLabEntries.length - 1) AppSpacing.gapXL,
         ],
       ],
     ),
+  );
+}
+
+const _effectLabEntries = [
+  _EffectLabEntry('headlight', 'HEADLIGHT TEST', Icons.light_mode_outlined),
+  _EffectLabEntry('dust', 'DUST TEST', Icons.air_outlined),
+  _EffectLabEntry('suspension', 'SUSPENSION TEST', Icons.swap_vert),
+  _EffectLabEntry('composite', 'COMPOSITE TEST', Icons.layers_outlined),
+];
+
+class _EffectLabEntry {
+  const _EffectLabEntry(this.key, this.label, this.icon);
+
+  final String key;
+  final String label;
+  final IconData icon;
+}
+
+class _EffectLabSession {
+  _HeadlightParameters? headlight;
+  _DustParameters? dust;
+  _SuspensionParameters? suspension;
+}
+
+class _HeadlightParameters {
+  const _HeadlightParameters({
+    required this.left,
+    required this.right,
+    required this.glowSize,
+    required this.beamLength,
+    required this.beamWidth,
+    required this.opacity,
+    required this.beamDirection,
+  });
+
+  static const preview = _HeadlightParameters(
+    left: Offset(0.18, 0.43),
+    right: Offset(0.29, 0.49),
+    glowSize: 0.08,
+    beamLength: 0.55,
+    beamWidth: 0.16,
+    opacity: 0.55,
+    beamDirection: 180,
+  );
+
+  final Offset left;
+  final Offset right;
+  final double glowSize;
+  final double beamLength;
+  final double beamWidth;
+  final double opacity;
+  final double beamDirection;
+
+  _HeadlightParameters copyWith({
+    Offset? left,
+    Offset? right,
+    double? glowSize,
+    double? beamLength,
+    double? beamWidth,
+    double? opacity,
+    double? beamDirection,
+  }) => _HeadlightParameters(
+    left: left ?? this.left,
+    right: right ?? this.right,
+    glowSize: glowSize ?? this.glowSize,
+    beamLength: beamLength ?? this.beamLength,
+    beamWidth: beamWidth ?? this.beamWidth,
+    opacity: opacity ?? this.opacity,
+    beamDirection: beamDirection ?? this.beamDirection,
+  );
+
+  Map<String, Object?> toJson() => {
+    'effectType': 'headlight',
+    'coordinateSystem': 'jeep_local_normalized',
+    'left': {'x': _effectRounded(left.dx), 'y': _effectRounded(left.dy)},
+    'right': {'x': _effectRounded(right.dx), 'y': _effectRounded(right.dy)},
+    'glowSize': _effectRounded(glowSize),
+    'beamLength': _effectRounded(beamLength),
+    'beamWidth': _effectRounded(beamWidth),
+    'opacity': _effectRounded(opacity),
+    'beamDirection': _effectRounded(beamDirection),
+  };
+}
+
+class _DustParameters {
+  const _DustParameters({
+    required this.emitter,
+    required this.spread,
+    required this.direction,
+    required this.size,
+    required this.opacity,
+    required this.lifetimeMs,
+    required this.emissionRate,
+  });
+
+  static const preview = _DustParameters(
+    emitter: Offset(0.82, 0.72),
+    spread: 0.35,
+    direction: 0,
+    size: 0.18,
+    opacity: 0.45,
+    lifetimeMs: 1400,
+    emissionRate: 7,
+  );
+
+  final Offset emitter;
+  final double spread;
+  final double direction;
+  final double size;
+  final double opacity;
+  final int lifetimeMs;
+  final double emissionRate;
+
+  _DustParameters copyWith({
+    Offset? emitter,
+    double? spread,
+    double? direction,
+    double? size,
+    double? opacity,
+    int? lifetimeMs,
+    double? emissionRate,
+  }) => _DustParameters(
+    emitter: emitter ?? this.emitter,
+    spread: spread ?? this.spread,
+    direction: direction ?? this.direction,
+    size: size ?? this.size,
+    opacity: opacity ?? this.opacity,
+    lifetimeMs: lifetimeMs ?? this.lifetimeMs,
+    emissionRate: emissionRate ?? this.emissionRate,
+  );
+
+  Map<String, Object?> toJson() => {
+    'effectType': 'dust',
+    'coordinateSystem': 'jeep_local_normalized',
+    'emitter': {
+      'x': _effectRounded(emitter.dx),
+      'y': _effectRounded(emitter.dy),
+    },
+    'spread': _effectRounded(spread),
+    'direction': _effectRounded(direction),
+    'size': _effectRounded(size),
+    'opacity': _effectRounded(opacity),
+    'lifetimeMs': lifetimeMs,
+    'emissionRate': _effectRounded(emissionRate),
+  };
+}
+
+class _SuspensionParameters {
+  const _SuspensionParameters({
+    required this.bodyYResponse,
+    required this.impulseStrength,
+    required this.impulseDurationMs,
+    required this.settleDurationMs,
+  });
+
+  static const preview = _SuspensionParameters(
+    bodyYResponse: 0.08,
+    impulseStrength: 0.65,
+    impulseDurationMs: 180,
+    settleDurationMs: 650,
+  );
+
+  final double bodyYResponse;
+  final double impulseStrength;
+  final int impulseDurationMs;
+  final int settleDurationMs;
+
+  _SuspensionParameters copyWith({
+    double? bodyYResponse,
+    double? impulseStrength,
+    int? impulseDurationMs,
+    int? settleDurationMs,
+  }) => _SuspensionParameters(
+    bodyYResponse: bodyYResponse ?? this.bodyYResponse,
+    impulseStrength: impulseStrength ?? this.impulseStrength,
+    impulseDurationMs: impulseDurationMs ?? this.impulseDurationMs,
+    settleDurationMs: settleDurationMs ?? this.settleDurationMs,
+  );
+
+  Map<String, Object?> toJson() => {
+    'effectType': 'suspension',
+    'bodyYResponse': _effectRounded(bodyYResponse),
+    'impulseStrength': _effectRounded(impulseStrength),
+    'impulseDurationMs': impulseDurationMs,
+    'settleDurationMs': settleDurationMs,
+  };
+}
+
+double _effectRounded(double value) => double.parse(value.toStringAsFixed(3));
+
+String _effectJson(Map<String, Object?> value) =>
+    const JsonEncoder.withIndent('  ').convert(value);
+
+Future<void> _copyEffectParameters(BuildContext context, String json) async {
+  await Clipboard.setData(ClipboardData(text: json));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+}
+
+class _EffectParametersOutput extends StatelessWidget {
+  const _EffectParametersOutput({
+    required this.json,
+    required this.jsonKey,
+    required this.copyKey,
+  });
+
+  final String json;
+  final String jsonKey;
+  final String copyKey;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(icon: Icons.data_object, title: 'CODEX PARAMETERS'),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SelectableText(
+              json,
+              key: ValueKey(jsonKey),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+            ),
+            AppSpacing.gapMD,
+            _SandboxActionButton(
+              key: ValueKey(copyKey),
+              text: 'COPY PARAMETERS',
+              icon: Icons.copy_outlined,
+              onPressed: () => _copyEffectParameters(context, json),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _EffectJeepCanvas extends StatelessWidget {
+  const _EffectJeepCanvas({
+    required this.canvasKey,
+    required this.overlay,
+    this.onMove,
+    this.assemblyOffset = Offset.zero,
+  });
+
+  final String canvasKey;
+  final Widget overlay;
+  final void Function(Offset delta, Size assemblySize)? onMove;
+  final Offset assemblyOffset;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 800),
+      child: AspectRatio(
+        aspectRatio: 3 / 2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final assemblyWidth = (constraints.maxWidth * 0.68)
+                  .clamp(170.0, 520.0)
+                  .toDouble();
+              final assemblySize = Size(
+                assemblyWidth,
+                assemblyWidth * (941 / 1672),
+              );
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(_bootSequenceAssets[0].path, fit: BoxFit.cover),
+                  Center(
+                    child: Transform.translate(
+                      key: ValueKey('$canvasKey-assembly-offset'),
+                      offset: assemblyOffset,
+                      child: Listener(
+                        key: ValueKey(canvasKey),
+                        behavior: HitTestBehavior.opaque,
+                        onPointerMove: onMove == null
+                            ? null
+                            : (event) => onMove!(event.delta, assemblySize),
+                        child: SizedBox.fromSize(
+                          size: assemblySize,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              _JeepAssembly(
+                                width: assemblyWidth,
+                                bodyAsset: _bootSequenceAssets[1].path,
+                                wheelAsset: _bootSequenceAssets[2].path,
+                              ),
+                              Positioned.fill(child: overlay),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _EffectAnchor extends StatelessWidget {
+  const _EffectAnchor({required this.keyName, required this.position});
+
+  final String keyName;
+  final Offset position;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment((position.dx * 2) - 1, (position.dy * 2) - 1),
+    child: IgnorePointer(
+      child: Container(
+        key: ValueKey(keyName),
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.32),
+          shape: BoxShape.circle,
+          border: Border.all(color: Theme.of(context).colorScheme.primary),
+        ),
+      ),
+    ),
+  );
+}
+
+class _HeadlightTestPage extends StatefulWidget {
+  const _HeadlightTestPage({required this.session});
+
+  final _EffectLabSession session;
+
+  @override
+  State<_HeadlightTestPage> createState() => _HeadlightTestPageState();
+}
+
+class _HeadlightTestPageState extends State<_HeadlightTestPage> {
+  _HeadlightParameters _parameters = _HeadlightParameters.preview;
+  bool _leftSelected = true;
+  bool _enabled = true;
+
+  void _moveAnchor(Offset delta, Size assemblySize) {
+    final current = _leftSelected ? _parameters.left : _parameters.right;
+    final updated = Offset(
+      (current.dx + (delta.dx / assemblySize.width)).clamp(0.0, 1.0),
+      (current.dy + (delta.dy / assemblySize.height)).clamp(0.0, 1.0),
+    );
+    setState(() {
+      _parameters = _leftSelected
+          ? _parameters.copyWith(left: updated)
+          : _parameters.copyWith(right: updated);
+    });
+  }
+
+  void _apply() {
+    widget.session.headlight = _parameters;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('HEADLIGHTをLABへ適用しました')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final json = _effectJson(_parameters.toJson());
+    return Scaffold(
+      appBar: AppBar(title: const Text('HEADLIGHT TEST')),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(
+            icon: Icons.light_mode_outlined,
+            title: 'PREVIEW',
+          ),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _EffectJeepCanvas(
+                  canvasKey: 'headlight-canvas-drag-target',
+                  onMove: _moveAnchor,
+                  overlay: _HeadlightOverlay(
+                    parameters: _parameters,
+                    enabled: _enabled,
+                  ),
+                ),
+                AppSpacing.gapMD,
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    ChoiceChip(
+                      key: const ValueKey('headlight-select-left'),
+                      label: const Text('LEFT HEADLIGHT'),
+                      selected: _leftSelected,
+                      onSelected: (_) => setState(() => _leftSelected = true),
+                    ),
+                    ChoiceChip(
+                      key: const ValueKey('headlight-select-right'),
+                      label: const Text('RIGHT HEADLIGHT'),
+                      selected: !_leftSelected,
+                      onSelected: (_) => setState(() => _leftSelected = false),
+                    ),
+                  ],
+                ),
+                SwitchListTile(
+                  key: const ValueKey('headlight-test-toggle'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('TEST ON / OFF'),
+                  value: _enabled,
+                  onChanged: (value) => setState(() => _enabled = value),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.tune_outlined, title: 'PARAMETERS'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: AppSpacing.lg,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    Text('LEFT X  ${_parameters.left.dx.toStringAsFixed(3)}'),
+                    Text('LEFT Y  ${_parameters.left.dy.toStringAsFixed(3)}'),
+                    Text('RIGHT X  ${_parameters.right.dx.toStringAsFixed(3)}'),
+                    Text('RIGHT Y  ${_parameters.right.dy.toStringAsFixed(3)}'),
+                  ],
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('headlight-glow-size-slider'),
+                  label: 'GLOW SIZE',
+                  value: _parameters.glowSize,
+                  min: 0.02,
+                  max: 0.25,
+                  divisions: 46,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(glowSize: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('headlight-beam-length-slider'),
+                  label: 'BEAM LENGTH',
+                  value: _parameters.beamLength,
+                  min: 0.1,
+                  max: 1.2,
+                  divisions: 55,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(beamLength: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('headlight-beam-width-slider'),
+                  label: 'BEAM WIDTH',
+                  value: _parameters.beamWidth,
+                  min: 0.03,
+                  max: 0.5,
+                  divisions: 47,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(beamWidth: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('headlight-opacity-slider'),
+                  label: 'OPACITY',
+                  value: _parameters.opacity,
+                  min: 0,
+                  max: 1,
+                  divisions: 100,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(opacity: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('headlight-direction-slider'),
+                  label: 'BEAM DIRECTION',
+                  value: _parameters.beamDirection,
+                  min: -180,
+                  max: 180,
+                  divisions: 72,
+                  unit: '°',
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(
+                      beamDirection: value,
+                    ),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                _SandboxActionButton(
+                  key: const ValueKey('apply-headlight-to-lab'),
+                  text: 'APPLY TO LAB',
+                  icon: Icons.check_circle_outline,
+                  onPressed: _apply,
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          _EffectParametersOutput(
+            json: json,
+            jsonKey: 'headlight-parameters-json',
+            copyKey: 'copy-headlight-parameters',
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    );
+  }
+}
+
+class _HeadlightOverlay extends StatelessWidget {
+  const _HeadlightOverlay({required this.parameters, required this.enabled});
+
+  final _HeadlightParameters parameters;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      Positioned.fill(
+        child: CustomPaint(
+          key: const ValueKey('headlight-effect-preview'),
+          painter: _HeadlightEffectPainter(
+            parameters: parameters,
+            enabled: enabled,
+          ),
+        ),
+      ),
+      _EffectAnchor(
+        keyName: 'headlight-left-anchor',
+        position: parameters.left,
+      ),
+      _EffectAnchor(
+        keyName: 'headlight-right-anchor',
+        position: parameters.right,
+      ),
+    ],
+  );
+}
+
+class _HeadlightEffectPainter extends CustomPainter {
+  const _HeadlightEffectPainter({
+    required this.parameters,
+    required this.enabled,
+  });
+
+  final _HeadlightParameters parameters;
+  final bool enabled;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!enabled) return;
+    final radians = parameters.beamDirection * math.pi / 180;
+    final direction = Offset(math.cos(radians), math.sin(radians));
+    for (final anchor in [parameters.left, parameters.right]) {
+      final source = Offset(anchor.dx * size.width, anchor.dy * size.height);
+      final target =
+          source + (direction * (parameters.beamLength * size.width));
+      final normal = Offset(-direction.dy, direction.dx);
+      final halfWidth = parameters.beamWidth * size.height / 2;
+      final path = Path()
+        ..moveTo(source.dx, source.dy)
+        ..lineTo(
+          target.dx + (normal.dx * halfWidth),
+          target.dy + (normal.dy * halfWidth),
+        )
+        ..lineTo(
+          target.dx - (normal.dx * halfWidth),
+          target.dy - (normal.dy * halfWidth),
+        )
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              const Color(0xFFFFF4C2).withValues(alpha: parameters.opacity),
+              const Color(0x00FFF4C2),
+            ],
+          ).createShader(Rect.fromPoints(source, target)),
+      );
+      canvas.drawCircle(
+        source,
+        parameters.glowSize * size.width,
+        Paint()
+          ..color = const Color(
+            0xFFFFF7D6,
+          ).withValues(alpha: parameters.opacity)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_HeadlightEffectPainter oldDelegate) =>
+      parameters != oldDelegate.parameters || enabled != oldDelegate.enabled;
+}
+
+class _DustTestPage extends StatefulWidget {
+  const _DustTestPage({required this.session});
+
+  final _EffectLabSession session;
+
+  @override
+  State<_DustTestPage> createState() => _DustTestPageState();
+}
+
+class _DustTestPageState extends State<_DustTestPage>
+    with SingleTickerProviderStateMixin {
+  _DustParameters _parameters = _DustParameters.preview;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 2),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _moveEmitter(Offset delta, Size assemblySize) => setState(() {
+    _parameters = _parameters.copyWith(
+      emitter: Offset(
+        (_parameters.emitter.dx + (delta.dx / assemblySize.width)).clamp(
+          0.0,
+          1.0,
+        ),
+        (_parameters.emitter.dy + (delta.dy / assemblySize.height)).clamp(
+          0.0,
+          1.0,
+        ),
+      ),
+    );
+  });
+
+  void _play() {
+    _controller.repeat();
+    setState(() {});
+  }
+
+  void _stop() {
+    _controller.stop(canceled: false);
+    _controller.value = 0;
+    setState(() {});
+  }
+
+  void _replay() {
+    _controller.value = 0;
+    _controller.repeat();
+    setState(() {});
+  }
+
+  void _apply() {
+    widget.session.dust = _parameters;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('DUSTをLABへ適用しました')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final json = _effectJson(_parameters.toJson());
+    return Scaffold(
+      appBar: AppBar(title: const Text('DUST TEST')),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(icon: Icons.air_outlined, title: 'PREVIEW'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) => _EffectJeepCanvas(
+                    canvasKey: 'dust-canvas-drag-target',
+                    onMove: _moveEmitter,
+                    overlay: _DustOverlay(
+                      parameters: _parameters,
+                      progress: _controller.value,
+                      visible: _controller.isAnimating,
+                    ),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    _CompactActionButton(
+                      key: const ValueKey('dust-test-play'),
+                      label: 'TEST PLAY',
+                      icon: Icons.play_arrow,
+                      onPressed: _controller.isAnimating ? null : _play,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('dust-test-stop'),
+                      label: 'STOP',
+                      icon: Icons.stop,
+                      onPressed: _stop,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('dust-test-replay'),
+                      label: 'REPLAY',
+                      icon: Icons.replay,
+                      onPressed: _replay,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.tune_outlined, title: 'PARAMETERS'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: AppSpacing.lg,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    Text(
+                      'EMITTER X  ${_parameters.emitter.dx.toStringAsFixed(3)}',
+                    ),
+                    Text(
+                      'EMITTER Y  ${_parameters.emitter.dy.toStringAsFixed(3)}',
+                    ),
+                  ],
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('dust-spread-slider'),
+                  label: 'SPREAD',
+                  value: _parameters.spread,
+                  min: 0,
+                  max: 1,
+                  divisions: 100,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(spread: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('dust-direction-slider'),
+                  label: 'DIRECTION',
+                  value: _parameters.direction,
+                  min: -180,
+                  max: 180,
+                  divisions: 72,
+                  unit: '°',
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(direction: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('dust-size-slider'),
+                  label: 'SIZE',
+                  value: _parameters.size,
+                  min: 0.04,
+                  max: 0.4,
+                  divisions: 36,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(size: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('dust-opacity-slider'),
+                  label: 'OPACITY',
+                  value: _parameters.opacity,
+                  min: 0,
+                  max: 1,
+                  divisions: 100,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(opacity: value),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('dust-lifetime-slider'),
+                  label: 'LIFETIME',
+                  value: _parameters.lifetimeMs.toDouble(),
+                  min: 250,
+                  max: 3000,
+                  divisions: 55,
+                  unit: 'ms',
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(
+                      lifetimeMs: value.round(),
+                    ),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('dust-emission-rate-slider'),
+                  label: 'EMISSION RATE',
+                  value: _parameters.emissionRate,
+                  min: 1,
+                  max: 16,
+                  divisions: 30,
+                  onChanged: (value) => setState(
+                    () =>
+                        _parameters = _parameters.copyWith(emissionRate: value),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                _SandboxActionButton(
+                  key: const ValueKey('apply-dust-to-lab'),
+                  text: 'APPLY TO LAB',
+                  icon: Icons.check_circle_outline,
+                  onPressed: _apply,
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          _EffectParametersOutput(
+            json: json,
+            jsonKey: 'dust-parameters-json',
+            copyKey: 'copy-dust-parameters',
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    );
+  }
+}
+
+class _DustOverlay extends StatelessWidget {
+  const _DustOverlay({
+    required this.parameters,
+    required this.progress,
+    required this.visible,
+  });
+
+  final _DustParameters parameters;
+  final double progress;
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      if (visible)
+        Positioned.fill(
+          child: CustomPaint(
+            key: const ValueKey('dust-effect-preview'),
+            painter: _DustCloudPainter(
+              parameters: parameters,
+              elapsedMs: progress * 2000,
+            ),
+          ),
+        ),
+      _EffectAnchor(
+        keyName: 'dust-emitter-anchor',
+        position: parameters.emitter,
+      ),
+    ],
+  );
+}
+
+class _DustCloudPainter extends CustomPainter {
+  const _DustCloudPainter({required this.parameters, required this.elapsedMs});
+
+  final _DustParameters parameters;
+  final double elapsedMs;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radians = parameters.direction * math.pi / 180;
+    final direction = Offset(math.cos(radians), math.sin(radians));
+    final origin = Offset(
+      parameters.emitter.dx * size.width,
+      parameters.emitter.dy * size.height,
+    );
+    final cloudCount = parameters.emissionRate.round().clamp(3, 16);
+    for (var index = 0; index < cloudCount; index++) {
+      final phase =
+          ((elapsedMs / parameters.lifetimeMs) + (index / cloudCount)) % 1;
+      final cross = math.sin((index + 1) * 2.17) * parameters.spread;
+      final normal = Offset(-direction.dy, direction.dx);
+      final center =
+          origin +
+          (direction * (phase * size.width * 0.48)) +
+          (normal * (cross * phase * size.height * 0.42));
+      final radius = parameters.size * size.width * (0.45 + phase);
+      final alpha = parameters.opacity * (1 - phase) * 0.52;
+      final path = Path()
+        ..moveTo(center.dx - (radius * 1.4), center.dy)
+        ..cubicTo(
+          center.dx - radius,
+          center.dy - (radius * 0.72),
+          center.dx + (radius * 0.30),
+          center.dy - (radius * 0.55),
+          center.dx + (radius * 1.35),
+          center.dy - (radius * 0.06),
+        )
+        ..cubicTo(
+          center.dx + (radius * 0.92),
+          center.dy + (radius * 0.70),
+          center.dx - (radius * 0.62),
+          center.dy + (radius * 0.62),
+          center.dx - (radius * 1.4),
+          center.dy,
+        )
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF9A866C).withValues(alpha: alpha)
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            2 + (parameters.spread * 7),
+          ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DustCloudPainter oldDelegate) =>
+      parameters != oldDelegate.parameters ||
+      elapsedMs != oldDelegate.elapsedMs;
+}
+
+double _suspensionYOffset(_SuspensionParameters parameters, double progress) {
+  final total = parameters.impulseDurationMs + parameters.settleDurationMs;
+  if (total <= 0 || progress <= 0 || progress >= 1) return 0;
+  final impulseFraction = parameters.impulseDurationMs / total;
+  final response = progress <= impulseFraction
+      ? math.sin((progress / impulseFraction) * math.pi / 2)
+      : math.cos(
+          ((progress - impulseFraction) / (1 - impulseFraction)) * math.pi / 2,
+        );
+  return response * parameters.bodyYResponse * parameters.impulseStrength * 100;
+}
+
+class _SuspensionTestPage extends StatefulWidget {
+  const _SuspensionTestPage({required this.session});
+
+  final _EffectLabSession session;
+
+  @override
+  State<_SuspensionTestPage> createState() => _SuspensionTestPageState();
+}
+
+class _SuspensionTestPageState extends State<_SuspensionTestPage>
+    with SingleTickerProviderStateMixin {
+  _SuspensionParameters _parameters = _SuspensionParameters.preview;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _duration,
+  );
+
+  Duration get _duration => Duration(
+    milliseconds: _parameters.impulseDurationMs + _parameters.settleDurationMs,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _trigger() {
+    _controller.duration = _duration;
+    _controller.forward(from: 0);
+  }
+
+  void _apply() {
+    widget.session.suspension = _parameters;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('SUSPENSIONをLABへ適用しました')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final json = _effectJson(_parameters.toJson());
+    return Scaffold(
+      appBar: AppBar(title: const Text('SUSPENSION TEST')),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(icon: Icons.swap_vert, title: 'PREVIEW'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) => _EffectJeepCanvas(
+                    canvasKey: 'suspension-test-canvas',
+                    assemblyOffset: Offset(
+                      0,
+                      _suspensionYOffset(_parameters, _controller.value),
+                    ),
+                    overlay: const SizedBox.expand(),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                _CompactActionButton(
+                  key: const ValueKey('suspension-trigger-impulse'),
+                  label: 'TRIGGER IMPULSE',
+                  icon: Icons.vertical_align_center,
+                  onPressed: _trigger,
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.tune_outlined, title: 'PARAMETERS'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CalibrationSlider(
+                  key: const ValueKey('suspension-body-y-response-slider'),
+                  label: 'BODY Y RESPONSE',
+                  value: _parameters.bodyYResponse,
+                  min: 0.01,
+                  max: 0.25,
+                  divisions: 48,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(
+                      bodyYResponse: value,
+                    ),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('suspension-impulse-strength-slider'),
+                  label: 'IMPULSE STRENGTH',
+                  value: _parameters.impulseStrength,
+                  min: 0.05,
+                  max: 1,
+                  divisions: 38,
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(
+                      impulseStrength: value,
+                    ),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('suspension-impulse-duration-slider'),
+                  label: 'IMPULSE DURATION',
+                  value: _parameters.impulseDurationMs.toDouble(),
+                  min: 50,
+                  max: 600,
+                  divisions: 55,
+                  unit: 'ms',
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(
+                      impulseDurationMs: value.round(),
+                    ),
+                  ),
+                ),
+                _CalibrationSlider(
+                  key: const ValueKey('suspension-settle-duration-slider'),
+                  label: 'SETTLE DURATION',
+                  value: _parameters.settleDurationMs.toDouble(),
+                  min: 100,
+                  max: 2000,
+                  divisions: 38,
+                  unit: 'ms',
+                  onChanged: (value) => setState(
+                    () => _parameters = _parameters.copyWith(
+                      settleDurationMs: value.round(),
+                    ),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                _SandboxActionButton(
+                  key: const ValueKey('apply-suspension-to-lab'),
+                  text: 'APPLY TO LAB',
+                  icon: Icons.check_circle_outline,
+                  onPressed: _apply,
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          _EffectParametersOutput(
+            json: json,
+            jsonKey: 'suspension-parameters-json',
+            copyKey: 'copy-suspension-parameters',
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    );
+  }
+}
+
+Map<String, Object?> _scene1AssemblyParameters() => {
+  'calibrationType': 'boot_sequence_assembly',
+  'prototype': 'scene_1_prototype',
+  'coordinateSystem': 'jeep_local_normalized',
+  'jeepBody': {'asset': _bootSequenceAssets[1].path},
+  'frontWheelFar': {
+    'asset': _bootSequenceAssets[2].path,
+    'localX': _scene1FrontWheelFar.localX,
+    'localY': _scene1FrontWheelFar.localY,
+    'scale': _scene1FrontWheelFar.scale,
+  },
+  'rearWheel': {
+    'asset': _bootSequenceAssets[2].path,
+    'localX': _scene1RearWheel.localX,
+    'localY': _scene1RearWheel.localY,
+    'scale': _scene1RearWheel.scale,
+  },
+  'frontWheelNear': {
+    'asset': _bootSequenceAssets[2].path,
+    'localX': _scene1FrontWheelNear.localX,
+    'localY': _scene1FrontWheelNear.localY,
+    'scale': _scene1FrontWheelNear.scale,
+  },
+  'layerOrder': ['frontWheelFar', 'jeepBody', 'rearWheel', 'frontWheelNear'],
+};
+
+Map<String, Object?> _scene1MotionParameters() => {
+  'calibrationType': 'boot_sequence_motion',
+  'prototype': 'scene_1_prototype',
+  'coordinateSystem': 'alignment_normalized',
+  'background': {'asset': _bootSequenceAssets[0].path},
+  'jeepAssembly': {
+    'start': {
+      'x': _scene1Start.alignment.x,
+      'y': _scene1Start.alignment.y,
+      'scale': _scene1Start.scale,
+    },
+    'end': {
+      'x': _scene1End.alignment.x,
+      'y': _scene1End.alignment.y,
+      'scale': _scene1End.scale,
+    },
+  },
+  'motion': {
+    'travelDurationMs': _scene1TravelDuration.inMilliseconds,
+    'holdDurationMs': _scene1HoldDuration.inMilliseconds,
+    'curve': 'linear',
+  },
+};
+
+class _CompositeTestPage extends StatefulWidget {
+  const _CompositeTestPage({required this.session});
+
+  final _EffectLabSession session;
+
+  @override
+  State<_CompositeTestPage> createState() => _CompositeTestPageState();
+}
+
+class _CompositeTestPageState extends State<_CompositeTestPage>
+    with TickerProviderStateMixin {
+  bool _headlightEnabled = true;
+  bool _dustEnabled = true;
+  bool _suspensionEnabled = true;
+
+  late final AnimationController _motionController = AnimationController(
+    vsync: this,
+    duration: _scene1TotalDuration,
+  );
+  late final AnimationController _suspensionController = AnimationController(
+    vsync: this,
+    duration: _compositeSuspensionDuration,
+  );
+
+  Duration get _compositeSuspensionDuration {
+    final parameters = widget.session.suspension;
+    if (parameters == null) return const Duration(milliseconds: 1);
+    return Duration(
+      milliseconds: parameters.impulseDurationMs + parameters.settleDurationMs,
+    );
+  }
+
+  @override
+  void dispose() {
+    _motionController.dispose();
+    _suspensionController.dispose();
+    super.dispose();
+  }
+
+  void _play() {
+    if (_motionController.isCompleted) _motionController.value = 0;
+    _motionController.forward();
+    setState(() {});
+  }
+
+  void _pause() {
+    _motionController.stop(canceled: false);
+    _suspensionController.stop(canceled: false);
+    setState(() {});
+  }
+
+  void _stop() {
+    _motionController.stop(canceled: false);
+    _suspensionController.stop(canceled: false);
+    _motionController.value = 0;
+    _suspensionController.value = 0;
+    setState(() {});
+  }
+
+  void _replay() {
+    _suspensionController.value = 0;
+    _motionController.forward(from: 0);
+    setState(() {});
+  }
+
+  void _triggerSuspension() {
+    if (widget.session.suspension == null || !_suspensionEnabled) return;
+    _suspensionController.duration = _compositeSuspensionDuration;
+    _suspensionController.forward(from: 0);
+  }
+
+  Map<String, Object?> get _parameters => {
+    'calibrationType': 'boot_sequence_composite',
+    'prototype': 'scene_1_prototype',
+    'assembly': _scene1AssemblyParameters(),
+    'motion': _scene1MotionParameters(),
+    'effects': {
+      'headlight': widget.session.headlight?.toJson(),
+      'dust': widget.session.dust?.toJson(),
+      'suspension': widget.session.suspension?.toJson(),
+    },
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final json = _effectJson(_parameters);
+    return Scaffold(
+      appBar: AppBar(title: const Text('COMPOSITE TEST')),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(icon: Icons.layers_outlined, title: 'PREVIEW'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedBuilder(
+                  animation: Listenable.merge([
+                    _motionController,
+                    _suspensionController,
+                  ]),
+                  builder: (context, _) => _CompositeEffectPreview(
+                    progress: _motionController.value,
+                    suspensionProgress: _suspensionController.value,
+                    headlight: _headlightEnabled
+                        ? widget.session.headlight
+                        : null,
+                    dust: _dustEnabled ? widget.session.dust : null,
+                    suspension: _suspensionEnabled
+                        ? widget.session.suspension
+                        : null,
+                  ),
+                ),
+                AppSpacing.gapMD,
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    _CompactActionButton(
+                      key: const ValueKey('composite-test-play'),
+                      label: 'TEST PLAY',
+                      icon: Icons.play_arrow,
+                      onPressed: _motionController.isAnimating ? null : _play,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('composite-pause'),
+                      label: 'PAUSE',
+                      icon: Icons.pause,
+                      onPressed: _motionController.isAnimating ? _pause : null,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('composite-stop'),
+                      label: 'STOP',
+                      icon: Icons.stop,
+                      onPressed: _stop,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('composite-replay'),
+                      label: 'REPLAY',
+                      icon: Icons.replay,
+                      onPressed: _replay,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('composite-trigger-impulse'),
+                      label: 'TRIGGER IMPULSE',
+                      icon: Icons.vertical_align_center,
+                      onPressed:
+                          widget.session.suspension != null &&
+                              _suspensionEnabled
+                          ? _triggerSuspension
+                          : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.tune_outlined, title: 'EFFECTS'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              children: [
+                _CompositeEffectToggle(
+                  key: const ValueKey('composite-headlight-toggle'),
+                  label: 'HEADLIGHT',
+                  applied: widget.session.headlight != null,
+                  value: _headlightEnabled,
+                  onChanged: (value) =>
+                      setState(() => _headlightEnabled = value),
+                ),
+                _CompositeEffectToggle(
+                  key: const ValueKey('composite-dust-toggle'),
+                  label: 'DUST',
+                  applied: widget.session.dust != null,
+                  value: _dustEnabled,
+                  onChanged: (value) => setState(() => _dustEnabled = value),
+                ),
+                _CompositeEffectToggle(
+                  key: const ValueKey('composite-suspension-toggle'),
+                  label: 'SUSPENSION',
+                  applied: widget.session.suspension != null,
+                  value: _suspensionEnabled,
+                  onChanged: (value) =>
+                      setState(() => _suspensionEnabled = value),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          _EffectParametersOutput(
+            json: json,
+            jsonKey: 'composite-parameters-json',
+            copyKey: 'copy-composite-parameters',
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    );
+  }
+}
+
+class _CompositeEffectToggle extends StatelessWidget {
+  const _CompositeEffectToggle({
+    super.key,
+    required this.label,
+    required this.applied,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool applied;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    contentPadding: EdgeInsets.zero,
+    title: Text(label),
+    subtitle: Text(applied ? 'APPLIED TO LAB' : 'NOT APPLIED'),
+    value: value,
+    onChanged: onChanged,
+  );
+}
+
+class _CompositeEffectPreview extends StatelessWidget {
+  const _CompositeEffectPreview({
+    required this.progress,
+    required this.suspensionProgress,
+    required this.headlight,
+    required this.dust,
+    required this.suspension,
+  });
+
+  final double progress;
+  final double suspensionProgress;
+  final _HeadlightParameters? headlight;
+  final _DustParameters? dust;
+  final _SuspensionParameters? suspension;
+
+  @override
+  Widget build(BuildContext context) {
+    final travelFraction =
+        _scene1TravelDuration.inMilliseconds /
+        _scene1TotalDuration.inMilliseconds;
+    final motionProgress = (progress / travelFraction).clamp(0.0, 1.0);
+    final alignment = Alignment.lerp(
+      _scene1Start.alignment,
+      _scene1End.alignment,
+      motionProgress,
+    )!;
+    final scale =
+        _scene1Start.scale +
+        ((_scene1End.scale - _scene1Start.scale) * motionProgress);
+    final suspensionY = suspension == null
+        ? 0.0
+        : _suspensionYOffset(suspension!, suspensionProgress);
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          key: const ValueKey('composite-canvas'),
+          fit: StackFit.expand,
+          children: [
+            Image.asset(_bootSequenceAssets[0].path, fit: BoxFit.cover),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final assemblyWidth = (constraints.maxWidth * 0.38)
+                    .clamp(120.0, 320.0)
+                    .toDouble();
+                final assemblyHeight = assemblyWidth * (941 / 1672);
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned(
+                      key: const ValueKey('composite-jeep-position'),
+                      left:
+                          (((alignment.x + 1) / 2) * constraints.maxWidth) -
+                          (assemblyWidth / 2),
+                      top:
+                          (((alignment.y + 1) / 2) * constraints.maxHeight) -
+                          (assemblyHeight / 2),
+                      width: assemblyWidth,
+                      height: assemblyHeight,
+                      child: Transform.translate(
+                        key: const ValueKey('composite-suspension-offset'),
+                        offset: Offset(0, suspensionY),
+                        child: Transform.scale(
+                          key: const ValueKey('composite-jeep-scale'),
+                          scale: scale,
+                          child: _CompositeJeepAssembly(
+                            width: assemblyWidth,
+                            headlight: headlight,
+                            dust: dust,
+                            dustProgress: progress,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompositeJeepAssembly extends StatelessWidget {
+  const _CompositeJeepAssembly({
+    required this.width,
+    required this.headlight,
+    required this.dust,
+    required this.dustProgress,
+  });
+
+  final double width;
+  final _HeadlightParameters? headlight;
+  final _DustParameters? dust;
+  final double dustProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    final height = width * (941 / 1672);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (dust != null && dustProgress > 0)
+            Positioned.fill(
+              child: CustomPaint(
+                key: const ValueKey('composite-dust-effect'),
+                painter: _DustCloudPainter(
+                  parameters: dust!,
+                  elapsedMs: dustProgress * _scene1TotalDuration.inMilliseconds,
+                ),
+              ),
+            ),
+          _JeepAssembly(
+            width: width,
+            bodyAsset: _bootSequenceAssets[1].path,
+            wheelAsset: _bootSequenceAssets[2].path,
+          ),
+          if (headlight != null)
+            Positioned.fill(
+              child: CustomPaint(
+                key: const ValueKey('composite-headlight-effect'),
+                painter: _HeadlightEffectPainter(
+                  parameters: headlight!,
+                  enabled: true,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactActionButton extends StatelessWidget {
+  const _CompactActionButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon),
+    label: Text(label),
   );
 }
 

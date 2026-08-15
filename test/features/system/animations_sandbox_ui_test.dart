@@ -104,47 +104,505 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('effect lab exposes three empty slots at supported widths', (
+  testWidgets(
+    'effect lab exposes four functional entries at supported widths',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      for (final width in [320.0, 390.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 1800);
+        tester.view.devicePixelRatio = 1;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey('effect-lab-$width'),
+            home: const BootSequenceCalibrationPage(),
+          ),
+        );
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('open-effect-lab')),
+        );
+        await tester.tap(find.byKey(const ValueKey('open-effect-lab')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('EFFECT LAB'), findsOneWidget);
+        expect(find.text('HEADLIGHT TEST'), findsWidgets);
+        expect(find.text('DUST TEST'), findsWidgets);
+        expect(find.text('SUSPENSION TEST'), findsWidgets);
+        expect(find.text('COMPOSITE TEST'), findsWidgets);
+        expect(
+          find.byKey(const ValueKey('open-headlight-test')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('open-dust-test')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('open-suspension-test')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('open-composite-test')),
+          findsOneWidget,
+        );
+        expect(find.text('DEVELOPMENT TEST SLOT'), findsNothing);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('all effect test pages are responsive at narrow and desktop', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    for (final width in [320.0, 390.0, 1280.0]) {
-      tester.view.physicalSize = Size(width, 1800);
-      tester.view.devicePixelRatio = 1;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          key: ValueKey('effect-lab-$width'),
-          home: const BootSequenceCalibrationPage(),
-        ),
-      );
-      await tester.ensureVisible(find.byKey(const ValueKey('open-effect-lab')));
-      await tester.tap(find.byKey(const ValueKey('open-effect-lab')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('EFFECT LAB'), findsOneWidget);
-      expect(find.text('HEADLIGHT TEST'), findsOneWidget);
-      expect(find.text('DUST TEST'), findsOneWidget);
-      expect(find.text('SUSPENSION TEST'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('effect-lab-headlight-slot')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('effect-lab-dust-slot')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('effect-lab-suspension-slot')),
-        findsOneWidget,
-      );
-      expect(find.text('DEVELOPMENT TEST SLOT'), findsNWidgets(3));
-      expect(find.byKey(const ValueKey('jeep-headlight')), findsNothing);
-      expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
-      expect(tester.takeException(), isNull);
+    for (final width in [320.0, 1280.0]) {
+      for (final entry in const [
+        ('headlight', 'headlight-parameters-json'),
+        ('dust', 'dust-parameters-json'),
+        ('suspension', 'suspension-parameters-json'),
+        ('composite', 'composite-parameters-json'),
+      ]) {
+        tester.view.physicalSize = Size(width, 1800);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey('responsive-${entry.$1}-$width'),
+            home: const BootSequenceCalibrationPage(),
+          ),
+        );
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('open-effect-lab')),
+        );
+        await tester.tap(find.byKey(const ValueKey('open-effect-lab')));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(ValueKey('open-${entry.$1}-test')),
+        );
+        await tester.tap(find.byKey(ValueKey('open-${entry.$1}-test')));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(ValueKey(entry.$2)));
+        await tester.pump();
+        expect(find.byKey(ValueKey(entry.$2)), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
     }
+  });
+
+  testWidgets('headlight test supports anchors parameters apply and copy', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 5200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    String? copiedText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await _openEffectLabTest(tester, 'headlight');
+    expect(find.text('HEADLIGHT TEST'), findsWidgets);
+    expect(find.byKey(const ValueKey('jeep-assembly')), findsOneWidget);
+    expect(find.byKey(const ValueKey('headlight-left-anchor')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('headlight-right-anchor')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('headlight-effect-preview')),
+      findsOneWidget,
+    );
+
+    final initial = _jsonFromSelectable(
+      tester,
+      const ValueKey('headlight-parameters-json'),
+    );
+    await _dragByKey(
+      tester,
+      const ValueKey('headlight-canvas-drag-target'),
+      const Offset(18, 8),
+    );
+    final movedLeft = _jsonFromSelectable(
+      tester,
+      const ValueKey('headlight-parameters-json'),
+    );
+    expect(
+      (movedLeft['left'] as Map)['x'],
+      isNot((initial['left'] as Map)['x']),
+    );
+    expect(
+      (movedLeft['left'] as Map)['y'],
+      isNot((initial['left'] as Map)['y']),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('headlight-select-right')));
+    await tester.pump();
+    await _dragByKey(
+      tester,
+      const ValueKey('headlight-canvas-drag-target'),
+      const Offset(-12, 6),
+      kind: PointerDeviceKind.mouse,
+    );
+    final movedRight = _jsonFromSelectable(
+      tester,
+      const ValueKey('headlight-parameters-json'),
+    );
+    expect(
+      (movedRight['right'] as Map)['x'],
+      isNot((initial['right'] as Map)['x']),
+    );
+
+    for (final key in const [
+      'headlight-glow-size-slider',
+      'headlight-beam-length-slider',
+      'headlight-beam-width-slider',
+      'headlight-opacity-slider',
+      'headlight-direction-slider',
+    ]) {
+      await _moveSlider(tester, key, 24);
+    }
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('headlight-test-toggle')),
+    );
+    await tester.tap(find.byKey(const ValueKey('headlight-test-toggle')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('headlight-test-toggle')),
+          )
+          .value,
+      isFalse,
+    );
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('apply-headlight-to-lab')),
+    );
+    await tester.tap(find.byKey(const ValueKey('apply-headlight-to-lab')));
+    await tester.pump();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('copy-headlight-parameters')),
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-headlight-parameters')));
+    await tester.pump();
+    expect(
+      copiedText,
+      tester
+          .widget<SelectableText>(
+            find.byKey(const ValueKey('headlight-parameters-json')),
+          )
+          .data,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dust test supports emitter cloud playback apply and copy', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 6000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    String? copiedText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await _openEffectLabTest(tester, 'dust');
+    expect(find.text('DUST TEST'), findsWidgets);
+    expect(find.byKey(const ValueKey('dust-emitter-anchor')), findsOneWidget);
+    expect(find.byKey(const ValueKey('dust-effect-preview')), findsNothing);
+    final initial = _jsonFromSelectable(
+      tester,
+      const ValueKey('dust-parameters-json'),
+    );
+    await _dragByKey(
+      tester,
+      const ValueKey('dust-canvas-drag-target'),
+      const Offset(-16, 7),
+    );
+    final moved = _jsonFromSelectable(
+      tester,
+      const ValueKey('dust-parameters-json'),
+    );
+    expect(
+      (moved['emitter'] as Map)['x'],
+      isNot((initial['emitter'] as Map)['x']),
+    );
+    expect(
+      (moved['emitter'] as Map)['y'],
+      isNot((initial['emitter'] as Map)['y']),
+    );
+    await _dragByKey(
+      tester,
+      const ValueKey('dust-canvas-drag-target'),
+      const Offset(8, -4),
+      kind: PointerDeviceKind.mouse,
+    );
+
+    for (final key in const [
+      'dust-spread-slider',
+      'dust-direction-slider',
+      'dust-size-slider',
+      'dust-opacity-slider',
+      'dust-lifetime-slider',
+      'dust-emission-rate-slider',
+    ]) {
+      await _moveSlider(tester, key, 24);
+    }
+    await tester.ensureVisible(find.byKey(const ValueKey('dust-test-play')));
+    await tester.tap(find.byKey(const ValueKey('dust-test-play')));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(const ValueKey('dust-effect-preview')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('dust-test-stop')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('dust-effect-preview')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('dust-test-replay')));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('dust-effect-preview')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('dust-test-stop')));
+    await tester.pump();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('apply-dust-to-lab')));
+    await tester.tap(find.byKey(const ValueKey('apply-dust-to-lab')));
+    await tester.pump();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('copy-dust-parameters')),
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-dust-parameters')));
+    await tester.pump();
+    expect(copiedText, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('suspension test runs one impulse then settles and applies', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 5200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    String? copiedText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await _openEffectLabTest(tester, 'suspension');
+    for (final key in const [
+      'suspension-body-y-response-slider',
+      'suspension-impulse-strength-slider',
+      'suspension-impulse-duration-slider',
+      'suspension-settle-duration-slider',
+    ]) {
+      await _moveSlider(tester, key, 20);
+    }
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('suspension-trigger-impulse')),
+    );
+    await tester.tap(find.byKey(const ValueKey('suspension-trigger-impulse')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      _transformOffset(tester, 'suspension-test-canvas-assembly-offset').dy,
+      greaterThan(0),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    expect(
+      _transformOffset(tester, 'suspension-test-canvas-assembly-offset'),
+      Offset.zero,
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('apply-suspension-to-lab')),
+    );
+    await tester.tap(find.byKey(const ValueKey('apply-suspension-to-lab')));
+    await tester.pump();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('copy-suspension-parameters')),
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-suspension-parameters')));
+    await tester.pump();
+    expect(copiedText, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('composite reads applied lab state and preserves main motion', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 6500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    String? copiedText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(home: BootSequenceCalibrationPage()),
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('open-effect-lab')));
+    await tester.tap(find.byKey(const ValueKey('open-effect-lab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('open-composite-test')));
+    await tester.pumpAndSettle();
+    final unset = _jsonFromSelectable(
+      tester,
+      const ValueKey('composite-parameters-json'),
+    );
+    expect((unset['effects'] as Map)['headlight'], isNull);
+    expect((unset['effects'] as Map)['dust'], isNull);
+    expect((unset['effects'] as Map)['suspension'], isNull);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    for (final entry in const [
+      ('headlight', 'apply-headlight-to-lab'),
+      ('dust', 'apply-dust-to-lab'),
+      ('suspension', 'apply-suspension-to-lab'),
+    ]) {
+      await tester.ensureVisible(find.byKey(ValueKey('open-${entry.$1}-test')));
+      await tester.tap(find.byKey(ValueKey('open-${entry.$1}-test')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(ValueKey(entry.$2)));
+      await tester.tap(find.byKey(ValueKey(entry.$2)));
+      await tester.pump();
+      if (entry.$1 == 'dust') {
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('dust-test-stop')),
+        );
+        await tester.tap(find.byKey(const ValueKey('dust-test-stop')));
+        await tester.pump();
+      }
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('open-composite-test')),
+    );
+    await tester.tap(find.byKey(const ValueKey('open-composite-test')));
+    await tester.pumpAndSettle();
+    final applied = _jsonFromSelectable(
+      tester,
+      const ValueKey('composite-parameters-json'),
+    );
+    final effects = applied['effects'] as Map;
+    expect(effects['headlight'], isNotNull);
+    expect(effects['dust'], isNotNull);
+    expect(effects['suspension'], isNotNull);
+    final motion = applied['motion'] as Map;
+    final jeep = motion['jeepAssembly'] as Map;
+    expect((jeep['start'] as Map)['x'], 0.971);
+    expect((jeep['start'] as Map)['y'], 0.322);
+    expect((jeep['start'] as Map)['scale'], 0.1);
+    expect((jeep['end'] as Map)['x'], -0.232);
+    expect((jeep['end'] as Map)['y'], 0.603);
+    expect((jeep['end'] as Map)['scale'], 1.31);
+    expect((motion['motion'] as Map)['travelDurationMs'], 6000);
+    expect((motion['motion'] as Map)['holdDurationMs'], 750);
+    expect((motion['motion'] as Map)['curve'], 'linear');
+
+    expect(
+      find.byKey(const ValueKey('composite-headlight-effect')),
+      findsOneWidget,
+    );
+    final startLeft = _positionedLeft(tester, 'composite-jeep-position');
+    final startScale = _transformScale(tester, 'composite-jeep-scale');
+    await tester.tap(find.byKey(const ValueKey('composite-test-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(
+      _positionedLeft(tester, 'composite-jeep-position'),
+      lessThan(startLeft),
+    );
+    expect(
+      _transformScale(tester, 'composite-jeep-scale'),
+      greaterThan(startScale),
+    );
+    expect(find.byKey(const ValueKey('composite-dust-effect')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('composite-pause')));
+    final pausedLeft = _positionedLeft(tester, 'composite-jeep-position');
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(_positionedLeft(tester, 'composite-jeep-position'), pausedLeft);
+
+    await tester.tap(find.byKey(const ValueKey('composite-trigger-impulse')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      _transformOffset(tester, 'composite-suspension-offset').dy,
+      greaterThan(0),
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('composite-headlight-toggle')),
+    );
+    await tester.tap(find.byKey(const ValueKey('composite-headlight-toggle')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('composite-headlight-effect')),
+      findsNothing,
+    );
+
+    await tester.ensureVisible(find.byKey(const ValueKey('composite-stop')));
+    await tester.tap(find.byKey(const ValueKey('composite-stop')));
+    await tester.pump();
+    expect(_positionedLeft(tester, 'composite-jeep-position'), startLeft);
+    expect(_transformScale(tester, 'composite-jeep-scale'), startScale);
+    expect(find.byKey(const ValueKey('composite-dust-effect')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('composite-replay')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      _positionedLeft(tester, 'composite-jeep-position'),
+      lessThan(startLeft),
+    );
+    await tester.tap(find.byKey(const ValueKey('composite-stop')));
+    await tester.pump();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('copy-composite-parameters')),
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-composite-parameters')));
+    await tester.pump();
+    expect(copiedText, isNotNull);
+    expect(find.text('APPLY TO SCENE'), findsNothing);
+    expect(find.text('APPLY TO BOOT SEQUENCE'), findsNothing);
+    expect(find.text('SAVE TO SCENE'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -840,6 +1298,39 @@ Future<void> _openAndCloseAssetPreview(
   expect(dialog, findsNothing);
 }
 
+Future<void> _openEffectLabTest(WidgetTester tester, String testKey) async {
+  await tester.pumpWidget(
+    const MaterialApp(home: BootSequenceCalibrationPage()),
+  );
+  await tester.ensureVisible(find.byKey(const ValueKey('open-effect-lab')));
+  await tester.tap(find.byKey(const ValueKey('open-effect-lab')));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.byKey(ValueKey('open-$testKey-test')));
+  await tester.tap(find.byKey(ValueKey('open-$testKey-test')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _moveSlider(WidgetTester tester, String key, double deltaX) async {
+  final slider = find.descendant(
+    of: find.byKey(ValueKey(key)),
+    matching: find.byType(Slider),
+  );
+  await tester.ensureVisible(slider);
+  await tester.drag(slider, Offset(deltaX, 0));
+  await tester.pump();
+}
+
+Offset _transformOffset(WidgetTester tester, String key) {
+  final matrix = tester.widget<Transform>(find.byKey(ValueKey(key))).transform;
+  return Offset(matrix.entry(0, 3), matrix.entry(1, 3));
+}
+
+double _transformScale(WidgetTester tester, String key) =>
+    tester.widget<Transform>(find.byKey(ValueKey(key))).transform.entry(0, 0);
+
+double _positionedLeft(WidgetTester tester, String key) =>
+    tester.widget<Positioned>(find.byKey(ValueKey(key))).left!;
+
 Future<void> _dragCalibrationCanvas(WidgetTester tester, Offset delta) async {
   await _dragByKey(
     tester,
@@ -851,12 +1342,16 @@ Future<void> _dragCalibrationCanvas(WidgetTester tester, Offset delta) async {
 Future<void> _dragByKey(
   WidgetTester tester,
   ValueKey<String> key,
-  Offset delta,
-) async {
+  Offset delta, {
+  PointerDeviceKind kind = PointerDeviceKind.touch,
+}) async {
   final target = find.byKey(key);
   await tester.ensureVisible(target);
   await tester.pump();
-  final gesture = await tester.startGesture(tester.getCenter(target));
+  final gesture = await tester.startGesture(
+    tester.getCenter(target),
+    kind: kind,
+  );
   await gesture.moveBy(Offset(delta.dx, 0));
   await gesture.moveBy(Offset(0, delta.dy));
   await gesture.up();
