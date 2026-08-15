@@ -337,11 +337,28 @@ void main() {
       find.byKey(const ValueKey('headlight-effect-preview')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('headlight-outer-glow')), findsOneWidget);
+    expect(find.byKey(const ValueKey('headlight-inner-glow')), findsOneWidget);
+    for (final beamControl in const [
+      'headlight-beam-length-slider',
+      'headlight-beam-width-slider',
+      'headlight-direction-slider',
+    ]) {
+      expect(find.byKey(ValueKey(beamControl)), findsNothing);
+    }
 
     final initial = _jsonFromSelectable(
       tester,
       const ValueKey('headlight-parameters-json'),
     );
+    expect(initial['left'], {'x': 0.033, 'y': 0.582});
+    expect(initial['right'], {'x': 0.262, 'y': 0.596});
+    expect(initial['glowSize'], 0.165);
+    expect(initial['opacity'], 0.46);
+    expect(initial['beamEnabled'], isFalse);
+    expect(initial.containsKey('beamLength'), isFalse);
+    expect(initial.containsKey('beamWidth'), isFalse);
+    expect(initial.containsKey('beamDirection'), isFalse);
     await _dragByKey(
       tester,
       const ValueKey('headlight-canvas-drag-target'),
@@ -377,15 +394,30 @@ void main() {
       isNot((initial['right'] as Map)['x']),
     );
 
-    for (final key in const [
-      'headlight-glow-size-slider',
-      'headlight-beam-length-slider',
-      'headlight-beam-width-slider',
-      'headlight-opacity-slider',
-      'headlight-direction-slider',
-    ]) {
-      await _moveSlider(tester, key, 24);
-    }
+    final glowPainterBefore = tester
+        .widget<CustomPaint>(find.byKey(const ValueKey('headlight-outer-glow')))
+        .painter;
+    await _moveSlider(tester, 'headlight-glow-size-slider', 24);
+    expect(
+      tester
+          .widget<CustomPaint>(
+            find.byKey(const ValueKey('headlight-outer-glow')),
+          )
+          .painter,
+      isNot(same(glowPainterBefore)),
+    );
+    final opacityPainterBefore = tester
+        .widget<CustomPaint>(find.byKey(const ValueKey('headlight-inner-glow')))
+        .painter;
+    await _moveSlider(tester, 'headlight-opacity-slider', 24);
+    expect(
+      tester
+          .widget<CustomPaint>(
+            find.byKey(const ValueKey('headlight-inner-glow')),
+          )
+          .painter,
+      isNot(same(opacityPainterBefore)),
+    );
     await tester.ensureVisible(
       find.byKey(const ValueKey('headlight-test-toggle')),
     );
@@ -399,6 +431,20 @@ void main() {
           .value,
       isFalse,
     );
+    expect(
+      find.byKey(const ValueKey('headlight-effect-preview')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('headlight-outer-glow')), findsNothing);
+    expect(find.byKey(const ValueKey('headlight-inner-glow')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('headlight-test-toggle')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('headlight-effect-preview')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('headlight-outer-glow')), findsOneWidget);
+    expect(find.byKey(const ValueKey('headlight-inner-glow')), findsOneWidget);
 
     await tester.ensureVisible(
       find.byKey(const ValueKey('apply-headlight-to-lab')),
@@ -640,6 +686,11 @@ void main() {
     expect(effects['headlight'], isNotNull);
     expect(effects['dust'], isNotNull);
     expect(effects['suspension'], isNotNull);
+    final headlight = effects['headlight'] as Map;
+    expect(headlight['beamEnabled'], isFalse);
+    expect(headlight.containsKey('beamLength'), isFalse);
+    expect(headlight.containsKey('beamWidth'), isFalse);
+    expect(headlight.containsKey('beamDirection'), isFalse);
     final motion = applied['motion'] as Map;
     final jeep = motion['jeepAssembly'] as Map;
     expect((jeep['start'] as Map)['x'], 0.971);
@@ -656,6 +707,8 @@ void main() {
       find.byKey(const ValueKey('composite-headlight-effect')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('composite-outer-glow')), findsOneWidget);
+    expect(find.byKey(const ValueKey('composite-inner-glow')), findsOneWidget);
     final startLeft = _positionedLeft(tester, 'composite-jeep-position');
     final startScale = _transformScale(tester, 'composite-jeep-scale');
     await tester.tap(find.byKey(const ValueKey('composite-test-play')));
@@ -692,6 +745,8 @@ void main() {
       find.byKey(const ValueKey('composite-headlight-effect')),
       findsNothing,
     );
+    expect(find.byKey(const ValueKey('composite-outer-glow')), findsNothing);
+    expect(find.byKey(const ValueKey('composite-inner-glow')), findsNothing);
 
     await tester.ensureVisible(find.byKey(const ValueKey('composite-stop')));
     await tester.tap(find.byKey(const ValueKey('composite-stop')));

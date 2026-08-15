@@ -925,46 +925,31 @@ class _HeadlightParameters {
     required this.left,
     required this.right,
     required this.glowSize,
-    required this.beamLength,
-    required this.beamWidth,
     required this.opacity,
-    required this.beamDirection,
   });
 
   static const preview = _HeadlightParameters(
-    left: Offset(0.18, 0.43),
-    right: Offset(0.29, 0.49),
-    glowSize: 0.08,
-    beamLength: 0.55,
-    beamWidth: 0.16,
-    opacity: 0.55,
-    beamDirection: 180,
+    left: Offset(0.033, 0.582),
+    right: Offset(0.262, 0.596),
+    glowSize: 0.165,
+    opacity: 0.46,
   );
 
   final Offset left;
   final Offset right;
   final double glowSize;
-  final double beamLength;
-  final double beamWidth;
   final double opacity;
-  final double beamDirection;
 
   _HeadlightParameters copyWith({
     Offset? left,
     Offset? right,
     double? glowSize,
-    double? beamLength,
-    double? beamWidth,
     double? opacity,
-    double? beamDirection,
   }) => _HeadlightParameters(
     left: left ?? this.left,
     right: right ?? this.right,
     glowSize: glowSize ?? this.glowSize,
-    beamLength: beamLength ?? this.beamLength,
-    beamWidth: beamWidth ?? this.beamWidth,
     opacity: opacity ?? this.opacity,
-    beamDirection: beamDirection ?? this.beamDirection,
   );
 
   Map<String, Object?> toJson() => {
@@ -973,10 +958,8 @@ class _HeadlightParameters {
     'left': {'x': _effectRounded(left.dx), 'y': _effectRounded(left.dy)},
     'right': {'x': _effectRounded(right.dx), 'y': _effectRounded(right.dy)},
     'glowSize': _effectRounded(glowSize),
-    'beamLength': _effectRounded(beamLength),
-    'beamWidth': _effectRounded(beamWidth),
     'opacity': _effectRounded(opacity),
-    'beamDirection': _effectRounded(beamDirection),
+    'beamEnabled': false,
   };
 }
 
@@ -1351,28 +1334,6 @@ class _HeadlightTestPageState extends State<_HeadlightTestPage> {
                   ),
                 ),
                 _CalibrationSlider(
-                  key: const ValueKey('headlight-beam-length-slider'),
-                  label: 'BEAM LENGTH',
-                  value: _parameters.beamLength,
-                  min: 0.1,
-                  max: 1.2,
-                  divisions: 55,
-                  onChanged: (value) => setState(
-                    () => _parameters = _parameters.copyWith(beamLength: value),
-                  ),
-                ),
-                _CalibrationSlider(
-                  key: const ValueKey('headlight-beam-width-slider'),
-                  label: 'BEAM WIDTH',
-                  value: _parameters.beamWidth,
-                  min: 0.03,
-                  max: 0.5,
-                  divisions: 47,
-                  onChanged: (value) => setState(
-                    () => _parameters = _parameters.copyWith(beamWidth: value),
-                  ),
-                ),
-                _CalibrationSlider(
                   key: const ValueKey('headlight-opacity-slider'),
                   label: 'OPACITY',
                   value: _parameters.opacity,
@@ -1381,20 +1342,6 @@ class _HeadlightTestPageState extends State<_HeadlightTestPage> {
                   divisions: 100,
                   onChanged: (value) => setState(
                     () => _parameters = _parameters.copyWith(opacity: value),
-                  ),
-                ),
-                _CalibrationSlider(
-                  key: const ValueKey('headlight-direction-slider'),
-                  label: 'BEAM DIRECTION',
-                  value: _parameters.beamDirection,
-                  min: -180,
-                  max: 180,
-                  divisions: 72,
-                  unit: '°',
-                  onChanged: (value) => setState(
-                    () => _parameters = _parameters.copyWith(
-                      beamDirection: value,
-                    ),
                   ),
                 ),
                 AppSpacing.gapMD,
@@ -1430,15 +1377,14 @@ class _HeadlightOverlay extends StatelessWidget {
   Widget build(BuildContext context) => Stack(
     clipBehavior: Clip.none,
     children: [
-      Positioned.fill(
-        child: CustomPaint(
-          key: const ValueKey('headlight-effect-preview'),
-          painter: _HeadlightEffectPainter(
+      if (enabled)
+        Positioned.fill(
+          child: _HeadlightGlow(
+            key: const ValueKey('headlight-effect-preview'),
+            keyPrefix: 'headlight',
             parameters: parameters,
-            enabled: enabled,
           ),
         ),
-      ),
       _EffectAnchor(
         keyName: 'headlight-left-anchor',
         position: parameters.left,
@@ -1451,64 +1397,98 @@ class _HeadlightOverlay extends StatelessWidget {
   );
 }
 
-class _HeadlightEffectPainter extends CustomPainter {
-  const _HeadlightEffectPainter({
+class _HeadlightGlow extends StatelessWidget {
+  const _HeadlightGlow({
+    super.key,
+    required this.keyPrefix,
     required this.parameters,
-    required this.enabled,
   });
 
+  final String keyPrefix;
   final _HeadlightParameters parameters;
-  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      CustomPaint(
+        key: ValueKey('$keyPrefix-outer-glow'),
+        painter: _HeadlightGlowPainter(
+          parameters: parameters,
+          layer: _HeadlightGlowLayer.outer,
+        ),
+      ),
+      CustomPaint(
+        key: ValueKey('$keyPrefix-inner-glow'),
+        painter: _HeadlightGlowPainter(
+          parameters: parameters,
+          layer: _HeadlightGlowLayer.inner,
+        ),
+      ),
+    ],
+  );
+}
+
+enum _HeadlightGlowLayer { outer, inner }
+
+class _HeadlightGlowPainter extends CustomPainter {
+  const _HeadlightGlowPainter({required this.parameters, required this.layer});
+
+  final _HeadlightParameters parameters;
+  final _HeadlightGlowLayer layer;
+
+  static const innerSizeRatio = 0.42;
+  static const outerOpacityRatio = 0.55;
+  static const innerOpacityRatio = 1.35;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (!enabled) return;
-    final radians = parameters.beamDirection * math.pi / 180;
-    final direction = Offset(math.cos(radians), math.sin(radians));
     for (final anchor in [parameters.left, parameters.right]) {
       final source = Offset(anchor.dx * size.width, anchor.dy * size.height);
-      final target =
-          source + (direction * (parameters.beamLength * size.width));
-      final normal = Offset(-direction.dy, direction.dx);
-      final halfWidth = parameters.beamWidth * size.height / 2;
-      final path = Path()
-        ..moveTo(source.dx, source.dy)
-        ..lineTo(
-          target.dx + (normal.dx * halfWidth),
-          target.dy + (normal.dy * halfWidth),
-        )
-        ..lineTo(
-          target.dx - (normal.dx * halfWidth),
-          target.dy - (normal.dy * halfWidth),
-        )
-        ..close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              const Color(0xFFFFF4C2).withValues(alpha: parameters.opacity),
-              const Color(0x00FFF4C2),
-            ],
-          ).createShader(Rect.fromPoints(source, target)),
+      final outerRadiusX = parameters.glowSize * size.width;
+      final radiusX = layer == _HeadlightGlowLayer.inner
+          ? outerRadiusX * innerSizeRatio
+          : outerRadiusX;
+      final radiusY = radiusX * 0.72;
+      final opacity = layer == _HeadlightGlowLayer.inner
+          ? (parameters.opacity * innerOpacityRatio).clamp(0.0, 1.0)
+          : (parameters.opacity * outerOpacityRatio).clamp(0.0, 1.0);
+      final bounds = Rect.fromCenter(
+        center: source,
+        width: radiusX * 2,
+        height: radiusY * 2,
       );
-      canvas.drawCircle(
-        source,
-        parameters.glowSize * size.width,
+      final colors = layer == _HeadlightGlowLayer.inner
+          ? [
+              const Color(0xFFFFFBE8).withValues(alpha: opacity),
+              const Color(0xFFFFF4C2).withValues(alpha: opacity * 0.46),
+              const Color(0x00FFF4C2),
+            ]
+          : [
+              const Color(0xFFFFF4C2).withValues(alpha: opacity),
+              const Color(0xFFFFE9A8).withValues(alpha: opacity * 0.35),
+              const Color(0x00FFE9A8),
+            ];
+      canvas.drawOval(
+        bounds,
         Paint()
-          ..color = const Color(
-            0xFFFFF7D6,
-          ).withValues(alpha: parameters.opacity)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+          ..shader = RadialGradient(
+            colors: colors,
+            stops: layer == _HeadlightGlowLayer.inner
+                ? const [0, 0.42, 1]
+                : const [0, 0.5, 1],
+          ).createShader(bounds)
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            layer == _HeadlightGlowLayer.inner ? 3 : 9,
+          ),
       );
     }
   }
 
   @override
-  bool shouldRepaint(_HeadlightEffectPainter oldDelegate) =>
-      parameters != oldDelegate.parameters || enabled != oldDelegate.enabled;
+  bool shouldRepaint(_HeadlightGlowPainter oldDelegate) =>
+      parameters != oldDelegate.parameters || layer != oldDelegate.layer;
 }
 
 class _DustTestPage extends StatefulWidget {
@@ -2410,12 +2390,10 @@ class _CompositeJeepAssembly extends StatelessWidget {
           ),
           if (headlight != null)
             Positioned.fill(
-              child: CustomPaint(
+              child: _HeadlightGlow(
                 key: const ValueKey('composite-headlight-effect'),
-                painter: _HeadlightEffectPainter(
-                  parameters: headlight!,
-                  enabled: true,
-                ),
+                keyPrefix: 'composite',
+                parameters: headlight!,
               ),
             ),
         ],
