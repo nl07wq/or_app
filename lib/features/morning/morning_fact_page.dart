@@ -6,6 +6,8 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../report_sync/models/report_sync_envelope.dart';
+import '../report_sync/pages/report_sync_exchange_page.dart';
 
 import 'services/morning_fact_initializer.dart';
 import 'services/morning_submit_service.dart';
@@ -159,6 +161,37 @@ class _MorningFactPageState extends State<MorningFactPage> {
     );
   }
 
+  Future<bool> _confirmDailyBriefCreation() async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('DAILY BRIEF'),
+          content: const Text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('YES'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('NO'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
+  void _openDailyBriefCreation() {
+    Navigator.of(context).pushAndRemoveUntil<void>(
+      MaterialPageRoute(
+        builder: (_) => const ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.morningBrief,
+        ),
+      ),
+      (route) => route.settings.name == AppRoutes.dashboard,
+    );
+  }
+
   void _markBodyUnmeasured() {
     _measuredWeight = weightController.text;
     _measuredBodyFat = bodyFatController.text;
@@ -287,6 +320,15 @@ class _MorningFactPageState extends State<MorningFactPage> {
                             _showError(error);
                             return;
                           }
+
+                          if (!widget.isEdit &&
+                              await _confirmDailyBriefCreation()) {
+                            if (!context.mounted) return;
+                            _openDailyBriefCreation();
+                            return;
+                          }
+
+                          if (!context.mounted) return;
 
                           if (widget.returnAfterSave) {
                             Navigator.pop(context, true);

@@ -54,7 +54,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: MorningPage()));
 
     expect(find.text('REPORT SYNC'), findsNothing);
-    expect(find.text('MANUAL ENTRY'), findsOneWidget);
+    expect(find.text('MANUAL ENTRY'), findsNothing);
+    expect(find.text('STATUS ENTRY'), findsWidgets);
     expect(find.text('RECORD'), findsWidgets);
   });
 

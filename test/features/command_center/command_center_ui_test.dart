@@ -65,6 +65,18 @@ void main() {
     );
   });
 
+  test('omits only the first revision suffix from debrief presentation', () {
+    expect(dailyDebriefPresentationIdentity('2026-08-14', 1), 'DD-2026-08-14');
+    expect(
+      dailyDebriefPresentationIdentity('2026-08-14', 2),
+      'DD-2026-08-14-Rev2',
+    );
+    expect(
+      dailyDebriefPresentationIdentity('2026-08-14', 7),
+      'DD-2026-08-14-Rev7',
+    );
+  });
+
   test('maps every cycle state to its formal Material Symbol', () {
     expect(
       cycleStateIconFor(DailyCommandCycleState.standby),
@@ -639,13 +651,13 @@ void main() {
   ) async {
     final timestamp = DateTime.utc(2026, 8, 1, 23);
     final record = _dailyDebriefRecord(
-      localDate: '2026-08-02',
+      localDate: '2026-08-01',
       bodyEvaluation: 'LATEST BODY REVIEW',
       timestamp: timestamp.add(const Duration(days: 1)),
       revision: 7,
     );
     final olderRecord = _dailyDebriefRecord(
-      localDate: '2026-08-01',
+      localDate: '2026-07-31',
       bodyEvaluation: 'OLDER BODY REVIEW',
       timestamp: timestamp,
     );
@@ -667,7 +679,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
-    expect(find.text('DD-2026-08-02-Rev7'), findsOneWidget);
+    expect(find.text('DD-2026-08-01-Rev7'), findsOneWidget);
     expect(find.textContaining('LATEST BODY REVIEW'), findsOneWidget);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
     expect(find.textContaining('REVISION'), findsNothing);
@@ -722,7 +734,7 @@ void main() {
     expect(find.textContaining('STATUS ACTIVE'), findsNothing);
     _expectDailyDebriefReadingOrder(tester);
     expect(
-      find.byKey(const ValueKey('daily-debrief-history-2026-08-02')),
+      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
       findsNothing,
     );
     await tester.scrollUntilVisible(
@@ -737,7 +749,7 @@ void main() {
     );
     expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
       500,
       scrollable: find
           .descendant(
@@ -747,15 +759,15 @@ void main() {
           .first,
     );
     await tester.ensureVisible(
-      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
     );
     await tester.pump();
 
     await tester.tap(
-      find.byKey(const ValueKey('daily-debrief-history-2026-08-01')),
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('DD-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DD-2026-07-31'), findsOneWidget);
     expect(find.textContaining('OLDER BODY REVIEW'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('daily-debrief-outcome-partiallyAchieved')),
@@ -766,6 +778,35 @@ void main() {
     expect(find.text('SOURCE REFERENCES'), findsOneWidget);
     expect(find.text('PREVIOUS REVISIONS'), findsOneWidget);
     _expectDailyDebriefReadingOrder(tester);
+  });
+
+  testWidgets('does not use a historical debrief as the current-day report', (
+    tester,
+  ) async {
+    final historical = _dailyDebriefRecord(
+      localDate: '2026-07-31',
+      bodyEvaluation: 'HISTORICAL BODY REVIEW',
+      timestamp: DateTime.utc(2026, 7, 31, 23),
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      historical.localDate,
+      historical.toRecord(),
+    );
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('current-daily-debrief')), findsNothing);
+    expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
+    expect(find.textContaining('HISTORICAL BODY REVIEW'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
+      findsOneWidget,
+    );
   });
 
   for (final outcomeCase in const [

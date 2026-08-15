@@ -3,12 +3,14 @@ class RecentContextMetric {
   final num? start;
   final num? end;
   final int validCount;
+  final String? comparisonLevel;
 
   const RecentContextMetric({
     required this.average,
     required this.start,
     required this.end,
     required this.validCount,
+    this.comparisonLevel,
   });
 
   Map<String, Object?> toJson() => {
@@ -16,6 +18,7 @@ class RecentContextMetric {
     'start': start,
     'end': end,
     'validCount': validCount,
+    if (comparisonLevel != null) 'comparisonLevel': comparisonLevel,
   };
 }
 

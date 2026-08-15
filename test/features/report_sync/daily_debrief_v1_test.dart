@@ -330,6 +330,9 @@ void main() {
       expect(prompt, contains('2139.23kcal as 2,139kcal'));
       expect(prompt, contains('229 minutes is 3:49'));
       expect(prompt, contains('use only officialSteps'));
+      expect(prompt, contains('use that classification exactly'));
+      expect(prompt, contains('do not create another threshold'));
+      expect(prompt, contains('comparisonLevel is separate from trend'));
       expect(prompt, contains('never MORNING BRIEF or MORNING ROUTINE'));
       expect(prompt, contains('"commanderIntentEvaluation": null'));
       expect(prompt, contains('exactly one fenced Plain Text code block'));

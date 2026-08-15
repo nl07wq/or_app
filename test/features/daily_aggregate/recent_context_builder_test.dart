@@ -6,6 +6,142 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  for (final metric
+      in <
+        ({
+          String name,
+          String Function(double current, double average) classify,
+          double major,
+          double same,
+        })
+      >[
+        (
+          name: 'weight',
+          classify: RecentContextComparisonClassifier.weight,
+          major: 1.5,
+          same: 0.5,
+        ),
+        (
+          name: 'body fat',
+          classify: RecentContextComparisonClassifier.bodyFat,
+          major: 1,
+          same: 0.3,
+        ),
+        (
+          name: 'sleep duration',
+          classify: RecentContextComparisonClassifier.sleepDuration,
+          major: 20,
+          same: 8,
+        ),
+        (
+          name: 'sleep score',
+          classify: RecentContextComparisonClassifier.sleepScore,
+          major: 15,
+          same: 5,
+        ),
+        (
+          name: 'calories',
+          classify: RecentContextComparisonClassifier.calories,
+          major: 15,
+          same: 5,
+        ),
+        (
+          name: 'protein',
+          classify: RecentContextComparisonClassifier.protein,
+          major: 20,
+          same: 8,
+        ),
+        (
+          name: 'hydration',
+          classify: RecentContextComparisonClassifier.hydration,
+          major: 20,
+          same: 8,
+        ),
+        (
+          name: 'official steps',
+          classify: RecentContextComparisonClassifier.officialSteps,
+          major: 25,
+          same: 10,
+        ),
+        (
+          name: 'estimated expenditure',
+          classify: RecentContextComparisonClassifier.estimatedExpenditure,
+          major: 15,
+          same: 5,
+        ),
+      ]) {
+    test('${metric.name} uses its five formal comparison levels', () {
+      final average = 100.0;
+      double current(double difference) => average + difference;
+
+      expect(metric.classify(current(-metric.major), average), '大きく下回る');
+      expect(
+        metric.classify(current(-(metric.major + metric.same) / 2), average),
+        '下回る',
+      );
+      expect(metric.classify(average, average), '同水準');
+      expect(
+        metric.classify(current((metric.major + metric.same) / 2), average),
+        '上回る',
+      );
+      expect(metric.classify(current(metric.major), average), '大きく上回る');
+    });
+  }
+
+  test('foot condition uses symptom-specific point labels', () {
+    expect(
+      RecentContextComparisonClassifier.footCondition(12, 10),
+      '平均より明確に高い',
+    );
+    expect(RecentContextComparisonClassifier.footCondition(11, 10), '平均よりやや高い');
+    expect(RecentContextComparisonClassifier.footCondition(10, 10), '同水準');
+    expect(RecentContextComparisonClassifier.footCondition(9, 10), '平均よりやや低い');
+    expect(RecentContextComparisonClassifier.footCondition(8, 10), '平均より明確に低い');
+  });
+
+  test('calorie balance uses absolute kcal boundaries', () {
+    expect(
+      RecentContextComparisonClassifier.estimatedCalorieBalance(-400, 0),
+      '大きく下回る',
+    );
+    expect(
+      RecentContextComparisonClassifier.estimatedCalorieBalance(-200, 0),
+      '下回る',
+    );
+    expect(
+      RecentContextComparisonClassifier.estimatedCalorieBalance(150, 0),
+      '同水準',
+    );
+    expect(
+      RecentContextComparisonClassifier.estimatedCalorieBalance(200, 0),
+      '上回る',
+    );
+    expect(
+      RecentContextComparisonClassifier.estimatedCalorieBalance(400, 0),
+      '大きく上回る',
+    );
+  });
+
+  test('numeric zero is classified while a null current fact is not', () async {
+    expect(RecentContextComparisonClassifier.officialSteps(0, 0), '同水準');
+
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.dailyAggregates.put(
+      _aggregate('2026-08-09', calories: 2000),
+    );
+    await container.dailyAggregates.put(
+      _aggregate('2026-08-10', calories: null),
+    );
+
+    final context = await container.recentContextBuilder.build(
+      targetDate: '2026-08-10',
+      window: RecentContextWindow.dailyDebrief,
+    );
+
+    expect(context.intakeCaloriesKcal.end, 2000);
+    expect(context.intakeCaloriesKcal.comparisonLevel, isNull);
+  });
+
   test('daily brief uses records from D-7 through D-1 only', () async {
     final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
     final repository = container.dailyAggregates;
@@ -40,6 +176,8 @@ void main() {
     expect(context.officialSteps.start, 1000);
     expect(context.officialSteps.end, 5000);
     expect(context.officialSteps.validCount, 4);
+    expect(context.weightKg.comparisonLevel, isNull);
+    expect(context.toJson().toString(), isNot(contains('comparisonLevel')));
     expect(context.toJson().toString(), isNot(contains('measuredSteps')));
   });
 
@@ -88,6 +226,9 @@ void main() {
       expect(context.proteinG.average, 150);
       expect(context.estimatedExpenditureKcal.average, 2300);
       expect(context.estimatedCalorieBalanceKcal.average, -300);
+      expect(context.intakeCaloriesKcal.comparisonLevel, '大きく上回る');
+      expect(context.hydrationMl.comparisonLevel, '大きく上回る');
+      expect(context.toJson().toString(), contains('comparisonLevel'));
       expect(context.toJson().toString(), isNot(contains('trainingPerformed')));
       expect(context.toJson().toString(), isNot(contains('actualWorkMinutes')));
     },

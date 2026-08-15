@@ -29,6 +29,10 @@ IconData dailyDebriefLifecycleIconForStatus(
   DailyDebriefLifecycleStatus.invalidated => Icons.block,
 };
 
+@visibleForTesting
+String dailyDebriefPresentationIdentity(String localDate, int revision) =>
+    revision == 1 ? 'DD-$localDate' : 'DD-$localDate-Rev$revision';
+
 typedef _CommanderIntentOutcomePresentation = ({
   IconData icon,
   Color color,
@@ -432,13 +436,13 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
-        else if (snapshot.data!.records.isEmpty)
+        else if (snapshot.data!.current == null)
           const OperationCard(child: Text('DAILY DEBRIEFはまだありません。'))
         else
           _DailyDebriefDetail(
             key: const ValueKey('current-daily-debrief'),
-            record: snapshot.data!.records.first.record,
-            status: snapshot.data!.records.first.status,
+            record: snapshot.data!.current!.record,
+            status: snapshot.data!.current!.status,
             includeAuditSections: false,
           ),
         AppSpacing.gapMD,
@@ -462,7 +466,7 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
-        else if (snapshot.data!.records.length <= 1)
+        else if (snapshot.data!.backNumbers.isEmpty)
           const OperationCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
         else
           OperationCard(
@@ -470,33 +474,38 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
               children: [
                 for (
                   var index = 1;
-                  index < snapshot.data!.records.length;
+                  index <= snapshot.data!.backNumbers.length;
                   index++
                 ) ...[
-                  ListTile(
-                    key: ValueKey(
-                      'daily-debrief-history-${snapshot.data!.records[index].record.localDate}',
-                    ),
-                    leading: const Icon(Icons.nightlight_outlined),
-                    title: Text(
-                      'OPERATION DATE  ${snapshot.data!.records[index].record.localDate}',
-                    ),
-                    subtitle: Text(
-                      'REVISION  ${snapshot.data!.records[index].record.revision}  '
-                      'STATUS  ${snapshot.data!.records[index].status.name.toUpperCase()}\n'
-                      'IMPORTED AT  ${snapshot.data!.records[index].record.updatedAt.toLocal()}',
-                    ),
-                    onTap: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => _DailyDebriefDetailPage(
-                          record: snapshot.data!.records[index].record,
-                          status: snapshot.data!.records[index].status,
+                  Builder(
+                    builder: (context) {
+                      final historical = snapshot.data!.backNumbers[index - 1];
+                      return ListTile(
+                        key: ValueKey(
+                          'daily-debrief-history-${historical.record.localDate}',
                         ),
-                      ),
-                    ),
+                        leading: const Icon(Icons.nightlight_outlined),
+                        title: Text(
+                          'OPERATION DATE  ${historical.record.localDate}',
+                        ),
+                        subtitle: Text(
+                          'REVISION  ${historical.record.revision}  '
+                          'STATUS  ${historical.status.name.toUpperCase()}\n'
+                          'IMPORTED AT  ${historical.record.updatedAt.toLocal()}',
+                        ),
+                        onTap: () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _DailyDebriefDetailPage(
+                              record: historical.record,
+                              status: historical.status,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  if (index != snapshot.data!.records.length - 1)
+                  if (index != snapshot.data!.backNumbers.length)
                     const Divider(),
                 ],
               ],
@@ -521,6 +530,23 @@ class _DailyDebriefViewData {
   final OperationState operationState;
   final List<String> eligibleDates;
   final String? defaultTargetDate;
+
+  ({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})?
+  get current {
+    for (final value in records) {
+      if (value.record.localDate == operationState.operationDate.value) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  List<({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})>
+  get backNumbers => records
+      .where(
+        (value) => value.record.localDate != operationState.operationDate.value,
+      )
+      .toList(growable: false);
 }
 
 class _DailyDebriefDetailPage extends StatelessWidget {
@@ -664,7 +690,10 @@ class _DailyDebriefHeader extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        'DD-${record.localDate}-Rev${record.revision}',
+                        dailyDebriefPresentationIdentity(
+                          record.localDate,
+                          record.revision,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

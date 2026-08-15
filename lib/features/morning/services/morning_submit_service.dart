@@ -150,6 +150,13 @@ class MorningSubmitService {
     );
 
     if (existingData == null) {
+      final localDate = morningData.date.substring(0, 10);
+      final existingForDate = (await MorningRepository.getAll()).where(
+        (record) => record.date.substring(0, 10) == localDate,
+      );
+      if (existingForDate.isNotEmpty) {
+        return '本日のSTATUSは登録済みです。編集する場合はRECORDから行ってください。';
+      }
       await DailyLogMutationGuard.assertDateMutable(
         DateTime.parse(morningData.date),
       );
