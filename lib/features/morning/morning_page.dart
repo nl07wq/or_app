@@ -18,7 +18,7 @@ class MorningPage extends StatefulWidget {
 }
 
 class _MorningPageState extends State<MorningPage> {
-  late final Future<bool> _statusExists = _currentStatusExists();
+  late Future<bool> _statusExists = _currentStatusExists();
 
   Future<bool> _currentStatusExists() async {
     final localDate = (await const OperationDateService().current()).value;
@@ -26,6 +26,12 @@ class _MorningPageState extends State<MorningPage> {
           localDate,
         ) !=
         null;
+  }
+
+  void _refreshStatusEntry() {
+    setState(() {
+      _statusExists = _currentStatusExists();
+    });
   }
 
   @override
@@ -89,7 +95,7 @@ class _MorningPageState extends State<MorningPage> {
 
             AppSpacing.gapMD,
 
-            const MorningHistoryButton(),
+            MorningHistoryButton(onReturn: _refreshStatusEntry),
           ],
         ),
       ),

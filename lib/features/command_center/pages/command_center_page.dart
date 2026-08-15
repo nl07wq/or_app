@@ -27,7 +27,9 @@ import '../widgets/brief_debrief_page.dart';
 import '../../report_sync/models/morning_brief_state.dart';
 
 class CommandCenterPage extends StatefulWidget {
-  const CommandCenterPage({super.key});
+  const CommandCenterPage({super.key, this.initialPage = 1});
+
+  final int initialPage;
 
   @override
   State<CommandCenterPage> createState() => _CommandCenterPageState();
@@ -35,12 +37,13 @@ class CommandCenterPage extends StatefulWidget {
 
 class _CommandCenterPageState extends State<CommandCenterPage> {
   late final PageController _pageController;
-  var _currentPage = 1;
+  late int _currentPage;
   var _refreshToken = 0;
 
   @override
   void initState() {
     super.initState();
+    _currentPage = widget.initialPage;
     _pageController = PageController(initialPage: _currentPage);
   }
 

@@ -5,18 +5,21 @@ import '../../../core/widgets/operation_button.dart';
 import '../morning_history_page.dart';
 
 class MorningHistoryButton extends StatelessWidget {
-  const MorningHistoryButton({super.key});
+  const MorningHistoryButton({super.key, this.onReturn});
+
+  final VoidCallback? onReturn;
 
   @override
   Widget build(BuildContext context) {
     return OperationButton(
       icon: Icons.history,
       text: "RECORD",
-      onPressed: () {
-        Navigator.push(
+      onPressed: () async {
+        await Navigator.push<void>(
           context,
           MaterialPageRoute(builder: (_) => const MorningHistoryPage()),
         );
+        onReturn?.call();
       },
     );
   }
