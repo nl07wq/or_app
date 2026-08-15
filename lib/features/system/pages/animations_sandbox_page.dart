@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -390,6 +389,49 @@ class _BootSequenceCalibrationPageState
             ),
           ),
         ),
+        AppSpacing.gapXL,
+        const SectionHeader(icon: Icons.science_outlined, title: 'EFFECT LAB'),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: _SandboxActionButton(
+            key: const ValueKey('open-effect-lab'),
+            text: 'EFFECT LAB',
+            icon: Icons.science_outlined,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const _EffectLabPage()),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _EffectLabPage extends StatelessWidget {
+  const _EffectLabPage();
+
+  static const _slots = [
+    ('headlight', 'HEADLIGHT TEST'),
+    ('dust', 'DUST TEST'),
+    ('suspension', 'SUSPENSION TEST'),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('EFFECT LAB')),
+    body: ListView(
+      padding: AppSpacing.cardPadding,
+      children: [
+        for (var index = 0; index < _slots.length; index++) ...[
+          SectionHeader(icon: Icons.science_outlined, title: _slots[index].$2),
+          AppSpacing.gapSM,
+          OperationCard(
+            key: ValueKey('effect-lab-${_slots[index].$1}-slot'),
+            child: const Text('DEVELOPMENT TEST SLOT'),
+          ),
+          if (index != _slots.length - 1) AppSpacing.gapXL,
+        ],
       ],
     ),
   );
@@ -757,8 +799,8 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
   double _jeepScale = _initialStart.scale;
   _CalibrationSnapshot _start = _initialStart;
   _CalibrationSnapshot _end = _initialEnd;
-  double _travelDurationSeconds = 6;
-  double _holdDurationSeconds = 0.75;
+  double _travelDurationSeconds = _scene1TravelDuration.inMilliseconds / 1000;
+  double _holdDurationSeconds = _scene1HoldDuration.inMilliseconds / 1000;
   _CalibrationCurveOption _curve = _CalibrationCurveOption.linear;
 
   late final AnimationController _motionController = AnimationController(
@@ -1747,14 +1789,6 @@ class _JeepApproachPrototype extends StatelessWidget {
     required this.wheelAsset,
   });
 
-  static const _verticalBounceAmplitude = 2.4;
-  static const _verticalBouncePeriodMs = 480.0;
-  static const _microHorizontalAmplitude = 0.35;
-  static const _microVerticalAmplitude = 0.65;
-  static const _microHorizontalPeriodMs = 170.0;
-  static const _microVerticalPeriodMs = 130.0;
-  static const _settleStart = 0.82;
-
   final double progress;
   final String backgroundAsset;
   final String jeepBodyAsset;
@@ -1765,13 +1799,7 @@ class _JeepApproachPrototype extends StatelessWidget {
     final travelFraction =
         _scene1TravelDuration.inMilliseconds /
         _scene1TotalDuration.inMilliseconds;
-    final holdFraction =
-        _scene1HoldDuration.inMilliseconds /
-        _scene1TotalDuration.inMilliseconds;
     final motionProgress = (progress / travelFraction).clamp(0.0, 1.0);
-    final holdProgress = progress <= travelFraction
-        ? 0.0
-        : ((progress - travelFraction) / holdFraction).clamp(0.0, 1.0);
     final alignment = Alignment.lerp(
       _scene1Start.alignment,
       _scene1End.alignment,
@@ -1780,23 +1808,6 @@ class _JeepApproachPrototype extends StatelessWidget {
     final scale =
         _scene1Start.scale +
         ((_scene1End.scale - _scene1Start.scale) * motionProgress);
-    final settleEnvelope =
-        1 -
-        ((motionProgress - _settleStart) / (1 - _settleStart)).clamp(0.0, 1.0);
-    final elapsedMs = progress * _scene1TotalDuration.inMilliseconds;
-    final bounceY =
-        math.sin((elapsedMs / _verticalBouncePeriodMs) * math.pi * 2) *
-        _verticalBounceAmplitude *
-        settleEnvelope;
-    final microX =
-        math.sin((elapsedMs / _microHorizontalPeriodMs) * math.pi * 2) *
-        _microHorizontalAmplitude *
-        settleEnvelope;
-    final microY =
-        math.sin((elapsedMs / _microVerticalPeriodMs) * math.pi * 2) *
-        _microVerticalAmplitude *
-        settleEnvelope;
-    final dustOpacity = motionProgress < 1 ? 1.0 : 1 - holdProgress;
 
     return Stack(
       key: const ValueKey('jeep-scene-canvas'),
@@ -1827,23 +1838,13 @@ class _JeepApproachPrototype extends StatelessWidget {
                       (assemblyHeight / 2),
                   width: assemblyWidth,
                   height: assemblyHeight,
-                  child: Transform.translate(
-                    key: const ValueKey('jeep-bounce-offset'),
-                    offset: Offset(0, bounceY),
-                    child: Transform.translate(
-                      key: const ValueKey('jeep-micro-offset'),
-                      offset: Offset(microX, microY),
-                      child: Transform.scale(
-                        key: const ValueKey('jeep-assembly-scale'),
-                        scale: scale,
-                        child: _SceneJeepAssembly(
-                          width: assemblyWidth,
-                          bodyAsset: jeepBodyAsset,
-                          wheelAsset: wheelAsset,
-                          dustProgress: motionProgress,
-                          dustOpacity: progress > 0 ? dustOpacity : 0,
-                        ),
-                      ),
+                  child: Transform.scale(
+                    key: const ValueKey('jeep-assembly-scale'),
+                    scale: scale,
+                    child: _JeepAssembly(
+                      width: assemblyWidth,
+                      bodyAsset: jeepBodyAsset,
+                      wheelAsset: wheelAsset,
                     ),
                   ),
                 ),
@@ -1853,65 +1854,6 @@ class _JeepApproachPrototype extends StatelessWidget {
         ),
         const Positioned(left: 8, top: 8, child: _SceneBadge()),
       ],
-    );
-  }
-}
-
-class _SceneJeepAssembly extends StatelessWidget {
-  const _SceneJeepAssembly({
-    required this.width,
-    required this.bodyAsset,
-    required this.wheelAsset,
-    required this.dustProgress,
-    required this.dustOpacity,
-  });
-
-  final double width;
-  final String bodyAsset;
-  final String wheelAsset;
-  final double dustProgress;
-  final double dustOpacity;
-
-  @override
-  Widget build(BuildContext context) {
-    final height = width * (941 / 1672);
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          if (dustOpacity > 0.001)
-            Positioned(
-              left: width * 0.64,
-              top: height * 0.58,
-              width: width * 0.70,
-              height: height * 0.42,
-              child: CustomPaint(
-                key: const ValueKey('jeep-dust'),
-                painter: _JeepDustPainter(
-                  travelProgress: dustProgress,
-                  opacity: dustOpacity,
-                ),
-              ),
-            ),
-          _JeepAssembly(
-            width: width,
-            bodyAsset: bodyAsset,
-            wheelAsset: wheelAsset,
-          ),
-          Positioned(
-            left: -width * 0.18,
-            top: height * 0.27,
-            width: width * 0.50,
-            height: height * 0.42,
-            child: const CustomPaint(
-              key: ValueKey('jeep-headlight'),
-              painter: _JeepHeadlightPainter(),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2018,67 +1960,6 @@ class _SceneWheel extends StatelessWidget {
       child: Image.asset(asset, key: imageKey, fit: BoxFit.contain),
     );
   }
-}
-
-class _JeepDustPainter extends CustomPainter {
-  const _JeepDustPainter({required this.travelProgress, required this.opacity});
-
-  final double travelProgress;
-  final double opacity;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const particleCount = 6;
-    for (var index = 0; index < particleCount; index++) {
-      final phase = (travelProgress * 4.2 + (index / particleCount)) % 1;
-      final particleOpacity = opacity * (1 - phase) * 0.26;
-      final radius = size.height * (0.10 + (phase * 0.16));
-      final center = Offset(
-        size.width * (0.08 + (phase * 0.82)),
-        size.height * (0.76 - (phase * 0.30) + (math.sin(index * 1.7) * 0.04)),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: center, width: radius * 2.4, height: radius),
-        Paint()
-          ..color = const Color(0xFFB7A58B).withValues(alpha: particleOpacity),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_JeepDustPainter oldDelegate) =>
-      travelProgress != oldDelegate.travelProgress ||
-      opacity != oldDelegate.opacity;
-}
-
-class _JeepHeadlightPainter extends CustomPainter {
-  const _JeepHeadlightPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final beamPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.centerRight,
-        end: Alignment.centerLeft,
-        colors: [Color(0x66FFF4C2), Color(0x00FFF4C2)],
-      ).createShader(Offset.zero & size);
-    for (final sourceY in [0.38, 0.64]) {
-      final path = Path()
-        ..moveTo(size.width * 0.88, size.height * sourceY)
-        ..lineTo(0, size.height * (sourceY - 0.17))
-        ..lineTo(0, size.height * (sourceY + 0.17))
-        ..close();
-      canvas.drawPath(path, beamPaint);
-      canvas.drawCircle(
-        Offset(size.width * 0.88, size.height * sourceY),
-        size.height * 0.055,
-        Paint()..color = const Color(0xCCFFF7D6),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_JeepHeadlightPainter oldDelegate) => false;
 }
 
 class _SandboxActionButton extends StatelessWidget {
