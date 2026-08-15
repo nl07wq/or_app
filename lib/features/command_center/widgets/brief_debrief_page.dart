@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/services/daily_log_confirmation_service.dart';
@@ -446,10 +447,8 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
             includeAuditSections: false,
           ),
         AppSpacing.gapMD,
-        OperationButton(
+        _DailyDebriefCreateButton(
           key: const ValueKey('open-daily-debrief-report-sync'),
-          text: 'CREATE DAILY DEBRIEF',
-          icon: Icons.add_circle_outline,
           onPressed:
               appInitializationController.value.isReadOnly ||
                   snapshot.data?.defaultTargetDate == null
@@ -580,6 +579,64 @@ class _DailyDebriefDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final analysis = record.analysis;
+    final sections = <Widget>[
+      if (_hasDomainEvaluations(analysis.domainEvaluations))
+        _DomainEvaluationsSection(evaluations: analysis.domainEvaluations),
+      if (analysis.commanderIntentEvaluation != null)
+        _CommanderIntentEvaluationSection(
+          evaluation: analysis.commanderIntentEvaluation!,
+        ),
+      if (analysis.executionEvaluation.successes.isNotEmpty ||
+          analysis.executionEvaluation.adjustments.isNotEmpty)
+        _DebriefListSection(
+          icon: Icons.checklist_outlined,
+          title: 'EXECUTION EVALUATION',
+          groups: [
+            ('SUCCESSES', analysis.executionEvaluation.successes),
+            ('ADJUSTMENTS', analysis.executionEvaluation.adjustments),
+          ],
+        ),
+      if (analysis.crossAnalysis.keyFactors.isNotEmpty ||
+          analysis.crossAnalysis.interactions.isNotEmpty ||
+          analysis.crossAnalysis.constraints.isNotEmpty ||
+          analysis.crossAnalysis.resources.isNotEmpty)
+        _DebriefListSection(
+          icon: Icons.hub_outlined,
+          title: 'CROSS ANALYSIS',
+          groups: [
+            ('KEY FACTORS', analysis.crossAnalysis.keyFactors),
+            ('INTERACTIONS', analysis.crossAnalysis.interactions),
+            ('CONSTRAINTS', analysis.crossAnalysis.constraints),
+            ('RESOURCES', analysis.crossAnalysis.resources),
+          ],
+        ),
+      if (analysis.nextDayHandoff.watchPoints.isNotEmpty)
+        _DebriefListSection(
+          icon: Icons.visibility_outlined,
+          title: 'NEXT-DAY HANDOFF',
+          groups: [('WATCH POINTS', analysis.nextDayHandoff.watchPoints)],
+        ),
+      if (includeAuditSections)
+        _DebriefAuditSection(
+          title: 'SOURCE REFERENCES',
+          values: [
+            'DAILY AGGREGATE  ${record.sources.dailyAggregate.recordDigest}',
+            'CONFIRMATION  ${record.sources.confirmation.recordDigest}',
+            'MORNING BRIEF  '
+                '${record.sources.morningBrief?.recordDigest ?? 'NOT RECORDED'}',
+          ],
+        ),
+      if (includeAuditSections)
+        _DebriefAuditSection(
+          title: 'PREVIOUS REVISIONS',
+          values: record.previousRevisions.isEmpty
+              ? const ['NONE']
+              : [
+                  for (final revision in record.previousRevisions)
+                    'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
+                ],
+        ),
+    ];
     return OperationCard(
       child: Align(
         alignment: Alignment.topCenter,
@@ -589,61 +646,9 @@ class _DailyDebriefDetail extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _DailyDebriefHeader(record: record, status: status),
-              const SizedBox(height: 28),
-              _DomainEvaluationsSection(
-                evaluations: analysis.domainEvaluations,
-              ),
-              const _DailyDebriefMajorDivider(),
-              _CommanderIntentEvaluationSection(
-                evaluation: analysis.commanderIntentEvaluation,
-              ),
-              const _DailyDebriefMajorDivider(),
-              _DebriefListSection(
-                icon: Icons.checklist_outlined,
-                title: 'EXECUTION EVALUATION',
-                groups: [
-                  ('SUCCESSES', analysis.executionEvaluation.successes),
-                  ('ADJUSTMENTS', analysis.executionEvaluation.adjustments),
-                ],
-              ),
-              const _DailyDebriefMajorDivider(),
-              _DebriefListSection(
-                icon: Icons.hub_outlined,
-                title: 'CROSS ANALYSIS',
-                groups: [
-                  ('KEY FACTORS', analysis.crossAnalysis.keyFactors),
-                  ('INTERACTIONS', analysis.crossAnalysis.interactions),
-                  ('CONSTRAINTS', analysis.crossAnalysis.constraints),
-                  ('RESOURCES', analysis.crossAnalysis.resources),
-                ],
-              ),
-              const _DailyDebriefMajorDivider(),
-              _DebriefListSection(
-                icon: Icons.visibility_outlined,
-                title: 'NEXT-DAY HANDOFF',
-                groups: [('WATCH POINTS', analysis.nextDayHandoff.watchPoints)],
-              ),
-              if (includeAuditSections) ...[
+              for (var index = 0; index < sections.length; index++) ...[
                 const SizedBox(height: 24),
-                _DebriefAuditSection(
-                  title: 'SOURCE REFERENCES',
-                  values: [
-                    'DAILY AGGREGATE  ${record.sources.dailyAggregate.recordDigest}',
-                    'CONFIRMATION  ${record.sources.confirmation.recordDigest}',
-                    'MORNING BRIEF  '
-                        '${record.sources.morningBrief?.recordDigest ?? 'NOT RECORDED'}',
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _DebriefAuditSection(
-                  title: 'PREVIOUS REVISIONS',
-                  values: record.previousRevisions.isEmpty
-                      ? const ['NONE']
-                      : [
-                          for (final revision in record.previousRevisions)
-                            'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
-                        ],
-                ),
+                sections[index],
               ],
             ],
           ),
@@ -652,6 +657,16 @@ class _DailyDebriefDetail extends StatelessWidget {
     );
   }
 }
+
+bool _hasDomainEvaluations(DailyDebriefDomainEvaluations evaluations) =>
+    evaluations.body != null ||
+    evaluations.recovery != null ||
+    evaluations.condition != null ||
+    evaluations.work != null ||
+    evaluations.nutrition != null ||
+    evaluations.hydration != null ||
+    evaluations.activity != null ||
+    evaluations.training != null;
 
 class _DailyDebriefHeader extends StatelessWidget {
   const _DailyDebriefHeader({required this.record, required this.status});
@@ -724,31 +739,33 @@ class _DailyDebriefHeader extends StatelessWidget {
 class _CommanderIntentEvaluationSection extends StatelessWidget {
   const _CommanderIntentEvaluationSection({required this.evaluation});
 
-  final DailyDebriefCommanderIntentEvaluation? evaluation;
+  final DailyDebriefCommanderIntentEvaluation evaluation;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const _BriefSectionTitle(
-        icon: Icons.flag_outlined,
-        title: 'COMMANDER INTENT EVALUATION',
-      ),
-      const SizedBox(height: 16),
-      if (evaluation == null)
-        const _DebriefMetadata(text: 'NOT RECORDED')
-      else ...[
-        _CommanderIntentOutcomeIndicator(outcome: evaluation!.outcome),
+  Widget build(BuildContext context) => _DebriefPanel(
+    key: const ValueKey('daily-debrief-panel-commander-intent'),
+    emphasized: true,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _BriefSectionTitle(
+          icon: Icons.flag_outlined,
+          title: 'COMMANDER INTENT EVALUATION',
+        ),
+        const SizedBox(height: 16),
+        _CommanderIntentOutcomeIndicator(outcome: evaluation.outcome),
         const SizedBox(height: 18),
         const _DebriefSubsectionLabel('評価理由'),
         const SizedBox(height: 8),
-        _ReadableText(evaluation!.rationale),
-        if (evaluation!.evidence.isNotEmpty) ...[
+        _ReadableText(evaluation.rationale),
+        if (evaluation.evidence.isNotEmpty) ...[
           const SizedBox(height: 18),
-          _DebriefListGroup(label: '判定根拠', values: evaluation!.evidence),
+          const _DebriefSubsectionLabel('判定根拠'),
+          const SizedBox(height: 8),
+          _DebriefBulletList(values: evaluation.evidence),
         ],
       ],
-    ],
+    ),
   );
 }
 
@@ -790,16 +807,6 @@ class _CommanderIntentOutcomeIndicator extends StatelessWidget {
   }
 }
 
-class _DailyDebriefMajorDivider extends StatelessWidget {
-  const _DailyDebriefMajorDivider();
-
-  @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.symmetric(vertical: 24),
-    child: Divider(height: 1),
-  );
-}
-
 class _DebriefListSection extends StatelessWidget {
   const _DebriefListSection({
     required this.icon,
@@ -816,19 +823,18 @@ class _DebriefListSection extends StatelessWidget {
     final visibleGroups = groups
         .where((group) => group.$2.isNotEmpty)
         .toList(growable: false);
+    if (visibleGroups.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _BriefSectionTitle(icon: icon, title: title),
-        if (visibleGroups.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          for (var index = 0; index < visibleGroups.length; index++) ...[
-            _DebriefListGroup(
-              label: visibleGroups[index].$1,
-              values: visibleGroups[index].$2,
-            ),
-            if (index != visibleGroups.length - 1) const SizedBox(height: 18),
-          ],
+        const SizedBox(height: 12),
+        for (var index = 0; index < visibleGroups.length; index++) ...[
+          _DebriefListGroup(
+            label: visibleGroups[index].$1,
+            values: visibleGroups[index].$2,
+          ),
+          if (index != visibleGroups.length - 1) const SizedBox(height: 10),
         ],
       ],
     );
@@ -844,25 +850,43 @@ class _DebriefListGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) => values.isEmpty
       ? const SizedBox.shrink()
-      : Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DebriefSubsectionLabel(label),
-            const SizedBox(height: 8),
-            for (final value in values)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('•', style: Theme.of(context).textTheme.bodyLarge),
-                    const SizedBox(width: 10),
-                    Expanded(child: _ReadableText(value)),
-                  ],
-                ),
-              ),
-          ],
+      : _DebriefPanel(
+          key: ValueKey(
+            'daily-debrief-panel-${label.toLowerCase().replaceAll(' ', '-')}',
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DebriefSubsectionLabel(label),
+              const SizedBox(height: 8),
+              _DebriefBulletList(values: values),
+            ],
+          ),
         );
+}
+
+class _DebriefBulletList extends StatelessWidget {
+  const _DebriefBulletList({required this.values});
+
+  final List<String> values;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (var index = 0; index < values.length; index++)
+        Padding(
+          padding: EdgeInsets.only(bottom: index == values.length - 1 ? 0 : 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('•', style: Theme.of(context).textTheme.bodyLarge),
+              const SizedBox(width: 10),
+              Expanded(child: _ReadableText(values[index])),
+            ],
+          ),
+        ),
+    ],
+  );
 }
 
 class _DomainEvaluationsSection extends StatelessWidget {
@@ -875,7 +899,7 @@ class _DomainEvaluationsSection extends StatelessWidget {
     final domains = <(String, IconData, String?)>[
       ('BODY', Icons.monitor_weight_outlined, evaluations.body),
       ('RECOVERY', Icons.bedtime_outlined, evaluations.recovery),
-      ('CONDITION', Icons.health_and_safety_outlined, evaluations.condition),
+      ('CONDITION', Symbols.barefoot, evaluations.condition),
       ('WORK', Icons.work_outline, evaluations.work),
       ('NUTRITION', Icons.restaurant_outlined, evaluations.nutrition),
       ('HYDRATION', Icons.water_drop_outlined, evaluations.hydration),
@@ -890,13 +914,14 @@ class _DomainEvaluationsSection extends StatelessWidget {
           title: 'DOMAIN EVALUATIONS',
         ),
         const SizedBox(height: 8),
-        for (var index = 0; index < domains.length; index++)
+        for (var index = 0; index < domains.length; index++) ...[
           _DebriefDomainBlock(
             icon: domains[index].$2,
             title: domains[index].$1,
             body: domains[index].$3!,
-            showDivider: index != domains.length - 1,
           ),
+          if (index != domains.length - 1) const SizedBox(height: 10),
+        ],
       ],
     );
   }
@@ -907,40 +932,60 @@ class _DebriefDomainBlock extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
-    required this.showDivider,
   });
 
   final IconData icon;
   final String title;
   final String body;
-  final bool showDivider;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DebriefSubsectionLabel(title),
-                  const SizedBox(height: 8),
-                  _ReadableText(body),
-                ],
-              ),
-            ),
-          ],
+  Widget build(BuildContext context) => _DebriefPanel(
+    key: ValueKey('daily-debrief-panel-domain-${title.toLowerCase()}'),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DebriefSubsectionLabel(title),
+              const SizedBox(height: 8),
+              _ReadableText(body),
+            ],
+          ),
         ),
-      ),
-      if (showDivider) const Divider(height: 1),
-    ],
+      ],
+    ),
   );
+}
+
+class _DebriefPanel extends StatelessWidget {
+  const _DebriefPanel({
+    super.key,
+    required this.child,
+    this.emphasized = false,
+  });
+
+  final Widget child;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: emphasized
+            ? colors.secondaryContainer.withValues(alpha: 0.38)
+            : colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.7)),
+      ),
+      child: child,
+    );
+  }
 }
 
 class _DebriefSubsectionLabel extends StatelessWidget {
@@ -958,16 +1003,6 @@ class _DebriefSubsectionLabel extends StatelessWidget {
   );
 }
 
-class _DebriefMetadata extends StatelessWidget {
-  const _DebriefMetadata({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) =>
-      Text(text, style: Theme.of(context).textTheme.bodyMedium);
-}
-
 class _DebriefAuditSection extends StatelessWidget {
   const _DebriefAuditSection({required this.title, required this.values});
 
@@ -975,8 +1010,10 @@ class _DebriefAuditSection extends StatelessWidget {
   final List<String> values;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
+  Widget build(BuildContext context) => _DebriefPanel(
+    key: ValueKey(
+      'daily-debrief-panel-${title.toLowerCase().replaceAll(' ', '-')}',
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1152,7 +1189,7 @@ class _SituationAnalysisSection extends StatelessWidget {
         display: analysis.recoveryDisplay,
       ),
       _AnalysisBlock(
-        icon: Icons.health_and_safety_outlined,
+        icon: Symbols.barefoot,
         title: 'CONDITION',
         body: analysis.condition,
         display: analysis.conditionDisplay,
@@ -1767,5 +1804,34 @@ class _LoadError extends StatelessWidget {
       icon: Icons.refresh,
       onPressed: onRetry,
     ),
+  );
+}
+
+class _DailyDebriefCreateButton extends StatelessWidget {
+  const _DailyDebriefCreateButton({super.key, required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final isCompact = constraints.maxWidth < 320;
+      final button = OperationButton(
+        text: 'CREATE DAILY DEBRIEF',
+        icon: isCompact ? null : Icons.add_circle_outline,
+        onPressed: onPressed,
+      );
+      if (!isCompact) return button;
+      return Theme(
+        data: Theme.of(context).copyWith(
+          elevatedButtonTheme: const ElevatedButtonThemeData(
+            style: ButtonStyle(
+              padding: WidgetStatePropertyAll(EdgeInsets.zero),
+            ),
+          ),
+        ),
+        child: button,
+      );
+    },
   );
 }

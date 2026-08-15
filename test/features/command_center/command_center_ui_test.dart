@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
@@ -653,6 +654,7 @@ void main() {
     final record = _dailyDebriefRecord(
       localDate: '2026-08-01',
       bodyEvaluation: 'LATEST BODY REVIEW',
+      conditionEvaluation: 'FOOT CONDITION REVIEW',
       timestamp: timestamp.add(const Duration(days: 1)),
       revision: 7,
     );
@@ -730,6 +732,21 @@ void main() {
     expect(find.text('NEXT-DAY HANDOFF'), findsOneWidget);
     expect(find.text('WATCH POINTS'), findsOneWidget);
     expect(find.text('WATCH ITEM'), findsOneWidget);
+    for (final panel in const [
+      'daily-debrief-panel-domain-body',
+      'daily-debrief-panel-commander-intent',
+      'daily-debrief-panel-successes',
+      'daily-debrief-panel-adjustments',
+      'daily-debrief-panel-key-factors',
+      'daily-debrief-panel-interactions',
+      'daily-debrief-panel-constraints',
+      'daily-debrief-panel-resources',
+      'daily-debrief-panel-watch-points',
+    ]) {
+      expect(find.byKey(ValueKey(panel)), findsOneWidget);
+    }
+    expect(find.byIcon(Symbols.barefoot), findsOneWidget);
+    expect(find.byIcon(Icons.health_and_safety_outlined), findsNothing);
     expect(find.textContaining('CURRENT REVISION'), findsNothing);
     expect(find.textContaining('STATUS ACTIVE'), findsNothing);
     _expectDailyDebriefReadingOrder(tester);
@@ -856,7 +873,7 @@ void main() {
     final currentDetail = find.byKey(const ValueKey('current-daily-debrief'));
     expect(
       find.descendant(of: currentDetail, matching: find.byType(Divider)),
-      findsNWidgets(4),
+      findsNothing,
     );
     expect(current.analysis.executionEvaluation.successes, isEmpty);
     expect(current.analysis.crossAnalysis.constraints, isEmpty);
@@ -879,6 +896,44 @@ void main() {
 
     _expectEmptyDebriefSubsectionsHidden(tester);
     expect(find.textContaining('HISTORICAL BODY REVIEW'), findsOneWidget);
+  });
+
+  testWidgets('debrief panels and barefoot icon fit supported widths', (
+    tester,
+  ) async {
+    final record = _dailyDebriefRecord(
+      localDate: '2026-08-01',
+      bodyEvaluation: '長い日本語のBODY評価文をそのまま表示します。',
+      recoveryEvaluation: '回復状態を記録した評価文です。',
+      conditionEvaluation: '足底筋膜炎の状態を評価した文章です。',
+      timestamp: DateTime.utc(2026, 8, 1, 23),
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      record.localDate,
+      record.toRecord(),
+    );
+
+    for (final width in [320.0, 390.0, 1280.0]) {
+      await _pump(tester, width: width);
+      await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+      await tester.pumpAndSettle();
+      while (tester.takeException() != null) {}
+      await tester.tap(find.text('DAILY DEBRIEF').first);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('daily-debrief-panel-domain-body')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('daily-debrief-panel-domain-condition')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Symbols.barefoot), findsOneWidget);
+      expect(find.byIcon(Icons.health_and_safety_outlined), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   for (final outcomeCase in const [
@@ -958,7 +1013,7 @@ void main() {
           of: find.byKey(const ValueKey('current-daily-debrief')),
           matching: find.byType(Divider),
         ),
-        findsNWidgets(5),
+        findsNothing,
       );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -1000,7 +1055,8 @@ void main() {
       expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
       expect(find.byIcon(Icons.monitor_weight_outlined), findsOneWidget);
       expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.health_and_safety_outlined), findsOneWidget);
+      expect(find.byIcon(Symbols.barefoot), findsOneWidget);
+      expect(find.byIcon(Icons.health_and_safety_outlined), findsNothing);
       expect(find.byIcon(Icons.work_outline), findsOneWidget);
       expect(find.byIcon(Icons.route_outlined), findsOneWidget);
       expect(find.byIcon(Icons.track_changes_outlined), findsOneWidget);
@@ -1189,12 +1245,28 @@ void _expectEmptyDebriefSubsectionsHidden(WidgetTester tester) {
   for (final section in const [
     'DOMAIN EVALUATIONS',
     'COMMANDER INTENT EVALUATION',
+  ]) {
+    expect(find.text(section), findsOneWidget);
+  }
+  for (final emptySection in const [
     'EXECUTION EVALUATION',
     'CROSS ANALYSIS',
     'NEXT-DAY HANDOFF',
   ]) {
-    expect(find.text(section), findsOneWidget);
+    expect(find.text(emptySection), findsNothing);
   }
+  expect(
+    find.byKey(const ValueKey('daily-debrief-panel-commander-intent')),
+    findsOneWidget,
+  );
+  expect(
+    find.byKey(const ValueKey('daily-debrief-panel-successes')),
+    findsNothing,
+  );
+  expect(
+    find.byKey(const ValueKey('daily-debrief-panel-watch-points')),
+    findsNothing,
+  );
 }
 
 ScrollPosition _dailyCommandScrollPosition(WidgetTester tester) =>
@@ -1205,6 +1277,7 @@ DailyDebriefRecord _dailyDebriefRecord({
   required String bodyEvaluation,
   required DateTime timestamp,
   String? recoveryEvaluation,
+  String? conditionEvaluation,
   int revision = 1,
   DailyDebriefCommanderIntentOutcome outcome =
       DailyDebriefCommanderIntentOutcome.partiallyAchieved,
@@ -1250,7 +1323,7 @@ DailyDebriefRecord _dailyDebriefRecord({
     domainEvaluations: DailyDebriefDomainEvaluations(
       body: bodyEvaluation,
       recovery: recoveryEvaluation,
-      condition: null,
+      condition: conditionEvaluation,
       work: null,
       nutrition: null,
       hydration: null,
