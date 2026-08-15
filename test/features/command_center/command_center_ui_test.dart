@@ -809,6 +809,78 @@ void main() {
     );
   });
 
+  testWidgets('hides empty debrief subsections in current and detail views', (
+    tester,
+  ) async {
+    final current = _dailyDebriefRecord(
+      localDate: '2026-08-01',
+      bodyEvaluation: 'CURRENT BODY REVIEW',
+      timestamp: DateTime.utc(2026, 8, 1, 23),
+      evidence: const [],
+      successes: const [],
+      adjustments: const [],
+      keyFactors: const [],
+      interactions: const [],
+      constraints: const [],
+      resources: const [],
+      watchPoints: const [],
+    );
+    final historical = _dailyDebriefRecord(
+      localDate: '2026-07-31',
+      bodyEvaluation: 'HISTORICAL BODY REVIEW',
+      timestamp: DateTime.utc(2026, 7, 31, 23),
+      evidence: const [],
+      successes: const [],
+      adjustments: const [],
+      keyFactors: const [],
+      interactions: const [],
+      constraints: const [],
+      resources: const [],
+      watchPoints: const [],
+    );
+    for (final record in [current, historical]) {
+      database.seed(
+        IndexedDbStoreNames.dailyDebriefRecords,
+        record.localDate,
+        record.toRecord(),
+      );
+    }
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+
+    _expectEmptyDebriefSubsectionsHidden(tester);
+    final currentDetail = find.byKey(const ValueKey('current-daily-debrief'));
+    expect(
+      find.descendant(of: currentDetail, matching: find.byType(Divider)),
+      findsNWidgets(4),
+    );
+    expect(current.analysis.executionEvaluation.successes, isEmpty);
+    expect(current.analysis.crossAnalysis.constraints, isEmpty);
+    expect(current.analysis.nextDayHandoff.watchPoints, isEmpty);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
+      500,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('daily-debrief-content')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
+    );
+    await tester.pumpAndSettle();
+
+    _expectEmptyDebriefSubsectionsHidden(tester);
+    expect(find.textContaining('HISTORICAL BODY REVIEW'), findsOneWidget);
+  });
+
   for (final outcomeCase in const [
     (
       DailyDebriefCommanderIntentOutcome.achieved,
@@ -1102,6 +1174,29 @@ void _expectDailyDebriefReadingOrder(WidgetTester tester) {
   expect(positions, orderedEquals(positions.toList()..sort()));
 }
 
+void _expectEmptyDebriefSubsectionsHidden(WidgetTester tester) {
+  for (final subsection in const [
+    'SUCCESSES',
+    'ADJUSTMENTS',
+    'KEY FACTORS',
+    'INTERACTIONS',
+    'CONSTRAINTS',
+    'RESOURCES',
+    'WATCH POINTS',
+  ]) {
+    expect(find.text(subsection), findsNothing);
+  }
+  for (final section in const [
+    'DOMAIN EVALUATIONS',
+    'COMMANDER INTENT EVALUATION',
+    'EXECUTION EVALUATION',
+    'CROSS ANALYSIS',
+    'NEXT-DAY HANDOFF',
+  ]) {
+    expect(find.text(section), findsOneWidget);
+  }
+}
+
 ScrollPosition _dailyCommandScrollPosition(WidgetTester tester) =>
     tester.state<ScrollableState>(_dailyCommandScrollable()).position;
 
@@ -1113,6 +1208,14 @@ DailyDebriefRecord _dailyDebriefRecord({
   int revision = 1,
   DailyDebriefCommanderIntentOutcome outcome =
       DailyDebriefCommanderIntentOutcome.partiallyAchieved,
+  List<String> evidence = const ['EVIDENCE ITEM'],
+  List<String> successes = const ['SUCCESS ITEM'],
+  List<String> adjustments = const ['ADJUSTMENT ITEM'],
+  List<String> keyFactors = const ['KEY FACTOR ITEM'],
+  List<String> interactions = const ['INTERACTION ITEM'],
+  List<String> constraints = const ['CONSTRAINT ITEM'],
+  List<String> resources = const ['RESOURCE ITEM'],
+  List<String> watchPoints = const ['WATCH ITEM'],
 }) {
   final sources = DailyDebriefSources(
     dailyAggregate: DailyDebriefDailyAggregateReference(
@@ -1142,7 +1245,7 @@ DailyDebriefRecord _dailyDebriefRecord({
     commanderIntentEvaluation: DailyDebriefCommanderIntentEvaluation(
       outcome: outcome,
       rationale: 'RATIONALE BODY',
-      evidence: const ['EVIDENCE ITEM'],
+      evidence: evidence,
     ),
     domainEvaluations: DailyDebriefDomainEvaluations(
       body: bodyEvaluation,
@@ -1155,18 +1258,16 @@ DailyDebriefRecord _dailyDebriefRecord({
       training: null,
     ),
     crossAnalysis: DailyDebriefCrossAnalysis(
-      keyFactors: const ['KEY FACTOR ITEM'],
-      interactions: const ['INTERACTION ITEM'],
-      constraints: const ['CONSTRAINT ITEM'],
-      resources: const ['RESOURCE ITEM'],
+      keyFactors: keyFactors,
+      interactions: interactions,
+      constraints: constraints,
+      resources: resources,
     ),
     executionEvaluation: DailyDebriefExecutionEvaluation(
-      successes: const ['SUCCESS ITEM'],
-      adjustments: const ['ADJUSTMENT ITEM'],
+      successes: successes,
+      adjustments: adjustments,
     ),
-    nextDayHandoff: DailyDebriefNextDayHandoff(
-      watchPoints: const ['WATCH ITEM'],
-    ),
+    nextDayHandoff: DailyDebriefNextDayHandoff(watchPoints: watchPoints),
   );
   const responseDigest =
       'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';

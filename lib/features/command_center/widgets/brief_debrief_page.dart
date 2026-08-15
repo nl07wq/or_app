@@ -743,8 +743,10 @@ class _CommanderIntentEvaluationSection extends StatelessWidget {
         const _DebriefSubsectionLabel('評価理由'),
         const SizedBox(height: 8),
         _ReadableText(evaluation!.rationale),
-        const SizedBox(height: 18),
-        _DebriefListGroup(label: '判定根拠', values: evaluation!.evidence),
+        if (evaluation!.evidence.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          _DebriefListGroup(label: '判定根拠', values: evaluation!.evidence),
+        ],
       ],
     ],
   );
@@ -810,17 +812,27 @@ class _DebriefListSection extends StatelessWidget {
   final List<(String, List<String>)> groups;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _BriefSectionTitle(icon: icon, title: title),
-      const SizedBox(height: 16),
-      for (var index = 0; index < groups.length; index++) ...[
-        _DebriefListGroup(label: groups[index].$1, values: groups[index].$2),
-        if (index != groups.length - 1) const SizedBox(height: 18),
+  Widget build(BuildContext context) {
+    final visibleGroups = groups
+        .where((group) => group.$2.isNotEmpty)
+        .toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BriefSectionTitle(icon: icon, title: title),
+        if (visibleGroups.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          for (var index = 0; index < visibleGroups.length; index++) ...[
+            _DebriefListGroup(
+              label: visibleGroups[index].$1,
+              values: visibleGroups[index].$2,
+            ),
+            if (index != visibleGroups.length - 1) const SizedBox(height: 18),
+          ],
+        ],
       ],
-    ],
-  );
+    );
+  }
 }
 
 class _DebriefListGroup extends StatelessWidget {
@@ -830,27 +842,27 @@ class _DebriefListGroup extends StatelessWidget {
   final List<String> values;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _DebriefSubsectionLabel(label),
-      if (values.isNotEmpty) ...[
-        const SizedBox(height: 8),
-        for (final value in values)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('•', style: Theme.of(context).textTheme.bodyLarge),
-                const SizedBox(width: 10),
-                Expanded(child: _ReadableText(value)),
-              ],
-            ),
-          ),
-      ],
-    ],
-  );
+  Widget build(BuildContext context) => values.isEmpty
+      ? const SizedBox.shrink()
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DebriefSubsectionLabel(label),
+            const SizedBox(height: 8),
+            for (final value in values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('•', style: Theme.of(context).textTheme.bodyLarge),
+                    const SizedBox(width: 10),
+                    Expanded(child: _ReadableText(value)),
+                  ],
+                ),
+              ),
+          ],
+        );
 }
 
 class _DomainEvaluationsSection extends StatelessWidget {
