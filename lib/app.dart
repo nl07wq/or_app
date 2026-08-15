@@ -23,6 +23,7 @@ import 'features/import_export/backup_restore_page.dart';
 import 'features/sync/pages/orlo_sync_page.dart';
 import 'features/system/pages/operation_sync_page.dart';
 import 'features/system/pages/about_page.dart';
+import 'features/system/pages/animations_sandbox_page.dart';
 import 'features/system/pages/profile_page.dart';
 import 'features/system/pages/system_page.dart';
 import 'features/system/pages/device_transfer_page.dart';
@@ -99,6 +100,8 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.profile: (_) => const ProfilePage(),
         AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
+        AppRoutes.animationsSandbox: (_) => const AnimationsSandboxPage(),
+        AppRoutes.bootSequencePreview: (_) => const BootSequencePreviewPage(),
         AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
         AppRoutes.systemMonitoring: (_) => const SystemMonitoringPage(),
         AppRoutes.operationSync: (context) {

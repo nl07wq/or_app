@@ -38,6 +38,10 @@ class AppRoutes {
 
   static const system = '/system';
 
+  static const animationsSandbox = '/system/animations-sandbox';
+
+  static const bootSequencePreview = '/system/animations-sandbox/boot-sequence';
+
   static const deviceTransfer = '/system/device-transfer';
 
   static const systemMonitoring = '/system/device-transfer/monitoring';

@@ -186,6 +186,15 @@ class _SystemPageState extends State<SystemPage> {
               ? _requestInitialization
               : null,
         ),
+        AppSpacing.gapXL,
+        _SystemSection(
+          icon: Icons.animation_outlined,
+          title: 'ANIMATIONS SANDBOX',
+          description: 'アニメーション演出を本番導入前に確認します。',
+          buttonText: 'OPEN ANIMATIONS SANDBOX',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.animationsSandbox),
+        ),
         AppSpacing.gapLG,
       ],
     ),
