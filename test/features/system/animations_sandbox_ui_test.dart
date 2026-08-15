@@ -105,6 +105,122 @@ void main() {
   });
 
   testWidgets(
+    'BOOT SEQUENCE exposes a separate responsive ORLO logo sequence',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      for (final width in [320.0, 390.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 2200);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey('orlo-logo-sequence-$width'),
+            home: const BootSequencePreviewPage(),
+          ),
+        );
+
+        expect(
+          find.byKey(const ValueKey('jeep-prototype-entry')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('open-orlo-logo-sequence')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('open-boot-sequence-calibration')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const ValueKey('open-orlo-logo-sequence')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(OrloLogoSequencePage), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('orlo-logo-sequence-content')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('orlo-sequence-canvas')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('orlo-sequence-painter')),
+          findsOneWidget,
+        );
+        final logo = tester.widget<Image>(
+          find.byKey(const ValueKey('orlo-official-logo-asset')),
+        );
+        expect(
+          (logo.image as AssetImage).assetName,
+          'assets/icons/orlo_icon.png',
+        );
+        expect(find.text('00:00 / 00:13'), findsOneWidget);
+        for (var stage = 1; stage <= 13; stage++) {
+          expect(find.byKey(ValueKey('orlo-stage-$stage')), findsOneWidget);
+        }
+        expect(find.byKey(const ValueKey('orlo-play')), findsOneWidget);
+        expect(find.byKey(const ValueKey('orlo-pause')), findsOneWidget);
+        expect(find.byKey(const ValueKey('orlo-stop')), findsOneWidget);
+        expect(find.byKey(const ValueKey('orlo-replay')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('ORLO logo sequence controls and stage selector are functional', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 2200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: OrloLogoSequencePage()));
+
+    await tester.tap(find.byKey(const ValueKey('orlo-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 2200));
+    expect(find.textContaining('STAGE 03'), findsOneWidget);
+    final pausedTime = tester
+        .widget<Text>(find.byKey(const ValueKey('orlo-preview-time')))
+        .data;
+
+    await tester.tap(find.byKey(const ValueKey('orlo-pause')));
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('orlo-preview-time'))).data,
+      pausedTime,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('orlo-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('orlo-preview-time'))).data,
+      isNot(pausedTime),
+    );
+
+    await tester.ensureVisible(find.byKey(const ValueKey('orlo-stage-13')));
+    await tester.tap(find.byKey(const ValueKey('orlo-stage-13')));
+    await tester.pump();
+    expect(find.textContaining('STAGE 13'), findsOneWidget);
+    expect(find.textContaining('O.R.L.O. 表示'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const ValueKey('orlo-replay')));
+    await tester.tap(find.byKey(const ValueKey('orlo-replay')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('STAGE 01'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('orlo-stop')));
+    await tester.pump();
+    expect(find.text('00:00 / 00:13'), findsOneWidget);
+    expect(find.textContaining('STAGE 01'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'effect lab exposes four functional entries at supported widths',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);

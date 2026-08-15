@@ -61,6 +61,23 @@ const _scene1End = _CalibrationSnapshot(
 const _scene1TravelDuration = Duration(milliseconds: 6000);
 const _scene1HoldDuration = Duration(milliseconds: 750);
 const _scene1TotalDuration = Duration(milliseconds: 6750);
+const _orloLogoAsset = 'assets/icons/orlo_icon.png';
+const _orloSequenceDuration = Duration(seconds: 13);
+const _orloStageTitles = [
+  '波形の出現',
+  '波形の収束',
+  '軸の出現',
+  '軸の着地',
+  '帆の接近開始',
+  '帆の融合直前',
+  '帆の合体',
+  '軌道の出現',
+  '軌道の完成',
+  '光の蓄積',
+  '一瞬の閃光',
+  '光の収束と安定',
+  'O.R.L.O. 表示',
+];
 
 class _BootSequenceAsset {
   const _BootSequenceAsset({
@@ -191,6 +208,35 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
         return ListView(
           padding: AppSpacing.cardPadding,
           children: [
+            const SectionHeader(
+              icon: Icons.account_tree_outlined,
+              title: 'SEQUENCES',
+            ),
+            AppSpacing.gapSM,
+            OperationCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'JEEP PROTOTYPE',
+                    key: ValueKey('jeep-prototype-entry'),
+                  ),
+                  AppSpacing.gapMD,
+                  _SandboxActionButton(
+                    key: const ValueKey('open-orlo-logo-sequence'),
+                    text: 'ORLO LOGO SEQUENCE',
+                    icon: Icons.animation_outlined,
+                    onPressed: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const OrloLogoSequencePage(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.tune_outlined,
               title: 'CALIBRATION TEST',
@@ -333,6 +379,404 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
     context: context,
     builder: (context) => _BootAssetPreviewDialog(asset: asset),
   );
+}
+
+class OrloLogoSequencePage extends StatefulWidget {
+  const OrloLogoSequencePage({super.key});
+
+  @override
+  State<OrloLogoSequencePage> createState() => _OrloLogoSequencePageState();
+}
+
+class _OrloLogoSequencePageState extends State<OrloLogoSequencePage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _orloSequenceDuration,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _play() {
+    if (_controller.isCompleted) _controller.value = 0;
+    _controller.forward();
+  }
+
+  void _pause() {
+    _controller.stop(canceled: false);
+    setState(() {});
+  }
+
+  void _stop() {
+    _controller.stop(canceled: false);
+    _controller.value = 0;
+  }
+
+  void _replay() => _controller.forward(from: 0);
+
+  void _selectStage(int index) {
+    _controller.stop(canceled: false);
+    _controller.value = index / _orloSequenceDuration.inSeconds;
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('ORLO LOGO SEQUENCE')),
+    body: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final elapsed = Duration(
+          milliseconds:
+              (_orloSequenceDuration.inMilliseconds * _controller.value)
+                  .round(),
+        );
+        final stageIndex = (_controller.value * 13).floor().clamp(0, 12);
+        return ListView(
+          key: const ValueKey('orlo-logo-sequence-content'),
+          padding: AppSpacing.cardPadding,
+          children: [
+            const SectionHeader(
+              icon: Icons.animation_outlined,
+              title: 'ORLO LOGO SEQUENCE',
+            ),
+            AppSpacing.gapSM,
+            OperationCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _OrloLogoSequencePreview(progress: _controller.value),
+                  AppSpacing.gapMD,
+                  LinearProgressIndicator(value: _controller.value),
+                  AppSpacing.gapSM,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      Text(
+                        'STAGE ${(stageIndex + 1).toString().padLeft(2, '0')}  '
+                        '${_orloStageTitles[stageIndex]}',
+                        key: const ValueKey('orlo-current-stage'),
+                      ),
+                      Text(
+                        '${_formatDuration(elapsed)} / '
+                        '${_formatDuration(_orloSequenceDuration)}',
+                        key: const ValueKey('orlo-preview-time'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            AppSpacing.gapXL,
+            const SectionHeader(icon: Icons.tune_outlined, title: 'CONTROLS'),
+            AppSpacing.gapSM,
+            OperationCard(
+              child: Column(
+                children: [
+                  _SandboxActionButton(
+                    key: const ValueKey('orlo-play'),
+                    text: 'PLAY',
+                    icon: Icons.play_arrow,
+                    onPressed: _controller.isAnimating ? null : _play,
+                  ),
+                  AppSpacing.gapSM,
+                  _SandboxActionButton(
+                    key: const ValueKey('orlo-pause'),
+                    text: 'PAUSE',
+                    icon: Icons.pause,
+                    onPressed: _controller.isAnimating ? _pause : null,
+                  ),
+                  AppSpacing.gapSM,
+                  _SandboxActionButton(
+                    key: const ValueKey('orlo-stop'),
+                    text: 'STOP',
+                    icon: Icons.stop,
+                    onPressed: _stop,
+                  ),
+                  AppSpacing.gapSM,
+                  _SandboxActionButton(
+                    key: const ValueKey('orlo-replay'),
+                    text: 'REPLAY',
+                    icon: Icons.replay,
+                    onPressed: _replay,
+                  ),
+                ],
+              ),
+            ),
+            AppSpacing.gapXL,
+            const SectionHeader(
+              icon: Icons.view_timeline_outlined,
+              title: 'STAGES',
+            ),
+            AppSpacing.gapSM,
+            OperationCard(
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (var index = 0; index < _orloStageTitles.length; index++)
+                    ChoiceChip(
+                      key: ValueKey('orlo-stage-${index + 1}'),
+                      label: Text((index + 1).toString().padLeft(2, '0')),
+                      selected: stageIndex == index,
+                      onSelected: (_) => _selectStage(index),
+                    ),
+                ],
+              ),
+            ),
+            AppSpacing.gapLG,
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class _OrloLogoSequencePreview extends StatelessWidget {
+  const _OrloLogoSequencePreview({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final officialAssetOpacity = ((progress - (12 / 13)) * 13).clamp(0.0, 1.0);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: AspectRatio(
+          aspectRatio: 4 / 3,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: ColoredBox(
+              color: Colors.black,
+              child: Stack(
+                key: const ValueKey('orlo-sequence-canvas'),
+                fit: StackFit.expand,
+                children: [
+                  CustomPaint(
+                    key: const ValueKey('orlo-sequence-painter'),
+                    painter: _OrloLogoSequencePainter(progress: progress),
+                  ),
+                  IgnorePointer(
+                    child: Opacity(
+                      opacity: officialAssetOpacity,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Image.asset(
+                          _orloLogoAsset,
+                          key: const ValueKey('orlo-official-logo-asset'),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrloLogoSequencePainter extends CustomPainter {
+  const _OrloLogoSequencePainter({required this.progress});
+
+  final double progress;
+
+  double _stage(double start) => ((progress * 13) - start).clamp(0.0, 1.0);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.47);
+    final unit = math.min(size.width, size.height) * 0.26;
+    final cyan = const Color(0xff79d5ff);
+    final blue = const Color(0xff1598ef);
+    final glow = Paint()
+      ..color = cyan.withValues(alpha: 0.24)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = math.max(1.2, unit * 0.014)
+      ..color = cyan;
+
+    final waveAppear = _stage(0);
+    final convergence = _stage(1);
+    if (waveAppear > 0 && convergence < 1) {
+      final span = _lerp(size.width * 0.72, size.width * 0.14, convergence);
+      final wave = Path()..moveTo(center.dx - span / 2, center.dy);
+      const samples = 42;
+      for (var index = 1; index <= samples; index++) {
+        final fraction = index / samples;
+        final distance = (fraction - 0.5).abs() * 2;
+        final envelope = math.pow(1 - distance, 2).toDouble();
+        final amplitude = unit * 0.18 * envelope * waveAppear;
+        final y = center.dy + math.sin(fraction * math.pi * 15) * amplitude;
+        wave.lineTo(center.dx - span / 2 + span * fraction, y);
+      }
+      canvas.drawPath(wave, glow);
+      canvas.drawPath(wave, line);
+      final particle = Paint()..color = cyan.withValues(alpha: 0.65);
+      for (var index = 0; index < 11; index++) {
+        final x = center.dx + ((index - 5) * span / 14);
+        final y = center.dy + unit * 0.12 + convergence * unit * 0.28;
+        canvas.drawCircle(Offset(x, y), 1.2, particle);
+      }
+    }
+
+    final axisAppear = _stage(2);
+    if (axisAppear > 0) {
+      final top = center.dy - unit * 1.25;
+      final endY = _lerp(top, center.dy + unit * 0.76, axisAppear);
+      final axisPath = Path()
+        ..moveTo(center.dx, top)
+        ..lineTo(center.dx, endY);
+      canvas.drawPath(axisPath, glow);
+      canvas.drawPath(axisPath, line..strokeWidth = math.max(1.8, unit * 0.02));
+    }
+
+    final landing = _stage(3);
+    if (landing > 0) {
+      final ripple = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = blue.withValues(alpha: 0.65 * (1 - landing * 0.45));
+      for (var ring = 0; ring < 3; ring++) {
+        final radius = unit * (0.1 + (landing * 0.24) + ring * 0.1);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(center.dx, center.dy + unit * 0.76),
+            width: radius * 2,
+            height: radius * 0.36,
+          ),
+          ripple,
+        );
+      }
+    }
+
+    final sailApproach = _stage(4);
+    final sailMerge = _stage(5);
+    final symbol = _stage(6);
+    if (sailApproach > 0) {
+      final approach = Curves.easeOutCubic.transform(sailApproach);
+      final merge = Curves.easeInOutCubic.transform(sailMerge);
+      final outside = unit * 1.75;
+      final target = unit * 0.62;
+      final distance = _lerp(outside, target, approach);
+      final mergedDistance = _lerp(distance, target, merge);
+      _drawSail(canvas, center, unit, -1, mergedDistance, line, glow, symbol);
+      _drawSail(canvas, center, unit, 1, mergedDistance, line, glow, symbol);
+    }
+
+    if (symbol > 0) {
+      final lower = Path()
+        ..moveTo(center.dx - unit * 0.9, center.dy + unit * 0.48)
+        ..lineTo(center.dx, center.dy + unit * 0.22)
+        ..lineTo(center.dx + unit * 0.9, center.dy + unit * 0.48);
+      canvas.drawPath(lower, glow);
+      canvas.drawPath(lower, line);
+    }
+
+    final orbitAppear = _stage(7);
+    final orbitComplete = _stage(8);
+    if (orbitAppear > 0) {
+      final orbitPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = cyan.withValues(alpha: 0.78);
+      for (var ring = 0; ring < 3; ring++) {
+        final rect = Rect.fromCenter(
+          center: center,
+          width: unit * (2.1 + ring * 0.28),
+          height: unit * (1.7 + ring * 0.24),
+        );
+        final sweep = math.pi * 2 * orbitAppear;
+        canvas.drawArc(rect, -math.pi / 2, sweep, false, orbitPaint);
+        if (orbitComplete > 0) {
+          for (var point = 0; point < 3; point++) {
+            final angle = (point / 3) * math.pi * 2 + ring * 0.7;
+            final dot = Offset(
+              center.dx + math.cos(angle) * rect.width / 2,
+              center.dy + math.sin(angle) * rect.height / 2,
+            );
+            canvas.drawCircle(dot, 1.4 + orbitComplete, line);
+          }
+        }
+      }
+    }
+
+    final accumulation = _stage(9);
+    if (accumulation > 0) {
+      canvas.drawCircle(
+        center,
+        unit * (0.08 + accumulation * 0.14),
+        Paint()
+          ..color = cyan.withValues(alpha: 0.22 + accumulation * 0.28)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+      );
+    }
+
+    final flash = _stage(10);
+    if (flash > 0 && flash < 0.34) {
+      final flashStrength = math.sin((flash / 0.34) * math.pi);
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = Colors.white.withValues(alpha: flashStrength * 0.48),
+      );
+    }
+
+    if (_stage(11) > 0) {
+      canvas.drawCircle(center, unit * 0.05, Paint()..color = Colors.white);
+    }
+  }
+
+  void _drawSail(
+    Canvas canvas,
+    Offset center,
+    double unit,
+    int direction,
+    double distance,
+    Paint line,
+    Paint glow,
+    double formation,
+  ) {
+    final innerX = center.dx + direction * distance;
+    final sail = Path()
+      ..moveTo(innerX, center.dy - unit * 0.72)
+      ..lineTo(center.dx + direction * unit * 0.42, center.dy + unit * 0.28)
+      ..lineTo(center.dx + direction * unit * 0.78, center.dy + unit * 0.12)
+      ..close();
+    canvas.drawPath(sail, glow);
+    canvas.drawPath(sail, line);
+    if (formation > 0) {
+      canvas.drawLine(
+        Offset(innerX, center.dy - unit * 0.72),
+        Offset(center.dx, center.dy + unit * 0.78),
+        line,
+      );
+    }
+  }
+
+  double _lerp(double start, double end, double value) =>
+      start + (end - start) * value;
+
+  @override
+  bool shouldRepaint(_OrloLogoSequencePainter oldDelegate) =>
+      progress != oldDelegate.progress;
 }
 
 class BootSequenceCalibrationPage extends StatefulWidget {
