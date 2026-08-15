@@ -42,6 +42,9 @@ class AppRoutes {
 
   static const bootSequencePreview = '/system/animations-sandbox/boot-sequence';
 
+  static const bootSequenceCalibration =
+      '/system/animations-sandbox/boot-sequence/calibration';
+
   static const deviceTransfer = '/system/device-transfer';
 
   static const systemMonitoring = '/system/device-transfer/monitoring';

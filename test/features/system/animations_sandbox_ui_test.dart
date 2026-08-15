@@ -1,4 +1,8 @@
+import 'dart:convert';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
@@ -58,6 +62,278 @@ void main() {
     expect(find.text('BOOT SEQUENCE'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('BOOT SEQUENCE opens the transient calibration test', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const AnimationsSandboxPage(),
+        routes: {
+          AppRoutes.bootSequencePreview: (_) => const BootSequencePreviewPage(),
+          AppRoutes.bootSequenceCalibration: (_) =>
+              const BootSequenceCalibrationPage(),
+        },
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('open-boot-sequence-preview')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BootSequencePreviewPage), findsOneWidget);
+    expect(find.text('CALIBRATION TEST'), findsWidgets);
+
+    await tester.tap(
+      find.byKey(const ValueKey('open-boot-sequence-calibration')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BootSequenceCalibrationPage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('calibration-background')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('calibration-jeep-body')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('calibration-front-wheel')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('calibration-rear-wheel')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('calibration-grid')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('calibration-vertical-center-line')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('calibration-horizontal-center-line')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('calibration-center-marker')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('calibration updates targets, snapshots, motion, and JSON', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 5200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: BootSequenceCalibrationPage()),
+    );
+
+    final initialJson = _calibrationJson(tester);
+    expect(initialJson['coordinateSystem'], 'alignment_normalized');
+    final initialJeep = initialJson['jeepAssembly'] as Map<String, dynamic>;
+    expect(initialJeep['start'], isNull);
+    expect(initialJeep['end'], isNull);
+
+    final initialAlignment = _calibrationAlignment(tester);
+    await _dragCalibrationCanvas(tester, const Offset(-24, 18));
+    await tester.pump();
+    final movedAlignment = _calibrationAlignment(tester);
+    expect(movedAlignment.x, lessThan(initialAlignment.x));
+    expect(movedAlignment.y, greaterThan(initialAlignment.y));
+
+    final initialScale = _calibrationScale(tester);
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const ValueKey('jeep-scale-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(70, 0),
+    );
+    await tester.pump();
+    expect(_calibrationScale(tester), greaterThan(initialScale));
+
+    await tester.tap(find.byKey(const ValueKey('set-calibration-start')));
+    await tester.pump();
+    expect(find.textContaining('START  X'), findsOneWidget);
+    final startAlignment = _calibrationAlignment(tester);
+    final startScale = _calibrationScale(tester);
+
+    await _dragCalibrationCanvas(tester, const Offset(-50, 25));
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const ValueKey('jeep-scale-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(45, 0),
+    );
+    await tester.tap(find.byKey(const ValueKey('set-calibration-end')));
+    await tester.pump();
+    expect(find.textContaining('END  X'), findsOneWidget);
+    final endAlignment = _calibrationAlignment(tester);
+    final endScale = _calibrationScale(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey('calibration-target-frontWheel')),
+    );
+    await tester.pump();
+    final frontBefore =
+        _calibrationJson(tester)['frontWheel'] as Map<String, dynamic>;
+    await _dragCalibrationCanvas(tester, const Offset(15, -8));
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const ValueKey('front-wheel-scale-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(30, 0),
+    );
+    await tester.pump();
+    final frontAfter =
+        _calibrationJson(tester)['frontWheel'] as Map<String, dynamic>;
+    expect(frontAfter['localX'], isNot(frontBefore['localX']));
+    expect(frontAfter['localY'], isNot(frontBefore['localY']));
+    expect(frontAfter['scale'], isNot(frontBefore['scale']));
+
+    await tester.tap(
+      find.byKey(const ValueKey('calibration-target-rearWheel')),
+    );
+    await tester.pump();
+    final rearBefore =
+        _calibrationJson(tester)['rearWheel'] as Map<String, dynamic>;
+    await _dragCalibrationCanvas(tester, const Offset(-12, 9));
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const ValueKey('rear-wheel-scale-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(25, 0),
+    );
+    await tester.pump();
+    final rearAfter =
+        _calibrationJson(tester)['rearWheel'] as Map<String, dynamic>;
+    expect(rearAfter['localX'], isNot(rearBefore['localX']));
+    expect(rearAfter['localY'], isNot(rearBefore['localY']));
+    expect(rearAfter['scale'], isNot(rearBefore['scale']));
+
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const ValueKey('travel-duration-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(45, 0),
+    );
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const ValueKey('hold-duration-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(35, 0),
+    );
+    await tester.tap(find.byKey(const ValueKey('calibration-curve-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EASE IN/OUT').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('calibration-test-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(_calibrationAlignment(tester), isNot(startAlignment));
+    expect(_calibrationScale(tester), isNot(startScale));
+
+    await tester.tap(find.byKey(const ValueKey('calibration-test-stop')));
+    await tester.pump();
+    expect(_calibrationAlignment(tester), startAlignment);
+    expect(_calibrationScale(tester), startScale);
+
+    await tester.tap(find.byKey(const ValueKey('calibration-test-replay')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 20));
+    expect(_calibrationAlignment(tester), endAlignment);
+    expect(_calibrationScale(tester), endScale);
+
+    final configuredJson = _calibrationJson(tester);
+    expect((configuredJson['jeepAssembly'] as Map)['start'], isNotNull);
+    expect((configuredJson['jeepAssembly'] as Map)['end'], isNotNull);
+    expect(configuredJson['layerOrder'], [
+      'background',
+      'jeepBody',
+      'rearWheel',
+      'frontWheel',
+    ]);
+    expect((configuredJson['motion'] as Map)['curve'], 'easeInOutCubic');
+    expect(
+      (configuredJson['frontWheel'] as Map)['asset'],
+      (configuredJson['rearWheel'] as Map)['asset'],
+    );
+    expect(
+      find.byKey(const ValueKey('calibration-layer-order')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'calibration supports clipboard, touch, mouse, and three widths',
+    (tester) async {
+      String? copiedText;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      for (final width in [320.0, 390.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 5200);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          const MaterialApp(home: BootSequenceCalibrationPage()),
+        );
+
+        await _dragCalibrationCanvas(tester, const Offset(-10, 8));
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'width $width');
+      }
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final mouseGesture = await tester.startGesture(
+        tester.getCenter(
+          find.byKey(const ValueKey('calibration-canvas-drag-target')),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      final dragTarget = find.byKey(
+        const ValueKey('calibration-canvas-drag-target'),
+      );
+      final beforeMouse = _calibrationAlignment(tester);
+      expect(dragTarget, findsOneWidget);
+      await mouseGesture.moveBy(const Offset(-16, 10));
+      await mouseGesture.up();
+      await tester.pump();
+      expect(_calibrationAlignment(tester), isNot(beforeMouse));
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('copy-calibration-parameters')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('copy-calibration-parameters')),
+      );
+      await tester.pump();
+      expect(copiedText, _calibrationJsonText(tester));
+      expect(find.text('CODEX PARAMETERSをコピーしました'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('boot preview controls transient timeline and all scene slots', (
     tester,
@@ -348,6 +624,15 @@ Future<void> _openAndCloseAssetPreview(
   expect(dialog, findsNothing);
 }
 
+Future<void> _dragCalibrationCanvas(WidgetTester tester, Offset delta) async {
+  final target = find.byKey(const ValueKey('calibration-canvas-drag-target'));
+  final gesture = await tester.startGesture(tester.getCenter(target));
+  await gesture.moveBy(Offset(delta.dx, 0));
+  await gesture.moveBy(Offset(0, delta.dy));
+  await gesture.up();
+  await tester.pump();
+}
+
 String _assetName(WidgetTester tester, ValueKey<String> key) =>
     (tester.widget<Image>(find.byKey(key)).image as AssetImage).assetName;
 
@@ -375,6 +660,26 @@ double _rearWheelTurns(WidgetTester tester) => tester
     )
     .turns
     .value;
+
+Alignment _calibrationAlignment(WidgetTester tester) =>
+    tester
+            .widget<Align>(
+              find.byKey(const ValueKey('calibration-jeep-alignment')),
+            )
+            .alignment
+        as Alignment;
+
+double _calibrationScale(WidgetTester tester) => tester
+    .widget<Transform>(find.byKey(const ValueKey('calibration-jeep-scale')))
+    .transform
+    .getMaxScaleOnAxis();
+
+String _calibrationJsonText(WidgetTester tester) => tester
+    .widget<SelectableText>(find.byKey(const ValueKey('codex-parameters-json')))
+    .data!;
+
+Map<String, dynamic> _calibrationJson(WidgetTester tester) =>
+    jsonDecode(_calibrationJsonText(tester)) as Map<String, dynamic>;
 
 class _FakeStorageGateway implements StorageStatusGateway {
   const _FakeStorageGateway();

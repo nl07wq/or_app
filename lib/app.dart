@@ -102,6 +102,8 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.system: (_) => const SystemPage(),
         AppRoutes.animationsSandbox: (_) => const AnimationsSandboxPage(),
         AppRoutes.bootSequencePreview: (_) => const BootSequencePreviewPage(),
+        AppRoutes.bootSequenceCalibration: (_) =>
+            const BootSequenceCalibrationPage(),
         AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
         AppRoutes.systemMonitoring: (_) => const SystemMonitoringPage(),
         AppRoutes.operationSync: (context) {
