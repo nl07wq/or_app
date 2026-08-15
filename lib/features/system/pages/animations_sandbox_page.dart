@@ -29,7 +29,7 @@ const _bootSequenceAssets = [
     name: 'WHEEL',
     fileName: 'wheel.png',
     path: 'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png',
-    usage: 'USED ×2',
+    usage: 'USED ×3',
     transparent: true,
   ),
 ];
@@ -315,7 +315,411 @@ class BootSequenceCalibrationPage extends StatefulWidget {
       _BootSequenceCalibrationPageState();
 }
 
-enum _CalibrationTarget { jeepAssembly, frontWheel, rearWheel }
+class _BootSequenceCalibrationPageState
+    extends State<BootSequenceCalibrationPage> {
+  final _session = _CalibrationSession();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('CALIBRATION')),
+    body: ListView(
+      padding: AppSpacing.cardPadding,
+      children: [
+        const SectionHeader(
+          icon: Icons.build_outlined,
+          title: 'ASSEMBLY CALIBRATION',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: _SandboxActionButton(
+            key: const ValueKey('open-assembly-calibration'),
+            text: 'ASSEMBLY CALIBRATION',
+            icon: Icons.build_outlined,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => _AssemblyCalibrationPage(session: _session),
+              ),
+            ),
+          ),
+        ),
+        AppSpacing.gapXL,
+        const SectionHeader(
+          icon: Icons.animation_outlined,
+          title: 'MOTION CALIBRATION',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: _SandboxActionButton(
+            key: const ValueKey('open-motion-calibration'),
+            text: 'MOTION CALIBRATION',
+            icon: Icons.animation_outlined,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => _MotionCalibrationPage(session: _session),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CalibrationSession {
+  _WheelCalibration? frontWheelFar;
+  _WheelCalibration rearWheel = const _WheelCalibration(
+    localX: 0.779,
+    localY: 0.587,
+    scale: 0.185,
+  );
+  _WheelCalibration frontWheelNear = const _WheelCalibration(
+    localX: 0.330,
+    localY: 0.593,
+    scale: 0.245,
+  );
+
+  _WheelCalibration get frontWheelFarDisplay =>
+      frontWheelFar ??
+      const _WheelCalibration(localX: 0.5, localY: 0.5, scale: 0.2);
+}
+
+class _WheelCalibration {
+  const _WheelCalibration({
+    required this.localX,
+    required this.localY,
+    required this.scale,
+  });
+
+  final double localX;
+  final double localY;
+  final double scale;
+
+  _WheelCalibration copyWith({double? localX, double? localY, double? scale}) =>
+      _WheelCalibration(
+        localX: localX ?? this.localX,
+        localY: localY ?? this.localY,
+        scale: scale ?? this.scale,
+      );
+}
+
+class _AssemblyCalibrationPage extends StatefulWidget {
+  const _AssemblyCalibrationPage({required this.session});
+
+  final _CalibrationSession session;
+
+  @override
+  State<_AssemblyCalibrationPage> createState() =>
+      _AssemblyCalibrationPageState();
+}
+
+class _AssemblyCalibrationPageState extends State<_AssemblyCalibrationPage> {
+  _CalibrationTarget _selectedTarget = _CalibrationTarget.frontWheelFar;
+
+  _WheelCalibration get _selectedWheel => switch (_selectedTarget) {
+    _CalibrationTarget.frontWheelFar => widget.session.frontWheelFarDisplay,
+    _CalibrationTarget.rearWheel => widget.session.rearWheel,
+    _CalibrationTarget.frontWheelNear => widget.session.frontWheelNear,
+    _CalibrationTarget.jeepAssembly => throw StateError('Invalid target'),
+  };
+
+  void _updateSelected({double? localX, double? localY, double? scale}) {
+    setState(() {
+      final updated = _selectedWheel.copyWith(
+        localX: localX,
+        localY: localY,
+        scale: scale,
+      );
+      switch (_selectedTarget) {
+        case _CalibrationTarget.frontWheelFar:
+          widget.session.frontWheelFar = updated;
+        case _CalibrationTarget.rearWheel:
+          widget.session.rearWheel = updated;
+        case _CalibrationTarget.frontWheelNear:
+          widget.session.frontWheelNear = updated;
+        case _CalibrationTarget.jeepAssembly:
+          throw StateError('Invalid target');
+      }
+    });
+  }
+
+  void _moveSelected(Offset delta, Size assemblySize) {
+    final current = _selectedWheel;
+    _updateSelected(
+      localX: current.localX + (delta.dx / assemblySize.width),
+      localY: current.localY + (delta.dy / assemblySize.height),
+    );
+  }
+
+  Map<String, Object?> get _parameters => {
+    'calibrationType': 'boot_sequence_assembly',
+    'prototype': 'scene_1_prototype',
+    'coordinateSystem': 'jeep_local_normalized',
+    'jeepBody': {'asset': _bootSequenceAssets[1].path},
+    'frontWheelFar': _wheelJson(widget.session.frontWheelFar),
+    'rearWheel': _wheelJson(widget.session.rearWheel),
+    'frontWheelNear': _wheelJson(widget.session.frontWheelNear),
+    'layerOrder': ['frontWheelFar', 'jeepBody', 'rearWheel', 'frontWheelNear'],
+  };
+
+  Map<String, Object?> _wheelJson(_WheelCalibration? value) => {
+    'asset': _bootSequenceAssets[2].path,
+    'localX': value == null ? null : _rounded(value.localX),
+    'localY': value == null ? null : _rounded(value.localY),
+    'scale': value == null ? null : _rounded(value.scale),
+  };
+
+  double _rounded(double value) => double.parse(value.toStringAsFixed(3));
+
+  String get _parametersJson =>
+      const JsonEncoder.withIndent('  ').convert(_parameters);
+
+  Future<void> _copyParameters() async {
+    await Clipboard.setData(ClipboardData(text: _parametersJson));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('ASSEMBLY PARAMETERSをコピーしました')),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _selectedWheel;
+    return Scaffold(
+      appBar: AppBar(title: const Text('ASSEMBLY CALIBRATION')),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(
+            icon: Icons.grid_4x4_outlined,
+            title: 'ASSEMBLY CANVAS',
+          ),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: _AssemblyCalibrationCanvas(
+              session: widget.session,
+              selectedTarget: _selectedTarget,
+              onMove: _moveSelected,
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.ads_click_outlined, title: 'TARGET'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final target in const [
+                  _CalibrationTarget.frontWheelFar,
+                  _CalibrationTarget.rearWheel,
+                  _CalibrationTarget.frontWheelNear,
+                ])
+                  ChoiceChip(
+                    key: ValueKey('assembly-target-${target.name}'),
+                    label: Text(_targetLabel(target)),
+                    selected: _selectedTarget == target,
+                    onSelected: (_) => setState(() => _selectedTarget = target),
+                  ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.tune_outlined, title: 'PARAMETERS'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _LiveValues(
+                  xLabel: 'LOCAL X',
+                  x: selected.localX,
+                  yLabel: 'LOCAL Y',
+                  y: selected.localY,
+                  scale: selected.scale,
+                ),
+                if (_selectedTarget == _CalibrationTarget.frontWheelFar &&
+                    widget.session.frontWheelFar == null) ...[
+                  AppSpacing.gapSM,
+                  const Text(
+                    'NOT SET',
+                    key: ValueKey('front-wheel-far-not-set'),
+                  ),
+                ],
+                _CalibrationSlider(
+                  key: const ValueKey('assembly-wheel-scale-slider'),
+                  label: 'SCALE',
+                  value: selected.scale,
+                  min: 0.05,
+                  max: 0.5,
+                  divisions: 90,
+                  onChanged: (value) => _updateSelected(scale: value),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(
+            icon: Icons.layers_outlined,
+            title: 'LAYER ORDER',
+          ),
+          AppSpacing.gapSM,
+          const OperationCard(
+            child: Text(
+              'FRONT WHEEL FAR\n↓\nJEEP BODY\n↓\nREAR WHEEL\n↓\nFRONT WHEEL NEAR',
+              key: ValueKey('assembly-layer-order'),
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(
+            icon: Icons.data_object,
+            title: 'CODEX PARAMETERS',
+          ),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SelectableText(
+                  _parametersJson,
+                  key: const ValueKey('assembly-parameters-json'),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                ),
+                AppSpacing.gapMD,
+                _SandboxActionButton(
+                  key: const ValueKey('copy-assembly-parameters'),
+                  text: 'COPY PARAMETERS',
+                  icon: Icons.copy_outlined,
+                  onPressed: _copyParameters,
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    );
+  }
+
+  String _targetLabel(_CalibrationTarget target) => switch (target) {
+    _CalibrationTarget.frontWheelFar => 'FRONT WHEEL FAR',
+    _CalibrationTarget.rearWheel => 'REAR WHEEL',
+    _CalibrationTarget.frontWheelNear => 'FRONT WHEEL NEAR',
+    _CalibrationTarget.jeepAssembly => 'JEEP ASSEMBLY',
+  };
+}
+
+class _AssemblyCalibrationCanvas extends StatelessWidget {
+  const _AssemblyCalibrationCanvas({
+    required this.session,
+    required this.selectedTarget,
+    required this.onMove,
+  });
+
+  final _CalibrationSession session;
+  final _CalibrationTarget selectedTarget;
+  final void Function(Offset delta, Size assemblySize) onMove;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 800),
+      child: AspectRatio(
+        aspectRatio: 3 / 2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final assemblyWidth = (constraints.maxWidth * 0.78)
+                  .clamp(180.0, 560.0)
+                  .toDouble();
+              final assemblyHeight = assemblyWidth * (941 / 1672);
+              final selected = switch (selectedTarget) {
+                _CalibrationTarget.frontWheelFar =>
+                  session.frontWheelFarDisplay,
+                _CalibrationTarget.rearWheel => session.rearWheel,
+                _CalibrationTarget.frontWheelNear => session.frontWheelNear,
+                _CalibrationTarget.jeepAssembly => throw StateError(
+                  'Invalid target',
+                ),
+              };
+              return Listener(
+                key: const ValueKey('assembly-canvas-drag-target'),
+                behavior: HitTestBehavior.opaque,
+                onPointerMove: (event) =>
+                    onMove(event.delta, Size(assemblyWidth, assemblyHeight)),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
+                    CustomPaint(
+                      key: const ValueKey('assembly-calibration-grid'),
+                      painter: _CalibrationGridPainter(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: _CalibrationCenterOverlay(prefix: 'assembly'),
+                    ),
+                    Center(
+                      child: _CalibrationJeepAssembly(
+                        width: assemblyWidth,
+                        selectedTarget: selectedTarget,
+                        frontWheelFar: session.frontWheelFarDisplay,
+                        rearWheel: session.rearWheel,
+                        frontWheelNear: session.frontWheelNear,
+                      ),
+                    ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: _CalibrationValueBadge(
+                        x: selected.localX,
+                        y: selected.localY,
+                        scale: selected.scale,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _MotionCalibrationPage extends StatefulWidget {
+  const _MotionCalibrationPage({required this.session});
+
+  final _CalibrationSession session;
+
+  @override
+  State<_MotionCalibrationPage> createState() => _MotionCalibrationPageState();
+}
+
+enum _CalibrationTarget {
+  jeepAssembly,
+  frontWheelFar,
+  rearWheel,
+  frontWheelNear,
+}
 
 enum _CalibrationCurveOption {
   linear('LINEAR', 'linear', Curves.linear),
@@ -337,23 +741,21 @@ class _CalibrationSnapshot {
   final double scale;
 }
 
-class _BootSequenceCalibrationPageState
-    extends State<BootSequenceCalibrationPage>
+class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
     with SingleTickerProviderStateMixin {
-  static const _initialAlignment = Alignment(0.88, -0.58);
-  static const _initialScale = 0.22;
+  static const _initialStart = _CalibrationSnapshot(
+    alignment: Alignment(0.997, 0.452),
+    scale: 0.320,
+  );
+  static const _initialEnd = _CalibrationSnapshot(
+    alignment: Alignment(-0.367, 0.940),
+    scale: 1.190,
+  );
 
-  _CalibrationTarget _selectedTarget = _CalibrationTarget.jeepAssembly;
-  Alignment _jeepAlignment = _initialAlignment;
-  double _jeepScale = _initialScale;
-  double _frontWheelLocalX = 0.226;
-  double _frontWheelLocalY = 0.546;
-  double _frontWheelScale = 0.205;
-  double _rearWheelLocalX = 0.760;
-  double _rearWheelLocalY = 0.558;
-  double _rearWheelScale = 0.195;
-  _CalibrationSnapshot? _start;
-  _CalibrationSnapshot? _end;
+  Alignment _jeepAlignment = _initialStart.alignment;
+  double _jeepScale = _initialStart.scale;
+  _CalibrationSnapshot _start = _initialStart;
+  _CalibrationSnapshot _end = _initialEnd;
   double _travelDurationSeconds = 4.5;
   double _holdDurationSeconds = 1.5;
   _CalibrationCurveOption _curve = _CalibrationCurveOption.easeOut;
@@ -368,8 +770,6 @@ class _BootSequenceCalibrationPageState
         .round(),
   );
 
-  bool get _canPlay => _start != null && _end != null;
-
   @override
   void dispose() {
     _motionController.dispose();
@@ -377,13 +777,13 @@ class _BootSequenceCalibrationPageState
   }
 
   Alignment get _displayAlignment {
-    if (!_canPlay || _motionController.value == 0) return _jeepAlignment;
-    return Alignment.lerp(_start!.alignment, _end!.alignment, _travelProgress)!;
+    if (_motionController.value == 0) return _jeepAlignment;
+    return Alignment.lerp(_start.alignment, _end.alignment, _travelProgress)!;
   }
 
   double get _displayScale {
-    if (!_canPlay || _motionController.value == 0) return _jeepScale;
-    return _start!.scale + ((_end!.scale - _start!.scale) * _travelProgress);
+    if (_motionController.value == 0) return _jeepScale;
+    return _start.scale + ((_end.scale - _start.scale) * _travelProgress);
   }
 
   double get _travelProgress {
@@ -416,31 +816,6 @@ class _BootSequenceCalibrationPageState
     });
   }
 
-  void _moveWheel({required bool front, required Offset normalizedDelta}) {
-    _resetMotionForEdit();
-    setState(() {
-      if (front) {
-        _frontWheelLocalX = (_frontWheelLocalX + normalizedDelta.dx).clamp(
-          -0.5,
-          1.5,
-        );
-        _frontWheelLocalY = (_frontWheelLocalY + normalizedDelta.dy).clamp(
-          -0.5,
-          1.5,
-        );
-      } else {
-        _rearWheelLocalX = (_rearWheelLocalX + normalizedDelta.dx).clamp(
-          -0.5,
-          1.5,
-        );
-        _rearWheelLocalY = (_rearWheelLocalY + normalizedDelta.dy).clamp(
-          -0.5,
-          1.5,
-        );
-      }
-    });
-  }
-
   void _setStart() => setState(() {
     _resetMotionForEdit();
     _start = _CalibrationSnapshot(alignment: _jeepAlignment, scale: _jeepScale);
@@ -457,47 +832,28 @@ class _BootSequenceCalibrationPageState
   }
 
   void _playMotion() {
-    if (!_canPlay) return;
     _motionController.duration = _motionDuration;
     _motionController.forward(from: 0);
   }
 
   void _stopMotion() {
     _motionController.stop(canceled: false);
-    if (_start != null) {
-      setState(() {
-        _jeepAlignment = _start!.alignment;
-        _jeepScale = _start!.scale;
-        _motionController.value = 0;
-      });
-    } else {
+    setState(() {
+      _jeepAlignment = _start.alignment;
+      _jeepScale = _start.scale;
       _motionController.value = 0;
-    }
+    });
   }
 
   Map<String, Object?> get _parameters => {
-    'calibrationType': 'boot_sequence',
+    'calibrationType': 'boot_sequence_motion',
     'prototype': 'scene_1_prototype',
     'coordinateSystem': 'alignment_normalized',
     'background': {'asset': _bootSequenceAssets[0].path},
     'jeepAssembly': {
-      'asset': _bootSequenceAssets[1].path,
       'start': _snapshotJson(_start),
       'end': _snapshotJson(_end),
     },
-    'frontWheel': {
-      'asset': _bootSequenceAssets[2].path,
-      'localX': _rounded(_frontWheelLocalX),
-      'localY': _rounded(_frontWheelLocalY),
-      'scale': _rounded(_frontWheelScale),
-    },
-    'rearWheel': {
-      'asset': _bootSequenceAssets[2].path,
-      'localX': _rounded(_rearWheelLocalX),
-      'localY': _rounded(_rearWheelLocalY),
-      'scale': _rounded(_rearWheelScale),
-    },
-    'layerOrder': ['background', 'jeepBody', 'rearWheel', 'frontWheel'],
     'motion': {
       'travelDurationMs': (_travelDurationSeconds * 1000).round(),
       'holdDurationMs': (_holdDurationSeconds * 1000).round(),
@@ -529,7 +885,7 @@ class _BootSequenceCalibrationPageState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('CALIBRATION TEST')),
+    appBar: AppBar(title: const Text('MOTION CALIBRATION')),
     body: AnimatedBuilder(
       animation: _motionController,
       builder: (context, _) => ListView(
@@ -541,67 +897,34 @@ class _BootSequenceCalibrationPageState
           ),
           AppSpacing.gapSM,
           OperationCard(
-            child: _CalibrationCanvas(
-              alignment: _displayAlignment,
-              scale: _displayScale,
-              selectedTarget: _selectedTarget,
-              frontWheelLocalX: _frontWheelLocalX,
-              frontWheelLocalY: _frontWheelLocalY,
-              frontWheelScale: _frontWheelScale,
-              rearWheelLocalX: _rearWheelLocalX,
-              rearWheelLocalY: _rearWheelLocalY,
-              rearWheelScale: _rearWheelScale,
-              onMoveJeep: _moveJeep,
-              onMoveFrontWheel: (delta) =>
-                  _moveWheel(front: true, normalizedDelta: delta),
-              onMoveRearWheel: (delta) =>
-                  _moveWheel(front: false, normalizedDelta: delta),
-            ),
-          ),
-          AppSpacing.gapXL,
-          const SectionHeader(icon: Icons.ads_click_outlined, title: 'TARGET'),
-          AppSpacing.gapSM,
-          OperationCard(
-            child: Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final target in _CalibrationTarget.values)
-                  ChoiceChip(
-                    key: ValueKey('calibration-target-${target.name}'),
-                    label: Text(_targetLabel(target)),
-                    selected: _selectedTarget == target,
-                    onSelected: (_) => setState(() {
-                      _resetMotionForEdit();
-                      _selectedTarget = target;
-                    }),
-                  ),
+                _CalibrationCanvas(
+                  alignment: _displayAlignment,
+                  scale: _displayScale,
+                  session: widget.session,
+                  wheelTurns: -4 * _travelProgress,
+                  onMoveJeep: _moveJeep,
+                ),
+                AppSpacing.gapMD,
+                _buildPlaybackControls(),
               ],
             ),
           ),
           AppSpacing.gapXL,
           const SectionHeader(icon: Icons.tune_outlined, title: 'PARAMETERS'),
           AppSpacing.gapSM,
-          OperationCard(child: _buildParameterControls()),
-          AppSpacing.gapXL,
-          const SectionHeader(
-            icon: Icons.layers_outlined,
-            title: 'LAYER ORDER',
-          ),
-          AppSpacing.gapSM,
-          const OperationCard(
-            child: Text(
-              'BACKGROUND\n↓\nJEEP BODY\n↓\nREAR WHEEL\n↓\nFRONT WHEEL',
-              key: ValueKey('calibration-layer-order'),
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildParameterControls(),
+                AppSpacing.gapMD,
+                _buildMotionControls(),
+              ],
             ),
           ),
-          AppSpacing.gapXL,
-          const SectionHeader(
-            icon: Icons.play_circle_outline,
-            title: 'MOTION TEST',
-          ),
-          AppSpacing.gapSM,
-          OperationCard(child: _buildMotionControls()),
           AppSpacing.gapXL,
           const SectionHeader(
             icon: Icons.data_object,
@@ -614,14 +937,14 @@ class _BootSequenceCalibrationPageState
               children: [
                 SelectableText(
                   _parametersJson,
-                  key: const ValueKey('codex-parameters-json'),
+                  key: const ValueKey('motion-parameters-json'),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
                 ),
                 AppSpacing.gapMD,
                 _SandboxActionButton(
-                  key: const ValueKey('copy-calibration-parameters'),
+                  key: const ValueKey('copy-motion-parameters'),
                   text: 'COPY PARAMETERS',
                   icon: Icons.copy_outlined,
                   onPressed: _copyParameters,
@@ -636,90 +959,78 @@ class _BootSequenceCalibrationPageState
   );
 
   Widget _buildParameterControls() {
-    final target = _selectedTarget;
-    if (target == _CalibrationTarget.jeepAssembly) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _LiveValues(
-            xLabel: 'X',
-            x: _jeepAlignment.x,
-            yLabel: 'Y',
-            y: _jeepAlignment.y,
-            scale: _jeepScale,
-          ),
-          _CalibrationSlider(
-            key: const ValueKey('jeep-scale-slider'),
-            label: 'SCALE',
-            value: _jeepScale,
-            min: 0.1,
-            max: 1.5,
-            divisions: 140,
-            onChanged: (value) => setState(() {
-              _resetMotionForEdit();
-              _jeepScale = value;
-            }),
-          ),
-          AppSpacing.gapSM,
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              ElevatedButton(
-                key: const ValueKey('set-calibration-start'),
-                onPressed: _setStart,
-                child: const Text('SET START'),
-              ),
-              ElevatedButton(
-                key: const ValueKey('set-calibration-end'),
-                onPressed: _setEnd,
-                child: const Text('SET END'),
-              ),
-            ],
-          ),
-          AppSpacing.gapMD,
-          _SnapshotDisplay(label: 'START', snapshot: _start),
-          AppSpacing.gapSM,
-          _SnapshotDisplay(label: 'END', snapshot: _end),
-        ],
-      );
-    }
-
-    final front = target == _CalibrationTarget.frontWheel;
-    final x = front ? _frontWheelLocalX : _rearWheelLocalX;
-    final y = front ? _frontWheelLocalY : _rearWheelLocalY;
-    final scale = front ? _frontWheelScale : _rearWheelScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _LiveValues(
-          xLabel: 'LOCAL X',
-          x: x,
-          yLabel: 'LOCAL Y',
-          y: y,
-          scale: scale,
+          xLabel: 'X',
+          x: _jeepAlignment.x,
+          yLabel: 'Y',
+          y: _jeepAlignment.y,
+          scale: _jeepScale,
         ),
         _CalibrationSlider(
-          key: ValueKey(
-            front ? 'front-wheel-scale-slider' : 'rear-wheel-scale-slider',
-          ),
+          key: const ValueKey('jeep-scale-slider'),
           label: 'SCALE',
-          value: scale,
-          min: 0.05,
-          max: 0.5,
-          divisions: 90,
+          value: _jeepScale,
+          min: 0.1,
+          max: 1.5,
+          divisions: 140,
           onChanged: (value) => setState(() {
             _resetMotionForEdit();
-            if (front) {
-              _frontWheelScale = value;
-            } else {
-              _rearWheelScale = value;
-            }
+            _jeepScale = value;
           }),
         ),
+        AppSpacing.gapSM,
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            ElevatedButton(
+              key: const ValueKey('set-calibration-start'),
+              onPressed: _setStart,
+              child: const Text('SET START'),
+            ),
+            ElevatedButton(
+              key: const ValueKey('set-calibration-end'),
+              onPressed: _setEnd,
+              child: const Text('SET END'),
+            ),
+          ],
+        ),
+        AppSpacing.gapMD,
+        _SnapshotDisplay(label: 'START', snapshot: _start),
+        AppSpacing.gapSM,
+        _SnapshotDisplay(label: 'END', snapshot: _end),
       ],
     );
   }
+
+  Widget _buildPlaybackControls() => Wrap(
+    key: const ValueKey('motion-playback-controls'),
+    spacing: AppSpacing.sm,
+    runSpacing: AppSpacing.sm,
+    children: [
+      ElevatedButton.icon(
+        key: const ValueKey('calibration-test-play'),
+        onPressed: _playMotion,
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('TEST PLAY'),
+      ),
+      ElevatedButton.icon(
+        key: const ValueKey('calibration-test-stop'),
+        onPressed: _stopMotion,
+        icon: const Icon(Icons.stop),
+        label: const Text('STOP'),
+      ),
+      ElevatedButton.icon(
+        key: const ValueKey('calibration-test-replay'),
+        onPressed: _playMotion,
+        icon: const Icon(Icons.replay),
+        label: const Text('REPLAY'),
+      ),
+    ],
+  );
 
   Widget _buildMotionControls() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -766,65 +1077,24 @@ class _BootSequenceCalibrationPageState
           });
         },
       ),
-      AppSpacing.gapMD,
-      _SandboxActionButton(
-        key: const ValueKey('calibration-test-play'),
-        text: 'TEST PLAY',
-        icon: Icons.play_arrow,
-        onPressed: _canPlay ? _playMotion : null,
-      ),
-      AppSpacing.gapSM,
-      _SandboxActionButton(
-        key: const ValueKey('calibration-test-stop'),
-        text: 'STOP',
-        icon: Icons.stop,
-        onPressed: _stopMotion,
-      ),
-      AppSpacing.gapSM,
-      _SandboxActionButton(
-        key: const ValueKey('calibration-test-replay'),
-        text: 'REPLAY',
-        icon: Icons.replay,
-        onPressed: _canPlay ? _playMotion : null,
-      ),
     ],
   );
-
-  String _targetLabel(_CalibrationTarget target) => switch (target) {
-    _CalibrationTarget.jeepAssembly => 'JEEP ASSEMBLY',
-    _CalibrationTarget.frontWheel => 'FRONT WHEEL',
-    _CalibrationTarget.rearWheel => 'REAR WHEEL',
-  };
 }
 
 class _CalibrationCanvas extends StatelessWidget {
   const _CalibrationCanvas({
     required this.alignment,
     required this.scale,
-    required this.selectedTarget,
-    required this.frontWheelLocalX,
-    required this.frontWheelLocalY,
-    required this.frontWheelScale,
-    required this.rearWheelLocalX,
-    required this.rearWheelLocalY,
-    required this.rearWheelScale,
+    required this.session,
+    required this.wheelTurns,
     required this.onMoveJeep,
-    required this.onMoveFrontWheel,
-    required this.onMoveRearWheel,
   });
 
   final Alignment alignment;
   final double scale;
-  final _CalibrationTarget selectedTarget;
-  final double frontWheelLocalX;
-  final double frontWheelLocalY;
-  final double frontWheelScale;
-  final double rearWheelLocalX;
-  final double rearWheelLocalY;
-  final double rearWheelScale;
+  final _CalibrationSession session;
+  final double wheelTurns;
   final void Function(Offset delta, Size canvasSize) onMoveJeep;
-  final ValueChanged<Offset> onMoveFrontWheel;
-  final ValueChanged<Offset> onMoveRearWheel;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -844,26 +1114,7 @@ class _CalibrationCanvas extends StatelessWidget {
               return Listener(
                 key: const ValueKey('calibration-canvas-drag-target'),
                 behavior: HitTestBehavior.opaque,
-                onPointerMove: (event) {
-                  switch (selectedTarget) {
-                    case _CalibrationTarget.jeepAssembly:
-                      onMoveJeep(event.delta, canvasSize);
-                    case _CalibrationTarget.frontWheel:
-                      onMoveFrontWheel(
-                        Offset(
-                          event.delta.dx / assemblyWidth,
-                          event.delta.dy / assemblyHeight,
-                        ),
-                      );
-                    case _CalibrationTarget.rearWheel:
-                      onMoveRearWheel(
-                        Offset(
-                          event.delta.dx / assemblyWidth,
-                          event.delta.dy / assemblyHeight,
-                        ),
-                      );
-                  }
-                },
+                onPointerMove: (event) => onMoveJeep(event.delta, canvasSize),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -905,21 +1156,26 @@ class _CalibrationCanvas extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Align(
-                      key: const ValueKey('calibration-jeep-alignment'),
-                      alignment: alignment,
+                    Positioned(
+                      key: const ValueKey('calibration-jeep-position'),
+                      left:
+                          (((alignment.x + 1) / 2) * canvasSize.width) -
+                          (assemblyWidth / 2),
+                      top:
+                          (((alignment.y + 1) / 2) * canvasSize.height) -
+                          (assemblyHeight / 2),
+                      width: assemblyWidth,
+                      height: assemblyHeight,
                       child: Transform.scale(
                         key: const ValueKey('calibration-jeep-scale'),
                         scale: scale,
                         child: _CalibrationJeepAssembly(
                           width: assemblyWidth,
-                          selectedTarget: selectedTarget,
-                          frontWheelLocalX: frontWheelLocalX,
-                          frontWheelLocalY: frontWheelLocalY,
-                          frontWheelScale: frontWheelScale,
-                          rearWheelLocalX: rearWheelLocalX,
-                          rearWheelLocalY: rearWheelLocalY,
-                          rearWheelScale: rearWheelScale,
+                          selectedTarget: _CalibrationTarget.jeepAssembly,
+                          frontWheelFar: session.frontWheelFarDisplay,
+                          rearWheel: session.rearWheel,
+                          frontWheelNear: session.frontWheelNear,
+                          wheelTurns: wheelTurns,
                         ),
                       ),
                     ),
@@ -959,22 +1215,18 @@ class _CalibrationJeepAssembly extends StatelessWidget {
   const _CalibrationJeepAssembly({
     required this.width,
     required this.selectedTarget,
-    required this.frontWheelLocalX,
-    required this.frontWheelLocalY,
-    required this.frontWheelScale,
-    required this.rearWheelLocalX,
-    required this.rearWheelLocalY,
-    required this.rearWheelScale,
+    required this.frontWheelFar,
+    required this.rearWheel,
+    required this.frontWheelNear,
+    this.wheelTurns = 0,
   });
 
   final double width;
   final _CalibrationTarget selectedTarget;
-  final double frontWheelLocalX;
-  final double frontWheelLocalY;
-  final double frontWheelScale;
-  final double rearWheelLocalX;
-  final double rearWheelLocalY;
-  final double rearWheelScale;
+  final _WheelCalibration frontWheelFar;
+  final _WheelCalibration rearWheel;
+  final _WheelCalibration frontWheelNear;
+  final double wheelTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -986,6 +1238,15 @@ class _CalibrationJeepAssembly extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          _CalibrationWheel(
+            key: const ValueKey('calibration-front-wheel-far-layer'),
+            imageKey: const ValueKey('calibration-front-wheel-far'),
+            width: width,
+            height: height,
+            calibration: frontWheelFar,
+            selected: selectedTarget == _CalibrationTarget.frontWheelFar,
+            turns: wheelTurns,
+          ),
           Positioned.fill(
             child: DecoratedBox(
               key: selectedTarget == _CalibrationTarget.jeepAssembly
@@ -1008,20 +1269,18 @@ class _CalibrationJeepAssembly extends StatelessWidget {
             imageKey: const ValueKey('calibration-rear-wheel'),
             width: width,
             height: height,
-            localX: rearWheelLocalX,
-            localY: rearWheelLocalY,
-            scale: rearWheelScale,
+            calibration: rearWheel,
             selected: selectedTarget == _CalibrationTarget.rearWheel,
+            turns: wheelTurns,
           ),
           _CalibrationWheel(
-            key: const ValueKey('calibration-front-wheel-layer'),
-            imageKey: const ValueKey('calibration-front-wheel'),
+            key: const ValueKey('calibration-front-wheel-near-layer'),
+            imageKey: const ValueKey('calibration-front-wheel-near'),
             width: width,
             height: height,
-            localX: frontWheelLocalX,
-            localY: frontWheelLocalY,
-            scale: frontWheelScale,
-            selected: selectedTarget == _CalibrationTarget.frontWheel,
+            calibration: frontWheelNear,
+            selected: selectedTarget == _CalibrationTarget.frontWheelNear,
+            turns: wheelTurns,
           ),
         ],
       ),
@@ -1035,26 +1294,24 @@ class _CalibrationWheel extends StatelessWidget {
     required this.imageKey,
     required this.width,
     required this.height,
-    required this.localX,
-    required this.localY,
-    required this.scale,
+    required this.calibration,
     required this.selected,
+    required this.turns,
   });
 
   final Key imageKey;
   final double width;
   final double height;
-  final double localX;
-  final double localY;
-  final double scale;
+  final _WheelCalibration calibration;
   final bool selected;
+  final double turns;
 
   @override
   Widget build(BuildContext context) {
-    final size = width * scale;
+    final size = width * calibration.scale;
     return Positioned(
-      left: width * localX,
-      top: height * localY,
+      left: width * calibration.localX,
+      top: height * calibration.localY,
       width: size,
       height: size,
       child: DecoratedBox(
@@ -1062,14 +1319,92 @@ class _CalibrationWheel extends StatelessWidget {
         decoration: BoxDecoration(
           border: selected ? Border.all(color: Colors.amber, width: 2) : null,
         ),
-        child: Image.asset(
-          _bootSequenceAssets[2].path,
-          key: imageKey,
-          fit: BoxFit.contain,
+        child: RotationTransition(
+          turns: AlwaysStoppedAnimation(turns),
+          child: Image.asset(
+            _bootSequenceAssets[2].path,
+            key: imageKey,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
     );
   }
+}
+
+class _CalibrationCenterOverlay extends StatelessWidget {
+  const _CalibrationCenterOverlay({required this.prefix});
+
+  final String prefix;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Stack(
+      children: [
+        Positioned(
+          key: ValueKey('$prefix-vertical-center-line'),
+          left: (constraints.maxWidth / 2) - 0.5,
+          top: 0,
+          bottom: 0,
+          width: 1,
+          child: ColoredBox(color: Theme.of(context).colorScheme.outline),
+        ),
+        Positioned(
+          key: ValueKey('$prefix-horizontal-center-line'),
+          left: 0,
+          right: 0,
+          top: (constraints.maxHeight / 2) - 0.5,
+          height: 1,
+          child: ColoredBox(color: Theme.of(context).colorScheme.outline),
+        ),
+        Center(
+          child: Container(
+            key: ValueKey('$prefix-center-marker'),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Theme.of(context).colorScheme.onSurface,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CalibrationValueBadge extends StatelessWidget {
+  const _CalibrationValueBadge({
+    required this.x,
+    required this.y,
+    required this.scale,
+  });
+
+  final double x;
+  final double y;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.68),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(6),
+      child: Text(
+        'X ${x.toStringAsFixed(3)}\n'
+        'Y ${y.toStringAsFixed(3)}\n'
+        'SCALE ${scale.toStringAsFixed(3)}',
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: Colors.white),
+      ),
+    ),
+  );
 }
 
 class _CalibrationGridPainter extends CustomPainter {
