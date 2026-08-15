@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,33 @@ const _bootSequenceAssets = [
     transparent: true,
   ),
 ];
+
+const _scene1FrontWheelFar = _WheelCalibration(
+  localX: 0.108,
+  localY: 0.618,
+  scale: 0.200,
+);
+const _scene1RearWheel = _WheelCalibration(
+  localX: 0.779,
+  localY: 0.587,
+  scale: 0.185,
+);
+const _scene1FrontWheelNear = _WheelCalibration(
+  localX: 0.330,
+  localY: 0.593,
+  scale: 0.245,
+);
+const _scene1Start = _CalibrationSnapshot(
+  alignment: Alignment(0.971, 0.322),
+  scale: 0.100,
+);
+const _scene1End = _CalibrationSnapshot(
+  alignment: Alignment(-0.232, 0.603),
+  scale: 1.310,
+);
+const _scene1TravelDuration = Duration(milliseconds: 6000);
+const _scene1HoldDuration = Duration(milliseconds: 750);
+const _scene1TotalDuration = Duration(milliseconds: 6750);
 
 class _BootSequenceAsset {
   const _BootSequenceAsset({
@@ -96,7 +124,7 @@ class BootSequencePreviewPage extends StatefulWidget {
 class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
     with SingleTickerProviderStateMixin {
   static const _sceneCount = 8;
-  static const _prototypeDuration = Duration(seconds: 6);
+  static const _prototypeDuration = _scene1TotalDuration;
   static const _placeholderDuration = Duration(seconds: 8);
 
   int _selectedSceneIndex = 0;
@@ -368,21 +396,9 @@ class _BootSequenceCalibrationPageState
 }
 
 class _CalibrationSession {
-  _WheelCalibration? frontWheelFar;
-  _WheelCalibration rearWheel = const _WheelCalibration(
-    localX: 0.779,
-    localY: 0.587,
-    scale: 0.185,
-  );
-  _WheelCalibration frontWheelNear = const _WheelCalibration(
-    localX: 0.330,
-    localY: 0.593,
-    scale: 0.245,
-  );
-
-  _WheelCalibration get frontWheelFarDisplay =>
-      frontWheelFar ??
-      const _WheelCalibration(localX: 0.5, localY: 0.5, scale: 0.2);
+  _WheelCalibration frontWheelFar = _scene1FrontWheelFar;
+  _WheelCalibration rearWheel = _scene1RearWheel;
+  _WheelCalibration frontWheelNear = _scene1FrontWheelNear;
 }
 
 class _WheelCalibration {
@@ -418,7 +434,7 @@ class _AssemblyCalibrationPageState extends State<_AssemblyCalibrationPage> {
   _CalibrationTarget _selectedTarget = _CalibrationTarget.frontWheelFar;
 
   _WheelCalibration get _selectedWheel => switch (_selectedTarget) {
-    _CalibrationTarget.frontWheelFar => widget.session.frontWheelFarDisplay,
+    _CalibrationTarget.frontWheelFar => widget.session.frontWheelFar,
     _CalibrationTarget.rearWheel => widget.session.rearWheel,
     _CalibrationTarget.frontWheelNear => widget.session.frontWheelNear,
     _CalibrationTarget.jeepAssembly => throw StateError('Invalid target'),
@@ -463,11 +479,11 @@ class _AssemblyCalibrationPageState extends State<_AssemblyCalibrationPage> {
     'layerOrder': ['frontWheelFar', 'jeepBody', 'rearWheel', 'frontWheelNear'],
   };
 
-  Map<String, Object?> _wheelJson(_WheelCalibration? value) => {
+  Map<String, Object?> _wheelJson(_WheelCalibration value) => {
     'asset': _bootSequenceAssets[2].path,
-    'localX': value == null ? null : _rounded(value.localX),
-    'localY': value == null ? null : _rounded(value.localY),
-    'scale': value == null ? null : _rounded(value.scale),
+    'localX': _rounded(value.localX),
+    'localY': _rounded(value.localY),
+    'scale': _rounded(value.scale),
   };
 
   double _rounded(double value) => double.parse(value.toStringAsFixed(3));
@@ -541,14 +557,6 @@ class _AssemblyCalibrationPageState extends State<_AssemblyCalibrationPage> {
                   y: selected.localY,
                   scale: selected.scale,
                 ),
-                if (_selectedTarget == _CalibrationTarget.frontWheelFar &&
-                    widget.session.frontWheelFar == null) ...[
-                  AppSpacing.gapSM,
-                  const Text(
-                    'NOT SET',
-                    key: ValueKey('front-wheel-far-not-set'),
-                  ),
-                ],
                 _CalibrationSlider(
                   key: const ValueKey('assembly-wheel-scale-slider'),
                   label: 'SCALE',
@@ -640,8 +648,7 @@ class _AssemblyCalibrationCanvas extends StatelessWidget {
                   .toDouble();
               final assemblyHeight = assemblyWidth * (941 / 1672);
               final selected = switch (selectedTarget) {
-                _CalibrationTarget.frontWheelFar =>
-                  session.frontWheelFarDisplay,
+                _CalibrationTarget.frontWheelFar => session.frontWheelFar,
                 _CalibrationTarget.rearWheel => session.rearWheel,
                 _CalibrationTarget.frontWheelNear => session.frontWheelNear,
                 _CalibrationTarget.jeepAssembly => throw StateError(
@@ -680,7 +687,7 @@ class _AssemblyCalibrationCanvas extends StatelessWidget {
                       child: _CalibrationJeepAssembly(
                         width: assemblyWidth,
                         selectedTarget: selectedTarget,
-                        frontWheelFar: session.frontWheelFarDisplay,
+                        frontWheelFar: session.frontWheelFar,
                         rearWheel: session.rearWheel,
                         frontWheelNear: session.frontWheelNear,
                       ),
@@ -743,22 +750,16 @@ class _CalibrationSnapshot {
 
 class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
     with SingleTickerProviderStateMixin {
-  static const _initialStart = _CalibrationSnapshot(
-    alignment: Alignment(0.997, 0.452),
-    scale: 0.320,
-  );
-  static const _initialEnd = _CalibrationSnapshot(
-    alignment: Alignment(-0.367, 0.940),
-    scale: 1.190,
-  );
+  static const _initialStart = _scene1Start;
+  static const _initialEnd = _scene1End;
 
   Alignment _jeepAlignment = _initialStart.alignment;
   double _jeepScale = _initialStart.scale;
   _CalibrationSnapshot _start = _initialStart;
   _CalibrationSnapshot _end = _initialEnd;
-  double _travelDurationSeconds = 4.5;
-  double _holdDurationSeconds = 1.5;
-  _CalibrationCurveOption _curve = _CalibrationCurveOption.easeOut;
+  double _travelDurationSeconds = 6;
+  double _holdDurationSeconds = 0.75;
+  _CalibrationCurveOption _curve = _CalibrationCurveOption.linear;
 
   late final AnimationController _motionController = AnimationController(
     vsync: this,
@@ -904,7 +905,6 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
                   alignment: _displayAlignment,
                   scale: _displayScale,
                   session: widget.session,
-                  wheelTurns: -4 * _travelProgress,
                   onMoveJeep: _moveJeep,
                 ),
                 AppSpacing.gapMD,
@@ -1086,14 +1086,12 @@ class _CalibrationCanvas extends StatelessWidget {
     required this.alignment,
     required this.scale,
     required this.session,
-    required this.wheelTurns,
     required this.onMoveJeep,
   });
 
   final Alignment alignment;
   final double scale;
   final _CalibrationSession session;
-  final double wheelTurns;
   final void Function(Offset delta, Size canvasSize) onMoveJeep;
 
   @override
@@ -1172,10 +1170,9 @@ class _CalibrationCanvas extends StatelessWidget {
                         child: _CalibrationJeepAssembly(
                           width: assemblyWidth,
                           selectedTarget: _CalibrationTarget.jeepAssembly,
-                          frontWheelFar: session.frontWheelFarDisplay,
+                          frontWheelFar: session.frontWheelFar,
                           rearWheel: session.rearWheel,
                           frontWheelNear: session.frontWheelNear,
-                          wheelTurns: wheelTurns,
                         ),
                       ),
                     ),
@@ -1218,7 +1215,6 @@ class _CalibrationJeepAssembly extends StatelessWidget {
     required this.frontWheelFar,
     required this.rearWheel,
     required this.frontWheelNear,
-    this.wheelTurns = 0,
   });
 
   final double width;
@@ -1226,7 +1222,6 @@ class _CalibrationJeepAssembly extends StatelessWidget {
   final _WheelCalibration frontWheelFar;
   final _WheelCalibration rearWheel;
   final _WheelCalibration frontWheelNear;
-  final double wheelTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -1245,7 +1240,6 @@ class _CalibrationJeepAssembly extends StatelessWidget {
             height: height,
             calibration: frontWheelFar,
             selected: selectedTarget == _CalibrationTarget.frontWheelFar,
-            turns: wheelTurns,
           ),
           Positioned.fill(
             child: DecoratedBox(
@@ -1271,7 +1265,6 @@ class _CalibrationJeepAssembly extends StatelessWidget {
             height: height,
             calibration: rearWheel,
             selected: selectedTarget == _CalibrationTarget.rearWheel,
-            turns: wheelTurns,
           ),
           _CalibrationWheel(
             key: const ValueKey('calibration-front-wheel-near-layer'),
@@ -1280,7 +1273,6 @@ class _CalibrationJeepAssembly extends StatelessWidget {
             height: height,
             calibration: frontWheelNear,
             selected: selectedTarget == _CalibrationTarget.frontWheelNear,
-            turns: wheelTurns,
           ),
         ],
       ),
@@ -1296,7 +1288,6 @@ class _CalibrationWheel extends StatelessWidget {
     required this.height,
     required this.calibration,
     required this.selected,
-    required this.turns,
   });
 
   final Key imageKey;
@@ -1304,7 +1295,6 @@ class _CalibrationWheel extends StatelessWidget {
   final double height;
   final _WheelCalibration calibration;
   final bool selected;
-  final double turns;
 
   @override
   Widget build(BuildContext context) {
@@ -1319,13 +1309,10 @@ class _CalibrationWheel extends StatelessWidget {
         decoration: BoxDecoration(
           border: selected ? Border.all(color: Colors.amber, width: 2) : null,
         ),
-        child: RotationTransition(
-          turns: AlwaysStoppedAnimation(turns),
-          child: Image.asset(
-            _bootSequenceAssets[2].path,
-            key: imageKey,
-            fit: BoxFit.contain,
-          ),
+        child: Image.asset(
+          _bootSequenceAssets[2].path,
+          key: imageKey,
+          fit: BoxFit.contain,
         ),
       ),
     );
@@ -1760,7 +1747,13 @@ class _JeepApproachPrototype extends StatelessWidget {
     required this.wheelAsset,
   });
 
-  static const _motionEnd = 0.75;
+  static const _verticalBounceAmplitude = 2.4;
+  static const _verticalBouncePeriodMs = 480.0;
+  static const _microHorizontalAmplitude = 0.35;
+  static const _microVerticalAmplitude = 0.65;
+  static const _microHorizontalPeriodMs = 170.0;
+  static const _microVerticalPeriodMs = 130.0;
+  static const _settleStart = 0.82;
 
   final double progress;
   final String backgroundAsset;
@@ -1769,17 +1762,44 @@ class _JeepApproachPrototype extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final motionProgress = Curves.easeOutCubic.transform(
-      (progress / _motionEnd).clamp(0.0, 1.0).toDouble(),
-    );
+    final travelFraction =
+        _scene1TravelDuration.inMilliseconds /
+        _scene1TotalDuration.inMilliseconds;
+    final holdFraction =
+        _scene1HoldDuration.inMilliseconds /
+        _scene1TotalDuration.inMilliseconds;
+    final motionProgress = (progress / travelFraction).clamp(0.0, 1.0);
+    final holdProgress = progress <= travelFraction
+        ? 0.0
+        : ((progress - travelFraction) / holdFraction).clamp(0.0, 1.0);
     final alignment = Alignment.lerp(
-      const Alignment(0.88, -0.58),
-      const Alignment(-0.32, 0.62),
+      _scene1Start.alignment,
+      _scene1End.alignment,
       motionProgress,
     )!;
-    final scale = 0.22 + (0.70 * motionProgress);
+    final scale =
+        _scene1Start.scale +
+        ((_scene1End.scale - _scene1Start.scale) * motionProgress);
+    final settleEnvelope =
+        1 -
+        ((motionProgress - _settleStart) / (1 - _settleStart)).clamp(0.0, 1.0);
+    final elapsedMs = progress * _scene1TotalDuration.inMilliseconds;
+    final bounceY =
+        math.sin((elapsedMs / _verticalBouncePeriodMs) * math.pi * 2) *
+        _verticalBounceAmplitude *
+        settleEnvelope;
+    final microX =
+        math.sin((elapsedMs / _microHorizontalPeriodMs) * math.pi * 2) *
+        _microHorizontalAmplitude *
+        settleEnvelope;
+    final microY =
+        math.sin((elapsedMs / _microVerticalPeriodMs) * math.pi * 2) *
+        _microVerticalAmplitude *
+        settleEnvelope;
+    final dustOpacity = motionProgress < 1 ? 1.0 : 1 - holdProgress;
 
     return Stack(
+      key: const ValueKey('jeep-scene-canvas'),
       fit: StackFit.expand,
       children: [
         Image.asset(
@@ -1789,27 +1809,109 @@ class _JeepApproachPrototype extends StatelessWidget {
         ),
         LayoutBuilder(
           builder: (context, constraints) {
+            final canvasSize = constraints.biggest;
             final assemblyWidth = (constraints.maxWidth * 0.38)
-                .clamp(150.0, 320.0)
+                .clamp(120.0, 320.0)
                 .toDouble();
-            return Align(
-              key: const ValueKey('jeep-assembly-position'),
-              alignment: alignment,
-              child: Transform.scale(
-                key: const ValueKey('jeep-assembly-scale'),
-                scale: scale,
-                child: _JeepAssembly(
+            final assemblyHeight = assemblyWidth * (941 / 1672);
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  key: const ValueKey('jeep-assembly-position'),
+                  left:
+                      (((alignment.x + 1) / 2) * canvasSize.width) -
+                      (assemblyWidth / 2),
+                  top:
+                      (((alignment.y + 1) / 2) * canvasSize.height) -
+                      (assemblyHeight / 2),
                   width: assemblyWidth,
-                  bodyAsset: jeepBodyAsset,
-                  wheelAsset: wheelAsset,
-                  wheelTurns: -4 * motionProgress,
+                  height: assemblyHeight,
+                  child: Transform.translate(
+                    key: const ValueKey('jeep-bounce-offset'),
+                    offset: Offset(0, bounceY),
+                    child: Transform.translate(
+                      key: const ValueKey('jeep-micro-offset'),
+                      offset: Offset(microX, microY),
+                      child: Transform.scale(
+                        key: const ValueKey('jeep-assembly-scale'),
+                        scale: scale,
+                        child: _SceneJeepAssembly(
+                          width: assemblyWidth,
+                          bodyAsset: jeepBodyAsset,
+                          wheelAsset: wheelAsset,
+                          dustProgress: motionProgress,
+                          dustOpacity: progress > 0 ? dustOpacity : 0,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             );
           },
         ),
         const Positioned(left: 8, top: 8, child: _SceneBadge()),
       ],
+    );
+  }
+}
+
+class _SceneJeepAssembly extends StatelessWidget {
+  const _SceneJeepAssembly({
+    required this.width,
+    required this.bodyAsset,
+    required this.wheelAsset,
+    required this.dustProgress,
+    required this.dustOpacity,
+  });
+
+  final double width;
+  final String bodyAsset;
+  final String wheelAsset;
+  final double dustProgress;
+  final double dustOpacity;
+
+  @override
+  Widget build(BuildContext context) {
+    final height = width * (941 / 1672);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (dustOpacity > 0.001)
+            Positioned(
+              left: width * 0.64,
+              top: height * 0.58,
+              width: width * 0.70,
+              height: height * 0.42,
+              child: CustomPaint(
+                key: const ValueKey('jeep-dust'),
+                painter: _JeepDustPainter(
+                  travelProgress: dustProgress,
+                  opacity: dustOpacity,
+                ),
+              ),
+            ),
+          _JeepAssembly(
+            width: width,
+            bodyAsset: bodyAsset,
+            wheelAsset: wheelAsset,
+          ),
+          Positioned(
+            left: -width * 0.18,
+            top: height * 0.27,
+            width: width * 0.50,
+            height: height * 0.42,
+            child: const CustomPaint(
+              key: ValueKey('jeep-headlight'),
+              painter: _JeepHeadlightPainter(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1835,19 +1937,15 @@ class _JeepAssembly extends StatelessWidget {
     required this.width,
     required this.bodyAsset,
     required this.wheelAsset,
-    required this.wheelTurns,
   });
 
   final double width;
   final String bodyAsset;
   final String wheelAsset;
-  final double wheelTurns;
 
   @override
   Widget build(BuildContext context) {
     final height = width * (941 / 1672);
-    final frontWheelSize = width * 0.205;
-    final rearWheelSize = width * 0.195;
     return SizedBox(
       key: const ValueKey('jeep-assembly'),
       width: width,
@@ -1855,45 +1953,132 @@ class _JeepAssembly extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(
-            left: width * 0.226,
-            top: height * 0.546,
-            width: frontWheelSize,
-            height: frontWheelSize,
-            child: RotationTransition(
-              key: const ValueKey('jeep-front-wheel-rotation'),
-              turns: AlwaysStoppedAnimation(wheelTurns),
-              child: Image.asset(
-                wheelAsset,
-                key: const ValueKey('jeep-front-wheel'),
-              ),
-            ),
-          ),
-          Positioned(
-            left: width * 0.760,
-            top: height * 0.558,
-            width: rearWheelSize,
-            height: rearWheelSize,
-            child: RotationTransition(
-              key: const ValueKey('jeep-rear-wheel-rotation'),
-              turns: AlwaysStoppedAnimation(wheelTurns),
-              child: Image.asset(
-                wheelAsset,
-                key: const ValueKey('jeep-rear-wheel'),
-              ),
-            ),
+          _SceneWheel(
+            key: const ValueKey('jeep-front-wheel-far-layer'),
+            imageKey: const ValueKey('jeep-front-wheel-far'),
+            width: width,
+            height: height,
+            asset: wheelAsset,
+            calibration: _scene1FrontWheelFar,
           ),
           Positioned.fill(
+            key: const ValueKey('jeep-body-layer'),
             child: Image.asset(
               bodyAsset,
               key: const ValueKey('jeep-body'),
               fit: BoxFit.contain,
             ),
           ),
+          _SceneWheel(
+            key: const ValueKey('jeep-rear-wheel-layer'),
+            imageKey: const ValueKey('jeep-rear-wheel'),
+            width: width,
+            height: height,
+            asset: wheelAsset,
+            calibration: _scene1RearWheel,
+          ),
+          _SceneWheel(
+            key: const ValueKey('jeep-front-wheel-near-layer'),
+            imageKey: const ValueKey('jeep-front-wheel-near'),
+            width: width,
+            height: height,
+            asset: wheelAsset,
+            calibration: _scene1FrontWheelNear,
+          ),
         ],
       ),
     );
   }
+}
+
+class _SceneWheel extends StatelessWidget {
+  const _SceneWheel({
+    super.key,
+    required this.imageKey,
+    required this.width,
+    required this.height,
+    required this.asset,
+    required this.calibration,
+  });
+
+  final Key imageKey;
+  final double width;
+  final double height;
+  final String asset;
+  final _WheelCalibration calibration;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = width * calibration.scale;
+    return Positioned(
+      left: width * calibration.localX,
+      top: height * calibration.localY,
+      width: size,
+      height: size,
+      child: Image.asset(asset, key: imageKey, fit: BoxFit.contain),
+    );
+  }
+}
+
+class _JeepDustPainter extends CustomPainter {
+  const _JeepDustPainter({required this.travelProgress, required this.opacity});
+
+  final double travelProgress;
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const particleCount = 6;
+    for (var index = 0; index < particleCount; index++) {
+      final phase = (travelProgress * 4.2 + (index / particleCount)) % 1;
+      final particleOpacity = opacity * (1 - phase) * 0.26;
+      final radius = size.height * (0.10 + (phase * 0.16));
+      final center = Offset(
+        size.width * (0.08 + (phase * 0.82)),
+        size.height * (0.76 - (phase * 0.30) + (math.sin(index * 1.7) * 0.04)),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: center, width: radius * 2.4, height: radius),
+        Paint()
+          ..color = const Color(0xFFB7A58B).withValues(alpha: particleOpacity),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_JeepDustPainter oldDelegate) =>
+      travelProgress != oldDelegate.travelProgress ||
+      opacity != oldDelegate.opacity;
+}
+
+class _JeepHeadlightPainter extends CustomPainter {
+  const _JeepHeadlightPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final beamPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.centerRight,
+        end: Alignment.centerLeft,
+        colors: [Color(0x66FFF4C2), Color(0x00FFF4C2)],
+      ).createShader(Offset.zero & size);
+    for (final sourceY in [0.38, 0.64]) {
+      final path = Path()
+        ..moveTo(size.width * 0.88, size.height * sourceY)
+        ..lineTo(0, size.height * (sourceY - 0.17))
+        ..lineTo(0, size.height * (sourceY + 0.17))
+        ..close();
+      canvas.drawPath(path, beamPaint);
+      canvas.drawCircle(
+        Offset(size.width * 0.88, size.height * sourceY),
+        size.height * 0.055,
+        Paint()..color = const Color(0xCCFFF7D6),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_JeepHeadlightPainter oldDelegate) => false;
 }
 
 class _SandboxActionButton extends StatelessWidget {

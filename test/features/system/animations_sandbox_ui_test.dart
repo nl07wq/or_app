@@ -158,9 +158,9 @@ void main() {
         const ValueKey('assembly-parameters-json'),
       );
       expect(initial['coordinateSystem'], 'jeep_local_normalized');
-      expect((initial['frontWheelFar'] as Map)['localX'], isNull);
-      expect((initial['frontWheelFar'] as Map)['localY'], isNull);
-      expect((initial['frontWheelFar'] as Map)['scale'], isNull);
+      expect((initial['frontWheelFar'] as Map)['localX'], 0.108);
+      expect((initial['frontWheelFar'] as Map)['localY'], 0.618);
+      expect((initial['frontWheelFar'] as Map)['scale'], 0.2);
       expect((initial['rearWheel'] as Map)['localX'], 0.779);
       expect((initial['rearWheel'] as Map)['localY'], 0.587);
       expect((initial['rearWheel'] as Map)['scale'], 0.185);
@@ -183,6 +183,9 @@ void main() {
         'boot_sequence_assembly',
       );
 
+      final initialFar = Map<String, dynamic>.from(
+        initial['frontWheelFar'] as Map,
+      );
       await _dragByKey(
         tester,
         const ValueKey('assembly-canvas-drag-target'),
@@ -202,9 +205,9 @@ void main() {
                 const ValueKey('assembly-parameters-json'),
               )['frontWheelFar']
               as Map;
-      expect(far['localX'], isNotNull);
-      expect(far['localY'], isNotNull);
-      expect(far['scale'], isNotNull);
+      expect(far['localX'], isNot(initialFar['localX']));
+      expect(far['localY'], isNot(initialFar['localY']));
+      expect(far['scale'], isNot(initialFar['scale']));
 
       for (final target in const ['rearWheel', 'frontWheelNear']) {
         final targetSelector = find.byKey(ValueKey('assembly-target-$target'));
@@ -254,11 +257,11 @@ void main() {
     final initialJson = _calibrationJson(tester);
     expect(initialJson['coordinateSystem'], 'alignment_normalized');
     final initialJeep = initialJson['jeepAssembly'] as Map<String, dynamic>;
-    expect(initialJeep['start'], {'x': 0.997, 'y': 0.452, 'scale': 0.32});
-    expect(initialJeep['end'], {'x': -0.367, 'y': 0.94, 'scale': 1.19});
-    expect((initialJson['motion'] as Map)['travelDurationMs'], 4500);
-    expect((initialJson['motion'] as Map)['holdDurationMs'], 1500);
-    expect((initialJson['motion'] as Map)['curve'], 'easeOutCubic');
+    expect(initialJeep['start'], {'x': 0.971, 'y': 0.322, 'scale': 0.1});
+    expect(initialJeep['end'], {'x': -0.232, 'y': 0.603, 'scale': 1.31});
+    expect((initialJson['motion'] as Map)['travelDurationMs'], 6000);
+    expect((initialJson['motion'] as Map)['holdDurationMs'], 750);
+    expect((initialJson['motion'] as Map)['curve'], 'linear');
 
     final initialAlignment = _calibrationAlignment(tester);
     await _dragCalibrationCanvas(tester, const Offset(-24, 18));
@@ -464,8 +467,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('jeep-body')), findsOneWidget);
-    expect(find.byKey(const ValueKey('jeep-front-wheel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('jeep-front-wheel-far')), findsOneWidget);
     expect(find.byKey(const ValueKey('jeep-rear-wheel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('jeep-front-wheel-near')), findsOneWidget);
     expect(
       _assetName(tester, const ValueKey('boot-sequence-background')),
       'assets/animations/sandbox/boot_sequence/phase_01/background/'
@@ -476,13 +480,53 @@ void main() {
       'assets/animations/sandbox/boot_sequence/phase_01/jeep/jeep_body.png',
     );
     expect(
-      _assetName(tester, const ValueKey('jeep-front-wheel')),
+      _assetName(tester, const ValueKey('jeep-front-wheel-far')),
       'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png',
     );
     expect(
       _assetName(tester, const ValueKey('jeep-rear-wheel')),
       'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png',
     );
+    expect(
+      _assetName(tester, const ValueKey('jeep-front-wheel-near')),
+      'assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png',
+    );
+    _expectSceneWheelCalibration(
+      tester,
+      const ValueKey('jeep-front-wheel-far-layer'),
+      x: 0.108,
+      y: 0.618,
+      scale: 0.200,
+    );
+    _expectSceneWheelCalibration(
+      tester,
+      const ValueKey('jeep-rear-wheel-layer'),
+      x: 0.779,
+      y: 0.587,
+      scale: 0.185,
+    );
+    _expectSceneWheelCalibration(
+      tester,
+      const ValueKey('jeep-front-wheel-near-layer'),
+      x: 0.330,
+      y: 0.593,
+      scale: 0.245,
+    );
+    expect(_jeepLayerKeys(tester), [
+      const ValueKey('jeep-front-wheel-far-layer'),
+      const ValueKey('jeep-body-layer'),
+      const ValueKey('jeep-rear-wheel-layer'),
+      const ValueKey('jeep-front-wheel-near-layer'),
+    ]);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('jeep-assembly')),
+        matching: find.byType(RotationTransition),
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsOneWidget);
     expect(find.byKey(const ValueKey('preview-play')), findsOneWidget);
     expect(find.byKey(const ValueKey('preview-pause')), findsOneWidget);
     expect(find.byKey(const ValueKey('preview-stop')), findsOneWidget);
@@ -490,7 +534,10 @@ void main() {
 
     final startAlignment = _jeepAlignment(tester);
     final startScale = _jeepScale(tester);
-    final startWheelTurns = _frontWheelTurns(tester);
+    _expectAlignmentNear(startAlignment, 0.971, 0.322);
+    expect(startScale, closeTo(0.100, 0.000001));
+    expect(_transformTranslation(tester, 'jeep-bounce-offset'), Offset.zero);
+    expect(_transformTranslation(tester, 'jeep-micro-offset'), Offset.zero);
 
     await tester.ensureVisible(find.byKey(const ValueKey('preview-play')));
     await tester.tap(find.byKey(const ValueKey('preview-play')));
@@ -500,18 +547,26 @@ void main() {
     expect(_jeepAlignment(tester).x, lessThan(startAlignment.x));
     expect(_jeepAlignment(tester).y, greaterThan(startAlignment.y));
     expect(_jeepScale(tester), greaterThan(startScale));
-    expect(_frontWheelTurns(tester), lessThan(startWheelTurns));
-    expect(_rearWheelTurns(tester), _frontWheelTurns(tester));
+    expect(find.byKey(const ValueKey('jeep-dust')), findsOneWidget);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsOneWidget);
+    final activeBounce = _transformTranslation(tester, 'jeep-bounce-offset');
+    final activeMicro = _transformTranslation(tester, 'jeep-micro-offset');
+    expect(activeBounce.dx, 0);
+    expect(activeBounce.dy.abs(), lessThanOrEqualTo(2.400001));
+    expect(activeMicro.dx.abs(), lessThanOrEqualTo(0.350001));
+    expect(activeMicro.dy.abs(), lessThanOrEqualTo(0.650001));
 
     await tester.tap(find.byKey(const ValueKey('preview-pause')));
     final pausedAlignment = _jeepAlignment(tester);
     final pausedScale = _jeepScale(tester);
-    final pausedWheelTurns = _frontWheelTurns(tester);
+    final pausedBounce = _transformTranslation(tester, 'jeep-bounce-offset');
+    final pausedMicro = _transformTranslation(tester, 'jeep-micro-offset');
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('00:01 / 00:06'), findsOneWidget);
     expect(_jeepAlignment(tester), pausedAlignment);
     expect(_jeepScale(tester), pausedScale);
-    expect(_frontWheelTurns(tester), pausedWheelTurns);
+    expect(_transformTranslation(tester, 'jeep-bounce-offset'), pausedBounce);
+    expect(_transformTranslation(tester, 'jeep-micro-offset'), pausedMicro);
 
     await tester.tap(find.byKey(const ValueKey('preview-play')));
     await tester.pump();
@@ -523,7 +578,10 @@ void main() {
     expect(find.text('00:00 / 00:06'), findsOneWidget);
     expect(_jeepAlignment(tester), startAlignment);
     expect(_jeepScale(tester), startScale);
-    expect(_frontWheelTurns(tester), startWheelTurns);
+    expect(_transformTranslation(tester, 'jeep-bounce-offset'), Offset.zero);
+    expect(_transformTranslation(tester, 'jeep-micro-offset'), Offset.zero);
+    expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const ValueKey('preview-replay')));
     await tester.tap(find.byKey(const ValueKey('preview-replay')));
@@ -543,6 +601,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('jeep-body')), findsNothing);
+    expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsNothing);
     expect(find.text('00:00 / 00:08'), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const ValueKey('preview-scene-7')));
@@ -567,11 +627,15 @@ void main() {
       'SCENE 1',
     );
     expect(find.byKey(const ValueKey('jeep-body')), findsOneWidget);
+    _expectAlignmentNear(_jeepAlignment(tester), 0.971, 0.322);
+    expect(_jeepScale(tester), closeTo(0.100, 0.000001));
+    expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsOneWidget);
     expect(find.text('00:00 / 00:06'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('jeep stops with both wheels after the approach interval', (
+  testWidgets('jeep reaches calibrated end and holds without wheel rotation', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 2600);
@@ -583,17 +647,33 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('preview-play')));
     await tester.tap(find.byKey(const ValueKey('preview-play')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 4600));
+    await tester.pump(const Duration(milliseconds: 6000));
     final stoppedAlignment = _jeepAlignment(tester);
     final stoppedScale = _jeepScale(tester);
-    final stoppedWheelTurns = _frontWheelTurns(tester);
+    _expectAlignmentNear(stoppedAlignment, -0.232, 0.603);
+    expect(stoppedScale, closeTo(1.310, 0.000001));
+    expect(_transformTranslation(tester, 'jeep-bounce-offset'), Offset.zero);
+    expect(_transformTranslation(tester, 'jeep-micro-offset'), Offset.zero);
+    expect(find.byKey(const ValueKey('jeep-dust')), findsOneWidget);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('jeep-assembly')),
+        matching: find.byType(RotationTransition),
+      ),
+      findsNothing,
+    );
 
-    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pump(const Duration(milliseconds: 749));
     expect(_jeepAlignment(tester), stoppedAlignment);
     expect(_jeepScale(tester), stoppedScale);
-    expect(_frontWheelTurns(tester), stoppedWheelTurns);
-    expect(_rearWheelTurns(tester), stoppedWheelTurns);
-    expect(find.text('00:05 / 00:06'), findsOneWidget);
+    expect(find.byKey(const ValueKey('jeep-dust')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(_jeepAlignment(tester), stoppedAlignment);
+    expect(_jeepScale(tester), stoppedScale);
+    expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
+    expect(find.byKey(const ValueKey('jeep-headlight')), findsOneWidget);
+    expect(find.text('00:06 / 00:06'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('boot-asset-list')),
       300,
@@ -754,30 +834,66 @@ Future<void> _dragByKey(
 String _assetName(WidgetTester tester, ValueKey<String> key) =>
     (tester.widget<Image>(find.byKey(key)).image as AssetImage).assetName;
 
-Alignment _jeepAlignment(WidgetTester tester) =>
-    tester
-            .widget<Align>(find.byKey(const ValueKey('jeep-assembly-position')))
-            .alignment
-        as Alignment;
+Alignment _jeepAlignment(WidgetTester tester) {
+  final position = tester.widget<Positioned>(
+    find.byKey(const ValueKey('jeep-assembly-position')),
+  );
+  final canvasSize = tester.getSize(
+    find.byKey(const ValueKey('jeep-scene-canvas')),
+  );
+  final centerX = position.left! + (position.width! / 2);
+  final centerY = position.top! + (position.height! / 2);
+  return Alignment(
+    ((centerX / canvasSize.width) * 2) - 1,
+    ((centerY / canvasSize.height) * 2) - 1,
+  );
+}
 
 double _jeepScale(WidgetTester tester) => tester
     .widget<Transform>(find.byKey(const ValueKey('jeep-assembly-scale')))
     .transform
     .entry(0, 0);
 
-double _frontWheelTurns(WidgetTester tester) => tester
-    .widget<RotationTransition>(
-      find.byKey(const ValueKey('jeep-front-wheel-rotation')),
-    )
-    .turns
-    .value;
+Offset _transformTranslation(WidgetTester tester, String key) {
+  final transform = tester
+      .widget<Transform>(find.byKey(ValueKey(key)))
+      .transform;
+  return Offset(transform.entry(0, 3), transform.entry(1, 3));
+}
 
-double _rearWheelTurns(WidgetTester tester) => tester
-    .widget<RotationTransition>(
-      find.byKey(const ValueKey('jeep-rear-wheel-rotation')),
-    )
-    .turns
-    .value;
+void _expectSceneWheelCalibration(
+  WidgetTester tester,
+  ValueKey<String> layerKey, {
+  required double x,
+  required double y,
+  required double scale,
+}) {
+  final position = tester.widget<Positioned>(
+    find.descendant(
+      of: find.byKey(layerKey),
+      matching: find.byType(Positioned),
+    ),
+  );
+  final assemblySize = tester.getSize(
+    find.byKey(const ValueKey('jeep-assembly')),
+  );
+  expect(position.left! / assemblySize.width, closeTo(x, 0.000001));
+  expect(position.top! / assemblySize.height, closeTo(y, 0.000001));
+  expect(position.width! / assemblySize.width, closeTo(scale, 0.000001));
+  expect(position.height, position.width);
+}
+
+List<Key?> _jeepLayerKeys(WidgetTester tester) {
+  final stack = tester.widget<Stack>(
+    find
+        .descendant(
+          of: find.byKey(const ValueKey('jeep-assembly')),
+          matching: find.byType(Stack),
+        )
+        .first,
+  );
+  return stack.children.map((child) => child.key).toList();
+}
 
 Alignment _calibrationAlignment(WidgetTester tester) {
   final position = tester.widget<Positioned>(
