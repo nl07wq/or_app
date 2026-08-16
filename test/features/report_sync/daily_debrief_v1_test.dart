@@ -267,7 +267,7 @@ void main() {
   );
 
   test(
-    'formal source, prompt, atomic import, revision, and lifecycle work',
+    'formal source, prompt, atomic import, revision, lifecycle, and nutrition coverage work',
     () async {
       final database = FakeIndexedDbDatabase();
       final container = AppRepositoryContainer.indexedDb(database);
@@ -397,6 +397,46 @@ void main() {
       expect(prompt, contains('"sleepDurationMinutes": 420'));
       expect(prompt, contains('"sleepScore": 80'));
       expect(prompt, contains('"recovery": {'));
+      expect(
+        prompt,
+        contains(
+          'domainEvaluations.nutrition has required presence-based coverage',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'intakeCaloriesKcal, proteinG, estimatedExpenditureKcal, and estimatedCalorieBalanceKcal',
+        ),
+      );
+      expect(
+        prompt,
+        contains('when all four are present, it must cover all four'),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not omit estimated expenditure or estimated calorie balance merely because the same fact also supports crossAnalysis.keyFactors',
+        ),
+      );
+      expect(
+        prompt,
+        contains('This deliberate reuse is not prohibited duplication'),
+      );
+      expect(
+        prompt,
+        contains(
+          'When any of these values is null or absent, omit only that metric',
+        ),
+      );
+      expect(prompt, contains('never convert it to zero'));
+      expect(
+        prompt,
+        contains('recalculate calorie balance from intake and expenditure'),
+      );
+      expect(prompt, contains('"intakeCaloriesKcal": 2000'));
+      expect(prompt, contains('"proteinG": 150'));
+      expect(prompt, contains('"estimatedExpenditureKcal": 2300'));
       expect(prompt, contains('body, recovery, condition, work, nutrition'));
       expect(prompt, contains('When a domain has no formal fact'));
       expect(prompt, contains('62.06999999999999 as 62.07g'));
@@ -463,7 +503,13 @@ void main() {
         contains('"estimatedCalorieBalanceKcal": -355.5999999999999'),
       );
       await container.dailyAggregates.put(
-        _aggregate(date, sleepDurationMinutes: null, sleepScore: null),
+        _aggregate(
+          date,
+          sleepDurationMinutes: null,
+          sleepScore: null,
+          estimatedExpenditureKcal: null,
+          estimatedCalorieBalanceKcal: null,
+        ),
       );
       final nullSleepPreparation = await gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
@@ -475,6 +521,25 @@ void main() {
       );
       expect(nullSleepPrompt, contains('"sleepDurationMinutes": null'));
       expect(nullSleepPrompt, contains('"sleepScore": null'));
+      final nullDailyAggregate = Map<String, Object?>.from(
+        nullSleepPreparation.dailyDebriefSource!.promptSource['dailyAggregate']!
+            as Map,
+      );
+      expect(
+        nullDailyAggregate.containsKey('estimatedExpenditureKcal'),
+        isFalse,
+      );
+      expect(
+        nullDailyAggregate.containsKey('estimatedCalorieBalanceKcal'),
+        isFalse,
+      );
+      expect(
+        nullSleepPrompt,
+        contains(
+          'When any of these values is null or absent, omit only that metric',
+        ),
+      );
+      expect(nullSleepPrompt, contains('never convert it to zero'));
       expect(
         nullSleepPrompt,
         contains(
@@ -735,6 +800,8 @@ DailyAggregateV1 _aggregate(
   double hydrationMl = 2000,
   int? sleepDurationMinutes = 420,
   int? sleepScore = 80,
+  double? estimatedExpenditureKcal = 2300,
+  double? estimatedCalorieBalanceKcal = -355.5999999999999,
   DailyAggregateSourceType sourceType = DailyAggregateSourceType.records,
 }) => DailyAggregateV1(
   operationDate: date,
@@ -749,8 +816,8 @@ DailyAggregateV1 _aggregate(
   workBreakMinutes: null,
   actualWorkMinutes: null,
   intakeCaloriesKcal: 2000,
-  estimatedExpenditureKcal: 2300,
-  estimatedCalorieBalanceKcal: -355.5999999999999,
+  estimatedExpenditureKcal: estimatedExpenditureKcal,
+  estimatedCalorieBalanceKcal: estimatedCalorieBalanceKcal,
   proteinG: 150,
   fatG: 62.06999999999999,
   carbsG: 295.53999999999996,
