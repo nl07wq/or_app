@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
+import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
 import 'package:or_app/features/system/services/storage_status_gateway.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,6 +63,195 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AnimationsSandboxPage), findsOneWidget);
     expect(find.text('BOOT SEQUENCE'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('PIXEL LAB filters and sorts only PNG assets under its folder', () {
+    expect(
+      filterPixelLabAssetPaths(const [
+        'assets/animations/sandbox/pixel_lab/test_images/z.png',
+        'assets/icons/orlo_icon.png',
+        'assets/animations/sandbox/pixel_lab/logos/a.PNG',
+        'assets/animations/sandbox/pixel_lab/logos/readme.txt',
+        'assets/animations/sandbox/pixel_lab/test_images/z.png',
+      ]),
+      const [
+        'assets/animations/sandbox/pixel_lab/logos/a.PNG',
+        'assets/animations/sandbox/pixel_lab/test_images/z.png',
+      ],
+    );
+  });
+
+  testWidgets('ANIMATIONS SANDBOX opens PIXEL LAB empty state', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AnimationsSandboxPage(pixelLabAssetLoader: () async => []),
+      ),
+    );
+
+    expect(find.text('PIXEL LAB'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('open-pixel-lab')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PixelLabPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('pixel-lab-empty-state')), findsOneWidget);
+    expect(find.text('NO ASSET SELECTED'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('PIXEL LAB asset preview remains responsive', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const asset = 'assets/icons/orlo_icon.png';
+
+    for (final width in [320.0, 390.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 2600);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey('pixel-lab-$width'),
+          home: PixelLabPage(assetLoader: () async => const [asset]),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('pixel-lab-thumbnail-$asset')),
+        findsOneWidget,
+      );
+      expect(find.text('orlo_icon.png'), findsOneWidget);
+      expect(find.text(asset), findsWidgets);
+      expect(find.text('SELECTED'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('pixel-lab-main-preview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('pixel-lab-composite-preview')),
+        findsOneWidget,
+      );
+      final previewImage = tester.widget<Image>(find.byType(Image).last);
+      expect(previewImage.fit, BoxFit.contain);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('PIXEL LAB controls update, copy, and reset parameters', (
+    tester,
+  ) async {
+    const asset = 'assets/icons/orlo_icon.png';
+    String? clipboardText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboardText =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    tester.view.physicalSize = const Size(390, 6000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(home: PixelLabPage(assetLoader: () async => const [asset])),
+    );
+    await tester.pumpAndSettle();
+
+    var json = _pixelLabJson(tester);
+    expect(json['asset'], asset);
+    expect(json['pixelation'], {'enabled': false, 'pixelSize': 8});
+    expect(json['display'], {'scale': 1.0, 'aspectLocked': true});
+    expect(json['background'], {'mode': 'black'});
+    expect((json['color']! as Map)['mode'], 'original');
+
+    await _ensureTap(tester, 'pixel-lab-pixelation-toggle');
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('pixel-lab-pixel-size')),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('pixel-lab-pixel-size')),
+      const Offset(1000, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<RawImage>(
+            find
+                .descendant(
+                  of: find.byKey(const ValueKey('pixel-lab-main-preview')),
+                  matching: find.byType(RawImage),
+                )
+                .first,
+          )
+          .filterQuality,
+      FilterQuality.none,
+    );
+
+    await _ensureTap(tester, 'pixel-lab-background-white');
+    await _ensureTap(tester, 'pixel-lab-background-checker');
+    await _ensureTap(tester, 'pixel-lab-color-mode-tint');
+    for (final color in ['white', 'red', 'blue', 'green', 'amber', 'cyan']) {
+      await _ensureTap(tester, 'pixel-lab-color-$color');
+    }
+    await _ensureTap(tester, 'pixel-lab-color-mode-monochromeTint');
+
+    for (final slider in [
+      'pixel-lab-image-scale',
+      'pixel-lab-intensity',
+      'pixel-lab-brightness',
+      'pixel-lab-contrast',
+    ]) {
+      await tester.ensureVisible(find.byKey(ValueKey(slider)));
+      await tester.drag(find.byKey(ValueKey(slider)), const Offset(40, 0));
+      await tester.pump();
+    }
+    await _ensureTap(tester, 'pixel-lab-color-mode-tint');
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('pixel-lab-saturation')),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final saturation = find.byKey(const ValueKey('pixel-lab-saturation'));
+    await mouse.addPointer(location: tester.getCenter(saturation));
+    await mouse.down(tester.getCenter(saturation));
+    await mouse.moveTo(tester.getCenter(saturation) + const Offset(40, 0));
+    await mouse.up();
+    await tester.pump();
+
+    json = _pixelLabJson(tester);
+    expect((json['pixelation']! as Map)['enabled'], true);
+    expect((json['pixelation']! as Map)['pixelSize'], 32);
+    expect((json['background']! as Map)['mode'], 'checker');
+    expect((json['color']! as Map)['mode'], 'tint');
+    expect((json['color']! as Map)['targetColor'], '#38BDF8');
+
+    await _ensureTap(tester, 'pixel-lab-copy-parameters');
+    expect(clipboardText, isNotNull);
+    expect(jsonDecode(clipboardText!), json);
+
+    await _ensureTap(tester, 'pixel-lab-reset');
+    json = _pixelLabJson(tester);
+    expect(json['asset'], asset);
+    expect(json['pixelation'], {'enabled': false, 'pixelSize': 8});
+    expect(json['display'], {'scale': 1.0, 'aspectLocked': true});
+    expect(json['background'], {'mode': 'black'});
+    expect(json['color'], {
+      'mode': 'original',
+      'targetColor': '#FFFFFF',
+      'intensity': 0.5,
+      'brightness': 1.0,
+      'contrast': 1.0,
+      'saturation': 1.0,
+    });
+    expect(
+      SharedPreferences.getInstance().then((value) => value.getKeys()),
+      completion(isEmpty),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -2089,6 +2279,20 @@ Future<void> _openEffectLabTest(WidgetTester tester, String testKey) async {
   await tester.ensureVisible(find.byKey(ValueKey('open-$testKey-test')));
   await tester.tap(find.byKey(ValueKey('open-$testKey-test')));
   await tester.pumpAndSettle();
+}
+
+Map<String, Object?> _pixelLabJson(WidgetTester tester) {
+  final text = tester.widget<SelectableText>(
+    find.byKey(const ValueKey('pixel-lab-parameters-json')),
+  );
+  return Map<String, Object?>.from(jsonDecode(text.data!) as Map);
+}
+
+Future<void> _ensureTap(WidgetTester tester, String key) async {
+  final finder = find.byKey(ValueKey(key));
+  await tester.ensureVisible(finder);
+  await tester.tap(finder);
+  await tester.pump();
 }
 
 Future<void> _moveSlider(WidgetTester tester, String key, double deltaX) async {

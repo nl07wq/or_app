@@ -9,6 +9,7 @@ import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import 'pixel_lab_page.dart';
 
 const _bootSequenceAssets = [
   _BootSequenceAsset(
@@ -99,7 +100,9 @@ class _BootSequenceAsset {
 }
 
 class AnimationsSandboxPage extends StatelessWidget {
-  const AnimationsSandboxPage({super.key});
+  const AnimationsSandboxPage({super.key, this.pixelLabAssetLoader});
+
+  final PixelLabAssetLoader? pixelLabAssetLoader;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -124,6 +127,30 @@ class AnimationsSandboxPage extends StatelessWidget {
                 icon: Icons.play_circle_outline,
                 onPressed: () =>
                     Navigator.pushNamed(context, AppRoutes.bootSequencePreview),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapXL,
+        const SectionHeader(icon: Icons.grid_on_outlined, title: 'PIXEL LAB'),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('AssetのPixelation、表示サイズ、背景、色変換をPreviewします。'),
+              AppSpacing.gapMD,
+              _SandboxActionButton(
+                key: const ValueKey('open-pixel-lab'),
+                text: 'OPEN PIXEL LAB',
+                icon: Icons.grid_on_outlined,
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PixelLabPage(assetLoader: pixelLabAssetLoader),
+                  ),
+                ),
               ),
             ],
           ),
