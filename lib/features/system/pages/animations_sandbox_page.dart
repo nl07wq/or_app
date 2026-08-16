@@ -62,6 +62,8 @@ const _scene1End = _CalibrationSnapshot(
 const _scene1TravelDuration = Duration(milliseconds: 6000);
 const _scene1HoldDuration = Duration(milliseconds: 750);
 const _scene1TotalDuration = Duration(milliseconds: 6750);
+const _scene2JeepAsset =
+    'assets/animations/sandbox/boot_sequence/phase_02/jeep/jeep_side.png';
 const _orloLogoAsset = 'assets/icons/orlo_icon.png';
 const _orloSequenceDuration = Duration(seconds: 13);
 const _orloStageTitles = [
@@ -140,20 +142,39 @@ class BootSequencePreviewPage extends StatefulWidget {
 }
 
 class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const _sceneCount = 8;
   static const _prototypeDuration = _scene1TotalDuration;
   static const _placeholderDuration = Duration(seconds: 8);
 
   int _selectedSceneIndex = 0;
+  final _effectLabSession = _EffectLabSession();
+  final _scene2Session = Scene2CalibrationSession();
+  final _firedImpulsePoints = <int>{};
+  late final Future<void> _effectSettingsReady;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: _prototypeDuration,
+  )..addListener(_evaluateScene1Timeline);
+  late final AnimationController _suspensionController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1),
   );
 
   @override
+  void initState() {
+    super.initState();
+    _effectSettingsReady = _effectLabSession.restore().then((_) {
+      if (!mounted) return;
+      _syncSuspensionDuration();
+      setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
+    _suspensionController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -161,8 +182,36 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
   String _sceneLabel(int index) =>
       index == _sceneCount - 1 ? 'FINAL' : 'SCENE ${index + 1}';
 
-  Duration get _activeDuration =>
-      _selectedSceneIndex == 0 ? _prototypeDuration : _placeholderDuration;
+  Duration get _activeDuration => switch (_selectedSceneIndex) {
+    0 => _prototypeDuration,
+    1 => _scene2Session.totalDuration ?? _placeholderDuration,
+    _ => _placeholderDuration,
+  };
+
+  void _syncSuspensionDuration() {
+    final suspension = _effectLabSession.suspension;
+    _suspensionController.duration = suspension == null
+        ? const Duration(milliseconds: 1)
+        : Duration(
+            milliseconds:
+                suspension.impulseDurationMs + suspension.settleDurationMs,
+          );
+  }
+
+  void _evaluateScene1Timeline() {
+    if (_selectedSceneIndex != 0) return;
+    final suspension = _effectLabSession.suspension;
+    if (suspension == null) return;
+    final elapsed = (_controller.value * _scene1TotalDuration.inMilliseconds)
+        .round()
+        .clamp(0, _scene1TravelDuration.inMilliseconds);
+    for (final timeMs in suspension.impulseTimeline) {
+      if (timeMs <= elapsed && _firedImpulsePoints.add(timeMs)) {
+        _syncSuspensionDuration();
+        _suspensionController.forward(from: 0);
+      }
+    }
+  }
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes.toString().padLeft(2, '0');
@@ -173,34 +222,66 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
   void _play() {
     if (_controller.isCompleted) _controller.value = 0;
     _controller.forward();
+    if (_suspensionController.value > 0 && !_suspensionController.isCompleted) {
+      _suspensionController.forward();
+    }
   }
 
   void _pause() {
     _controller.stop(canceled: false);
+    _suspensionController.stop(canceled: false);
     setState(() {});
   }
 
   void _stop() {
     _controller.stop(canceled: false);
+    _suspensionController.stop(canceled: false);
     _controller.value = 0;
+    _suspensionController.value = 0;
+    _firedImpulsePoints.clear();
   }
 
-  void _replay() => _controller.forward(from: 0);
+  void _replay() {
+    _suspensionController.value = 0;
+    _firedImpulsePoints.clear();
+    _controller.forward(from: 0);
+  }
 
   void _selectScene(int index) {
     _controller.stop(canceled: false);
+    _suspensionController.stop(canceled: false);
     _controller.reset();
+    _suspensionController.reset();
+    _firedImpulsePoints.clear();
     setState(() {
       _selectedSceneIndex = index;
       _controller.duration = _activeDuration;
     });
   }
 
+  Future<void> _openCalibration() async {
+    await _effectSettingsReady;
+    if (!mounted) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            BootSequenceCalibrationPage(scene2Session: _scene2Session),
+      ),
+    );
+    await _effectLabSession.reload();
+    if (!mounted) return;
+    _syncSuspensionDuration();
+    _controller.duration = _activeDuration;
+    _stop();
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('BOOT SEQUENCE')),
     body: AnimatedBuilder(
-      animation: _controller,
+      animation: Listenable.merge([_controller, _suspensionController]),
       builder: (context, _) {
         final elapsed = Duration(
           milliseconds: (_activeDuration.inMilliseconds * _controller.value)
@@ -248,10 +329,7 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
                 key: const ValueKey('open-boot-sequence-calibration'),
                 text: 'CALIBRATION TEST',
                 icon: Icons.straighten_outlined,
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  AppRoutes.bootSequenceCalibration,
-                ),
+                onPressed: _openCalibration,
               ),
             ),
             AppSpacing.gapXL,
@@ -269,6 +347,12 @@ class _BootSequencePreviewPageState extends State<BootSequencePreviewPage>
                     jeepBodyAsset: _bootSequenceAssets[1].path,
                     wheelAsset: _bootSequenceAssets[2].path,
                     sceneLabel: _sceneLabel(_selectedSceneIndex),
+                    headlight: _effectLabSession.headlight,
+                    dust: _effectLabSession.dust,
+                    suspension: _effectLabSession.suspension,
+                    suspensionProgress: _suspensionController.value,
+                    scene2Session: _scene2Session,
+                    scene2JeepAsset: _scene2JeepAsset,
                   ),
                   AppSpacing.gapMD,
                   LinearProgressIndicator(value: _controller.value),
@@ -781,7 +865,9 @@ class _OrloLogoSequencePainter extends CustomPainter {
 }
 
 class BootSequenceCalibrationPage extends StatefulWidget {
-  const BootSequenceCalibrationPage({super.key});
+  const BootSequenceCalibrationPage({super.key, this.scene2Session});
+
+  final Scene2CalibrationSession? scene2Session;
 
   @override
   State<BootSequenceCalibrationPage> createState() =>
@@ -792,6 +878,8 @@ class _BootSequenceCalibrationPageState
     extends State<BootSequenceCalibrationPage> {
   final _session = _CalibrationSession();
   final _effectLabSession = _EffectLabSession();
+  late final Scene2CalibrationSession _scene2Session =
+      widget.scene2Session ?? Scene2CalibrationSession();
   late final Future<void> _effectSettingsReady;
 
   @override
@@ -865,6 +953,57 @@ class _BootSequenceCalibrationPageState
             onPressed: _openEffectLab,
           ),
         ),
+        AppSpacing.gapXL,
+        const SectionHeader(
+          icon: Icons.video_settings_outlined,
+          title: 'SCENE 2 CALIBRATION',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SandboxActionButton(
+                key: const ValueKey('open-scene-2-layout-test'),
+                text: 'LAYOUT TEST',
+                icon: Icons.open_with_outlined,
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        _Scene2LayoutTestPage(session: _scene2Session),
+                  ),
+                ),
+              ),
+              AppSpacing.gapSM,
+              _SandboxActionButton(
+                key: const ValueKey('open-scene-2-zoom-test'),
+                text: 'ZOOM TEST',
+                icon: Icons.zoom_in_outlined,
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        _Scene2ZoomTestPage(session: _scene2Session),
+                  ),
+                ),
+              ),
+              AppSpacing.gapSM,
+              _SandboxActionButton(
+                key: const ValueKey('open-scene-2-composite-test'),
+                text: 'COMPOSITE TEST',
+                icon: Icons.layers_outlined,
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        _Scene2CompositeTestPage(session: _scene2Session),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     ),
   );
@@ -936,6 +1075,11 @@ class _EffectLabSession {
   Future<void>? _restoreFuture;
 
   Future<void> restore() => _restoreFuture ??= _restore();
+
+  Future<void> reload() {
+    _restoreFuture = null;
+    return restore();
+  }
 
   Future<void> _restore() async {
     final restored = await _settings.load();
@@ -1173,6 +1317,7 @@ class _SuspensionParameters {
     required this.impulseStrength,
     required this.impulseDurationMs,
     required this.settleDurationMs,
+    this.impulseTimeline = const [],
   });
 
   static const factoryDefault = _SuspensionParameters(
@@ -1193,17 +1338,20 @@ class _SuspensionParameters {
   final double impulseStrength;
   final int impulseDurationMs;
   final int settleDurationMs;
+  final List<int> impulseTimeline;
 
   _SuspensionParameters copyWith({
     double? bodyYResponse,
     double? impulseStrength,
     int? impulseDurationMs,
     int? settleDurationMs,
+    List<int>? impulseTimeline,
   }) => _SuspensionParameters(
     bodyYResponse: bodyYResponse ?? this.bodyYResponse,
     impulseStrength: impulseStrength ?? this.impulseStrength,
     impulseDurationMs: impulseDurationMs ?? this.impulseDurationMs,
     settleDurationMs: settleDurationMs ?? this.settleDurationMs,
+    impulseTimeline: impulseTimeline ?? this.impulseTimeline,
   );
 
   Map<String, Object?> toJson() => {
@@ -1212,16 +1360,28 @@ class _SuspensionParameters {
     'impulseStrength': _effectRounded(impulseStrength),
     'impulseDurationMs': impulseDurationMs,
     'settleDurationMs': settleDurationMs,
+    'impulseTimeline': [
+      for (final timeMs in impulseTimeline) {'timeMs': timeMs},
+    ],
   };
 
   factory _SuspensionParameters.fromJson(Map<String, Object?> json) {
-    _requireExactKeys(json, const {
+    const legacyKeys = {
       'effectType',
       'bodyYResponse',
       'impulseStrength',
       'impulseDurationMs',
       'settleDurationMs',
-    });
+    };
+    const currentKeys = {...legacyKeys, 'impulseTimeline'};
+    final keys = json.keys.toSet();
+    final isLegacy =
+        keys.length == legacyKeys.length && keys.containsAll(legacyKeys);
+    final isCurrent =
+        keys.length == currentKeys.length && keys.containsAll(currentKeys);
+    if (!isLegacy && !isCurrent) {
+      throw const FormatException('Suspension setting fields do not match.');
+    }
     if (json['effectType'] != 'suspension') {
       throw const FormatException('Invalid suspension setting contract.');
     }
@@ -1229,6 +1389,29 @@ class _SuspensionParameters {
     final impulseStrength = _settingDouble(json['impulseStrength']);
     final impulseDurationMs = _settingInt(json['impulseDurationMs']);
     final settleDurationMs = _settingInt(json['settleDurationMs']);
+    final timelineJson = json['impulseTimeline'];
+    final impulseTimeline = <int>[];
+    if (timelineJson != null) {
+      if (timelineJson is! List) {
+        throw const FormatException('Invalid impulse timeline.');
+      }
+      for (final item in timelineJson) {
+        if (item is! Map) {
+          throw const FormatException('Invalid impulse point.');
+        }
+        final point = Map<String, Object?>.from(item);
+        _requireExactKeys(point, const {'timeMs'});
+        final timeMs = _settingInt(point['timeMs']);
+        if (timeMs < 0 || timeMs > _scene1TravelDuration.inMilliseconds) {
+          throw const FormatException('Impulse point is out of range.');
+        }
+        impulseTimeline.add(timeMs);
+      }
+      if (impulseTimeline.toSet().length != impulseTimeline.length) {
+        throw const FormatException('Duplicate impulse point.');
+      }
+      impulseTimeline.sort();
+    }
     if (bodyYResponse < 0.01 ||
         bodyYResponse > 0.25 ||
         impulseStrength < 0.05 ||
@@ -1244,6 +1427,7 @@ class _SuspensionParameters {
       impulseStrength: impulseStrength,
       impulseDurationMs: impulseDurationMs,
       settleDurationMs: settleDurationMs,
+      impulseTimeline: List.unmodifiable(impulseTimeline),
     );
   }
 }
@@ -2119,13 +2303,27 @@ class _DustOverlay extends StatelessWidget {
 }
 
 class _DustCloudPainter extends CustomPainter {
-  const _DustCloudPainter({required this.parameters, required this.elapsedMs});
+  const _DustCloudPainter({
+    required this.parameters,
+    required this.elapsedMs,
+    this.emissionEndMs,
+  });
 
   final _DustParameters parameters;
   final double elapsedMs;
+  final double? emissionEndMs;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final effectiveElapsed = emissionEndMs == null
+        ? elapsedMs
+        : math.min(elapsedMs, emissionEndMs!);
+    final tailOpacity = emissionEndMs == null || elapsedMs <= emissionEndMs!
+        ? 1.0
+        : (1 - ((elapsedMs - emissionEndMs!) / parameters.lifetimeMs)).clamp(
+            0.0,
+            1.0,
+          );
     final radians = parameters.direction * math.pi / 180;
     final direction = Offset(math.cos(radians), math.sin(radians));
     final origin = Offset(
@@ -2135,7 +2333,8 @@ class _DustCloudPainter extends CustomPainter {
     final cloudCount = parameters.emissionRate.round().clamp(3, 16);
     for (var index = 0; index < cloudCount; index++) {
       final phase =
-          ((elapsedMs / parameters.lifetimeMs) + (index / cloudCount)) % 1;
+          ((effectiveElapsed / parameters.lifetimeMs) + (index / cloudCount)) %
+          1;
       final cross = math.sin((index + 1) * 2.17) * parameters.spread;
       final normal = Offset(-direction.dy, direction.dx);
       final center =
@@ -2143,7 +2342,7 @@ class _DustCloudPainter extends CustomPainter {
           (direction * (phase * size.width * 0.48)) +
           (normal * (cross * phase * size.height * 0.42));
       final radius = parameters.size * size.width * (0.45 + phase);
-      final alpha = parameters.opacity * (1 - phase) * 0.52;
+      final alpha = parameters.opacity * (1 - phase) * 0.52 * tailOpacity;
       final path = Path()
         ..moveTo(center.dx - (radius * 1.4), center.dy)
         ..cubicTo(
@@ -2178,7 +2377,8 @@ class _DustCloudPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DustCloudPainter oldDelegate) =>
       parameters != oldDelegate.parameters ||
-      elapsedMs != oldDelegate.elapsedMs;
+      elapsedMs != oldDelegate.elapsedMs ||
+      emissionEndMs != oldDelegate.emissionEndMs;
 }
 
 double _suspensionYOffset(_SuspensionParameters parameters, double progress) {
@@ -2203,13 +2403,19 @@ class _SuspensionTestPage extends StatefulWidget {
 }
 
 class _SuspensionTestPageState extends State<_SuspensionTestPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late _SuspensionParameters _parameters;
+  final _pointController = TextEditingController();
+  final _firedPoints = <int>{};
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: _duration,
   );
+  late final AnimationController _timelineController = AnimationController(
+    vsync: this,
+    duration: _scene1TravelDuration,
+  )..addListener(_evaluateTimeline);
 
   @override
   void initState() {
@@ -2224,13 +2430,106 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
 
   @override
   void dispose() {
+    _pointController.dispose();
+    _timelineController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _evaluateTimeline() {
+    final elapsed =
+        (_timelineController.value * _scene1TravelDuration.inMilliseconds)
+            .round();
+    for (final timeMs in _parameters.impulseTimeline) {
+      if (timeMs <= elapsed && _firedPoints.add(timeMs)) _trigger();
+    }
   }
 
   void _trigger() {
     _controller.duration = _duration;
     _controller.forward(from: 0);
+  }
+
+  void _playTimeline() {
+    if (_timelineController.isCompleted) {
+      _timelineController.value = 0;
+      _firedPoints.clear();
+      _controller.value = 0;
+    }
+    _timelineController.forward();
+    if (_controller.value > 0 && !_controller.isCompleted) {
+      _controller.forward();
+    }
+    setState(() {});
+  }
+
+  void _pauseTimeline() {
+    _timelineController.stop(canceled: false);
+    _controller.stop(canceled: false);
+    setState(() {});
+  }
+
+  void _stopTimeline() {
+    _timelineController.stop(canceled: false);
+    _controller.stop(canceled: false);
+    _timelineController.value = 0;
+    _controller.value = 0;
+    _firedPoints.clear();
+    setState(() {});
+  }
+
+  void _replayTimeline() {
+    _firedPoints.clear();
+    _controller.value = 0;
+    _timelineController.forward(from: 0);
+    setState(() {});
+  }
+
+  void _addImpulsePoint() {
+    final timeMs = int.tryParse(_pointController.text.trim());
+    if (timeMs == null ||
+        timeMs < 0 ||
+        timeMs > _scene1TravelDuration.inMilliseconds) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('0〜6000msで入力してください')));
+      return;
+    }
+    if (_parameters.impulseTimeline.contains(timeMs)) return;
+    final timeline = [..._parameters.impulseTimeline, timeMs]..sort();
+    _stopTimeline();
+    setState(() {
+      _parameters = _parameters.copyWith(
+        impulseTimeline: List.unmodifiable(timeline),
+      );
+      _pointController.clear();
+    });
+  }
+
+  void _updateImpulsePoint(int index, int updated) {
+    final current = _parameters.impulseTimeline[index];
+    if (current != updated && _parameters.impulseTimeline.contains(updated)) {
+      return;
+    }
+    final timeline = [..._parameters.impulseTimeline];
+    timeline[index] = updated;
+    timeline.sort();
+    _stopTimeline();
+    setState(() {
+      _parameters = _parameters.copyWith(
+        impulseTimeline: List.unmodifiable(timeline),
+      );
+    });
+  }
+
+  void _removeImpulsePoint(int timeMs) {
+    final timeline = [..._parameters.impulseTimeline]..remove(timeMs);
+    _stopTimeline();
+    setState(() {
+      _parameters = _parameters.copyWith(
+        impulseTimeline: List.unmodifiable(timeline),
+      );
+    });
   }
 
   Future<void> _apply() async {
@@ -2285,6 +2584,113 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
                   icon: Icons.vertical_align_center,
                   onPressed: _trigger,
                 ),
+                AppSpacing.gapSM,
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    _CompactActionButton(
+                      key: const ValueKey('suspension-timeline-play'),
+                      label: 'TEST PLAY',
+                      icon: Icons.play_arrow,
+                      onPressed: _timelineController.isAnimating
+                          ? null
+                          : _playTimeline,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('suspension-timeline-pause'),
+                      label: 'PAUSE',
+                      icon: Icons.pause,
+                      onPressed: _timelineController.isAnimating
+                          ? _pauseTimeline
+                          : null,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('suspension-timeline-stop'),
+                      label: 'STOP',
+                      icon: Icons.stop,
+                      onPressed: _stopTimeline,
+                    ),
+                    _CompactActionButton(
+                      key: const ValueKey('suspension-timeline-replay'),
+                      label: 'REPLAY',
+                      icon: Icons.replay,
+                      onPressed: _replayTimeline,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(
+            icon: Icons.view_timeline_outlined,
+            title: 'IMPULSE TIMELINE',
+          ),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  key: const ValueKey('suspension-new-point-time'),
+                  controller: _pointController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'TIME MS (0–6000)',
+                  ),
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('suspension-add-point'),
+                  text: 'ADD IMPULSE POINT',
+                  icon: Icons.add,
+                  onPressed: _addImpulsePoint,
+                ),
+                if (_parameters.impulseTimeline.isEmpty) ...[
+                  AppSpacing.gapMD,
+                  const Text('NO IMPULSE POINTS'),
+                ],
+                for (
+                  var index = 0;
+                  index < _parameters.impulseTimeline.length;
+                  index++
+                ) ...[
+                  Builder(
+                    builder: (context) {
+                      final timeMs = _parameters.impulseTimeline[index];
+                      return Column(
+                        children: [
+                          AppSpacing.gapMD,
+                          Row(
+                            children: [
+                              Expanded(child: Text('$timeMs ms')),
+                              IconButton(
+                                key: ValueKey(
+                                  'suspension-remove-point-$timeMs',
+                                ),
+                                tooltip: 'REMOVE',
+                                onPressed: () => _removeImpulsePoint(timeMs),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            key: ValueKey('suspension-point-slider-$index'),
+                            value: timeMs.toDouble(),
+                            min: 0,
+                            max: _scene1TravelDuration.inMilliseconds
+                                .toDouble(),
+                            divisions: 60,
+                            label: '$timeMs ms',
+                            onChanged: (value) =>
+                                _updateImpulsePoint(index, value.round()),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -2443,11 +2849,12 @@ class _CompositeTestPageState extends State<_CompositeTestPage>
   bool _headlightEnabled = true;
   bool _dustEnabled = true;
   bool _suspensionEnabled = true;
+  final _firedImpulsePoints = <int>{};
 
   late final AnimationController _motionController = AnimationController(
     vsync: this,
     duration: _scene1TotalDuration,
-  );
+  )..addListener(_evaluateSuspensionTimeline);
   late final AnimationController _suspensionController = AnimationController(
     vsync: this,
     duration: _compositeSuspensionDuration,
@@ -2469,8 +2876,14 @@ class _CompositeTestPageState extends State<_CompositeTestPage>
   }
 
   void _play() {
-    if (_motionController.isCompleted) _motionController.value = 0;
+    if (_motionController.isCompleted) {
+      _motionController.value = 0;
+      _firedImpulsePoints.clear();
+    }
     _motionController.forward();
+    if (_suspensionController.value > 0 && !_suspensionController.isCompleted) {
+      _suspensionController.forward();
+    }
     setState(() {});
   }
 
@@ -2485,13 +2898,29 @@ class _CompositeTestPageState extends State<_CompositeTestPage>
     _suspensionController.stop(canceled: false);
     _motionController.value = 0;
     _suspensionController.value = 0;
+    _firedImpulsePoints.clear();
     setState(() {});
   }
 
   void _replay() {
     _suspensionController.value = 0;
+    _firedImpulsePoints.clear();
     _motionController.forward(from: 0);
     setState(() {});
+  }
+
+  void _evaluateSuspensionTimeline() {
+    final parameters = widget.session.suspension;
+    if (parameters == null || !_suspensionEnabled) return;
+    final elapsed =
+        (_motionController.value * _scene1TotalDuration.inMilliseconds)
+            .round()
+            .clamp(0, _scene1TravelDuration.inMilliseconds);
+    for (final timeMs in parameters.impulseTimeline) {
+      if (timeMs <= elapsed && _firedImpulsePoints.add(timeMs)) {
+        _triggerSuspension();
+      }
+    }
   }
 
   void _triggerSuspension() {
@@ -2724,6 +3153,8 @@ class _CompositeEffectPreview extends StatelessWidget {
                           scale: scale,
                           child: _CompositeJeepAssembly(
                             width: assemblyWidth,
+                            bodyAsset: _bootSequenceAssets[1].path,
+                            wheelAsset: _bootSequenceAssets[2].path,
                             headlight: headlight,
                             dust: dust,
                             dustProgress: progress,
@@ -2745,12 +3176,16 @@ class _CompositeEffectPreview extends StatelessWidget {
 class _CompositeJeepAssembly extends StatelessWidget {
   const _CompositeJeepAssembly({
     required this.width,
+    required this.bodyAsset,
+    required this.wheelAsset,
     required this.headlight,
     required this.dust,
     required this.dustProgress,
   });
 
   final double width;
+  final String bodyAsset;
+  final String wheelAsset;
   final _HeadlightParameters? headlight;
   final _DustParameters? dust;
   final double dustProgress;
@@ -2771,13 +3206,15 @@ class _CompositeJeepAssembly extends StatelessWidget {
                 painter: _DustCloudPainter(
                   parameters: dust!,
                   elapsedMs: dustProgress * _scene1TotalDuration.inMilliseconds,
+                  emissionEndMs: _scene1TravelDuration.inMilliseconds
+                      .toDouble(),
                 ),
               ),
             ),
           _JeepAssembly(
             width: width,
-            bodyAsset: _bootSequenceAssets[1].path,
-            wheelAsset: _bootSequenceAssets[2].path,
+            bodyAsset: bodyAsset,
+            wheelAsset: wheelAsset,
           ),
           if (headlight != null)
             Positioned.fill(
@@ -4088,6 +4525,923 @@ class _TransparencyGridPainter extends CustomPainter {
       light != oldDelegate.light || dark != oldDelegate.dark;
 }
 
+class Scene2CalibrationSession {
+  Alignment? _jeepAlignment;
+  double? _jeepScale;
+  Offset? _logoTarget;
+  _CalibrationSnapshot? _cameraStart;
+  _CalibrationSnapshot? _cameraEnd;
+  int? _travelDurationMs;
+  int? _holdDurationMs;
+  _CalibrationCurveOption? _curve;
+
+  bool get hasLayout =>
+      _jeepAlignment != null && _jeepScale != null && _logoTarget != null;
+
+  bool get hasMotion {
+    final start = _cameraStart;
+    final end = _cameraEnd;
+    final travel = _travelDurationMs;
+    final hold = _holdDurationMs;
+    return start != null &&
+        end != null &&
+        start.alignment.x >= -1 &&
+        start.alignment.x <= 1 &&
+        start.alignment.y >= -1 &&
+        start.alignment.y <= 1 &&
+        end.alignment.x >= -1 &&
+        end.alignment.x <= 1 &&
+        end.alignment.y >= -1 &&
+        end.alignment.y <= 1 &&
+        start.scale > 0 &&
+        end.scale > 0 &&
+        travel != null &&
+        travel > 0 &&
+        hold != null &&
+        hold >= 0 &&
+        _curve != null;
+  }
+
+  bool get isComplete => hasLayout && hasMotion;
+
+  Duration? get totalDuration => hasMotion
+      ? Duration(milliseconds: _travelDurationMs! + _holdDurationMs!)
+      : null;
+
+  Map<String, Object?> get layoutParameters => {
+    'calibrationType': 'boot_sequence_scene_2_layout',
+    'prototype': 'scene_2_logo_zoom',
+    'coordinateSystem': 'alignment_normalized',
+    'background': {'asset': _bootSequenceAssets[0].path},
+    'jeep': {
+      'asset': _scene2JeepAsset,
+      'alignment': {
+        'x': _roundOrNull(_jeepAlignment?.x),
+        'y': _roundOrNull(_jeepAlignment?.y),
+      },
+      'scale': _roundOrNull(_jeepScale),
+    },
+    'logoTarget': {
+      'coordinateSystem': 'jeep_local_normalized',
+      'x': _roundOrNull(_logoTarget?.dx),
+      'y': _roundOrNull(_logoTarget?.dy),
+    },
+  };
+
+  Map<String, Object?> get motionParameters => {
+    'calibrationType': 'boot_sequence_scene_2_motion',
+    'prototype': 'scene_2_logo_zoom',
+    'camera': {
+      'start': _scene2SnapshotJson(_cameraStart),
+      'end': _scene2SnapshotJson(_cameraEnd),
+    },
+    'motion': {
+      'travelDurationMs': _travelDurationMs,
+      'holdDurationMs': _holdDurationMs,
+      'curve': _curve?.parameterName,
+    },
+  };
+
+  Map<String, Object?> get compositeParameters => {
+    'layout': layoutParameters,
+    'motion': motionParameters,
+  };
+
+  static double? _roundOrNull(double? value) =>
+      value == null ? null : double.parse(value.toStringAsFixed(3));
+
+  static Map<String, Object?>? _scene2SnapshotJson(
+    _CalibrationSnapshot? snapshot,
+  ) => snapshot == null
+      ? null
+      : {
+          'x': _roundOrNull(snapshot.alignment.x),
+          'y': _roundOrNull(snapshot.alignment.y),
+          'scale': _roundOrNull(snapshot.scale),
+        };
+}
+
+enum _Scene2LayoutTarget { jeep, logo }
+
+class _Scene2LayoutTestPage extends StatefulWidget {
+  const _Scene2LayoutTestPage({required this.session});
+
+  final Scene2CalibrationSession session;
+
+  @override
+  State<_Scene2LayoutTestPage> createState() => _Scene2LayoutTestPageState();
+}
+
+class _Scene2LayoutTestPageState extends State<_Scene2LayoutTestPage> {
+  _Scene2LayoutTarget _target = _Scene2LayoutTarget.jeep;
+
+  String get _parametersJson => const JsonEncoder.withIndent(
+    '  ',
+  ).convert(widget.session.layoutParameters);
+
+  void _moveJeep(Offset delta, Size canvasSize) {
+    final current = widget.session._jeepAlignment ?? Alignment.center;
+    setState(() {
+      widget.session._jeepAlignment = Alignment(
+        (current.x + ((delta.dx * 2) / canvasSize.width)).clamp(-1.0, 1.0),
+        (current.y + ((delta.dy * 2) / canvasSize.height)).clamp(-1.0, 1.0),
+      );
+    });
+  }
+
+  void _setLogoTarget(Offset point, Size canvasSize) {
+    final geometry = _scene2JeepGeometry(
+      canvasSize,
+      widget.session._jeepAlignment ?? Alignment.center,
+      widget.session._jeepScale ?? 1,
+    );
+    setState(() {
+      widget.session._logoTarget = Offset(
+        ((point.dx - geometry.left) / geometry.width).clamp(0.0, 1.0),
+        ((point.dy - geometry.top) / geometry.height).clamp(0.0, 1.0),
+      );
+    });
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _parametersJson));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('SCENE 2 LAYOUT TEST')),
+    body: ListView(
+      padding: AppSpacing.cardPadding,
+      children: [
+        const SectionHeader(
+          icon: Icons.open_with_outlined,
+          title: 'LAYOUT TEST',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                key: const ValueKey('scene-2-layout-target'),
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  ChoiceChip(
+                    label: const Text('JEEP POSITION'),
+                    selected: _target == _Scene2LayoutTarget.jeep,
+                    onSelected: (_) =>
+                        setState(() => _target = _Scene2LayoutTarget.jeep),
+                  ),
+                  ChoiceChip(
+                    label: const Text('LOGO TARGET'),
+                    selected: _target == _Scene2LayoutTarget.logo,
+                    onSelected: (_) =>
+                        setState(() => _target = _Scene2LayoutTarget.logo),
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              _Scene2LayoutCanvas(
+                session: widget.session,
+                target: _target,
+                onMoveJeep: _moveJeep,
+                onSetLogoTarget: _setLogoTarget,
+              ),
+              AppSpacing.gapMD,
+              _Scene2NullableValues(
+                session: widget.session,
+                includeMotion: false,
+              ),
+              _CalibrationSlider(
+                key: const ValueKey('scene-2-jeep-scale'),
+                label: 'JEEP SCALE',
+                value: widget.session._jeepScale ?? 1,
+                min: 0.1,
+                max: 2,
+                divisions: 190,
+                onChanged: (value) =>
+                    setState(() => widget.session._jeepScale = value),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapXL,
+        _Scene2ParametersCard(
+          json: _parametersJson,
+          jsonKey: 'scene-2-layout-parameters-json',
+          copyKey: 'copy-scene-2-layout-parameters',
+          onCopy: _copy,
+        ),
+        AppSpacing.gapLG,
+      ],
+    ),
+  );
+}
+
+class _Scene2LayoutCanvas extends StatelessWidget {
+  const _Scene2LayoutCanvas({
+    required this.session,
+    required this.target,
+    required this.onMoveJeep,
+    required this.onSetLogoTarget,
+  });
+
+  final Scene2CalibrationSession session;
+  final _Scene2LayoutTarget target;
+  final void Function(Offset, Size) onMoveJeep;
+  final void Function(Offset, Size) onSetLogoTarget;
+
+  @override
+  Widget build(BuildContext context) => AspectRatio(
+    aspectRatio: 3 / 2,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        return Listener(
+          key: const ValueKey('scene-2-layout-canvas'),
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: target == _Scene2LayoutTarget.logo
+              ? (event) => onSetLogoTarget(event.localPosition, size)
+              : null,
+          onPointerMove: (event) {
+            if (target == _Scene2LayoutTarget.jeep) {
+              onMoveJeep(event.delta, size);
+            } else {
+              onSetLogoTarget(event.localPosition, size);
+            }
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: _Scene2StaticComposition(session: session, showTarget: true),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _Scene2ZoomTestPage extends StatefulWidget {
+  const _Scene2ZoomTestPage({required this.session});
+
+  final Scene2CalibrationSession session;
+
+  @override
+  State<_Scene2ZoomTestPage> createState() => _Scene2ZoomTestPageState();
+}
+
+class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
+    with SingleTickerProviderStateMixin {
+  late double? _startX = widget.session._cameraStart?.alignment.x;
+  late double? _startY = widget.session._cameraStart?.alignment.y;
+  late double? _startScale = widget.session._cameraStart?.scale;
+  late double? _endX = widget.session._cameraEnd?.alignment.x;
+  late double? _endY = widget.session._cameraEnd?.alignment.y;
+  late double? _endScale = widget.session._cameraEnd?.scale;
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.session.totalDuration ?? const Duration(milliseconds: 1),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncDuration() {
+    _controller
+      ..stop(canceled: false)
+      ..duration =
+          widget.session.totalDuration ?? const Duration(milliseconds: 1)
+      ..value = 0;
+  }
+
+  void _updateSnapshot(bool start, String field, String value) {
+    final parsed = double.tryParse(value);
+    setState(() {
+      if (start) {
+        if (field == 'x') _startX = parsed;
+        if (field == 'y') _startY = parsed;
+        if (field == 'scale') _startScale = parsed;
+      } else {
+        if (field == 'x') _endX = parsed;
+        if (field == 'y') _endY = parsed;
+        if (field == 'scale') _endScale = parsed;
+      }
+      final x = start ? _startX : _endX;
+      final y = start ? _startY : _endY;
+      final scale = start ? _startScale : _endScale;
+      final next = x == null || y == null || scale == null
+          ? null
+          : _CalibrationSnapshot(alignment: Alignment(x, y), scale: scale);
+      if (start) {
+        widget.session._cameraStart = next;
+      } else {
+        widget.session._cameraEnd = next;
+      }
+      _syncDuration();
+    });
+  }
+
+  void _updateDuration(bool travel, String value) {
+    final parsed = int.tryParse(value);
+    setState(() {
+      if (travel) {
+        widget.session._travelDurationMs = parsed;
+      } else {
+        widget.session._holdDurationMs = parsed;
+      }
+      _syncDuration();
+    });
+  }
+
+  void _play({bool restart = false}) {
+    if (!widget.session.isComplete) return;
+    _controller.duration = widget.session.totalDuration;
+    _controller.forward(from: restart ? 0 : null);
+  }
+
+  void _stop() {
+    _controller
+      ..stop(canceled: false)
+      ..value = 0;
+    setState(() {});
+  }
+
+  String get _parametersJson => const JsonEncoder.withIndent(
+    '  ',
+  ).convert(widget.session.motionParameters);
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _parametersJson));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('SCENE 2 ZOOM TEST')),
+    body: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(icon: Icons.zoom_in_outlined, title: 'ZOOM TEST'),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(
+                  aspectRatio: 3 / 2,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: widget.session.isComplete
+                        ? _Scene2Preview(
+                            progress: _controller.value,
+                            session: widget.session,
+                            jeepAsset: _scene2JeepAsset,
+                            showTarget: true,
+                          )
+                        : _Scene2StaticComposition(
+                            session: widget.session,
+                            showTarget: true,
+                          ),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                _Scene2PlaybackControls(
+                  enabled: widget.session.isComplete,
+                  onPlay: _play,
+                  onPause: () {
+                    _controller.stop(canceled: false);
+                    setState(() {});
+                  },
+                  onStop: _stop,
+                  onReplay: () => _play(restart: true),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(icon: Icons.tune_outlined, title: 'PARAMETERS'),
+          AppSpacing.gapSM,
+          OperationCard(child: _buildParameters()),
+          AppSpacing.gapXL,
+          _Scene2ParametersCard(
+            json: _parametersJson,
+            jsonKey: 'scene-2-zoom-parameters-json',
+            copyKey: 'copy-scene-2-zoom-parameters',
+            onCopy: _copy,
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildParameters() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _Scene2SnapshotFields(
+        label: 'START VIEW',
+        snapshot: widget.session._cameraStart,
+        onChanged: (field, value) => _updateSnapshot(true, field, value),
+      ),
+      AppSpacing.gapMD,
+      _Scene2SnapshotFields(
+        label: 'END VIEW',
+        snapshot: widget.session._cameraEnd,
+        onChanged: (field, value) => _updateSnapshot(false, field, value),
+      ),
+      AppSpacing.gapMD,
+      _Scene2NumberField(
+        key: const ValueKey('scene-2-travel-duration'),
+        label: 'TRAVEL DURATION (ms)',
+        value: widget.session._travelDurationMs,
+        onChanged: (value) => _updateDuration(true, value),
+      ),
+      AppSpacing.gapSM,
+      _Scene2NumberField(
+        key: const ValueKey('scene-2-hold-duration'),
+        label: 'HOLD DURATION (ms)',
+        value: widget.session._holdDurationMs,
+        onChanged: (value) => _updateDuration(false, value),
+      ),
+      AppSpacing.gapSM,
+      DropdownButtonFormField<_CalibrationCurveOption>(
+        key: const ValueKey('scene-2-curve'),
+        initialValue: widget.session._curve,
+        decoration: const InputDecoration(labelText: 'CURVE'),
+        hint: const Text('NOT SET'),
+        items: [
+          for (final option in _CalibrationCurveOption.values)
+            DropdownMenuItem(value: option, child: Text(option.label)),
+        ],
+        onChanged: (value) => setState(() {
+          widget.session._curve = value;
+          _syncDuration();
+        }),
+      ),
+    ],
+  );
+}
+
+class _Scene2CompositeTestPage extends StatefulWidget {
+  const _Scene2CompositeTestPage({required this.session});
+
+  final Scene2CalibrationSession session;
+
+  @override
+  State<_Scene2CompositeTestPage> createState() =>
+      _Scene2CompositeTestPageState();
+}
+
+class _Scene2CompositeTestPageState extends State<_Scene2CompositeTestPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.session.totalDuration ?? const Duration(milliseconds: 1),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _play({bool restart = false}) {
+    if (!widget.session.isComplete) return;
+    _controller.duration = widget.session.totalDuration;
+    _controller.forward(from: restart ? 0 : null);
+  }
+
+  void _stop() {
+    _controller
+      ..stop(canceled: false)
+      ..value = 0;
+    setState(() {});
+  }
+
+  String get _parametersJson => const JsonEncoder.withIndent(
+    '  ',
+  ).convert(widget.session.compositeParameters);
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _parametersJson));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('SCENE 2 COMPOSITE TEST')),
+    body: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          const SectionHeader(
+            icon: Icons.layers_outlined,
+            title: 'COMPOSITE TEST',
+          ),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(
+                  aspectRatio: 3 / 2,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: widget.session.isComplete
+                        ? _Scene2Preview(
+                            key: const ValueKey('scene-2-composite-preview'),
+                            progress: _controller.value,
+                            session: widget.session,
+                            jeepAsset: _scene2JeepAsset,
+                            showTarget: true,
+                          )
+                        : const _ScenePlaceholder(
+                            label: 'SCENE 2 PARAMETERS NOT SET',
+                          ),
+                  ),
+                ),
+                AppSpacing.gapMD,
+                _Scene2PlaybackControls(
+                  enabled: widget.session.isComplete,
+                  onPlay: _play,
+                  onPause: () {
+                    _controller.stop(canceled: false);
+                    setState(() {});
+                  },
+                  onStop: _stop,
+                  onReplay: () => _play(restart: true),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapXL,
+          _Scene2ParametersCard(
+            json: _parametersJson,
+            jsonKey: 'scene-2-composite-parameters-json',
+            copyKey: 'copy-scene-2-composite-parameters',
+            onCopy: _copy,
+          ),
+          AppSpacing.gapLG,
+        ],
+      ),
+    ),
+  );
+}
+
+class _Scene2PlaybackControls extends StatelessWidget {
+  const _Scene2PlaybackControls({
+    required this.enabled,
+    required this.onPlay,
+    required this.onPause,
+    required this.onStop,
+    required this.onReplay,
+  });
+
+  final bool enabled;
+  final VoidCallback onPlay;
+  final VoidCallback onPause;
+  final VoidCallback onStop;
+  final VoidCallback onReplay;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    key: const ValueKey('scene-2-playback-controls'),
+    spacing: AppSpacing.sm,
+    runSpacing: AppSpacing.sm,
+    children: [
+      ElevatedButton(
+        onPressed: enabled ? onPlay : null,
+        child: const Text('TEST PLAY'),
+      ),
+      ElevatedButton(
+        onPressed: enabled ? onPause : null,
+        child: const Text('PAUSE'),
+      ),
+      ElevatedButton(
+        onPressed: enabled ? onStop : null,
+        child: const Text('STOP'),
+      ),
+      ElevatedButton(
+        onPressed: enabled ? onReplay : null,
+        child: const Text('REPLAY'),
+      ),
+    ],
+  );
+}
+
+class _Scene2SnapshotFields extends StatelessWidget {
+  const _Scene2SnapshotFields({
+    required this.label,
+    required this.snapshot,
+    required this.onChanged,
+  });
+
+  final String label;
+  final _CalibrationSnapshot? snapshot;
+  final void Function(String, String) onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.titleSmall),
+      AppSpacing.gapSM,
+      Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          for (final entry in <String, double?>{
+            'x': snapshot?.alignment.x,
+            'y': snapshot?.alignment.y,
+            'scale': snapshot?.scale,
+          }.entries)
+            SizedBox(
+              width: 150,
+              child: _Scene2NumberField(
+                key: ValueKey(
+                  'scene-2-${label.toLowerCase().replaceAll(' ', '-')}-${entry.key}',
+                ),
+                label: entry.key.toUpperCase(),
+                value: entry.value,
+                onChanged: (value) => onChanged(entry.key, value),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _Scene2NumberField extends StatefulWidget {
+  const _Scene2NumberField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final num? value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_Scene2NumberField> createState() => _Scene2NumberFieldState();
+}
+
+class _Scene2NumberFieldState extends State<_Scene2NumberField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value?.toString() ?? '',
+  );
+
+  @override
+  void didUpdateWidget(covariant _Scene2NumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value && !_controller.selection.isValid) {
+      _controller.text = widget.value?.toString() ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: _controller,
+    keyboardType: const TextInputType.numberWithOptions(
+      decimal: true,
+      signed: true,
+    ),
+    decoration: InputDecoration(labelText: widget.label, hintText: 'NOT SET'),
+    onChanged: widget.onChanged,
+  );
+}
+
+class _Scene2NullableValues extends StatelessWidget {
+  const _Scene2NullableValues({
+    required this.session,
+    required this.includeMotion,
+  });
+
+  final Scene2CalibrationSession session;
+  final bool includeMotion;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    'JEEP X ${session._jeepAlignment?.x.toStringAsFixed(3) ?? 'NOT SET'}  '
+    'Y ${session._jeepAlignment?.y.toStringAsFixed(3) ?? 'NOT SET'}\n'
+    'LOGO X ${session._logoTarget?.dx.toStringAsFixed(3) ?? 'NOT SET'}  '
+    'Y ${session._logoTarget?.dy.toStringAsFixed(3) ?? 'NOT SET'}',
+    key: const ValueKey('scene-2-layout-live-values'),
+    style: Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+  );
+}
+
+class _Scene2ParametersCard extends StatelessWidget {
+  const _Scene2ParametersCard({
+    required this.json,
+    required this.jsonKey,
+    required this.copyKey,
+    required this.onCopy,
+  });
+
+  final String json;
+  final String jsonKey;
+  final String copyKey;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(icon: Icons.data_object, title: 'CODEX PARAMETERS'),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SelectableText(
+              json,
+              key: ValueKey(jsonKey),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+            ),
+            AppSpacing.gapMD,
+            _SandboxActionButton(
+              key: ValueKey(copyKey),
+              text: 'COPY PARAMETERS',
+              icon: Icons.copy_outlined,
+              onPressed: onCopy,
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+Rect _scene2JeepGeometry(Size canvasSize, Alignment alignment, double scale) {
+  final baseWidth = (canvasSize.width * 0.62).clamp(120.0, 520.0);
+  final width = baseWidth * scale;
+  final height = width * (887 / 1774);
+  final center = Offset(
+    ((alignment.x + 1) / 2) * canvasSize.width,
+    ((alignment.y + 1) / 2) * canvasSize.height,
+  );
+  return Rect.fromCenter(center: center, width: width, height: height);
+}
+
+class _Scene2StaticComposition extends StatelessWidget {
+  const _Scene2StaticComposition({
+    required this.session,
+    required this.showTarget,
+  });
+
+  final Scene2CalibrationSession session;
+  final bool showTarget;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Image.asset(
+        _bootSequenceAssets[0].path,
+        key: const ValueKey('scene-2-background'),
+        fit: BoxFit.cover,
+      ),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final geometry = _scene2JeepGeometry(
+            constraints.biggest,
+            session._jeepAlignment ?? Alignment.center,
+            session._jeepScale ?? 1,
+          );
+          return Stack(
+            children: [
+              Positioned.fromRect(
+                rect: geometry,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      _scene2JeepAsset,
+                      key: const ValueKey('scene-2-jeep-side'),
+                      fit: BoxFit.contain,
+                    ),
+                    if (showTarget && session._logoTarget != null)
+                      Positioned(
+                        key: const ValueKey('scene-2-logo-target'),
+                        left: (session._logoTarget!.dx * geometry.width) - 10,
+                        top: (session._logoTarget!.dy * geometry.height) - 10,
+                        child: const Icon(
+                          Icons.adjust,
+                          color: Colors.cyanAccent,
+                          size: 20,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (!session.hasLayout)
+                const Positioned(
+                  left: 8,
+                  top: 8,
+                  child: _CalibrationStatusBadge(text: 'LAYOUT NOT SET'),
+                ),
+            ],
+          );
+        },
+      ),
+    ],
+  );
+}
+
+class _CalibrationStatusBadge extends StatelessWidget {
+  const _CalibrationStatusBadge({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.68),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Text(text),
+    ),
+  );
+}
+
+class _Scene2Preview extends StatelessWidget {
+  const _Scene2Preview({
+    super.key,
+    required this.progress,
+    required this.session,
+    required this.jeepAsset,
+    required this.showTarget,
+  });
+
+  final double progress;
+  final Scene2CalibrationSession session;
+  final String jeepAsset;
+  final bool showTarget;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMs = session._travelDurationMs! + session._holdDurationMs!;
+    final travelFraction = totalMs == 0
+        ? 1.0
+        : session._travelDurationMs! / totalMs;
+    final raw = travelFraction == 0
+        ? 1.0
+        : (progress / travelFraction).clamp(0.0, 1.0);
+    final eased = session._curve!.curve.transform(raw.toDouble());
+    final start = session._cameraStart!;
+    final end = session._cameraEnd!;
+    final cameraAlignment = Alignment.lerp(
+      start.alignment,
+      end.alignment,
+      eased,
+    )!;
+    final cameraScale = start.scale + ((end.scale - start.scale) * eased);
+
+    return ClipRect(
+      child: Transform.scale(
+        key: const ValueKey('scene-2-camera-scale'),
+        scale: cameraScale,
+        alignment: cameraAlignment,
+        child: _Scene2StaticComposition(
+          session: session,
+          showTarget: showTarget,
+        ),
+      ),
+    );
+  }
+}
+
 class _BootSequencePreview extends StatelessWidget {
   const _BootSequencePreview({
     super.key,
@@ -4097,6 +5451,12 @@ class _BootSequencePreview extends StatelessWidget {
     required this.jeepBodyAsset,
     required this.wheelAsset,
     required this.sceneLabel,
+    required this.headlight,
+    required this.dust,
+    required this.suspension,
+    required this.suspensionProgress,
+    required this.scene2Session,
+    required this.scene2JeepAsset,
   });
 
   final int sceneIndex;
@@ -4105,6 +5465,12 @@ class _BootSequencePreview extends StatelessWidget {
   final String jeepBodyAsset;
   final String wheelAsset;
   final String sceneLabel;
+  final _HeadlightParameters? headlight;
+  final _DustParameters? dust;
+  final _SuspensionParameters? suspension;
+  final double suspensionProgress;
+  final Scene2CalibrationSession scene2Session;
+  final String scene2JeepAsset;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -4114,14 +5480,26 @@ class _BootSequencePreview extends StatelessWidget {
         aspectRatio: 3 / 2,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: sceneIndex == 0
-              ? _JeepApproachPrototype(
-                  progress: progress,
-                  backgroundAsset: backgroundAsset,
-                  jeepBodyAsset: jeepBodyAsset,
-                  wheelAsset: wheelAsset,
-                )
-              : _ScenePlaceholder(label: sceneLabel),
+          child: switch (sceneIndex) {
+            0 => _JeepApproachPrototype(
+              progress: progress,
+              backgroundAsset: backgroundAsset,
+              jeepBodyAsset: jeepBodyAsset,
+              wheelAsset: wheelAsset,
+              headlight: headlight,
+              dust: dust,
+              suspension: suspension,
+              suspensionProgress: suspensionProgress,
+            ),
+            1 when scene2Session.isComplete => _Scene2Preview(
+              key: const ValueKey('scene-2-normal-preview'),
+              progress: progress,
+              session: scene2Session,
+              jeepAsset: scene2JeepAsset,
+              showTarget: false,
+            ),
+            _ => _ScenePlaceholder(label: sceneLabel),
+          },
         ),
       ),
     ),
@@ -4163,12 +5541,20 @@ class _JeepApproachPrototype extends StatelessWidget {
     required this.backgroundAsset,
     required this.jeepBodyAsset,
     required this.wheelAsset,
+    required this.headlight,
+    required this.dust,
+    required this.suspension,
+    required this.suspensionProgress,
   });
 
   final double progress;
   final String backgroundAsset;
   final String jeepBodyAsset;
   final String wheelAsset;
+  final _HeadlightParameters? headlight;
+  final _DustParameters? dust;
+  final _SuspensionParameters? suspension;
+  final double suspensionProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -4184,6 +5570,14 @@ class _JeepApproachPrototype extends StatelessWidget {
     final scale =
         _scene1Start.scale +
         ((_scene1End.scale - _scene1Start.scale) * motionProgress);
+    final suspensionY = suspension == null
+        ? 0.0
+        : _suspensionYOffset(suspension!, suspensionProgress);
+    final elapsedMs = progress * _scene1TotalDuration.inMilliseconds;
+    final dustVisible =
+        dust != null &&
+        progress > 0 &&
+        elapsedMs <= _scene1TravelDuration.inMilliseconds + dust!.lifetimeMs;
 
     return Stack(
       key: const ValueKey('jeep-scene-canvas'),
@@ -4214,13 +5608,20 @@ class _JeepApproachPrototype extends StatelessWidget {
                       (assemblyHeight / 2),
                   width: assemblyWidth,
                   height: assemblyHeight,
-                  child: Transform.scale(
-                    key: const ValueKey('jeep-assembly-scale'),
-                    scale: scale,
-                    child: _JeepAssembly(
-                      width: assemblyWidth,
-                      bodyAsset: jeepBodyAsset,
-                      wheelAsset: wheelAsset,
+                  child: Transform.translate(
+                    key: const ValueKey('scene-1-suspension-offset'),
+                    offset: Offset(0, suspensionY),
+                    child: Transform.scale(
+                      key: const ValueKey('jeep-assembly-scale'),
+                      scale: scale,
+                      child: _CompositeJeepAssembly(
+                        width: assemblyWidth,
+                        bodyAsset: jeepBodyAsset,
+                        wheelAsset: wheelAsset,
+                        headlight: headlight,
+                        dust: dustVisible ? dust : null,
+                        dustProgress: progress,
+                      ),
                     ),
                   ),
                 ),

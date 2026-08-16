@@ -1465,6 +1465,339 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'scene one restores live effects and fires saved suspension timeline once',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'or_app.animations_sandbox.effect_lab.headlight.v1': jsonEncode({
+          'effectType': 'headlight',
+          'left': {'x': 0.052, 'y': 0.582},
+          'right': {'x': 0.288, 'y': 0.591},
+          'glowSize': 0.195,
+          'opacity': 0.87,
+          'beamEnabled': false,
+        }),
+        'or_app.animations_sandbox.effect_lab.dust.v1': jsonEncode({
+          'effectType': 'dust',
+          'emitter': {'x': 0.996, 'y': 0.684},
+          'spread': 0.35,
+          'direction': -20.0,
+          'size': 0.24,
+          'opacity': 0.47,
+          'lifetimeMs': 1500,
+          'emissionRate': 7.0,
+        }),
+        'or_app.animations_sandbox.effect_lab.suspension.v1': jsonEncode({
+          'effectType': 'suspension',
+          'bodyYResponse': 0.05,
+          'impulseStrength': 0.5,
+          'impulseDurationMs': 400,
+          'settleDurationMs': 700,
+          'impulseTimeline': [
+            {'timeMs': 500},
+          ],
+        }),
+      });
+      tester.view.physicalSize = const Size(390, 2800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(home: BootSequencePreviewPage()),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('composite-headlight-effect')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('composite-dust-effect')), findsNothing);
+      expect(
+        _transformOffset(tester, 'scene-1-suspension-offset'),
+        Offset.zero,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.byKey(const ValueKey('composite-dust-effect')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 50));
+      final firedOffset = _transformOffset(tester, 'scene-1-suspension-offset');
+      expect(firedOffset.dy, greaterThan(0));
+
+      await tester.tap(find.byKey(const ValueKey('preview-pause')));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        _transformOffset(tester, 'scene-1-suspension-offset'),
+        firedOffset,
+      );
+      await tester.tap(find.byKey(const ValueKey('preview-stop')));
+      await tester.pump();
+      expect(
+        _transformOffset(tester, 'scene-1-suspension-offset'),
+        Offset.zero,
+      );
+      expect(find.byKey(const ValueKey('composite-dust-effect')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('preview-replay')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(
+        _transformOffset(tester, 'scene-1-suspension-offset').dy,
+        greaterThan(0),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('suspension timeline adds updates removes and persists points', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 6200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _openEffectLabTest(tester, 'suspension');
+    expect(find.text('NO IMPULSE POINTS'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('suspension-new-point-time')),
+      '1600',
+    );
+    await tester.tap(find.byKey(const ValueKey('suspension-add-point')));
+    await tester.pump();
+    expect(find.text('1600 ms'), findsOneWidget);
+
+    final pointSlider = find.byKey(const ValueKey('suspension-point-slider-0'));
+    await tester.ensureVisible(pointSlider);
+    await tester.drag(pointSlider, const Offset(40, 0));
+    await tester.pump();
+    final updated = _jsonFromSelectable(
+      tester,
+      const ValueKey('suspension-parameters-json'),
+    );
+    final timeline = updated['impulseTimeline'] as List;
+    expect(timeline, hasLength(1));
+    final changedTime = (timeline.single as Map)['timeMs'] as int;
+    expect(changedTime, isNot(1600));
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('apply-suspension-to-lab')),
+    );
+    await tester.tap(find.byKey(const ValueKey('apply-suspension-to-lab')));
+    await tester.pump();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('open-suspension-test')));
+    await tester.pumpAndSettle();
+    expect(find.text('$changedTime ms'), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.byKey(ValueKey('suspension-remove-point-$changedTime')),
+    );
+    await tester.tap(
+      find.byKey(ValueKey('suspension-remove-point-$changedTime')),
+    );
+    await tester.pump();
+    expect(find.text('NO IMPULSE POINTS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'scene two calibration shares layout zoom composite and normal preview',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 7000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      String? copiedText;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(home: BootSequencePreviewPage()),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('open-boot-sequence-calibration')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('open-scene-2-layout-test')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('open-scene-2-zoom-test')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('open-scene-2-composite-test')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('open-scene-2-layout-test')));
+      await tester.pumpAndSettle();
+      expect(
+        _assetName(tester, const ValueKey('scene-2-jeep-side')),
+        'assets/animations/sandbox/boot_sequence/phase_02/jeep/jeep_side.png',
+      );
+      var layout = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-layout-parameters-json'),
+      );
+      expect(((layout['jeep'] as Map)['alignment'] as Map)['x'], isNull);
+      expect((layout['logoTarget'] as Map)['x'], isNull);
+      await _dragByKey(
+        tester,
+        const ValueKey('scene-2-layout-canvas'),
+        const Offset(20, 12),
+      );
+      await tester.tap(find.text('LOGO TARGET'));
+      await tester.pump();
+      await _dragByKey(
+        tester,
+        const ValueKey('scene-2-layout-canvas'),
+        const Offset(18, -8),
+        kind: PointerDeviceKind.mouse,
+      );
+      await _moveSlider(tester, 'scene-2-jeep-scale', 20);
+      layout = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-layout-parameters-json'),
+      );
+      expect(((layout['jeep'] as Map)['alignment'] as Map)['x'], isNotNull);
+      expect((layout['jeep'] as Map)['scale'], isNotNull);
+      expect((layout['logoTarget'] as Map)['x'], isNotNull);
+      expect(find.byKey(const ValueKey('scene-2-logo-target')), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('copy-scene-2-layout-parameters')),
+      );
+      await tester.pump();
+      expect(copiedText, isNotNull);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('open-scene-2-zoom-test')));
+      await tester.pumpAndSettle();
+      for (final entry in const {
+        'scene-2-start-view-x': '0',
+        'scene-2-start-view-y': '0',
+        'scene-2-start-view-scale': '1',
+        'scene-2-end-view-x': '0.2',
+        'scene-2-end-view-y': '0.1',
+        'scene-2-end-view-scale': '2',
+        'scene-2-travel-duration': '3000',
+        'scene-2-hold-duration': '500',
+      }.entries) {
+        await tester.enterText(find.byKey(ValueKey(entry.key)), entry.value);
+      }
+      await tester.tap(find.byKey(const ValueKey('scene-2-curve')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('EASE OUT').last);
+      await tester.pumpAndSettle();
+      final zoom = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-zoom-parameters-json'),
+      );
+      expect(((zoom['camera'] as Map)['start'] as Map)['scale'], 1.0);
+      expect(((zoom['camera'] as Map)['end'] as Map)['scale'], 2.0);
+      expect((zoom['motion'] as Map)['travelDurationMs'], 3000);
+      expect((zoom['motion'] as Map)['curve'], 'easeOutCubic');
+      await tester.ensureVisible(find.text('TEST PLAY'));
+      await tester.tap(find.text('TEST PLAY'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(_transformScale(tester, 'scene-2-camera-scale'), greaterThan(1));
+      await tester.tap(find.text('PAUSE'));
+      await tester.pump();
+      await tester.tap(find.text('STOP'));
+      await tester.pump();
+      expect(_transformScale(tester, 'scene-2-camera-scale'), 1);
+      await tester.tap(find.text('REPLAY'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(_transformScale(tester, 'scene-2-camera-scale'), greaterThan(1));
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('open-scene-2-composite-test')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('scene-2-composite-preview')),
+        findsOneWidget,
+      );
+      final composite = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-composite-parameters-json'),
+      );
+      expect(composite['layout'], layout);
+      expect(composite['motion'], zoom);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('preview-scene-1')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('scene-2-normal-preview')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('scene-2-logo-target')), findsNothing);
+      expect(find.text('00:00 / 00:03'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('scene two tools avoid overflow at narrow and desktop widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final width in [320.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 6000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey('scene-2-responsive-$width'),
+          home: const BootSequenceCalibrationPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final entry in const [
+        'open-scene-2-layout-test',
+        'open-scene-2-zoom-test',
+        'open-scene-2-composite-test',
+      ]) {
+        await tester.ensureVisible(find.byKey(ValueKey(entry)));
+        await tester.tap(find.byKey(ValueKey(entry)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+      }
+    }
+  });
+
   testWidgets('baseline jeep reaches calibrated end and holds', (tester) async {
     tester.view.physicalSize = const Size(390, 2600);
     tester.view.devicePixelRatio = 1;
