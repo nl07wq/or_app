@@ -9,11 +9,13 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
 import 'package:or_app/features/system/services/storage_status_gateway.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     AppRepositoryRegistry.install(
       AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
     );
@@ -351,10 +353,10 @@ void main() {
       tester,
       const ValueKey('headlight-parameters-json'),
     );
-    expect(initial['left'], {'x': 0.033, 'y': 0.582});
-    expect(initial['right'], {'x': 0.262, 'y': 0.596});
-    expect(initial['glowSize'], 0.165);
-    expect(initial['opacity'], 0.46);
+    expect(initial['left'], {'x': 0.052, 'y': 0.582});
+    expect(initial['right'], {'x': 0.288, 'y': 0.591});
+    expect(initial['glowSize'], 0.195);
+    expect(initial['opacity'], 0.87);
     expect(initial['beamEnabled'], isFalse);
     expect(initial.containsKey('beamLength'), isFalse);
     expect(initial.containsKey('beamWidth'), isFalse);
@@ -612,6 +614,170 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'effect settings seed persist reset independently and restore in composite',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 6500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _openEffectLabTest(tester, 'headlight');
+      final seededHeadlight = _jsonFromSelectable(
+        tester,
+        const ValueKey('headlight-parameters-json'),
+      );
+      expect(seededHeadlight['left'], {'x': 0.052, 'y': 0.582});
+      expect(seededHeadlight['right'], {'x': 0.288, 'y': 0.591});
+      expect(seededHeadlight['glowSize'], 0.195);
+      expect(seededHeadlight['opacity'], 0.87);
+      await _moveSlider(tester, 'headlight-opacity-slider', -36);
+      final savedHeadlight = _jsonFromSelectable(
+        tester,
+        const ValueKey('headlight-parameters-json'),
+      );
+      await tester.tap(find.byKey(const ValueKey('apply-headlight-to-lab')));
+      await tester.pump();
+
+      await _openEffectLabTest(tester, 'dust');
+      final seededDust = _jsonFromSelectable(
+        tester,
+        const ValueKey('dust-parameters-json'),
+      );
+      expect(seededDust['emitter'], {'x': 0.996, 'y': 0.684});
+      expect(seededDust['direction'], -20.0);
+      expect(seededDust['size'], 0.24);
+      expect(seededDust['opacity'], 0.47);
+      expect(seededDust['lifetimeMs'], 1500);
+      await _moveSlider(tester, 'dust-size-slider', -30);
+      final savedDust = _jsonFromSelectable(
+        tester,
+        const ValueKey('dust-parameters-json'),
+      );
+      await tester.tap(find.byKey(const ValueKey('apply-dust-to-lab')));
+      await tester.pump();
+
+      await _openEffectLabTest(tester, 'suspension');
+      final seededSuspension = _jsonFromSelectable(
+        tester,
+        const ValueKey('suspension-parameters-json'),
+      );
+      expect(seededSuspension['bodyYResponse'], 0.05);
+      expect(seededSuspension['impulseStrength'], 0.5);
+      expect(seededSuspension['impulseDurationMs'], 400);
+      expect(seededSuspension['settleDurationMs'], 700);
+      await _moveSlider(tester, 'suspension-impulse-strength-slider', 30);
+      final savedSuspension = _jsonFromSelectable(
+        tester,
+        const ValueKey('suspension-parameters-json'),
+      );
+      await tester.tap(find.byKey(const ValueKey('apply-suspension-to-lab')));
+      await tester.pump();
+
+      await _openEffectLabTest(tester, 'headlight');
+      expect(
+        _jsonFromSelectable(
+          tester,
+          const ValueKey('headlight-parameters-json'),
+        ),
+        savedHeadlight,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('reset-headlight-to-default')),
+      );
+      await tester.pump();
+      expect(
+        _jsonFromSelectable(
+          tester,
+          const ValueKey('headlight-parameters-json'),
+        ),
+        containsPair('glowSize', 0.165),
+      );
+
+      await _openEffectLabTest(tester, 'composite');
+      final isolatedEffects =
+          _jsonFromSelectable(
+                tester,
+                const ValueKey('composite-parameters-json'),
+              )['effects']
+              as Map;
+      expect((isolatedEffects['headlight'] as Map)['glowSize'], 0.165);
+      expect(isolatedEffects['dust'], savedDust);
+      expect(isolatedEffects['suspension'], savedSuspension);
+
+      await _openEffectLabTest(tester, 'dust');
+      expect(
+        _jsonFromSelectable(tester, const ValueKey('dust-parameters-json')),
+        savedDust,
+      );
+      await tester.tap(find.byKey(const ValueKey('reset-dust-to-default')));
+      await tester.pump();
+      expect(
+        _jsonFromSelectable(tester, const ValueKey('dust-parameters-json')),
+        containsPair('size', 0.18),
+      );
+
+      await _openEffectLabTest(tester, 'suspension');
+      expect(
+        _jsonFromSelectable(
+          tester,
+          const ValueKey('suspension-parameters-json'),
+        ),
+        savedSuspension,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('reset-suspension-to-default')),
+      );
+      await tester.pump();
+      expect(
+        _jsonFromSelectable(
+          tester,
+          const ValueKey('suspension-parameters-json'),
+        ),
+        containsPair('impulseDurationMs', 180),
+      );
+
+      await _openEffectLabTest(tester, 'composite');
+      final resetEffects =
+          _jsonFromSelectable(
+                tester,
+                const ValueKey('composite-parameters-json'),
+              )['effects']
+              as Map;
+      expect((resetEffects['headlight'] as Map)['opacity'], 0.46);
+      expect((resetEffects['dust'] as Map)['lifetimeMs'], 1400);
+      expect((resetEffects['suspension'] as Map)['settleDurationMs'], 650);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('invalid saved effect settings fall back to factory defaults', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'or_app.animations_sandbox.effect_lab.headlight.v1': '{"opacity":0.5}',
+      'or_app.animations_sandbox.effect_lab.dust.v1': 'not-json',
+      'or_app.animations_sandbox.effect_lab.suspension.v1':
+          '{"effectType":"suspension"}',
+    });
+    tester.view.physicalSize = const Size(390, 6500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _openEffectLabTest(tester, 'composite');
+    final effects =
+        _jsonFromSelectable(
+              tester,
+              const ValueKey('composite-parameters-json'),
+            )['effects']
+            as Map;
+    expect((effects['headlight'] as Map)['glowSize'], 0.165);
+    expect((effects['dust'] as Map)['emitter'], {'x': 0.82, 'y': 0.72});
+    expect((effects['suspension'] as Map)['bodyYResponse'], 0.08);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('composite reads applied lab state and preserves main motion', (
     tester,
   ) async {
@@ -641,13 +807,14 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('open-composite-test')));
     await tester.pumpAndSettle();
-    final unset = _jsonFromSelectable(
+    final restored = _jsonFromSelectable(
       tester,
       const ValueKey('composite-parameters-json'),
     );
-    expect((unset['effects'] as Map)['headlight'], isNull);
-    expect((unset['effects'] as Map)['dust'], isNull);
-    expect((unset['effects'] as Map)['suspension'], isNull);
+    final restoredEffects = restored['effects'] as Map;
+    expect((restoredEffects['headlight'] as Map)['glowSize'], 0.195);
+    expect((restoredEffects['dust'] as Map)['direction'], -20.0);
+    expect((restoredEffects['suspension'] as Map)['impulseDurationMs'], 400);
     await tester.pageBack();
     await tester.pumpAndSettle();
 
@@ -1471,7 +1638,7 @@ Future<void> _openAndCloseAssetPreview(
 
 Future<void> _openEffectLabTest(WidgetTester tester, String testKey) async {
   await tester.pumpWidget(
-    const MaterialApp(home: BootSequenceCalibrationPage()),
+    MaterialApp(key: UniqueKey(), home: const BootSequenceCalibrationPage()),
   );
   await tester.ensureVisible(find.byKey(const ValueKey('open-effect-lab')));
   await tester.tap(find.byKey(const ValueKey('open-effect-lab')));

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -791,6 +792,24 @@ class _BootSequenceCalibrationPageState
     extends State<BootSequenceCalibrationPage> {
   final _session = _CalibrationSession();
   final _effectLabSession = _EffectLabSession();
+  late final Future<void> _effectSettingsReady;
+
+  @override
+  void initState() {
+    super.initState();
+    _effectSettingsReady = _effectLabSession.restore();
+  }
+
+  Future<void> _openEffectLab() async {
+    await _effectSettingsReady;
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => _EffectLabPage(session: _effectLabSession),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -843,12 +862,7 @@ class _BootSequenceCalibrationPageState
             key: const ValueKey('open-effect-lab'),
             text: 'EFFECT LAB',
             icon: Icons.science_outlined,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => _EffectLabPage(session: _effectLabSession),
-              ),
-            ),
+            onPressed: _openEffectLab,
           ),
         ),
       ],
@@ -915,9 +929,35 @@ class _EffectLabEntry {
 }
 
 class _EffectLabSession {
+  final _settings = const _EffectLabSettingsStore();
   _HeadlightParameters? headlight;
   _DustParameters? dust;
   _SuspensionParameters? suspension;
+  Future<void>? _restoreFuture;
+
+  Future<void> restore() => _restoreFuture ??= _restore();
+
+  Future<void> _restore() async {
+    final restored = await _settings.load();
+    headlight = restored.headlight;
+    dust = restored.dust;
+    suspension = restored.suspension;
+  }
+
+  Future<void> saveHeadlight(_HeadlightParameters value) async {
+    headlight = value;
+    await _settings.saveHeadlight(value);
+  }
+
+  Future<void> saveDust(_DustParameters value) async {
+    dust = value;
+    await _settings.saveDust(value);
+  }
+
+  Future<void> saveSuspension(_SuspensionParameters value) async {
+    suspension = value;
+    await _settings.saveSuspension(value);
+  }
 }
 
 class _HeadlightParameters {
@@ -928,11 +968,18 @@ class _HeadlightParameters {
     required this.opacity,
   });
 
-  static const preview = _HeadlightParameters(
+  static const factoryDefault = _HeadlightParameters(
     left: Offset(0.033, 0.582),
     right: Offset(0.262, 0.596),
     glowSize: 0.165,
     opacity: 0.46,
+  );
+
+  static const currentApproved = _HeadlightParameters(
+    left: Offset(0.052, 0.582),
+    right: Offset(0.288, 0.591),
+    glowSize: 0.195,
+    opacity: 0.87,
   );
 
   final Offset left;
@@ -961,6 +1008,41 @@ class _HeadlightParameters {
     'opacity': _effectRounded(opacity),
     'beamEnabled': false,
   };
+
+  factory _HeadlightParameters.fromJson(Map<String, Object?> json) {
+    _requireExactKeys(json, const {
+      'effectType',
+      'coordinateSystem',
+      'left',
+      'right',
+      'glowSize',
+      'opacity',
+      'beamEnabled',
+    });
+    if (json['effectType'] != 'headlight' ||
+        json['coordinateSystem'] != 'jeep_local_normalized' ||
+        json['beamEnabled'] != false) {
+      throw const FormatException('Invalid headlight setting contract.');
+    }
+    final left = _settingOffset(json['left']);
+    final right = _settingOffset(json['right']);
+    final glowSize = _settingDouble(json['glowSize']);
+    final opacity = _settingDouble(json['opacity']);
+    if (!_normalizedOffset(left) ||
+        !_normalizedOffset(right) ||
+        glowSize < 0.02 ||
+        glowSize > 0.25 ||
+        opacity < 0 ||
+        opacity > 1) {
+      throw const FormatException('Headlight setting is out of range.');
+    }
+    return _HeadlightParameters(
+      left: left,
+      right: right,
+      glowSize: glowSize,
+      opacity: opacity,
+    );
+  }
 }
 
 class _DustParameters {
@@ -974,13 +1056,23 @@ class _DustParameters {
     required this.emissionRate,
   });
 
-  static const preview = _DustParameters(
+  static const factoryDefault = _DustParameters(
     emitter: Offset(0.82, 0.72),
     spread: 0.35,
     direction: 0,
     size: 0.18,
     opacity: 0.45,
     lifetimeMs: 1400,
+    emissionRate: 7,
+  );
+
+  static const currentApproved = _DustParameters(
+    emitter: Offset(0.996, 0.684),
+    spread: 0.35,
+    direction: -20,
+    size: 0.24,
+    opacity: 0.47,
+    lifetimeMs: 1500,
     emissionRate: 7,
   );
 
@@ -1024,6 +1116,55 @@ class _DustParameters {
     'lifetimeMs': lifetimeMs,
     'emissionRate': _effectRounded(emissionRate),
   };
+
+  factory _DustParameters.fromJson(Map<String, Object?> json) {
+    _requireExactKeys(json, const {
+      'effectType',
+      'coordinateSystem',
+      'emitter',
+      'spread',
+      'direction',
+      'size',
+      'opacity',
+      'lifetimeMs',
+      'emissionRate',
+    });
+    if (json['effectType'] != 'dust' ||
+        json['coordinateSystem'] != 'jeep_local_normalized') {
+      throw const FormatException('Invalid dust setting contract.');
+    }
+    final emitter = _settingOffset(json['emitter']);
+    final spread = _settingDouble(json['spread']);
+    final direction = _settingDouble(json['direction']);
+    final size = _settingDouble(json['size']);
+    final opacity = _settingDouble(json['opacity']);
+    final lifetimeMs = _settingInt(json['lifetimeMs']);
+    final emissionRate = _settingDouble(json['emissionRate']);
+    if (!_normalizedOffset(emitter) ||
+        spread < 0 ||
+        spread > 1 ||
+        direction < -180 ||
+        direction > 180 ||
+        size < 0.04 ||
+        size > 0.4 ||
+        opacity < 0 ||
+        opacity > 1 ||
+        lifetimeMs < 250 ||
+        lifetimeMs > 3000 ||
+        emissionRate < 1 ||
+        emissionRate > 16) {
+      throw const FormatException('Dust setting is out of range.');
+    }
+    return _DustParameters(
+      emitter: emitter,
+      spread: spread,
+      direction: direction,
+      size: size,
+      opacity: opacity,
+      lifetimeMs: lifetimeMs,
+      emissionRate: emissionRate,
+    );
+  }
 }
 
 class _SuspensionParameters {
@@ -1034,11 +1175,18 @@ class _SuspensionParameters {
     required this.settleDurationMs,
   });
 
-  static const preview = _SuspensionParameters(
+  static const factoryDefault = _SuspensionParameters(
     bodyYResponse: 0.08,
     impulseStrength: 0.65,
     impulseDurationMs: 180,
     settleDurationMs: 650,
+  );
+
+  static const currentApproved = _SuspensionParameters(
+    bodyYResponse: 0.05,
+    impulseStrength: 0.5,
+    impulseDurationMs: 400,
+    settleDurationMs: 700,
   );
 
   final double bodyYResponse;
@@ -1065,7 +1213,170 @@ class _SuspensionParameters {
     'impulseDurationMs': impulseDurationMs,
     'settleDurationMs': settleDurationMs,
   };
+
+  factory _SuspensionParameters.fromJson(Map<String, Object?> json) {
+    _requireExactKeys(json, const {
+      'effectType',
+      'bodyYResponse',
+      'impulseStrength',
+      'impulseDurationMs',
+      'settleDurationMs',
+    });
+    if (json['effectType'] != 'suspension') {
+      throw const FormatException('Invalid suspension setting contract.');
+    }
+    final bodyYResponse = _settingDouble(json['bodyYResponse']);
+    final impulseStrength = _settingDouble(json['impulseStrength']);
+    final impulseDurationMs = _settingInt(json['impulseDurationMs']);
+    final settleDurationMs = _settingInt(json['settleDurationMs']);
+    if (bodyYResponse < 0.01 ||
+        bodyYResponse > 0.25 ||
+        impulseStrength < 0.05 ||
+        impulseStrength > 1 ||
+        impulseDurationMs < 50 ||
+        impulseDurationMs > 600 ||
+        settleDurationMs < 100 ||
+        settleDurationMs > 2000) {
+      throw const FormatException('Suspension setting is out of range.');
+    }
+    return _SuspensionParameters(
+      bodyYResponse: bodyYResponse,
+      impulseStrength: impulseStrength,
+      impulseDurationMs: impulseDurationMs,
+      settleDurationMs: settleDurationMs,
+    );
+  }
 }
+
+class _EffectLabSettings {
+  const _EffectLabSettings({
+    required this.headlight,
+    required this.dust,
+    required this.suspension,
+  });
+
+  const _EffectLabSettings.factoryDefaults()
+    : headlight = _HeadlightParameters.factoryDefault,
+      dust = _DustParameters.factoryDefault,
+      suspension = _SuspensionParameters.factoryDefault;
+
+  final _HeadlightParameters headlight;
+  final _DustParameters dust;
+  final _SuspensionParameters suspension;
+}
+
+class _EffectLabSettingsStore {
+  const _EffectLabSettingsStore();
+
+  static const headlightKey =
+      'or_app.animations_sandbox.effect_lab.headlight.v1';
+  static const dustKey = 'or_app.animations_sandbox.effect_lab.dust.v1';
+  static const suspensionKey =
+      'or_app.animations_sandbox.effect_lab.suspension.v1';
+
+  Future<_EffectLabSettings> load() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      return _EffectLabSettings(
+        headlight: await _readOrSeed(
+          preferences,
+          key: headlightKey,
+          seed: _HeadlightParameters.currentApproved,
+          factoryDefault: _HeadlightParameters.factoryDefault,
+          decode: _HeadlightParameters.fromJson,
+        ),
+        dust: await _readOrSeed(
+          preferences,
+          key: dustKey,
+          seed: _DustParameters.currentApproved,
+          factoryDefault: _DustParameters.factoryDefault,
+          decode: _DustParameters.fromJson,
+        ),
+        suspension: await _readOrSeed(
+          preferences,
+          key: suspensionKey,
+          seed: _SuspensionParameters.currentApproved,
+          factoryDefault: _SuspensionParameters.factoryDefault,
+          decode: _SuspensionParameters.fromJson,
+        ),
+      );
+    } catch (_) {
+      return const _EffectLabSettings.factoryDefaults();
+    }
+  }
+
+  Future<void> saveHeadlight(_HeadlightParameters value) =>
+      _save(headlightKey, value.toJson());
+
+  Future<void> saveDust(_DustParameters value) =>
+      _save(dustKey, value.toJson());
+
+  Future<void> saveSuspension(_SuspensionParameters value) =>
+      _save(suspensionKey, value.toJson());
+
+  Future<void> _save(String key, Map<String, Object?> value) async {
+    final preferences = await SharedPreferences.getInstance();
+    final saved = await preferences.setString(key, jsonEncode(value));
+    if (!saved) throw StateError('Unable to save Effect Lab settings.');
+  }
+
+  Future<T> _readOrSeed<T>(
+    SharedPreferences preferences, {
+    required String key,
+    required T seed,
+    required T factoryDefault,
+    required T Function(Map<String, Object?> json) decode,
+  }) async {
+    final raw = preferences.getString(key);
+    if (raw == null) {
+      final json = switch (seed) {
+        _HeadlightParameters value => value.toJson(),
+        _DustParameters value => value.toJson(),
+        _SuspensionParameters value => value.toJson(),
+        _ => throw StateError('Unsupported Effect Lab setting.'),
+      };
+      final saved = await preferences.setString(key, jsonEncode(json));
+      if (!saved) return factoryDefault;
+      return seed;
+    }
+    try {
+      final value = jsonDecode(raw);
+      if (value is! Map) return factoryDefault;
+      return decode(Map<String, Object?>.from(value));
+    } catch (_) {
+      return factoryDefault;
+    }
+  }
+}
+
+void _requireExactKeys(Map<String, Object?> json, Set<String> expected) {
+  if (json.keys.toSet().length != expected.length ||
+      !json.keys.toSet().containsAll(expected)) {
+    throw const FormatException('Effect Lab setting fields do not match.');
+  }
+}
+
+Offset _settingOffset(Object? value) {
+  if (value is! Map) throw const FormatException('Invalid effect position.');
+  final json = Map<String, Object?>.from(value);
+  _requireExactKeys(json, const {'x', 'y'});
+  return Offset(_settingDouble(json['x']), _settingDouble(json['y']));
+}
+
+double _settingDouble(Object? value) {
+  if (value is! num || !value.toDouble().isFinite) {
+    throw const FormatException('Invalid effect number.');
+  }
+  return value.toDouble();
+}
+
+int _settingInt(Object? value) {
+  if (value is! int) throw const FormatException('Invalid effect integer.');
+  return value;
+}
+
+bool _normalizedOffset(Offset value) =>
+    value.dx >= 0 && value.dx <= 1 && value.dy >= 0 && value.dy <= 1;
 
 double _effectRounded(double value) => double.parse(value.toStringAsFixed(3));
 
@@ -1227,9 +1538,16 @@ class _HeadlightTestPage extends StatefulWidget {
 }
 
 class _HeadlightTestPageState extends State<_HeadlightTestPage> {
-  _HeadlightParameters _parameters = _HeadlightParameters.preview;
+  late _HeadlightParameters _parameters;
   bool _leftSelected = true;
   bool _enabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _parameters =
+        widget.session.headlight ?? _HeadlightParameters.currentApproved;
+  }
 
   void _moveAnchor(Offset delta, Size assemblySize) {
     final current = _leftSelected ? _parameters.left : _parameters.right;
@@ -1244,11 +1562,24 @@ class _HeadlightTestPageState extends State<_HeadlightTestPage> {
     });
   }
 
-  void _apply() {
-    widget.session.headlight = _parameters;
+  Future<void> _apply() async {
+    await widget.session.saveHeadlight(_parameters);
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('HEADLIGHTをLABへ適用しました')));
+  }
+
+  Future<void> _reset() async {
+    const value = _HeadlightParameters.factoryDefault;
+    setState(() => _parameters = value);
+    await widget.session.saveHeadlight(value);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('HEADLIGHTをFactory Defaultへ戻しました')),
+      );
   }
 
   @override
@@ -1350,6 +1681,13 @@ class _HeadlightTestPageState extends State<_HeadlightTestPage> {
                   text: 'APPLY TO LAB',
                   icon: Icons.check_circle_outline,
                   onPressed: _apply,
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('reset-headlight-to-default'),
+                  text: 'RESET TO DEFAULT',
+                  icon: Icons.restart_alt,
+                  onPressed: _reset,
                 ),
               ],
             ),
@@ -1502,12 +1840,18 @@ class _DustTestPage extends StatefulWidget {
 
 class _DustTestPageState extends State<_DustTestPage>
     with SingleTickerProviderStateMixin {
-  _DustParameters _parameters = _DustParameters.preview;
+  late _DustParameters _parameters;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 2),
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _parameters = widget.session.dust ?? _DustParameters.currentApproved;
+  }
 
   @override
   void dispose() {
@@ -1547,11 +1891,24 @@ class _DustTestPageState extends State<_DustTestPage>
     setState(() {});
   }
 
-  void _apply() {
-    widget.session.dust = _parameters;
+  Future<void> _apply() async {
+    await widget.session.saveDust(_parameters);
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('DUSTをLABへ適用しました')));
+  }
+
+  Future<void> _reset() async {
+    const value = _DustParameters.factoryDefault;
+    setState(() => _parameters = value);
+    await widget.session.saveDust(value);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('DUSTをFactory Defaultへ戻しました')),
+      );
   }
 
   @override
@@ -1705,6 +2062,13 @@ class _DustTestPageState extends State<_DustTestPage>
                   icon: Icons.check_circle_outline,
                   onPressed: _apply,
                 ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('reset-dust-to-default'),
+                  text: 'RESET TO DEFAULT',
+                  icon: Icons.restart_alt,
+                  onPressed: _reset,
+                ),
               ],
             ),
           ),
@@ -1840,12 +2204,19 @@ class _SuspensionTestPage extends StatefulWidget {
 
 class _SuspensionTestPageState extends State<_SuspensionTestPage>
     with SingleTickerProviderStateMixin {
-  _SuspensionParameters _parameters = _SuspensionParameters.preview;
+  late _SuspensionParameters _parameters;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: _duration,
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _parameters =
+        widget.session.suspension ?? _SuspensionParameters.currentApproved;
+  }
 
   Duration get _duration => Duration(
     milliseconds: _parameters.impulseDurationMs + _parameters.settleDurationMs,
@@ -1862,11 +2233,24 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
     _controller.forward(from: 0);
   }
 
-  void _apply() {
-    widget.session.suspension = _parameters;
+  Future<void> _apply() async {
+    await widget.session.saveSuspension(_parameters);
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('SUSPENSIONをLABへ適用しました')));
+  }
+
+  Future<void> _reset() async {
+    const value = _SuspensionParameters.factoryDefault;
+    setState(() => _parameters = value);
+    await widget.session.saveSuspension(value);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('SUSPENSIONをFactory Defaultへ戻しました')),
+      );
   }
 
   @override
@@ -1971,6 +2355,13 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
                   text: 'APPLY TO LAB',
                   icon: Icons.check_circle_outline,
                   onPressed: _apply,
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('reset-suspension-to-default'),
+                  text: 'RESET TO DEFAULT',
+                  icon: Icons.restart_alt,
+                  onPressed: _reset,
                 ),
               ],
             ),
