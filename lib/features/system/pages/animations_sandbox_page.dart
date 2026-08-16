@@ -3603,6 +3603,19 @@ class _CalibrationSnapshot {
   final double scale;
 }
 
+const _scene2CameraMinScale = 0.1;
+const _scene2CameraMaxScale = 5.0;
+const _scene2CameraTransformOrigin = Alignment.center;
+
+Matrix4 _scene2CameraTransform(Size canvasSize, _CalibrationSnapshot view) {
+  final matrix = Matrix4.identity();
+  matrix.setEntry(0, 0, view.scale);
+  matrix.setEntry(1, 1, view.scale);
+  matrix.setEntry(0, 3, view.alignment.x * canvasSize.width / 2);
+  matrix.setEntry(1, 3, view.alignment.y * canvasSize.height / 2);
+  return matrix;
+}
+
 class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
     with SingleTickerProviderStateMixin {
   static const _initialStart = _scene1Start;
@@ -4553,8 +4566,10 @@ class Scene2CalibrationSession {
         end.alignment.x <= 1 &&
         end.alignment.y >= -1 &&
         end.alignment.y <= 1 &&
-        start.scale > 0 &&
-        end.scale > 0 &&
+        start.scale >= _scene2CameraMinScale &&
+        start.scale <= _scene2CameraMaxScale &&
+        end.scale >= _scene2CameraMinScale &&
+        end.scale <= _scene2CameraMaxScale &&
         travel != null &&
         travel > 0 &&
         hold != null &&
@@ -4846,18 +4861,12 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
     });
   }
 
-  Matrix4 _viewMatrix(_CalibrationSnapshot view) {
-    final matrix = Matrix4.identity();
-    matrix.setEntry(0, 0, view.scale);
-    matrix.setEntry(1, 1, view.scale);
-    matrix.setEntry(0, 3, view.alignment.x * _canvasSize.width / 2);
-    matrix.setEntry(1, 3, view.alignment.y * _canvasSize.height / 2);
-    return matrix;
-  }
-
   void _syncViewTransformation() {
     if (_canvasSize.isEmpty) return;
-    _viewTransformation.value = _viewMatrix(_workingView);
+    _viewTransformation.value = _scene2CameraTransform(
+      _canvasSize,
+      _workingView,
+    );
   }
 
   void _updateDraftFromTransformation() {
@@ -4869,7 +4878,10 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
           (matrix.entry(0, 3) * 2 / _canvasSize.width).clamp(-1.0, 1.0),
           (matrix.entry(1, 3) * 2 / _canvasSize.height).clamp(-1.0, 1.0),
         ),
-        scale: matrix.getMaxScaleOnAxis().clamp(0.1, 1.5),
+        scale: matrix.getMaxScaleOnAxis().clamp(
+          _scene2CameraMinScale,
+          _scene2CameraMaxScale,
+        ),
       ),
     );
   }
@@ -4881,7 +4893,12 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
     final x = field == 'x' ? parsed : current.alignment.x;
     final y = field == 'y' ? parsed : current.alignment.y;
     final scale = field == 'scale' ? parsed : current.scale;
-    if (x < -1 || x > 1 || y < -1 || y > 1 || scale < 0.1 || scale > 1.5) {
+    if (x < -1 ||
+        x > 1 ||
+        y < -1 ||
+        y > 1 ||
+        scale < _scene2CameraMinScale ||
+        scale > _scene2CameraMaxScale) {
       return;
     }
     _updateDraft(
@@ -5037,7 +5054,8 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
           return Stack(
             fit: StackFit.expand,
             children: [
-              if (_controller.value > 0 && widget.session.isComplete)
+              if ((_controller.isAnimating || _controller.value > 0) &&
+                  widget.session.isComplete)
                 _Scene2Preview(
                   progress: _controller.value,
                   session: widget.session,
@@ -5048,8 +5066,9 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
                 InteractiveViewer(
                   key: const ValueKey('scene-2-zoom-canvas'),
                   transformationController: _viewTransformation,
-                  minScale: 0.1,
-                  maxScale: 1.5,
+                  alignment: _scene2CameraTransformOrigin,
+                  minScale: _scene2CameraMinScale,
+                  maxScale: _scene2CameraMaxScale,
                   boundaryMargin: const EdgeInsets.all(1000),
                   onInteractionUpdate: (_) => _updateDraftFromTransformation(),
                   child: _Scene2StaticComposition(
@@ -5070,9 +5089,10 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
     key: const ValueKey('scene-2-view-scale'),
     label: '${_mode == _Scene2ViewMode.start ? 'START' : 'END'} SCALE',
     value: _workingView.scale,
-    min: 0.1,
-    max: 1.5,
-    divisions: 140,
+    min: _scene2CameraMinScale,
+    max: _scene2CameraMaxScale,
+    divisions: 490,
+    unit: 'x',
     onChanged: (value) {
       _updateDraft(
         _CalibrationSnapshot(alignment: _workingView.alignment, scale: value),
@@ -5131,6 +5151,7 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
               _mode = _Scene2ViewMode.start;
               _updateDraftField(field, value);
               _mode = previousMode;
+              _syncViewTransformation();
             },
           ),
           AppSpacing.gapMD,
@@ -5142,6 +5163,7 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
               _mode = _Scene2ViewMode.end;
               _updateDraftField(field, value);
               _mode = previousMode;
+              _syncViewTransformation();
             },
           ),
         ],
@@ -5619,20 +5641,13 @@ class _Scene2CameraPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClipRect(
     child: LayoutBuilder(
-      builder: (context, constraints) => Transform.translate(
-        key: const ValueKey('scene-2-camera-position'),
-        offset: Offset(
-          view.alignment.x * constraints.maxWidth / 2,
-          view.alignment.y * constraints.maxHeight / 2,
-        ),
-        child: Transform.scale(
-          key: const ValueKey('scene-2-camera-scale'),
-          scale: view.scale,
-          alignment: Alignment.center,
-          child: _Scene2StaticComposition(
-            session: session,
-            showTarget: showTarget,
-          ),
+      builder: (context, constraints) => Transform(
+        key: const ValueKey('scene-2-camera-transform'),
+        alignment: _scene2CameraTransformOrigin,
+        transform: _scene2CameraTransform(constraints.biggest, view),
+        child: _Scene2StaticComposition(
+          session: session,
+          showTarget: showTarget,
         ),
       ),
     ),

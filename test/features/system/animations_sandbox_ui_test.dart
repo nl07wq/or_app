@@ -1701,13 +1701,23 @@ void main() {
       expect((zoom['camera'] as Map)['start'], isNull);
       expect((zoom['camera'] as Map)['end'], isNull);
 
+      final scaleSlider = tester.widget<Slider>(
+        find.descendant(
+          of: find.byKey(const ValueKey('scene-2-view-scale')),
+          matching: find.byType(Slider),
+        ),
+      );
+      expect(scaleSlider.min, 0.1);
+      expect(scaleSlider.max, 5.0);
+
       final startPosition = _interactiveViewerOffset(tester);
       await _dragZoomCanvas(tester, const Offset(48, 20));
       expect(_interactiveViewerOffset(tester), isNot(startPosition));
       await _moveSlider(tester, 'scene-2-view-scale', 80);
       final startDraftScale = _interactiveViewerScale(tester);
-      expect(startDraftScale, isNot(1));
-      expect(startDraftScale, inInclusiveRange(0.1, 1.5));
+      expect(startDraftScale, greaterThan(1.5));
+      expect(startDraftScale, lessThanOrEqualTo(5.0));
+      final startFrame = _interactiveViewerFrame(tester);
       zoom = _jsonFromSelectable(
         tester,
         const ValueKey('scene-2-zoom-parameters-json'),
@@ -1729,11 +1739,30 @@ void main() {
         kind: PointerDeviceKind.mouse,
       );
       final beforePinch = _interactiveViewerScale(tester);
-      await _pinchByKey(tester, const ValueKey('scene-2-zoom-canvas'));
+      await _pinchByKey(
+        tester,
+        const ValueKey('scene-2-zoom-canvas'),
+        endDistance: 120,
+      );
       final afterPinch = _interactiveViewerScale(tester);
       expect(afterPinch, greaterThan(beforePinch));
-      await _moveSlider(tester, 'scene-2-view-scale', 120);
-      expect(_interactiveViewerScale(tester), greaterThan(startDraftScale));
+      expect(afterPinch, greaterThan(1.5));
+      expect(afterPinch, lessThanOrEqualTo(5.0));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('scene-2-fine-tune')),
+      );
+      await tester.tap(find.byKey(const ValueKey('scene-2-fine-tune')));
+      await tester.pumpAndSettle();
+      final endScaleField = find.descendant(
+        of: find.byKey(const ValueKey('scene-2-end-view-scale')),
+        matching: find.byType(TextField),
+      );
+      await tester.ensureVisible(endScaleField);
+      await tester.enterText(endScaleField, '5.0');
+      await tester.pump();
+      expect(_interactiveViewerScale(tester), closeTo(5.0, 0.01));
+      final endFrame = _interactiveViewerFrame(tester);
+      await tester.ensureVisible(find.byKey(const ValueKey('scene-2-set-end')));
       await tester.tap(find.byKey(const ValueKey('scene-2-set-end')));
       await tester.pump();
 
@@ -1751,29 +1780,36 @@ void main() {
         ((zoom['camera'] as Map)['start'] as Map)['scale'],
         closeTo(startDraftScale, 0.01),
       );
-      expect(((zoom['camera'] as Map)['end'] as Map)['scale'], isNotNull);
+      expect(
+        ((zoom['camera'] as Map)['end'] as Map)['scale'],
+        closeTo(5.0, 0.01),
+      );
       expect((zoom['motion'] as Map)['travelDurationMs'], greaterThan(1000));
       expect((zoom['motion'] as Map)['holdDurationMs'], greaterThan(0));
       expect((zoom['motion'] as Map)['curve'], 'easeOutCubic');
       await tester.ensureVisible(find.text('TEST PLAY'));
       await tester.tap(find.text('TEST PLAY'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(
-        _transformScale(tester, 'scene-2-camera-scale'),
-        greaterThan(startDraftScale),
+      _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
+      final totalDuration = Duration(
+        milliseconds:
+            ((zoom['motion'] as Map)['travelDurationMs'] as int) +
+            ((zoom['motion'] as Map)['holdDurationMs'] as int),
       );
+      await tester.pump(totalDuration);
+      _expectCameraFrameNear(_cameraTransformFrame(tester), endFrame);
       await tester.tap(find.text('PAUSE'));
       await tester.pump();
       await tester.tap(find.text('STOP'));
       await tester.pump();
-      expect(_interactiveViewerScale(tester), closeTo(startDraftScale, 0.01));
+      _expectCameraFrameNear(_interactiveViewerFrame(tester), startFrame);
       await tester.tap(find.text('REPLAY'));
       await tester.pump();
+      _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
       await tester.pump(const Duration(milliseconds: 200));
       expect(
-        _transformScale(tester, 'scene-2-camera-scale'),
-        greaterThan(startDraftScale),
+        _cameraTransformFrame(tester).scale,
+        greaterThan(startFrame.scale),
       );
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -1786,12 +1822,19 @@ void main() {
         find.byKey(const ValueKey('scene-2-composite-preview')),
         findsOneWidget,
       );
+      _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
       final composite = _jsonFromSelectable(
         tester,
         const ValueKey('scene-2-composite-parameters-json'),
       );
       expect(composite['layout'], layout);
       expect(composite['motion'], zoom);
+      await tester.ensureVisible(find.text('TEST PLAY'));
+      await tester.tap(find.text('TEST PLAY'));
+      await tester.pump();
+      _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
+      await tester.pump(totalDuration);
+      _expectCameraFrameNear(_cameraTransformFrame(tester), endFrame);
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.pageBack();
@@ -1804,6 +1847,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('scene-2-logo-target')), findsNothing);
+      _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
       final motion = zoom['motion'] as Map;
       final totalSeconds = Duration(
         milliseconds:
@@ -1814,6 +1858,12 @@ void main() {
         find.text('00:00 / 00:${totalSeconds.toString().padLeft(2, '0')}'),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('preview-play')));
+      await tester.tap(find.byKey(const ValueKey('preview-play')));
+      await tester.pump();
+      _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
+      await tester.pump(totalDuration);
+      _expectCameraFrameNear(_cameraTransformFrame(tester), endFrame);
       expect(tester.takeException(), isNull);
     },
   );
@@ -1843,6 +1893,14 @@ void main() {
         await tester.ensureVisible(find.byKey(ValueKey(entry)));
         await tester.tap(find.byKey(ValueKey(entry)));
         await tester.pumpAndSettle();
+        if (entry == 'open-scene-2-zoom-test') {
+          final viewer = tester.widget<InteractiveViewer>(
+            find.byKey(const ValueKey('scene-2-zoom-canvas')),
+          );
+          expect(viewer.alignment, Alignment.center);
+          expect(viewer.minScale, 0.1);
+          expect(viewer.maxScale, 5.0);
+        }
         expect(tester.takeException(), isNull);
         await tester.pageBack();
         await tester.pumpAndSettle();
@@ -2051,6 +2109,35 @@ Offset _transformOffset(WidgetTester tester, String key) {
 double _transformScale(WidgetTester tester, String key) =>
     tester.widget<Transform>(find.byKey(ValueKey(key))).transform.entry(0, 0);
 
+typedef _CameraFrame = ({double x, double y, double scale});
+
+_CameraFrame _frameFromMatrix(Matrix4 matrix, Size canvasSize) => (
+  x: matrix.entry(0, 3) * 2 / canvasSize.width,
+  y: matrix.entry(1, 3) * 2 / canvasSize.height,
+  scale: matrix.getMaxScaleOnAxis(),
+);
+
+_CameraFrame _cameraTransformFrame(WidgetTester tester) {
+  final transform = find.byKey(const ValueKey('scene-2-camera-transform'));
+  final matrix = tester.widget<Transform>(transform).transform;
+  return _frameFromMatrix(matrix, tester.getSize(transform));
+}
+
+_CameraFrame _interactiveViewerFrame(WidgetTester tester) {
+  final viewer = find.byKey(const ValueKey('scene-2-zoom-canvas'));
+  final matrix = tester
+      .widget<InteractiveViewer>(viewer)
+      .transformationController!
+      .value;
+  return _frameFromMatrix(matrix, tester.getSize(viewer));
+}
+
+void _expectCameraFrameNear(_CameraFrame actual, _CameraFrame expected) {
+  expect(actual.x, closeTo(expected.x, 0.001));
+  expect(actual.y, closeTo(expected.y, 0.001));
+  expect(actual.scale, closeTo(expected.scale, 0.001));
+}
+
 Offset _interactiveViewerOffset(WidgetTester tester) {
   final controller = tester
       .widget<InteractiveViewer>(
@@ -2098,7 +2185,11 @@ Future<void> _dragByKey(
   await tester.pump();
 }
 
-Future<void> _pinchByKey(WidgetTester tester, ValueKey<String> key) async {
+Future<void> _pinchByKey(
+  WidgetTester tester,
+  ValueKey<String> key, {
+  double endDistance = 48,
+}) async {
   final target = find.byKey(key);
   await tester.ensureVisible(target);
   await tester.pump();
@@ -2115,8 +2206,8 @@ Future<void> _pinchByKey(WidgetTester tester, ValueKey<String> key) async {
   await first.moveTo(center - const Offset(34, 0));
   await second.moveTo(center + const Offset(34, 0));
   await tester.pump();
-  await first.moveTo(center - const Offset(48, 0));
-  await second.moveTo(center + const Offset(48, 0));
+  await first.moveTo(center - Offset(endDistance, 0));
+  await second.moveTo(center + Offset(endDistance, 0));
   await tester.pump();
   await first.up();
   await second.up();
