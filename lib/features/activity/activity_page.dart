@@ -31,12 +31,28 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   bool _draftNoticeShown = false;
+  late Future<bool> _activityExists;
 
   @override
   void initState() {
     super.initState();
+    _activityExists = _currentActivityExists();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showPastDraftsOnce();
+    });
+  }
+
+  Future<bool> _currentActivityExists() async {
+    final operationDate = DateTime.parse(
+      (await widget.operationDateService.current()).value,
+    );
+    return await const LocalActivityRepository().findByDate(operationDate) !=
+        null;
+  }
+
+  void _refreshActivityEntry() {
+    setState(() {
+      _activityExists = _currentActivityExists();
     });
   }
 
@@ -57,6 +73,7 @@ class _ActivityPageState extends State<ActivityPage> {
               ActivityEntryPage(initialData: existing, targetDate: targetDate),
         ),
       );
+      if (mounted) _refreshActivityEntry();
     } catch (_) {
       if (!mounted) return;
       _showMessage('Operation Dateを取得できませんでした。');
@@ -168,7 +185,7 @@ class _ActivityPageState extends State<ActivityPage> {
         children: [
           const SectionHeader(
             icon: Icons.directions_walk_outlined,
-            title: 'MANUAL ENTRY',
+            title: 'ACTIVITY ENTRY',
           ),
 
           AppSpacing.gapSM,
@@ -181,12 +198,36 @@ class _ActivityPageState extends State<ActivityPage> {
 
           AppSpacing.gapMD,
 
-          OperationButton(
-            icon: Icons.edit_outlined,
-            text: 'ACTIVITY ENTRY',
-            onPressed: appInitializationController.value.isReadOnly
-                ? null
-                : _openEntry,
+          FutureBuilder<bool>(
+            future: _activityExists,
+            builder: (context, snapshot) {
+              final activityExists = snapshot.data ?? false;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OperationButton(
+                    key: const ValueKey('activity-entry-button'),
+                    icon: Icons.edit_outlined,
+                    text: 'ACTIVITY ENTRY',
+                    onPressed:
+                        appInitializationController.value.isReadOnly ||
+                            snapshot.connectionState != ConnectionState.done ||
+                            snapshot.hasError ||
+                            activityExists
+                        ? null
+                        : _openEntry,
+                  ),
+                  if (activityExists) ...[
+                    AppSpacing.gapSM,
+                    const OperationDescription(
+                      text:
+                          '本日のACTIVITYは登録済みです。\n'
+                          '編集する場合はRECORDから行ってください。',
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
 
           AppSpacing.gapXL,
@@ -206,10 +247,13 @@ class _ActivityPageState extends State<ActivityPage> {
           OperationButton(
             icon: Icons.history_outlined,
             text: 'RECORD',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ActivityHistoryPage()),
-            ),
+            onPressed: () async {
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute(builder: (_) => const ActivityHistoryPage()),
+              );
+              if (mounted) _refreshActivityEntry();
+            },
           ),
         ],
       ),

@@ -297,7 +297,8 @@ void main() {
       isNull,
     );
     expect(find.text('REPORT SYNC'), findsNothing);
-    expect(find.text('MANUAL ENTRY'), findsOneWidget);
+    expect(find.text('MANUAL ENTRY'), findsNothing);
+    expect(find.text('ACTIVITY ENTRY'), findsNWidgets(2));
     expect(find.text('RECORD'), findsWidgets);
     expect(find.textContaining('Activity記録を確定しました'), findsOneWidget);
     expect(find.byType(ActivityEntryPage), findsNothing);
@@ -350,8 +351,7 @@ void main() {
       isNull,
     );
 
-    await tester.tap(find.text('ACTIVITY ENTRY'));
-    await tester.pumpAndSettle();
+    await _openCurrentRecordFromActivity(tester);
 
     expect(
       tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'なし')).selected,
@@ -381,6 +381,7 @@ void main() {
     );
 
     await _pumpEntryFromActivity(tester);
+    await _openCurrentRecordFromActivity(tester);
     expect(find.text('SAVE ACTIVITY'), findsOneWidget);
     expect(find.text('SAVE DRAFT'), findsNothing);
     await _tapChip(tester, '多量');
@@ -507,7 +508,14 @@ Future<void> _pumpEntryFromActivity(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
-  await tester.tap(find.text('ACTIVITY ENTRY'));
+  await tester.tap(find.byKey(const ValueKey('activity-entry-button')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openCurrentRecordFromActivity(WidgetTester tester) async {
+  await tester.tap(find.text('RECORD').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byIcon(Icons.edit_outlined).first);
   await tester.pumpAndSettle();
 }
 
