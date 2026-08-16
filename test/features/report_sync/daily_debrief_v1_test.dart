@@ -373,6 +373,30 @@ void main() {
       expect(prompt, contains('there is no trailing comma'));
       expect(prompt, contains('trainingPerformed is false'));
       expect(prompt, contains('domainEvaluations.training must be null'));
+      expect(
+        prompt,
+        contains('There is no standalone recovery status or recovery state'),
+      );
+      expect(
+        prompt,
+        contains('Never invent such a concept or describe it as missing'),
+      );
+      expect(
+        prompt,
+        contains(
+          'including sleepDurationMinutes, sleepScore, sleepType, and their supplied Recent Context metrics',
+        ),
+      );
+      expect(prompt, contains('do not generalize recovery as unrecorded'));
+      expect(
+        prompt,
+        contains(
+          'do not turn the absence of a standalone recovery field into a key factor',
+        ),
+      );
+      expect(prompt, contains('"sleepDurationMinutes": 420'));
+      expect(prompt, contains('"sleepScore": 80'));
+      expect(prompt, contains('"recovery": {'));
       expect(prompt, contains('body, recovery, condition, work, nutrition'));
       expect(prompt, contains('When a domain has no formal fact'));
       expect(prompt, contains('62.06999999999999 as 62.07g'));
@@ -437,6 +461,34 @@ void main() {
       expect(
         prompt,
         contains('"estimatedCalorieBalanceKcal": -355.5999999999999'),
+      );
+      await container.dailyAggregates.put(
+        _aggregate(date, sleepDurationMinutes: null, sleepScore: null),
+      );
+      final nullSleepPreparation = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+        targetDate: date,
+      );
+      final nullSleepPrompt = gateway.instruction(
+        ReportSyncExchangeType.dailyDebrief,
+        nullSleepPreparation,
+      );
+      expect(nullSleepPrompt, contains('"sleepDurationMinutes": null'));
+      expect(nullSleepPrompt, contains('"sleepScore": null'));
+      expect(
+        nullSleepPrompt,
+        contains(
+          'do not turn the absence of a standalone recovery field into a key factor',
+        ),
+      );
+      await container.dailyAggregates.put(_aggregate(date));
+      final restoredPreparation = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+        targetDate: date,
+      );
+      gateway.instruction(
+        ReportSyncExchangeType.dailyDebrief,
+        restoredPreparation,
       );
       expect(
         () => container.reportSyncCodec.decode(
@@ -681,13 +733,15 @@ DailyDebriefAnalysis _analysis({String? body = '体調は安定しました'}) =
 DailyAggregateV1 _aggregate(
   String date, {
   double hydrationMl = 2000,
+  int? sleepDurationMinutes = 420,
+  int? sleepScore = 80,
   DailyAggregateSourceType sourceType = DailyAggregateSourceType.records,
 }) => DailyAggregateV1(
   operationDate: date,
   weightKg: 80,
   bodyFatPercent: 20,
-  sleepDurationMinutes: 420,
-  sleepScore: 80,
+  sleepDurationMinutes: sleepDurationMinutes,
+  sleepScore: sleepScore,
   sleepType: null,
   plantarFasciitisLevel: 1,
   workStartTime: null,
