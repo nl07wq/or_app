@@ -374,16 +374,41 @@ class _CurrentOperationCard extends StatelessWidget {
               ),
               AppSpacing.gapSM,
               Semantics(
-                label: 'CYCLE STATE ${_cycleLabel(cycleState)}',
+                label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
                 child: SizedBox(
                   key: const ValueKey('current-operation-cycle-value'),
+                  width: double.infinity,
                   height: OperationDateFlipCalendar.defaultTileHeight,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Icon(
-                      cycleStateIconFor(cycleState),
-                      key: const ValueKey('current-operation-cycle-icon'),
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                cycleStateIconFor(cycleState),
+                                key: const ValueKey(
+                                  'current-operation-cycle-icon',
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Text(
+                                cycleStateShortLabelFor(cycleState),
+                                key: const ValueKey(
+                                  'current-operation-cycle-label',
+                                ),
+                                maxLines: 1,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -448,13 +473,13 @@ class _WorkspaceHeader extends StatelessWidget {
   }
 }
 
-String _cycleLabel(DailyCommandCycleState state) => switch (state) {
-  DailyCommandCycleState.standby => 'STANDBY',
-  DailyCommandCycleState.active => 'ACTIVE',
-  DailyCommandCycleState.reviewReady => 'REVIEW READY',
-  DailyCommandCycleState.awaitingDebrief => 'AWAITING DEBRIEF',
-  DailyCommandCycleState.finalizing => 'FINALIZING',
-  DailyCommandCycleState.recoveryRequired => 'RECOVERY REQUIRED',
+String cycleStateShortLabelFor(DailyCommandCycleState state) => switch (state) {
+  DailyCommandCycleState.standby => 'IDLE',
+  DailyCommandCycleState.active => 'RUN',
+  DailyCommandCycleState.reviewReady => 'DONE',
+  DailyCommandCycleState.awaitingDebrief => 'WAIT',
+  DailyCommandCycleState.finalizing => 'LOAD',
+  DailyCommandCycleState.recoveryRequired => 'ERROR',
 };
 
 IconData cycleStateIconFor(DailyCommandCycleState state) => switch (state) {

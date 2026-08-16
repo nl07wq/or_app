@@ -7,6 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/services/daily_finalize_undo_service.dart';
+import '../../operation_date/services/japanese_holiday_reference_service.dart';
 import '../services/app_data_initialization_service.dart';
 import '../services/storage_status_gateway.dart';
 
@@ -28,11 +29,13 @@ class SystemPage extends StatefulWidget {
     this.initializationService,
     this.dataHealthLoader,
     this.storageGateway,
+    this.holidayService,
   });
 
   final AppDataInitializationService? initializationService;
   final Future<SystemDataHealthSnapshot> Function()? dataHealthLoader;
   final StorageStatusGateway? storageGateway;
+  final JapaneseHolidayReferenceService? holidayService;
 
   @override
   State<SystemPage> createState() => _SystemPageState();
@@ -42,7 +45,9 @@ class _SystemPageState extends State<SystemPage> {
   late Future<SystemDataHealthSnapshot> _dataHealth;
   late Future<StorageStatusSnapshot> _storageStatus;
   late Future<DailyFinalizeUndoInspection> _undoInspection;
+  late Future<JapaneseHolidayDataStatus> _holidayData;
   bool _initializing = false;
+  bool _holidayUpdating = false;
   String? _initializationResult;
 
   @override
@@ -54,6 +59,28 @@ class _SystemPageState extends State<SystemPage> {
     _undoInspection = DailyFinalizeUndoService(
       AppRepositoryRegistry.container.database,
     ).inspect();
+    _holidayData = _holidayService.load();
+  }
+
+  JapaneseHolidayReferenceService get _holidayService =>
+      widget.holidayService ?? JapaneseHolidayReferenceService.instance;
+
+  Future<void> _updateHolidayData() async {
+    setState(() => _holidayUpdating = true);
+    final status = await _holidayService.update();
+    if (!mounted) return;
+    setState(() {
+      _holidayData = Future.value(status);
+      _holidayUpdating = false;
+    });
+    final message = status.updateSucceeded
+        ? '祝日データを更新しました。'
+        : status.isAvailable
+        ? '更新できませんでした。既存のキャッシュを維持します。'
+        : '更新できませんでした。祝日判定は利用できません。';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<SystemDataHealthSnapshot> _loadDataHealth() async {
@@ -176,6 +203,12 @@ class _SystemPageState extends State<SystemPage> {
         ),
         AppSpacing.gapXL,
         _StorageSection(snapshot: _storageStatus),
+        AppSpacing.gapXL,
+        _HolidayDataSection(
+          snapshot: _holidayData,
+          busy: _holidayUpdating,
+          onUpdate: _updateHolidayData,
+        ),
         AppSpacing.gapXL,
         _DataHealthSection(snapshot: _dataHealth),
         AppSpacing.gapXL,
@@ -358,6 +391,89 @@ class _StorageValue extends StatelessWidget {
       children: [Text(value), if (description != null) Text(description!)],
     ),
   );
+}
+
+class _HolidayDataSection extends StatelessWidget {
+  const _HolidayDataSection({
+    required this.snapshot,
+    required this.busy,
+    required this.onUpdate,
+  });
+
+  final Future<JapaneseHolidayDataStatus> snapshot;
+  final bool busy;
+  final VoidCallback onUpdate;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(
+        icon: Icons.event_available_outlined,
+        title: 'HOLIDAY DATA',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: FutureBuilder<JapaneseHolidayDataStatus>(
+          future: snapshot,
+          builder: (context, value) {
+            final status = value.data;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _StorageValue(
+                  label: 'SOURCE',
+                  value: 'CABINET OFFICE JAPAN',
+                ),
+                const Divider(),
+                _StorageValue(
+                  label: 'DATA UPDATED',
+                  value: _formatHolidayTimestamp(
+                    status?.snapshot?.dataUpdatedAt,
+                  ),
+                ),
+                const Divider(),
+                _StorageValue(
+                  label: 'LOCAL UPDATED',
+                  value: _formatHolidayTimestamp(status?.localUpdatedAt),
+                ),
+                const Divider(),
+                _StorageValue(
+                  label: 'STATUS',
+                  value: status?.isAvailable == true
+                      ? 'CURRENT'
+                      : 'NOT AVAILABLE',
+                ),
+                AppSpacing.gapMD,
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    key: const ValueKey('update-holiday-data'),
+                    onPressed: busy ? null : onUpdate,
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                    label: const Text('UPDATE'),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    ],
+  );
+}
+
+String _formatHolidayTimestamp(DateTime? value) {
+  if (value == null) return 'NOT AVAILABLE';
+  final local = value.toLocal();
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+  return '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)} '
+      '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
 }
 
 class _DataHealthSection extends StatelessWidget {

@@ -165,7 +165,7 @@ void main() {
     expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
     expect(find.text('OPERATION DATE'), findsOneWidget);
     expect(find.text('CYCLE STATE'), findsOneWidget);
-    expect(find.text('STANDBY'), findsNothing);
+    expect(find.text('IDLE'), findsOneWidget);
     expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
     expect(tester.getSize(row).width, 168);
     for (var index = 0; index < 3; index++) {
@@ -186,6 +186,21 @@ void main() {
       findsNothing,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  test('cycle state short labels preserve every internal state mapping', () {
+    expect(cycleStateShortLabelFor(DailyCommandCycleState.standby), 'IDLE');
+    expect(cycleStateShortLabelFor(DailyCommandCycleState.active), 'RUN');
+    expect(
+      cycleStateShortLabelFor(DailyCommandCycleState.awaitingDebrief),
+      'WAIT',
+    );
+    expect(cycleStateShortLabelFor(DailyCommandCycleState.reviewReady), 'DONE');
+    expect(cycleStateShortLabelFor(DailyCommandCycleState.finalizing), 'LOAD');
+    expect(
+      cycleStateShortLabelFor(DailyCommandCycleState.recoveryRequired),
+      'ERROR',
+    );
   });
 
   testWidgets('keeps assessment while retiring operation hub sections', (

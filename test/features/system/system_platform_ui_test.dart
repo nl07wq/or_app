@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
 import 'package:or_app/features/system/pages/about_page.dart';
 import 'package:or_app/features/system/pages/device_transfer_page.dart';
 import 'package:or_app/features/system/pages/operation_sync_page.dart';
@@ -22,11 +24,13 @@ import 'package:or_app/features/system/services/app_data_initialization_service.
 import 'package:or_app/features/system/services/app_metadata.dart';
 import 'package:or_app/features/system/services/storage_status_gateway.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     AppRepositoryRegistry.install(
       AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
     );
@@ -38,6 +42,46 @@ void main() {
     foodSummaryNotifier.value = null;
     trainingSummaryNotifier.value = null;
     activitySummaryNotifier.value = const ActivitySummary.empty();
+  });
+
+  testWidgets('SYSTEM updates HOLIDAY DATA and shows reference metadata', (
+    tester,
+  ) async {
+    final service = JapaneseHolidayReferenceService(
+      assetLoader: () async => jsonEncode({
+        'schemaVersion': 1,
+        'source': 'cabinet_office_japan',
+        'dataUpdatedAt': '2026-08-16T00:00:00Z',
+        'coverageFrom': '2026-01-01',
+        'coverageTo': '2027-12-31',
+        'holidays': ['2026-08-11'],
+      }),
+      clock: () => DateTime.utc(2026, 8, 16, 12, 30),
+    );
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemPage(
+          holidayService: service,
+          storageGateway: const _FakeStorageGateway(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('HOLIDAY DATA'), 300);
+
+    expect(find.text('HOLIDAY DATA'), findsOneWidget);
+    expect(find.text('SOURCE'), findsOneWidget);
+    expect(find.text('CABINET OFFICE JAPAN'), findsOneWidget);
+    expect(find.text('DATA UPDATED'), findsOneWidget);
+    expect(find.text('LOCAL UPDATED'), findsOneWidget);
+    expect(find.text('STATUS'), findsOneWidget);
+    expect(find.text('CURRENT'), findsOneWidget);
+    expect(find.byKey(const ValueKey('update-holiday-data')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
   tearDown(AppRepositoryRegistry.resetForTesting);
 
@@ -336,6 +380,10 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).last,
     );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('initialize-app-data')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
     await tester.pumpAndSettle();
 
@@ -395,6 +443,10 @@ void main() {
 
     await tester.tap(find.text('キャンセル'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('initialize-app-data')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(input).controller!.text, isEmpty);
@@ -439,6 +491,10 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).last,
     );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('initialize-app-data')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('initialize-app-data')));
     await tester.pumpAndSettle();
     await tester.enterText(

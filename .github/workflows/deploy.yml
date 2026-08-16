@@ -27,6 +27,11 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Generate Japanese holiday data
+        run: >-
+          python3 tool/generate_japanese_holiday_asset.py
+          --output web/data/japanese_holidays.json
+
       - run: flutter build web --release --base-href /or_app/
 
       - uses: actions/upload-pages-artifact@v3
