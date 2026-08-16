@@ -4794,21 +4794,33 @@ class _Scene2ZoomTestPage extends StatefulWidget {
   State<_Scene2ZoomTestPage> createState() => _Scene2ZoomTestPageState();
 }
 
+enum _Scene2ViewMode { start, end }
+
 class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
     with SingleTickerProviderStateMixin {
-  late double? _startX = widget.session._cameraStart?.alignment.x;
-  late double? _startY = widget.session._cameraStart?.alignment.y;
-  late double? _startScale = widget.session._cameraStart?.scale;
-  late double? _endX = widget.session._cameraEnd?.alignment.x;
-  late double? _endY = widget.session._cameraEnd?.alignment.y;
-  late double? _endScale = widget.session._cameraEnd?.scale;
+  static const _previewOnlyView = _CalibrationSnapshot(
+    alignment: Alignment.center,
+    scale: 1,
+  );
+
+  _Scene2ViewMode _mode = _Scene2ViewMode.start;
+  late _CalibrationSnapshot? _startDraft = widget.session._cameraStart;
+  late _CalibrationSnapshot? _endDraft = widget.session._cameraEnd;
+  final _viewTransformation = TransformationController();
+  Size _canvasSize = Size.zero;
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: widget.session.totalDuration ?? const Duration(milliseconds: 1),
   );
 
+  _CalibrationSnapshot? get _selectedDraft =>
+      _mode == _Scene2ViewMode.start ? _startDraft : _endDraft;
+
+  _CalibrationSnapshot get _workingView => _selectedDraft ?? _previewOnlyView;
+
   @override
   void dispose() {
+    _viewTransformation.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -4821,40 +4833,81 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
       ..value = 0;
   }
 
-  void _updateSnapshot(bool start, String field, String value) {
-    final parsed = double.tryParse(value);
+  void _updateDraft(_CalibrationSnapshot value) {
+    _controller
+      ..stop(canceled: false)
+      ..value = 0;
     setState(() {
-      if (start) {
-        if (field == 'x') _startX = parsed;
-        if (field == 'y') _startY = parsed;
-        if (field == 'scale') _startScale = parsed;
+      if (_mode == _Scene2ViewMode.start) {
+        _startDraft = value;
       } else {
-        if (field == 'x') _endX = parsed;
-        if (field == 'y') _endY = parsed;
-        if (field == 'scale') _endScale = parsed;
+        _endDraft = value;
       }
-      final x = start ? _startX : _endX;
-      final y = start ? _startY : _endY;
-      final scale = start ? _startScale : _endScale;
-      final next = x == null || y == null || scale == null
-          ? null
-          : _CalibrationSnapshot(alignment: Alignment(x, y), scale: scale);
-      if (start) {
-        widget.session._cameraStart = next;
+    });
+  }
+
+  Matrix4 _viewMatrix(_CalibrationSnapshot view) {
+    final matrix = Matrix4.identity();
+    matrix.setEntry(0, 0, view.scale);
+    matrix.setEntry(1, 1, view.scale);
+    matrix.setEntry(0, 3, view.alignment.x * _canvasSize.width / 2);
+    matrix.setEntry(1, 3, view.alignment.y * _canvasSize.height / 2);
+    return matrix;
+  }
+
+  void _syncViewTransformation() {
+    if (_canvasSize.isEmpty) return;
+    _viewTransformation.value = _viewMatrix(_workingView);
+  }
+
+  void _updateDraftFromTransformation() {
+    if (_canvasSize.isEmpty) return;
+    final matrix = _viewTransformation.value;
+    _updateDraft(
+      _CalibrationSnapshot(
+        alignment: Alignment(
+          (matrix.entry(0, 3) * 2 / _canvasSize.width).clamp(-1.0, 1.0),
+          (matrix.entry(1, 3) * 2 / _canvasSize.height).clamp(-1.0, 1.0),
+        ),
+        scale: matrix.getMaxScaleOnAxis().clamp(0.1, 1.5),
+      ),
+    );
+  }
+
+  void _updateDraftField(String field, String value) {
+    final parsed = double.tryParse(value);
+    if (parsed == null) return;
+    final current = _workingView;
+    final x = field == 'x' ? parsed : current.alignment.x;
+    final y = field == 'y' ? parsed : current.alignment.y;
+    final scale = field == 'scale' ? parsed : current.scale;
+    if (x < -1 || x > 1 || y < -1 || y > 1 || scale < 0.1 || scale > 1.5) {
+      return;
+    }
+    _updateDraft(
+      _CalibrationSnapshot(alignment: Alignment(x, y), scale: scale),
+    );
+  }
+
+  void _setSelectedView() {
+    setState(() {
+      if (_mode == _Scene2ViewMode.start) {
+        widget.session._cameraStart = _workingView;
+        _startDraft = widget.session._cameraStart;
       } else {
-        widget.session._cameraEnd = next;
+        widget.session._cameraEnd = _workingView;
+        _endDraft = widget.session._cameraEnd;
       }
       _syncDuration();
     });
   }
 
-  void _updateDuration(bool travel, String value) {
-    final parsed = int.tryParse(value);
+  void _updateDuration(bool travel, int value) {
     setState(() {
       if (travel) {
-        widget.session._travelDurationMs = parsed;
+        widget.session._travelDurationMs = value;
       } else {
-        widget.session._holdDurationMs = parsed;
+        widget.session._holdDurationMs = value;
       }
       _syncDuration();
     });
@@ -4862,6 +4915,9 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
 
   void _play({bool restart = false}) {
     if (!widget.session.isComplete) return;
+    if (restart || _controller.value == 0) {
+      setState(() => _mode = _Scene2ViewMode.start);
+    }
     _controller.duration = widget.session.totalDuration;
     _controller.forward(from: restart ? 0 : null);
   }
@@ -4870,7 +4926,16 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
     _controller
       ..stop(canceled: false)
       ..value = 0;
-    setState(() {});
+    setState(() => _mode = _Scene2ViewMode.start);
+    _syncViewTransformation();
+  }
+
+  void _selectMode(_Scene2ViewMode mode) {
+    _controller
+      ..stop(canceled: false)
+      ..value = 0;
+    setState(() => _mode = mode);
+    _syncViewTransformation();
   }
 
   String get _parametersJson => const JsonEncoder.withIndent(
@@ -4899,23 +4964,13 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                AspectRatio(
-                  aspectRatio: 3 / 2,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: widget.session.isComplete
-                        ? _Scene2Preview(
-                            progress: _controller.value,
-                            session: widget.session,
-                            jeepAsset: _scene2JeepAsset,
-                            showTarget: true,
-                          )
-                        : _Scene2StaticComposition(
-                            session: widget.session,
-                            showTarget: true,
-                          ),
-                  ),
-                ),
+                _buildModeSelector(),
+                AppSpacing.gapMD,
+                _buildDirectManipulationCanvas(),
+                AppSpacing.gapMD,
+                _buildScaleControl(),
+                AppSpacing.gapSM,
+                _buildSetViewAction(),
                 AppSpacing.gapMD,
                 _Scene2PlaybackControls(
                   enabled: widget.session.isComplete,
@@ -4947,34 +5002,105 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
     ),
   );
 
+  Widget _buildModeSelector() => Wrap(
+    key: const ValueKey('scene-2-view-mode'),
+    spacing: AppSpacing.sm,
+    runSpacing: AppSpacing.sm,
+    children: [
+      ChoiceChip(
+        key: const ValueKey('scene-2-start-view-mode'),
+        label: const Text('START VIEW'),
+        selected: _mode == _Scene2ViewMode.start,
+        onSelected: (_) => _selectMode(_Scene2ViewMode.start),
+      ),
+      ChoiceChip(
+        key: const ValueKey('scene-2-end-view-mode'),
+        label: const Text('END VIEW'),
+        selected: _mode == _Scene2ViewMode.end,
+        onSelected: (_) => _selectMode(_Scene2ViewMode.end),
+      ),
+    ],
+  );
+
+  Widget _buildDirectManipulationCanvas() => AspectRatio(
+    aspectRatio: 3 / 2,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (_canvasSize != constraints.biggest) {
+            _canvasSize = constraints.biggest;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _syncViewTransformation();
+            });
+          }
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_controller.value > 0 && widget.session.isComplete)
+                _Scene2Preview(
+                  progress: _controller.value,
+                  session: widget.session,
+                  jeepAsset: _scene2JeepAsset,
+                  showTarget: _mode == _Scene2ViewMode.end,
+                )
+              else
+                InteractiveViewer(
+                  key: const ValueKey('scene-2-zoom-canvas'),
+                  transformationController: _viewTransformation,
+                  minScale: 0.1,
+                  maxScale: 1.5,
+                  boundaryMargin: const EdgeInsets.all(1000),
+                  onInteractionUpdate: (_) => _updateDraftFromTransformation(),
+                  child: _Scene2StaticComposition(
+                    session: widget.session,
+                    showTarget: _mode == _Scene2ViewMode.end,
+                  ),
+                ),
+              if (_mode == _Scene2ViewMode.end)
+                const IgnorePointer(child: _Scene2CenterGuide()),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+
+  Widget _buildScaleControl() => _CalibrationSlider(
+    key: const ValueKey('scene-2-view-scale'),
+    label: '${_mode == _Scene2ViewMode.start ? 'START' : 'END'} SCALE',
+    value: _workingView.scale,
+    min: 0.1,
+    max: 1.5,
+    divisions: 140,
+    onChanged: (value) {
+      _updateDraft(
+        _CalibrationSnapshot(alignment: _workingView.alignment, scale: value),
+      );
+      _syncViewTransformation();
+    },
+  );
+
+  Widget _buildSetViewAction() => _SandboxActionButton(
+    key: ValueKey(
+      _mode == _Scene2ViewMode.start ? 'scene-2-set-start' : 'scene-2-set-end',
+    ),
+    text: _mode == _Scene2ViewMode.start ? 'SET START' : 'SET END',
+    icon: Icons.check_circle_outline,
+    onPressed: _setSelectedView,
+  );
+
   Widget _buildParameters() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _Scene2SnapshotFields(
-        label: 'START VIEW',
-        snapshot: widget.session._cameraStart,
-        onChanged: (field, value) => _updateSnapshot(true, field, value),
-      ),
-      AppSpacing.gapMD,
-      _Scene2SnapshotFields(
-        label: 'END VIEW',
-        snapshot: widget.session._cameraEnd,
-        onChanged: (field, value) => _updateSnapshot(false, field, value),
-      ),
-      AppSpacing.gapMD,
-      _Scene2NumberField(
-        key: const ValueKey('scene-2-travel-duration'),
-        label: 'TRAVEL DURATION (ms)',
-        value: widget.session._travelDurationMs,
-        onChanged: (value) => _updateDuration(true, value),
-      ),
+      const Text('PARAMETER DISPLAY'),
       AppSpacing.gapSM,
-      _Scene2NumberField(
-        key: const ValueKey('scene-2-hold-duration'),
-        label: 'HOLD DURATION (ms)',
-        value: widget.session._holdDurationMs,
-        onChanged: (value) => _updateDuration(false, value),
-      ),
+      _SnapshotDisplay(label: 'START', snapshot: widget.session._cameraStart),
+      AppSpacing.gapSM,
+      _SnapshotDisplay(label: 'END', snapshot: widget.session._cameraEnd),
+      AppSpacing.gapMD,
+      _buildDurationSlider(travel: true),
+      _buildDurationSlider(travel: false),
       AppSpacing.gapSM,
       DropdownButtonFormField<_CalibrationCurveOption>(
         key: const ValueKey('scene-2-curve'),
@@ -4990,8 +5116,69 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
           _syncDuration();
         }),
       ),
+      AppSpacing.gapMD,
+      ExpansionTile(
+        key: const ValueKey('scene-2-fine-tune'),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        title: const Text('FINE TUNE'),
+        children: [
+          _Scene2SnapshotFields(
+            label: 'START VIEW',
+            snapshot: _startDraft,
+            onChanged: (field, value) {
+              final previousMode = _mode;
+              _mode = _Scene2ViewMode.start;
+              _updateDraftField(field, value);
+              _mode = previousMode;
+            },
+          ),
+          AppSpacing.gapMD,
+          _Scene2SnapshotFields(
+            label: 'END VIEW',
+            snapshot: _endDraft,
+            onChanged: (field, value) {
+              final previousMode = _mode;
+              _mode = _Scene2ViewMode.end;
+              _updateDraftField(field, value);
+              _mode = previousMode;
+            },
+          ),
+        ],
+      ),
     ],
   );
+
+  Widget _buildDurationSlider({required bool travel}) {
+    final valueMs = travel
+        ? widget.session._travelDurationMs
+        : widget.session._holdDurationMs;
+    final min = travel ? 1.0 : 0.0;
+    final max = travel ? 12.0 : 5.0;
+    final fallback = min;
+    return Column(
+      key: ValueKey(
+        travel ? 'scene-2-travel-duration' : 'scene-2-hold-duration',
+      ),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '${travel ? 'TRAVEL DURATION' : 'HOLD DURATION'}  '
+          '${valueMs == null ? 'NOT SET' : '${(valueMs / 1000).toStringAsFixed(2)}s'}',
+        ),
+        Slider(
+          value: valueMs == null ? fallback : valueMs / 1000,
+          min: min,
+          max: max,
+          divisions: travel ? 22 : 20,
+          label: valueMs == null
+              ? 'NOT SET'
+              : '${(valueMs / 1000).toStringAsFixed(2)}s',
+          onChanged: (value) => _updateDuration(travel, (value * 1000).round()),
+        ),
+      ],
+    );
+  }
 }
 
 class _Scene2CompositeTestPage extends StatefulWidget {
@@ -5205,6 +5392,7 @@ class _Scene2NumberField extends StatefulWidget {
 }
 
 class _Scene2NumberFieldState extends State<_Scene2NumberField> {
+  final _focusNode = FocusNode();
   late final TextEditingController _controller = TextEditingController(
     text: widget.value?.toString() ?? '',
   );
@@ -5212,13 +5400,14 @@ class _Scene2NumberFieldState extends State<_Scene2NumberField> {
   @override
   void didUpdateWidget(covariant _Scene2NumberField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value && !_controller.selection.isValid) {
+    if (oldWidget.value != widget.value && !_focusNode.hasFocus) {
       _controller.text = widget.value?.toString() ?? '';
     }
   }
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -5226,6 +5415,7 @@ class _Scene2NumberFieldState extends State<_Scene2NumberField> {
   @override
   Widget build(BuildContext context) => TextField(
     controller: _controller,
+    focusNode: _focusNode,
     keyboardType: const TextInputType.numberWithOptions(
       decimal: true,
       signed: true,
@@ -5395,6 +5585,60 @@ class _CalibrationStatusBadge extends StatelessWidget {
   );
 }
 
+class _Scene2CenterGuide extends StatelessWidget {
+  const _Scene2CenterGuide();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: SizedBox(
+      key: const ValueKey('scene-2-center-guide'),
+      width: 32,
+      height: 32,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(width: 1, color: Colors.cyanAccent.withValues(alpha: 0.8)),
+          Container(height: 1, color: Colors.cyanAccent.withValues(alpha: 0.8)),
+        ],
+      ),
+    ),
+  );
+}
+
+class _Scene2CameraPreview extends StatelessWidget {
+  const _Scene2CameraPreview({
+    required this.view,
+    required this.session,
+    required this.showTarget,
+  });
+
+  final _CalibrationSnapshot view;
+  final Scene2CalibrationSession session;
+  final bool showTarget;
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: LayoutBuilder(
+      builder: (context, constraints) => Transform.translate(
+        key: const ValueKey('scene-2-camera-position'),
+        offset: Offset(
+          view.alignment.x * constraints.maxWidth / 2,
+          view.alignment.y * constraints.maxHeight / 2,
+        ),
+        child: Transform.scale(
+          key: const ValueKey('scene-2-camera-scale'),
+          scale: view.scale,
+          alignment: Alignment.center,
+          child: _Scene2StaticComposition(
+            session: session,
+            showTarget: showTarget,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _Scene2Preview extends StatelessWidget {
   const _Scene2Preview({
     super.key,
@@ -5428,16 +5672,13 @@ class _Scene2Preview extends StatelessWidget {
     )!;
     final cameraScale = start.scale + ((end.scale - start.scale) * eased);
 
-    return ClipRect(
-      child: Transform.scale(
-        key: const ValueKey('scene-2-camera-scale'),
-        scale: cameraScale,
+    return _Scene2CameraPreview(
+      view: _CalibrationSnapshot(
         alignment: cameraAlignment,
-        child: _Scene2StaticComposition(
-          session: session,
-          showTarget: showTarget,
-        ),
+        scale: cameraScale,
       ),
+      session: session,
+      showTarget: showTarget,
     );
   }
 }

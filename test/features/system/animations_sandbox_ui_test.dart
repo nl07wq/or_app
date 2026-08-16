@@ -1694,44 +1694,87 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('open-scene-2-zoom-test')));
       await tester.pumpAndSettle();
-      for (final entry in const {
-        'scene-2-start-view-x': '0',
-        'scene-2-start-view-y': '0',
-        'scene-2-start-view-scale': '1',
-        'scene-2-end-view-x': '0.2',
-        'scene-2-end-view-y': '0.1',
-        'scene-2-end-view-scale': '2',
-        'scene-2-travel-duration': '3000',
-        'scene-2-hold-duration': '500',
-      }.entries) {
-        await tester.enterText(find.byKey(ValueKey(entry.key)), entry.value);
-      }
+      var zoom = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-zoom-parameters-json'),
+      );
+      expect((zoom['camera'] as Map)['start'], isNull);
+      expect((zoom['camera'] as Map)['end'], isNull);
+
+      final startPosition = _interactiveViewerOffset(tester);
+      await _dragZoomCanvas(tester, const Offset(48, 20));
+      expect(_interactiveViewerOffset(tester), isNot(startPosition));
+      await _moveSlider(tester, 'scene-2-view-scale', 80);
+      final startDraftScale = _interactiveViewerScale(tester);
+      expect(startDraftScale, isNot(1));
+      expect(startDraftScale, inInclusiveRange(0.1, 1.5));
+      zoom = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-zoom-parameters-json'),
+      );
+      expect((zoom['camera'] as Map)['start'], isNull);
+      await tester.tap(find.byKey(const ValueKey('scene-2-set-start')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('scene-2-end-view-mode')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('scene-2-center-guide')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('scene-2-logo-target')), findsOneWidget);
+      await _dragZoomCanvas(
+        tester,
+        const Offset(-36, 16),
+        kind: PointerDeviceKind.mouse,
+      );
+      final beforePinch = _interactiveViewerScale(tester);
+      await _pinchByKey(tester, const ValueKey('scene-2-zoom-canvas'));
+      final afterPinch = _interactiveViewerScale(tester);
+      expect(afterPinch, greaterThan(beforePinch));
+      await _moveSlider(tester, 'scene-2-view-scale', 120);
+      expect(_interactiveViewerScale(tester), greaterThan(startDraftScale));
+      await tester.tap(find.byKey(const ValueKey('scene-2-set-end')));
+      await tester.pump();
+
+      await _moveSlider(tester, 'scene-2-travel-duration', 80);
+      await _moveSlider(tester, 'scene-2-hold-duration', 60);
       await tester.tap(find.byKey(const ValueKey('scene-2-curve')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('EASE OUT').last);
       await tester.pumpAndSettle();
-      final zoom = _jsonFromSelectable(
+      zoom = _jsonFromSelectable(
         tester,
         const ValueKey('scene-2-zoom-parameters-json'),
       );
-      expect(((zoom['camera'] as Map)['start'] as Map)['scale'], 1.0);
-      expect(((zoom['camera'] as Map)['end'] as Map)['scale'], 2.0);
-      expect((zoom['motion'] as Map)['travelDurationMs'], 3000);
+      expect(
+        ((zoom['camera'] as Map)['start'] as Map)['scale'],
+        closeTo(startDraftScale, 0.01),
+      );
+      expect(((zoom['camera'] as Map)['end'] as Map)['scale'], isNotNull);
+      expect((zoom['motion'] as Map)['travelDurationMs'], greaterThan(1000));
+      expect((zoom['motion'] as Map)['holdDurationMs'], greaterThan(0));
       expect((zoom['motion'] as Map)['curve'], 'easeOutCubic');
       await tester.ensureVisible(find.text('TEST PLAY'));
       await tester.tap(find.text('TEST PLAY'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(_transformScale(tester, 'scene-2-camera-scale'), greaterThan(1));
+      expect(
+        _transformScale(tester, 'scene-2-camera-scale'),
+        greaterThan(startDraftScale),
+      );
       await tester.tap(find.text('PAUSE'));
       await tester.pump();
       await tester.tap(find.text('STOP'));
       await tester.pump();
-      expect(_transformScale(tester, 'scene-2-camera-scale'), 1);
+      expect(_interactiveViewerScale(tester), closeTo(startDraftScale, 0.01));
       await tester.tap(find.text('REPLAY'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
-      expect(_transformScale(tester, 'scene-2-camera-scale'), greaterThan(1));
+      expect(
+        _transformScale(tester, 'scene-2-camera-scale'),
+        greaterThan(startDraftScale),
+      );
       await tester.pageBack();
       await tester.pumpAndSettle();
 
@@ -1761,7 +1804,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('scene-2-logo-target')), findsNothing);
-      expect(find.text('00:00 / 00:03'), findsOneWidget);
+      final motion = zoom['motion'] as Map;
+      final totalSeconds = Duration(
+        milliseconds:
+            (motion['travelDurationMs'] as int) +
+            (motion['holdDurationMs'] as int),
+      ).inSeconds;
+      expect(
+        find.text('00:00 / 00:${totalSeconds.toString().padLeft(2, '0')}'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );
@@ -1999,6 +2051,23 @@ Offset _transformOffset(WidgetTester tester, String key) {
 double _transformScale(WidgetTester tester, String key) =>
     tester.widget<Transform>(find.byKey(ValueKey(key))).transform.entry(0, 0);
 
+Offset _interactiveViewerOffset(WidgetTester tester) {
+  final controller = tester
+      .widget<InteractiveViewer>(
+        find.byKey(const ValueKey('scene-2-zoom-canvas')),
+      )
+      .transformationController!;
+  return Offset(controller.value.entry(0, 3), controller.value.entry(1, 3));
+}
+
+double _interactiveViewerScale(WidgetTester tester) => tester
+    .widget<InteractiveViewer>(
+      find.byKey(const ValueKey('scene-2-zoom-canvas')),
+    )
+    .transformationController!
+    .value
+    .getMaxScaleOnAxis();
+
 double _positionedLeft(WidgetTester tester, String key) =>
     tester.widget<Positioned>(find.byKey(ValueKey(key))).left!;
 
@@ -2025,6 +2094,51 @@ Future<void> _dragByKey(
   );
   await gesture.moveBy(Offset(delta.dx, 0));
   await gesture.moveBy(Offset(0, delta.dy));
+  await gesture.up();
+  await tester.pump();
+}
+
+Future<void> _pinchByKey(WidgetTester tester, ValueKey<String> key) async {
+  final target = find.byKey(key);
+  await tester.ensureVisible(target);
+  await tester.pump();
+  final center = tester.getCenter(target);
+  final first = await tester.startGesture(
+    center - const Offset(20, 0),
+    pointer: 21,
+  );
+  final second = await tester.startGesture(
+    center + const Offset(20, 0),
+    pointer: 22,
+  );
+  await tester.pump();
+  await first.moveTo(center - const Offset(34, 0));
+  await second.moveTo(center + const Offset(34, 0));
+  await tester.pump();
+  await first.moveTo(center - const Offset(48, 0));
+  await second.moveTo(center + const Offset(48, 0));
+  await tester.pump();
+  await first.up();
+  await second.up();
+  await tester.pump();
+}
+
+Future<void> _dragZoomCanvas(
+  WidgetTester tester,
+  Offset delta, {
+  PointerDeviceKind kind = PointerDeviceKind.touch,
+}) async {
+  final target = find.byKey(const ValueKey('scene-2-zoom-canvas'));
+  await tester.ensureVisible(target);
+  await tester.pump();
+  final gesture = await tester.startGesture(
+    tester.getCenter(target),
+    kind: kind,
+  );
+  await gesture.moveBy(Offset(delta.dx / 2, 0));
+  await gesture.moveBy(Offset(delta.dx / 2, 0));
+  await gesture.moveBy(Offset(0, delta.dy));
+  await tester.pump();
   await gesture.up();
   await tester.pump();
 }
