@@ -11,6 +11,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../import_export/services/backup_file_export_service.dart';
 import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/operation_local_date.dart';
@@ -18,17 +19,21 @@ import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/daily_debrief_state.dart';
 import '../../repositories/app_repository_container.dart';
+import 'backup_prompt_dialog.dart';
 
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
+typedef DailyLogFinalizeCompleted = Future<void> Function();
 
 @visibleForTesting
 Future<void> executeDailyLogFinalize({
   required Future<void> Function() finalize,
   required OperationLocalDate previousOperationDate,
+  DailyLogFinalizeCompleted? afterFinalize,
   required DailyLogReviewCompleted? onReviewCompleted,
 }) async {
   await finalize();
+  await afterFinalize?.call();
   await onReviewCompleted?.call(previousOperationDate);
 }
 
@@ -41,6 +46,7 @@ class DailyLogSection extends StatefulWidget {
     required this.trainingSummary,
     required this.estimatedTotalBurn,
     this.onReviewCompleted,
+    this.backupExportService,
   });
 
   final MorningFact? morningFact;
@@ -49,6 +55,7 @@ class DailyLogSection extends StatefulWidget {
   final TrainingSummary? trainingSummary;
   final double? estimatedTotalBurn;
   final DailyLogReviewCompleted? onReviewCompleted;
+  final BackupFileExportService? backupExportService;
 
   @override
   State<DailyLogSection> createState() => _DailyLogSectionState();
@@ -56,6 +63,7 @@ class DailyLogSection extends StatefulWidget {
 
 class _DailyLogSectionState extends State<DailyLogSection> {
   late Future<_DailyCloseUiState> _closeState = _loadCloseState();
+  bool _isFinalizing = false;
 
   @override
   void initState() {
@@ -106,7 +114,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
               onActivityTap: isReadOnly || locked
                   ? null
                   : () => Navigator.pushNamed(context, AppRoutes.activity),
-              onPrimaryAction: isReadOnly || closeState == null
+              onPrimaryAction: isReadOnly || closeState == null || _isFinalizing
                   ? null
                   : closeState.phase == OperationPhase.awaitingDebrief &&
                         closeState.finalizeReady
@@ -120,6 +128,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
   }
 
   Future<void> _finalize() async {
+    if (_isFinalizing) return;
     final approved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -142,11 +151,12 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       ),
     );
     if (approved != true || !mounted) return;
-    final state = await AppRepositoryRegistry.container.operationState
-        .requireCurrent();
-    final previousDate = state.operationDate;
-    final onReviewCompleted = widget.onReviewCompleted;
+    setState(() => _isFinalizing = true);
     try {
+      final state = await AppRepositoryRegistry.container.operationState
+          .requireCurrent();
+      final previousDate = state.operationDate;
+      final onReviewCompleted = widget.onReviewCompleted;
       await executeDailyLogFinalize(
         finalize: () async {
           await DailyFinalizeCoordinatorFactory.production().finalize(
@@ -154,6 +164,17 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           );
         },
         previousOperationDate: previousDate,
+        afterFinalize: () async {
+          if (!mounted) return;
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: true,
+            builder: (_) => BackupPromptDialog(
+              exportService:
+                  widget.backupExportService ?? BackupFileExportService(),
+            ),
+          );
+        },
         onReviewCompleted: onReviewCompleted,
       );
       if (!mounted) return;
@@ -163,6 +184,8 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('FINALIZE DAYに失敗しました: $error')));
+    } finally {
+      if (mounted) setState(() => _isFinalizing = false);
     }
   }
 

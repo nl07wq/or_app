@@ -47,33 +47,48 @@ void main() {
   test('finalize success is consumed once by its origin owner', () async {
     final date = OperationLocalDate.parse('2026-08-11');
     var finalized = 0;
+    var backedUp = 0;
     var consumed = 0;
+    final order = <String>[];
 
     await executeDailyLogFinalize(
-      finalize: () async => finalized++,
+      finalize: () async {
+        finalized++;
+        order.add('finalize');
+      },
       previousOperationDate: date,
+      afterFinalize: () async {
+        backedUp++;
+        order.add('backup');
+      },
       onReviewCompleted: (received) async {
         expect(received, date);
         consumed++;
+        order.add('origin');
       },
     );
 
     expect(finalized, 1);
+    expect(backedUp, 1);
     expect(consumed, 1);
+    expect(order, ['finalize', 'backup', 'origin']);
   });
 
   test('finalize failure is not consumed by an origin owner', () async {
+    var backedUp = 0;
     var consumed = 0;
 
     await expectLater(
       executeDailyLogFinalize(
         finalize: () async => throw StateError('finalize failed'),
         previousOperationDate: OperationLocalDate.parse('2026-08-11'),
+        afterFinalize: () async => backedUp++,
         onReviewCompleted: (_) async => consumed++,
       ),
       throwsStateError,
     );
 
+    expect(backedUp, 0);
     expect(consumed, 0);
   });
 

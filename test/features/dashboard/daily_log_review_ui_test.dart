@@ -18,6 +18,7 @@ import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_detail_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_review_page.dart';
+import 'package:or_app/features/dashboard/widgets/backup_prompt_dialog.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
@@ -1121,6 +1122,49 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('BACK TO EDIT')), findsNothing);
     semantics.dispose();
   });
+
+  testWidgets(
+    'finalize pipeline shows one BACKUP prompt before origin completion',
+    (tester) async {
+      final gateway = _RecordingBackupGateway();
+      final order = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => executeDailyLogFinalize(
+                finalize: () async => order.add('finalize'),
+                previousOperationDate: OperationLocalDate.parse('2026-07-27'),
+                afterFinalize: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => BackupPromptDialog(
+                    exportService: _backupService(gateway),
+                  ),
+                ),
+                onReviewCompleted: (_) async => order.add('origin'),
+              ),
+              child: const Text('FINALIZE'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('FINALIZE'));
+      await tester.pumpAndSettle();
+      expect(order, ['finalize']);
+      expect(find.text('BACKUP'), findsOneWidget);
+      expect(gateway.exportCount, 0);
+
+      await tester.tap(find.text('EXPORT BACKUP'));
+      await tester.pumpAndSettle();
+      expect(gateway.exportCount, 1);
+      expect(find.text('Backup exported'), findsOneWidget);
+      await tester.tap(find.text('CLOSE'));
+      await tester.pumpAndSettle();
+      expect(order, ['finalize', 'origin']);
+      expect(find.text('BACKUP'), findsNothing);
+    },
+  );
 
   obsoleteTestWidgets(
     'Daily Review shows the finalization explanation and subtitle',
