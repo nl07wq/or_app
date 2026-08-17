@@ -120,59 +120,99 @@ class WebBackupFileGateway implements BackupFileGateway {
       ..multiple = false
       ..style.display = 'none';
     html.document.body?.append(input);
-    input.onChange.first.then((_) {
-      final files = input.files;
-      if (files == null || files.isEmpty) {
-        if (!completer.isCompleted) completer.complete(null);
-        input.remove();
+    StreamSubscription<html.Event>? onFocusSubscription;
+    Timer? fallbackTimer;
+    bool disposed = false;
+
+    void disposeState() {
+      if (disposed) return;
+      disposed = true;
+
+      onFocusSubscription?.cancel();
+      onFocusSubscription = null;
+
+      fallbackTimer?.cancel();
+      fallbackTimer = null;
+
+      input.remove();
+    }
+
+    void completeNullIfNeeded() {
+      if (completer.isCompleted) return;
+      completer.complete(null);
+      disposeState();
+    }
+
+    void completeSelected(html.File file, Uint8List bytes) {
+      if (completer.isCompleted) return;
+      completer.complete(BackupSelectedFile(name: file.name, bytes: bytes));
+      disposeState();
+    }
+
+    void completeReadError(Object error) {
+      if (completer.isCompleted) return;
+      completer.completeError(error);
+      disposeState();
+    }
+
+    void tryCompleteNullFallback() {
+      if (completer.isCompleted) return;
+      if (input.files == null || input.files!.isEmpty) {
+        completeNullIfNeeded();
+      }
+    }
+
+    onFocusSubscription = html.window.onFocus.listen((_) {
+      if (fallbackTimer != null || completer.isCompleted) {
         return;
       }
-      final file = files.single;
-      final reader = html.FileReader();
-      reader.onLoad.first.then((_) {
-        final result = reader.result;
-        final bytes = switch (result) {
-          ByteBuffer value => Uint8List.view(value),
-          Uint8List value => value,
-          List<int> value => value,
-          _ => null,
-        };
-        if (bytes == null) {
-          if (!completer.isCompleted) {
-            completer.completeError(
-              const FormatException(
-                'Selected file could not be read as bytes.',
-              ),
-            );
-          }
-        } else {
-          if (!completer.isCompleted) {
-            completer.complete(
-              BackupSelectedFile(name: file.name, bytes: bytes),
-            );
-          }
-        }
-        input.remove();
+      fallbackTimer = Timer(const Duration(seconds: 1), () {
+        fallbackTimer = null;
+        tryCompleteNullFallback();
       });
-      reader.onError.first.then((_) {
-        if (!completer.isCompleted) {
-          completer.completeError(
-            reader.error ?? StateError('Backup file read failed.'),
-          );
-        }
-        input.remove();
-      });
-      reader.readAsArrayBuffer(file);
     });
+
+    input.onChange.first
+        .then((_) {
+          fallbackTimer?.cancel();
+          fallbackTimer = null;
+          final files = input.files;
+          if (files == null || files.isEmpty) {
+            completeNullIfNeeded();
+            return;
+          }
+          final file = files.single;
+          final reader = html.FileReader();
+          reader.onLoad.first.then((_) {
+            final result = reader.result;
+            final bytes = switch (result) {
+              ByteBuffer value => Uint8List.view(value),
+              Uint8List value => value,
+              List<int> value => Uint8List.fromList(value),
+              _ => null,
+            };
+            if (bytes == null) {
+              completeReadError(
+                const FormatException(
+                  'Selected file could not be read as bytes.',
+                ),
+              );
+            } else {
+              completeSelected(file, bytes);
+            }
+          });
+          reader.onError.first.then((_) {
+            completeReadError(
+              reader.error ?? StateError('Backup file read failed.'),
+            );
+          });
+          reader.readAsArrayBuffer(file);
+        })
+        .catchError((error, stack) {
+          onFocusSubscription?.cancel();
+          completeReadError(error);
+        });
     input.click();
-    html.window.onFocus.first.then((_) async {
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      if (!completer.isCompleted &&
-          (input.files == null || input.files!.isEmpty)) {
-        completer.complete(null);
-        input.remove();
-      }
-    });
     return completer.future;
   }
 }

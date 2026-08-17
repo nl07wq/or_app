@@ -75,7 +75,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     });
     try {
       final file = await _fileGateway.selectJson();
-      if (file == null) return;
+      if (file == null) {
+        if (mounted) setState(() => _message = 'IMPORT CANCELLED');
+        return;
+      }
       final package = const BackupPackageCodec().decodeUtf8(file.bytes);
       final mode = package.permitsReplaceAll ? _mode : BackupImportMode.merge;
       final plan = await BackupImportService().dryRun(package, mode);
