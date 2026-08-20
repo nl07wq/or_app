@@ -153,6 +153,7 @@ class BackupImportService {
       );
       committed = true;
       await _verifyApplied(approvedPlan);
+      _controller.updateStage(InitializationStage.restoringDailyState);
       await _restore();
       if (!await _validateCurrentDatabase(
         requireOperationState: approvedPlan.package.schemaVersion >= 3,
@@ -176,8 +177,10 @@ class BackupImportService {
     } catch (error) {
       if (committed && preRestoreState != null) {
         try {
+          _controller.markMaintenance();
           await _restoreCapturedState(preRestoreState);
           await _verifyCapturedState(preRestoreState);
+          _controller.updateStage(InitializationStage.restoringDailyState);
           await _restore();
           if (!await _validateCurrentDatabase()) {
             throw const BackupException(

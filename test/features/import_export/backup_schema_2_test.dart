@@ -867,7 +867,7 @@ void main() {
   });
 
   test(
-    'maintenance mode is active only while approved import executes',
+    'approved import transitions through maintenance and initializing',
     () async {
       final package = BackupExportService.buildPackage(
         schemaVersion: BackupPackage.previousSchemaVersion,
@@ -877,6 +877,8 @@ void main() {
         data: {for (final section in BackupSections.all) section: []},
       );
       var modeDuringRestore = PersistenceMode.failed;
+      final modes = <PersistenceMode>[];
+      controller.addListener(() => modes.add(controller.value.mode));
       final service = BackupImportService(
         database: database,
         controller: controller,
@@ -890,7 +892,12 @@ void main() {
       final result = await service.execute(plan);
 
       expect(result.success, isTrue);
-      expect(modeDuringRestore, PersistenceMode.maintenance);
+      expect(modeDuringRestore, PersistenceMode.initializing);
+      expect(modes, [
+        PersistenceMode.maintenance,
+        PersistenceMode.initializing,
+        PersistenceMode.indexedDbReadWrite,
+      ]);
       expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
     },
   );

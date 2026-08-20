@@ -9,6 +9,7 @@ import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
+import 'package:or_app/core/services/daily_state_restore_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/persisted_activity_record.dart';
@@ -35,6 +36,7 @@ import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/models/persisted_status_record.dart';
 import 'package:or_app/features/system/models/profile_model.dart';
 import 'package:or_app/features/training/models/custom_training_exercise.dart';
@@ -170,6 +172,47 @@ void main() {
     },
   );
 
+  test(
+    'REPLACE ALL rebuilds daily state while controller is initializing',
+    () async {
+      final source = FakeIndexedDbDatabase();
+      _seedCompleteSource(source, timestamp);
+      final sourceController = AppInitializationController()..markReady();
+      final package = await BackupExportService(
+        database: source,
+        controller: sourceController,
+        clock: () => timestamp,
+      ).create();
+      final target = FakeIndexedDbDatabase();
+      final controller = AppInitializationController()..markReady();
+      final modes = <PersistenceMode>[];
+      controller.addListener(() => modes.add(controller.value.mode));
+      AppRepositoryRegistry.beginStartup(controller: controller);
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(target));
+      DailyStateRestoreService.resetForTesting();
+
+      try {
+        final service = BackupImportService(
+          database: target,
+          controller: controller,
+        );
+        final plan = await service.dryRun(package, BackupImportMode.replaceAll);
+
+        final result = await service.execute(plan);
+
+        expect(result.success, isTrue);
+        expect(modes, [
+          PersistenceMode.maintenance,
+          PersistenceMode.initializing,
+          PersistenceMode.indexedDbReadWrite,
+        ]);
+      } finally {
+        DailyStateRestoreService.resetForTesting();
+        AppRepositoryRegistry.resetForTesting();
+      }
+    },
+  );
+
   test('post-commit failure restores the exact pre-restore database', () async {
     final database = FakeIndexedDbDatabase();
     final original = _customExercise(timestamp, suffix: '1');
@@ -200,11 +243,15 @@ void main() {
     );
     var restoreCalls = 0;
     final controller = AppInitializationController()..markReady();
+    final modes = <PersistenceMode>[];
+    final restoreModes = <PersistenceMode>[];
+    controller.addListener(() => modes.add(controller.value.mode));
     final service = BackupImportService(
       database: database,
       controller: controller,
       restore: () async {
         restoreCalls++;
+        restoreModes.add(controller.value.mode);
         if (restoreCalls == 1) throw StateError('post-commit restore failed');
       },
     );
@@ -214,6 +261,17 @@ void main() {
 
     expect(result.success, isFalse);
     expect(restoreCalls, 2);
+    expect(restoreModes, [
+      PersistenceMode.initializing,
+      PersistenceMode.initializing,
+    ]);
+    expect(modes, [
+      PersistenceMode.maintenance,
+      PersistenceMode.initializing,
+      PersistenceMode.maintenance,
+      PersistenceMode.initializing,
+      PersistenceMode.indexedDbReadWrite,
+    ]);
     expect(
       await database.findAll(IndexedDbStoreNames.customTrainingExercises),
       [original],
