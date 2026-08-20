@@ -37,6 +37,7 @@ class TrainingSessionV2Form extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationCard(
+      key: const ValueKey('training-session-card'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

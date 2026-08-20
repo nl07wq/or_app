@@ -9,6 +9,7 @@ import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/models/persisted_status_record.dart';
@@ -566,10 +567,18 @@ void main() {
       database: database,
       activeTrainingDraftRepository: drafts,
     );
+    expect(
+      _trainingTheme(tester, active: false).colorScheme.primary,
+      AppColors.primary,
+    );
 
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
     expect(find.text('RECORDING'), findsOneWidget);
+    expect(
+      _trainingTheme(tester, active: true).colorScheme.primary,
+      AppColors.success,
+    );
     final operationDate =
         (await database.findAll(
               IndexedDbStoreNames.operationState,
@@ -614,6 +623,10 @@ void main() {
     expect(find.text('END TRAINING'), findsOneWidget);
     expect(find.text('RECORDING'), findsOneWidget);
     expect(
+      _trainingTheme(tester, active: true).colorScheme.primary,
+      AppColors.success,
+    );
+    expect(
       tester
           .widget<TextField>(find.widgetWithText(TextField, 'Session Name'))
           .controller
@@ -641,6 +654,10 @@ void main() {
     await tester.pump();
     expect(find.text('ACTIVE SESSION'), findsOneWidget);
     expect(
+      _trainingTheme(tester, active: true).colorScheme.primary,
+      AppColors.success,
+    );
+    expect(
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
       containsPair('endTime', isNotNull),
     );
@@ -665,6 +682,17 @@ void main() {
     expect(
       await database.findAll(IndexedDbStoreNames.trainingRecords),
       hasLength(1),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pump(
+      tester,
+      database: database,
+      activeTrainingDraftRepository: drafts,
+    );
+    expect(
+      _trainingTheme(tester, active: false).colorScheme.primary,
+      AppColors.primary,
     );
   });
 
@@ -711,10 +739,18 @@ void main() {
     );
     expect(find.text('RECORDING'), findsNothing);
     expect(find.text('ACTIVE SESSION'), findsNothing);
+    expect(
+      _trainingTheme(tester, active: false).colorScheme.primary,
+      AppColors.primary,
+    );
 
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
     expect(find.text('RECORDING'), findsOneWidget);
+    expect(
+      _trainingTheme(tester, active: true).colorScheme.primary,
+      AppColors.success,
+    );
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Discard Session'));
@@ -730,7 +766,94 @@ void main() {
     expect(find.text('RECORDING'), findsNothing);
     expect(find.text('ACTIVE SESSION'), findsNothing);
     expect(find.text('START TRAINING'), findsOneWidget);
+    expect(
+      _trainingTheme(tester, active: false).colorScheme.primary,
+      AppColors.primary,
+    );
   });
+
+  testWidgets('active recording colors session exercise set and cardio cards', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+    final normalTheme = _trainingTheme(tester, active: false);
+    expect(normalTheme.colorScheme.primary, AppColors.primary);
+    expect(
+      _cardColor(tester, const ValueKey('training-session-card')),
+      normalTheme.cardColor,
+    );
+
+    await tester.tap(find.text('START TRAINING'));
+    await tester.pump();
+    final activeTheme = _trainingTheme(tester, active: true);
+    expect(activeTheme.colorScheme.primary, AppColors.success);
+    expect(activeTheme.colorScheme.error, normalTheme.colorScheme.error);
+    expect(
+      _cardColor(tester, const ValueKey('training-session-card')),
+      activeTheme.cardColor,
+    );
+    expect(
+      _cardColor(tester, const ValueKey('training-exercise-card-0')),
+      activeTheme.cardColor,
+    );
+    final setDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.descendant(
+                    of: find.byKey(const ValueKey('training-set-card-0')),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(setDecoration.color, AppColors.success.withValues(alpha: 0.04));
+    expect(
+      (setDecoration.border! as Border).top.color,
+      activeTheme.colorScheme.outlineVariant,
+    );
+
+    await tester.ensureVisible(find.text('ADD EXERCISE'));
+    await tester.tap(find.text('ADD EXERCISE'));
+    await tester.pump();
+    expect(
+      _cardColor(tester, const ValueKey('training-exercise-card-1')),
+      activeTheme.cardColor,
+    );
+
+    await tester.ensureVisible(find.text('ADD CARDIO'));
+    await tester.tap(find.text('ADD CARDIO'));
+    await tester.pump();
+    expect(
+      _cardColor(tester, const ValueKey('training-cardio-card-0')),
+      activeTheme.cardColor,
+    );
+
+    await tester.ensureVisible(find.text('END TRAINING'));
+    await tester.tap(find.text('END TRAINING'));
+    await tester.pump();
+    expect(find.text('ACTIVE SESSION'), findsOneWidget);
+    expect(
+      _trainingTheme(tester, active: true).colorScheme.primary,
+      AppColors.success,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in <double>[320, 390, 900]) {
+    testWidgets('active training base has no overflow at ${width.toInt()}px', (
+      tester,
+    ) async {
+      await _pump(tester, width: width);
+      await tester.tap(find.text('START TRAINING'));
+      await tester.pump();
+
+      expect(
+        _trainingTheme(tester, active: true).colorScheme.primary,
+        AppColors.success,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('built-in equipment display keeps stable saved identity', (
     tester,
@@ -888,3 +1011,20 @@ Future<FakeIndexedDbDatabase> _pump(
   }
   return targetDatabase;
 }
+
+ThemeData _trainingTheme(WidgetTester tester, {required bool active}) => tester
+    .widget<Theme>(
+      find.byKey(
+        ValueKey(active ? 'training-green-base' : 'training-blue-base'),
+      ),
+    )
+    .data;
+
+Color _cardColor(WidgetTester tester, Key operationCardKey) => tester
+    .widget<Card>(
+      find.descendant(
+        of: find.byKey(operationCardKey),
+        matching: find.byType(Card),
+      ),
+    )
+    .color!;

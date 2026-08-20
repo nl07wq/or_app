@@ -80,6 +80,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
         : exerciseDisplayName(name);
     final equipmentCandidates = _equipmentCandidates();
     return TrainingCollapsibleCard(
+      cardKey: ValueKey('training-exercise-card-${widget.index}'),
       icon: Icons.fitness_center,
       title: title,
       summary: _summary(),
@@ -131,6 +132,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
           ],
           AppSpacing.gapMD,
           TrainingSetV2Editor(
+            activeBase: Theme.of(context).colorScheme.primary,
             controller: controller,
             onChanged: widget.onChanged,
           ),

@@ -8,11 +8,13 @@ import '../models/training_v2_form_controller.dart';
 
 class TrainingSetV2Editor extends StatelessWidget {
   final TrainingV2ExerciseFormController controller;
+  final Color activeBase;
   final VoidCallback onChanged;
 
   const TrainingSetV2Editor({
     super.key,
     required this.controller,
+    required this.activeBase,
     required this.onChanged,
   });
 
@@ -24,7 +26,9 @@ class TrainingSetV2Editor extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: _SetEditor(
+              key: ValueKey('training-set-card-$index'),
               index: index,
+              activeBase: activeBase,
               set: set,
               previous: index == 0 ? null : controller.sets[index - 1],
               canDelete: controller.sets.length > 1,
@@ -53,6 +57,7 @@ class TrainingSetV2Editor extends StatelessWidget {
 
 class _SetEditor extends StatelessWidget {
   final int index;
+  final Color activeBase;
   final TrainingV2SetFormController set;
   final TrainingV2SetFormController? previous;
   final bool canDelete;
@@ -60,7 +65,9 @@ class _SetEditor extends StatelessWidget {
   final VoidCallback onChanged;
 
   const _SetEditor({
+    super.key,
     required this.index,
+    required this.activeBase,
     required this.set,
     required this.previous,
     required this.canDelete,
@@ -72,6 +79,7 @@ class _SetEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
+        color: activeBase.withValues(alpha: 0.04),
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),

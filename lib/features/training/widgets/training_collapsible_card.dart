@@ -15,6 +15,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
     required this.contentKey,
     required this.semanticsLabel,
     required this.child,
+    this.cardKey,
   });
 
   final IconData icon;
@@ -26,6 +27,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
   final Key contentKey;
   final String semanticsLabel;
   final Widget child;
+  final Key? cardKey;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
     }
 
     return OperationCard(
+      key: cardKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -56,7 +59,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(icon, color: Colors.cyanAccent, size: 22),
+                    Icon(icon, color: colorScheme.primary, size: 22),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Column(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/repositories/training_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/operation_button.dart';
@@ -383,6 +384,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         body: const Center(child: Text('Operation Dateを取得できませんでした。')),
       );
     }
+    final active = !_isEditing && _form.startTime != null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('TRAINING'),
@@ -418,99 +420,105 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 900),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TrainingSessionV2Form(
-                  controller: _form,
-                  active: !_isEditing && _form.startTime != null,
-                  onChanged: _handleEntryChanged,
-                  onStartTraining: _startTraining,
-                  onEndTraining: _endTraining,
-                  onUndoEnd: _undoEnd,
-                  onEditStartTime: _editStartTime,
-                  onEditEndTime: _editEndTime,
-                ),
-                AppSpacing.gapXL,
-                const SectionHeader(
-                  icon: Icons.fitness_center,
-                  title: 'EXERCISE',
-                ),
-                AppSpacing.gapMD,
-                for (final (index, exercise) in _form.exercises.indexed)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    child: TrainingExerciseV2Editor(
-                      index: index,
-                      controller: exercise,
-                      preferredRecords: _preferredRecords,
-                      targetRecord: widget.existingRecord,
-                      sessionDate: _form.date,
-                      expanded: identical(_expandedItem, exercise),
-                      onToggle: () => _toggle(exercise),
-                      onDelete: () {
-                        if (identical(_expandedItem, exercise)) {
-                          _expandedItem = null;
-                        }
-                        _form.removeExercise(exercise);
-                        _handleEntryChanged();
-                      },
-                      onChanged: _handleEntryChanged,
+            child: Theme(
+              key: ValueKey(
+                active ? 'training-green-base' : 'training-blue-base',
+              ),
+              data: _trainingEntryTheme(context, active: active),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TrainingSessionV2Form(
+                    controller: _form,
+                    active: active,
+                    onChanged: _handleEntryChanged,
+                    onStartTraining: _startTraining,
+                    onEndTraining: _endTraining,
+                    onUndoEnd: _undoEnd,
+                    onEditStartTime: _editStartTime,
+                    onEditEndTime: _editEndTime,
+                  ),
+                  AppSpacing.gapXL,
+                  const SectionHeader(
+                    icon: Icons.fitness_center,
+                    title: 'EXERCISE',
+                  ),
+                  AppSpacing.gapMD,
+                  for (final (index, exercise) in _form.exercises.indexed)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      child: TrainingExerciseV2Editor(
+                        index: index,
+                        controller: exercise,
+                        preferredRecords: _preferredRecords,
+                        targetRecord: widget.existingRecord,
+                        sessionDate: _form.date,
+                        expanded: identical(_expandedItem, exercise),
+                        onToggle: () => _toggle(exercise),
+                        onDelete: () {
+                          if (identical(_expandedItem, exercise)) {
+                            _expandedItem = null;
+                          }
+                          _form.removeExercise(exercise);
+                          _handleEntryChanged();
+                        },
+                        onChanged: _handleEntryChanged,
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _form.addExercise();
+                      _expandedItem = _form.exercises.last;
+                      _handleEntryChanged();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('ADD EXERCISE'),
+                  ),
+                  AppSpacing.gapXL,
+                  const SectionHeader(
+                    icon: Icons.directions_run,
+                    title: 'CARDIO',
+                  ),
+                  AppSpacing.gapMD,
+                  for (final (index, cardio) in _form.cardioEntries.indexed)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      child: TrainingCardioV2Editor(
+                        index: index,
+                        controller: cardio,
+                        expanded: identical(_expandedItem, cardio),
+                        calorieResult: _cardioPreview(cardio),
+                        onToggle: () => _toggle(cardio),
+                        onDelete: () {
+                          if (identical(_expandedItem, cardio)) {
+                            _expandedItem = null;
+                          }
+                          _form.removeCardio(cardio);
+                          _handleEntryChanged();
+                        },
+                        onChanged: _handleEntryChanged,
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _form.addCardio();
+                      _expandedItem = _form.cardioEntries.last;
+                      _handleEntryChanged();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('ADD CARDIO'),
+                  ),
+                  AppSpacing.gapXL,
+                  SizedBox(
+                    height: 56,
+                    child: OperationButton(
+                      icon: Icons.save,
+                      text: _isEditing ? 'UPDATE TRAINING' : 'SAVE TRAINING',
+                      onPressed: _isSaving ? null : _save,
                     ),
                   ),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _form.addExercise();
-                    _expandedItem = _form.exercises.last;
-                    _handleEntryChanged();
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('ADD EXERCISE'),
-                ),
-                AppSpacing.gapXL,
-                const SectionHeader(
-                  icon: Icons.directions_run,
-                  title: 'CARDIO',
-                ),
-                AppSpacing.gapMD,
-                for (final (index, cardio) in _form.cardioEntries.indexed)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    child: TrainingCardioV2Editor(
-                      index: index,
-                      controller: cardio,
-                      expanded: identical(_expandedItem, cardio),
-                      calorieResult: _cardioPreview(cardio),
-                      onToggle: () => _toggle(cardio),
-                      onDelete: () {
-                        if (identical(_expandedItem, cardio)) {
-                          _expandedItem = null;
-                        }
-                        _form.removeCardio(cardio);
-                        _handleEntryChanged();
-                      },
-                      onChanged: _handleEntryChanged,
-                    ),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _form.addCardio();
-                    _expandedItem = _form.cardioEntries.last;
-                    _handleEntryChanged();
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('ADD CARDIO'),
-                ),
-                AppSpacing.gapXL,
-                SizedBox(
-                  height: 56,
-                  child: OperationButton(
-                    icon: Icons.save,
-                    text: _isEditing ? 'UPDATE TRAINING' : 'SAVE TRAINING',
-                    onPressed: _isSaving ? null : _save,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -536,4 +544,29 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       weightKg: cardio.weightSnapshotKg ?? _statusWeightKg,
     );
   }
+}
+
+ThemeData _trainingEntryTheme(BuildContext context, {required bool active}) {
+  final theme = Theme.of(context);
+  final colors = theme.colorScheme;
+  final base = active ? AppColors.success : AppColors.primary;
+  return theme.copyWith(
+    cardColor: Color.alphaBlend(
+      base.withValues(alpha: active ? 0.12 : 0.07),
+      theme.cardColor,
+    ),
+    colorScheme: colors.copyWith(
+      primary: base,
+      primaryContainer: Color.alphaBlend(
+        base.withValues(alpha: 0.20),
+        colors.surface,
+      ),
+      onPrimaryContainer: colors.onSurface,
+      outline: Color.alphaBlend(base.withValues(alpha: 0.65), colors.outline),
+      outlineVariant: Color.alphaBlend(
+        base.withValues(alpha: 0.42),
+        colors.outlineVariant,
+      ),
+    ),
+  );
 }

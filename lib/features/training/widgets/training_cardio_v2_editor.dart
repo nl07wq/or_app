@@ -33,6 +33,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
         ? 'CARDIO ${index + 1}'
         : _typeLabel(controller.type!);
     return TrainingCollapsibleCard(
+      cardKey: ValueKey('training-cardio-card-$index'),
       icon: Icons.directions_run,
       title: title,
       summary: _summary(),
