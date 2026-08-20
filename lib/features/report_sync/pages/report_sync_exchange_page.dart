@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/models/food_item.dart';
+import '../../../core/models/meal_data.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -1231,83 +1233,236 @@ class _FoodPreviewCard extends StatelessWidget {
       for (final item in preview.foodMeals)
         if (item.canSelect) item.previewId,
     };
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(preview.disposition.name.toUpperCase()),
-          Text('Operation Date  ${preview.envelope!.operationDate}'),
-          Text('受信：${preview.foodMeals.length}件'),
-          Text('選択：${selectedMealIds.length}件'),
-          Text('競合：${preview.conflictCount}件'),
-          Text('除外：${preview.foodMeals.length - selectedMealIds.length}件'),
-          AppSpacing.gapSM,
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              OutlinedButton(
-                onPressed: selectableIds.isEmpty
-                    ? null
-                    : () => onSelectionChanged(selectableIds),
-                child: const Text('すべて選択'),
-              ),
-              OutlinedButton(
-                onPressed: selectedMealIds.isEmpty
-                    ? null
-                    : () => onSelectionChanged(const {}),
-                child: const Text('すべて解除'),
+              Text(preview.disposition.name.toUpperCase()),
+              Text('Operation Date  ${preview.envelope!.operationDate}'),
+              Text('受信：${preview.foodMeals.length}件'),
+              Text('選択：${selectedMealIds.length}件'),
+              Text('競合：${preview.conflictCount}件'),
+              Text('除外：${preview.foodMeals.length - selectedMealIds.length}件'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: selectableIds.isEmpty
+                        ? null
+                        : () => onSelectionChanged(selectableIds),
+                    child: const Text('すべて選択'),
+                  ),
+                  OutlinedButton(
+                    onPressed: selectedMealIds.isEmpty
+                        ? null
+                        : () => onSelectionChanged(const {}),
+                    child: const Text('すべて解除'),
+                  ),
+                ],
               ),
             ],
           ),
-          AppSpacing.gapSM,
-          for (final item in preview.foodMeals) ...[
-            CheckboxListTile(
-              key: ValueKey('food-meal-${item.previewId}'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: selectedMealIds.contains(item.previewId),
-              onChanged: item.canSelect
-                  ? (selected) {
-                      final next = {...selectedMealIds};
-                      selected == true
-                          ? next.add(item.previewId)
-                          : next.remove(item.previewId);
-                      onSelectionChanged(next);
-                    }
-                  : null,
-              title: Text('${item.meal.mealType}  ${item.meal.id}'),
-              subtitle: Text(
-                '${_foodMealStatus(item.disposition)}\n'
-                'Items ${item.meal.items.length}  '
-                'Calories ${item.meal.calories}  '
-                'P ${item.meal.protein} / F ${item.meal.fat} / '
-                'C ${item.meal.carbohydrate}'
-                '${item.meal.waterMl == null ? '' : '  Water ${item.meal.waterMl} ml'}'
-                '${item.meal.memo.isEmpty ? '' : '\nMemo ${item.meal.memo}'}'
-                '${_foodItemDetails(item.meal.items)}',
-              ),
-              isThreeLine: true,
-            ),
-            if (item != preview.foodMeals.last) const Divider(),
-          ],
+        ),
+        AppSpacing.gapSM,
+        for (final item in preview.foodMeals) ...[
+          _FoodMealCard(
+            key: ValueKey('food-meal-${item.previewId}'),
+            meal: item.meal,
+            status: _foodMealStatus(item.disposition),
+            statusColor: _foodMealStatusColor(context, item.disposition),
+            selected: selectedMealIds.contains(item.previewId),
+            onSelected: item.canSelect
+                ? (selected) {
+                    final next = {...selectedMealIds};
+                    selected == true
+                        ? next.add(item.previewId)
+                        : next.remove(item.previewId);
+                    onSelectionChanged(next);
+                  }
+                : null,
+          ),
+          if (item != preview.foodMeals.last) AppSpacing.gapSM,
         ],
-      ),
+      ],
     );
   }
 }
 
 String _foodMealStatus(FoodReportSyncMealDisposition disposition) =>
     switch (disposition) {
-      FoodReportSyncMealDisposition.create => '取り込み可能',
-      FoodReportSyncMealDisposition.noChanges => '取り込み済み（同一内容）',
-      FoodReportSyncMealDisposition.conflict => '競合のため選択できません',
-      FoodReportSyncMealDisposition.blocked => '確定済みのため選択できません',
+      FoodReportSyncMealDisposition.create => 'AVAILABLE',
+      FoodReportSyncMealDisposition.noChanges => 'IDENTICAL',
+      FoodReportSyncMealDisposition.conflict => 'INVALID',
+      FoodReportSyncMealDisposition.blocked => 'BLOCKED',
     };
 
-String _foodItemDetails(List<FoodItem> items) => items.isEmpty
-    ? ''
-    : '\n${items.map((item) => '${item.name} ×${item.quantity}  Calories ${item.totalCalories}  P ${item.totalProtein} / F ${item.totalFat} / C ${item.totalCarbohydrate}').join('\n')}';
+Color _foodMealStatusColor(
+  BuildContext context,
+  FoodReportSyncMealDisposition disposition,
+) => switch (disposition) {
+  FoodReportSyncMealDisposition.create => Theme.of(context).colorScheme.primary,
+  FoodReportSyncMealDisposition.noChanges => Theme.of(
+    context,
+  ).colorScheme.outline,
+  FoodReportSyncMealDisposition.conflict ||
+  FoodReportSyncMealDisposition.blocked => Theme.of(context).colorScheme.error,
+};
+
+class _FoodMealCard extends StatelessWidget {
+  const _FoodMealCard({
+    super.key,
+    required this.meal,
+    required this.status,
+    required this.statusColor,
+    this.selected,
+    this.onSelected,
+  });
+
+  final MealData meal;
+  final String status;
+  final Color statusColor;
+  final bool? selected;
+  final ValueChanged<bool?>? onSelected;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onSelected == null ? null : () => onSelected!(!(selected ?? false)),
+    borderRadius: BorderRadius.circular(12),
+    child: OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (selected != null)
+                Checkbox(value: selected, onChanged: onSelected),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      status,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text('MEAL TYPE  ${_mealTypeLabel(meal.mealType)}'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(),
+          for (var index = 0; index < meal.items.length; index++) ...[
+            _FoodItemPresentation(item: meal.items[index]),
+            if (index != meal.items.length - 1) const Divider(),
+          ],
+          if (meal.waterMl != null) ...[
+            const Divider(),
+            Text('WATER  ${_formatNumber(meal.waterMl!)} ml'),
+          ],
+          if (meal.memo.trim().isNotEmpty) ...[
+            const Divider(),
+            Text(meal.memo.trim()),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+class _FoodItemPresentation extends StatelessWidget {
+  const _FoodItemPresentation({required this.item});
+  final FoodItem item;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(item.name, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 2),
+        Text(_foodItemAmount(item)),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 14,
+          runSpacing: 8,
+          children: [
+            _NutritionValue(
+              icon: Symbols.local_fire_department,
+              label: 'CAL',
+              value: _formatNumber(item.totalCalories),
+            ),
+            _NutritionValue(
+              icon: Symbols.fitness_center,
+              label: 'P',
+              value: _formatNumber(item.totalProtein),
+            ),
+            _NutritionValue(
+              icon: Symbols.water_drop,
+              label: 'F',
+              value: _formatNumber(item.totalFat),
+            ),
+            _NutritionValue(
+              icon: Symbols.grain,
+              label: 'C',
+              value: _formatNumber(item.totalCarbohydrate),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _NutritionValue extends StatelessWidget {
+  const _NutritionValue({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 4),
+      Text('$label $value'),
+    ],
+  );
+}
+
+String _foodItemAmount(FoodItem item) {
+  final amount = item.physicalAmount;
+  if (amount == null || item.baseUnit == null) return '${item.quantity}点';
+  return '${item.quantity}点 (${_formatNumber(amount)}${item.baseUnit!.label})';
+}
+
+String _mealTypeLabel(String value) => switch (value.toLowerCase()) {
+  'breakfast' => '朝食',
+  'lunch' => '昼食',
+  'dinner' => '夕食',
+  'snack' => '間食',
+  'water' => '水分',
+  _ => value,
+};
+
+String _formatNumber(num value) {
+  final number = value.toDouble();
+  if (number == number.roundToDouble()) return number.toInt().toString();
+  return number.toStringAsFixed(1);
+}
 
 class _HistoryCard extends StatelessWidget {
   const _HistoryCard({required this.history});
@@ -1333,18 +1488,24 @@ class _HistoryCard extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.receipt_long_outlined),
                   title: Text(
-                    '${history[index].exchangeType.stableId} · '
-                    '${history[index].direction.stableId}',
+                    history[index].exchangeType == ReportSyncExchangeType.food
+                        ? 'FOOD SYNC · '
+                              '${history[index].result.stableId.toUpperCase()}'
+                        : '${history[index].exchangeType.stableId} · '
+                              '${history[index].direction.stableId}',
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${history[index].operationDate} · '
-                        '${history[index].result.stableId} · '
-                        '${history[index].completedAt.toLocal()}'
-                        '${history[index].failureCode == null ? '' : ' · ${history[index].failureCode!.stableId}'}',
+                        history[index].exchangeType ==
+                                ReportSyncExchangeType.food
+                            ? history[index].operationDate
+                            : '${history[index].operationDate} · '
+                                  '${history[index].result.stableId} · '
+                                  '${history[index].completedAt.toLocal()}'
+                                  '${history[index].failureCode == null ? '' : ' · ${history[index].failureCode!.stableId}'}',
                       ),
                       if (history[index].exchangeType ==
                           ReportSyncExchangeType.food)
@@ -1384,8 +1545,10 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
         key: ValueKey('all-report-sync-record-${history[index].exchangeId}'),
         leading: Icon(_reportSyncResultIcon(history[index].result)),
         title: Text(
-          '${history[index].exchangeType.stableId} · '
-          '${history[index].direction.stableId}',
+          history[index].exchangeType == ReportSyncExchangeType.food
+              ? 'FOOD SYNC · ${history[index].result.stableId.toUpperCase()}'
+              : '${history[index].exchangeType.stableId} · '
+                    '${history[index].direction.stableId}',
         ),
         subtitle: Text(
           '${history[index].operationDate} · '
@@ -1430,20 +1593,22 @@ class _ReportSyncRecordPage extends StatelessWidget {
                 label: 'OPERATION DATE',
                 value: record.operationDate,
               ),
-              _RecordField(
-                label: 'EXCHANGE TYPE',
-                value: record.exchangeType.stableId,
-              ),
-              _RecordField(
-                label: 'DIRECTION',
-                value: record.direction.stableId,
-              ),
-              _RecordField(label: 'EXCHANGE ID', value: record.exchangeId),
-              _RecordField(label: 'REQUEST ID', value: record.requestId),
-              _RecordField(
-                label: 'COMPLETED AT',
-                value: record.completedAt.toLocal().toString(),
-              ),
+              if (record.exchangeType != ReportSyncExchangeType.food) ...[
+                _RecordField(
+                  label: 'EXCHANGE TYPE',
+                  value: record.exchangeType.stableId,
+                ),
+                _RecordField(
+                  label: 'DIRECTION',
+                  value: record.direction.stableId,
+                ),
+                _RecordField(label: 'EXCHANGE ID', value: record.exchangeId),
+                _RecordField(label: 'REQUEST ID', value: record.requestId),
+                _RecordField(
+                  label: 'COMPLETED AT',
+                  value: record.completedAt.toLocal().toString(),
+                ),
+              ],
               if (record.failureCode != null)
                 _RecordField(
                   label: 'FAILURE CODE',
@@ -1457,6 +1622,24 @@ class _ReportSyncRecordPage extends StatelessWidget {
             ],
           ),
         ),
+        if (record.exchangeType == ReportSyncExchangeType.food &&
+            record.importedMealSnapshots.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          for (
+            var index = 0;
+            index < record.importedMealSnapshots.length;
+            index++
+          ) ...[
+            _FoodMealCard(
+              key: ValueKey('history-food-meal-$index'),
+              meal: record.importedMealSnapshots[index],
+              status: 'IMPORTED',
+              statusColor: Theme.of(context).colorScheme.primary,
+            ),
+            if (index != record.importedMealSnapshots.length - 1)
+              AppSpacing.gapSM,
+          ],
+        ],
       ],
     ),
   );

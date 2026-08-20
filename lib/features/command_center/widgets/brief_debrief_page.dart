@@ -993,8 +993,14 @@ class _PreviousRevisionsSection extends StatelessWidget {
 }
 
 class _MorningBriefCard extends StatelessWidget {
-  const _MorningBriefCard({required this.record});
+  const _MorningBriefCard({
+    required this.record,
+    this.revisionOverride,
+    this.showRevisionHistory = true,
+  });
   final MorningBriefRecord record;
+  final int? revisionOverride;
+  final bool showRevisionHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -1008,7 +1014,10 @@ class _MorningBriefCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _BriefHeader(record: record),
+              _BriefHeader(
+                record: record,
+                revision: revisionOverride ?? record.revision,
+              ),
               const SizedBox(height: 28),
               if (analysis == null)
                 _BriefSection(
@@ -1051,6 +1060,13 @@ class _MorningBriefCard extends StatelessWidget {
               _CommanderIntentBlock(text: record.commanderIntent),
               const SizedBox(height: 24),
               _TodayActions(actions: record.actions),
+              if (showRevisionHistory &&
+                  record.previousRevisions.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                _MorningBriefRevisionHistory(
+                  revisions: record.previousRevisions,
+                ),
+              ],
             ],
           ),
         ),
@@ -1060,9 +1076,10 @@ class _MorningBriefCard extends StatelessWidget {
 }
 
 class _BriefHeader extends StatelessWidget {
-  const _BriefHeader({required this.record});
+  const _BriefHeader({required this.record, required this.revision});
 
   final MorningBriefRecord record;
+  final int revision;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1094,7 +1111,7 @@ class _BriefHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'MB-${record.localDate}',
+                    'MB-${record.localDate}-Rev$revision',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
@@ -1121,6 +1138,56 @@ class _BriefHeader extends StatelessWidget {
         );
       },
     ),
+  );
+}
+
+class _MorningBriefRevisionHistory extends StatelessWidget {
+  const _MorningBriefRevisionHistory({required this.revisions});
+
+  final List<MorningBriefRevision> revisions;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    key: const ValueKey('morning-brief-previous-revisions'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const _BriefSectionTitle(
+        icon: Icons.history_outlined,
+        title: 'PREVIOUS REVISIONS',
+      ),
+      const SizedBox(height: 12),
+      for (final revision in revisions)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('REV ${revision.revision}'),
+          subtitle: Text(
+            revision.record.commanderIntent,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                appBar: AppBar(
+                  title: Text('DAILY BRIEF REV ${revision.revision}'),
+                ),
+                body: ListView(
+                  padding: AppSpacing.cardPadding,
+                  children: [
+                    _MorningBriefCard(
+                      record: revision.record,
+                      revisionOverride: revision.revision,
+                      showRevisionHistory: false,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
   );
 }
 

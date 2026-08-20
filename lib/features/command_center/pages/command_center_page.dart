@@ -458,12 +458,29 @@ class _WorkspaceHeader extends StatelessWidget {
       child: Row(
         children: List.generate(
           labels.length,
-          (index) => TextButton(
-            onPressed: () => onSelectPage(index),
-            child: Text(
-              labels[index],
-              style: TextStyle(
-                fontWeight: index == currentPage ? FontWeight.bold : null,
+          (index) => AnimatedContainer(
+            key: ValueKey('command-center-tab-$index'),
+            duration: const Duration(milliseconds: 160),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: index == currentPage
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.transparent,
+                  width: 3,
+                ),
+              ),
+            ),
+            child: TextButton(
+              onPressed: () => onSelectPage(index),
+              child: Text(
+                labels[index],
+                style: TextStyle(
+                  color: index == currentPage
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                  fontWeight: index == currentPage ? FontWeight.bold : null,
+                ),
               ),
             ),
           ),

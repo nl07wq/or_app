@@ -179,13 +179,48 @@ void main() {
         isNotNull,
       );
 
-      final conflict = await gateway.previewResponse(
+      final noChange = await gateway.previewResponse(
         ReportSyncExchangeType.morningBrief,
         container.reportSyncCodec.encode(response),
         targetDate: '2026-08-03',
       );
-      expect(conflict.disposition, ReportSyncDisposition.conflict);
-      expect(conflict.canApply, isFalse);
+      expect(noChange.disposition, ReportSyncDisposition.noChanges);
+      expect(noChange.canApply, isFalse);
+
+      final revisedPayload = _morningBriefPayload(
+        preparation.statusSourceExport!,
+      );
+      final revisedContent = Map<String, Object?>.from(
+        revisedPayload['content'] as Map,
+      );
+      revisedContent['commanderIntent'] = '修正版の意図です。';
+      revisedPayload['content'] = revisedContent;
+      final revisedResponse = container.reportSyncCodec.create(
+        direction: ReportSyncDirection.response,
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+        exchangeType: ReportSyncExchangeType.morningBrief,
+        exchangeId: 'morning-v2-revision-2',
+        operationDate: '2026-08-03',
+        createdAt: now.add(const Duration(minutes: 1)),
+        payload: revisedPayload,
+      );
+      final revisionPreview = await gateway.previewResponse(
+        ReportSyncExchangeType.morningBrief,
+        container.reportSyncCodec.encode(revisedResponse),
+        targetDate: '2026-08-03',
+      );
+      expect(revisionPreview.disposition, ReportSyncDisposition.create);
+      await gateway.apply(revisionPreview);
+      final revised = await container.morningBriefs.readByLocalDate(
+        '2026-08-03',
+      );
+      expect(revised?.revision, 2);
+      expect(revised?.commanderIntent, '修正版の意図です。');
+      expect(revised?.previousRevisions, hasLength(1));
+      expect(
+        revised?.previousRevisions.single.record.commanderIntent,
+        saved?.commanderIntent,
+      );
     },
   );
 
@@ -546,12 +581,22 @@ void main() {
       expect(result.mealCounts?.conflict, 1);
       expect(result.mealCounts?.excluded, 2);
       final history = (await container.reportSyncHistory.list()).single;
-      expect(history.recordVersion, 2);
+      expect(history.recordVersion, 3);
       expect(history.receivedMealCount, 4);
       expect(history.selectedMealCount, 2);
       expect(history.importedMealCount, 2);
       expect(history.conflictMealCount, 1);
       expect(history.excludedMealCount, 2);
+      expect(history.importedMealSnapshots.map((meal) => meal.id), [
+        'create-1',
+        'create-2',
+      ]);
+      await container.food.deleteById('create-1');
+      final retainedHistory = (await container.reportSyncHistory.list()).single;
+      expect(retainedHistory.importedMealSnapshots.map((meal) => meal.id), [
+        'create-1',
+        'create-2',
+      ]);
     },
   );
 

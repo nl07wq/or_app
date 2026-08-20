@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/food_item.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
@@ -22,9 +24,10 @@ void main() {
   };
   final digest = ReportSyncCanonicalService.digest(trainingRequest);
 
-  test('Report Sync History version 2 round-trips formal FOOD counts', () {
-    expect(ReportSyncHistory.currentRecordVersion, 2);
+  test('Report Sync History version 2 remains readable with counts only', () {
+    expect(ReportSyncHistory.currentRecordVersion, 3);
     final history = _history(
+      recordVersion: 2,
       received: 4,
       selected: 2,
       imported: 2,
@@ -37,6 +40,24 @@ void main() {
     expect(restored.importedMealCount, 2);
     expect(restored.conflictMealCount, 1);
     expect(restored.excludedMealCount, 2);
+    expect(restored.importedMealSnapshots, isEmpty);
+  });
+
+  test('Report Sync History version 3 round-trips imported meal snapshots', () {
+    final history = _history(
+      received: 2,
+      selected: 1,
+      imported: 1,
+      conflict: 0,
+      excluded: 1,
+    );
+    final restored = ReportSyncHistory.fromRecord(history.toRecord());
+    expect(restored.importedMealSnapshots, hasLength(1));
+    expect(restored.importedMealSnapshots.single.id, 'snapshot-0');
+    expect(
+      restored.importedMealSnapshots.single.items.single.calories,
+      57.099999999999994,
+    );
   });
 
   test('Report Sync History version 1 remains readable without counts', () {
@@ -470,4 +491,24 @@ ReportSyncHistory _history({
   importedMealCount: imported,
   conflictMealCount: conflict,
   excludedMealCount: excluded,
+  importedMealSnapshots: recordVersion >= 3
+      ? [
+          for (var index = 0; index < (imported ?? 0); index++)
+            MealData(
+              date: '2026-08-02',
+              mealType: 'Snack',
+              items: const [
+                FoodItem(
+                  name: 'Snapshot item',
+                  calories: 57.099999999999994,
+                  protein: 1.9,
+                  fat: 5.5,
+                  carbohydrate: 24.2,
+                ),
+              ],
+              memo: '',
+              id: 'snapshot-$index',
+            ),
+        ]
+      : const [],
 );

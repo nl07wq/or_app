@@ -125,6 +125,7 @@ class ReportSyncPersistenceService {
       history = _history(
         response,
         mealCounts: mealCounts,
+        importedMealSnapshots: meals,
         completedAt: timestamp,
       );
     } on FormatException catch (error) {
@@ -379,7 +380,7 @@ class ReportSyncPersistenceService {
     );
     final actionValues = (content['actions'] as List).cast<Map>();
     final now = clock().toUtc();
-    final record = MorningBriefRecord.v2(
+    final incoming = MorningBriefRecord.v2(
       localDate: response.operationDate,
       sourceType: 'status',
       sourceOperationDate: response.operationDate,
@@ -414,7 +415,7 @@ class ReportSyncPersistenceService {
       createdAt: now,
       updatedAt: now,
     );
-    final history = _history(response, completedAt: clock().toUtc());
+    var history = _history(response, completedAt: clock().toUtc());
     var stage = 'TRANSACTION START';
     var store = IndexedDbStoreNames.morningBriefRecords;
     try {
@@ -426,10 +427,38 @@ class ReportSyncPersistenceService {
         mode: IndexedDbTransactionMode.readWrite,
         action: (transaction) async {
           stage = 'MORNING BRIEF CONFLICT CHECK';
-          if (await transaction.findById(store, record.localDate) != null) {
-            throw const ReportSyncException(
-              ReportSyncIssueCode.recordConflict,
-              'A Morning Brief already exists for this operation date.',
+          final existingValue = await transaction.findById(
+            store,
+            incoming.localDate,
+          );
+          final existing = existingValue == null
+              ? null
+              : MorningBriefRecord.fromRecord(existingValue);
+          final isNoChange =
+              existing != null &&
+              existing.responseDigest == incoming.responseDigest &&
+              existing.sourceDigest == incoming.sourceDigest;
+          final record = existing == null
+              ? incoming.asInitialRevision()
+              : isNoChange
+              ? existing
+              : existing.reviseWith(incoming, timestamp: now);
+          if (isNoChange) {
+            history = ReportSyncHistory(
+              exchangeId: response.exchangeId,
+              exchangeType: response.exchangeType,
+              direction: response.direction,
+              operationDate: response.operationDate,
+              requestId: _legacyRequestId(response),
+              requestDigest: _legacyRequestDigest(response),
+              responseDigest: ReportSyncCanonicalService.digest(
+                response.payload,
+              ),
+              confirmationDigest: response.confirmationDigest,
+              startedAt: response.createdAt,
+              completedAt: now,
+              result: ReportSyncHistoryResult.noChange,
+              packageDigest: response.packageDigest,
             );
           }
           store = IndexedDbStoreNames.reportSyncHistory;
@@ -445,7 +474,9 @@ class ReportSyncPersistenceService {
           }
           stage = 'MORNING BRIEF PUT';
           store = IndexedDbStoreNames.morningBriefRecords;
-          await transaction.put(store, record.toRecord());
+          if (!isNoChange) {
+            await transaction.put(store, record.toRecord());
+          }
           stage = 'REPORT SYNC RECORD PUT';
           store = IndexedDbStoreNames.reportSyncHistory;
           await transaction.put(store, history.toRecord());
@@ -498,7 +529,7 @@ class ReportSyncPersistenceService {
         cause: error,
         causeStackTrace: stackTrace,
         store: store,
-        recordId: record.localDate,
+        recordId: incoming.localDate,
       );
     } catch (error, stackTrace) {
       throw ReportSyncImportFailure(
@@ -508,7 +539,7 @@ class ReportSyncPersistenceService {
         cause: error,
         causeStackTrace: stackTrace,
         store: store,
-        recordId: record.localDate,
+        recordId: incoming.localDate,
       );
     }
   }
@@ -724,6 +755,7 @@ class ReportSyncPersistenceService {
   ReportSyncHistory _history(
     ReportSyncEnvelope response, {
     ReportSyncMealCounts? mealCounts,
+    Iterable<MealData> importedMealSnapshots = const [],
     required DateTime completedAt,
   }) => ReportSyncHistory(
     exchangeId: response.exchangeId,
@@ -743,6 +775,7 @@ class ReportSyncPersistenceService {
     importedMealCount: mealCounts?.imported,
     conflictMealCount: mealCounts?.conflict,
     excludedMealCount: mealCounts?.excluded,
+    importedMealSnapshots: importedMealSnapshots,
   );
 
   static String _string(Map<String, Object?> json, String key) {

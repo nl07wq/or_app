@@ -1,3 +1,4 @@
+import '../../../core/models/meal_data.dart';
 import 'report_sync_envelope.dart';
 import 'report_sync_issue.dart';
 import 'report_sync_record_utils.dart';
@@ -13,7 +14,7 @@ enum ReportSyncHistoryResult {
 }
 
 class ReportSyncHistory {
-  static const currentRecordVersion = 2;
+  static const currentRecordVersion = 3;
   static const version1Fields = {
     'exchangeId',
     'recordVersion',
@@ -30,7 +31,7 @@ class ReportSyncHistory {
     'failureCode',
     'packageDigest',
   };
-  static const fields = {
+  static const version2Fields = {
     ...version1Fields,
     'receivedMealCount',
     'selectedMealCount',
@@ -38,6 +39,7 @@ class ReportSyncHistory {
     'conflictMealCount',
     'excludedMealCount',
   };
+  static const fields = {...version2Fields, 'importedMealSnapshots'};
   final String exchangeId;
   final int recordVersion;
   final ReportSyncExchangeType exchangeType;
@@ -57,6 +59,7 @@ class ReportSyncHistory {
   final int? importedMealCount;
   final int? conflictMealCount;
   final int? excludedMealCount;
+  final List<MealData> importedMealSnapshots;
 
   ReportSyncHistory({
     required this.exchangeId,
@@ -78,8 +81,14 @@ class ReportSyncHistory {
     this.importedMealCount,
     this.conflictMealCount,
     this.excludedMealCount,
-  }) {
-    if (recordVersion != 1 && recordVersion != currentRecordVersion) {
+    Iterable<MealData> importedMealSnapshots = const [],
+  }) : importedMealSnapshots = List.unmodifiable(
+         importedMealSnapshots.map(
+           (meal) =>
+               MealData.fromJson(Map<String, dynamic>.from(meal.toJson())),
+         ),
+       ) {
+    if (recordVersion < 1 || recordVersion > currentRecordVersion) {
       throw const FormatException('Unsupported history version.');
     }
     if (completedAt.isBefore(startedAt)) {
@@ -115,17 +124,22 @@ class ReportSyncHistory {
       'conflictMealCount': conflictMealCount,
       'excludedMealCount': excludedMealCount,
     },
+    if (recordVersion >= 3)
+      'importedMealSnapshots': [
+        for (final meal in importedMealSnapshots) meal.toJson(),
+      ],
   };
 
   factory ReportSyncHistory.fromRecord(Map<String, Object?> json) {
     final version = json['recordVersion'];
-    if (version is! int || (version != 1 && version != currentRecordVersion)) {
+    if (version is! int || version < 1 || version > currentRecordVersion) {
       throw const FormatException('Unsupported history version.');
     }
-    ReportSyncRecordUtils.exactFields(
-      json,
-      version == 1 ? version1Fields : fields,
-    );
+    ReportSyncRecordUtils.exactFields(json, switch (version) {
+      1 => version1Fields,
+      2 => version2Fields,
+      _ => fields,
+    });
     T parse<T>(Iterable<T> values, Object? raw, String Function(T) id) {
       if (raw is! String) {
         throw const FormatException('Invalid stable ID.');
@@ -190,6 +204,7 @@ class ReportSyncHistory {
       excludedMealCount: version == 1
           ? null
           : _nullableNonNegativeInteger(json, 'excludedMealCount'),
+      importedMealSnapshots: version < 3 ? const [] : _mealSnapshots(json),
       recordVersion: version,
     );
   }
@@ -208,7 +223,8 @@ class ReportSyncHistory {
       );
     }
     if (exchangeType != ReportSyncExchangeType.food &&
-        counts.any((value) => value != null)) {
+        (counts.any((value) => value != null) ||
+            importedMealSnapshots.isNotEmpty)) {
       throw const FormatException(
         'Meal counts are only valid for FOOD history.',
       );
@@ -233,6 +249,29 @@ class ReportSyncHistory {
             excludedMealCount != receivedMealCount! - importedMealCount!)) {
       throw const FormatException('Meal counts are inconsistent.');
     }
+    if (recordVersion < 3 && importedMealSnapshots.isNotEmpty) {
+      throw const FormatException(
+        'History versions before 3 cannot contain meal snapshots.',
+      );
+    }
+    if (recordVersion >= 3 &&
+        importedMealCount != null &&
+        importedMealSnapshots.length != importedMealCount) {
+      throw const FormatException(
+        'Imported meal snapshots do not match importedMealCount.',
+      );
+    }
+  }
+
+  static List<MealData> _mealSnapshots(Map<String, Object?> json) {
+    final values = json['importedMealSnapshots'];
+    if (values is! List || values.any((value) => value is! Map)) {
+      throw const FormatException('importedMealSnapshots is invalid.');
+    }
+    return [
+      for (final value in values)
+        MealData.fromJson(Map<String, dynamic>.from(value as Map)),
+    ];
   }
 
   static int? _nullableNonNegativeInteger(

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
@@ -249,7 +250,13 @@ void main() {
     expect(find.text('選択：1件'), findsOneWidget);
     expect(find.text('競合：1件'), findsOneWidget);
     expect(find.text('除外：2件'), findsOneWidget);
-    expect(find.textContaining('Rice ×1'), findsOneWidget);
+    expect(find.text('Rice'), findsOneWidget);
+    expect(find.text('1点'), findsOneWidget);
+    expect(find.text('CAL 200'), findsOneWidget);
+    expect(find.byIcon(Symbols.local_fire_department), findsWidgets);
+    expect(find.byIcon(Symbols.fitness_center), findsWidgets);
+    expect(find.byIcon(Symbols.water_drop), findsWidgets);
+    expect(find.byIcon(Symbols.grain), findsWidgets);
     await tester.tap(find.text('すべて解除'));
     await tester.pump();
     expect(find.text('選択：0件'), findsOneWidget);
@@ -277,9 +284,19 @@ void main() {
     expect(find.text('1件のMEALを取り込みました'), findsOneWidget);
     expect(find.text('{"response":true}'), findsNothing);
     expect(find.text('REPORT SYNC RECORD'), findsOneWidget);
-    expect(find.textContaining('food · response'), findsOneWidget);
+    expect(find.text('FOOD SYNC · SUCCESS'), findsOneWidget);
     expect(find.textContaining('受信Meal：4件'), findsOneWidget);
     expect(find.textContaining('取り込み成功：2件'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-record-request-food-0')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('EXCHANGE ID'), findsNothing);
+    expect(find.text('REQUEST ID'), findsNothing);
+    expect(find.text('DIRECTION'), findsNothing);
+    expect(find.text('History snack'), findsWidgets);
+    expect(find.text('CAL 57.1'), findsWidgets);
+    expect(find.textContaining('57.099999999999994'), findsNothing);
   });
 
   testWidgets('food V1 history shows that meal counts were not recorded', (
@@ -342,9 +359,10 @@ void main() {
       find.byKey(const ValueKey('report-sync-record-request-food-0')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('EXCHANGE ID'), findsOneWidget);
-    expect(find.text('request-food-0'), findsNWidgets(2));
-    Navigator.of(tester.element(find.text('EXCHANGE ID'))).pop();
+    expect(find.text('EXCHANGE ID'), findsNothing);
+    expect(find.text('REQUEST ID'), findsNothing);
+    expect(find.text('request-food-0'), findsNothing);
+    Navigator.of(tester.element(find.byType(ListView))).pop();
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -1154,7 +1172,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   ) async => [
     for (var index = 0; index < historyCount; index++)
       ReportSyncHistory(
-        recordVersion: legacyHistory ? 1 : 2,
+        recordVersion: legacyHistory ? 1 : 3,
         exchangeId: 'request-food-$index',
         exchangeType: type,
         direction: ReportSyncDirection.response,
@@ -1180,6 +1198,34 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
         excludedMealCount: type == ReportSyncExchangeType.food && !legacyHistory
             ? 2
             : null,
+        importedMealSnapshots:
+            type == ReportSyncExchangeType.food && !legacyHistory
+            ? const [
+                MealData(
+                  date: '2026-08-02',
+                  mealType: 'Snack',
+                  items: [
+                    FoodItem(
+                      name: 'History snack',
+                      calories: 57.099999999999994,
+                      protein: 1.9,
+                      fat: 5.5,
+                      carbohydrate: 24.2,
+                    ),
+                  ],
+                  memo: '',
+                  id: 'history-meal-1',
+                ),
+                MealData(
+                  date: '2026-08-02',
+                  mealType: 'Water',
+                  items: [],
+                  memo: '',
+                  id: 'history-meal-2',
+                  waterMl: 250,
+                ),
+              ]
+            : const [],
       ),
   ];
 

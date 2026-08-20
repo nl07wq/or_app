@@ -463,6 +463,24 @@ void main() {
     expect(find.text('DATA CENTER'), findsWidgets);
     await tester.tap(find.text('BRIEF / DEBRIEF').first);
     await tester.pumpAndSettle();
+    final selectedBriefTab = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('command-center-tab-0')),
+    );
+    final unselectedCommandTab = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('command-center-tab-1')),
+    );
+    expect(
+      ((selectedBriefTab.decoration as BoxDecoration).border as Border)
+          .bottom
+          .color,
+      isNot(Colors.transparent),
+    );
+    expect(
+      ((unselectedCommandTab.decoration as BoxDecoration).border as Border)
+          .bottom
+          .color,
+      Colors.transparent,
+    );
     expect(find.text('DAILY BRIEF'), findsWidgets);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
@@ -534,6 +552,31 @@ void main() {
     expect(find.textContaining('施設'), findsNothing);
   });
 
+  testWidgets('marks the selected Command Center top tab with an underline', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+    await tester.tap(find.text('BRIEF / DEBRIEF').first);
+    await tester.pumpAndSettle();
+
+    BorderSide bottomBorder(int index) {
+      final tab = tester.widget<AnimatedContainer>(
+        find.byKey(ValueKey('command-center-tab-$index')),
+      );
+      return ((tab.decoration as BoxDecoration).border as Border).bottom;
+    }
+
+    expect(bottomBorder(0).color, isNot(Colors.transparent));
+    expect(bottomBorder(1).color, Colors.transparent);
+    expect(find.text('DAILY BRIEF'), findsWidgets);
+
+    await tester.tap(find.text('DAILY COMMAND').first);
+    await tester.pumpAndSettle();
+    expect(bottomBorder(0).color, Colors.transparent);
+    expect(bottomBorder(1).color, isNot(Colors.transparent));
+    expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+  });
+
   testWidgets('keeps Data Center inside Command Center tabs', (tester) async {
     await _pump(tester, width: 900);
 
@@ -582,7 +625,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
-    expect(find.text('MB-2026-08-01'), findsOneWidget);
+    expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
@@ -629,7 +672,39 @@ void main() {
 
     expect(_morningBriefScrollPosition(tester).pixels, 0);
     expect(find.text('DAILY BRIEF'), findsWidgets);
-    expect(find.text('MB-2026-08-01'), findsOneWidget);
+    expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
+  });
+
+  testWidgets('shows the latest Morning Brief and preserves prior revisions', (
+    tester,
+  ) async {
+    final first = _morningBriefV2(
+      '2026-08-01',
+      intent: 'ORIGINAL MORNING INTENT',
+    ).asInitialRevision();
+    final revised = first.reviseWith(
+      _morningBriefV2('2026-08-01', intent: 'REVISED MORNING INTENT'),
+      timestamp: first.updatedAt.add(const Duration(minutes: 1)),
+    );
+    await AppRepositoryRegistry.container.morningBriefs.create(revised);
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MB-2026-08-01-Rev2'), findsOneWidget);
+    expect(find.text('REVISED MORNING INTENT'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('morning-brief-previous-revisions')),
+      findsOneWidget,
+    );
+    expect(find.text('REV 1'), findsOneWidget);
+    await tester.ensureVisible(find.text('REV 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('REV 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('ORIGINAL MORNING INTENT'), findsOneWidget);
   });
 
   testWidgets('normal back preserves daily brief scroll position', (
@@ -1643,7 +1718,7 @@ DailyDebriefRecord _dailyDebriefRecord({
   return record;
 }
 
-MorningBriefRecord _morningBriefV2(String date) {
+MorningBriefRecord _morningBriefV2(String date, {String? intent}) {
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   final timestamp = DateTime.utc(2026, 8, 1, 9);
@@ -1673,7 +1748,7 @@ MorningBriefRecord _morningBriefV2(String date) {
       execution: 'Execution',
     ),
     operationStatus: MorningBriefOperationStatus.yellow,
-    commanderIntent: 'CURRENT INTENT $date',
+    commanderIntent: intent ?? 'CURRENT INTENT $date',
     actions: const [
       MorningBriefAction(
         actionId: 'action-1',

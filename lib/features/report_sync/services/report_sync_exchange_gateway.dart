@@ -628,10 +628,20 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         morningBriefSourceDigestMatches: true,
       );
     }
-    return _preview(
-      response,
-      ReportSyncDisposition.conflict,
-      message: 'A Morning Brief already exists for this operation date.',
+    final isNoChange =
+        existing.responseDigest ==
+            ReportSyncCanonicalService.digest(response.payload) &&
+        existing.sourceDigest == current.sourceDigest;
+    return ReportSyncResponsePreview(
+      envelope: response,
+      disposition: isNoChange
+          ? ReportSyncDisposition.noChanges
+          : ReportSyncDisposition.create,
+      createCount: isNoChange ? 0 : 1,
+      noChangeCount: isNoChange ? 1 : 0,
+      conflictCount: 0,
+      message: isNoChange ? '同一内容のMorning Briefです。' : null,
+      morningBriefSourceDigestMatches: true,
     );
   }
 
@@ -663,19 +673,6 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       }
     }
   }
-
-  ReportSyncResponsePreview _preview(
-    ReportSyncEnvelope response,
-    ReportSyncDisposition disposition, {
-    String? message,
-  }) => ReportSyncResponsePreview(
-    envelope: response,
-    disposition: disposition,
-    createCount: disposition == ReportSyncDisposition.create ? 1 : 0,
-    noChangeCount: disposition == ReportSyncDisposition.noChanges ? 1 : 0,
-    conflictCount: disposition == ReportSyncDisposition.conflict ? 1 : 0,
-    message: message,
-  );
 
   @override
   Future<ReportSyncApplyResult> apply(
