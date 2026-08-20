@@ -53,7 +53,7 @@ class StandardReportSyncInstructionProvider
     }
     if (exchangeType == ReportSyncExchangeType.morningBrief) {
       if (sourceRecordId == null || sourceDigest == null) {
-        throw StateError('Daily Brief requires STATUS source identity.');
+        throw StateError('DAILY BRIEF requires STATUS source identity.');
       }
       return _buildMorningBriefInstruction(
         operationDate,
@@ -273,7 +273,7 @@ ${const JsonEncoder.withIndent('  ').convert(analysis)}
       'packageDigest': null,
     };
     return '''
-Operation Rebootの$operationDateの正式なMORNING BRIEFを生成してください。
+Operation Rebootの$operationDateの正式なDAILY BRIEFを生成してください。
 
 SOURCE CONTRACT
 このPrompt自体はSource Dataではありません。末尾のSOURCE DATA STARTとSOURCE DATA ENDの間にある、同日かつsourceRecordIdが「$sourceRecordId」、sourceDigestが「$sourceDigest」の正式なSTATUS SOURCEだけを使用してください。
@@ -322,7 +322,7 @@ For plantarFasciitisLevel, a higher level means a stronger symptom and a lower l
 HUMAN-READABLE ANALYSIS CONTRACT
 ${includeNumericFormatting ? 'In Japanese analysis prose only, add thousands separators to numbers of four or more digits: 2330 becomes 2,330; 3250 becomes 3,250; 6952 becomes 6,952; and 2685.6 becomes 2,685.6. Continue removing apparent floating-point artifacts at a natural precision. Do not alter any source JSON value, stored value, unit, or digest.' : ''}
 Render duration minutes as H:MM in prose, with two minute digits: 229 minutes is 3:49, 360 is 6:00, 60 is 1:00, and 522 is 8:42. Keep source and derived duration values in minutes.
-Write natural Japanese and do not expose internal terms such as trainingPerformed=false, officialSteps, Formal Fact, sourceType=records, or Operational Impact. Refer to the user-facing products as DAILY BRIEF and STATUS, never MORNING BRIEF or MORNING ROUTINE in analysis prose. Do not list irrelevant unknowns or statements that something cannot be confirmed. Use notAssessable, null, or a concise rationale only when missing information directly prevents a required evaluation. Adjustments and WATCH POINTS must be supported by current facts or Recent Context; do not add speculative items.
+Write natural Japanese and do not expose internal terms such as trainingPerformed=false, officialSteps, Formal Fact, sourceType=records, or Operational Impact. Refer to the user-facing products as DAILY BRIEF and STATUS. Do not use legacy product names in analysis prose. Do not list irrelevant unknowns or statements that something cannot be confirmed. Use notAssessable, null, or a concise rationale only when missing information directly prevents a required evaluation. Adjustments and WATCH POINTS must be supported by current facts or Recent Context; do not add speculative items.
 ''';
 
   String _buildImportOnlyInstruction(
@@ -367,7 +367,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food =>
       'Convert the Meal Data pasted after this prompt for $date into Operation Reboot Food Import Schema Version 1.',
     ReportSyncExchangeType.morningBrief =>
-      'Prepare the formal STATUS Source for Morning Brief review on $date.',
+      'Prepare the formal STATUS Source for DAILY BRIEF review on $date.',
     ReportSyncExchangeType.dailyDebrief =>
       'Prepare the formal DAILY DEBRIEF analysis for $date.',
   };
@@ -382,7 +382,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
   String get _schemaName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Import Schema Version 2',
     ReportSyncExchangeType.food => 'Food Import Schema Version 2',
-    ReportSyncExchangeType.morningBrief => 'Morning Brief source review',
+    ReportSyncExchangeType.morningBrief => 'DAILY BRIEF source review',
     ReportSyncExchangeType.dailyDebrief => 'Daily Debrief Schema Version 1',
   };
 
@@ -403,7 +403,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food =>
       'Do not create mealId or any internal ID. Every meal contains exactly sourceMealId, mealType, items, memo, and waterMl. sourceMealId is the original reference ID only when it can be confirmed, otherwise null. Every food item contains exactly name, calories, protein, fat, carbohydrate, quantity, amount, baseAmount, baseUnit, and amountMode. quantity is the recorded count multiplier and must be an integer of 1 or greater. amount and baseAmount must be finite positive numbers when present. amount, baseAmount, and baseUnit are one measurement tuple: provide all three together or set all three to null. Allowed baseUnit values are g and mL. Allowed amountMode values are physicalAmount and baseMultiplier; amountMode may be null only when it was not recorded, and a non-null amountMode requires the complete measurement tuple. For physicalAmount, amount is the consumed physical amount and the nutrition multiplier is amount divided by baseAmount. For baseMultiplier, amount is the recorded multiplier and the consumed physical amount is baseAmount multiplied by amount. When the measurement tuple is present, calories, protein, fat, and carbohydrate are the recorded nutrition basis corresponding to baseAmount, not consumed totals. Do not infer a missing measurement field, mode, unit, count, or nutrition value. Keep multiple meals separate. Operation Reboot generates permanent Meal IDs. Preserve the recorded mealType. Nullable fields must be null when unrecorded.',
     ReportSyncExchangeType.morningBrief =>
-      'Return the formal Morning Brief Schema Version 2 response only.',
+      'Return the formal DAILY BRIEF Schema Version 2 response only.',
     ReportSyncExchangeType.dailyDebrief =>
       'Return the formal Daily Debrief Schema Version 1 payload only.',
   };

@@ -217,7 +217,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       case ReportSyncExchangeType.morningBrief:
         if (state.phase != OperationPhase.open) {
           return const ReportSyncRequestPreparation(
-            blockingReason: 'Morning Brief requires the open operation date.',
+            blockingReason: 'DAILY BRIEF requires the open operation date.',
           );
         }
         try {
@@ -602,7 +602,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     if (response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
       throw const ReportSyncException(
         ReportSyncIssueCode.schemaMismatch,
-        'Morning Brief requires Schema 2.0.',
+        'DAILY BRIEF requires Schema 2.0.',
       );
     }
     final payload = response.payload;
@@ -640,7 +640,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       createCount: isNoChange ? 0 : 1,
       noChangeCount: isNoChange ? 1 : 0,
       conflictCount: 0,
-      message: isNoChange ? '同一内容のMorning Briefです。' : null,
+      message: isNoChange ? '同一内容のDAILY BRIEFです。' : null,
       morningBriefSourceDigestMatches: true,
     );
   }
@@ -660,7 +660,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       if (source[entry.key] != entry.value) {
         throw ReportSyncException(
           ReportSyncIssueCode.integrityFailure,
-          'Morning Brief STATUS source identity does not match.',
+          'DAILY BRIEF STATUS source identity does not match.',
           validationError: ReportSyncValidationError(
             code: 'sourceIdentityMismatch',
             jsonPath: r'$.payload.source.' + entry.key,

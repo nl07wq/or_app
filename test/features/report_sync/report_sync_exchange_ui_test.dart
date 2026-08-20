@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
@@ -250,13 +249,15 @@ void main() {
     expect(find.text('選択：1件'), findsOneWidget);
     expect(find.text('競合：1件'), findsOneWidget);
     expect(find.text('除外：2件'), findsOneWidget);
-    expect(find.text('Rice'), findsOneWidget);
-    expect(find.text('1点'), findsOneWidget);
+    expect(find.text('Rice100g'), findsOneWidget);
+    expect(find.text('Donut 1個×4'), findsOneWidget);
+    expect(find.text('1点'), findsNothing);
+    expect(find.textContaining('×1'), findsNothing);
     expect(find.text('CAL 200'), findsOneWidget);
-    expect(find.byIcon(Symbols.local_fire_department), findsWidgets);
-    expect(find.byIcon(Symbols.fitness_center), findsWidgets);
-    expect(find.byIcon(Symbols.water_drop), findsWidgets);
-    expect(find.byIcon(Symbols.grain), findsWidgets);
+    expect(find.byIcon(Icons.local_fire_department_outlined), findsWidgets);
+    expect(find.byIcon(Icons.fitness_center), findsWidgets);
+    expect(find.byIcon(Icons.opacity), findsWidgets);
+    expect(find.byIcon(Icons.rice_bowl_outlined), findsWidgets);
     await tester.tap(find.text('すべて解除'));
     await tester.pump();
     expect(find.text('選択：0件'), findsOneWidget);
@@ -294,9 +295,51 @@ void main() {
     expect(find.text('EXCHANGE ID'), findsNothing);
     expect(find.text('REQUEST ID'), findsNothing);
     expect(find.text('DIRECTION'), findsNothing);
-    expect(find.text('History snack'), findsWidgets);
+    expect(find.text('History snack35g×4'), findsWidgets);
     expect(find.text('CAL 57.1'), findsWidgets);
     expect(find.textContaining('57.099999999999994'), findsNothing);
+  });
+
+  testWidgets('food preview fits supported widths with compact item labels', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 1600);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReportSyncExchangePage(
+            exchangeType: ReportSyncExchangeType.food,
+            gateway: _FakeExchangeGateway(),
+            fileGateway: _FakeFileGateway(),
+            clipboardWriter: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey('report-sync-response-input')),
+          matching: find.byType(TextField),
+        ),
+        '{"response":true}',
+      );
+      await tester.scrollUntilVisible(
+        find.text('VALIDATE'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('VALIDATE'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rice100g'), findsOneWidget, reason: '${width}px');
+      expect(find.text('Donut 1個×4'), findsOneWidget, reason: '${width}px');
+      expect(tester.takeException(), isNull, reason: '${width}px');
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
   });
 
   testWidgets('food V1 history shows that meal counts were not recorded', (
@@ -681,6 +724,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('DAILY BRIEF REPORT SYNC'), findsWidgets);
+    expect(find.textContaining('MORNING BRIEF'), findsNothing);
     expect(find.text('STATUS SOURCE'), findsOneWidget);
     for (final step in const [
       '① 対象日を選択する',
@@ -691,14 +736,14 @@ void main() {
       '⑥ PASTEでJSONを貼り付ける',
       '⑦ VALIDATEを押す',
       '⑧ PREVIEWでSource Digestと内容を確認する',
-      '⑨ IMPORT MORNING BRIEFを押す',
+      '⑨ IMPORT DAILY BRIEFを押す',
       '⑩ COMPLETE · READ-BACK VERIFIEDを確認する',
     ]) {
       expect(find.text(step), findsOneWidget);
     }
     expect(find.text('③ 指定されたデータを貼り付ける'), findsNothing);
     expect(
-      find.text('プロンプトには正式なMB SchemaとSTATUS SOURCEが1つに統合されています。'),
+      find.text('プロンプトには正式なDAILY BRIEF SchemaとSTATUS SOURCEが1つに統合されています。'),
       findsOneWidget,
     );
     expect(find.text('現在の回答はアプリへインポートしません。'), findsNothing);
@@ -716,7 +761,7 @@ void main() {
     expect(find.text(source.plainText), findsOneWidget);
     expect(
       find.text(
-        'コピーした内容には、MB生成指示と正式なSTATUS SOURCEが含まれています。'
+        'コピーした内容には、DAILY BRIEF生成指示と正式なSTATUS SOURCEが含まれています。'
         'そのままChatGPTへ1回貼り付けてください。',
       ),
       findsOneWidget,
@@ -729,7 +774,8 @@ void main() {
     await tester.tap(find.text('COPY CHATGPT PROMPT'));
     await tester.pumpAndSettle();
     expect(copied, hasLength(1));
-    expect(copied.single, contains('MORNING BRIEF SOURCE PROMPT'));
+    expect(copied.single, contains('DAILY BRIEF SOURCE PROMPT'));
+    expect(copied.single, isNot(contains('MORNING BRIEF')));
     expect(copied.single, contains(source.plainText));
     expect(copied.single.split(source.plainText), hasLength(2));
     expect(find.text('CHATGPT PROMPTをコピーしました'), findsOneWidget);
@@ -1211,6 +1257,11 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
                       protein: 1.9,
                       fat: 5.5,
                       carbohydrate: 24.2,
+                      quantity: 4,
+                      amount: 35,
+                      baseAmount: 35,
+                      baseUnit: FoodBaseUnit.g,
+                      amountMode: FoodAmountMode.physicalAmount,
                     ),
                   ],
                   memo: '',
@@ -1244,7 +1295,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     if (type == ReportSyncExchangeType.morningBrief) {
       final source = preparation.sourceText;
       if (source == null) throw StateError('STATUS SOURCE READYが必要です。');
-      return 'MORNING BRIEF SOURCE PROMPT\n'
+      return 'DAILY BRIEF SOURCE PROMPT\n'
           'SOURCE DATA START\n'
           '━━━━━━━━━━━━━━━━━━━━\n'
           '$source'
@@ -1315,6 +1366,18 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
                       fat: 1,
                       carbohydrate: 44,
                       quantity: 1,
+                      amount: 100,
+                      baseAmount: 100,
+                      baseUnit: FoodBaseUnit.g,
+                      amountMode: FoodAmountMode.physicalAmount,
+                    ),
+                    FoodItem(
+                      name: 'Donut 1個',
+                      calories: 0,
+                      protein: 0,
+                      fat: 0,
+                      carbohydrate: 0,
+                      quantity: 4,
                     ),
                   ],
                   memo: '',

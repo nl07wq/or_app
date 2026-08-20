@@ -340,13 +340,13 @@ class ReportSyncPersistenceService {
     if (response.exchangeType != ReportSyncExchangeType.morningBrief) {
       throw const ReportSyncException(
         ReportSyncIssueCode.exchangeTypeMismatch,
-        'Morning Brief response required.',
+        'DAILY BRIEF response required.',
       );
     }
     if (response.schemaVersion != ReportSyncEnvelope.importSchemaVersion2) {
       throw const ReportSyncException(
         ReportSyncIssueCode.schemaMismatch,
-        'Morning Brief requires Schema 2.0.',
+        'DAILY BRIEF requires Schema 2.0.',
       );
     }
     await validator.validateResponse(
@@ -368,7 +368,7 @@ class ReportSyncPersistenceService {
     if (!_equal(source, expectedSource)) {
       throw const ReportSyncException(
         ReportSyncIssueCode.integrityFailure,
-        'Morning Brief STATUS source identity changed before import.',
+        'DAILY BRIEF STATUS source identity changed before import.',
       );
     }
 
@@ -426,7 +426,7 @@ class ReportSyncPersistenceService {
         ],
         mode: IndexedDbTransactionMode.readWrite,
         action: (transaction) async {
-          stage = 'MORNING BRIEF CONFLICT CHECK';
+          stage = 'DAILY BRIEF CONFLICT CHECK';
           final existingValue = await transaction.findById(
             store,
             incoming.localDate,
@@ -472,7 +472,7 @@ class ReportSyncPersistenceService {
               'Report Sync record conflict.',
             );
           }
-          stage = 'MORNING BRIEF PUT';
+          stage = 'DAILY BRIEF PUT';
           store = IndexedDbStoreNames.morningBriefRecords;
           if (!isNoChange) {
             await transaction.put(store, record.toRecord());
@@ -480,7 +480,7 @@ class ReportSyncPersistenceService {
           stage = 'REPORT SYNC RECORD PUT';
           store = IndexedDbStoreNames.reportSyncHistory;
           await transaction.put(store, history.toRecord());
-          stage = 'MORNING BRIEF READ-BACK';
+          stage = 'DAILY BRIEF READ-BACK';
           store = IndexedDbStoreNames.morningBriefRecords;
           final savedRecord = await transaction.findById(
             store,
@@ -495,7 +495,7 @@ class ReportSyncPersistenceService {
               )) {
             throw const ReportSyncException(
               ReportSyncIssueCode.integrityFailure,
-              'Morning Brief read-back failed.',
+              'DAILY BRIEF read-back failed.',
             );
           }
           stage = 'REPORT SYNC RECORD READ-BACK';
@@ -525,7 +525,7 @@ class ReportSyncPersistenceService {
       throw ReportSyncImportFailure(
         code: 'morning_brief_import_failed',
         stage: stage,
-        message: 'Morning Brief import failed and was rolled back.',
+        message: 'DAILY BRIEF import failed and was rolled back.',
         cause: error,
         causeStackTrace: stackTrace,
         store: store,
@@ -535,7 +535,7 @@ class ReportSyncPersistenceService {
       throw ReportSyncImportFailure(
         code: 'morning_brief_import_failed',
         stage: stage,
-        message: 'Morning Brief import failed and was rolled back.',
+        message: 'DAILY BRIEF import failed and was rolled back.',
         cause: error,
         causeStackTrace: stackTrace,
         store: store,

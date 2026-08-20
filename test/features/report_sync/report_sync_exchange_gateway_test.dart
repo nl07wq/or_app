@@ -104,7 +104,8 @@ void main() {
         ReportSyncExchangeType.morningBrief,
         morning,
       );
-      expect(morningPrompt, contains('正式なMORNING BRIEF'));
+      expect(morningPrompt, contains('正式なDAILY BRIEF'));
+      expect(morningPrompt, isNot(contains('MORNING BRIEF')));
       expect(morningPrompt, contains('SOURCE DATA START'));
       expect(morningPrompt, contains('SOURCE DATA END'));
       expect(morningPrompt, contains(morningSource));

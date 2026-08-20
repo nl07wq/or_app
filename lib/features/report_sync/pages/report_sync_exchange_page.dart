@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/models/food_item.dart';
 import '../../../core/models/meal_data.dart';
@@ -689,7 +688,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           OperationCard(
             child: Text(
               widget.exchangeType == ReportSyncExchangeType.morningBrief
-                  ? 'コピーした内容には、MB生成指示と正式なSTATUS SOURCEが含まれています。'
+                  ? 'コピーした内容には、DAILY BRIEF生成指示と正式なSTATUS SOURCEが含まれています。'
                         'そのままChatGPTへ1回貼り付けてください。'
                   : 'プロンプトを貼り付けた後、コピーした正式な'
                         '${_sourceName(widget.exchangeType)}をChatGPTへ貼り付けてください。',
@@ -962,7 +961,7 @@ class _HowToUseCard extends StatelessWidget {
     '⑥ PASTEでJSONを貼り付ける',
     '⑦ VALIDATEを押す',
     '⑧ PREVIEWでSource Digestと内容を確認する',
-    '⑨ IMPORT MORNING BRIEFを押す',
+    '⑨ IMPORT DAILY BRIEFを押す',
     '⑩ COMPLETE · READ-BACK VERIFIEDを確認する',
   ];
 
@@ -991,7 +990,7 @@ class _HowToUseCard extends StatelessWidget {
           AppSpacing.gapSM,
           Text(
             morningBrief
-                ? 'プロンプトには正式なMB SchemaとSTATUS SOURCEが1つに統合されています。'
+                ? 'プロンプトには正式なDAILY BRIEF SchemaとSTATUS SOURCEが1つに統合されています。'
                 : 'プロンプトには変換ルールとResponse JSON Schemaが含まれます。',
           ),
           if (!morningBrief && !importOnly) ...[
@@ -1078,7 +1077,7 @@ class _MorningBriefPreviewCard extends StatelessWidget {
             ),
           AppSpacing.gapSM,
           Text(
-            'Existing Morning Brief  ${preview.conflictCount > 0 ? 'YES' : 'NO'}',
+            'Existing DAILY BRIEF  ${preview.conflictCount > 0 ? 'YES' : 'NO'}',
           ),
           Text('Disposition  ${preview.disposition.name.toUpperCase()}'),
         ],
@@ -1387,31 +1386,32 @@ class _FoodItemPresentation extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(item.name, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 2),
-        Text(_foodItemAmount(item)),
+        Text(
+          _foodItemLabel(item),
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 14,
           runSpacing: 8,
           children: [
             _NutritionValue(
-              icon: Symbols.local_fire_department,
+              icon: Icons.local_fire_department_outlined,
               label: 'CAL',
               value: _formatNumber(item.totalCalories),
             ),
             _NutritionValue(
-              icon: Symbols.fitness_center,
+              icon: Icons.fitness_center,
               label: 'P',
               value: _formatNumber(item.totalProtein),
             ),
             _NutritionValue(
-              icon: Symbols.water_drop,
+              icon: Icons.opacity,
               label: 'F',
               value: _formatNumber(item.totalFat),
             ),
             _NutritionValue(
-              icon: Symbols.grain,
+              icon: Icons.rice_bowl_outlined,
               label: 'C',
               value: _formatNumber(item.totalCarbohydrate),
             ),
@@ -1443,10 +1443,17 @@ class _NutritionValue extends StatelessWidget {
   );
 }
 
-String _foodItemAmount(FoodItem item) {
+String _foodItemLabel(FoodItem item) {
+  final name = item.name.trim();
   final amount = item.physicalAmount;
-  if (amount == null || item.baseUnit == null) return '${item.quantity}点';
-  return '${item.quantity}点 (${_formatNumber(amount)}${item.baseUnit!.label})';
+  final amountLabel = amount == null || item.baseUnit == null
+      ? null
+      : '${_formatNumber(amount)}${item.baseUnit!.label}';
+  final normalizedName = name.replaceAll(RegExp(r'\s+'), '');
+  final baseLabel = amountLabel == null || normalizedName.endsWith(amountLabel)
+      ? name
+      : '$name$amountLabel';
+  return item.quantity == 1 ? baseLabel : '$baseLabel×${item.quantity}';
 }
 
 String _mealTypeLabel(String value) => switch (value.toLowerCase()) {
@@ -1692,7 +1699,7 @@ String _stateLabel(ReportSyncRequestPreparation? request) {
 String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'TRAINING REPORT SYNC',
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
-  ReportSyncExchangeType.morningBrief => 'MORNING BRIEF REPORT SYNC',
+  ReportSyncExchangeType.morningBrief => 'DAILY BRIEF REPORT SYNC',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
 };
 
@@ -1706,7 +1713,7 @@ IconData _icon(ReportSyncExchangeType type) => switch (type) {
 String _importLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'IMPORT TRAINING',
   ReportSyncExchangeType.food => 'IMPORT FOOD',
-  ReportSyncExchangeType.morningBrief => 'IMPORT MORNING BRIEF',
+  ReportSyncExchangeType.morningBrief => 'IMPORT DAILY BRIEF',
   ReportSyncExchangeType.dailyDebrief => 'IMPORT DAILY DEBRIEF',
 };
 

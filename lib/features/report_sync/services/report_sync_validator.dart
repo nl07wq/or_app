@@ -39,7 +39,7 @@ class ReportSyncValidator {
         state.phase != OperationPhase.open) {
       throw const ReportSyncException(
         ReportSyncIssueCode.operationDateMismatch,
-        'Morning Brief requires the open operation date.',
+        'DAILY BRIEF requires the open operation date.',
       );
     }
     payloadRegistry.validate(response);

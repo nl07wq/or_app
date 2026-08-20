@@ -97,7 +97,7 @@ class MorningBriefSituationAnalysis {
     if (actualFields.difference(fields).isNotEmpty ||
         requiredFields.difference(actualFields).isNotEmpty) {
       throw const FormatException(
-        'Morning Brief situation analysis fields are invalid.',
+        'DAILY BRIEF situation analysis fields are invalid.',
       );
     }
     return MorningBriefSituationAnalysis(
@@ -121,7 +121,7 @@ class MorningBriefSituationAnalysis {
     final value = json[field];
     if (value == null) return null;
     if (value is! Map) {
-      throw FormatException('Morning Brief $field is invalid.');
+      throw FormatException('DAILY BRIEF $field is invalid.');
     }
     return MorningBriefSectionDisplay.fromJson(
       Map<String, Object?>.from(value),
@@ -226,7 +226,7 @@ class MorningBriefRevision {
 
   MorningBriefRevision({required this.revision, required this.record}) {
     if (revision < 1 || record.recordVersion > 2) {
-      throw const FormatException('Morning Brief revision is invalid.');
+      throw const FormatException('DAILY BRIEF revision is invalid.');
     }
   }
 
@@ -240,7 +240,7 @@ class MorningBriefRevision {
     final revision = json['revision'];
     final record = json['record'];
     if (revision is! int || record is! Map) {
-      throw const FormatException('Morning Brief revision is invalid.');
+      throw const FormatException('DAILY BRIEF revision is invalid.');
     }
     return MorningBriefRevision(
       revision: revision,
@@ -352,7 +352,7 @@ class MorningBriefRecord {
        revision = 1,
        previousRevisions = const [] {
     if (recordVersion != legacyRecordVersion) {
-      throw const FormatException('Legacy Morning Brief version must be 1.');
+      throw const FormatException('Legacy DAILY BRIEF version must be 1.');
     }
     if (requestId == null ||
         requestId!.isEmpty ||
@@ -360,7 +360,7 @@ class MorningBriefRecord {
         requestDigest!.isEmpty ||
         argoComment == null ||
         argoComment!.isEmpty) {
-      throw const FormatException('Legacy Morning Brief fields are invalid.');
+      throw const FormatException('Legacy DAILY BRIEF fields are invalid.');
     }
     _validateTimestamps();
   }
@@ -432,7 +432,7 @@ class MorningBriefRecord {
               entry.$2.revision != entry.$1 + 1 ||
               entry.$2.record.localDate != localDate,
         )) {
-      throw const FormatException('Morning Brief revision history is invalid.');
+      throw const FormatException('DAILY BRIEF revision history is invalid.');
     }
     _validateTimestamps();
   }
@@ -450,7 +450,7 @@ class MorningBriefRecord {
         operatingPolicy == null ||
         operatingPolicy!.isEmpty ||
         strategicResourceDecisionV2 == null) {
-      throw const FormatException('Morning Brief source identity is invalid.');
+      throw const FormatException('DAILY BRIEF source identity is invalid.');
     }
     _validateTimestamps();
   }
@@ -520,7 +520,7 @@ class MorningBriefRecord {
     if (version == legacyRecordVersion) return _fromLegacyRecord(json);
     if (version == previousRecordVersion) return _fromPreviousRecord(json);
     if (version == currentRecordVersion) return _fromCurrentRecord(json);
-    throw const FormatException('Unsupported Morning Brief version.');
+    throw const FormatException('Unsupported DAILY BRIEF version.');
   }
 
   static MorningBriefRecord _fromLegacyRecord(Map<String, Object?> json) {
@@ -657,7 +657,7 @@ class MorningBriefRecord {
   }) {
     if (next.recordVersion != previousRecordVersion ||
         next.localDate != localDate) {
-      throw const FormatException('Morning Brief revision input is invalid.');
+      throw const FormatException('DAILY BRIEF revision input is invalid.');
     }
     final current = asInitialRevision();
     return MorningBriefRecord.revisioned(

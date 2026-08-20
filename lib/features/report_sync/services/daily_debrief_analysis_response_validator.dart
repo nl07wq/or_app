@@ -37,7 +37,7 @@ class DailyDebriefAnalysisResponseValidator {
       final analysis = DailyDebriefAnalysis.fromJson(json);
       if (!hasMorningBrief && analysis.commanderIntentEvaluation != null) {
         throw const FormatException(
-          'Commander Intent evaluation requires Morning Brief.',
+          'Commander Intent evaluation requires DAILY BRIEF.',
         );
       }
       _maximum(

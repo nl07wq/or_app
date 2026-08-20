@@ -333,7 +333,8 @@ void main() {
       expect(prompt, contains('use that classification exactly'));
       expect(prompt, contains('do not create another threshold'));
       expect(prompt, contains('comparisonLevel is separate from trend'));
-      expect(prompt, contains('never MORNING BRIEF or MORNING ROUTINE'));
+      expect(prompt, contains('Do not use legacy product names'));
+      expect(prompt, isNot(contains('MORNING BRIEF')));
       expect(prompt, contains('"commanderIntentEvaluation": null'));
       expect(prompt, contains('exactly one fenced Plain Text code block'));
       expect(prompt, contains('opening fence is ```text'));
