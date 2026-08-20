@@ -837,12 +837,16 @@ void main() {
     expect(secondPlan.sections[BackupSections.customExercises]!.add, 0);
   });
 
-  test('MERGE conflict never starts a write transaction', () async {
+  test('MERGE excludes conflicts and still writes safe additions', () async {
     final id = 'custom-exercise:00000000-0000-4000-8000-000000000005';
-    final existing = _customRecord(id);
+    final existing = _customRecord(id, name: 'Existing Exercise');
     database.seed(IndexedDbStoreNames.customTrainingExercises, id, existing);
     final changed = Map<String, Object?>.from(existing)
       ..['updatedAt'] = DateTime.utc(2026, 7, 27).toIso8601String();
+    final addition = _customRecord(
+      'custom-exercise:00000000-0000-4000-8000-000000000007',
+      name: 'Added Exercise',
+    );
     final package = BackupExportService.buildPackage(
       schemaVersion: BackupPackage.previousSchemaVersion,
       exportId: '00000000-0000-4000-8000-000000000006',
@@ -850,7 +854,9 @@ void main() {
       source: const BackupSource(platform: 'web'),
       data: {
         for (final section in BackupSections.all)
-          section: section == BackupSections.customExercises ? [changed] : [],
+          section: section == BackupSections.customExercises
+              ? [changed, addition]
+              : [],
       },
     );
     final service = BackupImportService(
@@ -862,8 +868,113 @@ void main() {
     final plan = await service.dryRun(package, BackupImportMode.merge);
 
     expect(plan.hasConflicts, isTrue);
-    expect((await service.execute(plan)).errorCode, 'import_conflict');
+    expect(plan.hasBlockingConflicts, isFalse);
+    expect(plan.sections[BackupSections.customExercises]!.add, 1);
+    expect(
+      plan.sections[BackupSections.customExercises]!.conflictingRecordIds,
+      {id},
+    );
+    expect((await service.execute(plan)).success, isTrue);
+    expect(
+      await database.findById(IndexedDbStoreNames.customTrainingExercises, id),
+      existing,
+    );
+    expect(
+      await database.findById(
+        IndexedDbStoreNames.customTrainingExercises,
+        addition['id'] as String,
+      ),
+      addition,
+    );
+  });
+
+  test('MERGE excludes secondary unique conflicts', () async {
+    final existing = _customRecord(
+      'custom-exercise:00000000-0000-4000-8000-000000000008',
+      name: 'Same Exercise',
+    );
+    database.seed(
+      IndexedDbStoreNames.customTrainingExercises,
+      existing['id'] as String,
+      existing,
+    );
+    final incoming = _customRecord(
+      'custom-exercise:00000000-0000-4000-8000-000000000009',
+      name: 'Same Exercise',
+    );
+    final package = BackupExportService.buildPackage(
+      schemaVersion: BackupPackage.previousSchemaVersion,
+      exportId: '00000000-0000-4000-8000-000000000010',
+      exportedAt: DateTime.utc(2026, 7, 27),
+      source: const BackupSource(platform: 'web'),
+      data: {
+        for (final section in BackupSections.all)
+          section: section == BackupSections.customExercises ? [incoming] : [],
+      },
+    );
+    final service = BackupImportService(
+      database: database,
+      controller: controller,
+      restore: () async {},
+    );
+
+    final plan = await service.dryRun(package, BackupImportMode.merge);
+    final section = plan.sections[BackupSections.customExercises]!;
+
+    expect(section.add, 0);
+    expect(section.conflicts, hasLength(1));
+    expect(section.conflictingRecordIds, {incoming['id']});
+    expect((await service.execute(plan)).success, isTrue);
+    expect(
+      await database.findById(
+        IndexedDbStoreNames.customTrainingExercises,
+        incoming['id'] as String,
+      ),
+      isNull,
+    );
+  });
+
+  test('MERGE rejects a stale plan before writing', () async {
+    final incoming = _customRecord(
+      'custom-exercise:00000000-0000-4000-8000-000000000011',
+      name: 'Incoming Exercise',
+    );
+    final package = BackupExportService.buildPackage(
+      schemaVersion: BackupPackage.previousSchemaVersion,
+      exportId: '00000000-0000-4000-8000-000000000012',
+      exportedAt: DateTime.utc(2026, 7, 27),
+      source: const BackupSource(platform: 'web'),
+      data: {
+        for (final section in BackupSections.all)
+          section: section == BackupSections.customExercises ? [incoming] : [],
+      },
+    );
+    final service = BackupImportService(
+      database: database,
+      controller: controller,
+      restore: () async {},
+    );
+    final approved = await service.dryRun(package, BackupImportMode.merge);
+    final changed = Map<String, Object?>.from(incoming)
+      ..['updatedAt'] = DateTime.utc(2026, 7, 28).toIso8601String();
+    database.seed(
+      IndexedDbStoreNames.customTrainingExercises,
+      incoming['id'] as String,
+      changed,
+    );
+
+    final result = await service.execute(approved);
+
+    expect(result.success, isFalse);
+    expect(result.errorCode, 'import_plan_changed');
     expect(database.transactionCount, 0);
+    expect(
+      await database.findById(
+        IndexedDbStoreNames.customTrainingExercises,
+        incoming['id'] as String,
+      ),
+      changed,
+    );
   });
 
   test(
@@ -940,13 +1051,13 @@ void main() {
   );
 }
 
-Map<String, Object?> _customRecord(String id) {
+Map<String, Object?> _customRecord(String id, {String name = 'Test Exercise'}) {
   final timestamp = DateTime.utc(2026, 7, 26);
   return PersistedCustomTrainingExerciseRecord(
     id: id,
-    normalizedName: 'testexercise',
+    normalizedName: name.toLowerCase().replaceAll(' ', ''),
     createdAt: timestamp,
     updatedAt: timestamp,
-    data: CustomTrainingExercise(id: id, name: 'Test Exercise'),
+    data: CustomTrainingExercise(id: id, name: name),
   ).toRecord();
 }

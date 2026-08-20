@@ -42,48 +42,44 @@ class BackupImportPlanner {
         );
         continue;
       }
+      if (section == BackupSections.operationState) {
+        plans[section] = BackupSectionPlan(existing: existing.length);
+        continue;
+      }
       final existingById = {
         for (final record in existing)
           BackupStoreRegistry.recordId(section, record): record,
       };
-      var add = 0;
       var skip = 0;
       final conflicts = <String>[];
+      final conflictingRecordIds = <String>{};
+      final missingRecordIds = <String>{};
       for (final record in incoming) {
         final id = BackupStoreRegistry.recordId(section, record);
         final match = existingById[id];
         if (match == null) {
-          add++;
+          missingRecordIds.add(id);
         } else if (BackupStoreRegistry.recordsEqual(section, match, record)) {
           skip++;
         } else {
           conflicts.add('$section:$id');
+          conflictingRecordIds.add(id);
         }
       }
-      _findUniqueConflicts(section, existing, incoming, conflicts);
+      _findUniqueConflicts(
+        section,
+        existing,
+        incoming,
+        conflicts,
+        conflictingRecordIds,
+      );
       plans[section] = BackupSectionPlan(
         existing: existing.length,
-        add: add,
+        add: missingRecordIds.difference(conflictingRecordIds).length,
         skip: skip,
         conflicts: conflicts,
+        conflictingRecordIds: conflictingRecordIds,
       );
-    }
-    if (package.schemaVersion >= 3 && mode == BackupImportMode.merge) {
-      final current = plans[BackupSections.operationState]!;
-      final conflicts = [...current.conflicts];
-      if (current.skip != 1) conflicts.add('operationState:must-match-current');
-      if (BackupOperationStateIntegrity.isProcessing(package.data)) {
-        conflicts.add('operationState:processing');
-      }
-      if (conflicts.length != current.conflicts.length) {
-        plans[BackupSections.operationState] = BackupSectionPlan(
-          existing: current.existing,
-          add: current.add,
-          skip: current.skip,
-          replace: current.replace,
-          conflicts: conflicts,
-        );
-      }
     }
     return BackupImportPlan(package: package, mode: mode, sections: plans);
   }
@@ -93,6 +89,7 @@ class BackupImportPlanner {
     List<Map<String, Object?>> existing,
     List<Map<String, Object?>> incoming,
     List<String> conflicts,
+    Set<String> conflictingRecordIds,
   ) {
     String? uniqueField;
     if (section == BackupSections.status ||
@@ -116,6 +113,7 @@ class BackupImportPlanner {
       final incomingId = BackupStoreRegistry.recordId(section, record);
       if (existingId != null && existingId != incomingId) {
         conflicts.add('$section:$uniqueField:$value');
+        conflictingRecordIds.add(incomingId);
       }
     }
   }

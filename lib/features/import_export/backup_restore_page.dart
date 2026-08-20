@@ -87,9 +87,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           _selectedPackage = package;
           _mode = mode;
           _plan = plan;
-          _message = plan.hasConflicts
-              ? 'VALIDATION FAILED — conflicts detected'
-              : 'BACKUP VALIDATED — review the import plan';
+          _message = _planMessage(plan);
         });
       }
     } catch (error) {
@@ -111,7 +109,12 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     });
     try {
       final plan = await BackupImportService().dryRun(package, mode);
-      if (mounted) setState(() => _plan = plan);
+      if (mounted) {
+        setState(() {
+          _plan = plan;
+          _message = _planMessage(plan);
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _message = _errorMessage(error));
     } finally {
@@ -121,7 +124,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
 
   Future<void> _import() async {
     final plan = _plan;
-    if (plan == null || plan.hasConflicts) return;
+    if (plan == null || plan.hasBlockingConflicts) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -246,15 +249,23 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           AppSpacing.gapMD,
           for (final section in plan.sections.entries)
             Text(
-              '${section.key}: add ${section.value.add}, '
-              'skip ${section.value.skip}, replace ${section.value.replace}, '
-              'conflict ${section.value.conflicts.length}',
+              plan.mode == BackupImportMode.merge &&
+                      section.key == BackupSections.operationState
+                  ? '${section.key}: CURRENT STATE WILL BE KEPT'
+                  : '${section.key}: add ${section.value.add}, '
+                        'skip ${section.value.skip}, '
+                        'replace ${section.value.replace}, '
+                        'conflict ${section.value.conflicts.length}',
             ),
+          if (plan.mode == BackupImportMode.merge && plan.hasConflicts) ...[
+            AppSpacing.gapMD,
+            const Text('CONFLICT RECORDS WILL BE EXCLUDED'),
+          ],
           AppSpacing.gapMD,
           OperationButton(
             icon: Icons.restore,
             text: 'IMPORT DATA',
-            onPressed: !_busy && !plan.hasConflicts ? _import : null,
+            onPressed: !_busy && !plan.hasBlockingConflicts ? _import : null,
           ),
         ],
       ),
@@ -264,4 +275,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   static String _errorMessage(Object error) => error is BackupException
       ? '${error.code}: ${error.message}'
       : 'backup_failed: $error';
+
+  static String _planMessage(BackupImportPlan plan) =>
+      plan.hasConflicts && plan.mode == BackupImportMode.merge
+      ? 'BACKUP VALIDATED — conflict records will be excluded'
+      : plan.hasBlockingConflicts
+      ? 'VALIDATION FAILED — conflicts detected'
+      : 'BACKUP VALIDATED — review the import plan';
 }

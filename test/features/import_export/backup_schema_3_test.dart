@@ -62,39 +62,44 @@ void main() {
     );
   });
 
-  test(
-    'Schema 3.0 MERGE skips identical state and blocks different state',
-    () async {
-      final state = _openState('2026-08-01');
-      database.seed(
+  test('Schema 3.0 MERGE always preserves current operation state', () async {
+    final state = _openState('2026-08-01');
+    database.seed(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+      state.toRecord(),
+    );
+    final package = await BackupExportService(
+      database: database,
+      controller: controller,
+    ).create();
+    final service = BackupImportService(
+      database: database,
+      controller: controller,
+      restore: () async {},
+    );
+
+    final identical = await service.dryRun(package, BackupImportMode.merge);
+    expect(identical.sections[BackupSections.operationState]!.skip, 0);
+    expect(identical.hasConflicts, isFalse);
+    expect((await service.execute(identical)).operationStateRestored, isFalse);
+
+    database.seed(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+      _openState('2026-08-02').toRecord(),
+    );
+    final changed = await service.dryRun(package, BackupImportMode.merge);
+    expect(changed.hasConflicts, isFalse);
+    expect((await service.execute(changed)).success, isTrue);
+    expect(
+      await database.findById(
         IndexedDbStoreNames.operationState,
         OperationState.canonicalId,
-        state.toRecord(),
-      );
-      final package = await BackupExportService(
-        database: database,
-        controller: controller,
-      ).create();
-      final service = BackupImportService(
-        database: database,
-        controller: controller,
-        restore: () async {},
-      );
-
-      final identical = await service.dryRun(package, BackupImportMode.merge);
-      expect(identical.sections[BackupSections.operationState]!.skip, 1);
-      expect(identical.hasConflicts, isFalse);
-
-      database.seed(
-        IndexedDbStoreNames.operationState,
-        OperationState.canonicalId,
-        _openState('2026-08-02').toRecord(),
-      );
-      final changed = await service.dryRun(package, BackupImportMode.merge);
-      expect(changed.hasConflicts, isTrue);
-      expect((await service.execute(changed)).errorCode, 'import_conflict');
-    },
-  );
+      ),
+      _openState('2026-08-02').toRecord(),
+    );
+  });
 
   test('Schema 3.0 REPLACE ALL restores operation state atomically', () async {
     final incoming = _openState('2026-08-01');
@@ -156,7 +161,7 @@ void main() {
   );
 
   test(
-    'Schema 3.0 processing state blocks MERGE and permits exact REPLACE ALL',
+    'Schema 3.0 processing state is excluded from MERGE and REPLACE restores it',
     () async {
       final date = DateTime(2026, 7, 26);
       final confirmation = PersistedDailyLogConfirmationRecord(
@@ -188,10 +193,9 @@ void main() {
         restore: () async {},
       );
 
-      expect(
-        (await service.dryRun(package, BackupImportMode.merge)).hasConflicts,
-        isTrue,
-      );
+      final merge = await service.dryRun(package, BackupImportMode.merge);
+      expect(merge.hasConflicts, isFalse);
+      expect((await service.execute(merge)).success, isTrue);
       final replace = await service.dryRun(
         package,
         BackupImportMode.replaceAll,

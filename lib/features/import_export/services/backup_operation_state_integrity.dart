@@ -67,13 +67,6 @@ abstract final class BackupOperationStateIntegrity {
     }
   }
 
-  static bool isProcessing(Map<String, List<Map<String, Object?>>> data) {
-    final records = data[BackupSections.operationState];
-    return records != null &&
-        records.length == 1 &&
-        OperationState.fromRecord(records.single).requiresRecovery;
-  }
-
   static String _localDate(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-'

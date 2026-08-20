@@ -47,7 +47,7 @@ class BackupImportService {
         message: 'Another persistence operation is active.',
       );
     }
-    if (approvedPlan.hasConflicts) {
+    if (approvedPlan.hasBlockingConflicts) {
       return const BackupImportResult.failure(
         errorCode: 'import_conflict',
         message: 'Conflicts must be resolved before import.',
@@ -61,18 +61,27 @@ class BackupImportService {
     try {
       final affectedSections = approvedPlan.mode == BackupImportMode.replaceAll
           ? BackupSections.all
-          : approvedPlan.package.includedSections;
+          : approvedPlan.package.includedSections.where(
+              (section) => section != BackupSections.operationState,
+            );
       preRestoreState = await _captureState(affectedSections);
       final currentPlan = await BackupImportPlanner(
         _database,
       ).createPlan(approvedPlan.package, approvedPlan.mode);
-      if (currentPlan.hasConflicts || !_plansEqual(approvedPlan, currentPlan)) {
+      if (currentPlan.hasBlockingConflicts ||
+          !_plansEqual(approvedPlan, currentPlan)) {
         throw const BackupException(
           'import_plan_changed',
           'Repository contents changed after dry run.',
         );
       }
-      final sections = approvedPlan.package.includedSections.toList();
+      final sections = approvedPlan.package.includedSections
+          .where(
+            (section) =>
+                approvedPlan.mode == BackupImportMode.replaceAll ||
+                section != BackupSections.operationState,
+          )
+          .toList();
       final transactionSections =
           approvedPlan.mode == BackupImportMode.replaceAll
           ? BackupSections.all
@@ -91,8 +100,11 @@ class BackupImportService {
           }
           for (final section in sections) {
             final store = BackupStoreRegistry.stores[section]!;
+            final sectionPlan = approvedPlan.sections[section]!;
             for (final record in approvedPlan.package.data[section]!) {
               if (approvedPlan.mode == BackupImportMode.merge) {
+                final id = BackupStoreRegistry.recordId(section, record);
+                if (sectionPlan.conflictingRecordIds.contains(id)) continue;
                 final existing = await transaction.findById(
                   store,
                   section == BackupSections.profile
@@ -156,7 +168,9 @@ class BackupImportService {
       _controller.updateStage(InitializationStage.restoringDailyState);
       await _restore();
       if (!await _validateCurrentDatabase(
-        requireOperationState: approvedPlan.package.schemaVersion >= 3,
+        requireOperationState:
+            approvedPlan.mode == BackupImportMode.replaceAll &&
+            approvedPlan.package.schemaVersion >= 3,
       )) {
         throw const BackupException(
           'post_import_validation_failed',
@@ -164,7 +178,9 @@ class BackupImportService {
         );
       }
       _controller.markReady();
-      final restoresOperationState = approvedPlan.package.schemaVersion >= 3;
+      final restoresOperationState =
+          approvedPlan.mode == BackupImportMode.replaceAll &&
+          approvedPlan.package.schemaVersion >= 3;
       final recoveryRequired = restoresOperationState
           ? OperationState.fromRecord(
               approvedPlan.package.data[BackupSections.operationState]!.single,
@@ -271,6 +287,10 @@ class BackupImportService {
 
   Future<void> _verifyApplied(BackupImportPlan plan) async {
     for (final section in plan.package.includedSections) {
+      if (plan.mode == BackupImportMode.merge &&
+          section == BackupSections.operationState) {
+        continue;
+      }
       await _verifySection(
         plan,
         section,
@@ -313,8 +333,9 @@ class BackupImportService {
         BackupStoreRegistry.recordId(section, record): record,
     };
     for (final record in incoming) {
-      final actualRecord =
-          actualById[BackupStoreRegistry.recordId(section, record)];
+      final id = BackupStoreRegistry.recordId(section, record);
+      if (sectionPlan.conflictingRecordIds.contains(id)) continue;
+      final actualRecord = actualById[id];
       if (actualRecord == null ||
           !BackupStoreRegistry.recordsEqual(section, actualRecord, record)) {
         throw BackupException(
@@ -369,7 +390,13 @@ class BackupImportService {
           entry.value.skip != other.skip ||
           entry.value.replace != other.replace ||
           entry.value.conflicts.join('\u0000') !=
-              other.conflicts.join('\u0000')) {
+              other.conflicts.join('\u0000') ||
+          entry.value.conflictingRecordIds
+              .difference(other.conflictingRecordIds)
+              .isNotEmpty ||
+          other.conflictingRecordIds
+              .difference(entry.value.conflictingRecordIds)
+              .isNotEmpty) {
         return false;
       }
     }

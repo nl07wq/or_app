@@ -160,6 +160,7 @@ class BackupSectionPlan {
   final int skip;
   final int replace;
   final List<String> conflicts;
+  final Set<String> conflictingRecordIds;
 
   BackupSectionPlan({
     this.existing = 0,
@@ -167,7 +168,9 @@ class BackupSectionPlan {
     this.skip = 0,
     this.replace = 0,
     Iterable<String> conflicts = const [],
-  }) : conflicts = List.unmodifiable(conflicts);
+    Iterable<String> conflictingRecordIds = const [],
+  }) : conflicts = List.unmodifiable(conflicts),
+       conflictingRecordIds = Set.unmodifiable(conflictingRecordIds);
 }
 
 class BackupImportPlan {
@@ -183,6 +186,9 @@ class BackupImportPlan {
 
   bool get hasConflicts =>
       sections.values.any((section) => section.conflicts.isNotEmpty);
+
+  bool get hasBlockingConflicts =>
+      mode == BackupImportMode.replaceAll && hasConflicts;
 }
 
 class BackupImportResult {
