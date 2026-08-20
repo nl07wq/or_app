@@ -164,6 +164,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'メモ'),
             minLines: 2,
             maxLines: 4,
+            onChanged: (_) => onChanged(),
           ),
         ],
       ),

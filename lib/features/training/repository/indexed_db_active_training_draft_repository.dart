@@ -92,9 +92,27 @@ class IndexedDbActiveTrainingDraftRepository
 bool _recordsEqual(Map<String, Object?> left, Map<String, Object?> right) {
   if (left.length != right.length) return false;
   for (final entry in left.entries) {
-    if (!right.containsKey(entry.key) || right[entry.key] != entry.value) {
+    if (!right.containsKey(entry.key) ||
+        !_valuesEqual(entry.value, right[entry.key])) {
       return false;
     }
   }
   return true;
+}
+
+bool _valuesEqual(Object? left, Object? right) {
+  if (left is Map && right is Map) {
+    return _recordsEqual(
+      Map<String, Object?>.from(left),
+      Map<String, Object?>.from(right),
+    );
+  }
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (!_valuesEqual(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  return left == right;
 }

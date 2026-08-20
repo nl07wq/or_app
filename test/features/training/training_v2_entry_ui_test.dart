@@ -17,6 +17,7 @@ import 'package:or_app/features/training/repository/active_training_draft_reposi
 import 'package:or_app/features/training/repository/indexed_db_active_training_draft_repository.dart';
 import 'package:or_app/features/training/training_entry_page.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
+import 'package:or_app/features/training/widgets/training_exercise_v2_editor.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
@@ -568,6 +569,7 @@ void main() {
 
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
+    expect(find.text('RECORDING'), findsOneWidget);
     final operationDate =
         (await database.findAll(
               IndexedDbStoreNames.operationState,
@@ -578,6 +580,28 @@ void main() {
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
       containsPair('endTime', null),
     );
+    expect(
+      await database.findAll(IndexedDbStoreNames.trainingRecords),
+      isEmpty,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Session Name'),
+      'Persisted Session',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Session Memo'),
+      'Reload-safe memo',
+    );
+    _setExercise(tester, 'Squat');
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.ensureVisible(find.text('ADD SET'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ADD SET'));
+    await tester.pump();
+    await tester.enterText(find.byKey(const Key('v2-set-1-weight')), '75');
+    await tester.enterText(find.byKey(const Key('v2-set-1-reps')), '8');
+    await tester.pumpAndSettle();
 
     await tester.pumpWidget(const SizedBox.shrink());
     await _pump(
@@ -588,9 +612,34 @@ void main() {
     );
     expect(find.text('ELAPSED'), findsOneWidget);
     expect(find.text('END TRAINING'), findsOneWidget);
+    expect(find.text('RECORDING'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Session Name'))
+          .controller
+          ?.text,
+      'Persisted Session',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Session Memo'))
+          .controller
+          ?.text,
+      'Reload-safe memo',
+    );
+    final restoredExercise = tester
+        .widget<TrainingExerciseV2Editor>(find.byType(TrainingExerciseV2Editor))
+        .controller;
+    expect(restoredExercise.exerciseName.text, 'Squat');
+    expect(restoredExercise.sets.map((value) => value.weight.text), [
+      '80',
+      '75',
+    ]);
+    expect(restoredExercise.sets.map((value) => value.reps.text), ['5', '8']);
 
     await tester.tap(find.text('END TRAINING'));
     await tester.pump();
+    expect(find.text('ACTIVE SESSION'), findsOneWidget);
     expect(
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
       containsPair('endTime', isNotNull),
@@ -599,14 +648,12 @@ void main() {
 
     await tester.tap(find.text('RESUME TRAINING'));
     await tester.pump();
+    expect(find.text('RECORDING'), findsOneWidget);
     expect(
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
       containsPair('endTime', null),
     );
 
-    _setExercise(tester, 'Squat');
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
     await tester.ensureVisible(find.text('SAVE TRAINING'));
     await tester.tap(find.text('SAVE TRAINING'));
     await tester.pumpAndSettle();
@@ -650,6 +697,39 @@ void main() {
       await database.findAll(IndexedDbStoreNames.trainingRecords),
       isEmpty,
     );
+  });
+
+  testWidgets('inactive UI is normal and discard clears draft and timer', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    final drafts = IndexedDbActiveTrainingDraftRepository(database);
+    await _pump(
+      tester,
+      database: database,
+      activeTrainingDraftRepository: drafts,
+    );
+    expect(find.text('RECORDING'), findsNothing);
+    expect(find.text('ACTIVE SESSION'), findsNothing);
+
+    await tester.tap(find.text('START TRAINING'));
+    await tester.pump();
+    expect(find.text('RECORDING'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard Session'));
+    await tester.pumpAndSettle();
+    expect(find.text('DISCARD TRAINING?'), findsOneWidget);
+    await tester.tap(find.text('DISCARD'));
+    await tester.pumpAndSettle();
+
+    expect(
+      await database.findAll(IndexedDbStoreNames.activeTrainingDrafts),
+      isEmpty,
+    );
+    expect(find.text('RECORDING'), findsNothing);
+    expect(find.text('ACTIVE SESSION'), findsNothing);
+    expect(find.text('START TRAINING'), findsOneWidget);
   });
 
   testWidgets('built-in equipment display keeps stable saved identity', (

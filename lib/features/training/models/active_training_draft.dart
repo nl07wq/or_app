@@ -1,13 +1,15 @@
 import '../../../core/models/training_session_v2.dart';
 
 class ActiveTrainingDraft {
-  static const currentVersion = 1;
+  static const legacyVersion = 1;
+  static const currentVersion = 2;
 
   final String id;
   final int version;
   final String operationDate;
   final String startTime;
   final String? endTime;
+  final Map<String, Object?>? entryState;
 
   ActiveTrainingDraft({
     String? id,
@@ -15,9 +17,13 @@ class ActiveTrainingDraft {
     required this.operationDate,
     required this.startTime,
     this.endTime,
+    this.entryState,
   }) : id = id ?? draftId(operationDate) {
     _validateOperationDate(operationDate);
-    if (this.id != draftId(operationDate) || version != currentVersion) {
+    if (this.id != draftId(operationDate) ||
+        (version != legacyVersion && version != currentVersion) ||
+        (version == legacyVersion && entryState != null) ||
+        (version == currentVersion && entryState == null)) {
       throw const FormatException('Invalid Active Training Draft envelope.');
     }
     try {
@@ -37,6 +43,7 @@ class ActiveTrainingDraft {
     'operationDate': operationDate,
     'startTime': startTime,
     'endTime': endTime,
+    if (version >= currentVersion) 'entryState': entryState,
   };
 
   factory ActiveTrainingDraft.fromRecord(Map<String, Object?> record) {
@@ -45,11 +52,13 @@ class ActiveTrainingDraft {
     final operationDate = record['operationDate'];
     final startTime = record['startTime'];
     final endTime = record['endTime'];
+    final entryState = record['entryState'];
     if (id is! String ||
         version is! int ||
         operationDate is! String ||
         startTime is! String ||
-        (endTime != null && endTime is! String)) {
+        (endTime != null && endTime is! String) ||
+        (entryState != null && entryState is! Map)) {
       throw const FormatException('Invalid Active Training Draft record.');
     }
     return ActiveTrainingDraft(
@@ -58,6 +67,9 @@ class ActiveTrainingDraft {
       operationDate: operationDate,
       startTime: startTime,
       endTime: endTime as String?,
+      entryState: entryState == null
+          ? null
+          : Map<String, Object?>.from(entryState as Map),
     );
   }
 

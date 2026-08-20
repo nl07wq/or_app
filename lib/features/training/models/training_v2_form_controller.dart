@@ -104,6 +104,163 @@ class TrainingV2FormController {
     _clearStrengthSnapshot();
   }
 
+  Map<String, Object?> toDraftState() => {
+    'sessionName': sessionName.text,
+    'sessionMemo': sessionMemo.text,
+    'overallEvaluation': overallEvaluation.text,
+    'sessionGrade': sessionGrade?.stableId,
+    'dynamicStretchCompleted': dynamicStretchCompleted,
+    'cooldownStretchCompleted': cooldownStretchCompleted,
+    'exercises': [
+      for (final exercise in exercises)
+        {
+          'exerciseName': exercise.exerciseName.text,
+          'equipment': exercise.equipment?.toJson(),
+          'equipmentSelectionMade': exercise.equipmentSelectionMade,
+          'evaluation': exercise.evaluation.text,
+          'targetWeight': exercise.targetWeight.text,
+          'targetReps': [for (final value in exercise.targetReps) value.text],
+          'targetNotes': exercise.targetNotes.text,
+          'sets': [
+            for (final set in exercise.sets)
+              {
+                'setType': set.setType.stableId,
+                'weight': set.weight.text,
+                'reps': set.reps.text,
+                'rpe': set.rpe,
+                'rest': set.rest.text,
+              },
+          ],
+        },
+    ],
+    'cardioEntries': [
+      for (final cardio in cardioEntries)
+        {
+          'purpose': cardio.purpose?.name,
+          'type': cardio.type?.name,
+          'equipment': cardio.equipment?.toJson(),
+          'duration': cardio.duration.text,
+          'distance': cardio.distance.text,
+          'mets': cardio.mets.text,
+          'averageHeartRate': cardio.averageHeartRate.text,
+          'maximumHeartRate': cardio.maximumHeartRate.text,
+          'averageSpeed': cardio.averageSpeed.text,
+          'notes': cardio.notes.text,
+          'weightSnapshotKg': cardio.weightSnapshotKg,
+          'estimatedCaloriesKcal': cardio.estimatedCaloriesKcal,
+          'calculationMethod': cardio.calculationMethod,
+          'calculationVersion': cardio.calculationVersion,
+          'initialMets': cardio.initialMets,
+          'initialDurationSeconds': cardio.initialDurationSeconds,
+        },
+    ],
+  };
+
+  void restoreDraftState(Map<String, Object?> state) {
+    sessionName.text = _draftString(state, 'sessionName');
+    sessionMemo.text = _draftString(state, 'sessionMemo');
+    overallEvaluation.text = _draftString(state, 'overallEvaluation');
+    sessionGrade = _draftEnum(
+      TrainingSessionGrade.values,
+      state['sessionGrade'],
+      (value) => value.stableId,
+    );
+    dynamicStretchCompleted = _draftNullableBool(
+      state,
+      'dynamicStretchCompleted',
+    );
+    cooldownStretchCompleted = _draftNullableBool(
+      state,
+      'cooldownStretchCompleted',
+    );
+    final exerciseValues = _draftMaps(state, 'exercises');
+    final cardioValues = _draftMaps(state, 'cardioEntries');
+    for (final exercise in exercises) {
+      exercise.dispose();
+    }
+    for (final cardio in cardioEntries) {
+      cardio.dispose();
+    }
+    exercises
+      ..clear()
+      ..addAll(exerciseValues.map(_exerciseFromDraft));
+    cardioEntries
+      ..clear()
+      ..addAll(cardioValues.map(_cardioFromDraft));
+  }
+
+  static TrainingV2ExerciseFormController _exerciseFromDraft(
+    Map<String, Object?> value,
+  ) {
+    final exercise = TrainingV2ExerciseFormController();
+    for (final set in exercise.sets) {
+      set.dispose();
+    }
+    exercise.exerciseName.text = _draftString(value, 'exerciseName');
+    exercise.equipment = _draftEquipment(value['equipment']);
+    exercise.equipmentSelectionMade = _draftBool(
+      value,
+      'equipmentSelectionMade',
+    );
+    exercise.evaluation.text = _draftString(value, 'evaluation');
+    exercise.targetWeight.text = _draftString(value, 'targetWeight');
+    exercise.targetNotes.text = _draftString(value, 'targetNotes');
+    exercise.targetReps.addAll(
+      _draftStrings(
+        value,
+        'targetReps',
+      ).map((text) => TextEditingController(text: text)),
+    );
+    exercise.sets
+      ..clear()
+      ..addAll(_draftMaps(value, 'sets').map(_setFromDraft));
+    return exercise;
+  }
+
+  static TrainingV2SetFormController _setFromDraft(Map<String, Object?> value) {
+    final set = TrainingV2SetFormController(
+      setType: TrainingSetType.fromStableId(_draftString(value, 'setType')),
+      rest: _draftString(value, 'rest'),
+    );
+    set.weight.text = _draftString(value, 'weight');
+    set.reps.text = _draftString(value, 'reps');
+    final rpe = value['rpe'];
+    if (rpe != null && rpe is! int) {
+      throw const FormatException('Invalid Active Training Draft RPE.');
+    }
+    set.rpe = rpe as int?;
+    return set;
+  }
+
+  static TrainingV2CardioFormController _cardioFromDraft(
+    Map<String, Object?> value,
+  ) {
+    final cardio = TrainingV2CardioFormController();
+    cardio.purpose = _draftNamedEnum(CardioPurpose.values, value['purpose']);
+    cardio.type = _draftNamedEnum(CardioType.values, value['type']);
+    cardio.equipment = _draftEquipment(value['equipment']);
+    cardio.duration.text = _draftString(value, 'duration');
+    cardio.distance.text = _draftString(value, 'distance');
+    cardio.mets.text = _draftString(value, 'mets');
+    cardio.averageHeartRate.text = _draftString(value, 'averageHeartRate');
+    cardio.maximumHeartRate.text = _draftString(value, 'maximumHeartRate');
+    cardio.averageSpeed.text = _draftString(value, 'averageSpeed');
+    cardio.notes.text = _draftString(value, 'notes');
+    cardio.weightSnapshotKg = _draftNullableDouble(value, 'weightSnapshotKg');
+    cardio.estimatedCaloriesKcal = _draftNullableDouble(
+      value,
+      'estimatedCaloriesKcal',
+    );
+    cardio.calculationMethod = _draftNullableString(value, 'calculationMethod');
+    cardio.calculationVersion = _draftNullableInt(value, 'calculationVersion');
+    cardio.initialMets = _draftNullableDouble(value, 'initialMets');
+    cardio.initialDurationSeconds = _draftNullableInt(
+      value,
+      'initialDurationSeconds',
+    );
+    return cardio;
+  }
+
   void editStartTime(TimeOfDay value, {required DateTime now}) {
     final currentStart = startTime;
     if (currentStart == null) return;
@@ -376,4 +533,95 @@ String _number(double? value) {
   return value == value.roundToDouble()
       ? value.round().toString()
       : value.toString();
+}
+
+String _draftString(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result is! String) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return result;
+}
+
+String? _draftNullableString(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result != null && result is! String) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return result as String?;
+}
+
+bool _draftBool(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result is! bool) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return result;
+}
+
+bool? _draftNullableBool(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result != null && result is! bool) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return result as bool?;
+}
+
+int? _draftNullableInt(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result != null && result is! int) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return result as int?;
+}
+
+double? _draftNullableDouble(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result != null && result is! num) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return (result as num?)?.toDouble();
+}
+
+List<Map<String, Object?>> _draftMaps(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result is! List || result.any((entry) => entry is! Map)) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return [for (final entry in result) Map<String, Object?>.from(entry as Map)];
+}
+
+List<String> _draftStrings(Map<String, Object?> value, String key) {
+  final result = value[key];
+  if (result is! List || result.any((entry) => entry is! String)) {
+    throw FormatException('Invalid Active Training Draft $key.');
+  }
+  return result.cast<String>();
+}
+
+T? _draftEnum<T>(
+  Iterable<T> values,
+  Object? raw,
+  String Function(T value) stableId,
+) {
+  if (raw == null) return null;
+  if (raw is! String) {
+    throw const FormatException('Invalid Active Training Draft enum.');
+  }
+  return values.firstWhere(
+    (value) => stableId(value) == raw,
+    orElse: () =>
+        throw const FormatException('Unknown Active Training Draft enum.'),
+  );
+}
+
+T? _draftNamedEnum<T extends Enum>(Iterable<T> values, Object? raw) =>
+    _draftEnum(values, raw, (value) => value.name);
+
+TrainingEquipmentSnapshot? _draftEquipment(Object? raw) {
+  if (raw == null) return null;
+  if (raw is! Map) {
+    throw const FormatException('Invalid Active Training Draft equipment.');
+  }
+  return TrainingEquipmentSnapshot.fromJson(Map<String, Object?>.from(raw));
 }

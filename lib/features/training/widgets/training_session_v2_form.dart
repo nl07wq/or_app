@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/models/training_session_v2.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_flip_tile.dart';
@@ -11,6 +12,7 @@ import '../models/training_v2_form_controller.dart';
 
 class TrainingSessionV2Form extends StatelessWidget {
   final TrainingV2FormController controller;
+  final bool active;
   final VoidCallback onChanged;
   final DateTime Function() now;
   final Future<void> Function()? onStartTraining;
@@ -22,6 +24,7 @@ class TrainingSessionV2Form extends StatelessWidget {
   const TrainingSessionV2Form({
     super.key,
     required this.controller,
+    this.active = false,
     required this.onChanged,
     DateTime Function()? now,
     this.onStartTraining,
@@ -37,7 +40,33 @@ class TrainingSessionV2Form extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionHeader(icon: Icons.event_note, title: 'SESSION'),
+          Row(
+            children: [
+              const Expanded(
+                child: SectionHeader(icon: Icons.event_note, title: 'SESSION'),
+              ),
+              if (active)
+                Container(
+                  key: const ValueKey('training-active-state'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.success),
+                    borderRadius: BorderRadius.circular(999),
+                    color: AppColors.success.withValues(alpha: 0.12),
+                  ),
+                  child: Text(
+                    controller.endTime == null ? 'RECORDING' : 'ACTIVE SESSION',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           AppSpacing.gapMD,
           _TrainingTimeActions(
             controller: controller,
@@ -53,6 +82,7 @@ class TrainingSessionV2Form extends StatelessWidget {
           TextField(
             controller: controller.sessionName,
             decoration: const InputDecoration(labelText: 'Session Name'),
+            onChanged: (_) => onChanged(),
           ),
           AppSpacing.gapSM,
           DropdownButtonFormField<TrainingSessionGrade?>(
@@ -74,6 +104,7 @@ class TrainingSessionV2Form extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Session Memo'),
             minLines: 2,
             maxLines: 3,
+            onChanged: (_) => onChanged(),
           ),
           AppSpacing.gapSM,
           _TriStateField(

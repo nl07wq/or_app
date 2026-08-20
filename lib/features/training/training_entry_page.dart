@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -49,6 +51,8 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Object? _dateLoadError;
   bool _isLoadingDate = false;
   late final Future<ActiveTrainingDraftRepository?> _draftRepository;
+  Future<void> _draftWriteQueue = Future.value();
+  bool _draftWritesEnabled = true;
 
   bool get _isEditing => widget.existingRecord != null;
 
@@ -96,6 +100,8 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           startTime: draft.startTime,
           endTime: draft.endTime,
         );
+        final entryState = draft.entryState;
+        if (entryState != null) _form.restoreDraftState(entryState);
       }
       _operationLocalDate = localDate;
       _expandedItem = _form.exercises.first;
@@ -156,6 +162,8 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           DateTime.parse(session.date),
         );
         await TrainingRepository.saveNewV2(session);
+        _draftWritesEnabled = false;
+        await _draftWriteQueue;
         await (await _draftRepository)?.deleteByOperationDate(
           session.date.substring(0, 10),
         );
@@ -168,6 +176,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
     } catch (_) {
+      _draftWritesEnabled = true;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('トレーニングの保存に失敗しました。入力内容を維持しています。')),
@@ -220,11 +229,13 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         DateTime.parse(operationDate),
       );
       final repository = await _draftRepository;
+      await _draftWriteQueue;
       await repository?.save(
         ActiveTrainingDraft(
           operationDate: operationDate,
           startTime: start,
           endTime: _form.endTime,
+          entryState: _form.toDraftState(),
         ),
       );
       if (mounted) setState(() {});
@@ -237,6 +248,33 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         _showTimeError('Training Sessionの時刻を保存できませんでした。');
       }
     }
+  }
+
+  void _handleEntryChanged() {
+    if (mounted) setState(() {});
+    if (_isEditing || _form.startTime == null || !_draftWritesEnabled) return;
+    unawaited(
+      _persistDraftSnapshot().catchError((_) {
+        if (mounted) _showTimeError('Training Sessionの入力内容を保存できませんでした。');
+      }),
+    );
+  }
+
+  Future<void> _persistDraftSnapshot() {
+    final start = _form.startTime;
+    if (start == null || !_draftWritesEnabled) return Future.value();
+    final snapshot = ActiveTrainingDraft(
+      operationDate: _form.date.substring(0, 10),
+      startTime: start,
+      endTime: _form.endTime,
+      entryState: _form.toDraftState(),
+    );
+    final operation = _draftWriteQueue.then((_) async {
+      final repository = await _draftRepository;
+      await repository?.save(snapshot);
+    });
+    _draftWriteQueue = operation.catchError((_) {});
+    return operation;
   }
 
   void _showTimeError(String message) {
@@ -276,10 +314,10 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         }),
       );
     _expandedItem = _form.exercises.lastOrNull;
-    setState(() {});
+    _handleEntryChanged();
   }
 
-  void _clearSession() {
+  void _resetSession() {
     final localDate = _isEditing
         ? _form.date.substring(0, 10)
         : _operationLocalDate;
@@ -289,6 +327,43 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     _statusWeightKg = null;
     setState(() {});
     _loadStatusWeight();
+  }
+
+  Future<void> _discardOrClearSession() async {
+    if (_isEditing || _form.startTime == null) {
+      _resetSession();
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('DISCARD TRAINING?'),
+        content: const Text('記録中のTraining Sessionと入力内容を破棄します。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('DISCARD'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final operationDate = _form.date.substring(0, 10);
+    try {
+      _draftWritesEnabled = false;
+      await _draftWriteQueue;
+      await (await _draftRepository)?.deleteByOperationDate(operationDate);
+      if (!mounted) return;
+      _resetSession();
+      _draftWritesEnabled = true;
+    } catch (_) {
+      _draftWritesEnabled = true;
+      if (mounted) _showTimeError('Training Sessionを破棄できませんでした。');
+    }
   }
 
   @override
@@ -316,8 +391,10 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
             items: [
               OperationMenuItem(
                 icon: Icons.delete_sweep_outlined,
-                title: 'Clear Session',
-                onTap: _clearSession,
+                title: _form.startTime == null
+                    ? 'Clear Session'
+                    : 'Discard Session',
+                onTap: () => unawaited(_discardOrClearSession()),
               ),
               OperationMenuItem(
                 icon: Icons.library_books_outlined,
@@ -346,7 +423,8 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
               children: [
                 TrainingSessionV2Form(
                   controller: _form,
-                  onChanged: () => setState(() {}),
+                  active: !_isEditing && _form.startTime != null,
+                  onChanged: _handleEntryChanged,
                   onStartTraining: _startTraining,
                   onEndTraining: _endTraining,
                   onUndoEnd: _undoEnd,
@@ -375,16 +453,16 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                           _expandedItem = null;
                         }
                         _form.removeExercise(exercise);
-                        setState(() {});
+                        _handleEntryChanged();
                       },
-                      onChanged: () => setState(() {}),
+                      onChanged: _handleEntryChanged,
                     ),
                   ),
                 OutlinedButton.icon(
                   onPressed: () {
                     _form.addExercise();
                     _expandedItem = _form.exercises.last;
-                    setState(() {});
+                    _handleEntryChanged();
                   },
                   icon: const Icon(Icons.add),
                   label: const Text('ADD EXERCISE'),
@@ -409,16 +487,16 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                           _expandedItem = null;
                         }
                         _form.removeCardio(cardio);
-                        setState(() {});
+                        _handleEntryChanged();
                       },
-                      onChanged: () => setState(() {}),
+                      onChanged: _handleEntryChanged,
                     ),
                   ),
                 OutlinedButton.icon(
                   onPressed: () {
                     _form.addCardio();
                     _expandedItem = _form.cardioEntries.last;
-                    setState(() {});
+                    _handleEntryChanged();
                   },
                   icon: const Icon(Icons.add),
                   label: const Text('ADD CARDIO'),
