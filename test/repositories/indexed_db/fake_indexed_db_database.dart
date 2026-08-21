@@ -3,6 +3,11 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 class FakeIndexedDbDatabase implements IndexedDbDatabase {
+  @override
+  final int schemaVersion;
+
+  FakeIndexedDbDatabase({this.schemaVersion = IndexedDbSchema.databaseVersion});
+
   Map<String, Map<String, Map<String, Object?>>> _stores = {
     for (final storeName in IndexedDbStoreNames.all) storeName: {},
   };

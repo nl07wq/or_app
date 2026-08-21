@@ -488,6 +488,12 @@ void main() {
     final added = IndexedDbSchema.storeDefinitions
         .where((definition) => !v12Stores.contains(definition.name))
         .toList();
+    final existingRecord = <String, Object?>{
+      'id': 'training-v2:existing',
+      'localDate': '2026-08-20',
+      'recordVersion': 2,
+    };
+    final beforeUpgrade = Map<String, Object?>.from(existingRecord);
 
     expect(added.map((definition) => definition.name), [
       IndexedDbStoreNames.trainingAnalysisReportRecords,
@@ -497,5 +503,6 @@ void main() {
       IndexedDbIndexNames.byOperationDate,
       IndexedDbIndexNames.byImportedAt,
     ]);
+    expect(existingRecord, beforeUpgrade);
   });
 }

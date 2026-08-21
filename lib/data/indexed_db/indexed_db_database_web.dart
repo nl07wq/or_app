@@ -73,6 +73,9 @@ class _WebIndexedDbDatabase implements IndexedDbDatabase {
   const _WebIndexedDbDatabase(this._database);
 
   @override
+  int get schemaVersion => _database.version as int;
+
+  @override
   Future<void> put(String storeName, Map<String, Object?> record) {
     return runTransaction(
       storeNames: [storeName],

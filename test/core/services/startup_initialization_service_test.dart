@@ -65,8 +65,15 @@ void main() {
 
       await service.initialize();
 
+      expect(database.schemaVersion, 13);
       expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
       expect(restored, isTrue);
+      expect(
+        await database.findAll(
+          IndexedDbStoreNames.trainingAnalysisReportRecords,
+        ),
+        isEmpty,
+      );
       expect(stages.where((stage) => stage.name.startsWith('migrating')), [
         InitializationStage.migratingStatus,
         InitializationStage.migratingActivity,
@@ -450,6 +457,31 @@ void main() {
     expect(controller.value.errorCode, 'databaseOpenFailed');
     expect(AppRepositoryRegistry.hasContainer, isFalse);
   });
+
+  test(
+    'rejects an opened database whose schema version does not match',
+    () async {
+      final controller = AppInitializationController();
+      var restored = false;
+      final service = StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => FakeIndexedDbDatabase(schemaVersion: 12),
+        restore: () async => restored = true,
+        isWeb: true,
+      );
+
+      await service.initialize();
+
+      expect(controller.value.mode, PersistenceMode.failed);
+      expect(controller.value.errorCode, 'verificationFailed');
+      expect(
+        controller.value.currentStage,
+        InitializationStage.upgradingSchema,
+      );
+      expect(restored, isFalse);
+      expect(AppRepositoryRegistry.hasContainer, isFalse);
+    },
+  );
 
   test('retry can complete after an initial open failure', () async {
     final controller = AppInitializationController();

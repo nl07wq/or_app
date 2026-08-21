@@ -262,6 +262,9 @@ class _DeleteFailingDatabase implements IndexedDbDatabase {
   const _DeleteFailingDatabase(this.delegate);
 
   @override
+  int get schemaVersion => delegate.schemaVersion;
+
+  @override
   Future<void> clear(String storeName) => delegate.clear(storeName);
 
   @override

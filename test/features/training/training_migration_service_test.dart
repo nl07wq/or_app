@@ -636,6 +636,9 @@ class _CorruptAfterCommitDatabase implements IndexedDbDatabase {
   _CorruptAfterCommitDatabase(this._delegate);
 
   @override
+  int get schemaVersion => _delegate.schemaVersion;
+
+  @override
   Future<void> put(String storeName, Map<String, Object?> record) {
     return _delegate.put(storeName, record);
   }

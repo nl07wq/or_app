@@ -13,6 +13,8 @@ abstract interface class IndexedDbTransaction {
 }
 
 abstract interface class IndexedDbDatabase {
+  int get schemaVersion;
+
   Future<void> put(String storeName, Map<String, Object?> record);
 
   Future<Map<String, Object?>?> findById(String storeName, String id);
