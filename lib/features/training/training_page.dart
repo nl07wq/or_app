@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_description.dart';
+import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../training_analysis/pages/training_analysis_page.dart';
 
 import 'widgets/training_history_button.dart';
 import 'widgets/training_manual_card.dart';
@@ -21,12 +23,12 @@ class TrainingPage extends StatelessWidget {
             : AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: const [
-            SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+          children: [
+            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
 
             AppSpacing.gapSM,
 
-            OperationDescription(
+            const OperationDescription(
               text:
                   'Operation Reboot Reportから\n'
                   '本日のトレーニング記録を同期します。',
@@ -34,15 +36,18 @@ class TrainingPage extends StatelessWidget {
 
             AppSpacing.gapMD,
 
-            TrainingSyncCard(),
+            const TrainingSyncCard(),
 
             AppSpacing.gapXL,
 
-            SectionHeader(icon: Icons.fitness_center, title: 'MANUAL ENTRY'),
+            const SectionHeader(
+              icon: Icons.fitness_center,
+              title: 'MANUAL ENTRY',
+            ),
 
             AppSpacing.gapSM,
 
-            OperationDescription(
+            const OperationDescription(
               text:
                   '本日のトレーニング内容を\n'
                   '手動で記録します。',
@@ -50,15 +55,15 @@ class TrainingPage extends StatelessWidget {
 
             AppSpacing.gapMD,
 
-            TrainingManualCard(),
+            const TrainingManualCard(),
 
             AppSpacing.gapXL,
 
-            SectionHeader(icon: Icons.history, title: 'RECORD'),
+            const SectionHeader(icon: Icons.history, title: 'RECORD'),
 
             AppSpacing.gapSM,
 
-            OperationDescription(
+            const OperationDescription(
               text:
                   '過去のトレーニング履歴を\n'
                   '確認・編集できます。',
@@ -66,7 +71,38 @@ class TrainingPage extends StatelessWidget {
 
             AppSpacing.gapMD,
 
-            TrainingHistoryButton(),
+            const TrainingHistoryButton(),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(
+              icon: Icons.analytics_outlined,
+              title: 'ANALYSIS REPORT',
+            ),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(
+              text: '正式なTraining Recordを選択し、\n分析Reportを作成・閲覧します。',
+            ),
+
+            AppSpacing.gapMD,
+
+            OperationCard(
+              selectable: true,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TrainingAnalysisPage()),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.analytics_outlined),
+                  SizedBox(width: AppSpacing.md),
+                  Expanded(child: Text('TRAINING ANALYSIS REPORT')),
+                  Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
           ],
         ),
       ),

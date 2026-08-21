@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v12 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v13 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 12);
+    expect(IndexedDbSchema.databaseVersion, 13);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -26,6 +26,7 @@ void main() {
         IndexedDbStoreNames.morningBriefRecords,
         IndexedDbStoreNames.dailyDebriefRecords,
         IndexedDbStoreNames.reportSyncHistory,
+        IndexedDbStoreNames.trainingAnalysisReportRecords,
         IndexedDbStoreNames.legacyDailySummaryRecords,
         IndexedDbStoreNames.profileRecords,
       ]),
@@ -451,9 +452,18 @@ void main() {
 
   test('v11 to v12 adds only the Active Training Draft store', () {
     final v11Stores = IndexedDbStoreNames.all
-        .where((name) => name != IndexedDbStoreNames.activeTrainingDrafts)
+        .where(
+          (name) =>
+              name != IndexedDbStoreNames.activeTrainingDrafts &&
+              name != IndexedDbStoreNames.trainingAnalysisReportRecords,
+        )
         .toSet();
     final added = IndexedDbSchema.storeDefinitions
+        .where(
+          (definition) =>
+              definition.name !=
+              IndexedDbStoreNames.trainingAnalysisReportRecords,
+        )
         .where((definition) => !v11Stores.contains(definition.name))
         .toList();
 
@@ -467,5 +477,25 @@ void main() {
     );
     expect(added.single.indexes.single.keyPath, 'operationDate');
     expect(added.single.indexes.single.unique, isTrue);
+  });
+
+  test('v12 to v13 adds only the Training Analysis Report store', () {
+    final v12Stores = IndexedDbStoreNames.all
+        .where(
+          (name) => name != IndexedDbStoreNames.trainingAnalysisReportRecords,
+        )
+        .toSet();
+    final added = IndexedDbSchema.storeDefinitions
+        .where((definition) => !v12Stores.contains(definition.name))
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.trainingAnalysisReportRecords,
+    ]);
+    expect(added.single.keyPath, 'targetRecordId');
+    expect(added.single.indexes.map((index) => index.name), [
+      IndexedDbIndexNames.byOperationDate,
+      IndexedDbIndexNames.byImportedAt,
+    ]);
   });
 }

@@ -42,6 +42,7 @@ import 'package:or_app/features/system/models/profile_model.dart';
 import 'package:or_app/features/training/models/custom_training_exercise.dart';
 import 'package:or_app/features/training/models/persisted_custom_training_exercise_record.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
+import 'package:or_app/features/training_analysis/models/training_analysis_report.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
@@ -50,7 +51,7 @@ void main() {
   final timestamp = DateTime.utc(2026, 8, 9, 12, 34, 56);
 
   test(
-    'Schema 11 round trips every formal section without value loss',
+    'Schema 12 round trips every formal section without value loss',
     () async {
       final source = FakeIndexedDbDatabase();
       _seedCompleteSource(source, timestamp);
@@ -64,9 +65,9 @@ void main() {
         BackupExportService.encode(exported),
       );
 
-      expect(decoded.schemaVersion, 11);
+      expect(decoded.schemaVersion, 12);
       expect(decoded.includedSections, BackupSections.all.toSet());
-      expect(decoded.data, hasLength(16));
+      expect(decoded.data, hasLength(17));
       for (final section in BackupSections.all) {
         expect(decoded.data[section], hasLength(1), reason: section);
       }
@@ -621,9 +622,39 @@ Map<String, Map<String, Object?>> _completeRecords(DateTime timestamp) {
       packageDigest: digest,
       receivedMealCount: 2,
       selectedMealCount: 1,
-      importedMealCount: 1,
+      importedMealCount: 0,
       conflictMealCount: 0,
-      excludedMealCount: 1,
+      excludedMealCount: 2,
+    ).toRecord(),
+    BackupSections
+        .trainingAnalysisReportRecords: TrainingAnalysisReport.initial(
+      targetRecordId: 'training-v2:2026-08-09:fixture',
+      operationDate: '2026-08-09',
+      sourceDigest:
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      responseDigest:
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      exchangeId: 'training-analysis-fixture',
+      timestamp: timestamp,
+      analysis: TrainingAnalysis(
+        sessionSummary: 'Session summary',
+        performanceAnalysis: 'Performance analysis',
+        previousComparison: 'Previous comparison',
+        progressAnalysis: 'Progress analysis',
+        recoveryFrequencyComment: 'Recovery comment',
+        nextSessionProposal: 'Next proposal',
+        riskAttentionNotes: 'Risk notes',
+        exerciseAnalyses: const [
+          TrainingExerciseAnalysis(
+            exerciseIdentity: 'shoulderpress',
+            exerciseName: 'Shoulder Press',
+            assessment: 'Assessment',
+            previousComparison: 'Comparison',
+            progress: 'Progress',
+            nextProposal: 'Proposal',
+          ),
+        ],
+      ),
     ).toRecord(),
     BackupSections.legacyDailySummaryRecords: LegacyDailySummaryRecord(
       localDate: localDate,

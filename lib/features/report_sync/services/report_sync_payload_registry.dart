@@ -4,6 +4,7 @@ import '../models/daily_debrief_record.dart';
 import '../models/report_sync_record_utils.dart';
 import 'daily_debrief_analysis_response_validator.dart';
 import 'report_sync_import_schema_v2.dart';
+import '../../training_analysis/services/training_analysis_payload_schema.dart';
 
 abstract interface class ReportSyncPayloadSchema {
   ReportSyncExchangeType get exchangeType;
@@ -24,6 +25,7 @@ class ReportSyncPayloadRegistry {
 
   factory ReportSyncPayloadRegistry.standard() => ReportSyncPayloadRegistry([
     const TrainingReportSyncPayloadSchema(),
+    const TrainingAnalysisPayloadSchema(),
     const FoodReportSyncPayloadSchema(),
     const MorningBriefReportSyncPayloadSchema(),
     const DailyDebriefReportSyncPayloadSchema(),
@@ -40,6 +42,11 @@ class ReportSyncPayloadRegistry {
       switch (envelope.exchangeType) {
         case ReportSyncExchangeType.training:
           const TrainingReportSyncPayloadSchemaV2().validateResponse(
+            envelope.payload,
+          );
+          return;
+        case ReportSyncExchangeType.trainingAnalysis:
+          const TrainingAnalysisPayloadSchema().validateResponse(
             envelope.payload,
           );
           return;

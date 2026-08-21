@@ -557,6 +557,30 @@ void main() {
     expect(records.single['recordVersion'], 2);
   });
 
+  testWidgets('successful save asks whether to create a Training Report', (
+    tester,
+  ) async {
+    final database = await _pump(tester);
+    _setExercise(tester, 'Squat');
+    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+
+    await tester.tap(find.text('SAVE TRAINING'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('TRAINING REPORT'), findsOneWidget);
+    expect(find.text('YES'), findsOneWidget);
+    expect(find.text('NO'), findsOneWidget);
+    expect(
+      await database.findAll(IndexedDbStoreNames.trainingRecords),
+      hasLength(1),
+    );
+
+    await tester.tap(find.text('NO'));
+    await tester.pumpAndSettle();
+    expect(find.text('TRAINING REPORT'), findsNothing);
+  });
+
   testWidgets('Active Training Draft restores and is deleted after save', (
     tester,
   ) async {

@@ -212,6 +212,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     switch (type) {
       case ReportSyncExchangeType.training:
         return ReportSyncRequestPreparation(operationDate: operationDate);
+      case ReportSyncExchangeType.trainingAnalysis:
+        throw StateError('Training Analysis uses its dedicated report flow.');
       case ReportSyncExchangeType.food:
         return ReportSyncRequestPreparation(operationDate: operationDate);
       case ReportSyncExchangeType.morningBrief:
@@ -364,6 +366,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     final preview = await switch (type) {
       ReportSyncExchangeType.training => throw StateError(
         'Training uses Historical Training preview.',
+      ),
+      ReportSyncExchangeType.trainingAnalysis => throw StateError(
+        'Training Analysis uses its dedicated report flow.',
       ),
       ReportSyncExchangeType.food => _previewFood(response),
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
@@ -700,6 +705,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
     switch (response.exchangeType) {
       case ReportSyncExchangeType.training:
         throw StateError('Training uses Historical Training import.');
+      case ReportSyncExchangeType.trainingAnalysis:
+        throw StateError('Training Analysis uses its dedicated report flow.');
       case ReportSyncExchangeType.food:
         return _applyFood(preview, selectedMealIds);
       case ReportSyncExchangeType.morningBrief:

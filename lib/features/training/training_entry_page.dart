@@ -22,6 +22,7 @@ import 'services/training_cardio_calorie_calculator.dart';
 import 'services/training_status_weight_resolver.dart';
 import 'services/training_v2_form_mapper.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../training_analysis/pages/training_analysis_page.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_exercise_v2_editor.dart';
@@ -145,6 +146,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     if (_isSaving || _hasSaved) return;
     setState(() => _isSaving = true);
     var saved = false;
+    TrainingRecord? savedRecord;
     try {
       final session = TrainingV2FormMapper.toDomain(_form);
       if (_isEditing) {
@@ -158,11 +160,12 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
             readBack.localDate != session.date.substring(0, 10)) {
           throw StateError('targetRecordReadBackFailed');
         }
+        savedRecord = readBack;
       } else {
         await DailyLogMutationGuard.assertDateMutable(
           DateTime.parse(session.date),
         );
-        await TrainingRepository.saveNewV2(session);
+        savedRecord = await TrainingRepository.saveNewV2(session);
         _draftWritesEnabled = false;
         await _draftWriteQueue;
         await (await _draftRepository)?.deleteByOperationDate(
@@ -192,6 +195,34 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         content: Text(_isEditing ? 'TRAININGを更新しました' : 'TRAININGを保存しました'),
       ),
     );
+    final createReport = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('TRAINING REPORT'),
+        content: const Text('TRAINING REPORTを作成しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('NO'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('YES'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (createReport == true && savedRecord != null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TrainingAnalysisPage(targetRecordId: savedRecord!.id),
+        ),
+      );
+      if (!mounted) return;
+    }
     Navigator.pop(context, true);
   }
 

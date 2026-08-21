@@ -1698,6 +1698,7 @@ String _stateLabel(ReportSyncRequestPreparation? request) {
 
 String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'TRAINING REPORT SYNC',
+  ReportSyncExchangeType.trainingAnalysis => 'TRAINING ANALYSIS REPORT',
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
   ReportSyncExchangeType.morningBrief => 'DAILY BRIEF REPORT SYNC',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
@@ -1705,6 +1706,7 @@ String _title(ReportSyncExchangeType type) => switch (type) {
 
 IconData _icon(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => Icons.fitness_center,
+  ReportSyncExchangeType.trainingAnalysis => Icons.analytics_outlined,
   ReportSyncExchangeType.food => Icons.restaurant_outlined,
   ReportSyncExchangeType.morningBrief => Icons.wb_sunny_outlined,
   ReportSyncExchangeType.dailyDebrief => Icons.nightlight_outlined,
@@ -1712,6 +1714,7 @@ IconData _icon(ReportSyncExchangeType type) => switch (type) {
 
 String _importLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'IMPORT TRAINING',
+  ReportSyncExchangeType.trainingAnalysis => 'IMPORT TRAINING ANALYSIS',
   ReportSyncExchangeType.food => 'IMPORT FOOD',
   ReportSyncExchangeType.morningBrief => 'IMPORT DAILY BRIEF',
   ReportSyncExchangeType.dailyDebrief => 'IMPORT DAILY DEBRIEF',
@@ -1719,6 +1722,7 @@ String _importLabel(ReportSyncExchangeType type) => switch (type) {
 
 String _sourceName(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'Training Record',
+  ReportSyncExchangeType.trainingAnalysis => 'Formal Training Fact Package',
   ReportSyncExchangeType.food => 'Meal Data',
   ReportSyncExchangeType.morningBrief => 'STATUS Source',
   ReportSyncExchangeType.dailyDebrief => 'DAILY AGGREGATE Source',
@@ -1726,6 +1730,7 @@ String _sourceName(ReportSyncExchangeType type) => switch (type) {
 
 String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.training => 'COPY TRAINING RECORD',
+  ReportSyncExchangeType.trainingAnalysis => 'COPY TRAINING ANALYSIS PROMPT',
   ReportSyncExchangeType.food => 'COPY MEAL DATA',
   ReportSyncExchangeType.morningBrief => 'STATUS SOURCE',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF SOURCE',

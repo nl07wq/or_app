@@ -449,8 +449,10 @@ void main() {
     () {
       expect(ReportSyncExchangeType.values.map((value) => value.stableId), [
         'training',
+        'trainingAnalysis',
         'food',
         'morningBrief',
+        'dailyDebrief',
       ]);
       expect(ReportSyncDirection.values.map((value) => value.stableId), [
         'request',

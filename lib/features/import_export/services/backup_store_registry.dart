@@ -10,6 +10,7 @@ import '../../food/services/food_v2_canonical_service.dart';
 import '../../status/models/persisted_status_record.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
+import '../../training_analysis/models/training_analysis_report.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_sync/models/operation_sync_history.dart';
 import '../../report_sync/models/morning_brief_record.dart';
@@ -36,6 +37,8 @@ abstract final class BackupStoreRegistry {
     BackupSections.morningBriefRecords: IndexedDbStoreNames.morningBriefRecords,
     BackupSections.dailyDebriefRecords: IndexedDbStoreNames.dailyDebriefRecords,
     BackupSections.reportSyncHistory: IndexedDbStoreNames.reportSyncHistory,
+    BackupSections.trainingAnalysisReportRecords:
+        IndexedDbStoreNames.trainingAnalysisReportRecords,
     BackupSections.legacyDailySummaryRecords:
         IndexedDbStoreNames.legacyDailySummaryRecords,
     BackupSections.profile: IndexedDbStoreNames.profileRecords,
@@ -75,6 +78,8 @@ abstract final class BackupStoreRegistry {
         DailyDebriefRecord.fromRecord(record);
       case BackupSections.reportSyncHistory:
         ReportSyncHistory.fromRecord(record);
+      case BackupSections.trainingAnalysisReportRecords:
+        TrainingAnalysisReport.fromRecord(record);
       case BackupSections.legacyDailySummaryRecords:
         LegacyDailySummaryRecord.fromRecord(record);
       case BackupSections.profile:
@@ -156,6 +161,8 @@ abstract final class BackupStoreRegistry {
       BackupSections.morningBriefRecords ||
       BackupSections.dailyDebriefRecords => '${record['localDate']}\u0000$id',
       BackupSections.reportSyncHistory => '${record['completedAt']}\u0000$id',
+      BackupSections.trainingAnalysisReportRecords =>
+        '${record['operationDate']}\u0000$id',
       BackupSections.legacyDailySummaryRecords =>
         '${record['localDate']}\u0000$id',
       BackupSections.profile => id,
@@ -205,6 +212,7 @@ abstract final class BackupStoreRegistry {
       BackupSections.morningBriefRecords ||
       BackupSections.dailyDebriefRecords => 'localDate',
       BackupSections.reportSyncHistory => 'exchangeId',
+      BackupSections.trainingAnalysisReportRecords => 'targetRecordId',
       BackupSections.legacyDailySummaryRecords => 'localDate',
       BackupSections.profile => 'version',
       BackupSections.dailyAggregateRecords => 'operationDate',

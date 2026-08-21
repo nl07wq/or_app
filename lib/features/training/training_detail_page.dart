@@ -11,6 +11,7 @@ import 'widgets/training_summary_card.dart';
 import 'widgets/training_exercise_detail_card.dart';
 import 'widgets/training_session_summary_card.dart';
 import 'widgets/training_v2_record_detail.dart';
+import '../training_analysis/pages/training_analysis_page.dart';
 
 class TrainingDetailPage extends StatelessWidget {
   final TrainingRecord record;
@@ -24,6 +25,17 @@ class TrainingDetailPage extends StatelessWidget {
         appBar: AppBar(
           title: const Text('TRAINING'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.analytics_outlined),
+              tooltip: 'ANALYSIS REPORT',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      TrainingAnalysisPage(targetRecordId: record.id),
+                ),
+              ),
+            ),
             if (record.isEditable &&
                 !appInitializationController.value.isReadOnly)
               IconButton(
