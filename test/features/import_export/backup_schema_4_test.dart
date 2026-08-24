@@ -42,7 +42,7 @@ void main() {
     );
   });
 
-  test('Schema 9 exports and decodes all fifteen formal sections', () async {
+  test('Current schema exports and decodes all formal sections', () async {
     final package = await BackupExportService(
       database: database,
       controller: controller,
@@ -50,7 +50,7 @@ void main() {
     ).create();
 
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.data.keys, containsAll(BackupSections.schema5));
+    expect(package.data.keys, BackupSections.all);
     expect(package.data[BackupSections.foodCatalog], hasLength(1));
     expect(package.data[BackupSections.foodRecipes], hasLength(1));
     final decoded = const BackupPackageCodec().decode(
@@ -60,34 +60,31 @@ void main() {
     expect(decoded.recordCounts[BackupSections.foodRecipes], 1);
   });
 
-  test(
-    'Schema 2 REPLACE ALL preserves Food v2 catalog and recipe stores',
-    () async {
-      final package = BackupExportService.buildPackage(
-        exportId: 'schema-2',
-        exportedAt: timestamp,
-        source: const BackupSource(platform: 'test'),
-        schemaVersion: 2,
-        data: {for (final section in BackupSections.schema2) section: []},
-      );
-      final service = BackupImportService(
-        database: database,
-        controller: controller,
-        restore: () async {},
-      );
-      final plan = await service.dryRun(package, BackupImportMode.replaceAll);
+  test('Schema 2 REPLACE ALL clears newer Food v2 stores', () async {
+    final package = BackupExportService.buildPackage(
+      exportId: 'schema-2',
+      exportedAt: timestamp,
+      source: const BackupSource(platform: 'test'),
+      schemaVersion: 2,
+      data: {for (final section in BackupSections.schema2) section: []},
+    );
+    final service = BackupImportService(
+      database: database,
+      controller: controller,
+      restore: () async {},
+    );
+    final plan = await service.dryRun(package, BackupImportMode.replaceAll);
 
-      expect((await service.execute(plan)).success, isTrue);
-      expect(
-        await database.findAll(IndexedDbStoreNames.foodCatalogRecords),
-        hasLength(1),
-      );
-      expect(
-        await database.findAll(IndexedDbStoreNames.foodRecipeRecords),
-        hasLength(1),
-      );
-    },
-  );
+    expect((await service.execute(plan)).success, isTrue);
+    expect(
+      await database.findAll(IndexedDbStoreNames.foodCatalogRecords),
+      isEmpty,
+    );
+    expect(
+      await database.findAll(IndexedDbStoreNames.foodRecipeRecords),
+      isEmpty,
+    );
+  });
 
   test('Schema 4 MERGE ignores Food v2 timestamp-only differences', () async {
     final exported = await BackupExportService(

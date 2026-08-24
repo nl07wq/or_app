@@ -42,12 +42,12 @@ void main() {
   });
 
   test(
-    'Schema 9 exports fifteen sections and excludes active sync state',
+    'Current schema exports all sections and excludes active sync state',
     () async {
       final package = await _export(database, controller, timestamp);
       expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(package.data.keys, BackupSections.schema8);
-      expect(package.data, hasLength(15));
+      expect(package.data.keys, BackupSections.all);
+      expect(package.data, hasLength(BackupSections.all.length));
       expect(package.data[BackupSections.operationSyncHistory], hasLength(1));
       expect(package.data, isNot(contains('operationSyncState')));
 
@@ -55,34 +55,38 @@ void main() {
         BackupExportService.encode(package),
       );
       expect(decoded.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(decoded.digests.sections, hasLength(15));
+      expect(decoded.digests.sections, hasLength(BackupSections.all.length));
     },
   );
 
-  test('Schema 9 MERGE no-ops exact history and blocks differences', () async {
-    final package = await _export(database, controller, timestamp);
-    final service = _service(database, controller);
-    final noOp = await service.dryRun(package, BackupImportMode.merge);
-    expect(noOp.hasConflicts, isFalse);
-    expect(noOp.sections[BackupSections.operationSyncHistory]!.skip, 1);
+  test(
+    'Current schema MERGE no-ops exact history and blocks differences',
+    () async {
+      final package = await _export(database, controller, timestamp);
+      final service = _service(database, controller);
+      final noOp = await service.dryRun(package, BackupImportMode.merge);
+      expect(noOp.hasConflicts, isFalse);
+      expect(noOp.sections[BackupSections.operationSyncHistory]!.skip, 1);
 
-    final data = _copyData(package.data);
-    data[BackupSections.operationSyncHistory]!.single['createCount'] = 99;
-    final changed = BackupExportService.buildPackage(
-      exportId: 'changed-history',
-      exportedAt: timestamp,
-      source: const BackupSource(platform: 'test'),
-      data: data,
-    );
-    final conflict = await service.dryRun(changed, BackupImportMode.merge);
-    expect(conflict.hasConflicts, isTrue);
-    expect(conflict.sections[BackupSections.operationSyncHistory]!.conflicts, [
-      'operationSyncHistory:operation-1',
-    ]);
-  });
+      final data = _copyData(package.data);
+      data[BackupSections.operationSyncHistory]!.single['createCount'] = 99;
+      final changed = BackupExportService.buildPackage(
+        exportId: 'changed-history',
+        exportedAt: timestamp,
+        source: const BackupSource(platform: 'test'),
+        data: data,
+      );
+      final conflict = await service.dryRun(changed, BackupImportMode.merge);
+      expect(conflict.hasConflicts, isTrue);
+      expect(
+        conflict.sections[BackupSections.operationSyncHistory]!.conflicts,
+        ['operationSyncHistory:operation-1'],
+      );
+    },
+  );
 
   test(
-    'Schema 9 REPLACE ALL replaces history and preserves sync state',
+    'Current schema REPLACE ALL replaces history and preserves sync state',
     () async {
       final package = await _export(database, controller, timestamp);
       final data = _copyData(package.data);
@@ -126,36 +130,34 @@ void main() {
   );
 
   for (final schemaVersion in [2, 3, 4]) {
-    test(
-      'Schema $schemaVersion REPLACE ALL preserves both sync stores',
-      () async {
-        final sections = BackupSections.forSchema(schemaVersion);
-        final data = <String, List<Map<String, Object?>>>{
-          for (final section in sections) section: [],
-        };
-        if (schemaVersion >= 3) {
-          data[BackupSections.operationState] = [_operationState(timestamp)];
-        }
-        final package = BackupExportService.buildPackage(
-          exportId: 'schema-$schemaVersion',
-          exportedAt: timestamp,
-          source: const BackupSource(platform: 'test'),
-          schemaVersion: schemaVersion,
-          data: data,
-        );
-        final service = _service(database, controller);
-        final plan = await service.dryRun(package, BackupImportMode.replaceAll);
-        expect((await service.execute(plan)).success, isTrue);
-        expect(
-          await database.findAll(IndexedDbStoreNames.operationSyncState),
-          hasLength(1),
-        );
-        expect(
-          await database.findAll(IndexedDbStoreNames.operationSyncHistory),
-          hasLength(1),
-        );
-      },
-    );
+    test('Schema $schemaVersion REPLACE ALL clears newer sync history and '
+        'preserves active sync state', () async {
+      final sections = BackupSections.forSchema(schemaVersion);
+      final data = <String, List<Map<String, Object?>>>{
+        for (final section in sections) section: [],
+      };
+      if (schemaVersion >= 3) {
+        data[BackupSections.operationState] = [_operationState(timestamp)];
+      }
+      final package = BackupExportService.buildPackage(
+        exportId: 'schema-$schemaVersion',
+        exportedAt: timestamp,
+        source: const BackupSource(platform: 'test'),
+        schemaVersion: schemaVersion,
+        data: data,
+      );
+      final service = _service(database, controller);
+      final plan = await service.dryRun(package, BackupImportMode.replaceAll);
+      expect((await service.execute(plan)).success, isTrue);
+      expect(
+        await database.findAll(IndexedDbStoreNames.operationSyncState),
+        hasLength(1),
+      );
+      expect(
+        await database.findAll(IndexedDbStoreNames.operationSyncHistory),
+        isEmpty,
+      );
+    });
   }
 }
 

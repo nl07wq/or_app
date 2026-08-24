@@ -50,7 +50,7 @@ void main() {
   });
 
   test(
-    'exports deterministic Schema 9.0 package with all fifteen sections',
+    'exports deterministic current package with all formal sections',
     () async {
       final package = await BackupExportService(
         database: database,
@@ -335,7 +335,7 @@ void main() {
     );
 
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.databaseVersion, 10);
+    expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
     expect(restored.recordVersion, 1);
     final physical = restored.data.items.first;
     final multiplier = restored.data.items.last;
@@ -474,7 +474,7 @@ void main() {
     );
 
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.databaseVersion, 10);
+    expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
     expect(restoredEnvelope, envelope);
     final restored = PersistedTrainingRecord.fromRecord(restoredEnvelope!);
     expect(restored.recordVersion, 2);

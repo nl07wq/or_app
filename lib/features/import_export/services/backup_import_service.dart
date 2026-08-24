@@ -59,8 +59,18 @@ class BackupImportService {
     Map<String, List<Map<String, Object?>>>? preRestoreState;
     _controller.markMaintenance();
     try {
-      final affectedSections = approvedPlan.mode == BackupImportMode.replaceAll
+      final replaceAllSections =
+          approvedPlan.mode == BackupImportMode.replaceAll
           ? BackupSections.all
+                .where(
+                  (section) =>
+                      section != BackupSections.operationState ||
+                      approvedPlan.package.schemaVersion >= 3,
+                )
+                .toList()
+          : const <String>[];
+      final affectedSections = approvedPlan.mode == BackupImportMode.replaceAll
+          ? replaceAllSections
           : approvedPlan.package.includedSections.where(
               (section) => section != BackupSections.operationState,
             );
@@ -84,7 +94,7 @@ class BackupImportService {
           .toList();
       final transactionSections =
           approvedPlan.mode == BackupImportMode.replaceAll
-          ? BackupSections.all
+          ? replaceAllSections
           : sections;
       await _database.runTransaction<void>(
         storeNames: [
@@ -94,7 +104,7 @@ class BackupImportService {
         mode: IndexedDbTransactionMode.readWrite,
         action: (transaction) async {
           if (approvedPlan.mode == BackupImportMode.replaceAll) {
-            for (final section in BackupSections.all) {
+            for (final section in replaceAllSections) {
               await transaction.clear(BackupStoreRegistry.stores[section]!);
             }
           }
@@ -146,7 +156,7 @@ class BackupImportService {
             );
           }
           if (approvedPlan.mode == BackupImportMode.replaceAll) {
-            for (final section in BackupSections.all.where(
+            for (final section in replaceAllSections.where(
               (section) =>
                   !approvedPlan.package.includedSections.contains(section),
             )) {

@@ -23,7 +23,7 @@ void main() {
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-  test('Schema 11 exports all sixteen sections including aggregates', () async {
+  test('Current schema exports all formal sections', () async {
     final database = FakeIndexedDbDatabase();
     final controller = AppInitializationController()..markReady();
     _seedOperationState(database, timestamp);
@@ -49,8 +49,8 @@ void main() {
       clock: () => timestamp,
     ).create();
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.data.keys, BackupSections.schema11);
-    expect(package.data, hasLength(16));
+    expect(package.data.keys, BackupSections.all);
+    expect(package.data, hasLength(BackupSections.all.length));
     expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
     expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
     expect(package.data[BackupSections.reportSyncHistory], hasLength(1));
@@ -153,7 +153,7 @@ void main() {
   });
 
   test(
-    'Schema 9 REPLACE ALL applies fifteen stores in one transaction',
+    'Current schema REPLACE ALL applies all formal stores in one transaction',
     () async {
       final source = FakeIndexedDbDatabase();
       final sourceController = AppInitializationController()..markReady();
@@ -197,7 +197,7 @@ void main() {
     },
   );
 
-  test('Schema 9 preserves FOOD History version 2 meal counts', () async {
+  test('Current schema preserves FOOD History version 2 meal counts', () async {
     final source = FakeIndexedDbDatabase();
     final sourceController = AppInitializationController()..markReady();
     _seedOperationState(source, timestamp);
@@ -287,7 +287,7 @@ void main() {
     expect(restored.excludedMealCount, isNull);
   });
 
-  test('Schema 9 rejects inconsistent FOOD History meal counts', () {
+  test('Current schema rejects inconsistent FOOD History meal counts', () {
     final invalid = _foodHistory(timestamp, digest).toRecord()
       ..['excludedMealCount'] = 1;
     expect(
@@ -359,7 +359,7 @@ ReportSyncHistory _history(DateTime timestamp, String digest) =>
 ReportSyncHistory _foodHistory(
   DateTime timestamp,
   String digest, {
-  int recordVersion = ReportSyncHistory.currentRecordVersion,
+  int recordVersion = 2,
 }) => ReportSyncHistory(
   exchangeId: 'food-history-v$recordVersion',
   recordVersion: recordVersion,
