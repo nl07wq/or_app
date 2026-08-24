@@ -2,12 +2,13 @@ import '../../../core/models/training_session_v2.dart';
 
 class ActiveTrainingDraft {
   static const legacyVersion = 1;
-  static const currentVersion = 2;
+  static const entryStateVersion = 2;
+  static const currentVersion = 3;
 
   final String id;
   final int version;
   final String operationDate;
-  final String startTime;
+  final String? startTime;
   final String? endTime;
   final Map<String, Object?>? entryState;
 
@@ -15,15 +16,19 @@ class ActiveTrainingDraft {
     String? id,
     this.version = currentVersion,
     required this.operationDate,
-    required this.startTime,
+    this.startTime,
     this.endTime,
     this.entryState,
   }) : id = id ?? draftId(operationDate) {
     _validateOperationDate(operationDate);
     if (this.id != draftId(operationDate) ||
-        (version != legacyVersion && version != currentVersion) ||
+        (version != legacyVersion &&
+            version != entryStateVersion &&
+            version != currentVersion) ||
         (version == legacyVersion && entryState != null) ||
-        (version == currentVersion && entryState == null)) {
+        (version >= entryStateVersion && entryState == null) ||
+        (version < currentVersion && startTime == null) ||
+        (startTime == null && endTime != null)) {
       throw const FormatException('Invalid Active Training Draft envelope.');
     }
     try {
@@ -43,7 +48,7 @@ class ActiveTrainingDraft {
     'operationDate': operationDate,
     'startTime': startTime,
     'endTime': endTime,
-    if (version >= currentVersion) 'entryState': entryState,
+    if (version >= entryStateVersion) 'entryState': entryState,
   };
 
   factory ActiveTrainingDraft.fromRecord(Map<String, Object?> record) {
@@ -56,7 +61,7 @@ class ActiveTrainingDraft {
     if (id is! String ||
         version is! int ||
         operationDate is! String ||
-        startTime is! String ||
+        (startTime != null && startTime is! String) ||
         (endTime != null && endTime is! String) ||
         (entryState != null && entryState is! Map)) {
       throw const FormatException('Invalid Active Training Draft record.');
@@ -65,7 +70,7 @@ class ActiveTrainingDraft {
       id: id,
       version: version,
       operationDate: operationDate,
-      startTime: startTime,
+      startTime: startTime as String?,
       endTime: endTime as String?,
       entryState: entryState == null
           ? null

@@ -140,6 +140,31 @@ class _SetEditor extends StatelessWidget {
                 onChanged();
               },
             ),
+            if (set.targetMinReps != null) ...[
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: AppSpacing.lg,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  if (set.plannedWeightKg != null)
+                    Text(
+                      'PLAN  ${_formatDouble(set.plannedWeightKg!)} kg',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  Text(
+                    'TARGET  ${_targetLabel(set)}',
+                    key: Key('v2-set-$index-target'),
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             AppSpacing.gapSM,
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,4 +368,10 @@ String _formatDouble(double value) {
   return value == value.roundToDouble()
       ? value.round().toString()
       : value.toStringAsFixed(1);
+}
+
+String _targetLabel(TrainingV2SetFormController set) {
+  final minimum = set.targetMinReps!;
+  final maximum = set.targetMaxReps ?? minimum;
+  return minimum == maximum ? '$minimum' : '$minimum–$maximum';
 }

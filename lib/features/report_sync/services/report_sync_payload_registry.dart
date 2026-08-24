@@ -26,6 +26,7 @@ class ReportSyncPayloadRegistry {
   factory ReportSyncPayloadRegistry.standard() => ReportSyncPayloadRegistry([
     const TrainingReportSyncPayloadSchema(),
     const TrainingAnalysisPayloadSchema(),
+    const TrainingPlanReportSyncPayloadSchema(),
     const FoodReportSyncPayloadSchema(),
     const MorningBriefReportSyncPayloadSchema(),
     const DailyDebriefReportSyncPayloadSchema(),
@@ -47,6 +48,11 @@ class ReportSyncPayloadRegistry {
           return;
         case ReportSyncExchangeType.trainingAnalysis:
           const TrainingAnalysisPayloadSchema().validateResponse(
+            envelope.payload,
+          );
+          return;
+        case ReportSyncExchangeType.trainingPlan:
+          const TrainingPlanReportSyncPayloadSchema().validateResponse(
             envelope.payload,
           );
           return;
@@ -72,6 +78,126 @@ class ReportSyncPayloadRegistry {
       schema.validateRequest(envelope.payload);
     } else {
       schema.validateResponse(envelope.payload);
+    }
+  }
+}
+
+class TrainingPlanReportSyncPayloadSchema implements ReportSyncPayloadSchema {
+  const TrainingPlanReportSyncPayloadSchema();
+
+  @override
+  ReportSyncExchangeType get exchangeType =>
+      ReportSyncExchangeType.trainingPlan;
+
+  @override
+  void validateRequest(Map<String, Object?> payload) {
+    _exact(payload, const {
+      'operationDate',
+      'sourceRecordId',
+      'sourceDigest',
+      'facts',
+    });
+    _date(payload['operationDate'], 'operationDate');
+    _nullableText(payload['sourceRecordId'], 'sourceRecordId');
+    _digestValue(payload['sourceDigest'], 'sourceDigest');
+    _map(payload['facts'], 'facts');
+  }
+
+  @override
+  void validateResponse(Map<String, Object?> payload) {
+    _exact(payload, const {
+      'operationDate',
+      'sourceRecordId',
+      'sourceDigest',
+      'plan',
+    });
+    _date(payload['operationDate'], 'operationDate');
+    _nullableText(payload['sourceRecordId'], 'sourceRecordId');
+    _digestValue(payload['sourceDigest'], 'sourceDigest');
+    final plan = _map(payload['plan'], 'plan');
+    _exact(plan, const {'note', 'exercises'});
+    _nullableText(plan['note'], 'note');
+    final exercises = _list(plan['exercises'], 'exercises');
+    if (exercises.isEmpty) _fail('exercises must not be empty.');
+    final identities = <String>{};
+    for (final rawExercise in exercises) {
+      final exercise = _map(rawExercise, 'exercise');
+      _exact(exercise, const {'exerciseIdentity', 'exerciseName', 'sets'});
+      final identity = _text(exercise['exerciseIdentity'], 'exerciseIdentity');
+      if (!identities.add(identity)) {
+        _fail('exerciseIdentity must be unique.');
+      }
+      _text(exercise['exerciseName'], 'exerciseName');
+      final sets = _list(exercise['sets'], 'sets');
+      if (sets.isEmpty) _fail('sets must not be empty.');
+      for (final (index, rawSet) in sets.indexed) {
+        final set = _map(rawSet, 'set');
+        _exact(set, const {
+          'order',
+          'setType',
+          'plannedWeightKg',
+          'targetMinReps',
+          'targetMaxReps',
+          'restAfterSeconds',
+        });
+        if (set['order'] is! int || set['order'] != index + 1) {
+          _fail('set order must be sequential.');
+        }
+        if (set['setType'] != 'warmUp' && set['setType'] != 'main') {
+          _fail('setType must be warmUp or main.');
+        }
+        final weight = set['plannedWeightKg'];
+        final minimum = set['targetMinReps'];
+        final maximum = set['targetMaxReps'];
+        final rest = set['restAfterSeconds'];
+        if (weight is! num || !weight.isFinite || weight < 0) {
+          _fail('plannedWeightKg must be a non-negative number.');
+        }
+        if (minimum is! int ||
+            maximum is! int ||
+            minimum < 1 ||
+            maximum < minimum) {
+          _fail('Target rep range is invalid.');
+        }
+        if (rest != null && (rest is! int || rest < 0)) {
+          _fail('restAfterSeconds is invalid.');
+        }
+      }
+    }
+  }
+
+  @override
+  Map<String, Object?> get minimalResponseExample => {
+    'operationDate': '2000-01-01',
+    'sourceRecordId': null,
+    'sourceDigest': _exampleDigest,
+    'plan': {
+      'note': null,
+      'exercises': [
+        {
+          'exerciseIdentity': '<EXACT_IDENTITY>',
+          'exerciseName': '<EXACT_NAME>',
+          'sets': [
+            {
+              'order': 1,
+              'setType': 'main',
+              'plannedWeightKg': 0,
+              'targetMinReps': 1,
+              'targetMaxReps': 1,
+              'restAfterSeconds': null,
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  static const _exampleDigest =
+      '0000000000000000000000000000000000000000000000000000000000000000';
+
+  static void _digestValue(Object? value, String name) {
+    if (value is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(value)) {
+      _fail('$name must be a SHA-256 digest.');
     }
   }
 }

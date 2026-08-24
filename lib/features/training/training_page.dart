@@ -10,6 +10,7 @@ import '../training_analysis/pages/training_analysis_page.dart';
 import 'widgets/training_history_button.dart';
 import 'widgets/training_manual_card.dart';
 import 'widgets/training_sync_card.dart';
+import 'training_plan_import_page.dart';
 
 class TrainingPage extends StatelessWidget {
   const TrainingPage({super.key});
@@ -38,6 +39,31 @@ class TrainingPage extends StatelessWidget {
             AppSpacing.gapMD,
 
             const TrainingSyncCard(),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(icon: Icons.event_note_outlined, title: 'PLAN'),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(
+              text: 'Formal Training Factから次回Training Planを作成します。',
+            ),
+
+            AppSpacing.gapMD,
+
+            OperationCard(
+              child: OperationButton(
+                icon: Icons.event_note_outlined,
+                text: 'TRAINING PLAN',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TrainingPlanImportPage(),
+                  ),
+                ),
+              ),
+            ),
 
             AppSpacing.gapXL,
 

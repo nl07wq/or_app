@@ -13,6 +13,7 @@ import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/status/models/persisted_status_record.dart';
+import 'package:or_app/features/training/models/active_training_draft.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/repository/active_training_draft_repository.dart';
 import 'package:or_app/features/training/repository/indexed_db_active_training_draft_repository.dart';
@@ -718,6 +719,83 @@ void main() {
       _trainingTheme(tester, active: false).colorScheme.primary,
       AppColors.primary,
     );
+  });
+
+  testWidgets('plan-only draft reloads without starting the session', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    final drafts = IndexedDbActiveTrainingDraftRepository(database);
+    await drafts.save(
+      ActiveTrainingDraft(
+        operationDate: '2026-07-31',
+        entryState: const {
+          'sessionName': '',
+          'sessionMemo': '',
+          'overallEvaluation': '',
+          'sessionGrade': null,
+          'dynamicStretchCompleted': null,
+          'cooldownStretchCompleted': null,
+          'planMetadata': {
+            'exchangeId': 'training-plan-response-1',
+            'sourceDigest':
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'note': 'Plan note',
+          },
+          'exercises': [
+            {
+              'exerciseName': 'Squat',
+              'equipment': null,
+              'equipmentSelectionMade': true,
+              'evaluation': '',
+              'targetWeight': '',
+              'targetReps': <String>[],
+              'targetNotes': '',
+              'sets': [
+                {
+                  'setType': 'main',
+                  'weight': '',
+                  'reps': '',
+                  'rpe': null,
+                  'rest': '90',
+                  'plannedWeightKg': 80.0,
+                  'targetMinReps': 8,
+                  'targetMaxReps': 10,
+                },
+              ],
+            },
+          ],
+          'cardioEntries': <Object?>[],
+        },
+      ),
+    );
+
+    await _pump(
+      tester,
+      database: database,
+      activeTrainingDraftRepository: drafts,
+    );
+
+    expect(find.text('PLAN READY'), findsOneWidget);
+    expect(find.text('PLAN  80 kg'), findsOneWidget);
+    expect(find.text('TARGET  8–10'), findsOneWidget);
+    expect(find.text('RECORDING'), findsNothing);
+    expect(find.text('ELAPSED'), findsNothing);
+    expect(
+      _trainingTheme(tester, active: false).colorScheme.primary,
+      AppColors.primary,
+    );
+
+    await tester.tap(find.text('START TRAINING'));
+    await tester.pump();
+
+    expect(find.text('RECORDING'), findsOneWidget);
+    expect(
+      _trainingTheme(tester, active: true).colorScheme.primary,
+      AppColors.success,
+    );
+    final restored = await drafts.findByOperationDate('2026-07-31');
+    expect(restored?.startTime, isNotNull);
   });
 
   testWidgets('failed formal save preserves the Active Training Draft', (

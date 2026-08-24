@@ -31,7 +31,7 @@ void main() {
         ),
         {
           'id': 'active-training-draft:2026-08-11',
-          'version': 2,
+          'version': 3,
           'operationDate': '2026-08-11',
           'startTime': '2026-08-11T21:19:00+09:00',
           'endTime': null,
@@ -109,6 +109,32 @@ void main() {
 
     expect(restored.version, 1);
     expect(restored.entryState, isNull);
+  });
+
+  test('reads version 2 and persists a version 3 plan-only draft', () async {
+    final version2 = ActiveTrainingDraft.fromRecord({
+      'id': 'active-training-draft:2026-08-11',
+      'version': 2,
+      'operationDate': '2026-08-11',
+      'startTime': '2026-08-11T21:19:00+09:00',
+      'endTime': null,
+      'entryState': _emptyEntryState(),
+    });
+    expect(version2.version, 2);
+    expect(version2.startTime, isNotNull);
+
+    final database = FakeIndexedDbDatabase();
+    final repository = IndexedDbActiveTrainingDraftRepository(database);
+    await repository.save(
+      ActiveTrainingDraft(
+        operationDate: '2026-08-11',
+        entryState: _emptyEntryState(),
+      ),
+    );
+    final planOnly = await repository.findByOperationDate('2026-08-11');
+    expect(planOnly?.version, 3);
+    expect(planOnly?.startTime, isNull);
+    expect(planOnly?.endTime, isNull);
   });
 
   test('entry state round-trips exercise, set, cardio, and session order', () {

@@ -28,6 +28,8 @@ void main() {
       matching: find.byType(OperationButton),
     );
     expect(find.text('ANALYSIS REPORT'), findsOneWidget);
+    expect(find.text('PLAN'), findsOneWidget);
+    expect(find.text('TRAINING PLAN'), findsOneWidget);
     expect(button, findsOneWidget);
     expect(
       find.descendant(
@@ -69,6 +71,7 @@ void main() {
       expect(find.text('RECOVERY / FREQUENCY'), findsOneWidget);
       expect(find.text('RISK / ATTENTION'), findsOneWidget);
       expect(find.text('CREATE ANALYSIS'), findsOneWidget);
+      expect(find.text('CREATE NEXT PLAN'), findsOneWidget);
       expect(find.text('COPY REVISION PROMPT'), findsOneWidget);
       expect(find.text(_sessionSummary), findsOneWidget);
       expect(find.text(_performance), findsOneWidget);

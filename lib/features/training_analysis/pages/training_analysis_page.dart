@@ -7,6 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_record_read_model.dart';
+import '../../training/training_plan_import_page.dart';
 import '../models/training_analysis_report.dart';
 import '../services/training_analysis_service.dart';
 
@@ -214,6 +215,22 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
         ),
         AppSpacing.gapMD,
         if (_report != null) _ReportView(report: _report!),
+        if (_report != null) ...[
+          AppSpacing.gapMD,
+          OperationCard(
+            child: OperationButton(
+              icon: Icons.event_note_outlined,
+              text: 'CREATE NEXT PLAN',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      TrainingPlanImportPage(sourceRecordId: target.id),
+                ),
+              ),
+            ),
+          ),
+        ],
         if (_report != null) AppSpacing.gapXL,
         OperationCard(
           child: Column(

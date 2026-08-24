@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/operation_button.dart';
+import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_menu_button.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/indexed_db/indexed_db_database.dart';
@@ -55,6 +56,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   late final Future<ActiveTrainingDraftRepository?> _draftRepository;
   Future<void> _draftWriteQueue = Future.value();
   bool _draftWritesEnabled = true;
+  bool _hasPersistedDraft = false;
 
   bool get _isEditing => widget.existingRecord != null;
 
@@ -98,6 +100,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       );
       if (!mounted) return;
       if (draft != null) {
+        _hasPersistedDraft = true;
         _form.restoreDraftTimes(
           startTime: draft.startTime,
           endTime: draft.endTime,
@@ -270,6 +273,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           entryState: _form.toDraftState(),
         ),
       );
+      _hasPersistedDraft = true;
       if (mounted) setState(() {});
     } on TrainingTimeValidationException catch (error) {
       _form.restoreDraftTimes(startTime: previousStart, endTime: previousEnd);
@@ -284,7 +288,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
 
   void _handleEntryChanged() {
     if (mounted) setState(() {});
-    if (_isEditing || _form.startTime == null || !_draftWritesEnabled) return;
+    if (_isEditing ||
+        (_form.startTime == null && !_hasPersistedDraft) ||
+        !_draftWritesEnabled) {
+      return;
+    }
     unawaited(
       _persistDraftSnapshot().catchError((_) {
         if (mounted) _showTimeError('Training Sessionの入力内容を保存できませんでした。');
@@ -294,7 +302,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
 
   Future<void> _persistDraftSnapshot() {
     final start = _form.startTime;
-    if (start == null || !_draftWritesEnabled) return Future.value();
+    if ((start == null && !_hasPersistedDraft) || !_draftWritesEnabled) {
+      return Future.value();
+    }
     final snapshot = ActiveTrainingDraft(
       operationDate: _form.date.substring(0, 10),
       startTime: start,
@@ -357,12 +367,13 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     _form = TrainingV2FormController.newSession(localDate: localDate);
     _expandedItem = _form.exercises.first;
     _statusWeightKg = null;
+    _hasPersistedDraft = false;
     setState(() {});
     _loadStatusWeight();
   }
 
   Future<void> _discardOrClearSession() async {
-    if (_isEditing || _form.startTime == null) {
+    if (_isEditing || (_form.startTime == null && !_hasPersistedDraft)) {
       _resetSession();
       return;
     }
@@ -459,6 +470,24 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_form.hasPlan) ...[
+                    OperationCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SectionHeader(
+                            icon: Icons.event_note_outlined,
+                            title: 'PLAN READY',
+                          ),
+                          if (_form.planNote != null) ...[
+                            AppSpacing.gapSM,
+                            Text(_form.planNote!),
+                          ],
+                        ],
+                      ),
+                    ),
+                    AppSpacing.gapMD,
+                  ],
                   TrainingSessionV2Form(
                     controller: _form,
                     active: active,

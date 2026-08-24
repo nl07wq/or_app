@@ -11,6 +11,7 @@ enum ReportSyncDirection {
 enum ReportSyncExchangeType {
   training('training'),
   trainingAnalysis('trainingAnalysis'),
+  trainingPlan('trainingPlan'),
   food('food'),
   morningBrief('morningBrief'),
   dailyDebrief('dailyDebrief');

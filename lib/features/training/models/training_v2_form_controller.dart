@@ -35,6 +35,11 @@ class TrainingV2FormController {
   bool? cooldownStretchCompleted;
   final List<TrainingV2ExerciseFormController> exercises;
   final List<TrainingV2CardioFormController> cardioEntries;
+  String? planExchangeId;
+  String? planSourceDigest;
+  String? planNote;
+
+  bool get hasPlan => planExchangeId != null;
 
   TrainingV2FormController.newSession({DateTime? now, String? localDate})
     : assert(now == null || localDate == null),
@@ -111,6 +116,13 @@ class TrainingV2FormController {
     'sessionGrade': sessionGrade?.stableId,
     'dynamicStretchCompleted': dynamicStretchCompleted,
     'cooldownStretchCompleted': cooldownStretchCompleted,
+    'planMetadata': hasPlan
+        ? {
+            'exchangeId': planExchangeId,
+            'sourceDigest': planSourceDigest,
+            'note': planNote,
+          }
+        : null,
     'exercises': [
       for (final exercise in exercises)
         {
@@ -129,6 +141,9 @@ class TrainingV2FormController {
                 'reps': set.reps.text,
                 'rpe': set.rpe,
                 'rest': set.rest.text,
+                'plannedWeightKg': set.plannedWeightKg,
+                'targetMinReps': set.targetMinReps,
+                'targetMaxReps': set.targetMaxReps,
               },
           ],
         },
@@ -173,6 +188,24 @@ class TrainingV2FormController {
       state,
       'cooldownStretchCompleted',
     );
+    final rawPlanMetadata = state['planMetadata'];
+    if (rawPlanMetadata != null && rawPlanMetadata is! Map) {
+      throw const FormatException(
+        'Invalid Active Training Draft planMetadata.',
+      );
+    }
+    final planMetadata = rawPlanMetadata == null
+        ? null
+        : Map<String, Object?>.from(rawPlanMetadata as Map);
+    planExchangeId = planMetadata == null
+        ? null
+        : _draftNullableString(planMetadata, 'exchangeId');
+    planSourceDigest = planMetadata == null
+        ? null
+        : _draftNullableString(planMetadata, 'sourceDigest');
+    planNote = planMetadata == null
+        ? null
+        : _draftNullableString(planMetadata, 'note');
     final exerciseValues = _draftMaps(state, 'exercises');
     final cardioValues = _draftMaps(state, 'cardioEntries');
     for (final exercise in exercises) {
@@ -229,6 +262,9 @@ class TrainingV2FormController {
       throw const FormatException('Invalid Active Training Draft RPE.');
     }
     set.rpe = rpe as int?;
+    set.plannedWeightKg = _draftNullableDouble(value, 'plannedWeightKg');
+    set.targetMinReps = _draftNullableInt(value, 'targetMinReps');
+    set.targetMaxReps = _draftNullableInt(value, 'targetMaxReps');
     return set;
   }
 
@@ -444,6 +480,9 @@ class TrainingV2SetFormController {
   final reps = TextEditingController();
   int? rpe;
   final rest = TextEditingController();
+  double? plannedWeightKg;
+  int? targetMinReps;
+  int? targetMaxReps;
 
   TrainingV2SetFormController({
     this.setType = TrainingSetType.main,
