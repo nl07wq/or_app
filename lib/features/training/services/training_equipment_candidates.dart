@@ -73,18 +73,16 @@ class TrainingEquipmentCandidates {
   }
 
   static String _identity(TrainingEquipmentSnapshot value) {
-    final catalogId = value.catalogId?.trim().toLowerCase();
-    if (catalogId != null && catalogId.isNotEmpty) {
-      return 'catalog:$catalogId';
-    }
-    return 'name:${_normalize(value.name)}';
+    return canonicalEquipmentIdentityKey(
+      catalogId: value.catalogId,
+      name: value.name,
+    );
   }
 }
 
 String trainingEquipmentDisplayLabel(TrainingEquipmentSnapshot value) {
-  final catalog = equipmentById(value.catalogId);
+  final catalog = equipmentById(
+    canonicalEquipmentId(catalogId: value.catalogId, name: value.name),
+  );
   return catalog == null ? value.name : equipmentDisplayNameJa(catalog);
 }
-
-String _normalize(String value) =>
-    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

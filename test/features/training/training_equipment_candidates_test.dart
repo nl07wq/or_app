@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/training_equipment_snapshot.dart';
 import 'package:or_app/core/models/training_exercise.dart';
@@ -6,6 +7,7 @@ import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/services/training_equipment_candidates.dart';
+import 'package:or_app/features/training/widgets/training_equipment_field.dart';
 
 void main() {
   test('exercise candidates combine compatible and same-exercise history', () {
@@ -83,8 +85,44 @@ void main() {
         ),
         'Custom Handle',
       );
+      expect(
+        trainingEquipmentDisplayLabel(
+          TrainingEquipmentSnapshot(name: 'Hammer Strength Lat Pull'),
+        ),
+        'HAMMER STRENGTH ラットプルダウン',
+      );
     },
   );
+
+  test('canonical aliases deduplicate without rewriting snapshots', () {
+    final candidates = TrainingEquipmentCandidates.forExercise(
+      exerciseName: 'LatPulldown',
+      preferredRecords: [
+        _v2Record(
+          id: 'alias-one',
+          exerciseName: 'LatPulldown',
+          equipment: TrainingEquipmentSnapshot(
+            name: 'Hammer Strength Lat Pull',
+          ),
+        ),
+        _v2Record(
+          id: 'alias-two',
+          exerciseName: 'LatPulldown',
+          equipment: TrainingEquipmentSnapshot(
+            name: 'Hammer Strength Lat Pulldown',
+          ),
+        ),
+      ],
+    );
+
+    expect(
+      candidates.values.where(
+        (value) =>
+            trainingEquipmentDisplayLabel(value) == 'HAMMER STRENGTH ラットプルダウン',
+      ),
+      hasLength(1),
+    );
+  });
 
   test('exercise without a selection exposes no global candidates', () {
     final candidates = TrainingEquipmentCandidates.forExercise(
@@ -99,6 +137,40 @@ void main() {
     );
 
     expect(candidates.values, isEmpty);
+  });
+
+  testWidgets('custom candidate uses the standard presentation label', (
+    tester,
+  ) async {
+    final candidates = TrainingEquipmentCandidates.forExercise(
+      exerciseName: 'My Press',
+      preferredRecords: [
+        _v2Record(
+          id: 'custom',
+          exerciseName: 'My Press',
+          equipment: TrainingEquipmentSnapshot(name: 'Custom Handle'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TrainingEquipmentField(
+            fieldKey: 'equipment',
+            value: null,
+            candidates: candidates,
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('equipment')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Custom Handle'), findsOneWidget);
+    expect(find.text('標準'), findsOneWidget);
+    expect(find.text('Saved / custom'), findsNothing);
   });
 }
 

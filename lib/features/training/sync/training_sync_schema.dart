@@ -267,19 +267,14 @@ abstract final class TrainingSyncSchema {
         return TrainingEquipmentSnapshot(name: name);
       }
       final compatibleIds = compatibleEquipmentIds(exerciseName);
-      final matches = builtInEquipment
-          .where(
-            (equipment) =>
-                equipment.displayName == name &&
-                compatibleIds.contains(equipment.id),
-          )
-          .toList(growable: false);
-      if (matches.length != 1) {
+      final canonicalId = canonicalEquipmentId(name: name);
+      final canonical = equipmentById(canonicalId);
+      if (canonical == null || !compatibleIds.contains(canonical.id)) {
         throw const FormatException('Equipment identity is invalid.');
       }
       return TrainingEquipmentSnapshot(
-        catalogId: matches.single.id,
-        name: matches.single.displayName,
+        catalogId: canonical.id,
+        name: canonical.displayName,
       );
     }
     final catalog = equipmentById(id);

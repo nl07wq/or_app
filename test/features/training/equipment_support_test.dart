@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/training_equipment_snapshot.dart';
 import 'package:or_app/core/models/training_exercise.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/features/training/models/equipment.dart';
 import 'package:or_app/features/training/models/training_exercise_controller.dart';
 import 'package:or_app/features/training/services/equipment_catalog.dart';
 import 'package:or_app/features/training/services/exercise_equipment_mapping.dart';
+import 'package:or_app/features/training/services/training_exercise_identity.dart';
 import 'package:or_app/features/training/widgets/equipment_selector.dart';
 
 void main() {
@@ -70,15 +73,19 @@ void main() {
         'power_rack': 'パワーラック',
         'bench_press_rack': 'ベンチプレスラック',
         'smith_machine': 'スミスマシン',
-        'hammer_strength_bench': 'ハンマーストレングス・ベンチ',
+        'hammer_strength_bench': 'HAMMER STRENGTH ベンチ',
+        'hammer_strength_power_rack': 'HAMMER STRENGTH パワーラック',
         'leg_press_45': '45°レッグプレス',
         'horizontal_leg_press': 'ホリゾンタルレッグプレス',
         'plate_loaded_leg_press': 'プレートロード・レッグプレス',
         'linear_leg_press': 'リニアレッグプレス',
         'squat_press': 'スクワットプレス',
+        'nautilus_plate_loaded': 'NAUTILUS プレートロード',
+        'cybex_squat_press': 'CYBEX スクワットプレス',
         'lat_pulldown': 'ラットプルダウン',
-        'technogym_lat_pulldown': 'テクノジム・ラットプルダウン',
-        'life_fitness_lat_pulldown': 'ライフフィットネス・ラットプルダウン',
+        'hammer_strength_lat_pulldown': 'HAMMER STRENGTH ラットプルダウン',
+        'technogym_lat_pulldown': 'TECHNOGYM ラットプルダウン',
+        'life_fitness_lat_pulldown': 'LIFE FITNESS ラットプルダウン',
         'cable_machine': 'ケーブルマシン',
         'cable_station': 'ケーブルステーション',
         'hack_squat_machine': 'ハックスクワットマシン',
@@ -123,21 +130,72 @@ void main() {
 
     expect(
       compatibleEquipment('BenchPress').map((item) => item.displayName),
-      containsAll(['Power Rack', 'Smith Machine', 'Hammer Strength Bench']),
+      containsAll([
+        'Power Rack',
+        'Smith Machine',
+        'Hammer Strength Bench',
+        'Hammer Strength Power Rack',
+      ]),
     );
     expect(
       compatibleEquipment('LegPress').map((item) => item.displayName),
-      containsAll(['45° Leg Press', 'Linear Leg Press', 'Squat Press']),
+      containsAll([
+        '45° Leg Press',
+        'Linear Leg Press',
+        'Squat Press',
+        'Cybex Squat Press',
+      ]),
     );
     expect(
       compatibleEquipment('LatPulldown').map((item) => item.displayName),
       containsAll([
         'Technogym Lat Pulldown',
         'Life Fitness Lat Pulldown',
+        'Hammer Strength Lat Pulldown',
         'Cable Station',
       ]),
     );
     expect(compatibleEquipmentIds('Custom Exercise'), isEmpty);
+  });
+
+  test('canonical aliases share identity without merging distinct racks', () {
+    TrainingExerciseIdentity identity(String equipmentName) =>
+        TrainingExerciseIdentity.v2(
+          TrainingExerciseV2(
+            exerciseName: 'LatPulldown',
+            order: 1,
+            equipment: TrainingEquipmentSnapshot(name: equipmentName),
+          ),
+        );
+
+    expect(
+      identity('Hammer Strength Lat Pull'),
+      identity('Hammer Strength Lat Pulldown'),
+    );
+    expect(
+      identity('Hammer Strength Lat Pull').equipmentKey,
+      'catalog:hammer_strength_lat_pulldown',
+    );
+    expect(
+      canonicalEquipmentIdentityKey(name: 'Hammer Strength Power Rack'),
+      'catalog:hammer_strength_power_rack',
+    );
+    expect(
+      canonicalEquipmentIdentityKey(name: 'Power Rack'),
+      'catalog:power_rack',
+    );
+    expect(
+      canonicalEquipmentIdentityKey(name: 'Bench Press Rack'),
+      'catalog:bench_press_rack',
+    );
+    expect(
+      canonicalEquipmentIdentityKey(name: 'Nautilus Plate Loaded'),
+      'catalog:nautilus_plate_loaded',
+    );
+    expect(
+      canonicalEquipmentIdentityKey(name: 'Cybex Squat Press'),
+      'catalog:cybex_squat_press',
+    );
   });
 
   testWidgets('equipment selector follows the selected exercise', (
@@ -165,7 +223,7 @@ void main() {
     await tester.tap(find.byKey(const Key('equipment-selector')));
     await tester.pumpAndSettle();
     expect(find.text('パワーラック'), findsOneWidget);
-    expect(find.text('ハンマーストレングス・ベンチ'), findsOneWidget);
+    expect(find.text('HAMMER STRENGTH ベンチ'), findsOneWidget);
     expect(find.text('45°レッグプレス'), findsNothing);
     await tester.tap(find.text('スミスマシン'));
     await tester.pumpAndSettle();
@@ -184,6 +242,7 @@ void main() {
     expect(find.text('45°レッグプレス'), findsOneWidget);
     expect(find.text('リニアレッグプレス'), findsOneWidget);
     expect(find.text('スクワットプレス'), findsOneWidget);
+    expect(find.text('CYBEX スクワットプレス'), findsOneWidget);
     expect(find.text('スミスマシン'), findsNothing);
     await tester.tap(find.text('45°レッグプレス'));
     await tester.pumpAndSettle();
@@ -225,7 +284,7 @@ void main() {
     );
 
     expect(find.text('Equipment'), findsOneWidget);
-    expect(find.text('テクノジム・ラットプルダウン'), findsOneWidget);
+    expect(find.text('TECHNOGYM ラットプルダウン'), findsOneWidget);
     expect(controller.value, 'technogym_lat_pulldown');
     expect(tester.takeException(), isNull);
   });

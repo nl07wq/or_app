@@ -86,8 +86,16 @@ void main() {
       expect(find.text('READ ONLY — Training Record v2'), findsOneWidget);
       expect(find.text('Bench Press'), findsOneWidget);
       expect(find.textContaining('v2 memo'), findsWidgets);
-      expect(find.text('Equipment Power Rack'), findsOneWidget);
+      expect(find.text('Equipment パワーラック'), findsOneWidget);
       expect(find.text('Grade A'), findsOneWidget);
+      expect(
+        find.text('Evaluation Existing session evaluation'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Evaluation Existing exercise evaluation'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Main Sets 1'), findsOneWidget);
       expect(
         find.textContaining('Personal Record 82.5 kg x 8'),
@@ -249,6 +257,7 @@ TrainingSessionV2 _v2Session() {
     sessionName: 'Upper',
     sessionGrade: TrainingSessionGrade.a,
     memo: 'v2 memo',
+    overallEvaluation: 'Existing session evaluation',
     exercises: [
       TrainingExerciseV2(
         exerciseName: 'Bench Press',
@@ -257,6 +266,7 @@ TrainingSessionV2 _v2Session() {
           catalogId: 'power_rack',
           name: 'Power Rack',
         ),
+        evaluation: 'Existing exercise evaluation',
         nextTarget: TrainingNextTarget(
           targetWeightKg: 85,
           targetReps: const [8],

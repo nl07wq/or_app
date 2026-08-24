@@ -1,5 +1,6 @@
 import '../../../core/models/training_exercise.dart';
 import '../../../core/models/training_exercise_v2.dart';
+import 'equipment_catalog.dart';
 import 'exercise_name_localization.dart';
 
 class TrainingExerciseIdentity {
@@ -35,15 +36,14 @@ class TrainingExerciseIdentity {
 
   factory TrainingExerciseIdentity.v2(TrainingExerciseV2 exercise) {
     final equipment = exercise.equipment;
-    final catalogId = _normalizeOptional(equipment?.catalogId);
-    final equipmentName = _normalizeOptionalName(equipment?.name);
     return TrainingExerciseIdentity._(
       exerciseKey: exerciseIdentityKey(exercise.exerciseName),
-      equipmentKey: catalogId != null
-          ? 'catalog:$catalogId'
-          : equipmentName != null
-          ? 'name:$equipmentName'
-          : _noEquipment,
+      equipmentKey: equipment == null
+          ? _noEquipment
+          : canonicalEquipmentIdentityKey(
+              catalogId: equipment.catalogId,
+              name: equipment.name,
+            ),
     );
   }
 
@@ -61,14 +61,6 @@ class TrainingExerciseIdentity {
 
   static String? _normalizeOptional(String? value) {
     final normalized = value?.trim().toLowerCase();
-    return normalized == null || normalized.isEmpty ? null : normalized;
-  }
-
-  static String? _normalizeOptionalName(String? value) {
-    final normalized = value?.trim().toLowerCase().replaceAll(
-      RegExp(r'\s+'),
-      ' ',
-    );
     return normalized == null || normalized.isEmpty ? null : normalized;
   }
 }

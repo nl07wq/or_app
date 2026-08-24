@@ -12,6 +12,7 @@ import '../../core/state/app_initialization_state.dart';
 import 'training_detail_page.dart';
 import 'training_entry_page.dart';
 import 'models/training_summary_state.dart';
+import 'services/training_equipment_candidates.dart';
 import 'models/persisted_training_record.dart';
 import 'services/training_v2_statistics_service.dart';
 
@@ -125,7 +126,13 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                     0;
                 final equipmentNames =
                     v2?.exercises
-                        .map((exercise) => exercise.equipment?.name)
+                        .map(
+                          (exercise) => exercise.equipment == null
+                              ? null
+                              : trainingEquipmentDisplayLabel(
+                                  exercise.equipment!,
+                                ),
+                        )
                         .whereType<String>()
                         .toSet()
                         .toList() ??

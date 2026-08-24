@@ -8,11 +8,13 @@ const _equipmentIdsByExercise = <String, List<String>>{
     'bench_press_rack',
     'smith_machine',
     'hammer_strength_bench',
+    'hammer_strength_power_rack',
   ],
   'latpulldown': [
     'technogym_lat_pulldown',
     'life_fitness_lat_pulldown',
     'lat_pulldown',
+    'hammer_strength_lat_pulldown',
     'cable_station',
     'cable_machine',
   ],
@@ -20,6 +22,7 @@ const _equipmentIdsByExercise = <String, List<String>>{
     'leg_press_45',
     'linear_leg_press',
     'squat_press',
+    'cybex_squat_press',
     'horizontal_leg_press',
     'plate_loaded_leg_press',
   ],
@@ -32,6 +35,7 @@ const _equipmentIdsByExercise = <String, List<String>>{
   'inclinebenchpress': [
     'incline_bench_machine',
     'power_rack',
+    'hammer_strength_power_rack',
     'smith_machine',
     'dumbbells',
   ],
@@ -42,7 +46,7 @@ const _equipmentIdsByExercise = <String, List<String>>{
   ],
   'seatedrow': ['seated_row_machine', 'cable_station', 'cable_machine'],
   'dumbbellcurl': ['dumbbells'],
-  'squat': ['power_rack', 'smith_machine'],
+  'squat': ['power_rack', 'hammer_strength_power_rack', 'smith_machine'],
   'legcurl': ['leg_curl_machine'],
   'hacksquat': ['hack_squat_machine'],
 };

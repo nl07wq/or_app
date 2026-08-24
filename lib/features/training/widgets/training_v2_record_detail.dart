@@ -9,6 +9,7 @@ import '../../../core/widgets/section_header.dart';
 import '../models/persisted_training_record.dart';
 import '../models/progression_result.dart';
 import '../services/training_exercise_identity.dart';
+import '../services/training_equipment_candidates.dart';
 import '../services/training_cardio_energy_service.dart';
 import '../services/training_energy_service.dart';
 import '../services/training_v2_personal_record_service.dart';
@@ -136,7 +137,9 @@ class _ExerciseCard extends StatelessWidget {
             exercise.exerciseName,
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          Text('Equipment ${exercise.equipment?.name ?? 'None'}'),
+          Text(
+            'Equipment ${exercise.equipment == null ? 'None' : trainingEquipmentDisplayLabel(exercise.equipment!)}',
+          ),
           for (final set in exercise.sets)
             Text(
               '${set.setType.displayLabel} ${set.setNo}   '
@@ -233,7 +236,7 @@ class _CardioCard extends StatelessWidget {
     Text(
       '${entry.purpose.displayLabel} ${entry.type.name}   '
       '${entry.durationSeconds}s'
-      '${entry.equipment == null ? '' : '   ${entry.equipment!.name}'}',
+      '${entry.equipment == null ? '' : '   ${trainingEquipmentDisplayLabel(entry.equipment!)}'}',
     ),
     Text('METs ${entry.mets == null ? 'Not recorded' : _number(entry.mets!)}'),
     Text(
@@ -251,7 +254,7 @@ class _CardioCard extends StatelessWidget {
     Text(
       '${entry.purpose.displayLabel} ${entry.type.name}   '
       '${entry.durationSeconds}s'
-      '${entry.equipment == null ? '' : '   ${entry.equipment!.name}'}',
+      '${entry.equipment == null ? '' : '   ${trainingEquipmentDisplayLabel(entry.equipment!)}'}',
     ),
     Text('METs ${entry.mets == null ? 'Not recorded' : _number(entry.mets!)}'),
     const Text('Estimated Calories Not calculated'),

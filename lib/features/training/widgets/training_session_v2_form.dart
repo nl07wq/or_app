@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/models/training_session_v2.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -84,20 +83,6 @@ class TrainingSessionV2Form extends StatelessWidget {
             controller: controller.sessionName,
             decoration: const InputDecoration(labelText: 'Session Name'),
             onChanged: (_) => onChanged(),
-          ),
-          AppSpacing.gapSM,
-          DropdownButtonFormField<TrainingSessionGrade?>(
-            initialValue: controller.sessionGrade,
-            decoration: const InputDecoration(labelText: 'Session Grade'),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Not recorded')),
-              for (final grade in TrainingSessionGrade.values)
-                DropdownMenuItem(value: grade, child: Text(grade.displayLabel)),
-            ],
-            onChanged: (value) {
-              controller.sessionGrade = value;
-              onChanged();
-            },
           ),
           AppSpacing.gapSM,
           TextField(

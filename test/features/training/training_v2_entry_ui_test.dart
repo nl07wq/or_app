@@ -34,7 +34,7 @@ void main() {
     await _pump(tester, width: 320);
 
     expect(find.text('Session Name'), findsOneWidget);
-    expect(find.text('Session Grade'), findsOneWidget);
+    expect(find.text('Session Grade'), findsNothing);
     expect(find.text('Session Memo'), findsOneWidget);
     expect(find.text('Dynamic Stretch'), findsOneWidget);
     expect(find.text('Cooldown Stretch'), findsOneWidget);
@@ -415,6 +415,7 @@ void main() {
       updatedAt: DateTime.utc(2026, 7, 30),
       data: TrainingSessionV2(
         date: '2026-07-30T12:00:00',
+        sessionGrade: TrainingSessionGrade.a,
         overallEvaluation: 'Keep session evaluation',
         exercises: [
           TrainingExerciseV2(
@@ -464,6 +465,7 @@ void main() {
     );
     final data = stored!['data'] as Map<String, dynamic>;
     final exercise = (data['exercises'] as List).single as Map<String, dynamic>;
+    expect(data['sessionGrade'], 'a');
     expect(data['overallEvaluation'], 'Keep session evaluation');
     expect(exercise['evaluation'], 'Keep exercise evaluation');
     expect(exercise['nextTarget'], containsPair('targetWeightKg', 82.5));

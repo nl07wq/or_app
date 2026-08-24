@@ -86,7 +86,7 @@ class _EquipmentSheet extends StatelessWidget {
                       leading: const Icon(Icons.fitness_center_outlined),
                       title: Text(trainingEquipmentDisplayLabel(candidate)),
                       subtitle: candidate.catalogId == null
-                          ? const Text('Saved / custom')
+                          ? const Text('標準')
                           : null,
                       onTap: () => Navigator.pop(
                         context,
