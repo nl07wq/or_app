@@ -157,22 +157,31 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
             ),
             if (_preview != null) ...[
               AppSpacing.gapXL,
-              const SectionHeader(
-                icon: Icons.preview_outlined,
-                title: 'TRAINING PLAN',
-              ),
-              AppSpacing.gapMD,
-              for (final exercise in _preview!.plan.exercises) ...[
-                _PlanExerciseCard(exercise: exercise),
-                AppSpacing.gapMD,
-              ],
-              OperationCard(
-                child: OperationButton(
-                  icon: Icons.playlist_add_check_outlined,
-                  text: 'APPLY PLAN',
-                  onPressed: _busy ? null : _apply,
+              if (_preview!.plan.planType == TrainingPlanType.rest) ...[
+                const SectionHeader(
+                  icon: Icons.bedtime_outlined,
+                  title: 'REST PLAN',
                 ),
-              ),
+                AppSpacing.gapMD,
+                _RestPlanCard(preview: _preview!),
+              ] else ...[
+                const SectionHeader(
+                  icon: Icons.preview_outlined,
+                  title: 'TRAINING PLAN',
+                ),
+                AppSpacing.gapMD,
+                for (final exercise in _preview!.plan.exercises) ...[
+                  _PlanExerciseCard(exercise: exercise),
+                  AppSpacing.gapMD,
+                ],
+                OperationCard(
+                  child: OperationButton(
+                    icon: Icons.playlist_add_check_outlined,
+                    text: 'APPLY PLAN',
+                    onPressed: _busy ? null : _apply,
+                  ),
+                ),
+              ],
             ],
             if (_error != null) ...[
               AppSpacing.gapMD,
@@ -219,6 +228,35 @@ class _PlanExerciseCard extends StatelessWidget {
                 '${set.targetMinReps == set.targetMaxReps ? set.targetMinReps : '${set.targetMinReps}–${set.targetMaxReps}'}',
               ),
           ],
+      ],
+    ),
+  );
+}
+
+class _RestPlanCard extends StatelessWidget {
+  const _RestPlanCard({required this.preview});
+
+  final TrainingPlanPreview preview;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'REST / NO TRAINING',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        AppSpacing.gapSM,
+        Text('OPERATION DATE  ${preview.plan.operationDate}'),
+        AppSpacing.gapMD,
+        Text(preview.plan.note!),
+        AppSpacing.gapLG,
+        OperationButton(
+          icon: Icons.arrow_back_outlined,
+          text: 'BACK TO TRAINING',
+          onPressed: () => Navigator.maybePop(context),
+        ),
       ],
     ),
   );

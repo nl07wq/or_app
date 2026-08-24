@@ -115,10 +115,31 @@ class TrainingPlanReportSyncPayloadSchema implements ReportSyncPayloadSchema {
     _nullableText(payload['sourceRecordId'], 'sourceRecordId');
     _digestValue(payload['sourceDigest'], 'sourceDigest');
     final plan = _map(payload['plan'], 'plan');
-    _exact(plan, const {'note', 'exercises'});
-    _nullableText(plan['note'], 'note');
+    final hasPlanType = plan.containsKey('planType');
+    _exact(
+      plan,
+      hasPlanType
+          ? const {'planType', 'note', 'exercises'}
+          : const {'note', 'exercises'},
+    );
+    final planType = hasPlanType
+        ? _text(plan['planType'], 'planType')
+        : 'training';
+    if (planType != 'training' && planType != 'rest') {
+      _fail('planType must be training or rest.');
+    }
+    if (planType == 'rest') {
+      _text(plan['note'], 'note');
+    } else {
+      _nullableText(plan['note'], 'note');
+    }
     final exercises = _list(plan['exercises'], 'exercises');
-    if (exercises.isEmpty) _fail('exercises must not be empty.');
+    if (planType == 'training' && exercises.isEmpty) {
+      _fail('Training Plan exercises must not be empty.');
+    }
+    if (planType == 'rest' && exercises.isNotEmpty) {
+      _fail('Rest Plan exercises must be empty.');
+    }
     final identities = <String>{};
     for (final rawExercise in exercises) {
       final exercise = _map(rawExercise, 'exercise');
@@ -172,6 +193,7 @@ class TrainingPlanReportSyncPayloadSchema implements ReportSyncPayloadSchema {
     'sourceRecordId': null,
     'sourceDigest': _exampleDigest,
     'plan': {
+      'planType': 'training',
       'note': null,
       'exercises': [
         {

@@ -1,14 +1,35 @@
 import '../../../core/models/training_equipment_snapshot.dart';
 import '../../../core/models/training_set_v2.dart';
 
+enum TrainingPlanType {
+  training('training'),
+  rest('rest');
+
+  const TrainingPlanType(this.stableId);
+
+  final String stableId;
+
+  static TrainingPlanType fromStableId(String value) => values.firstWhere(
+    (type) => type.stableId == value,
+    orElse: () => throw const FormatException('Invalid Training Plan type.'),
+  );
+}
+
 class TrainingPlanProposal {
   TrainingPlanProposal({
     required this.operationDate,
+    required this.planType,
     required List<TrainingPlanExercise> exercises,
     this.note,
   }) : exercises = List.unmodifiable(exercises) {
-    if (exercises.isEmpty) {
+    if (planType == TrainingPlanType.training && exercises.isEmpty) {
       throw const FormatException('Training Plan requires exercises.');
+    }
+    if (planType == TrainingPlanType.rest &&
+        (exercises.isNotEmpty || note == null || note!.trim().isEmpty)) {
+      throw const FormatException(
+        'Rest Plan requires a note and no exercises.',
+      );
     }
     final identities = <String>{};
     if (exercises.any((exercise) => !identities.add(exercise.identity))) {
@@ -17,6 +38,7 @@ class TrainingPlanProposal {
   }
 
   final String operationDate;
+  final TrainingPlanType planType;
   final List<TrainingPlanExercise> exercises;
   final String? note;
 }

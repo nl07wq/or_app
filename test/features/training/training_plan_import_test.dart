@@ -6,8 +6,10 @@ import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
+import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/training/models/active_training_draft.dart';
+import 'package:or_app/features/training/models/training_plan_proposal.dart';
 import 'package:or_app/features/training/models/training_v2_form_controller.dart';
 import 'package:or_app/features/training/repository/indexed_db_active_training_draft_repository.dart';
 import 'package:or_app/features/training/services/training_exercise_identity.dart';
@@ -27,6 +29,8 @@ void main() {
 
     expect(preparation.prompt, contains('"exchangeType": "trainingPlan"'));
     expect(preparation.prompt, contains('"sessionSummary": "Latest analysis"'));
+    expect(preparation.prompt, contains('"planType": "training"'));
+    expect(preparation.prompt, contains('"planType": "rest"'));
     for (final day in const [23, 22, 21, 20, 19]) {
       expect(preparation.prompt, contains('2026-08-$day'));
     }
@@ -120,6 +124,120 @@ void main() {
       throwsA(anything),
     );
     expect(await fixture.drafts.findByOperationDate('2026-08-25'), isNull);
+  });
+
+  test(
+    'validates explicit rest and training types with legacy compatibility',
+    () async {
+      final fixture = await _fixture();
+      final preparation = await fixture.service.prepare(
+        targetRecordId: fixture.targetId,
+      );
+
+      final training = await fixture.service.preview(
+        fixture.container.reportSyncCodec.encode(
+          _response(
+            fixture,
+            sourceDigest: preparation.sourceDigest,
+            identity: fixture.identity,
+          ),
+        ),
+      );
+      expect(training.plan.planType, TrainingPlanType.training);
+
+      final legacy = await fixture.service.preview(
+        fixture.container.reportSyncCodec.encode(
+          _response(
+            fixture,
+            sourceDigest: preparation.sourceDigest,
+            identity: fixture.identity,
+            includePlanType: false,
+          ),
+        ),
+      );
+      expect(legacy.plan.planType, TrainingPlanType.training);
+
+      final rest = await fixture.service.preview(
+        fixture.container.reportSyncCodec.encode(
+          _response(
+            fixture,
+            sourceDigest: preparation.sourceDigest,
+            identity: fixture.identity,
+            planType: 'rest',
+            emptyExercises: true,
+            note: '本日は休養を優先する。',
+          ),
+        ),
+      );
+      expect(rest.plan.planType, TrainingPlanType.rest);
+      expect(rest.plan.exercises, isEmpty);
+
+      for (final invalid in [
+        _response(
+          fixture,
+          sourceDigest: preparation.sourceDigest,
+          identity: fixture.identity,
+          emptyExercises: true,
+        ),
+        _response(
+          fixture,
+          sourceDigest: preparation.sourceDigest,
+          identity: fixture.identity,
+          planType: 'rest',
+        ),
+        _response(
+          fixture,
+          sourceDigest: preparation.sourceDigest,
+          identity: fixture.identity,
+          includePlanType: false,
+          emptyExercises: true,
+        ),
+        _response(
+          fixture,
+          sourceDigest: preparation.sourceDigest,
+          identity: fixture.identity,
+          planType: 'rest',
+          emptyExercises: true,
+          note: null,
+        ),
+      ]) {
+        await expectLater(
+          fixture.service.preview(
+            fixture.container.reportSyncCodec.encode(invalid),
+          ),
+          throwsA(isA<ReportSyncException>()),
+        );
+      }
+    },
+  );
+
+  test('rest plan cannot create a draft or formal record', () async {
+    final fixture = await _fixture();
+    final preparation = await fixture.service.prepare(
+      targetRecordId: fixture.targetId,
+    );
+    final before = await fixture.container.training.findAllRecords();
+    final preview = await fixture.service.preview(
+      fixture.container.reportSyncCodec.encode(
+        _response(
+          fixture,
+          sourceDigest: preparation.sourceDigest,
+          identity: fixture.identity,
+          planType: 'rest',
+          emptyExercises: true,
+          note: '本日は休養を優先する。',
+        ),
+      ),
+    );
+
+    await expectLater(fixture.service.apply(preview), throwsA(anything));
+    expect(await fixture.drafts.findByOperationDate('2026-08-25'), isNull);
+    expect(
+      (await fixture.container.training.findAllRecords()).map(
+        (record) => record.id,
+      ),
+      before.map((record) => record.id),
+    );
   });
 
   test('rejects stale plans and preserves an active recording draft', () async {
@@ -230,6 +348,54 @@ void main() {
       },
     );
   }
+
+  for (final width in <double>[320, 390, 900]) {
+    testWidgets('shows REST PLAN without APPLY at ${width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fixture = await _fixture();
+      final preparation = await fixture.service.prepare(
+        targetRecordId: fixture.targetId,
+      );
+      final response = _response(
+        fixture,
+        sourceDigest: preparation.sourceDigest,
+        identity: fixture.identity,
+        planType: 'rest',
+        emptyExercises: true,
+        note: '本日は休養を優先する。',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrainingPlanImportPage(
+            sourceRecordId: fixture.targetId,
+            service: fixture.service,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField),
+        fixture.container.reportSyncCodec.encode(response),
+      );
+      await tester.tap(find.text('VALIDATE'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('REST PLAN'), findsOneWidget);
+      expect(find.text('REST / NO TRAINING'), findsOneWidget);
+      expect(find.text('本日は休養を優先する。'), findsOneWidget);
+      expect(find.text('OPERATION DATE  2026-08-25'), findsWidgets);
+      expect(find.text('BACK TO TRAINING'), findsOneWidget);
+      expect(find.text('APPLY PLAN'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 Future<_Fixture> _fixture() async {
@@ -324,6 +490,10 @@ ReportSyncEnvelope _response(
   required String identity,
   int minimum = 8,
   int maximum = 10,
+  String planType = 'training',
+  bool includePlanType = true,
+  bool emptyExercises = false,
+  String? note = 'Plan note',
 }) => fixture.container.reportSyncCodec.create(
   direction: ReportSyncDirection.response,
   exchangeType: ReportSyncExchangeType.trainingPlan,
@@ -337,33 +507,36 @@ ReportSyncEnvelope _response(
     'sourceRecordId': fixture.targetId,
     'sourceDigest': sourceDigest,
     'plan': {
-      'note': 'Plan note',
-      'exercises': [
-        {
-          'exerciseIdentity': identity,
-          'exerciseName': identity == fixture.identity
-              ? 'Bench Press'
-              : 'Unknown Exercise',
-          'sets': [
-            {
-              'order': 1,
-              'setType': 'warmUp',
-              'plannedWeightKg': 20,
-              'targetMinReps': 8,
-              'targetMaxReps': 8,
-              'restAfterSeconds': 60,
-            },
-            {
-              'order': 2,
-              'setType': 'main',
-              'plannedWeightKg': 70,
-              'targetMinReps': minimum,
-              'targetMaxReps': maximum,
-              'restAfterSeconds': 90,
-            },
-          ],
-        },
-      ],
+      if (includePlanType) 'planType': planType,
+      'note': note,
+      'exercises': emptyExercises
+          ? <Object?>[]
+          : [
+              {
+                'exerciseIdentity': identity,
+                'exerciseName': identity == fixture.identity
+                    ? 'Bench Press'
+                    : 'Unknown Exercise',
+                'sets': [
+                  {
+                    'order': 1,
+                    'setType': 'warmUp',
+                    'plannedWeightKg': 20,
+                    'targetMinReps': 8,
+                    'targetMaxReps': 8,
+                    'restAfterSeconds': 60,
+                  },
+                  {
+                    'order': 2,
+                    'setType': 'main',
+                    'plannedWeightKg': 70,
+                    'targetMinReps': minimum,
+                    'targetMaxReps': maximum,
+                    'restAfterSeconds': 90,
+                  },
+                ],
+              },
+            ],
     },
   },
 );

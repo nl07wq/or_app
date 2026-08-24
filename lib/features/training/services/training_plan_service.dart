@@ -133,6 +133,9 @@ class TrainingPlanService {
       await _container.training.findAllRecords(),
     );
     final rawPlan = Map<String, Object?>.from(response.payload['plan'] as Map);
+    final planType = rawPlan['planType'] == null
+        ? TrainingPlanType.training
+        : TrainingPlanType.fromStableId(rawPlan['planType']! as String);
     final exercises = <TrainingPlanExercise>[];
     for (final rawExercise in rawPlan['exercises'] as List) {
       final value = Map<String, Object?>.from(rawExercise as Map);
@@ -172,6 +175,7 @@ class TrainingPlanService {
       sourceDigest: currentDigest,
       plan: TrainingPlanProposal(
         operationDate: response.operationDate,
+        planType: planType,
         exercises: exercises,
         note: rawPlan['note'] as String?,
       ),
@@ -179,6 +183,12 @@ class TrainingPlanService {
   }
 
   Future<ActiveTrainingDraft> apply(TrainingPlanPreview preview) async {
+    if (preview.plan.planType == TrainingPlanType.rest) {
+      throw const ReportSyncException(
+        ReportSyncIssueCode.integrityFailure,
+        'REST PLAN cannot create an Active Training Draft.',
+      );
+    }
     final sourceRecordId =
         preview.response.payload['sourceRecordId'] as String?;
     final currentFacts = await _factPackage(targetRecordId: sourceRecordId);
@@ -408,6 +418,7 @@ class TrainingPlanService {
         'sourceRecordId': request.payload['sourceRecordId'],
         'sourceDigest': sourceDigest,
         'plan': {
+          'planType': 'training',
           'note': '<concise Japanese note or null>',
           'exercises': [
             {
@@ -434,6 +445,9 @@ Create the next Operation Reboot TRAINING PLAN from the exact fact package.
 
 RESPONSIBILITY
 Operation Reboot owns all Formal Training facts and comparisons. Return a proposal only. Do not modify facts, invent history, create an exercise identity, or create a Formal Training Record. Use only an exact exerciseIdentity and exerciseName from availableExercises. Preserve warmUp/main meaning. targetMinReps is the minimum and targetMaxReps is the upper target.
+
+PLAN TYPE CONTRACT
+If Training is appropriate, return "planType": "training" with one or more exercises. If Training is not appropriate and rest should be prioritized, return "planType": "rest", an empty exercises array, and a non-empty Japanese note explaining the reason. Never use an empty exercise array for planType training. Do not infer or alter Formal Facts when choosing the plan type.
 
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Use schemaVersion "2.0", direction "response", exchangeType "trainingPlan", operationDate "$operationDate", and sourceDigest "$sourceDigest" exactly. Set packageDigest to null. Create a unique exchangeId and UTC createdAt. Do not add, remove, or rename fields.
