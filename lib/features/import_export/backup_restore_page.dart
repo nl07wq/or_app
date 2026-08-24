@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_initialization_state.dart';
+import '../../core/services/persistence_access.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
@@ -33,7 +34,14 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     _fileGateway = BackupFileGateway.platform();
   }
 
-  bool get _available =>
+  bool get _exportAvailable =>
+      kIsWeb &&
+      (appInitializationController.value.mode ==
+              PersistenceMode.indexedDbReadWrite ||
+          (appInitializationController.value.isReadOnly &&
+              PersistenceAccess.canReadIndexedDb));
+
+  bool get _importAvailable =>
       kIsWeb &&
       appInitializationController.value.mode ==
           PersistenceMode.indexedDbReadWrite;
@@ -191,13 +199,13 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           OperationButton(
             icon: Icons.download_outlined,
             text: 'EXPORT BACKUP',
-            onPressed: _available && !_busy ? _export : null,
+            onPressed: _exportAvailable && !_busy ? _export : null,
           ),
           AppSpacing.gapMD,
           OperationButton(
             icon: Icons.upload_file_outlined,
             text: 'IMPORT BACKUP',
-            onPressed: _available && !_busy ? _selectImport : null,
+            onPressed: _importAvailable && !_busy ? _selectImport : null,
           ),
           if (!kIsWeb) ...[
             AppSpacing.gapMD,

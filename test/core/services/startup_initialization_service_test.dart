@@ -17,6 +17,7 @@ import 'package:or_app/core/repositories/food_repository.dart';
 import 'package:or_app/core/repositories/morning_repository.dart';
 import 'package:or_app/core/repositories/training_repository.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
+import 'package:or_app/core/services/persistence_access.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/startup_gate.dart';
 import 'package:or_app/data/indexed_db/indexed_db_migration_metadata.dart';
@@ -27,6 +28,7 @@ import 'package:or_app/features/repositories/repository_exception.dart';
 import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/operation_date/services/operation_date_service.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_state.dart';
 import 'package:or_app/features/status/migration/status_migration_service.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
@@ -132,6 +134,64 @@ void main() {
       );
       await TrainingRepository.deleteById(second.id);
       expect(await TrainingRepository.getRecords(), hasLength(1));
+    },
+  );
+
+  test(
+    'web startup failure opens verified canonical data read-only and retries',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      await StartupInitializationService(
+        controller: AppInitializationController(),
+        openDatabase: () async => database,
+        restore: () async {},
+        isWeb: true,
+      ).initialize();
+      await MorningRepository.save(_morning());
+      await FoodRepository.save(_meal());
+      await const LocalActivityRepository().save(_activity());
+      await TrainingRepository.saveNewV2(_trainingV2('canonical recovery'));
+      final statusBefore = await database.findAll(
+        IndexedDbStoreNames.statusRecords,
+      );
+
+      AppRepositoryRegistry.resetForTesting();
+      final controller = AppInitializationController();
+      var restoreCalls = 0;
+      final service = StartupInitializationService(
+        controller: controller,
+        openDatabase: () async => database,
+        restore: () async {
+          restoreCalls++;
+          if (restoreCalls == 1) throw StateError('daily restore failed');
+        },
+        isWeb: true,
+      );
+
+      await service.initialize();
+      expect(controller.value.mode, PersistenceMode.failed);
+      expect(AppRepositoryRegistry.hasContainer, isFalse);
+
+      await service.openReadOnly();
+
+      expect(controller.value.mode, PersistenceMode.legacyReadOnly);
+      expect(AppRepositoryRegistry.hasContainer, isTrue);
+      expect(PersistenceAccess.canReadIndexedDb, isTrue);
+      expect(PersistenceAccess.canWriteIndexedDb, isFalse);
+      expect((await const OperationDateService().current()).value, isNotEmpty);
+      expect((await MorningRepository.getAll()).single.weight, 70);
+      expect(await FoodRepository.getAll(), hasLength(1));
+      expect(await const LocalActivityRepository().getAll(), hasLength(1));
+      expect(await TrainingRepository.getReadModels(), hasLength(1));
+      await expectLater(MorningRepository.save(_morning()), throwsA(anything));
+      expect(
+        await database.findAll(IndexedDbStoreNames.statusRecords),
+        statusBefore,
+      );
+
+      await service.retry();
+      expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
+      expect(restoreCalls, 3);
     },
   );
 
@@ -933,18 +993,24 @@ void main() {
       restore: () async {},
       isWeb: false,
     );
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StartupGate(
-          service: service,
-          child: const Text('DASHBOARD CONTENT'),
+    for (final width in [320.0, 390.0, 900.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StartupGate(
+            service: service,
+            child: const Text('DASHBOARD CONTENT'),
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.textContaining('READ ONLY'), findsOneWidget);
-    expect(find.text('DASHBOARD CONTENT'), findsOneWidget);
+      expect(find.textContaining('READ ONLY'), findsOneWidget);
+      expect(find.textContaining('RECOVERY MODE'), findsOneWidget);
+      expect(find.text('DASHBOARD CONTENT'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'width=$width');
+    }
   });
 }
 

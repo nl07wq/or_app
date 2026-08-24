@@ -11,7 +11,14 @@ abstract final class PersistenceAccess {
       (AppRepositoryRegistry.controller.value.mode ==
               PersistenceMode.indexedDbReadWrite ||
           AppRepositoryRegistry.controller.value.mode ==
-              PersistenceMode.initializing);
+              PersistenceMode.initializing ||
+          AppRepositoryRegistry.controller.value.mode ==
+              PersistenceMode.legacyReadOnly);
+
+  static bool get canWriteIndexedDb =>
+      AppRepositoryRegistry.hasContainer &&
+      AppRepositoryRegistry.controller.value.mode ==
+          PersistenceMode.indexedDbReadWrite;
 
   static void requireWrite(String operation) {
     if (usesCompatibilityStorage) return;

@@ -11,6 +11,7 @@ import '../../features/daily_log_confirmation/migration/daily_log_confirmation_m
 import '../../features/food/migration/food_legacy_reader.dart';
 import '../../features/food/migration/food_migration_service.dart';
 import '../../features/operation_date/services/operation_state_bootstrap_service.dart';
+import '../../features/operation_date/services/operation_date_service.dart';
 import '../../features/operation_date/models/operation_state.dart';
 import '../../features/operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../features/operation_date/services/daily_finalize_recovery_service.dart';
@@ -42,6 +43,7 @@ class StartupInitializationService {
 
   Future<void>? _inFlight;
   String? _failedMigrationId;
+  AppRepositoryContainer? _canonicalReadOnlyContainer;
 
   StartupInitializationService({
     AppInitializationController? controller,
@@ -68,6 +70,37 @@ class StartupInitializationService {
   }
 
   Future<void> retry() => initialize();
+
+  Future<void> openReadOnly() async {
+    if (!_isWeb) {
+      await openLegacyReadOnly();
+      return;
+    }
+
+    final container = _canonicalReadOnlyContainer;
+    if (container == null) {
+      controller.markFailed(
+        errorCode: RepositoryErrorCode.verificationFailed.name,
+        errorMessage: 'Canonical data is not available for read-only access.',
+      );
+      return;
+    }
+
+    AppRepositoryRegistry.install(container);
+    controller.markLegacyReadOnly(
+      message: 'Canonical data is available in read-only recovery mode.',
+    );
+    try {
+      await OperationDateService(container.operationState).current();
+      await _restore();
+    } catch (_) {
+      AppRepositoryRegistry.clear();
+      controller.markFailed(
+        errorCode: RepositoryErrorCode.verificationFailed.name,
+        errorMessage: 'Canonical data could not be opened in read-only mode.',
+      );
+    }
+  }
 
   Future<void> openLegacyReadOnly() async {
     AppRepositoryRegistry.clear();
@@ -116,6 +149,7 @@ class StartupInitializationService {
   Future<void> _initialize() async {
     AppRepositoryRegistry.beginStartup(controller: controller);
     _failedMigrationId = null;
+    _canonicalReadOnlyContainer = null;
     controller.updateStage(InitializationStage.openingDatabase);
 
     if (!_isWeb) {
@@ -198,6 +232,7 @@ class StartupInitializationService {
         container.operationState,
         container.confirmation,
       ).bootstrap();
+      _canonicalReadOnlyContainer = container;
       AppRepositoryRegistry.install(container);
 
       controller.updateStage(InitializationStage.restoringDailyState);

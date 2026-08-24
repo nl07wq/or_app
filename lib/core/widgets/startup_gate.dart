@@ -20,7 +20,7 @@ class StartupGate extends StatelessWidget {
           PersistenceMode.failed => _FailedView(
             state: state,
             onRetry: service.retry,
-            onReadOnly: service.openLegacyReadOnly,
+            onReadOnly: service.openReadOnly,
           ),
           PersistenceMode.legacyReadOnly => _ReadOnlyShell(
             state: state,
@@ -195,7 +195,7 @@ class _ReadOnlyShell extends StatelessWidget {
                 ),
                 child: Text(
                   [
-                    'READ ONLY — この端末では閲覧のみ利用できます。',
+                    'READ ONLY\nRECOVERY MODE',
                     if (state.errorMessage != null) state.errorMessage!,
                   ].join('\n'),
                   textAlign: TextAlign.center,

@@ -2,14 +2,17 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/services/persistence_access.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_file_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway_stub.dart';
+import 'package:or_app/features/import_export/services/backup_import_service.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -35,6 +38,8 @@ void main() {
       state.toRecord(),
     );
   });
+
+  tearDown(AppRepositoryRegistry.resetForTesting);
 
   test('exports Schema 11 UTF-8 JSON with the fixed file name', () async {
     final result = await _service(
@@ -87,6 +92,43 @@ void main() {
       throwsStateError,
     );
     expect(database.transactionCount, 1);
+  });
+
+  test('canonical read-only allows export and rejects import', () async {
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    controller.markLegacyReadOnly(
+      message: 'Canonical data is available in read-only recovery mode.',
+    );
+    final operationStateBefore = await database.findById(
+      IndexedDbStoreNames.operationState,
+      OperationState.canonicalId,
+    );
+
+    final result = await _service(
+      database: database,
+      controller: controller,
+      gateway: gateway,
+    ).export();
+
+    expect(result.delivery, BackupFileDelivery.shared);
+    expect(PersistenceAccess.canReadIndexedDb, isTrue);
+    expect(PersistenceAccess.canWriteIndexedDb, isFalse);
+    expect(
+      () => BackupImportService(
+        database: database,
+        controller: controller,
+        restore: () async {},
+      ).dryRun(result.package, BackupImportMode.merge),
+      throwsA(isA<BackupException>()),
+    );
+    expect(
+      await database.findById(
+        IndexedDbStoreNames.operationState,
+        OperationState.canonicalId,
+      ),
+      operationStateBefore,
+    );
   });
 
   test(

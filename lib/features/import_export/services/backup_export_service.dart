@@ -29,10 +29,11 @@ class BackupExportService {
        _clock = clock ?? DateTime.now;
 
   Future<BackupPackage> create({String? appVersion, String? origin}) async {
-    if (_controller.value.mode != PersistenceMode.indexedDbReadWrite) {
+    if (_controller.value.mode != PersistenceMode.indexedDbReadWrite &&
+        _controller.value.mode != PersistenceMode.legacyReadOnly) {
       throw const BackupException(
         'export_unavailable',
-        'Backup export requires IndexedDB read/write mode.',
+        'Backup export requires readable IndexedDB data.',
       );
     }
     final data = await _database.runTransaction(
