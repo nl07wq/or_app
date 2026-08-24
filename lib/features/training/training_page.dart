@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
@@ -89,18 +90,15 @@ class TrainingPage extends StatelessWidget {
             AppSpacing.gapMD,
 
             OperationCard(
-              selectable: true,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TrainingAnalysisPage()),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.analytics_outlined),
-                  SizedBox(width: AppSpacing.md),
-                  Expanded(child: Text('TRAINING ANALYSIS REPORT')),
-                  Icon(Icons.chevron_right),
-                ],
+              child: OperationButton(
+                icon: Icons.analytics_outlined,
+                text: 'TRAINING ANALYSIS REPORT',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TrainingAnalysisPage(),
+                  ),
+                ),
               ),
             ),
           ],

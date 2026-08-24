@@ -36,7 +36,12 @@ class OperationButton extends StatelessWidget {
               Icon(icon, size: 20),
               SizedBox(width: AppSpacing.sm),
             ],
-            Text(text, style: AppTextStyles.label),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(text, style: AppTextStyles.label),
+              ),
+            ),
           ],
         ),
       ),

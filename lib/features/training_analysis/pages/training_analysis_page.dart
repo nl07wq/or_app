@@ -140,7 +140,11 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TRAINING ANALYSIS REPORT'),
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('TRAINING ANALYSIS REPORT'),
+        ),
         actions: [
           if (_targetRecordId != null && widget.targetRecordId == null)
             IconButton(
@@ -193,6 +197,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
       padding: AppSpacing.cardPadding,
       children: [
         OperationCard(
+          key: const ValueKey('training-analysis-action-card'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -270,6 +275,10 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
             ],
           ),
         ),
+        if (_report?.previousRevisions.isNotEmpty == true) ...[
+          AppSpacing.gapMD,
+          _PreviousRevisionsCard(report: _report!),
+        ],
       ],
     );
   }
@@ -330,86 +339,90 @@ class _ReportView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _ReportSectionTitle(
+          key: ValueKey('training-analysis-summary-section'),
+          icon: Icons.summarize_outlined,
+          title: 'SUMMARY',
+        ),
+        AppSpacing.gapMD,
         _AnalysisCard(
+          key: const ValueKey('training-analysis-session-summary'),
+          icon: Icons.article_outlined,
           title: 'SESSION SUMMARY',
           text: report.analysis.sessionSummary,
         ),
         AppSpacing.gapMD,
         _AnalysisCard(
+          key: const ValueKey('training-analysis-performance'),
+          icon: Icons.analytics_outlined,
           title: 'PERFORMANCE',
           text: report.analysis.performanceAnalysis,
         ),
         AppSpacing.gapMD,
         _AnalysisCard(
-          title: 'PREVIOUS COMPARISON',
+          key: const ValueKey('training-analysis-previous-session'),
+          icon: Icons.history_outlined,
+          title: 'PREVIOUS SESSION',
           text: report.analysis.previousComparison,
         ),
         AppSpacing.gapMD,
         _AnalysisCard(
+          key: const ValueKey('training-analysis-progress'),
+          icon: Icons.trending_up_outlined,
           title: 'PROGRESS',
           text: report.analysis.progressAnalysis,
         ),
+        AppSpacing.gapXL,
+        const _ReportSectionTitle(
+          key: ValueKey('training-analysis-exercise-section'),
+          icon: Icons.fitness_center,
+          title: 'EXERCISE BREAKDOWN',
+        ),
         for (final exercise in report.analysis.exerciseAnalyses) ...[
           AppSpacing.gapMD,
-          OperationCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SectionHeader(
-                  icon: Icons.fitness_center,
-                  title: exercise.exerciseName.toUpperCase(),
-                ),
-                AppSpacing.gapMD,
-                _LabelText(label: 'ASSESSMENT', text: exercise.assessment),
-                _LabelText(
-                  label: 'PREVIOUS',
-                  text: exercise.previousComparison,
-                ),
-                _LabelText(label: 'PROGRESS', text: exercise.progress),
-                _LabelText(label: 'NEXT', text: exercise.nextProposal),
-              ],
-            ),
-          ),
+          _ExerciseAnalysisCard(exercise: exercise),
         ],
-        AppSpacing.gapMD,
-        _AnalysisCard(
-          title: 'RECOVERY / FREQUENCY',
-          text: report.analysis.recoveryFrequencyComment,
+        AppSpacing.gapXL,
+        const _ReportSectionTitle(
+          key: ValueKey('training-analysis-next-actions-section'),
+          icon: Icons.next_plan_outlined,
+          title: 'NEXT ACTIONS',
         ),
         AppSpacing.gapMD,
         _AnalysisCard(
+          key: const ValueKey('training-analysis-next-session'),
+          icon: Icons.event_available_outlined,
           title: 'NEXT SESSION',
           text: report.analysis.nextSessionProposal,
         ),
         AppSpacing.gapMD,
         _AnalysisCard(
+          key: const ValueKey('training-analysis-recovery'),
+          icon: Icons.bedtime_outlined,
+          title: 'RECOVERY / FREQUENCY',
+          text: report.analysis.recoveryFrequencyComment,
+        ),
+        AppSpacing.gapMD,
+        _AnalysisCard(
+          key: const ValueKey('training-analysis-risk'),
+          icon: Icons.health_and_safety_outlined,
           title: 'RISK / ATTENTION',
           text: report.analysis.riskAttentionNotes,
         ),
-        if (report.previousRevisions.isNotEmpty) ...[
-          AppSpacing.gapMD,
-          OperationCard(
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text('PREVIOUS REVISIONS'),
-              children: [
-                for (final revision in report.previousRevisions)
-                  ListTile(
-                    title: Text('REV ${revision.revision}'),
-                    subtitle: Text(revision.analysis.sessionSummary),
-                  ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
 }
 
 class _AnalysisCard extends StatelessWidget {
-  const _AnalysisCard({required this.title, required this.text});
+  const _AnalysisCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
 
+  final IconData icon;
   final String title;
   final String text;
 
@@ -418,29 +431,148 @@ class _AnalysisCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
-        AppSpacing.gapSM,
-        Text(text),
+        _CardTitle(icon: icon, title: title),
+        AppSpacing.gapMD,
+        _ReadableAnalysisText(text),
       ],
     ),
   );
 }
 
-class _LabelText extends StatelessWidget {
-  const _LabelText({required this.label, required this.text});
+class _ExerciseAnalysisCard extends StatelessWidget {
+  const _ExerciseAnalysisCard({required this.exercise});
 
-  final String label;
-  final String text;
+  final TrainingExerciseAnalysis exercise;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+  Widget build(BuildContext context) => OperationCard(
+    key: ValueKey('training-analysis-exercise-${exercise.exerciseIdentity}'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        _CardTitle(
+          icon: Icons.fitness_center,
+          title: exercise.exerciseName.toUpperCase(),
+          prominent: true,
+        ),
+        AppSpacing.gapLG,
+        _LabelText(label: 'CURRENT / ASSESSMENT', text: exercise.assessment),
+        _LabelText(label: 'VS PREVIOUS', text: exercise.previousComparison),
+        _LabelText(label: 'ANALYSIS / PROGRESS', text: exercise.progress),
+        _LabelText(label: 'NEXT', text: exercise.nextProposal, isLast: true),
+      ],
+    ),
+  );
+}
+
+class _ReportSectionTitle extends StatelessWidget {
+  const _ReportSectionTitle({
+    super.key,
+    required this.icon,
+    required this.title,
+  });
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => SectionHeader(icon: icon, title: title);
+}
+
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({
+    required this.icon,
+    required this.title,
+    this.prominent = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool prominent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: prominent ? 24 : 20, color: colors.primary),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            title,
+            style:
+                (prominent
+                        ? Theme.of(context).textTheme.titleLarge
+                        : Theme.of(context).textTheme.titleMedium)
+                    ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.7),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReadableAnalysisText extends StatelessWidget {
+  const _ReadableAnalysisText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
+  );
+}
+
+class _LabelText extends StatelessWidget {
+  const _LabelText({
+    required this.label,
+    required this.text,
+    this.isLast = false,
+  });
+
+  final String label;
+  final String text;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.lg),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          ),
+        ),
         AppSpacing.gapSM,
-        Text(text),
+        _ReadableAnalysisText(text),
+      ],
+    ),
+  );
+}
+
+class _PreviousRevisionsCard extends StatelessWidget {
+  const _PreviousRevisionsCard({required this.report});
+
+  final TrainingAnalysisReport report;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    key: const ValueKey('training-analysis-previous-revisions'),
+    child: ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: const Text('PREVIOUS REVISIONS'),
+      children: [
+        for (final revision in report.previousRevisions)
+          ListTile(
+            title: Text('REV ${revision.revision}'),
+            subtitle: Text(revision.analysis.sessionSummary),
+          ),
       ],
     ),
   );
