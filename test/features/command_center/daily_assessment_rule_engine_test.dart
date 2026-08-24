@@ -221,6 +221,61 @@ void main() {
       'NOT AVAILABLE',
     );
   });
+
+  test('applies Training Readiness v1 interval and frequency thresholds', () {
+    for (final value in const [
+      (23, DailyAssessmentLevel.adjust),
+      (24, DailyAssessmentLevel.watch),
+      (35, DailyAssessmentLevel.watch),
+      (36, DailyAssessmentLevel.stable),
+      (71, DailyAssessmentLevel.stable),
+      (72, DailyAssessmentLevel.support),
+    ]) {
+      expect(
+        _item(
+          engine,
+          training: _training(hours: value.$1),
+        ).call(DailyAssessmentMetric.trainingReadiness).level,
+        value.$2,
+      );
+    }
+
+    expect(
+      _item(
+        engine,
+        training: _training(hours: 72, last7Days: 4),
+      ).call(DailyAssessmentMetric.trainingReadiness).level,
+      DailyAssessmentLevel.stable,
+    );
+    expect(
+      _item(
+        engine,
+        training: _training(hours: 36, last7Days: 5),
+      ).call(DailyAssessmentMetric.trainingReadiness).level,
+      DailyAssessmentLevel.adjust,
+    );
+    expect(
+      _item(
+        engine,
+        training: _training(hours: 72, consecutiveDays: 3),
+      ).call(DailyAssessmentMetric.trainingReadiness).level,
+      DailyAssessmentLevel.stable,
+    );
+    expect(
+      _item(
+        engine,
+        training: _training(hours: 72, last7Days: 5, consecutiveDays: 3),
+      ).call(DailyAssessmentMetric.trainingReadiness).level,
+      DailyAssessmentLevel.watch,
+    );
+    expect(
+      _item(
+        engine,
+        training: _training(days: 2),
+      ).call(DailyAssessmentMetric.trainingReadiness).level,
+      DailyAssessmentLevel.stable,
+    );
+  });
 }
 
 DailyAssessmentItem Function(DailyAssessmentMetric) _item(
@@ -228,9 +283,15 @@ DailyAssessmentItem Function(DailyAssessmentMetric) _item(
   MorningData? status,
   DailyAggregateV1? aggregate,
   List<BodyHistoryDataPoint> weights = const [],
+  TrainingReadinessFacts? training,
 }) {
   final result = engine.evaluate(
-    _facts(status: status, aggregate: aggregate, weights: weights),
+    _facts(
+      status: status,
+      aggregate: aggregate,
+      weights: weights,
+      training: training,
+    ),
   );
   return (metric) => _find(result, metric);
 }
@@ -244,11 +305,28 @@ DailyAssessmentFacts _facts({
   MorningData? status,
   DailyAggregateV1? aggregate,
   List<BodyHistoryDataPoint> weights = const [],
+  TrainingReadinessFacts? training,
 }) => DailyAssessmentFacts(
   operationDate: '2026-08-10',
   currentStatus: status,
   previousFinalizedAggregate: aggregate,
   weightHistory: weights,
+  trainingReadiness: training,
+);
+
+TrainingReadinessFacts _training({
+  int? hours,
+  int? days,
+  int last7Days = 1,
+  int consecutiveDays = 1,
+}) => TrainingReadinessFacts(
+  lastTraining: hours != null
+      ? TrainingReadinessIntervalFact.hours(hours)
+      : TrainingReadinessIntervalFact.calendarDays(days!),
+  last7DaysSessionCount: last7Days,
+  currentWeekSessionCount: last7Days,
+  consecutiveTrainingDays: consecutiveDays,
+  recentIntervals: const [],
 );
 
 MorningData _status({

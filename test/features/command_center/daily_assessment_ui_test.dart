@@ -66,7 +66,7 @@ void main() {
   testWidgets('shows structured assessment, levels, and neutral unavailable', (
     tester,
   ) async {
-    for (final width in [390.0, 900.0]) {
+    for (final width in [320.0, 390.0, 900.0]) {
       tester.view.physicalSize = Size(width, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -110,10 +110,19 @@ void main() {
       expect(find.text('前日のカロリー赤字が過大です。'), findsOneWidget);
       expect(find.text('水分摂取量は目標を達成しています。'), findsOneWidget);
       expect(find.text('前日の歩行負荷は高い状態です。'), findsOneWidget);
-      expect(find.text('現在の記録ではトレーニング間隔を評価できません。'), findsOneWidget);
+      expect(find.text('LAST TRAINING'), findsOneWidget);
+      expect(find.text('41h ago'), findsOneWidget);
+      expect(find.text('LAST 7 DAYS'), findsOneWidget);
+      expect(find.text('3 sessions'), findsWidgets);
+      expect(find.text('THIS WEEK'), findsOneWidget);
+      expect(find.text('RECENT INTERVALS'), findsOneWidget);
+      expect(find.text('48h / 72h'), findsOneWidget);
+      expect(find.text('CONSECUTIVE DAYS'), findsOneWidget);
+      expect(find.text('YES · 2 days'), findsOneWidget);
+      expect(find.text('トレーニング間隔は標準範囲です。'), findsOneWidget);
       expect(find.text('順調な減量ペース'), findsNothing);
       expect(find.text('評価不可'), findsNothing);
-      expect(find.text('—'), findsOneWidget);
+      expect(find.text('—'), findsNothing);
       expect(tester.takeException(), isNull);
     }
   });
@@ -171,12 +180,21 @@ DailyAssessment _assessment() => DailyAssessment(
       specificAssessment: 'HIGH LOAD',
       level: DailyAssessmentLevel.watch,
     ),
-    const DailyAssessmentItem(
+    DailyAssessmentItem(
       module: DailyAssessmentModule.training,
       metric: DailyAssessmentMetric.trainingReadiness,
-      rawValue: null,
-      specificAssessment: 'NOT AVAILABLE',
-      level: null,
+      rawValue: TrainingReadinessFacts(
+        lastTraining: TrainingReadinessIntervalFact.hours(41),
+        last7DaysSessionCount: 3,
+        currentWeekSessionCount: 3,
+        consecutiveTrainingDays: 2,
+        recentIntervals: [
+          TrainingReadinessIntervalFact.hours(48),
+          TrainingReadinessIntervalFact.hours(72),
+        ],
+      ),
+      specificAssessment: 'STANDARD INTERVAL',
+      level: DailyAssessmentLevel.stable,
     ),
   ],
   primaryConstraints: const ['PLANTAR FASCIITIS'],

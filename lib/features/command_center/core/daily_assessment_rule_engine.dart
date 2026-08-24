@@ -17,10 +17,7 @@ class DailyAssessmentRuleEngine {
     final protein = _protein(previous?.proteinG);
     final hydration = _hydration(previous?.hydrationMl);
     final steps = _steps(previous?.officialSteps);
-    final training = _notAvailable(
-      DailyAssessmentModule.training,
-      DailyAssessmentMetric.trainingReadiness,
-    );
+    final training = _training(facts.trainingReadiness);
     final assessments = [
       weight,
       sleepTime,
@@ -576,6 +573,58 @@ class DailyAssessmentRuleEngine {
     specificAssessment: assessment,
     level: level,
   );
+
+  DailyAssessmentItem _training(TrainingReadinessFacts? facts) {
+    if (facts == null) {
+      return _notAvailable(
+        DailyAssessmentModule.training,
+        DailyAssessmentMetric.trainingReadiness,
+      );
+    }
+    final hours = facts.lastTraining.thresholdHours;
+    final base = hours < 24
+        ? DailyAssessmentLevel.adjust
+        : hours < 36
+        ? DailyAssessmentLevel.watch
+        : hours < 72
+        ? DailyAssessmentLevel.stable
+        : DailyAssessmentLevel.support;
+    final sessionShift = facts.last7DaysSessionCount >= 5
+        ? 2
+        : facts.last7DaysSessionCount == 4
+        ? 1
+        : 0;
+    final consecutiveShift = facts.consecutiveTrainingDays >= 3 ? 1 : 0;
+    final shift = sessionShift > consecutiveShift
+        ? sessionShift
+        : consecutiveShift;
+    final adjustedIndex = (base.index + shift).clamp(
+      DailyAssessmentLevel.support.index,
+      DailyAssessmentLevel.adjust.index,
+    );
+    final level = DailyAssessmentLevel.values[adjustedIndex];
+    final assessment = shift > 0
+        ? switch (level) {
+            DailyAssessmentLevel.stable => 'FREQUENCY MODERATED',
+            DailyAssessmentLevel.watch => 'FREQUENCY WATCH',
+            DailyAssessmentLevel.adjust => 'FREQUENCY ADJUSTMENT',
+            _ => 'SUFFICIENT INTERVAL',
+          }
+        : switch (level) {
+            DailyAssessmentLevel.support => 'SUFFICIENT INTERVAL',
+            DailyAssessmentLevel.stable => 'STANDARD INTERVAL',
+            DailyAssessmentLevel.watch => 'SHORT INTERVAL WATCH',
+            DailyAssessmentLevel.adjust => 'LOAD ADJUSTMENT',
+            DailyAssessmentLevel.limit => 'LOAD ADJUSTMENT',
+          };
+    return _item(
+      DailyAssessmentModule.training,
+      DailyAssessmentMetric.trainingReadiness,
+      facts,
+      assessment,
+      level,
+    );
+  }
 
   DailyAssessmentItem _notAvailable(
     DailyAssessmentModule module,

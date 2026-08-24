@@ -87,10 +87,47 @@ class DailyAssessmentFacts {
     required this.currentStatus,
     required this.previousFinalizedAggregate,
     required Iterable<BodyHistoryDataPoint> weightHistory,
+    this.trainingReadiness,
   }) : weightHistory = List.unmodifiable(weightHistory);
 
   final String operationDate;
   final MorningData? currentStatus;
   final DailyAggregateV1? previousFinalizedAggregate;
   final List<BodyHistoryDataPoint> weightHistory;
+  final TrainingReadinessFacts? trainingReadiness;
+}
+
+enum TrainingReadinessIntervalBasis { hours, calendarDays }
+
+class TrainingReadinessIntervalFact {
+  const TrainingReadinessIntervalFact.hours(this.value)
+    : basis = TrainingReadinessIntervalBasis.hours;
+
+  const TrainingReadinessIntervalFact.calendarDays(this.value)
+    : basis = TrainingReadinessIntervalBasis.calendarDays;
+
+  final int value;
+  final TrainingReadinessIntervalBasis basis;
+
+  int get thresholdHours =>
+      basis == TrainingReadinessIntervalBasis.hours ? value : value * 24;
+
+  String get compactLabel =>
+      basis == TrainingReadinessIntervalBasis.hours ? '${value}h' : '${value}d';
+}
+
+class TrainingReadinessFacts {
+  TrainingReadinessFacts({
+    required this.lastTraining,
+    required this.last7DaysSessionCount,
+    required this.currentWeekSessionCount,
+    required this.consecutiveTrainingDays,
+    required Iterable<TrainingReadinessIntervalFact> recentIntervals,
+  }) : recentIntervals = List.unmodifiable(recentIntervals);
+
+  final TrainingReadinessIntervalFact lastTraining;
+  final int last7DaysSessionCount;
+  final int currentWeekSessionCount;
+  final int consecutiveTrainingDays;
+  final List<TrainingReadinessIntervalFact> recentIntervals;
 }

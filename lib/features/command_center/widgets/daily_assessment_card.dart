@@ -70,29 +70,95 @@ class _AssessmentItem extends StatelessWidget {
   final DailyAssessmentItem item;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item.metric.label,
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            AppSpacing.gapXS,
-            Text(_valueLabel(item)),
-            AppSpacing.gapXS,
-            Text(dailyAssessmentSpecificLabel(item)),
-          ],
+  Widget build(BuildContext context) {
+    final readiness = item.rawValue is TrainingReadinessFacts
+        ? item.rawValue! as TrainingReadinessFacts
+        : null;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.metric.label,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              AppSpacing.gapXS,
+              if (readiness == null)
+                Text(_valueLabel(item))
+              else
+                _TrainingReadinessDetails(facts: readiness),
+              AppSpacing.gapXS,
+              Text(dailyAssessmentSpecificLabel(item)),
+            ],
+          ),
         ),
-      ),
-      if (item.level != null) ...[
-        AppSpacing.gapSM,
-        _LevelBadge(level: item.level!),
+        if (item.level != null) ...[
+          AppSpacing.gapSM,
+          _LevelBadge(level: item.level!),
+        ],
       ],
+    );
+  }
+}
+
+class _TrainingReadinessDetails extends StatelessWidget {
+  const _TrainingReadinessDetails({required this.facts});
+
+  final TrainingReadinessFacts facts;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      _ReadinessFactRow(
+        label: 'LAST TRAINING',
+        value: '${facts.lastTraining.compactLabel} ago',
+      ),
+      _ReadinessFactRow(
+        label: 'LAST 7 DAYS',
+        value: '${facts.last7DaysSessionCount} sessions',
+      ),
+      _ReadinessFactRow(
+        label: 'THIS WEEK',
+        value: '${facts.currentWeekSessionCount} sessions',
+      ),
+      _ReadinessFactRow(
+        label: 'RECENT INTERVALS',
+        value: facts.recentIntervals.isEmpty
+            ? 'NOT AVAILABLE'
+            : facts.recentIntervals
+                  .map((interval) => interval.compactLabel)
+                  .join(' / '),
+      ),
+      _ReadinessFactRow(
+        label: 'CONSECUTIVE DAYS',
+        value: facts.consecutiveTrainingDays >= 2
+            ? 'YES · ${facts.consecutiveTrainingDays} days'
+            : 'NO',
+      ),
     ],
+  );
+}
+
+class _ReadinessFactRow extends StatelessWidget {
+  const _ReadinessFactRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Text(label)),
+        AppSpacing.gapSM,
+        Flexible(child: Text(value, textAlign: TextAlign.end)),
+      ],
+    ),
   );
 }
 

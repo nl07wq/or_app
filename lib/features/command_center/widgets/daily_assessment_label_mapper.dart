@@ -67,6 +67,13 @@ String dailyAssessmentSpecificLabel(DailyAssessmentItem item) {
     },
     DailyAssessmentMetric.trainingReadiness => const {
       'NOT AVAILABLE': '現在の記録ではトレーニング間隔を評価できません。',
+      'SUFFICIENT INTERVAL': '十分なトレーニング間隔を確保できています。',
+      'STANDARD INTERVAL': 'トレーニング間隔は標準範囲です。',
+      'SHORT INTERVAL WATCH': 'トレーニング間隔がやや短くなっています。',
+      'LOAD ADJUSTMENT': '短い間隔のため、負荷や内容の調整を検討してください。',
+      'FREQUENCY MODERATED': '直近の頻度を考慮すると、標準的な準備状態です。',
+      'FREQUENCY WATCH': '直近のトレーニング頻度を確認してください。',
+      'FREQUENCY ADJUSTMENT': '直近の頻度を考慮し、負荷や内容の調整を検討してください。',
     },
   };
   return labels[item.specificAssessment] ?? item.specificAssessment;
