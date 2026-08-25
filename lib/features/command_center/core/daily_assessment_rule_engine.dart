@@ -7,16 +7,15 @@ class DailyAssessmentRuleEngine {
 
   DailyAssessment evaluate(DailyAssessmentFacts facts) {
     final status = facts.currentStatus;
-    final previous = facts.previousFinalizedAggregate;
     final sleepTime = _sleepTime(status?.sleepHours);
     final sleepScore = _sleepScore(status?.sleepScore);
     final plantar = _plantar(status?.footPain);
     final work = _work(status?.workType, status?.workHours);
     final weight = _weightTrend(facts.weightHistory);
-    final calorie = _calorieBalance(previous?.estimatedCalorieBalanceKcal);
-    final protein = _protein(previous?.proteinG);
-    final hydration = _hydration(previous?.hydrationMl);
-    final steps = _steps(previous?.officialSteps);
+    final calorie = _calorieBalance(facts.currentCalorieBalanceKcal);
+    final protein = _protein(facts.currentProteinG);
+    final hydration = _hydration(facts.currentHydrationMl);
+    final steps = _steps(facts.currentOfficialSteps);
     final training = _training(facts.trainingReadiness);
     final assessments = [
       weight,
@@ -62,7 +61,7 @@ class DailyAssessmentRuleEngine {
       );
     }
     if ((status?.footPain ?? 0) >= 4 &&
-        (previous?.officialSteps ?? 0) > 12000) {
+        (facts.currentOfficialSteps ?? 0) > 12000) {
       constraints.add(_Constraint('FOOT LOAD CONSTRAINT', plantar.level!));
     }
     if (_atLeast(calorie.level, DailyAssessmentLevel.adjust) &&
@@ -72,7 +71,7 @@ class DailyAssessmentRuleEngine {
       );
     }
     if (_atLeast(protein.level, DailyAssessmentLevel.watch) &&
-        previous?.trainingPerformed == true) {
+        facts.currentTrainingPerformed) {
       constraints.add(
         const _Constraint('NUTRITION PRIORITY', DailyAssessmentLevel.watch),
       );

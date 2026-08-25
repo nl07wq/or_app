@@ -1,6 +1,5 @@
 import '../../../core/models/morning_data.dart';
 import '../../body_history/models/body_history_models.dart';
-import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 
 enum DailyAssessmentLevel {
   support('SUPPORT', '今日の運用を積極的に支える要因'),
@@ -85,14 +84,22 @@ class DailyAssessmentFacts {
   DailyAssessmentFacts({
     required this.operationDate,
     required this.currentStatus,
-    required this.previousFinalizedAggregate,
+    required this.currentCalorieBalanceKcal,
+    required this.currentProteinG,
+    required this.currentHydrationMl,
+    required this.currentOfficialSteps,
+    required this.currentTrainingPerformed,
     required Iterable<BodyHistoryDataPoint> weightHistory,
     this.trainingReadiness,
   }) : weightHistory = List.unmodifiable(weightHistory);
 
   final String operationDate;
   final MorningData? currentStatus;
-  final DailyAggregateV1? previousFinalizedAggregate;
+  final double? currentCalorieBalanceKcal;
+  final double? currentProteinG;
+  final double? currentHydrationMl;
+  final int? currentOfficialSteps;
+  final bool currentTrainingPerformed;
   final List<BodyHistoryDataPoint> weightHistory;
   final TrainingReadinessFacts? trainingReadiness;
 }

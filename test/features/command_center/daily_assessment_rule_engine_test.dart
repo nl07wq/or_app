@@ -4,7 +4,6 @@ import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/features/body_history/models/body_history_models.dart';
 import 'package:or_app/features/command_center/core/daily_assessment_rule_engine.dart';
 import 'package:or_app/features/command_center/models/daily_assessment.dart';
-import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 
 void main() {
   const engine = DailyAssessmentRuleEngine();
@@ -96,7 +95,7 @@ void main() {
         expect(
           _item(
             engine,
-            aggregate: _aggregate(balance: value.$1),
+            balance: value.$1,
           ).call(DailyAssessmentMetric.calorieBalance).level,
           value.$2,
         );
@@ -111,7 +110,7 @@ void main() {
         expect(
           _item(
             engine,
-            aggregate: _aggregate(protein: value.$1),
+            protein: value.$1,
           ).call(DailyAssessmentMetric.protein).level,
           value.$2,
         );
@@ -126,7 +125,7 @@ void main() {
         expect(
           _item(
             engine,
-            aggregate: _aggregate(hydration: value.$1),
+            hydration: value.$1,
           ).call(DailyAssessmentMetric.hydration).level,
           value.$2,
         );
@@ -142,7 +141,7 @@ void main() {
       ]) {
         final item = _item(
           engine,
-          aggregate: _aggregate(steps: value.$1),
+          steps: value.$1,
         ).call(DailyAssessmentMetric.steps);
         expect(item.level, value.$2);
         if (value.$1 == 0) expect(item.rawValue, 0);
@@ -186,13 +185,11 @@ void main() {
           footPain: 4,
           workHours: 11,
         ),
-        aggregate: _aggregate(
-          balance: -1100,
-          protein: 100,
-          hydration: 1800,
-          steps: 12001,
-          trainingPerformed: true,
-        ),
+        balance: -1100,
+        protein: 100,
+        hydration: 1800,
+        steps: 12001,
+        trainingPerformed: true,
       ),
     );
     expect(result.primaryConstraints, contains('SLEEP × EXTENDED WORK LOAD'));
@@ -281,14 +278,22 @@ void main() {
 DailyAssessmentItem Function(DailyAssessmentMetric) _item(
   DailyAssessmentRuleEngine engine, {
   MorningData? status,
-  DailyAggregateV1? aggregate,
+  double? balance,
+  double? protein,
+  double? hydration,
+  int? steps,
+  bool trainingPerformed = false,
   List<BodyHistoryDataPoint> weights = const [],
   TrainingReadinessFacts? training,
 }) {
   final result = engine.evaluate(
     _facts(
       status: status,
-      aggregate: aggregate,
+      balance: balance,
+      protein: protein,
+      hydration: hydration,
+      steps: steps,
+      trainingPerformed: trainingPerformed,
       weights: weights,
       training: training,
     ),
@@ -303,13 +308,21 @@ DailyAssessmentItem _find(
 
 DailyAssessmentFacts _facts({
   MorningData? status,
-  DailyAggregateV1? aggregate,
+  double? balance,
+  double? protein,
+  double? hydration,
+  int? steps,
+  bool trainingPerformed = false,
   List<BodyHistoryDataPoint> weights = const [],
   TrainingReadinessFacts? training,
 }) => DailyAssessmentFacts(
   operationDate: '2026-08-10',
   currentStatus: status,
-  previousFinalizedAggregate: aggregate,
+  currentCalorieBalanceKcal: balance,
+  currentProteinG: protein,
+  currentHydrationMl: hydration,
+  currentOfficialSteps: steps,
+  currentTrainingPerformed: trainingPerformed,
   weightHistory: weights,
   trainingReadiness: training,
 );
@@ -348,37 +361,6 @@ MorningData _status({
   workBreak: '00:00',
   workHours: workHours,
   memo: '',
-);
-
-DailyAggregateV1 _aggregate({
-  double? balance,
-  double? protein,
-  double? hydration,
-  int? steps,
-  bool? trainingPerformed,
-}) => DailyAggregateV1(
-  operationDate: '2026-08-09',
-  weightKg: null,
-  bodyFatPercent: null,
-  sleepDurationMinutes: null,
-  sleepScore: null,
-  sleepType: null,
-  plantarFasciitisLevel: null,
-  workStartTime: null,
-  workEndTime: null,
-  workBreakMinutes: null,
-  actualWorkMinutes: null,
-  intakeCaloriesKcal: null,
-  estimatedCalorieBalanceKcal: balance,
-  proteinG: protein,
-  fatG: null,
-  carbsG: null,
-  hydrationMl: hydration,
-  officialSteps: steps,
-  measuredSteps: null,
-  trainingPerformed: trainingPerformed,
-  digestiveCount: null,
-  sourceType: DailyAggregateSourceType.records,
 );
 
 List<BodyHistoryDataPoint> _weights({required double change}) => [

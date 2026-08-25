@@ -21,11 +21,11 @@ void main() {
         (
           DailyAssessmentMetric.calorieBalance,
           'NEAR BALANCE',
-          '前日のカロリー収支はほぼ均衡しています。',
+          '本日のカロリー収支はほぼ均衡しています。',
         ),
         (DailyAssessmentMetric.protein, 'TARGET MET', 'たんぱく質は目標量を確保できています。'),
         (DailyAssessmentMetric.hydration, 'ADEQUATE', '水分摂取量は概ね確保できています。'),
-        (DailyAssessmentMetric.steps, 'LOW LOAD', '前日の歩行負荷は低い状態です。'),
+        (DailyAssessmentMetric.steps, 'LOW LOAD', '本日の歩行負荷は低い状態です。'),
         (
           DailyAssessmentMetric.trainingReadiness,
           'NOT AVAILABLE',
@@ -107,9 +107,9 @@ void main() {
       expect(find.text('睡眠時間は概ね確保できています。'), findsOneWidget);
       expect(find.text('足底症状は中程度です。'), findsOneWidget);
       expect(find.text('長時間勤務による負荷が見込まれます。'), findsOneWidget);
-      expect(find.text('前日のカロリー赤字が過大です。'), findsOneWidget);
+      expect(find.text('本日のカロリー赤字が過大です。'), findsOneWidget);
       expect(find.text('水分摂取量は目標を達成しています。'), findsOneWidget);
-      expect(find.text('前日の歩行負荷は高い状態です。'), findsOneWidget);
+      expect(find.text('本日の歩行負荷は高い状態です。'), findsOneWidget);
       expect(find.text('LAST TRAINING'), findsOneWidget);
       expect(find.text('41h ago'), findsOneWidget);
       expect(find.text('LAST 7 DAYS'), findsOneWidget);
