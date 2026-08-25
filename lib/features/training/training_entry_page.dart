@@ -49,7 +49,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Object? _expandedItem;
   bool _isSaving = false;
   bool _hasSaved = false;
-  double? _statusWeightKg;
+  TrainingStatusWeightResolution? _statusWeight;
   String? _operationLocalDate;
   Object? _dateLoadError;
   bool _isLoadingDate = false;
@@ -137,9 +137,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Future<void> _loadStatusWeight() async {
     try {
       final localDate = _form.date.substring(0, 10);
-      final weight = await TrainingStatusWeightResolver().resolve(localDate);
+      final weight = await TrainingStatusWeightResolver().resolveWithSource(
+        localDate,
+      );
       if (!mounted) return;
-      setState(() => _statusWeightKg = weight);
+      setState(() => _statusWeight = weight);
     } catch (_) {
       // Missing STATUS remains an explicit uncomputed Cardio state.
     }
@@ -366,7 +368,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     _form.dispose();
     _form = TrainingV2FormController.newSession(localDate: localDate);
     _expandedItem = _form.exercises.first;
-    _statusWeightKg = null;
+    _statusWeight = null;
     _hasPersistedDraft = false;
     setState(() {});
     _loadStatusWeight();
@@ -601,7 +603,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     return TrainingCardioCalorieCalculator.calculate(
       mets: double.tryParse(cardio.mets.text.trim()),
       durationSeconds: duration,
-      weightKg: cardio.weightSnapshotKg ?? _statusWeightKg,
+      weightKg: cardio.weightSnapshotKg ?? _statusWeight?.weightKg,
     );
   }
 }

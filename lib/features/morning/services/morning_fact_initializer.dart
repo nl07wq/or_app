@@ -1,21 +1,28 @@
 import '../../../core/repositories/morning_repository.dart';
+import '../../status/services/status_latest_valid_values_resolver.dart';
 import '../models/morning_initial_values.dart';
 
 class MorningFactInitializer {
   const MorningFactInitializer();
 
-  Future<MorningInitialValues> initialize() async {
+  Future<MorningInitialValues> initialize({String? beforeOrOnLocalDate}) async {
     try {
-      final latest = await MorningRepository.loadLatest();
-      if (latest == null) {
+      final records = await MorningRepository.getAll();
+      if (records.isEmpty) {
         return const MorningInitialValues.empty();
       }
+      final values = StatusLatestValidValuesResolver.resolve(
+        records,
+        beforeOrOnLocalDate: beforeOrOnLocalDate,
+      );
 
       return MorningInitialValues(
-        weight: latest.weight?.toString() ?? '',
-        bodyFat: latest.bodyFat?.toString() ?? '',
-        sleep: latest.sleepHours == null ? '' : _formatTime(latest.sleepHours!),
-        sleepScore: latest.sleepScore?.toString() ?? '',
+        weight: values.weight?.value.toString() ?? '',
+        bodyFat: values.bodyFat?.value.toString() ?? '',
+        sleep: values.sleepHours == null
+            ? ''
+            : _formatTime(values.sleepHours!.value),
+        sleepScore: values.sleepScore?.value.toString() ?? '',
         hasPreviousRecord: true,
       );
     } catch (_) {

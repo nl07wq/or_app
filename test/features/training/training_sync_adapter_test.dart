@@ -226,28 +226,33 @@ void main() {
     expect(record?.v2Data?.strengthCalculationVersion, 1);
   });
 
-  test('does not use another date STATUS weight', () async {
-    adapter = TrainingSyncAdapter(
-      repository: repository,
-      customExercises: _CustomExercises(),
-      weightResolver: TrainingStatusWeightResolver(
-        repository: _StatusRepository({'2026-07-31': _status(80)}),
-      ),
-    );
-    final envelope = _envelope(change: (payload) => _addCardio(payload));
-    final result = await adapter.applyAndVerify(
-      envelope: envelope,
-      expectedPayloadDigest: 'cardio-no-weight',
-    );
-    expect(result.success, isTrue);
-    final cardio = (await repository.findRecordById(
-      _id(1),
-    ))!.v2Data!.cardioEntries.single;
-    expect(cardio.estimatedCaloriesKcal, isNull);
-    expect(cardio.weightSnapshotKg, isNull);
-    expect(cardio.calculationMethod, isNull);
-    expect(cardio.calculationVersion, isNull);
-  });
+  test(
+    'uses the latest prior STATUS weight when same-day weight is absent',
+    () async {
+      adapter = TrainingSyncAdapter(
+        repository: repository,
+        customExercises: _CustomExercises(),
+        weightResolver: TrainingStatusWeightResolver(
+          repository: _StatusRepository({
+            '2026-07-31': _status(80, localDate: '2026-07-31'),
+          }),
+        ),
+      );
+      final envelope = _envelope(change: (payload) => _addCardio(payload));
+      final result = await adapter.applyAndVerify(
+        envelope: envelope,
+        expectedPayloadDigest: 'cardio-no-weight',
+      );
+      expect(result.success, isTrue);
+      final cardio = (await repository.findRecordById(
+        _id(1),
+      ))!.v2Data!.cardioEntries.single;
+      expect(cardio.estimatedCaloriesKcal, 70);
+      expect(cardio.weightSnapshotKg, 80);
+      expect(cardio.calculationMethod, 'metsAcsmV1');
+      expect(cardio.calculationVersion, 1);
+    },
+  );
 
   test(
     'accepts a matching formal cardio snapshot and rejects mismatches',
@@ -394,20 +399,21 @@ class _CustomExercises implements CustomTrainingExerciseRepository {
   Future<List<CustomTrainingExercise>> findAll() async => values;
 }
 
-MorningData _status(double weight) => MorningData(
-  date: '2026-08-01',
-  weight: weight,
-  bodyFat: 0,
-  sleepHours: 0,
-  sleepScore: 0,
-  footPain: 0,
-  workType: WorkType.holiday,
-  workStart: '',
-  workEnd: '',
-  workBreak: '',
-  workHours: 0,
-  memo: '',
-);
+MorningData _status(double weight, {String localDate = '2026-08-01'}) =>
+    MorningData(
+      date: localDate,
+      weight: weight,
+      bodyFat: 0,
+      sleepHours: 0,
+      sleepScore: 0,
+      footPain: 0,
+      workType: WorkType.holiday,
+      workStart: '',
+      workEnd: '',
+      workBreak: '',
+      workHours: 0,
+      memo: '',
+    );
 
 class _StatusRepository implements StatusRepository {
   _StatusRepository(this.values);
@@ -419,8 +425,19 @@ class _StatusRepository implements StatusRepository {
       values[localDate];
 
   @override
-  Future<StatusReadResult> findAllCanonical() async =>
-      StatusReadResult(records: const <PersistedStatusRecord>[]);
+  Future<StatusReadResult> findAllCanonical() async => StatusReadResult(
+    records: values.entries.map(
+      (entry) => PersistedStatusRecord(
+        id: PersistedStatusRecord.canonicalId(entry.key),
+        localDate: entry.key,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        canonicalDate: entry.key,
+        recordKind: StatusRecordKind.canonical,
+        data: entry.value,
+      ),
+    ),
+  );
 
   @override
   Future<StatusReadResult> findAllIncludingRevisions() => findAllCanonical();

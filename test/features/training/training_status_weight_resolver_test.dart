@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/features/status/repositories/status_repository.dart';
+import 'package:or_app/features/status/models/persisted_status_record.dart';
 import 'package:or_app/features/training/services/training_status_weight_resolver.dart';
 
 void main() {
@@ -14,20 +15,46 @@ void main() {
 
     expect(await resolver.resolve('2026-07-30'), 96.8);
     expect(repository.requestedDates, ['2026-07-30']);
+    expect(repository.allCanonicalCalls, 0);
   });
 
-  test('does not substitute latest or adjacent STATUS weight', () async {
-    final repository = _StatusRepository({
-      '2026-07-29': _status('2026-07-29', 75),
-      '2026-07-31': _status('2026-07-31', 80),
-    });
-    final resolver = TrainingStatusWeightResolver(repository: repository);
+  test(
+    'uses the latest valid historical weight when today is missing',
+    () async {
+      final repository = _StatusRepository({
+        '2026-07-29': _status('2026-07-29', 75),
+        '2026-07-31': _status('2026-07-31', 80),
+      });
+      final resolver = TrainingStatusWeightResolver(repository: repository);
 
-    expect(await resolver.resolve('2026-07-30'), isNull);
-    expect(repository.latestCalls, 0);
+      final resolution = await resolver.resolveWithSource('2026-07-30');
+
+      expect(resolution?.weightKg, 75);
+      expect(
+        resolution?.source,
+        TrainingStatusWeightSource.latestRecordedFallback,
+      );
+      expect(resolution?.sourceLocalDate, '2026-07-29');
+      expect(repository.allCanonicalCalls, 1);
+    },
+  );
+
+  test('distinguishes the operation-date measured weight', () async {
+    final resolver = TrainingStatusWeightResolver(
+      repository: _StatusRepository({
+        '2026-07-29': _status('2026-07-29', 75),
+        '2026-07-30': _status('2026-07-30', 96.8),
+      }),
+    );
+
+    final resolution = await resolver.resolveWithSource('2026-07-30');
+
+    expect(resolution?.weightKg, 96.8);
+    expect(resolution?.source, TrainingStatusWeightSource.measuredToday);
+    expect(resolution?.sourceLocalDate, '2026-07-30');
   });
 
-  test('rejects invalid formal weight without fallback', () async {
+  test('returns unavailable when no valid formal weight exists', () async {
     for (final weight in [0.0, -1.0, double.nan, double.infinity]) {
       final resolver = TrainingStatusWeightResolver(
         repository: _StatusRepository({
@@ -43,6 +70,7 @@ class _StatusRepository implements StatusRepository {
   final Map<String, MorningData> records;
   final List<String> requestedDates = [];
   int latestCalls = 0;
+  int allCanonicalCalls = 0;
 
   _StatusRepository(this.records);
 
@@ -72,8 +100,22 @@ class _StatusRepository implements StatusRepository {
   Future<void> clear() async {}
 
   @override
-  Future<StatusReadResult> findAllCanonical() async =>
-      StatusReadResult(records: const []);
+  Future<StatusReadResult> findAllCanonical() async {
+    allCanonicalCalls++;
+    return StatusReadResult(
+      records: records.entries.map(
+        (entry) => PersistedStatusRecord(
+          id: PersistedStatusRecord.canonicalId(entry.key),
+          localDate: entry.key,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          canonicalDate: entry.key,
+          recordKind: StatusRecordKind.canonical,
+          data: entry.value,
+        ),
+      ),
+    );
+  }
 
   @override
   Future<StatusReadResult> findAllIncludingRevisions() async =>

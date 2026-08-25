@@ -487,6 +487,10 @@ void main() {
     expect(find.text('MORNING BRIEF'), findsNothing);
     expect(find.text('DAILY BRIEFはまだありません。'), findsOneWidget);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('view-all-morning-brief-back-numbers')),
+      findsNothing,
+    );
     expect(find.text('CREATE DAILY BRIEF'), findsOneWidget);
     expect(find.text('REPORT SYNC'), findsNothing);
     final briefHeaders = tester
@@ -521,6 +525,10 @@ void main() {
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
     expect(find.text('NO DAILY DEBRIEF BACK NUMBER'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('view-all-daily-debrief-back-numbers')),
+      findsNothing,
+    );
     expect(
       find.byKey(const ValueKey('open-daily-debrief-report-sync')),
       findsOneWidget,
@@ -1061,7 +1069,7 @@ void main() {
     final colors = Theme.of(
       tester.element(find.byKey(const ValueKey('daily-debrief-content'))),
     ).colorScheme;
-    for (final value in cases) {
+    for (final value in cases.take(3)) {
       final row = find.byKey(ValueKey('daily-debrief-history-${value.$1}'));
       await tester.scrollUntilVisible(
         row,
@@ -1073,6 +1081,36 @@ void main() {
             )
             .first,
       );
+      expect(row, findsOneWidget);
+    }
+    expect(
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-28')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-27')),
+      findsNothing,
+    );
+    final viewAll = find.byKey(
+      const ValueKey('view-all-daily-debrief-back-numbers'),
+    );
+    await tester.scrollUntilVisible(
+      viewAll,
+      400,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('daily-debrief-content')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(viewAll);
+    await tester.pumpAndSettle();
+    for (final value in cases) {
+      final row = find.byKey(
+        ValueKey('all-daily-debrief-back-number-${value.$1}'),
+      );
+      await tester.scrollUntilVisible(row, 300);
       final expectedColor = switch (value.$2) {
         DailyDebriefCommanderIntentOutcome.achieved => Colors.green,
         DailyDebriefCommanderIntentOutcome.partiallyAchieved => Colors.amber,
@@ -1110,18 +1148,9 @@ void main() {
     expect(find.textContaining('STATUS  '), findsNothing);
     expect(find.textContaining('IMPORTED AT  '), findsNothing);
     final noEvaluationRow = find.byKey(
-      const ValueKey('daily-debrief-history-2026-07-27'),
+      const ValueKey('all-daily-debrief-back-number-2026-07-27'),
     );
-    await tester.scrollUntilVisible(
-      noEvaluationRow,
-      400,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const ValueKey('daily-debrief-content')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
+    await tester.scrollUntilVisible(noEvaluationRow, 300);
     final noEvaluationTile = tester.widget<ListTile>(
       find.descendant(of: noEvaluationRow, matching: find.byType(ListTile)),
     );
@@ -1135,6 +1164,62 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'does not show view all when brief and debrief have three back numbers',
+    (tester) async {
+      final timestamp = DateTime.utc(2026, 8, 1, 23);
+      for (final date in const [
+        '2026-08-01',
+        '2026-07-31',
+        '2026-07-30',
+        '2026-07-29',
+      ]) {
+        await AppRepositoryRegistry.container.morningBriefs.create(
+          _morningBriefV2(date),
+        );
+        final debrief = _dailyDebriefRecord(
+          localDate: date,
+          bodyEvaluation: 'BODY $date',
+          timestamp: timestamp,
+        );
+        database.seed(
+          IndexedDbStoreNames.dailyDebriefRecords,
+          debrief.localDate,
+          debrief.toRecord(),
+        );
+      }
+
+      await _pump(tester, width: 390);
+      await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('morning-brief-back-number-2026-07-29')),
+      );
+      expect(
+        find.byKey(const ValueKey('view-all-morning-brief-back-numbers')),
+        findsNothing,
+      );
+
+      await _openDailyDebrief(tester);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('daily-debrief-history-2026-07-29')),
+        400,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('daily-debrief-content')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(
+        find.byKey(const ValueKey('view-all-daily-debrief-back-numbers')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('hides empty debrief subsections in current and detail views', (
     tester,
@@ -1235,7 +1320,7 @@ void main() {
       historical.toRecord(),
     );
 
-    for (final width in [320.0, 390.0, 1280.0]) {
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
       await _pump(tester, width: width);
       await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
       await tester.pumpAndSettle();
@@ -1362,7 +1447,7 @@ void main() {
   }
 
   testWidgets(
-    'separates current Morning Brief and exposes five back numbers with detail',
+    'separates current Morning Brief and exposes three back numbers with detail',
     (tester) async {
       for (final date in const [
         '2026-08-01',
@@ -1417,7 +1502,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('morning-brief-back-number-2026-07-26')),
+        find.byKey(const ValueKey('morning-brief-back-number-2026-07-28')),
         findsNothing,
       );
 

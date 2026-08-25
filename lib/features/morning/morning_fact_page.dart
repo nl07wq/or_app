@@ -92,7 +92,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
     try {
       final operationLocalDate =
           (await widget.operationDateService.current()).value;
-      final values = await const MorningFactInitializer().initialize();
+      final values = await const MorningFactInitializer().initialize(
+        beforeOrOnLocalDate: operationLocalDate,
+      );
       if (!mounted) return;
 
       weightController.text = values.weight;

@@ -65,8 +65,50 @@ void main() {
     expect(values.sleepScore, '82');
   });
 
+  test('initializer resolves the latest valid value for each field', () async {
+    await MorningRepository.save(
+      _record(
+        date: DateTime(2026, 8, 20),
+        weight: 95.8,
+        bodyFat: 32.1,
+        sleepHours: 7 + 20 / 60,
+        sleepScore: 84,
+      ),
+    );
+    await MorningRepository.save(
+      _record(
+        date: DateTime(2026, 8, 21),
+        weight: null,
+        bodyFat: null,
+        sleepHours: 6 + 10 / 60,
+        sleepScore: 72,
+      ),
+    );
+    await MorningRepository.save(
+      _record(
+        date: DateTime(2026, 8, 22),
+        weight: null,
+        bodyFat: 31.9,
+        sleepHours: null,
+        sleepScore: null,
+      ),
+    );
+
+    final values = await const MorningFactInitializer().initialize(
+      beforeOrOnLocalDate: '2026-08-23',
+    );
+
+    expect(values.weight, '95.8');
+    expect(values.bodyFat, '31.9');
+    expect(values.sleep, '6:10');
+    expect(values.sleepScore, '72');
+    final saved = await MorningRepository.getAll();
+    expect(saved.first.weight, isNull);
+    expect(saved.first.sleepHours, isNull);
+  });
+
   test(
-    'initializer returns empty values when latest retrieval fails',
+    'initializer skips an invalid dated record and uses valid history',
     () async {
       final invalid = _record(
         date: DateTime(2026, 7, 25),
@@ -93,10 +135,10 @@ void main() {
 
       final values = await const MorningFactInitializer().initialize();
 
-      expect(values.weight, isEmpty);
-      expect(values.bodyFat, isEmpty);
-      expect(values.sleep, isEmpty);
-      expect(values.sleepScore, isEmpty);
+      expect(values.weight, '70.0');
+      expect(values.bodyFat, '18.0');
+      expect(values.sleep, '7:00');
+      expect(values.sleepScore, '75');
     },
   );
 
@@ -300,10 +342,10 @@ void main() {
 
 MorningData _record({
   required DateTime date,
-  required double weight,
-  required double bodyFat,
-  required double sleepHours,
-  required int sleepScore,
+  required double? weight,
+  required double? bodyFat,
+  required double? sleepHours,
+  required int? sleepScore,
   int footPain = 3,
   WorkType workType = WorkType.work,
   String memo = '',

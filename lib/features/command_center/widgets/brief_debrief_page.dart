@@ -23,6 +23,8 @@ import '../services/daily_estimated_total_burn_service.dart';
 typedef PrepareDailyDebrief =
     Future<void> Function(String localDate, double? estimatedTotalBurnKcal);
 
+const _backNumberPreviewLimit = 3;
+
 @visibleForTesting
 IconData dailyDebriefLifecycleIconForStatus(
   DailyDebriefLifecycleStatus status,
@@ -225,7 +227,7 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
                   ),
                   AppSpacing.gapSM,
                   _MorningBriefHistory(records: backNumbers),
-                  if (backNumbers.isNotEmpty) ...[
+                  if (backNumbers.length > _backNumberPreviewLimit) ...[
                     AppSpacing.gapSM,
                     _ArchiveButton(
                       key: const ValueKey(
@@ -483,8 +485,29 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           const Center(child: CircularProgressIndicator())
         else if (snapshot.data!.backNumbers.isEmpty)
           const OperationCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
-        else
-          _DailyDebriefHistory(records: snapshot.data!.backNumbers),
+        else ...[
+          _DailyDebriefHistory(
+            records: snapshot.data!.backNumbers
+                .take(_backNumberPreviewLimit)
+                .toList(growable: false),
+          ),
+          if (snapshot.data!.backNumbers.length > _backNumberPreviewLimit) ...[
+            AppSpacing.gapSM,
+            _ArchiveButton(
+              key: const ValueKey('view-all-daily-debrief-back-numbers'),
+              text: 'VIEW ALL BACK NUMBERS',
+              icon: Icons.list_alt,
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _DailyDebriefArchivePage(
+                    records: snapshot.data!.backNumbers,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
         AppSpacing.gapLG,
       ],
     ),
@@ -1727,7 +1750,11 @@ class _MorningBriefHistory extends StatelessWidget {
           )
         : Column(
             children: [
-              for (var index = 0; index < records.take(5).length; index++) ...[
+              for (
+                var index = 0;
+                index < records.take(_backNumberPreviewLimit).length;
+                index++
+              ) ...[
                 _BackNumberRow(
                   key: ValueKey(
                     'morning-brief-back-number-${records[index].localDate}',
@@ -1739,7 +1766,8 @@ class _MorningBriefHistory extends StatelessWidget {
                   ),
                   onTap: () => _openMorningBriefDetail(context, records[index]),
                 ),
-                if (index != records.take(5).length - 1) const Divider(),
+                if (index != records.take(_backNumberPreviewLimit).length - 1)
+                  const Divider(),
               ],
             ],
           ),
@@ -1757,41 +1785,49 @@ class _DailyDebriefHistory extends StatelessWidget {
     child: Column(
       children: [
         for (var index = 0; index < records.length; index++) ...[
-          Builder(
-            builder: (context) {
-              final historical = records[index];
-              final evaluation =
-                  historical.record.analysis.commanderIntentEvaluation;
-              final preview = evaluation?.rationale.trim();
-              return _BackNumberRow(
-                key: ValueKey(
-                  'daily-debrief-history-${historical.record.localDate}',
-                ),
-                date: historical.record.localDate,
-                preview: preview == null || preview.isEmpty ? null : preview,
-                indicatorColor: evaluation == null
-                    ? null
-                    : _commanderIntentOutcomePresentation(
-                        context,
-                        evaluation.outcome,
-                      ).color,
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => _DailyDebriefDetailPage(
-                      record: historical.record,
-                      status: historical.status,
-                    ),
-                  ),
-                ),
-              );
-            },
+          _DailyDebriefBackNumberRow(
+            key: ValueKey(
+              'daily-debrief-history-${records[index].record.localDate}',
+            ),
+            historical: records[index],
           ),
           if (index != records.length - 1) const Divider(),
         ],
       ],
     ),
   );
+}
+
+class _DailyDebriefBackNumberRow extends StatelessWidget {
+  const _DailyDebriefBackNumberRow({super.key, required this.historical});
+
+  final ({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})
+  historical;
+
+  @override
+  Widget build(BuildContext context) {
+    final evaluation = historical.record.analysis.commanderIntentEvaluation;
+    final preview = evaluation?.rationale.trim();
+    return _BackNumberRow(
+      date: historical.record.localDate,
+      preview: preview == null || preview.isEmpty ? null : preview,
+      indicatorColor: evaluation == null
+          ? null
+          : _commanderIntentOutcomePresentation(
+              context,
+              evaluation.outcome,
+            ).color,
+      onTap: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _DailyDebriefDetailPage(
+            record: historical.record,
+            status: historical.status,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _BackNumberRow extends StatelessWidget {
@@ -1911,6 +1947,29 @@ class _MorningBriefArchivePage extends StatelessWidget {
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => _openMorningBriefDetail(context, records[index]),
+      ),
+    ),
+  );
+}
+
+class _DailyDebriefArchivePage extends StatelessWidget {
+  const _DailyDebriefArchivePage({required this.records});
+
+  final List<({DailyDebriefRecord record, DailyDebriefLifecycleStatus status})>
+  records;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('DAILY DEBRIEF BACK NUMBER')),
+    body: ListView.separated(
+      padding: AppSpacing.cardPadding,
+      itemCount: records.length,
+      separatorBuilder: (_, _) => const Divider(),
+      itemBuilder: (context, index) => _DailyDebriefBackNumberRow(
+        key: ValueKey(
+          'all-daily-debrief-back-number-${records[index].record.localDate}',
+        ),
+        historical: records[index],
       ),
     ),
   );
