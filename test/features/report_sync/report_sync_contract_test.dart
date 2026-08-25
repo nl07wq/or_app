@@ -454,6 +454,7 @@ void main() {
         'food',
         'morningBrief',
         'dailyDebrief',
+        'periodicReport',
       ]);
       expect(ReportSyncDirection.values.map((value) => value.stableId), [
         'request',

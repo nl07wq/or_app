@@ -516,7 +516,7 @@ void main() {
     Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _openDailyDebrief(tester);
     await tester.pumpAndSettle();
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('DAILY DEBRIEFはまだありません。'), findsOneWidget);
@@ -628,7 +628,7 @@ void main() {
     expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
 
-    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _openDailyDebrief(tester);
     await tester.pumpAndSettle();
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
@@ -768,7 +768,7 @@ void main() {
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _openDailyDebrief(tester);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
@@ -975,7 +975,7 @@ void main() {
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _openDailyDebrief(tester);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsNothing);
@@ -1055,7 +1055,7 @@ void main() {
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _openDailyDebrief(tester);
     await tester.pumpAndSettle();
 
     final colors = Theme.of(
@@ -1176,7 +1176,7 @@ void main() {
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _openDailyDebrief(tester);
     await tester.pumpAndSettle();
 
     _expectEmptyDebriefSubsectionsHidden(tester);
@@ -1240,7 +1240,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
       await tester.pumpAndSettle();
       while (tester.takeException() != null) {}
-      await tester.tap(find.text('DAILY DEBRIEF').first);
+      await _openDailyDebrief(tester);
       await tester.pumpAndSettle();
 
       expect(
@@ -1321,7 +1321,7 @@ void main() {
       await _pump(tester, width: 390);
       await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('DAILY DEBRIEF').first);
+      await _openDailyDebrief(tester);
       await tester.pumpAndSettle();
 
       final sectionIndicator = find.byKey(
@@ -1534,7 +1534,7 @@ void main() {
           find.byKey(const ValueKey('morning-brief-content')),
           findsOneWidget,
         );
-        await tester.tap(find.text('DAILY DEBRIEF').first);
+        await _openDailyDebrief(tester);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(
@@ -1767,6 +1767,13 @@ Future<void> _scrollDailyCommand(WidgetTester tester, double dy) async {
     Offset(0, dy),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _openDailyDebrief(WidgetTester tester) async {
+  final tab = find.text('DAILY DEBRIEF').first;
+  await tester.ensureVisible(tab);
+  await tester.pumpAndSettle();
+  await tester.tap(tab);
 }
 
 Future<void> _pump(

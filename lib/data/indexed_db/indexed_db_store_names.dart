@@ -24,6 +24,7 @@ abstract final class IndexedDbStoreNames {
   static const reportSyncHistory = 'report_sync_history';
   static const trainingAnalysisReportRecords =
       'training_analysis_report_records';
+  static const periodicReportRecords = 'periodic_report_records';
   static const legacyDailySummaryRecords = 'legacy_daily_summary_records';
   static const profileRecords = 'profile_records';
   static const dailyAggregateRecords = 'daily_aggregate_records';
@@ -48,6 +49,7 @@ abstract final class IndexedDbStoreNames {
     dailyDebriefRecords,
     reportSyncHistory,
     trainingAnalysisReportRecords,
+    periodicReportRecords,
     legacyDailySummaryRecords,
     profileRecords,
     dailyAggregateRecords,

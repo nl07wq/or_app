@@ -43,6 +43,7 @@ import 'package:or_app/features/training/models/custom_training_exercise.dart';
 import 'package:or_app/features/training/models/persisted_custom_training_exercise_record.dart';
 import 'package:or_app/features/training/models/persisted_training_record.dart';
 import 'package:or_app/features/training_analysis/models/training_analysis_report.dart';
+import 'package:or_app/features/periodic_report/models/periodic_report.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../daily_log_confirmation/daily_log_confirmation_test_fixture.dart';
@@ -51,7 +52,7 @@ void main() {
   final timestamp = DateTime.utc(2026, 8, 9, 12, 34, 56);
 
   test(
-    'Schema 12 round trips every formal section without value loss',
+    'Schema 13 round trips every formal section without value loss',
     () async {
       final source = FakeIndexedDbDatabase();
       _seedCompleteSource(source, timestamp);
@@ -65,9 +66,9 @@ void main() {
         BackupExportService.encode(exported),
       );
 
-      expect(decoded.schemaVersion, 12);
+      expect(decoded.schemaVersion, 13);
       expect(decoded.includedSections, BackupSections.all.toSet());
-      expect(decoded.data, hasLength(17));
+      expect(decoded.data, hasLength(18));
       for (final section in BackupSections.all) {
         expect(decoded.data[section], hasLength(1), reason: section);
       }
@@ -655,6 +656,52 @@ Map<String, Map<String, Object?>> _completeRecords(DateTime timestamp) {
           ),
         ],
       ),
+    ).toRecord(),
+    BackupSections.periodicReportRecords: PeriodicReportRecord.initial(
+      facts: PeriodicReportFacts(
+        reportType: PeriodicReportType.weekly,
+        periodId: 'weekly:2026-08-03',
+        startDate: '2026-08-03',
+        endDate: '2026-08-09',
+        expectedDailyCount: 7,
+        availableDailyCount: 1,
+        missingDailyDates: const [
+          '2026-08-03',
+          '2026-08-04',
+          '2026-08-05',
+          '2026-08-06',
+          '2026-08-07',
+          '2026-08-08',
+        ],
+        sourceMonthlyFactIds: const [],
+        missingMonthlyFactIds: const [],
+        metrics: const {},
+        previousPeriodComparisons: const {},
+        operationStatusCounts: const {},
+        trainingSessionCount: 0,
+        trainingDays: 0,
+        exercisesPerformed: const [],
+        theoreticalWeightChangeKg: null,
+        actualWeightChangeKg: null,
+      ),
+      analysis: const PeriodicReportAnalysis(
+        body: 'body',
+        nutrition: 'nutrition',
+        calorieBalance: 'balance',
+        activity: 'activity',
+        recovery: 'recovery',
+        training: 'training',
+        condition: 'condition',
+        operation: 'operation',
+        overallSummary: 'summary',
+        nextPeriodFocus: 'focus',
+      ),
+      sourceDigest:
+          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      responseDigest:
+          'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+      exchangeId: 'periodic-report-fixture',
+      timestamp: timestamp,
     ).toRecord(),
     BackupSections.legacyDailySummaryRecords: LegacyDailySummaryRecord(
       localDate: localDate,

@@ -86,11 +86,12 @@ abstract final class IndexedDbIndexNames {
   static const byOperationDate = 'by_operation_date';
   static const byExchangeType = 'by_exchange_type';
   static const bySourceType = 'by_source_type';
+  static const byReportType = 'by_report_type';
 }
 
 abstract final class IndexedDbSchema {
   static const databaseName = 'operation_reboot_db';
-  static const databaseVersion = 13;
+  static const databaseVersion = 14;
   static const oldestCompatibleDatabaseVersion = 3;
   static const keyPath = 'id';
 
@@ -269,6 +270,19 @@ abstract final class IndexedDbSchema {
         IndexedDbIndexDefinition(
           name: IndexedDbIndexNames.byOperationDate,
           keyPath: 'operationDate',
+        ),
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byImportedAt,
+          keyPath: 'importedAt',
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.periodicReportRecords,
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byReportType,
+          keyPath: 'reportType',
         ),
         IndexedDbIndexDefinition(
           name: IndexedDbIndexNames.byImportedAt,

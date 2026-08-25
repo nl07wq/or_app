@@ -67,13 +67,17 @@ void main() {
 
       await service.initialize();
 
-      expect(database.schemaVersion, 13);
+      expect(database.schemaVersion, 14);
       expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
       expect(restored, isTrue);
       expect(
         await database.findAll(
           IndexedDbStoreNames.trainingAnalysisReportRecords,
         ),
+        isEmpty,
+      );
+      expect(
+        await database.findAll(IndexedDbStoreNames.periodicReportRecords),
         isEmpty,
       );
       expect(stages.where((stage) => stage.name.startsWith('migrating')), [

@@ -1703,6 +1703,7 @@ String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
   ReportSyncExchangeType.morningBrief => 'DAILY BRIEF REPORT SYNC',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
+  ReportSyncExchangeType.periodicReport => 'PERIODIC REPORT',
 };
 
 IconData _icon(ReportSyncExchangeType type) => switch (type) {
@@ -1712,6 +1713,7 @@ IconData _icon(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.food => Icons.restaurant_outlined,
   ReportSyncExchangeType.morningBrief => Icons.wb_sunny_outlined,
   ReportSyncExchangeType.dailyDebrief => Icons.nightlight_outlined,
+  ReportSyncExchangeType.periodicReport => Icons.calendar_view_month_outlined,
 };
 
 String _importLabel(ReportSyncExchangeType type) => switch (type) {
@@ -1721,6 +1723,7 @@ String _importLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.food => 'IMPORT FOOD',
   ReportSyncExchangeType.morningBrief => 'IMPORT DAILY BRIEF',
   ReportSyncExchangeType.dailyDebrief => 'IMPORT DAILY DEBRIEF',
+  ReportSyncExchangeType.periodicReport => 'IMPORT PERIODIC REPORT',
 };
 
 String _sourceName(ReportSyncExchangeType type) => switch (type) {
@@ -1730,6 +1733,7 @@ String _sourceName(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.food => 'Meal Data',
   ReportSyncExchangeType.morningBrief => 'STATUS Source',
   ReportSyncExchangeType.dailyDebrief => 'DAILY AGGREGATE Source',
+  ReportSyncExchangeType.periodicReport => 'Periodic Formal Fact Package',
 };
 
 String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
@@ -1739,6 +1743,7 @@ String _copySourceLabel(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.food => 'COPY MEAL DATA',
   ReportSyncExchangeType.morningBrief => 'STATUS SOURCE',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF SOURCE',
+  ReportSyncExchangeType.periodicReport => 'COPY PERIODIC REPORT PROMPT',
 };
 
 String _formatLocalDate(DateTime value) =>

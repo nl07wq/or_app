@@ -5,6 +5,7 @@ import '../models/report_sync_record_utils.dart';
 import 'daily_debrief_analysis_response_validator.dart';
 import 'report_sync_import_schema_v2.dart';
 import '../../training_analysis/services/training_analysis_payload_schema.dart';
+import '../../periodic_report/services/periodic_report_payload_schema.dart';
 
 abstract interface class ReportSyncPayloadSchema {
   ReportSyncExchangeType get exchangeType;
@@ -30,6 +31,7 @@ class ReportSyncPayloadRegistry {
     const FoodReportSyncPayloadSchema(),
     const MorningBriefReportSyncPayloadSchema(),
     const DailyDebriefReportSyncPayloadSchema(),
+    const PeriodicReportPayloadSchema(),
   ]);
 
   ReportSyncPayloadSchema forType(ReportSyncExchangeType type) =>
@@ -68,6 +70,11 @@ class ReportSyncPayloadRegistry {
           return;
         case ReportSyncExchangeType.dailyDebrief:
           const DailyDebriefReportSyncPayloadSchema().validateResponse(
+            envelope.payload,
+          );
+          return;
+        case ReportSyncExchangeType.periodicReport:
+          const PeriodicReportPayloadSchema().validateResponse(
             envelope.payload,
           );
           return;

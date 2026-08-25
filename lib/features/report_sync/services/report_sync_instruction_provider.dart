@@ -374,6 +374,8 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Prepare the formal STATUS Source for DAILY BRIEF review on $date.',
     ReportSyncExchangeType.dailyDebrief =>
       'Prepare the formal DAILY DEBRIEF analysis for $date.',
+    ReportSyncExchangeType.periodicReport =>
+      'Prepare the formal PERIODIC REPORT analysis for $date.',
   };
 
   String get _sourceName => switch (exchangeType) {
@@ -383,6 +385,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food => 'Meal Data',
     ReportSyncExchangeType.morningBrief => 'STATUS Source',
     ReportSyncExchangeType.dailyDebrief => 'DAILY AGGREGATE Source',
+    ReportSyncExchangeType.periodicReport => 'Periodic Formal Fact Package',
   };
 
   String get _schemaName => switch (exchangeType) {
@@ -393,6 +396,7 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.food => 'Food Import Schema Version 2',
     ReportSyncExchangeType.morningBrief => 'DAILY BRIEF source review',
     ReportSyncExchangeType.dailyDebrief => 'Daily Debrief Schema Version 1',
+    ReportSyncExchangeType.periodicReport => 'Periodic Report Schema Version 1',
   };
 
   String _sourceRules() => switch (exchangeType) {
@@ -408,6 +412,8 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Use only formal Body, Previous Day Comparison, Recovery, Condition, Work, and Carryover facts. Bowel information is out of scope. Do not complete a missing fact.',
     ReportSyncExchangeType.dailyDebrief =>
       'Use only the formal Daily Debrief source projection.',
+    ReportSyncExchangeType.periodicReport =>
+      'Analyze only the supplied periodic formal facts. Do not recalculate, infer, or complete a missing fact.',
   };
 
   String _fieldRules(String? confirmationDigest) => switch (exchangeType) {
@@ -423,6 +429,8 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
       'Return the formal DAILY BRIEF Schema Version 2 response only.',
     ReportSyncExchangeType.dailyDebrief =>
       'Return the formal Daily Debrief Schema Version 1 payload only.',
+    ReportSyncExchangeType.periodicReport =>
+      'Return analysis only and preserve periodId, reportType, and sourceDigest exactly.',
   };
 
   static const _legacyDigestPlaceholder =

@@ -14,7 +14,8 @@ enum ReportSyncExchangeType {
   trainingPlan('trainingPlan'),
   food('food'),
   morningBrief('morningBrief'),
-  dailyDebrief('dailyDebrief');
+  dailyDebrief('dailyDebrief'),
+  periodicReport('periodicReport');
 
   const ReportSyncExchangeType(this.stableId);
   final String stableId;

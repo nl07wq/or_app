@@ -49,6 +49,7 @@ import '../training/repository/custom_training_exercise_repository.dart';
 import '../training/repository/indexed_db_custom_training_exercise_repository.dart';
 import '../training/repository/training_session_repository.dart';
 import '../training_analysis/repository/training_analysis_report_repository.dart';
+import '../periodic_report/repository/periodic_report_repository.dart';
 
 class AppRepositoryContainer {
   final IndexedDbDatabase database;
@@ -62,6 +63,7 @@ class AppRepositoryContainer {
   final FoodMixedReadService foodMixedRead;
   final TrainingSessionRepository training;
   final TrainingAnalysisReportRepository trainingAnalysisReports;
+  final PeriodicReportRepository periodicReports;
   final CustomTrainingExerciseRepository customTrainingExercises;
   final DailyLogConfirmationStore confirmation;
   final DailyLogConfirmationLifecycleStore confirmationLifecycle;
@@ -97,6 +99,7 @@ class AppRepositoryContainer {
     required this.foodMixedRead,
     required this.training,
     required this.trainingAnalysisReports,
+    required this.periodicReports,
     required this.customTrainingExercises,
     required this.confirmation,
     required this.confirmationLifecycle,
@@ -175,6 +178,7 @@ class AppRepositoryContainer {
       trainingAnalysisReports: IndexedDbTrainingAnalysisReportRepository(
         database,
       ),
+      periodicReports: IndexedDbPeriodicReportRepository(database),
       customTrainingExercises: IndexedDbCustomTrainingExerciseRepository(
         database,
       ),

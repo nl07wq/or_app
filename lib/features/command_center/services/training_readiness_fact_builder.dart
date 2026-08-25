@@ -1,3 +1,4 @@
+import '../../../core/models/operation_calendar_period.dart';
 import '../../training/models/training_record_read_model.dart';
 import '../models/daily_assessment.dart';
 
@@ -18,9 +19,7 @@ abstract final class TrainingReadinessFactBuilder {
     if (eligible.isEmpty) return null;
 
     final last7Start = targetDate.subtract(const Duration(days: 6));
-    final weekStart = targetDate.subtract(
-      Duration(days: targetDate.weekday - DateTime.monday),
-    );
+    final weekStart = OperationCalendarPeriod.week(targetDate).start;
     final latest = eligible.last;
 
     return TrainingReadinessFacts(

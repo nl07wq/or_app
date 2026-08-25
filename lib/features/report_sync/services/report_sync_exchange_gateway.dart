@@ -274,6 +274,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           eligibleDates: eligible,
           statusLabel: 'READY',
         );
+      case ReportSyncExchangeType.periodicReport:
+        throw StateError('Periodic Report uses its dedicated report flow.');
     }
   }
 
@@ -379,6 +381,9 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
       ReportSyncExchangeType.morningBrief => _previewMorningBrief(response),
       ReportSyncExchangeType.dailyDebrief => throw StateError(
         'Daily Debrief uses analysis-only preview.',
+      ),
+      ReportSyncExchangeType.periodicReport => throw StateError(
+        'Periodic Report uses its dedicated report flow.',
       ),
     };
     return preview;
@@ -740,6 +745,8 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           ReportSyncDisposition.create,
           readBackVerified: true,
         );
+      case ReportSyncExchangeType.periodicReport:
+        throw StateError('Periodic Report uses its dedicated report flow.');
     }
   }
 

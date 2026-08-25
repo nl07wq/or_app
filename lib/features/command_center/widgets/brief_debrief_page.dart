@@ -16,6 +16,8 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/daily_finalize_result.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
+import '../../periodic_report/models/periodic_report.dart';
+import '../../periodic_report/pages/periodic_report_page.dart';
 import '../services/daily_estimated_total_burn_service.dart';
 
 typedef PrepareDailyDebrief =
@@ -86,7 +88,7 @@ class BriefDebriefPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
+    length: 5,
     child: Column(
       children: [
         const Padding(
@@ -97,9 +99,13 @@ class BriefDebriefPage extends StatelessWidget {
           ),
         ),
         const TabBar(
+          isScrollable: true,
           tabs: [
             Tab(text: 'DAILY BRIEF'),
             Tab(text: 'DAILY DEBRIEF'),
+            Tab(text: 'WEEKLY'),
+            Tab(text: 'MONTHLY'),
+            Tab(text: 'YEARLY'),
           ],
         ),
         Expanded(
@@ -110,6 +116,9 @@ class BriefDebriefPage extends StatelessWidget {
                 sourceLoader: dailyLogSourceLoader,
                 prepareDailyDebrief: prepareDailyDebrief,
               ),
+              const PeriodicReportPanel(reportType: PeriodicReportType.weekly),
+              const PeriodicReportPanel(reportType: PeriodicReportType.monthly),
+              const PeriodicReportPanel(reportType: PeriodicReportType.yearly),
             ],
           ),
         ),

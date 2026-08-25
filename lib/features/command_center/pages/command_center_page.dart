@@ -25,6 +25,17 @@ import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
 import '../../report_sync/models/morning_brief_state.dart';
+import '../../periodic_report/models/periodic_report.dart';
+import '../../periodic_report/pages/periodic_report_page.dart';
+
+@visibleForTesting
+List<PeriodicReportType> periodicReportTypesForFinalizedDate(DateTime date) => [
+  if (date.weekday == DateTime.sunday) PeriodicReportType.weekly,
+  if (date.day == DateTime(date.year, date.month + 1, 0).day)
+    PeriodicReportType.monthly,
+  if (date.month == DateTime.december && date.day == 31)
+    PeriodicReportType.yearly,
+];
 
 class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({super.key, this.initialPage = 1});
@@ -236,7 +247,43 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     await Future<void>.delayed(
       OperationDateFlipCalendar.maximumTransitionDuration,
     );
+    if (mounted) await _offerPeriodicReports(previousOperationDate);
     if (mounted) widget.onRefresh();
+  }
+
+  Future<void> _offerPeriodicReports(OperationLocalDate finalizedDate) async {
+    final date = DateTime.parse(finalizedDate.value);
+    final candidates = periodicReportTypesForFinalizedDate(date);
+    for (final type in candidates) {
+      if (!mounted) return;
+      final create = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('CREATE ${type.stableId.toUpperCase()} REPORT?'),
+          content: Text(
+            'Completed ${type.stableId.toUpperCase()} formal facts are ready.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('NO'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('YES'),
+            ),
+          ],
+        ),
+      );
+      if (create == true && mounted) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) =>
+                PeriodicReportPage(initialType: type, initialAnchor: date),
+          ),
+        );
+      }
+    }
   }
 
   void _handleOperationDateDisplayed(OperationLocalDate date) {

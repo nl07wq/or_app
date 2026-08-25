@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v13 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v14 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 13);
+    expect(IndexedDbSchema.databaseVersion, 14);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -27,6 +27,7 @@ void main() {
         IndexedDbStoreNames.dailyDebriefRecords,
         IndexedDbStoreNames.reportSyncHistory,
         IndexedDbStoreNames.trainingAnalysisReportRecords,
+        IndexedDbStoreNames.periodicReportRecords,
         IndexedDbStoreNames.legacyDailySummaryRecords,
         IndexedDbStoreNames.profileRecords,
       ]),
@@ -504,5 +505,23 @@ void main() {
       IndexedDbIndexNames.byImportedAt,
     ]);
     expect(existingRecord, beforeUpgrade);
+  });
+
+  test('v13 to v14 adds only the Periodic Report store', () {
+    final v13Stores = IndexedDbStoreNames.all
+        .where((name) => name != IndexedDbStoreNames.periodicReportRecords)
+        .toSet();
+    final added = IndexedDbSchema.storeDefinitions
+        .where((definition) => !v13Stores.contains(definition.name))
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.periodicReportRecords,
+    ]);
+    expect(added.single.keyPath, 'id');
+    expect(added.single.indexes.map((index) => index.name), [
+      IndexedDbIndexNames.byReportType,
+      IndexedDbIndexNames.byImportedAt,
+    ]);
   });
 }

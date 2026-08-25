@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../../../core/models/operation_calendar_period.dart';
+
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/body_history_chart_engine.dart';
 import '../models/nutrition_history_models.dart';
@@ -111,7 +113,7 @@ class NutritionHistoryChartEngine {
     }
     final weeks = {
       for (final item in observations)
-        item.date.subtract(Duration(days: item.date.weekday - 1)),
+        OperationCalendarPeriod.week(item.date).start,
     }.length;
     if (_fitsDensity(weeks, availablePlotWidth)) {
       return BodyHistoryGranularity.weekly;
@@ -134,9 +136,9 @@ class NutritionHistoryChartEngine {
     for (final item in observations) {
       final start = switch (granularity) {
         BodyHistoryGranularity.daily => item.date,
-        BodyHistoryGranularity.weekly => item.date.subtract(
-          Duration(days: item.date.weekday - 1),
-        ),
+        BodyHistoryGranularity.weekly => OperationCalendarPeriod.week(
+          item.date,
+        ).start,
         BodyHistoryGranularity.monthly => DateTime.utc(
           item.date.year,
           item.date.month,
