@@ -123,6 +123,12 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       widget.exchangeType == ReportSyncExchangeType.morningBrief ||
       widget.exchangeType == ReportSyncExchangeType.dailyDebrief;
 
+  bool get _usesCommonResponseActions =>
+      widget.exchangeType == ReportSyncExchangeType.training ||
+      widget.exchangeType == ReportSyncExchangeType.food ||
+      widget.exchangeType == ReportSyncExchangeType.morningBrief ||
+      widget.exchangeType == ReportSyncExchangeType.dailyDebrief;
+
   bool get _hasValidSelectedDate {
     if (!_usesTargetDate) return false;
     try {
@@ -356,6 +362,18 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _selectedMealIds = const {};
       _importError = null;
       _importMessage = 'クリップボードの内容を貼り付けました';
+    });
+  }
+
+  void _clearResponse() {
+    if (_busy) return;
+    setState(() {
+      _responseController.clear();
+      _preview = null;
+      _selectedMealIds = const {};
+      _importMessage = null;
+      _importActionError = null;
+      _importError = null;
     });
   }
 
@@ -665,7 +683,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             errorKey: const ValueKey('report-sync-export-prompt-error'),
           ),
           AppSpacing.gapSM,
-          if (widget.exchangeType != ReportSyncExchangeType.morningBrief) ...[
+          if (widget.exchangeType != ReportSyncExchangeType.morningBrief &&
+              widget.exchangeType != ReportSyncExchangeType.dailyDebrief) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
@@ -743,27 +762,35 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           ),
         ),
         AppSpacing.gapSM,
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: ready && !_busy ? _selectResponseFile : null,
-              icon: const Icon(Icons.file_open_outlined),
-              label: const Text('SELECT RESPONSE FILE'),
-            ),
-            OutlinedButton.icon(
-              onPressed: ready && !_busy ? _pasteResponse : null,
-              icon: const Icon(Icons.content_paste_outlined),
-              label: const Text('PASTE'),
-            ),
-            OutlinedButton.icon(
-              onPressed: ready && !_busy ? _validate : null,
-              icon: const Icon(Icons.fact_check_outlined),
-              label: const Text('VALIDATE'),
-            ),
-          ],
-        ),
+        if (_usesCommonResponseActions)
+          _ResponseActionBar(
+            enabled: ready && !_busy,
+            onPaste: _pasteResponse,
+            onClear: _clearResponse,
+            onValidate: _validate,
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: ready && !_busy ? _selectResponseFile : null,
+                icon: const Icon(Icons.file_open_outlined),
+                label: const Text('SELECT RESPONSE FILE'),
+              ),
+              OutlinedButton.icon(
+                onPressed: ready && !_busy ? _pasteResponse : null,
+                icon: const Icon(Icons.content_paste_outlined),
+                label: const Text('PASTE'),
+              ),
+              OutlinedButton.icon(
+                onPressed: ready && !_busy ? _validate : null,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('VALIDATE'),
+              ),
+            ],
+          ),
         _ActionFeedback(
           message: _importMessage,
           error: _importActionError,
@@ -870,6 +897,88 @@ class _RecordArchiveButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
+    ),
+  );
+}
+
+class _ResponseActionBar extends StatelessWidget {
+  const _ResponseActionBar({
+    required this.enabled,
+    required this.onPaste,
+    required this.onClear,
+    required this.onValidate,
+  });
+
+  final bool enabled;
+  final VoidCallback onPaste;
+  final VoidCallback onClear;
+  final VoidCallback onValidate;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    key: const ValueKey('report-sync-response-action-bar'),
+    children: [
+      Expanded(
+        child: _ResponseActionButton(
+          key: const ValueKey('report-sync-response-action-paste'),
+          icon: Icons.content_paste_outlined,
+          label: 'PASTE',
+          onPressed: enabled ? onPaste : null,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      Expanded(
+        child: _ResponseActionButton(
+          key: const ValueKey('report-sync-response-action-clear'),
+          icon: Icons.backspace_outlined,
+          label: 'CLEAR',
+          onPressed: enabled ? onClear : null,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      Expanded(
+        child: _ResponseActionButton(
+          key: const ValueKey('report-sync-response-action-validate'),
+          icon: Icons.fact_check_outlined,
+          label: 'VALIDATE',
+          onPressed: enabled ? onValidate : null,
+        ),
+      ),
+    ],
+  );
+}
+
+class _ResponseActionButton extends StatelessWidget {
+  const _ResponseActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 44,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: AppSpacing.xs),
+            Text(label),
+          ],
+        ),
+      ),
     ),
   );
 }

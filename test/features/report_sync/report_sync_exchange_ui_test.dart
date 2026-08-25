@@ -162,19 +162,13 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final gateway = _FakeExchangeGateway();
-    final files = _FakeFileGateway(
-      selected: BackupSelectedFile(
-        name: 'food-report-response-2026-08-02.json',
-        bytes: utf8.encode('{"fromFile":true}'),
-      ),
-    );
     final copied = <String>[];
     await tester.pumpWidget(
       MaterialApp(
         home: ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.food,
           gateway: gateway,
-          fileGateway: files,
+          fileGateway: _FakeFileGateway(),
           clipboardWriter: (text) async => copied.add(text),
         ),
       ),
@@ -214,20 +208,12 @@ void main() {
     expect(gateway.recordRequestCalls, 0);
 
     await tester.scrollUntilVisible(
-      find.text('SELECT RESPONSE FILE'),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('SELECT RESPONSE FILE'));
-    await tester.pumpAndSettle();
-    expect(find.text('RESPONSE FILE LOADED'), findsOneWidget);
-    expect(find.text('{"fromFile":true}'), findsOneWidget);
-
-    await tester.scrollUntilVisible(
       find.text('PASTE RESPONSE JSON'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(find.text('SELECT RESPONSE FILE'), findsNothing);
+    expect(find.text('CLEAR'), findsOneWidget);
     expect(find.textContaining('Markdown'), findsOneWidget);
 
     await tester.enterText(
@@ -556,7 +542,7 @@ void main() {
     expect(gateway.applyCalls, 0);
   });
 
-  testWidgets('PASTE failure preserves manual and file fallbacks', (
+  testWidgets('PASTE failure preserves manual input and validation', (
     tester,
   ) async {
     final clipboard = _FakeClipboardGateway();
@@ -608,11 +594,167 @@ void main() {
       tester.widget<TextField>(responseField).controller?.text,
       'manual value',
     );
-    expect(find.text('SELECT RESPONSE FILE'), findsOneWidget);
+    expect(find.text('SELECT RESPONSE FILE'), findsNothing);
+    expect(find.text('CLEAR'), findsOneWidget);
     expect(find.text('VALIDATE'), findsOneWidget);
   });
 
+  testWidgets('CLEAR resets only response-derived import state', (
+    tester,
+  ) async {
+    final gateway = _FakeExchangeGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: gateway,
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final responseField = find.descendant(
+      of: find.byKey(const ValueKey('report-sync-response-input')),
+      matching: find.byType(TextField),
+    );
+    await tester.scrollUntilVisible(
+      responseField,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(responseField, '{"response":true}');
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-response-action-validate')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('PREVIEW'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-response-action-clear')),
+    );
+    await tester.pump();
+
+    expect(tester.widget<TextField>(responseField).controller?.text, isEmpty);
+    expect(find.text('PREVIEW'), findsNothing);
+    expect(find.text('RESPONSE READY'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('REPORT SYNC RECORD'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('REPORT SYNC RECORD'), findsOneWidget);
+    expect(find.text('FOOD SYNC · SUCCESS'), findsOneWidget);
+    expect(gateway.applyCalls, 0);
+
+    await tester.scrollUntilVisible(
+      responseField,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(responseField, '{"response":true}');
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-response-action-validate')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('PREVIEW'), findsOneWidget);
+    expect(gateway.previewCalls, 2);
+    expect(gateway.applyCalls, 0);
+  });
+
+  testWidgets('target exchanges share the compact response action row', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final type in const [
+      ReportSyncExchangeType.food,
+      ReportSyncExchangeType.training,
+      ReportSyncExchangeType.morningBrief,
+      ReportSyncExchangeType.dailyDebrief,
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReportSyncExchangePage(
+            exchangeType: type,
+            gateway: _FakeExchangeGateway(
+              responseExchangeType: type,
+              eligibleDates: const ['2026-08-02'],
+            ),
+            fileGateway: _FakeFileGateway(),
+            clipboardWriter: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final actionBar = find.byKey(
+        const ValueKey('report-sync-response-action-bar'),
+      );
+      await tester.scrollUntilVisible(
+        actionBar,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      final paste = find.byKey(
+        const ValueKey('report-sync-response-action-paste'),
+      );
+      final clear = find.byKey(
+        const ValueKey('report-sync-response-action-clear'),
+      );
+      final validate = find.byKey(
+        const ValueKey('report-sync-response-action-validate'),
+      );
+      expect(actionBar, findsOneWidget, reason: type.stableId);
+      expect(find.text('SELECT RESPONSE FILE'), findsNothing);
+      expect(find.text('PASTE'), findsOneWidget);
+      expect(find.text('CLEAR'), findsOneWidget);
+      expect(find.text('VALIDATE'), findsOneWidget);
+      expect(find.byIcon(Icons.content_paste_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.backspace_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.fact_check_outlined), findsOneWidget);
+      expect(tester.getTopLeft(paste).dy, tester.getTopLeft(clear).dy);
+      expect(tester.getTopLeft(clear).dy, tester.getTopLeft(validate).dy);
+      expect(tester.getSize(paste).width, tester.getSize(clear).width);
+      expect(tester.getSize(clear).width, tester.getSize(validate).width);
+      expect(tester.takeException(), isNull, reason: type.stableId);
+    }
+  });
+
+  testWidgets('daily debrief omits the redundant source action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+          gateway: _FakeExchangeGateway(
+            responseExchangeType: ReportSyncExchangeType.dailyDebrief,
+            eligibleDates: const ['2026-08-02'],
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('COPY CHATGPT PROMPT'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('COPY CHATGPT PROMPT'), findsOneWidget);
+    expect(find.text('DAILY DEBRIEF SOURCE'), findsNothing);
+  });
+
   testWidgets('strict parse errors are explained in Japanese', (tester) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
         home: ReportSyncExchangePage(
@@ -648,7 +790,7 @@ void main() {
     );
     await tester.tap(find.text('VALIDATE'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('JSON形式が正しくありません'), findsOneWidget);
+    expect(find.textContaining('JSONを読み取れませんでした'), findsOneWidget);
     expect(find.textContaining('スマートクォート'), findsOneWidget);
   });
 
@@ -1008,7 +1150,11 @@ Future<void> _validateAndConfirmImport(
   );
   await tester.tap(find.text('VALIDATE'));
   await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text(importLabel));
+  await tester.scrollUntilVisible(
+    find.text(importLabel),
+    250,
+    scrollable: scrollable,
+  );
   await tester.pumpAndSettle();
   await tester.tap(find.text(importLabel));
   await tester.pumpAndSettle();
@@ -1436,9 +1582,6 @@ class _FakeClipboardGateway implements ReportSyncClipboardGateway {
 }
 
 class _FakeFileGateway implements BackupFileGateway {
-  _FakeFileGateway({this.selected});
-
-  final BackupSelectedFile? selected;
   String? savedName;
 
   @override
@@ -1454,5 +1597,5 @@ class _FakeFileGateway implements BackupFileGateway {
   }
 
   @override
-  Future<BackupSelectedFile?> selectJson() async => selected;
+  Future<BackupSelectedFile?> selectJson() async => null;
 }
