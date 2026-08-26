@@ -174,6 +174,41 @@ void main() {
       ).call(DailyAssessmentMetric.weightTrend).specificAssessment,
       'NOT AVAILABLE',
     );
+
+    final olderNoise = BodyHistoryDataPoint(
+      operationDate: '2026-07-01',
+      weightKg: 120,
+      bodyFatPercent: null,
+      source: BodyHistorySource.status,
+    );
+    final withOlderNoise = _item(
+      engine,
+      weights: [olderNoise, ..._weights(change: -0.5).reversed],
+    ).call(DailyAssessmentMetric.weightTrend);
+    expect(withOlderNoise.specificAssessment, 'ON TRACK');
+  });
+
+  test('strength-specific nutrition rule ignores cardio-only training', () {
+    final cardioOnly = engine.evaluate(
+      _facts(
+        protein: 100,
+        trainingPerformed: true,
+        strengthTrainingPerformed: false,
+      ),
+    );
+    expect(
+      cardioOnly.primaryConstraints,
+      isNot(contains('NUTRITION PRIORITY')),
+    );
+
+    final strength = engine.evaluate(
+      _facts(
+        protein: 100,
+        trainingPerformed: true,
+        strengthTrainingPerformed: true,
+      ),
+    );
+    expect(strength.primaryConstraints, contains('NUTRITION PRIORITY'));
   });
 
   test('applies only deterministic cross rules and resource rules', () {
@@ -283,6 +318,7 @@ DailyAssessmentItem Function(DailyAssessmentMetric) _item(
   double? hydration,
   int? steps,
   bool trainingPerformed = false,
+  bool? strengthTrainingPerformed,
   List<BodyHistoryDataPoint> weights = const [],
   TrainingReadinessFacts? training,
 }) {
@@ -294,6 +330,7 @@ DailyAssessmentItem Function(DailyAssessmentMetric) _item(
       hydration: hydration,
       steps: steps,
       trainingPerformed: trainingPerformed,
+      strengthTrainingPerformed: strengthTrainingPerformed,
       weights: weights,
       training: training,
     ),
@@ -313,6 +350,7 @@ DailyAssessmentFacts _facts({
   double? hydration,
   int? steps,
   bool trainingPerformed = false,
+  bool? strengthTrainingPerformed,
   List<BodyHistoryDataPoint> weights = const [],
   TrainingReadinessFacts? training,
 }) => DailyAssessmentFacts(
@@ -323,6 +361,8 @@ DailyAssessmentFacts _facts({
   currentHydrationMl: hydration,
   currentOfficialSteps: steps,
   currentTrainingPerformed: trainingPerformed,
+  currentStrengthTrainingPerformed:
+      strengthTrainingPerformed ?? trainingPerformed,
   weightHistory: weights,
   trainingReadiness: training,
 );

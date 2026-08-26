@@ -32,9 +32,25 @@ void main() {
     expect(model.exerciseCount, 1);
     expect(model.setCount, 1);
     expect(model.cardioEntryCount, 1);
+    expect(model.strengthTrainingPerformed, isTrue);
+    expect(model.cardioPerformed, isTrue);
     expect(model.isEditable, isTrue);
     expect(model.v1Data, isNull);
     expect(model.v2Data, same(session));
+  });
+
+  test('derived performance facts distinguish cardio-only records', () {
+    final source = _v2Session();
+    final model = _readModel(
+      TrainingSessionV2(
+        date: source.date,
+        exercises: const [],
+        cardioEntries: source.cardioEntries,
+      ),
+    );
+
+    expect(model.strengthTrainingPerformed, isFalse);
+    expect(model.cardioPerformed, isTrue);
   });
 
   test('v2 compatibility projection does not infer missing cardio fields', () {

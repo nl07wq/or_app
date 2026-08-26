@@ -16,6 +16,7 @@ import 'package:or_app/features/status/repositories/status_repository.dart';
 import 'package:or_app/features/status/models/persisted_status_record.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/repository/training_session_repository.dart';
+import 'package:or_app/features/training/services/training_status_weight_resolver.dart';
 
 void main() {
   const date = '2026-08-09';
@@ -166,33 +167,37 @@ void main() {
       expect(burn, closeTo(95.6 * 22 + 8 * 100, 0.000001));
       expect(target.weight, isNull);
       expect(aggregate.weightKg, isNull);
-      expect(repository.requestedRange, ('2026-08-03', '2026-08-09'));
-    },
-  );
-
-  test(
-    'task091: weight older than seven days leaves burn and balance null',
-    () async {
-      final target = _status(date: '2026-08-10', weight: null);
-      final repository = _RangeStatusRepository(
-        current: target,
-        history: [_status(date: '2026-08-02', weight: 95.6)],
-      );
-      final burn = await DailyEstimatedTotalBurnService(
+      final result = await DailyEstimatedTotalBurnService(
         statusRepository: repository,
         trainingRepository: _TrainingRepository(const []),
-      ).calculate('2026-08-10');
-      final aggregate = await _engine(
-        status: target,
-        food: [_meal(calories: 1800)],
-      ).build('2026-08-10', estimatedExpenditureKcal: burn);
-
-      expect(burn, isNull);
-      expect(aggregate.intakeCaloriesKcal, 1800);
-      expect(aggregate.estimatedExpenditureKcal, isNull);
-      expect(aggregate.estimatedCalorieBalanceKcal, isNull);
+      ).calculateWithSource('2026-08-10');
+      expect(
+        result!.weight.source,
+        TrainingStatusWeightSource.latestRecordedFallback,
+      );
     },
   );
+
+  test('latest valid formal weight has no arbitrary age limit', () async {
+    final target = _status(date: '2026-08-10', weight: null);
+    final repository = _RangeStatusRepository(
+      current: target,
+      history: [_status(date: '2026-08-02', weight: 95.6)],
+    );
+    final burn = await DailyEstimatedTotalBurnService(
+      statusRepository: repository,
+      trainingRepository: _TrainingRepository(const []),
+    ).calculate('2026-08-10');
+    final aggregate = await _engine(
+      status: target,
+      food: [_meal(calories: 1800)],
+    ).build('2026-08-10', estimatedExpenditureKcal: burn);
+
+    expect(burn, closeTo(95.6 * 22 + 8 * 100, 0.000001));
+    expect(aggregate.intakeCaloriesKcal, 1800);
+    expect(aggregate.estimatedExpenditureKcal, burn);
+    expect(aggregate.estimatedCalorieBalanceKcal, 1800 - burn!);
+  });
 
   test(
     'task091: refinalize burn uses the requested historical date window',
@@ -208,9 +213,44 @@ void main() {
       ).calculate('2026-08-04');
 
       expect(burn, closeTo(94.2 * 22 + 8 * 100, 0.000001));
-      expect(repository.requestedRange, ('2026-07-28', '2026-08-03'));
     },
   );
+
+  test(
+    'missing current-day STATUS keeps operation progress unavailable',
+    () async {
+      final burn = await DailyEstimatedTotalBurnService(
+        statusRepository: _RangeStatusRepository(
+          current: null,
+          history: [_status(date: '2026-08-09', weight: 95.6)],
+        ),
+        trainingRepository: _TrainingRepository(const []),
+      ).calculate('2026-08-10');
+
+      expect(burn, isNull);
+    },
+  );
+
+  test('formal holiday zero work hours remains calculable', () async {
+    final result = await DailyEstimatedTotalBurnService(
+      statusRepository: _RangeStatusRepository(
+        current: _status(
+          date: '2026-08-10',
+          weight: null,
+          workType: WorkType.holiday,
+          workHours: 0,
+        ),
+        history: [_status(date: '2026-07-01', weight: 95.6)],
+      ),
+      trainingRepository: _TrainingRepository(const []),
+    ).calculateWithSource('2026-08-10');
+
+    expect(result!.totalBurnKcal, closeTo(95.6 * 22, 0.000001));
+    expect(
+      result.weight.source,
+      TrainingStatusWeightSource.latestRecordedFallback,
+    );
+  });
 
   test('task106: finalized expenditure includes Strength calories', () async {
     final training = TrainingRecordReadModel.v2(
@@ -290,6 +330,8 @@ MorningData _status({
   double? weight = 95.6,
   SleepType sleepType = SleepType.sleep,
   int? sleepScore = 82,
+  WorkType workType = WorkType.work,
+  double workHours = 8,
 }) => MorningData(
   date: date,
   weight: weight,
@@ -298,11 +340,11 @@ MorningData _status({
   sleepScore: sleepScore,
   sleepType: sleepType,
   footPain: 2,
-  workType: WorkType.work,
+  workType: workType,
   workStart: '09:00',
   workEnd: '18:00',
   workBreak: '01:00',
-  workHours: 8,
+  workHours: workHours,
   memo: '',
 );
 
@@ -357,7 +399,7 @@ class _StatusRepository implements StatusRepository {
 }
 
 class _RangeStatusRepository implements StatusRepository {
-  final MorningData current;
+  final MorningData? current;
   final List<MorningData> history;
   (String, String)? requestedRange;
 
@@ -365,6 +407,10 @@ class _RangeStatusRepository implements StatusRepository {
 
   @override
   Future<MorningData?> findByLocalDate(String localDate) async => current;
+
+  @override
+  Future<StatusReadResult> findAllCanonical() async =>
+      StatusReadResult(records: history.map(_persistedStatus));
 
   @override
   Future<StatusReadResult> getRange(String startDate, String endDate) async {

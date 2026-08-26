@@ -15,7 +15,7 @@ class DailyAssessmentFactLoader {
 
   Future<DailyAssessmentFacts> load(OperationState state) async {
     final operationDate = state.operationDate;
-    final weightStart = operationDate.addDays(-13).value;
+    final weightStart = operationDate.addDays(-27).value;
     final currentStatus = await container.status.findByLocalDate(
       operationDate.value,
     );
@@ -40,10 +40,20 @@ class DailyAssessmentFactLoader {
       statusRepository: container.status,
       dailyAggregateRepository: container.dailyAggregates,
     ).resolve(startDate: weightStart, endDate: operationDate.value);
+    final trainingRecords = await container.training.findAllRecords();
     final trainingReadiness = TrainingReadinessFactBuilder.build(
       operationDate: operationDate.value,
       currentTime: _clock(),
-      records: await container.training.findAllRecords(),
+      records: trainingRecords,
+    );
+    final strengthTrainingPerformed = trainingRecords.any(
+      (record) =>
+          record.localDate == operationDate.value &&
+          record.strengthTrainingPerformed,
+    );
+    final cardioPerformed = trainingRecords.any(
+      (record) =>
+          record.localDate == operationDate.value && record.cardioPerformed,
     );
 
     return DailyAssessmentFacts(
@@ -56,6 +66,8 @@ class DailyAssessmentFactLoader {
           : null,
       currentOfficialSteps: currentAggregate.officialSteps,
       currentTrainingPerformed: currentAggregate.trainingPerformed == true,
+      currentStrengthTrainingPerformed: strengthTrainingPerformed,
+      currentCardioPerformed: cardioPerformed,
       weightHistory: weightHistory,
       trainingReadiness: trainingReadiness,
     );

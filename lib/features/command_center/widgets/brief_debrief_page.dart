@@ -11,6 +11,7 @@ import '../../report_sync/models/morning_brief_record.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
+import '../../report_sync/services/report_human_presentation.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/daily_finalize_result.dart';
@@ -917,7 +918,13 @@ class _DomainEvaluationsSection extends StatelessWidget {
       ('BODY', Icons.monitor_weight_outlined, evaluations.body),
       ('RECOVERY', Icons.bedtime_outlined, evaluations.recovery),
       ('CONDITION', Symbols.barefoot, evaluations.condition),
-      ('WORK', Icons.work_outline, evaluations.work),
+      (
+        'WORK',
+        Icons.work_outline,
+        evaluations.work == null
+            ? null
+            : ReportHumanPresentation.workText(evaluations.work!),
+      ),
       ('NUTRITION', Icons.restaurant_outlined, evaluations.nutrition),
       ('HYDRATION', Icons.water_drop_outlined, evaluations.hydration),
       ('ACTIVITY', Icons.directions_walk_outlined, evaluations.activity),
@@ -1258,8 +1265,11 @@ class _SituationAnalysisSection extends StatelessWidget {
       _AnalysisBlock(
         icon: Icons.work_outline,
         title: 'WORK',
-        body: analysis.work,
-        display: analysis.workDisplay,
+        body: ReportHumanPresentation.workText(analysis.work),
+        display: ReportHumanPresentation.workDisplay(
+          analysis.workDisplay,
+          analysis.work,
+        ),
         showDivider: false,
       ),
     ],

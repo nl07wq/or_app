@@ -71,7 +71,7 @@ class DailyAssessmentRuleEngine {
       );
     }
     if (_atLeast(protein.level, DailyAssessmentLevel.watch) &&
-        facts.currentTrainingPerformed) {
+        facts.currentStrengthTrainingPerformed) {
       constraints.add(
         const _Constraint('NUTRITION PRIORITY', DailyAssessmentLevel.watch),
       );
@@ -283,13 +283,23 @@ class DailyAssessmentRuleEngine {
   }
 
   DailyAssessmentItem _weightTrend(List<BodyHistoryDataPoint> history) {
-    final points = history.where((point) => point.weightKg != null).toList();
-    if (points.length != 14) {
+    final validPoints =
+        history
+            .where(
+              (point) => point.weightKg != null && point.weightKg!.isFinite,
+            )
+            .toList()
+          ..sort(
+            (first, second) =>
+                first.operationDate.compareTo(second.operationDate),
+          );
+    if (validPoints.length < 14) {
       return _notAvailable(
         DailyAssessmentModule.body,
         DailyAssessmentMetric.weightTrend,
       );
     }
+    final points = validPoints.sublist(validPoints.length - 14);
     final previous =
         points.take(7).fold<double>(0, (sum, point) => sum + point.weightKg!) /
         7;

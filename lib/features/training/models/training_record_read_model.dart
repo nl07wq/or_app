@@ -61,6 +61,10 @@ class TrainingRecordReadModel {
   int get cardioEntryCount =>
       v1Data?.cardioEntries.length ?? v2Data!.cardioEntries.length;
 
+  bool get strengthTrainingPerformed => exerciseCount > 0;
+
+  bool get cardioPerformed => cardioEntryCount > 0;
+
   bool get isLegacy => migrationSource != null;
 
   bool get isEditable => recordVersion == 2 && migrationSource == null;

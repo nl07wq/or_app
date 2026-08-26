@@ -63,6 +63,33 @@ void main() {
     expect(facts.currentOfficialSteps, isNull);
     expect(facts.currentCalorieBalanceKcal, isNull);
   });
+
+  test('loads valid weight history from the final 28 calendar days', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.status.save(_status(date: '2026-07-13', weight: 120));
+    for (var index = 0; index < 14; index++) {
+      final date = DateTime.utc(2026, 7, 15).add(Duration(days: index * 2));
+      await container.status.save(
+        _status(
+          date:
+              '${date.year.toString().padLeft(4, '0')}-'
+              '${date.month.toString().padLeft(2, '0')}-'
+              '${date.day.toString().padLeft(2, '0')}',
+          weight: 90 - index / 10,
+        ),
+      );
+    }
+
+    final facts = await DailyAssessmentFactLoader(container).load(_state());
+    final validWeights = facts.weightHistory
+        .where((point) => point.weightKg != null)
+        .toList();
+
+    expect(validWeights, hasLength(14));
+    expect(validWeights.first.operationDate, '2026-07-15');
+    expect(validWeights.last.operationDate, '2026-08-10');
+    expect(validWeights.map((point) => point.weightKg), isNot(contains(120)));
+  });
 }
 
 OperationState _state({String? lastFinalizedDate}) {
@@ -77,20 +104,21 @@ OperationState _state({String? lastFinalizedDate}) {
   );
 }
 
-MorningData _status() => MorningData(
-  date: '2026-08-10',
-  weight: 80,
-  bodyFat: 20,
-  sleepHours: 7,
-  sleepScore: 80,
-  footPain: 2,
-  workType: WorkType.holiday,
-  workStart: '',
-  workEnd: '',
-  workBreak: '',
-  workHours: 0,
-  memo: '',
-);
+MorningData _status({String date = '2026-08-10', double? weight = 80}) =>
+    MorningData(
+      date: date,
+      weight: weight,
+      bodyFat: 20,
+      sleepHours: 7,
+      sleepScore: 80,
+      footPain: 2,
+      workType: WorkType.holiday,
+      workStart: '',
+      workEnd: '',
+      workBreak: '',
+      workHours: 0,
+      memo: '',
+    );
 
 MealData _meal() => const MealData(
   date: '2026-08-10',

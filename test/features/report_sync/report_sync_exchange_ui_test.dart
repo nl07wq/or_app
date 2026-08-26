@@ -900,7 +900,13 @@ void main() {
     await tester.tap(find.text('GENERATE STATUS SOURCE'));
     await tester.pumpAndSettle();
     expect(find.text('STATUS SOURCE PREVIEW'), findsOneWidget);
-    expect(find.text(source.plainText), findsOneWidget);
+    expect(find.text(source.plainText), findsNothing);
+    expect(find.text('OPERATION DATE  2026-08-02'), findsOneWidget);
+    expect(find.text('WEIGHT  80.0 kg'), findsOneWidget);
+    expect(find.text('SLEEP  7:30'), findsOneWidget);
+    expect(find.text('TIME  09:00 - 18:00'), findsOneWidget);
+    expect(find.textContaining('SOURCE DIGEST'), findsNothing);
+    expect(find.textContaining('SOURCE RECORD ID'), findsNothing);
     expect(
       find.text(
         'コピーした内容には、DAILY BRIEF生成指示と正式なSTATUS SOURCEが含まれています。'

@@ -15,12 +15,12 @@ import '../../operation_date/services/operation_date_service.dart';
 import '../../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
+import '../../training/services/training_status_weight_resolver.dart';
 import '../models/daily_command_read_model.dart';
 import '../core/daily_assessment_rule_engine.dart';
 import '../models/daily_assessment.dart';
 import '../services/daily_assessment_fact_loader.dart';
 import '../services/daily_command_read_model_builder.dart';
-import '../services/daily_estimated_total_burn_service.dart';
 import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
@@ -197,13 +197,9 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     final morningBrief = await AppRepositoryRegistry.container.morningBriefs
         .readByLocalDate(state.operationDate.value);
     final status = morningFactNotifier.value;
-    final burnWeight =
-        await RecentStatusWeightResolver(
-          AppRepositoryRegistry.container.status,
-        ).resolve(
-          operationDate: state.operationDate.value,
-          currentWeightKg: status?.weight,
-        );
+    final burnWeight = await TrainingStatusWeightResolver(
+      repository: AppRepositoryRegistry.container.status,
+    ).resolve(state.operationDate.value);
     final model = DailyCommandReadModelBuilder.build(
       operationState: state,
       status: status,

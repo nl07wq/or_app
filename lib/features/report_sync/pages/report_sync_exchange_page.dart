@@ -17,6 +17,7 @@ import '../models/daily_debrief_record.dart';
 import '../models/daily_debrief_state.dart';
 import '../models/report_sync_issue.dart';
 import '../models/morning_brief_state.dart';
+import '../models/status_report_sync_source.dart';
 import '../services/report_sync_clipboard_gateway.dart';
 import '../services/report_sync_exchange_gateway.dart';
 import '../services/report_sync_persistence_service.dart';
@@ -722,12 +723,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
               title: 'STATUS SOURCE PREVIEW',
             ),
             AppSpacing.gapSM,
-            OperationCard(
-              child: SelectableText(
-                request!.statusSourceExport!.plainText,
-                key: const ValueKey('status-source-preview-text'),
-              ),
-            ),
+            _StatusSourcePreview(export: request!.statusSourceExport!),
           ],
         ],
         AppSpacing.gapXL,
@@ -1120,7 +1116,6 @@ class _MorningBriefPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final payload = preview.envelope!.payload;
-    final source = Map<String, Object?>.from(payload['source'] as Map);
     final content = Map<String, Object?>.from(payload['content'] as Map);
     final analysis = Map<String, Object?>.from(
       content['situationAnalysis'] as Map,
@@ -1129,68 +1124,69 @@ class _MorningBriefPreviewCard extends StatelessWidget {
       content['strategicResourceDecision'] as Map,
     );
     final actions = (content['actions'] as List).cast<Map>();
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(preview.disposition.name.toUpperCase()),
-          Text('Operation Date  ${preview.operationDate}'),
-          Text('STATUS Source Date  ${source['sourceOperationDate']}'),
-          Text('Source Record ID  ${source['sourceRecordId']}'),
-          Text(
-            'Source Digest  '
-            '${preview.morningBriefSourceDigestMatches ? 'MATCH' : 'MISMATCH'}',
-          ),
-          Text('Operation Status  ${content['operationStatus']}'),
-          AppSpacing.gapSM,
-          Text(
-            'SITUATION ANALYSIS',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          for (final key in const [
-            'body',
-            'recovery',
-            'condition',
-            'work',
-            'carryover',
-            'overall',
-          ])
-            Text('${key.toUpperCase()}  ${analysis[key]}'),
-          AppSpacing.gapSM,
-          Text(
-            'OPERATING POLICY',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          Text('${content['operatingPolicy']}'),
-          AppSpacing.gapSM,
-          Text(
-            'STRATEGIC RESOURCE DECISION',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          Text('DECISION  ${decision['decision']}'),
-          Text('TARGET RESOURCE  ${decision['targetResource'] ?? '-'}'),
-          Text('RATIONALE  ${decision['rationale']}'),
-          Text('EXECUTION  ${decision['execution'] ?? '-'}'),
-          AppSpacing.gapSM,
-          Text(
-            'COMMANDER INTENT',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          Text('${content['commanderIntent']}'),
-          AppSpacing.gapSM,
-          Text('ACTIONS', style: Theme.of(context).textTheme.titleSmall),
-          for (var index = 0; index < actions.length; index++)
-            Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ReportPreviewPanel(
+          icon: Icons.calendar_today_outlined,
+          title: 'DAILY BRIEF',
+          lines: [
+            'OPERATION DATE  ${preview.operationDate}',
+            'OPERATION STATUS  ${content['operationStatus']}',
+          ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.analytics_outlined,
+          title: 'SITUATION ANALYSIS',
+          lines: [
+            for (final key in const [
+              'body',
+              'recovery',
+              'condition',
+              'work',
+              'carryover',
+              'overall',
+            ])
+              '${key.toUpperCase()}  ${analysis[key]}',
+          ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.route_outlined,
+          title: 'OPERATING POLICY',
+          lines: ['${content['operatingPolicy']}'],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.inventory_2_outlined,
+          title: 'STRATEGIC RESOURCE DECISION',
+          lines: [
+            'DECISION  ${decision['decision']}',
+            if (decision['targetResource'] != null)
+              'TARGET RESOURCE  ${decision['targetResource']}',
+            'RATIONALE  ${decision['rationale']}',
+            if (decision['execution'] != null)
+              'EXECUTION  ${decision['execution']}',
+          ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.flag_outlined,
+          title: 'COMMANDER INTENT',
+          lines: ['${content['commanderIntent']}'],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.checklist_outlined,
+          title: 'ACTIONS',
+          lines: [
+            for (var index = 0; index < actions.length; index++)
               '${index + 1}. ${actions[index]['text']}  '
-              '[${actions[index]['priority']}]',
-            ),
-          AppSpacing.gapSM,
-          Text(
-            'Existing DAILY BRIEF  ${preview.conflictCount > 0 ? 'YES' : 'NO'}',
-          ),
-          Text('Disposition  ${preview.disposition.name.toUpperCase()}'),
-        ],
-      ),
+                  '[${actions[index]['priority']}]',
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1206,52 +1202,214 @@ class _DailyDebriefPreviewCard extends StatelessWidget {
     final analysis = DailyDebriefAnalysis.fromJson(
       Map<String, Object?>.from(payload['analysis'] as Map),
     );
-    final current = preview.dailyDebriefRecord;
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('OPERATION DATE  ${preview.operationDate}'),
-          Text(
-            'CURRENT REVISION  '
-            '${current == null ? 'CREATE' : 'REVISION UPDATE (${current.revision + 1})'}',
-          ),
-          Text(
-            'SOURCE STATUS  '
-            '${preview.dailyDebriefLifecycle?.name.toUpperCase() ?? 'CURRENT'}',
-          ),
+    final evaluations = analysis.domainEvaluations
+        .toJson()
+        .entries
+        .where((entry) => entry.value != null)
+        .toList(growable: false);
+    final intent = analysis.commanderIntentEvaluation;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ReportPreviewPanel(
+          icon: Icons.calendar_today_outlined,
+          title: 'DAILY DEBRIEF',
+          lines: ['OPERATION DATE  ${preview.operationDate}'],
+        ),
+        if (intent != null) ...[
           AppSpacing.gapSM,
-          Text(
-            'DOMAIN EVALUATIONS',
-            style: Theme.of(context).textTheme.titleMedium,
+          _ReportPreviewPanel(
+            icon: Icons.flag_outlined,
+            title: 'COMMANDER INTENT EVALUATION',
+            lines: [
+              'RESULT  ${intent.outcome.name.toUpperCase()}',
+              intent.rationale,
+              ...intent.evidence.map((value) => '• $value'),
+            ],
           ),
-          ...analysis.domainEvaluations.toJson().entries.map(
-            (entry) => Text(
-              '${entry.key.toUpperCase()}  ${entry.value ?? 'NOT RECORDED'}',
-            ),
-          ),
-          AppSpacing.gapSM,
-          Text(
-            'CROSS ANALYSIS',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text('KEY FACTORS  ${analysis.crossAnalysis.keyFactors.length}'),
-          Text('INTERACTIONS  ${analysis.crossAnalysis.interactions.length}'),
-          Text('CONSTRAINTS  ${analysis.crossAnalysis.constraints.length}'),
-          Text('RESOURCES  ${analysis.crossAnalysis.resources.length}'),
-          AppSpacing.gapSM,
-          Text(
-            'EXECUTION EVALUATION',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text('SUCCESSES  ${analysis.executionEvaluation.successes.length}'),
-          Text(
-            'ADJUSTMENTS  ${analysis.executionEvaluation.adjustments.length}',
-          ),
-          Text('WATCH POINTS  ${analysis.nextDayHandoff.watchPoints.length}'),
         ],
-      ),
+        if (evaluations.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          _ReportPreviewPanel(
+            icon: Icons.analytics_outlined,
+            title: 'DOMAIN EVALUATIONS',
+            lines: [
+              for (final entry in evaluations)
+                '${entry.key.toUpperCase()}  ${entry.value}',
+            ],
+          ),
+        ],
+        ..._analysisPreviewPanels(analysis),
+      ],
     );
+  }
+}
+
+List<Widget> _analysisPreviewPanels(DailyDebriefAnalysis analysis) {
+  final sections = <(IconData, String, List<String>)>[
+    (Icons.insights_outlined, 'KEY FACTORS', analysis.crossAnalysis.keyFactors),
+    (Icons.hub_outlined, 'INTERACTIONS', analysis.crossAnalysis.interactions),
+    (
+      Icons.warning_amber_outlined,
+      'CONSTRAINTS',
+      analysis.crossAnalysis.constraints,
+    ),
+    (Icons.inventory_2_outlined, 'RESOURCES', analysis.crossAnalysis.resources),
+    (
+      Icons.check_circle_outline,
+      'SUCCESSES',
+      analysis.executionEvaluation.successes,
+    ),
+    (
+      Icons.tune_outlined,
+      'ADJUSTMENTS',
+      analysis.executionEvaluation.adjustments,
+    ),
+    (
+      Icons.visibility_outlined,
+      'WATCH POINTS',
+      analysis.nextDayHandoff.watchPoints,
+    ),
+  ];
+  return [
+    for (final section in sections)
+      if (section.$3.isNotEmpty) ...[
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: section.$1,
+          title: section.$2,
+          lines: section.$3.map((value) => '• $value').toList(),
+        ),
+      ],
+  ];
+}
+
+class _ReportPreviewPanel extends StatelessWidget {
+  const _ReportPreviewPanel({
+    required this.icon,
+    required this.title,
+    required this.lines,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<String> lines;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        AppSpacing.gapSM,
+        for (var index = 0; index < lines.length; index++) ...[
+          SelectableText(lines[index]),
+          if (index != lines.length - 1) const SizedBox(height: 6),
+        ],
+      ],
+    ),
+  );
+}
+
+class _StatusSourcePreview extends StatelessWidget {
+  const _StatusSourcePreview({required this.export});
+
+  final StatusReportSyncSourceExport export;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = export.source;
+    final work = source.work;
+    final isHoliday = work.workType == 'holiday';
+    return Column(
+      key: const ValueKey('status-source-preview-text'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ReportPreviewPanel(
+          icon: Icons.calendar_today_outlined,
+          title: 'STATUS',
+          lines: ['OPERATION DATE  ${source.operationDate}'],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.monitor_weight_outlined,
+          title: 'BODY',
+          lines: [
+            'WEIGHT  ${_value(source.body.weightKg, 'kg')}',
+            'BODY FAT  ${_value(source.body.bodyFatPercent, '%')}',
+          ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.bedtime_outlined,
+          title: 'RECOVERY',
+          lines: [
+            'SLEEP  ${_duration(source.recovery.sleepDurationMinutes)}',
+            'SLEEP SCORE  ${source.recovery.sleepScore ?? 'NOT RECORDED'}',
+          ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.health_and_safety_outlined,
+          title: 'CONDITION',
+          lines: [
+            'FOOT CONDITION  ${source.condition.footPainLevel}',
+            if (source.condition.condition != null)
+              'CONDITION  ${source.condition.condition}',
+            if (source.condition.notes != null)
+              'NOTES  ${source.condition.notes}',
+          ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.work_outline,
+          title: 'WORK',
+          lines: isHoliday
+              ? const ['公休日']
+              : [
+                  'WORK TYPE  ${work.workType}',
+                  if (work.startTime != null && work.endTime != null)
+                    'TIME  ${work.startTime} - ${work.endTime}',
+                  if (work.breakDurationMinutes != null)
+                    'BREAK  ${_duration(work.breakDurationMinutes)}',
+                  'WORK HOURS  ${_value(work.workHours, 'h')}',
+                ],
+        ),
+        AppSpacing.gapSM,
+        _ReportPreviewPanel(
+          icon: Icons.history_outlined,
+          title: 'CARRYOVER',
+          lines: [
+            source.previousCarryoverConfirmed == null
+                ? 'NOT RECORDED'
+                : source.previousCarryoverConfirmed!
+                ? 'CONFIRMED'
+                : 'NONE',
+          ],
+        ),
+      ],
+    );
+  }
+
+  static String _value(num? value, String unit) =>
+      value == null ? 'NOT RECORDED' : '${value.toString()} $unit';
+
+  static String _duration(int? minutes) {
+    if (minutes == null) return 'NOT RECORDED';
+    return '${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}';
   }
 }
 

@@ -89,6 +89,8 @@ class DailyAssessmentFacts {
     required this.currentHydrationMl,
     required this.currentOfficialSteps,
     required this.currentTrainingPerformed,
+    this.currentStrengthTrainingPerformed = false,
+    this.currentCardioPerformed = false,
     required Iterable<BodyHistoryDataPoint> weightHistory,
     this.trainingReadiness,
   }) : weightHistory = List.unmodifiable(weightHistory);
@@ -100,6 +102,8 @@ class DailyAssessmentFacts {
   final double? currentHydrationMl;
   final int? currentOfficialSteps;
   final bool currentTrainingPerformed;
+  final bool currentStrengthTrainingPerformed;
+  final bool currentCardioPerformed;
   final List<BodyHistoryDataPoint> weightHistory;
   final TrainingReadinessFacts? trainingReadiness;
 }
