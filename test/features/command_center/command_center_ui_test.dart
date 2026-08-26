@@ -1361,6 +1361,39 @@ void main() {
     }
   });
 
+  testWidgets('brief and debrief use dedicated holiday work presentation', (
+    tester,
+  ) async {
+    final brief = _morningBriefV2('2026-08-01', work: '公休日で実働だった。');
+    final debrief = _dailyDebriefRecord(
+      localDate: '2026-08-01',
+      bodyEvaluation: 'BODY',
+      workEvaluation: '公休日で実働だった。',
+      timestamp: DateTime.utc(2026, 8, 1, 23),
+    );
+    database.seed(
+      IndexedDbStoreNames.morningBriefRecords,
+      brief.localDate,
+      brief.toRecord(),
+    );
+    database.seed(
+      IndexedDbStoreNames.dailyDebriefRecords,
+      debrief.localDate,
+      debrief.toRecord(),
+    );
+
+    await _pump(tester, width: 390);
+    await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
+    await tester.pumpAndSettle();
+    expect(find.text('公休日'), findsOneWidget);
+    expect(find.textContaining('実働'), findsNothing);
+
+    await _openDailyDebrief(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('公休日'), findsOneWidget);
+    expect(find.textContaining('実働'), findsNothing);
+  });
+
   for (final outcomeCase in const [
     (
       DailyDebriefCommanderIntentOutcome.achieved,
@@ -1715,6 +1748,7 @@ DailyDebriefRecord _dailyDebriefRecord({
   required DateTime timestamp,
   String? recoveryEvaluation,
   String? conditionEvaluation,
+  String? workEvaluation,
   String rationale = 'RATIONALE BODY',
   bool commanderIntentRecorded = true,
   int revision = 1,
@@ -1765,7 +1799,7 @@ DailyDebriefRecord _dailyDebriefRecord({
       body: bodyEvaluation,
       recovery: recoveryEvaluation,
       condition: conditionEvaluation,
-      work: null,
+      work: workEvaluation,
       nutrition: null,
       hydration: null,
       activity: null,
@@ -1803,7 +1837,11 @@ DailyDebriefRecord _dailyDebriefRecord({
   return record;
 }
 
-MorningBriefRecord _morningBriefV2(String date, {String? intent}) {
+MorningBriefRecord _morningBriefV2(
+  String date, {
+  String? intent,
+  String work = 'WORK STATUS',
+}) {
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   final timestamp = DateTime.utc(2026, 8, 1, 9);
@@ -1817,13 +1855,17 @@ MorningBriefRecord _morningBriefV2(String date, {String? intent}) {
     exchangeId: 'exchange:$date',
     generatedAt: timestamp,
     importedAt: timestamp,
-    situationAnalysisV2: const MorningBriefSituationAnalysis(
+    situationAnalysisV2: MorningBriefSituationAnalysis(
       body: 'BODY STATUS',
       recovery: 'RECOVERY STATUS',
       condition: 'CONDITION STATUS',
-      work: 'WORK STATUS',
+      work: work,
       carryover: 'CARRYOVER MUST STAY HIDDEN',
       overall: 'Integrated overall assessment',
+      workDisplay: MorningBriefSectionDisplay(
+        primaryText: work,
+        supportingText: work,
+      ),
     ),
     operatingPolicy: 'Operating policy',
     strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(

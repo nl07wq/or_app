@@ -87,6 +87,28 @@ void main() {
     expect(find.byType(ReportSyncExchangePage), findsNothing);
   });
 
+  testWidgets('daily debrief preview replaces holiday work prose', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+          gateway: _FakeExchangeGateway(
+            responseExchangeType: ReportSyncExchangeType.dailyDebrief,
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _validateOnly(tester);
+
+    expect(find.text('WORK  公休日'), findsOneWidget);
+    expect(find.textContaining('実働'), findsNothing);
+  });
+
   testWidgets('successful database import returns to the existing top page', (
     tester,
   ) async {
@@ -1013,6 +1035,41 @@ void main() {
     );
   });
 
+  testWidgets('morning brief preview replaces holiday work prose', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final source = _statusSourceExport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.morningBrief,
+          gateway: _FakeExchangeGateway(
+            preparation: ReportSyncRequestPreparation(
+              operationDate: '2026-08-02',
+              sourceText: source.plainText,
+              statusSourceExport: source,
+              statusLabel: 'READY',
+            ),
+            responseOverride: _morningHolidayResponse(),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('GENERATE STATUS SOURCE'));
+    await tester.pumpAndSettle();
+    await _validateOnly(tester);
+
+    expect(find.text('WORK  公休日'), findsOneWidget);
+    expect(find.textContaining('実働'), findsNothing);
+  });
+
   testWidgets('training preview hides a null session name from visible UI', (
     tester,
   ) async {
@@ -1168,6 +1225,29 @@ Future<void> _validateAndConfirmImport(
   await tester.pumpAndSettle();
 }
 
+Future<void> _validateOnly(WidgetTester tester) async {
+  final scrollable = find.byType(Scrollable).first;
+  await tester.scrollUntilVisible(
+    find.byKey(const ValueKey('report-sync-response-input')),
+    250,
+    scrollable: scrollable,
+  );
+  await tester.enterText(
+    find.descendant(
+      of: find.byKey(const ValueKey('report-sync-response-input')),
+      matching: find.byType(TextField),
+    ),
+    '{"response":true}',
+  );
+  await tester.scrollUntilVisible(
+    find.text('VALIDATE'),
+    250,
+    scrollable: scrollable,
+  );
+  await tester.tap(find.text('VALIDATE'));
+  await tester.pumpAndSettle();
+}
+
 StatusReportSyncSourceExport _statusSourceExport() {
   const digest =
       'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -1213,6 +1293,44 @@ StatusReportSyncSourceExport _statusSourceExport() {
     plainText: plainText,
   );
 }
+
+ReportSyncEnvelope _morningHolidayResponse() => const ReportSyncCodec().create(
+  direction: ReportSyncDirection.response,
+  exchangeType: ReportSyncExchangeType.morningBrief,
+  exchangeId: 'morning-holiday-response',
+  requestId: 'request-morning',
+  operationDate: '2026-08-02',
+  createdAt: DateTime.utc(2026, 8, 2),
+  requestDigest: _FakeExchangeGateway.digest,
+  payload: const {
+    'source': {
+      'sourceOperationDate': '2026-08-02',
+      'sourceRecordId': 'status:2026-08-02',
+    },
+    'content': {
+      'operationStatus': 'green',
+      'situationAnalysis': {
+        'body': 'BODY',
+        'recovery': 'RECOVERY',
+        'condition': 'CONDITION',
+        'work': '公休日で実働だった。',
+        'carryover': 'CARRYOVER',
+        'overall': 'OVERALL',
+      },
+      'operatingPolicy': 'POLICY',
+      'strategicResourceDecision': {
+        'decision': 'DECISION',
+        'targetResource': null,
+        'rationale': 'RATIONALE',
+        'execution': null,
+      },
+      'commanderIntent': 'INTENT',
+      'actions': [
+        {'text': 'ACTION', 'priority': 'high'},
+      ],
+    },
+  },
+);
 
 HistoricalTrainingPreview _nullNameTrainingPreview() =>
     HistoricalTrainingPreview(
@@ -1265,6 +1383,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
     this.eligibleDates = const [],
     this.applyError,
     this.responseExchangeType = ReportSyncExchangeType.food,
+    this.responseOverride,
   });
 
   static const digest =
@@ -1278,6 +1397,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   final List<String> eligibleDates;
   final Object? applyError;
   final ReportSyncExchangeType responseExchangeType;
+  final ReportSyncEnvelope? responseOverride;
   int recordRequestCalls = 0;
   int applyCalls = 0;
   int previewCalls = 0;
@@ -1312,7 +1432,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
                 'body': '体調は安定しました',
                 'recovery': null,
                 'condition': null,
-                'work': null,
+                'work': '公休日で実働だった。',
                 'nutrition': null,
                 'hydration': null,
                 'activity': null,
@@ -1491,7 +1611,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
       );
     }
     return ReportSyncResponsePreview(
-      envelope: response,
+      envelope: responseOverride ?? response,
       disposition: disposition,
       createCount: disposition == ReportSyncDisposition.create ? 1 : 0,
       noChangeCount:

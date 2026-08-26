@@ -1,6 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
+import 'package:or_app/core/models/training_exercise.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
+import 'package:or_app/core/models/cardio_entry.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/features/command_center/services/daily_assessment_fact_loader.dart';
 import 'package:or_app/features/command_center/services/training_readiness_fact_builder.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
@@ -91,6 +95,49 @@ void main() {
     expect(facts.recentIntervals.single.compactLabel, '48h');
   });
 
+  test('uses only strength records for every readiness fact', () {
+    final cardio21 = _cardioRecord('2026-08-21');
+    final cardio23 = _cardioRecord('2026-08-23');
+    final facts = TrainingReadinessFactBuilder.build(
+      operationDate: '2026-08-25',
+      currentTime: DateTime.parse('2026-08-25T20:00:00+09:00'),
+      records: [
+        _record('2026-08-20'),
+        cardio21,
+        cardio23,
+        _record('2026-08-24'),
+      ],
+    )!;
+
+    expect(facts.lastTraining.compactLabel, '1d');
+    expect(facts.last7DaysSessionCount, 2);
+    expect(facts.currentWeekSessionCount, 1);
+    expect(facts.consecutiveTrainingDays, 1);
+    expect(facts.recentIntervals.single.compactLabel, '4d');
+    expect(cardio21.strengthTrainingPerformed, isFalse);
+    expect(cardio21.cardioPerformed, isTrue);
+    expect(cardio21.v2Data!.cardioEntries.single.estimatedCaloriesKcal, 49);
+    expect(
+      TrainingReadinessFactBuilder.build(
+        operationDate: '2026-08-25',
+        currentTime: DateTime.parse('2026-08-25T20:00:00+09:00'),
+        records: [cardio21, cardio23],
+      ),
+      isNull,
+    );
+  });
+
+  test('derives strength eligibility from both v1 and v2 records', () {
+    final facts = TrainingReadinessFactBuilder.build(
+      operationDate: '2026-08-25',
+      currentTime: DateTime.parse('2026-08-25T20:00:00+09:00'),
+      records: [_legacyRecord('2026-08-20'), _record('2026-08-24')],
+    )!;
+
+    expect(facts.last7DaysSessionCount, 2);
+    expect(facts.recentIntervals.single.compactLabel, '4d');
+  });
+
   test('loader excludes every draft and reflects only formal save', () async {
     final database = FakeIndexedDbDatabase();
     final container = AppRepositoryContainer.indexedDb(database);
@@ -119,7 +166,12 @@ void main() {
 
     expect((await loader.load(state)).trainingReadiness, isNull);
 
-    await container.training.saveNewV2(TrainingSessionV2(date: '2026-08-25'));
+    await container.training.saveNewV2(
+      TrainingSessionV2(
+        date: '2026-08-25',
+        exercises: [TrainingExerciseV2(exerciseName: 'Squat', order: 1)],
+      ),
+    );
     final afterSave = (await loader.load(state)).trainingReadiness!;
     expect(afterSave.last7DaysSessionCount, 1);
     expect(afterSave.currentWeekSessionCount, 1);
@@ -139,6 +191,7 @@ TrainingRecordReadModel _record(
     date: localDate,
     startTime: startTime,
     endTime: endTime,
+    exercises: [TrainingExerciseV2(exerciseName: 'Squat', order: 1)],
   ),
 );
 
@@ -151,6 +204,31 @@ TrainingRecordReadModel _legacyRecord(String localDate) =>
       data: TrainingSession(
         date: localDate,
         memo: '',
-        exercises: const [],
+        exercises: const [
+          TrainingExercise(exerciseName: 'Squat', order: 1, sets: []),
+        ],
+      ),
+    );
+
+TrainingRecordReadModel _cardioRecord(String localDate) =>
+    TrainingRecordReadModel.v2(
+      id: 'cardio:$localDate',
+      localDate: localDate,
+      createdAt: DateTime.parse('${localDate}T12:00:00Z'),
+      updatedAt: DateTime.parse('${localDate}T12:00:00Z'),
+      data: TrainingSessionV2(
+        date: localDate,
+        cardioEntries: [
+          CardioEntryV2(
+            purpose: CardioPurpose.main,
+            type: CardioType.walking,
+            durationSeconds: 600,
+            mets: 3.5,
+            estimatedCaloriesKcal: 49,
+            weightSnapshotKg: 80,
+            calculationMethod: 'metsAcsmV1',
+            calculationVersion: 1,
+          ),
+        ],
       ),
     );

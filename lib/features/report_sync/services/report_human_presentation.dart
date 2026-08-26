@@ -8,30 +8,22 @@ abstract final class ReportHumanPresentation {
 
   static String workText(String value) {
     if (!isHoliday(value)) return value;
-    return _holidayText(value);
-  }
-
-  static String _holidayText(String value) {
-    final sanitized = value
-        .replaceAll(RegExp(r'(?:実働|勤務)\s*0(?:\.0)?\s*時間'), '')
-        .replaceAll(RegExp(r'(?<!\d)0:00(?!\d)'), '')
-        .replaceAll(RegExp(r'[（）()]'), '')
-        .replaceAll(RegExp(r'\s{2,}'), ' ')
-        .replaceAll(RegExp(r'^[\s、,・:/-]+|[\s、,・:/-]+$'), '')
-        .trim();
-    return sanitized.isEmpty ? '公休日' : sanitized;
+    return '公休日';
   }
 
   static MorningBriefSectionDisplay? workDisplay(
     MorningBriefSectionDisplay? display,
     String workText,
   ) {
-    if (display == null || !isHoliday(workText)) return display;
-    return MorningBriefSectionDisplay(
-      primaryText: _holidayText(display.primaryText),
-      supportingText: display.supportingText == null
-          ? null
-          : _holidayText(display.supportingText!),
+    if (display == null) return null;
+    final holiday =
+        isHoliday(workText) ||
+        isHoliday(display.primaryText) ||
+        (display.supportingText != null && isHoliday(display.supportingText!));
+    if (!holiday) return display;
+    return const MorningBriefSectionDisplay(
+      primaryText: '公休日',
+      supportingText: null,
     );
   }
 }

@@ -12,7 +12,9 @@ abstract final class TrainingReadinessFactBuilder {
     final eligible =
         records
             .where(
-              (record) => !DateTime.parse(record.localDate).isAfter(targetDate),
+              (record) =>
+                  record.strengthTrainingPerformed &&
+                  !DateTime.parse(record.localDate).isAfter(targetDate),
             )
             .toList()
           ..sort(_compareRecords);

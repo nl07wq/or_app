@@ -20,6 +20,7 @@ import '../models/morning_brief_state.dart';
 import '../models/status_report_sync_source.dart';
 import '../services/report_sync_clipboard_gateway.dart';
 import '../services/report_sync_exchange_gateway.dart';
+import '../services/report_human_presentation.dart';
 import '../services/report_sync_persistence_service.dart';
 
 typedef ReportSyncClipboardWriter = Future<void> Function(String text);
@@ -1148,7 +1149,7 @@ class _MorningBriefPreviewCard extends StatelessWidget {
               'carryover',
               'overall',
             ])
-              '${key.toUpperCase()}  ${analysis[key]}',
+              '${key.toUpperCase()}  ${key == 'work' ? ReportHumanPresentation.workText('${analysis[key]}') : analysis[key]}',
           ],
         ),
         AppSpacing.gapSM,
@@ -1235,7 +1236,7 @@ class _DailyDebriefPreviewCard extends StatelessWidget {
             title: 'DOMAIN EVALUATIONS',
             lines: [
               for (final entry in evaluations)
-                '${entry.key.toUpperCase()}  ${entry.value}',
+                '${entry.key.toUpperCase()}  ${entry.key == 'work' ? ReportHumanPresentation.workText('${entry.value}') : entry.value}',
             ],
           ),
         ],
