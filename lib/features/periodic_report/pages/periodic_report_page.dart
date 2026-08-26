@@ -36,6 +36,42 @@ class PeriodicReportPage extends StatelessWidget {
   );
 }
 
+class PeriodicReportWorkspace extends StatelessWidget {
+  const PeriodicReportWorkspace({super.key});
+
+  @override
+  Widget build(BuildContext context) => const DefaultTabController(
+    length: 3,
+    child: Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: SectionHeader(
+            icon: Symbols.calendar_month,
+            title: 'PERIODIC REPORT',
+          ),
+        ),
+        TabBar(
+          tabs: [
+            Tab(text: 'WEEKLY'),
+            Tab(text: 'MONTHLY'),
+            Tab(text: 'YEARLY'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            children: [
+              PeriodicReportPanel(reportType: PeriodicReportType.weekly),
+              PeriodicReportPanel(reportType: PeriodicReportType.monthly),
+              PeriodicReportPanel(reportType: PeriodicReportType.yearly),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class PeriodicReportPanel extends StatefulWidget {
   const PeriodicReportPanel({
     super.key,

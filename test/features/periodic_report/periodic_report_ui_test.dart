@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -124,10 +125,7 @@ void main() {
     expect(find.textContaining('TOTAL 17,200'), findsOneWidget);
     expect(find.textContaining('98.33'), findsNothing);
     expect(find.text('AVERAGE 7:00 / MIN 6:00 / MAX 8:00'), findsOneWidget);
-    expect(
-      find.textContaining(exerciseDisplayName('Squat')),
-      findsOneWidget,
-    );
+    expect(find.textContaining(exerciseDisplayName('Squat')), findsOneWidget);
     expect(find.textContaining('Custom Rope Pull'), findsOneWidget);
     expect(report.facts.metrics['sleepDurationMinutes']!.average, 420);
     expect(report.facts.exercisesPerformed, ['Squat', 'Custom Rope Pull']);
@@ -181,6 +179,29 @@ void main() {
       expect(chart.points, hasLength(31));
       expect(chart.points.first.label, '1');
       expect(chart.points.last.label, '31');
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('periodic-report-chart-weightKg')),
+          matching: find.text('30'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('periodic-report-chart-weightKg')),
+          matching: find.text('31'),
+        ),
+        findsNothing,
+      );
+      final lineChart = tester.widget<LineChart>(
+        find.descendant(
+          of: find.byKey(const ValueKey('periodic-report-chart-weightKg')),
+          matching: find.byType(LineChart),
+        ),
+      );
+      final leftTitles = lineChart.data.titlesData.leftTitles.sideTitles;
+      expect(leftTitles.minIncluded, isFalse);
+      expect(leftTitles.maxIncluded, isFalse);
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('periodic-report-chart-weightKg')),

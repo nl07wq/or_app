@@ -97,6 +97,8 @@ class PeriodicReportChart extends StatelessWidget {
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 64,
+                          minIncluded: false,
+                          maxIncluded: false,
                           getTitlesWidget: (value, meta) => SideTitleWidget(
                             meta: meta,
                             child: FittedBox(
@@ -191,7 +193,7 @@ class PeriodicReportChart extends StatelessWidget {
 
   bool _showLabel(int x) {
     if (maximumIndex <= 12) return true;
-    return x == 0 || x == maximumIndex || (x + 1) % 5 == 0;
+    return x == 0 || (x + 1) % 5 == 0;
   }
 
   static List<List<PeriodicReportChartPoint>> _segments(

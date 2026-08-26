@@ -457,9 +457,10 @@ void main() {
     await _pump(tester, width: 390);
 
     expect(find.text('BRIEF / DEBRIEF'), findsWidgets);
-    expect(find.text('WEEKLY REPORT'), findsOneWidget);
-    expect(find.text('MONTHLY REPORT'), findsOneWidget);
-    expect(find.text('YEARLY REPORT'), findsOneWidget);
+    expect(find.text('PERIODIC REPORT'), findsOneWidget);
+    expect(find.text('WEEKLY REPORT'), findsNothing);
+    expect(find.text('MONTHLY REPORT'), findsNothing);
+    expect(find.text('YEARLY REPORT'), findsNothing);
     expect(find.text('DAILY COMMAND'), findsWidgets);
     expect(find.text('DATA CENTER'), findsWidgets);
     await tester.tap(find.text('BRIEF / DEBRIEF').first);
@@ -468,7 +469,7 @@ void main() {
       find.byKey(const ValueKey('command-center-tab-0')),
     );
     final unselectedCommandTab = tester.widget<AnimatedContainer>(
-      find.byKey(const ValueKey('command-center-tab-4')),
+      find.byKey(const ValueKey('command-center-tab-1')),
     );
     expect(
       ((selectedBriefTab.decoration as BoxDecoration).border as Border)
@@ -579,35 +580,40 @@ void main() {
     }
 
     expect(bottomBorder(0).color, isNot(Colors.transparent));
-    expect(bottomBorder(4).color, Colors.transparent);
+    expect(bottomBorder(1).color, Colors.transparent);
     expect(find.text('DAILY BRIEF'), findsWidgets);
 
     await _tapCommandCenterTab(tester, 'DAILY COMMAND');
     expect(bottomBorder(0).color, Colors.transparent);
-    expect(bottomBorder(4).color, isNot(Colors.transparent));
+    expect(bottomBorder(1).color, isNot(Colors.transparent));
     expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
   });
 
-  testWidgets('opens each periodic report as an independent top tab', (
+  testWidgets('opens periodic reports under one independent top tab', (
     tester,
   ) async {
     await _pump(tester, width: 390);
 
-    for (final (index, label) in const [
-      (1, 'WEEKLY REPORT'),
-      (2, 'MONTHLY REPORT'),
-      (3, 'YEARLY REPORT'),
-    ]) {
-      await _tapCommandCenterTab(tester, label);
-      final tab = tester.widget<AnimatedContainer>(
-        find.byKey(ValueKey('command-center-tab-$index')),
-      );
-      expect(
-        ((tab.decoration as BoxDecoration).border as Border).bottom.color,
-        isNot(Colors.transparent),
-      );
-      expect(find.text(label), findsWidgets);
-    }
+    await _tapCommandCenterTab(tester, 'PERIODIC REPORT');
+    final tab = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('command-center-tab-2')),
+    );
+    expect(
+      ((tab.decoration as BoxDecoration).border as Border).bottom.color,
+      isNot(Colors.transparent),
+    );
+    expect(find.text('WEEKLY'), findsOneWidget);
+    expect(find.text('MONTHLY'), findsOneWidget);
+    expect(find.text('YEARLY'), findsOneWidget);
+    expect(find.text('WEEKLY REPORT'), findsOneWidget);
+
+    await tester.tap(find.text('MONTHLY'));
+    await tester.pumpAndSettle();
+    expect(find.text('MONTHLY REPORT'), findsOneWidget);
+
+    await tester.tap(find.text('YEARLY'));
+    await tester.pumpAndSettle();
+    expect(find.text('YEARLY REPORT'), findsOneWidget);
 
     expect(tester.takeException(), isNull);
   });
@@ -1929,10 +1935,7 @@ Future<void> _openDailyDebrief(WidgetTester tester) async {
   await tester.tap(tab);
 }
 
-Future<void> _tapCommandCenterTab(
-  WidgetTester tester,
-  String label,
-) async {
+Future<void> _tapCommandCenterTab(WidgetTester tester, String label) async {
   final tab = find.widgetWithText(TextButton, label).first;
   await tester.ensureVisible(tab);
   await tester.pumpAndSettle();
