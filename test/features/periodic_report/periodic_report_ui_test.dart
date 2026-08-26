@@ -7,8 +7,10 @@ import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/periodic_report/models/periodic_report.dart';
 import 'package:or_app/features/periodic_report/pages/periodic_report_page.dart';
+import 'package:or_app/features/periodic_report/services/periodic_report_presentation_formatter.dart';
 import 'package:or_app/features/periodic_report/widgets/periodic_report_chart.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/training/services/exercise_name_localization.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -24,6 +26,14 @@ void main() {
       PeriodicReportType.monthly,
       PeriodicReportType.yearly,
     ]);
+  });
+
+  test('presentation formatter preserves numeric meaning', () {
+    expect(periodicReportDecimal(30485.04), '30,485.0');
+    expect(periodicReportDecimal(-30485.04), '-30,485.0');
+    expect(periodicReportInteger(187358), '187,358');
+    expect(periodicReportNumber(1000), '1,000');
+    expect(periodicReportDurationMinutes(369.9), '6:10');
   });
 
   for (final width in [320.0, 390.0, 900.0]) {
@@ -111,8 +121,16 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('AVERAGE 98.3'), findsOneWidget);
-    expect(find.textContaining('TOTAL 17200'), findsOneWidget);
+    expect(find.textContaining('TOTAL 17,200'), findsOneWidget);
     expect(find.textContaining('98.33'), findsNothing);
+    expect(find.text('AVERAGE 7:00 / MIN 6:00 / MAX 8:00'), findsOneWidget);
+    expect(
+      find.textContaining(exerciseDisplayName('Squat')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Custom Rope Pull'), findsOneWidget);
+    expect(report.facts.metrics['sleepDurationMinutes']!.average, 420);
+    expect(report.facts.exercisesPerformed, ['Squat', 'Custom Rope Pull']);
     expect(
       find.byKey(const ValueKey('periodic-report-previous-revisions')),
       findsOneWidget,
@@ -126,37 +144,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('monthly report keeps daily facts and a scrollable day axis', (
+  testWidgets('monthly report keeps all daily facts in the available width', (
     tester,
   ) async {
     final fixture = await _install(operationDate: '2026-08-01');
     final report = _report(PeriodicReportType.monthly, '2026-07-01');
     _seedReport(fixture.database, report);
-    await fixture.container.dailyAggregates.put(
-      _daily('2026-07-01', weight: 98, steps: 7000, calories: 2000),
-    );
-    await fixture.container.dailyAggregates.put(
-      _daily('2026-07-31', weight: 96, steps: 9000, calories: 2100),
-    );
+    for (var day = 1; day <= 31; day++) {
+      await fixture.container.dailyAggregates.put(
+        _daily(
+          '2026-07-${day.toString().padLeft(2, '0')}',
+          weight: 98 - day / 20,
+          steps: 7000 + day,
+          calories: 2000 + day.toDouble(),
+        ),
+      );
+    }
 
-    await _pump(
-      tester,
-      width: 390,
-      height: 5000,
-      child: PeriodicReportPanel(
-        reportType: PeriodicReportType.monthly,
-        initialAnchor: DateTime(2026, 7),
-      ),
-    );
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pump(
+        tester,
+        width: width,
+        height: 5000,
+        child: PeriodicReportPanel(
+          reportType: PeriodicReportType.monthly,
+          initialAnchor: DateTime(2026, 7),
+        ),
+      );
 
-    expect(find.text('MONTHLY REPORT'), findsOneWidget);
-    expect(find.text('2026-07'), findsOneWidget);
-    final chart = tester.widget<PeriodicReportChart>(
-      find.byKey(const ValueKey('periodic-report-chart-weightKg')),
-    );
-    expect(chart.maximumIndex, 30);
-    expect(chart.points.map((point) => point.label), ['1', '31']);
-    expect(tester.takeException(), isNull);
+      expect(find.text('MONTHLY REPORT'), findsOneWidget);
+      expect(find.text('2026-07'), findsOneWidget);
+      final chart = tester.widget<PeriodicReportChart>(
+        find.byKey(const ValueKey('periodic-report-chart-weightKg')),
+      );
+      expect(chart.maximumIndex, 30);
+      expect(chart.points, hasLength(31));
+      expect(chart.points.first.label, '1');
+      expect(chart.points.last.label, '31');
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('periodic-report-chart-weightKg')),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('yearly charts use generated monthly report facts only', (
@@ -356,6 +389,8 @@ PeriodicReportRecord _report(
       'sleepDurationMinutes': const PeriodicMetricFact(
         sampleCount: 2,
         average: 420,
+        minimum: 360,
+        maximum: 480,
       ),
       'sleepScore': const PeriodicMetricFact(sampleCount: 2, average: 82.25),
     },
@@ -363,7 +398,7 @@ PeriodicReportRecord _report(
     operationStatusCounts: const {'GREEN': 1, 'YELLOW': 1},
     trainingSessionCount: 2,
     trainingDays: 2,
-    exercisesPerformed: const ['Squat'],
+    exercisesPerformed: const ['Squat', 'Custom Rope Pull'],
     theoreticalWeightChangeKg: -0.1277,
     actualWeightChangeKg: -1,
   );

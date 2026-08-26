@@ -10,7 +10,9 @@ import '../../../core/widgets/section_header.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../report_sync/models/report_sync_history.dart';
+import '../../training/services/exercise_name_localization.dart';
 import '../models/periodic_report.dart';
+import '../services/periodic_report_presentation_formatter.dart';
 import '../services/periodic_report_service.dart';
 import '../widgets/periodic_report_chart.dart';
 
@@ -590,13 +592,14 @@ class _ReportViewer extends StatelessWidget {
         title: 'RECOVERY',
         text: report.analysis.recovery,
         children: [
-          _metricSummary('sleepDurationMinutes', 'SLEEP DURATION', 'min'),
+          _durationMetricSummary('sleepDurationMinutes', 'SLEEP DURATION'),
           _metricSummary('sleepScore', 'SLEEP SCORE', ''),
           _metricChart(
             metricKey: 'sleepDurationMinutes',
             title: 'SLEEP DURATION',
-            unit: 'min',
+            unit: 'H:MM',
             dailyValue: (fact) => fact.sleepDurationMinutes?.toDouble(),
+            valueFormatter: periodicReportDurationMinutes,
           ),
           _metricChart(
             metricKey: 'sleepScore',
@@ -619,7 +622,9 @@ class _ReportViewer extends StatelessWidget {
           if (report.facts.exercisesPerformed.isNotEmpty)
             _FactLine(
               label: 'EXERCISES',
-              value: report.facts.exercisesPerformed.join(' / '),
+              value: report.facts.exercisesPerformed
+                  .map(exerciseDisplayName)
+                  .join(' / '),
             ),
           _monthlyCountChart(),
         ],
@@ -740,20 +745,39 @@ class _ReportViewer extends StatelessWidget {
     final values = <String>[];
     if (metric.total != null) {
       values.add(
-        'TOTAL ${integer ? _whole(metric.total!) : _decimal(metric.total!)}',
+        'TOTAL ${integer ? periodicReportInteger(metric.total!) : periodicReportDecimal(metric.total!)}',
       );
     }
     if (metric.average != null) {
       values.add(
-        'AVERAGE ${integer ? _whole(metric.average!) : _decimal(metric.average!)}',
+        'AVERAGE ${integer ? periodicReportInteger(metric.average!) : periodicReportDecimal(metric.average!)}',
       );
     }
-    if (metric.change != null) values.add('CHANGE ${_signed(metric.change!)}');
+    if (metric.change != null) {
+      values.add('CHANGE ${periodicReportSignedDecimal(metric.change!)}');
+    }
     if (values.isEmpty) return const SizedBox.shrink();
     return _FactLine(
       label: label,
       value: '${values.join(' / ')}${unit.isEmpty ? '' : ' $unit'}',
     );
+  }
+
+  Widget _durationMetricSummary(String key, String label) {
+    final metric = report.facts.metrics[key];
+    if (metric == null) return const SizedBox.shrink();
+    final values = <String>[];
+    if (metric.average != null) {
+      values.add('AVERAGE ${periodicReportDurationMinutes(metric.average!)}');
+    }
+    if (metric.minimum != null) {
+      values.add('MIN ${periodicReportDurationMinutes(metric.minimum!)}');
+    }
+    if (metric.maximum != null) {
+      values.add('MAX ${periodicReportDurationMinutes(metric.maximum!)}');
+    }
+    if (values.isEmpty) return const SizedBox.shrink();
+    return _FactLine(label: label, value: values.join(' / '));
   }
 
   Widget _weightChangeComparison() {
@@ -769,10 +793,13 @@ class _ReportViewer extends StatelessWidget {
           if (theoretical != null)
             _ComparisonValue(
               label: 'THEORETICAL',
-              value: '${_decimal(theoretical)} kg',
+              value: '${periodicReportDecimal(theoretical)} kg',
             ),
           if (actual != null)
-            _ComparisonValue(label: 'ACTUAL', value: '${_decimal(actual)} kg'),
+            _ComparisonValue(
+              label: 'ACTUAL',
+              value: '${periodicReportDecimal(actual)} kg',
+            ),
         ],
       ),
     );
@@ -796,6 +823,7 @@ class _ReportViewer extends StatelessWidget {
     required String unit,
     required double? Function(DailyAggregateV1) dailyValue,
     bool yearlyTotal = false,
+    String Function(double value)? valueFormatter,
   }) {
     final points = <PeriodicReportChartPoint>[];
     if (report.reportType == PeriodicReportType.yearly) {
@@ -840,6 +868,7 @@ class _ReportViewer extends StatelessWidget {
       maximumIndex: report.reportType == PeriodicReportType.yearly
           ? 11
           : report.facts.expectedDailyCount - 1,
+      valueFormatter: valueFormatter,
     );
   }
 
@@ -1010,10 +1039,6 @@ String _periodTitle(PeriodicReportType type, OperationCalendarPeriod period) =>
       PeriodicReportType.monthly => _date(period.start).substring(0, 7),
       PeriodicReportType.yearly => '${period.start.year}',
     };
-
-String _decimal(double value) => value.toStringAsFixed(1);
-String _signed(double value) => '${value >= 0 ? '+' : ''}${_decimal(value)}';
-String _whole(double value) => value.round().toString();
 
 const _weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const _months = [

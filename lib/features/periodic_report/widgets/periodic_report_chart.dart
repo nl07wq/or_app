@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../services/periodic_report_presentation_formatter.dart';
 
 class PeriodicReportChartPoint {
   const PeriodicReportChartPoint({
@@ -24,12 +25,14 @@ class PeriodicReportChart extends StatelessWidget {
     required this.unit,
     required this.points,
     required this.maximumIndex,
+    this.valueFormatter,
   });
 
   final String title;
   final String unit;
   final List<PeriodicReportChartPoint> points;
   final int maximumIndex;
+  final String Function(double value)? valueFormatter;
 
   @override
   Widget build(BuildContext context) {
@@ -61,127 +64,121 @@ class PeriodicReportChart extends StatelessWidget {
           AppSpacing.gapSM,
           LayoutBuilder(
             builder: (context, constraints) {
-              final chartWidth = math.max(
-                constraints.maxWidth,
-                (maximumIndex + 1) * (maximumIndex > 12 ? 34.0 : 42.0),
-              );
+              final dense = maximumIndex > 12;
               return SizedBox(
                 height: 190,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: chartWidth,
-                    child: LineChart(
-                      LineChartData(
-                        minX: 0,
-                        maxX: math.max(1, maximumIndex).toDouble(),
-                        minY: minimum - padding,
-                        maxY: maximum + padding,
-                        clipData: const FlClipData.all(),
-                        gridData: FlGridData(
-                          show: true,
-                          drawVerticalLine: false,
-                          getDrawingHorizontalLine: (_) => FlLine(
-                            color: gridColor.withValues(alpha: 0.55),
-                            strokeWidth: 1,
-                          ),
-                        ),
-                        borderData: FlBorderData(
-                          show: true,
-                          border: Border(bottom: BorderSide(color: gridColor)),
-                        ),
-                        titlesData: FlTitlesData(
-                          topTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 48,
-                              getTitlesWidget: (value, meta) => SideTitleWidget(
-                                meta: meta,
-                                child: Text(
-                                  _number(value),
-                                  style: Theme.of(context).textTheme.labelSmall,
-                                ),
+                child: LineChart(
+                  LineChartData(
+                    minX: 0,
+                    maxX: math.max(1, maximumIndex).toDouble(),
+                    minY: minimum - padding,
+                    maxY: maximum + padding,
+                    clipData: const FlClipData.all(),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (_) => FlLine(
+                        color: gridColor.withValues(alpha: 0.55),
+                        strokeWidth: 1,
+                      ),
+                    ),
+                    borderData: FlBorderData(
+                      show: true,
+                      border: Border(bottom: BorderSide(color: gridColor)),
+                    ),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 64,
+                          getTitlesWidget: (value, meta) => SideTitleWidget(
+                            meta: meta,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                _formatValue(value),
+                                maxLines: 1,
+                                softWrap: false,
+                                style: Theme.of(context).textTheme.labelSmall,
                               ),
                             ),
                           ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 32,
-                              interval: 1,
-                              getTitlesWidget: (value, meta) {
-                                final x = value.round();
-                                final label = labels[x];
-                                if (label == null || !_showLabel(x)) {
-                                  return const SizedBox.shrink();
-                                }
-                                return SideTitleWidget(
-                                  meta: meta,
-                                  child: Text(
-                                    label,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.labelSmall,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
                         ),
-                        lineTouchData: LineTouchData(
-                          touchTooltipData: LineTouchTooltipData(
-                            fitInsideHorizontally: true,
-                            fitInsideVertically: true,
-                            getTooltipColor: (_) =>
-                                Theme.of(context).colorScheme.inverseSurface,
-                            getTooltipItems: (spots) => [
-                              for (final spot in spots)
-                                LineTooltipItem(
-                                  '${labels[spot.x.round()] ?? ''}\n'
-                                  '${_number(spot.y)} $unit',
-                                  TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onInverseSurface,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        lineBarsData: [
-                          for (final segment in segments)
-                            LineChartBarData(
-                              spots: [
-                                for (final point in segment)
-                                  FlSpot(point.x.toDouble(), point.value),
-                              ],
-                              isCurved: false,
-                              color: color,
-                              barWidth: 3,
-                              isStrokeCapRound: true,
-                              dotData: FlDotData(
-                                show: true,
-                                getDotPainter: (_, _, _, _) =>
-                                    FlDotCirclePainter(
-                                      radius: 4,
-                                      color: color,
-                                      strokeWidth: 1.5,
-                                      strokeColor: Theme.of(
-                                        context,
-                                      ).colorScheme.surface,
-                                    ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 32,
+                          interval: 1,
+                          getTitlesWidget: (value, meta) {
+                            final x = value.round();
+                            final label = labels[x];
+                            if (label == null || !_showLabel(x)) {
+                              return const SizedBox.shrink();
+                            }
+                            return SideTitleWidget(
+                              meta: meta,
+                              child: Text(
+                                label,
+                                style: Theme.of(context).textTheme.labelSmall,
                               ),
-                              belowBarData: BarAreaData(show: false),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    lineTouchData: LineTouchData(
+                      touchTooltipData: LineTouchTooltipData(
+                        fitInsideHorizontally: true,
+                        fitInsideVertically: true,
+                        getTooltipColor: (_) =>
+                            Theme.of(context).colorScheme.inverseSurface,
+                        getTooltipItems: (spots) => [
+                          for (final spot in spots)
+                            LineTooltipItem(
+                              '${labels[spot.x.round()] ?? ''}\n'
+                              '${_formatValue(spot.y)} $unit',
+                              TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onInverseSurface,
+                              ),
                             ),
                         ],
                       ),
                     ),
+                    lineBarsData: [
+                      for (final segment in segments)
+                        LineChartBarData(
+                          spots: [
+                            for (final point in segment)
+                              FlSpot(point.x.toDouble(), point.value),
+                          ],
+                          isCurved: false,
+                          color: color,
+                          barWidth: dense ? 2 : 3,
+                          isStrokeCapRound: true,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (_, _, _, _) => FlDotCirclePainter(
+                              radius: dense ? 2.5 : 4,
+                              color: color,
+                              strokeWidth: 1.5,
+                              strokeColor: Theme.of(
+                                context,
+                              ).colorScheme.surface,
+                            ),
+                          ),
+                          belowBarData: BarAreaData(show: false),
+                        ),
+                    ],
                   ),
                 ),
               );
@@ -212,10 +209,6 @@ class PeriodicReportChart extends StatelessWidget {
     return result;
   }
 
-  static String _number(double value) {
-    final rounded = value.roundToDouble();
-    return (value - rounded).abs() < 0.0001
-        ? rounded.toStringAsFixed(0)
-        : value.toStringAsFixed(1);
-  }
+  String _formatValue(double value) =>
+      valueFormatter?.call(value) ?? periodicReportNumber(value);
 }

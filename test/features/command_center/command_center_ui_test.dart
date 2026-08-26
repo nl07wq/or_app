@@ -397,10 +397,8 @@ void main() {
       );
       expect(find.text('12'), findsOneWidget);
 
-      await tester.tap(find.text('BRIEF / DEBRIEF').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('DAILY COMMAND').first);
-      await tester.pumpAndSettle();
+      await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+      await _tapCommandCenterTab(tester, 'DAILY COMMAND');
       expect(find.text('12'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('mechanical-flip-old-upper')),
@@ -459,6 +457,9 @@ void main() {
     await _pump(tester, width: 390);
 
     expect(find.text('BRIEF / DEBRIEF'), findsWidgets);
+    expect(find.text('WEEKLY REPORT'), findsOneWidget);
+    expect(find.text('MONTHLY REPORT'), findsOneWidget);
+    expect(find.text('YEARLY REPORT'), findsOneWidget);
     expect(find.text('DAILY COMMAND'), findsWidgets);
     expect(find.text('DATA CENTER'), findsWidgets);
     await tester.tap(find.text('BRIEF / DEBRIEF').first);
@@ -467,7 +468,7 @@ void main() {
       find.byKey(const ValueKey('command-center-tab-0')),
     );
     final unselectedCommandTab = tester.widget<AnimatedContainer>(
-      find.byKey(const ValueKey('command-center-tab-1')),
+      find.byKey(const ValueKey('command-center-tab-4')),
     );
     expect(
       ((selectedBriefTab.decoration as BoxDecoration).border as Border)
@@ -483,6 +484,9 @@ void main() {
     );
     expect(find.text('DAILY BRIEF'), findsWidgets);
     expect(find.text('DAILY DEBRIEF'), findsWidgets);
+    expect(find.text('WEEKLY'), findsNothing);
+    expect(find.text('MONTHLY'), findsNothing);
+    expect(find.text('YEARLY'), findsNothing);
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('MORNING BRIEF'), findsNothing);
     expect(find.text('DAILY BRIEFはまだありません。'), findsOneWidget);
@@ -575,21 +579,43 @@ void main() {
     }
 
     expect(bottomBorder(0).color, isNot(Colors.transparent));
-    expect(bottomBorder(1).color, Colors.transparent);
+    expect(bottomBorder(4).color, Colors.transparent);
     expect(find.text('DAILY BRIEF'), findsWidgets);
 
-    await tester.tap(find.text('DAILY COMMAND').first);
-    await tester.pumpAndSettle();
+    await _tapCommandCenterTab(tester, 'DAILY COMMAND');
     expect(bottomBorder(0).color, Colors.transparent);
-    expect(bottomBorder(1).color, isNot(Colors.transparent));
+    expect(bottomBorder(4).color, isNot(Colors.transparent));
     expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+  });
+
+  testWidgets('opens each periodic report as an independent top tab', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+
+    for (final (index, label) in const [
+      (1, 'WEEKLY REPORT'),
+      (2, 'MONTHLY REPORT'),
+      (3, 'YEARLY REPORT'),
+    ]) {
+      await _tapCommandCenterTab(tester, label);
+      final tab = tester.widget<AnimatedContainer>(
+        find.byKey(ValueKey('command-center-tab-$index')),
+      );
+      expect(
+        ((tab.decoration as BoxDecoration).border as Border).bottom.color,
+        isNot(Colors.transparent),
+      );
+      expect(find.text(label), findsWidgets);
+    }
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('keeps Data Center inside Command Center tabs', (tester) async {
     await _pump(tester, width: 900);
 
-    await tester.tap(find.widgetWithText(TextButton, 'DATA CENTER').first);
-    await tester.pumpAndSettle();
+    await _tapCommandCenterTab(tester, 'DATA CENTER');
 
     expect(find.byKey(const ValueKey('data-center-content')), findsOneWidget);
     expect(find.text('HISTORY'), findsNWidgets(2));
@@ -1901,6 +1927,17 @@ Future<void> _openDailyDebrief(WidgetTester tester) async {
   await tester.ensureVisible(tab);
   await tester.pumpAndSettle();
   await tester.tap(tab);
+}
+
+Future<void> _tapCommandCenterTab(
+  WidgetTester tester,
+  String label,
+) async {
+  final tab = find.widgetWithText(TextButton, label).first;
+  await tester.ensureVisible(tab);
+  await tester.pumpAndSettle();
+  await tester.tap(tab);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pump(
