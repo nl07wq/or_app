@@ -207,7 +207,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
           settings: const RouteSettings(name: AppRoutes.commandCenter),
           builder: (_) => const CommandCenterPage(initialPage: 0),
         ),
-        (_) => false,
+        ModalRoute.withName(AppRoutes.dashboard),
       );
       return;
     }

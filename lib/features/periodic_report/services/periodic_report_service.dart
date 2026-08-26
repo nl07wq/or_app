@@ -7,6 +7,7 @@ import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/models/report_sync_history.dart';
 import '../../report_sync/models/report_sync_issue.dart';
 import '../../report_sync/services/report_sync_canonical_service.dart';
+import '../../training/services/exercise_name_localization.dart';
 import '../models/periodic_report.dart';
 import 'periodic_report_fact_service.dart';
 
@@ -224,6 +225,10 @@ class PeriodicReportService {
 
   String _prompt(ReportSyncEnvelope request) {
     final payload = request.payload;
+    final facts = Map<String, Object?>.from(payload['facts'] as Map);
+    final exerciseLabels = periodicReportExerciseDisplayLabels(
+      (facts['exercisesPerformed'] as List).whereType<String>(),
+    );
     final example = {
       'format': ReportSyncEnvelope.formatId,
       'envelopeVersion': 1,
@@ -249,6 +254,17 @@ Create the Operation Reboot ${payload['reportType'].toString().toUpperCase()} PE
 FACT / ANALYSIS RESPONSIBILITY
 Operation Reboot owns every formal value, comparison, missing marker, calorie balance, theoretical weight change, and actual weight change. Preserve all facts exactly. Do not invent, complete, recalculate, or replace any fact. 7700 kcal/kg is already applied by Operation Reboot; do not recalculate it. Return analysis and comments only in concise natural Japanese.
 
+HUMAN-FACING ANALYSIS PRESENTATION
+These rules apply only to natural-language strings inside payload.analysis. They do not change the FORMAL FACT PACKAGE, JSON numbers, field names, digests, or stored values.
+- Render decimal facts to one decimal place by rounding the second decimal place: 98.33 kg becomes 98.3 kg, 33.43% becomes 33.4%, 1,827.19 kcal becomes 1,827.2 kcal, 122.04 g becomes 122.0 g, and -983.39 kcal becomes -983.4 kcal.
+- Render inherently integer facts such as steps, session counts, days, training days, and status counts as integers without an unnecessary .0 suffix.
+- Add thousands separators to human-facing numbers of 1,000 or more, including negative values: 12500 becomes 12,500; 30485.0 becomes 30,485.0; -30485.0 becomes -30,485.0.
+- Render duration-minute facts as H:MM with two minute digits in analysis prose: 369.9 minutes rounds to 370 minutes and becomes 6:10; 360 becomes 6:00. Keep every source and derived duration value in minutes in the FORMAL FACT PACKAGE.
+- Use the supplied display-only exercise labels in Japanese analysis. Do not translate or alter a custom or unknown exercise name; use its stored human-facing name exactly.
+
+DISPLAY-ONLY EXERCISE LABELS
+${const JsonEncoder.withIndent('  ').convert(exerciseLabels)}
+
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Preserve periodId, reportType, sourceDigest, and operationDate exactly. Use schemaVersion "2.0", direction "response", exchangeType "periodicReport", packageDigest null, a unique exchangeId, and UTC createdAt. Do not add, remove, or rename fields.
 
@@ -261,6 +277,10 @@ ${const JsonEncoder.withIndent('  ').convert(payload['facts'])}
         .trim();
   }
 }
+
+Map<String, String> periodicReportExerciseDisplayLabels(
+  Iterable<String> names,
+) => {for (final name in names) name: exerciseDisplayName(name)};
 
 abstract final class PeriodicReportPayloadExample {
   static const analysis = <String, Object?>{

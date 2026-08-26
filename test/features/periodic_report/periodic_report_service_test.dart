@@ -26,6 +26,46 @@ void main() {
       expect(prepared.prompt, contains('"reportType": "weekly"'));
       expect(prepared.prompt, contains('7700 kcal/kg'));
       expect(prepared.prompt, contains('Do not invent'));
+      expect(prepared.prompt, contains('HUMAN-FACING ANALYSIS PRESENTATION'));
+      expect(prepared.prompt, contains('98.33 kg becomes 98.3 kg'));
+      expect(prepared.prompt, contains('12500 becomes 12,500'));
+      expect(prepared.prompt, contains('369.9 minutes'));
+      expect(prepared.prompt, contains('becomes 6:10'));
+      expect(prepared.prompt, contains('without an unnecessary .0 suffix'));
+      expect(prepared.prompt, contains('custom or unknown exercise name'));
+      expect(prepared.prompt, contains('DISPLAY-ONLY EXERCISE LABELS'));
+      expect(
+        prepared.prompt,
+        contains('Keep every source and derived duration value in minutes'),
+      );
+      expect(prepared.prompt, contains('"total": -1540.0'));
+      expect(prepared.facts.metrics['calorieBalanceKcal']!.total, -1540.0);
+      expect(PeriodicReportPayloadExample.analysis.keys, {
+        'body',
+        'nutrition',
+        'calorieBalance',
+        'activity',
+        'recovery',
+        'training',
+        'condition',
+        'operation',
+        'overallSummary',
+        'nextPeriodFocus',
+      });
+      final exerciseLabels = periodicReportExerciseDisplayLabels(const [
+        'Bench Press',
+        'Hack Squat',
+        'Lat Pulldown',
+        'Leg Press',
+        'Shoulder Press',
+        'Custom Rope Pull',
+      ]);
+      expect(exerciseLabels['Bench Press'], isNot('Bench Press'));
+      expect(exerciseLabels['Hack Squat'], isNot('Hack Squat'));
+      expect(exerciseLabels['Lat Pulldown'], isNot('Lat Pulldown'));
+      expect(exerciseLabels['Leg Press'], isNot('Leg Press'));
+      expect(exerciseLabels['Shoulder Press'], isNot('Shoulder Press'));
+      expect(exerciseLabels['Custom Rope Pull'], 'Custom Rope Pull');
     },
   );
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
+import 'package:or_app/features/body_history/theme/history_metric_color_registry.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
@@ -137,6 +138,31 @@ void main() {
     final chart = tester.widget<PeriodicReportChart>(
       find.byKey(const ValueKey('periodic-report-chart-weightKg')),
     );
+    final bodyFatChart = tester.widget<PeriodicReportChart>(
+      find.byKey(const ValueKey('periodic-report-chart-bodyFatPercent')),
+    );
+    final caloriesChart = tester.widget<PeriodicReportChart>(
+      find.byKey(const ValueKey('periodic-report-chart-intakeCaloriesKcal')),
+    );
+    final balanceChart = tester.widget<PeriodicReportChart>(
+      find.byKey(const ValueKey('periodic-report-chart-calorieBalanceKcal')),
+    );
+    final stepsChart = tester.widget<PeriodicReportChart>(
+      find.byKey(const ValueKey('periodic-report-chart-officialSteps')),
+    );
+    final sleepDurationChart = tester.widget<PeriodicReportChart>(
+      find.byKey(const ValueKey('periodic-report-chart-sleepDurationMinutes')),
+    );
+    final sleepScoreChart = tester.widget<PeriodicReportChart>(
+      find.byKey(const ValueKey('periodic-report-chart-sleepScore')),
+    );
+    expect(chart.metricColorKey, HistoryMetricColorKey.weight);
+    expect(bodyFatChart.metricColorKey, HistoryMetricColorKey.bodyFat);
+    expect(caloriesChart.metricColorKey, HistoryMetricColorKey.intakeCalories);
+    expect(balanceChart.metricColorKey, HistoryMetricColorKey.calorieBalance);
+    expect(stepsChart.metricColorKey, isNull);
+    expect(sleepDurationChart.metricColorKey, isNull);
+    expect(sleepScoreChart.metricColorKey, isNull);
     expect(chart.points.map((point) => point.x), [0, 2]);
     expect(chart.points.any((point) => point.value == 0), isFalse);
     expect(tester.takeException(), isNull);

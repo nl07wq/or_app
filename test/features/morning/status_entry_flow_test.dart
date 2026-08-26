@@ -203,6 +203,7 @@ void main() {
       );
       expect(find.textContaining('LATEST BRIEF'), findsOneWidget);
       expect(find.text('DASHBOARD TEST'), findsNothing);
+      expect(find.byType(BackButton), findsOneWidget);
       final scrollable = tester.state<ScrollableState>(
         find.descendant(
           of: find.byKey(const ValueKey('morning-brief-content')),
@@ -210,6 +211,10 @@ void main() {
         ),
       );
       expect(scrollable.position.pixels, 0);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('DASHBOARD TEST'), findsOneWidget);
     },
   );
 
@@ -261,16 +266,30 @@ Future<void> _pumpEntry(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      initialRoute: '/status-entry',
       routes: {
-        AppRoutes.dashboard: (_) =>
-            const Scaffold(body: Center(child: Text('DASHBOARD TEST'))),
+        AppRoutes.dashboard: (context) => Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('DASHBOARD TEST'),
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/status-entry'),
+                  child: const Text('OPEN STATUS TEST'),
+                ),
+              ],
+            ),
+          ),
+        ),
         '/status-entry': (_) => MorningFactPage(
           dailyBriefCreationPageBuilder: dailyBriefCreationPageBuilder,
         ),
       },
     ),
   );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OPEN STATUS TEST'));
   await tester.pumpAndSettle();
 }
 

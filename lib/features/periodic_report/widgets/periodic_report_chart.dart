@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../body_history/theme/history_metric_color_registry.dart';
 import '../services/periodic_report_presentation_formatter.dart';
 
 class PeriodicReportChartPoint {
@@ -26,6 +27,7 @@ class PeriodicReportChart extends StatelessWidget {
     required this.points,
     required this.maximumIndex,
     this.valueFormatter,
+    this.metricColorKey,
   });
 
   final String title;
@@ -33,6 +35,7 @@ class PeriodicReportChart extends StatelessWidget {
   final List<PeriodicReportChartPoint> points;
   final int maximumIndex;
   final String Function(double value)? valueFormatter;
+  final HistoryMetricColorKey? metricColorKey;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +49,9 @@ class PeriodicReportChart extends StatelessWidget {
         : span * 0.12;
     final labels = {for (final point in points) point.x: point.label};
     final segments = _segments(points);
-    final color = Theme.of(context).colorScheme.primary;
+    final color = metricColorKey == null
+        ? Theme.of(context).colorScheme.primary
+        : HistoryMetricColorRegistry.resolve(context, metricColorKey!);
     final gridColor = Theme.of(context).colorScheme.outlineVariant;
 
     return Padding(

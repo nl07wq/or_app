@@ -117,6 +117,20 @@ void main() {
 
   tearDown(AppRepositoryRegistry.resetForTesting);
 
+  testWidgets('root COMMAND CENTER does not expose an invalid back action', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+
+    expect(find.text('COMMAND CENTER'), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(
+      Navigator.of(tester.element(find.text('COMMAND CENTER'))).canPop(),
+      isFalse,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows Current Operation and STANDBY without invented command', (
     tester,
   ) async {

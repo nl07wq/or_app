@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../body_history/theme/history_metric_color_registry.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../report_sync/models/report_sync_history.dart';
@@ -563,12 +564,14 @@ class _ReportViewer extends StatelessWidget {
             title: 'WEIGHT TREND',
             unit: 'kg',
             dailyValue: (fact) => fact.weightKg,
+            metricColorKey: HistoryMetricColorKey.weight,
           ),
           _metricChart(
             metricKey: 'bodyFatPercent',
             title: 'BODY FAT TREND',
             unit: '%',
             dailyValue: (fact) => fact.bodyFatPercent,
+            metricColorKey: HistoryMetricColorKey.bodyFat,
           ),
         ],
       ),
@@ -587,6 +590,7 @@ class _ReportViewer extends StatelessWidget {
             title: 'CALORIES',
             unit: 'kcal',
             dailyValue: (fact) => fact.intakeCaloriesKcal,
+            metricColorKey: HistoryMetricColorKey.intakeCalories,
           ),
         ],
       ),
@@ -604,6 +608,7 @@ class _ReportViewer extends StatelessWidget {
             unit: 'kcal',
             dailyValue: (fact) => fact.estimatedCalorieBalanceKcal,
             yearlyTotal: true,
+            metricColorKey: HistoryMetricColorKey.calorieBalance,
           ),
         ],
       ),
@@ -860,6 +865,7 @@ class _ReportViewer extends StatelessWidget {
     required double? Function(DailyAggregateV1) dailyValue,
     bool yearlyTotal = false,
     String Function(double value)? valueFormatter,
+    HistoryMetricColorKey? metricColorKey,
   }) {
     final points = <PeriodicReportChartPoint>[];
     if (report.reportType == PeriodicReportType.yearly) {
@@ -905,6 +911,7 @@ class _ReportViewer extends StatelessWidget {
           ? 11
           : report.facts.expectedDailyCount - 1,
       valueFormatter: valueFormatter,
+      metricColorKey: metricColorKey,
     );
   }
 
