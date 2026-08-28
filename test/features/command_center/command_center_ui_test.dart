@@ -465,6 +465,32 @@ void main() {
     );
   });
 
+  testWidgets('orders top tabs and keeps DAILY COMMAND selected initially', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+
+    final topTabPositions =
+        ['BRIEF / DEBRIEF', 'PERIODIC REPORT', 'DAILY COMMAND', 'DATA CENTER']
+            .map(
+              (label) => tester
+                  .getTopLeft(find.widgetWithText(TextButton, label).first)
+                  .dx,
+            )
+            .toList();
+    expect(topTabPositions, orderedEquals([...topTabPositions]..sort()));
+    expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+    final dailyCommandTab = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('command-center-tab-2')),
+    );
+    expect(
+      ((dailyCommandTab.decoration as BoxDecoration).border as Border)
+          .bottom
+          .color,
+      isNot(Colors.transparent),
+    );
+  });
+
   testWidgets('separates BRIEF DEBRIEF content from report sync pages', (
     tester,
   ) async {
@@ -483,7 +509,7 @@ void main() {
       find.byKey(const ValueKey('command-center-tab-0')),
     );
     final unselectedCommandTab = tester.widget<AnimatedContainer>(
-      find.byKey(const ValueKey('command-center-tab-1')),
+      find.byKey(const ValueKey('command-center-tab-2')),
     );
     expect(
       ((selectedBriefTab.decoration as BoxDecoration).border as Border)
@@ -594,12 +620,12 @@ void main() {
     }
 
     expect(bottomBorder(0).color, isNot(Colors.transparent));
-    expect(bottomBorder(1).color, Colors.transparent);
+    expect(bottomBorder(2).color, Colors.transparent);
     expect(find.text('DAILY BRIEF'), findsWidgets);
 
     await _tapCommandCenterTab(tester, 'DAILY COMMAND');
     expect(bottomBorder(0).color, Colors.transparent);
-    expect(bottomBorder(1).color, isNot(Colors.transparent));
+    expect(bottomBorder(2).color, isNot(Colors.transparent));
     expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
   });
 
@@ -610,7 +636,7 @@ void main() {
 
     await _tapCommandCenterTab(tester, 'PERIODIC REPORT');
     final tab = tester.widget<AnimatedContainer>(
-      find.byKey(const ValueKey('command-center-tab-2')),
+      find.byKey(const ValueKey('command-center-tab-1')),
     );
     expect(
       ((tab.decoration as BoxDecoration).border as Border).bottom.color,

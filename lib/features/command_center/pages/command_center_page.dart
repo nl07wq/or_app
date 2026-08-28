@@ -38,7 +38,7 @@ List<PeriodicReportType> periodicReportTypesForFinalizedDate(DateTime date) => [
 ];
 
 class CommandCenterPage extends StatefulWidget {
-  const CommandCenterPage({super.key, this.initialPage = 1});
+  const CommandCenterPage({super.key, this.initialPage = 2});
 
   final int initialPage;
 
@@ -88,11 +88,11 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
               onPageChanged: (page) => setState(() => _currentPage = page),
               children: [
                 const BriefDebriefPage(),
+                const PeriodicReportWorkspace(),
                 _DailyCommandPage(
                   refreshToken: _refreshToken,
                   onRefresh: _refresh,
                 ),
-                const PeriodicReportWorkspace(),
                 const DataCenterPage(),
               ],
             ),
@@ -497,8 +497,8 @@ class _WorkspaceHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     const labels = [
       'BRIEF / DEBRIEF',
-      'DAILY COMMAND',
       'PERIODIC REPORT',
+      'DAILY COMMAND',
       'DATA CENTER',
     ];
     return SingleChildScrollView(
