@@ -704,9 +704,13 @@ void main() {
 
     _expectTileText('STATUS', '完了');
     _expectTileText('FOOD', '2 / 3');
-    _expectTileText('CALORIES', '1100 / 2085–2363 kcal');
-    _expectTileText('PROTEIN', '50.0 / 121.5–148.5 g');
-    _expectTileText('WATER', '1750 / 3200 ml');
+    _expectTileText('CALORIES', '1,100 / 2,200 kcal');
+    _expectTileText('PROTEIN', '50 / 135 g');
+    _expectTileText('WATER', '1,750 / 3,200 ml');
+    expect(find.textContaining('2085–2363'), findsNothing);
+    expect(find.textContaining('121.5–148.5'), findsNothing);
+    expect(find.text('NOT RECORDED'), findsNothing);
+    expect(find.text('ACTIVITY PENDING'), findsNothing);
     _expectTileText('TRAINING', 'Recorded');
     _expectTileText('ACTIVITY', '12,345 steps');
     expect(
@@ -724,6 +728,27 @@ void main() {
     expect(_progress(tester, 'WATER'), closeTo(1750 / 3200, 1e-12));
     expect(_progress(tester, 'TRAINING'), 1);
     expect(_progress(tester, 'ACTIVITY'), 1);
+  });
+
+  testWidgets('shows zero current with available representative targets', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    morningFactNotifier.value = _morning();
+
+    await _pumpDashboard(tester, width: 800);
+    await tester.pumpAndSettle();
+
+    _expectTileText('CALORIES', '0 / 2,200 kcal');
+    _expectTileText('PROTEIN', '0 / 135 g');
+    _expectTileText('WATER', '0 / 2,700 ml');
+    expect(foodSummaryNotifier.value, isNull);
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(
+        find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
+        findsNothing,
+      );
+    }
   });
 
   testWidgets(
@@ -895,6 +920,7 @@ void main() {
     tester,
   ) async {
     await _pumpDashboard(tester, width: 800);
+    await tester.pumpAndSettle();
 
     _expectTileText('STATUS', '未完了');
     _expectTileText('FOOD', '0 / 3');
@@ -915,6 +941,29 @@ void main() {
     expect(find.text('未実施'), findsNothing);
     expect(_progress(tester, 'TRAINING'), 0);
     expect(_progress(tester, 'ACTIVITY'), 0);
+    _expectTileText('CALORIES', '0 / -- kcal');
+    _expectTileText('PROTEIN', '0 / -- g');
+    _expectTileText('WATER', '0 / -- ml');
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(
+        find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: _tile(label),
+          matching: find.textContaining('TARGET NOT AVAILABLE'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: _tile(label),
+          matching: find.text('ACTIVITY PENDING'),
+        ),
+        findsNothing,
+      );
+    }
   });
 
   testWidgets('shows one formal Digestive Event in ACTIVITY', (tester) async {

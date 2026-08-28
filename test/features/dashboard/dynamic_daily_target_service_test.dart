@@ -15,6 +15,52 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  group('human-facing representative targets', () {
+    test('rounds range midpoints without changing raw ranges', () {
+      const calories = DynamicRangeTarget(
+        current: 1000,
+        low: 2195,
+        high: 2488,
+        availability: DynamicTargetAvailability.available,
+        state: DynamicTargetState.yellowLow,
+      );
+      const protein = DynamicRangeTarget(
+        current: 80,
+        low: 116.7,
+        high: 142.7,
+        availability: DynamicTargetAvailability.available,
+        state: DynamicTargetState.redLow,
+      );
+
+      expect(DynamicDailyTargetPresentation.caloriesTargetKcal(calories), 2350);
+      expect(DynamicDailyTargetPresentation.proteinTargetG(protein), 130);
+      expect(calories.low, 2195);
+      expect(calories.high, 2488);
+      expect(calories.state, DynamicTargetState.yellowLow);
+      expect(protein.low, 116.7);
+      expect(protein.high, 142.7);
+      expect(protein.state, DynamicTargetState.redLow);
+    });
+
+    test('rounds water display target without changing its raw target', () {
+      for (final value in [(2867.0, 2900), (3117.0, 3100), (3367.0, 3400)]) {
+        final water = DynamicWaterTarget(
+          current: 1000,
+          baseTargetMl: value.$1,
+          stepsAdjustmentMl: 0,
+          trainingAdjustmentMl: 0,
+          cardioAdjustmentMl: 0,
+          finalTargetMl: value.$1,
+          availability: DynamicTargetAvailability.available,
+          state: DynamicTargetState.neutral,
+          trainingAdjustmentSource: TrainingAdjustmentSource.noneConfirmed,
+        );
+        expect(DynamicDailyTargetPresentation.waterTargetMl(water), value.$2);
+        expect(water.finalTargetMl, value.$1);
+      }
+    });
+  });
+
   group('reference body', () {
     test('uses independent seven-day means and derives lean mass', () {
       final result = _evaluate(

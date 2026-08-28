@@ -114,3 +114,26 @@ class DynamicDailyTargetResult {
   final DynamicRangeTarget protein;
   final DynamicWaterTarget water;
 }
+
+abstract final class DynamicDailyTargetPresentation {
+  static int? caloriesTargetKcal(DynamicRangeTarget? target) =>
+      _roundedMidpoint(target, 50);
+
+  static int? proteinTargetG(DynamicRangeTarget? target) =>
+      _roundedMidpoint(target, 5);
+
+  static int? waterTargetMl(DynamicWaterTarget? target) =>
+      _roundTo(target?.finalTargetMl, 100);
+
+  static int? _roundedMidpoint(DynamicRangeTarget? target, int increment) {
+    final low = target?.low;
+    final high = target?.high;
+    if (low == null || high == null) return null;
+    return _roundTo((low + high) / 2, increment);
+  }
+
+  static int? _roundTo(double? value, int increment) {
+    if (value == null) return null;
+    return (value / increment).round() * increment;
+  }
+}

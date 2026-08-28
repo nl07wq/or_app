@@ -627,7 +627,6 @@ class _ProgressCardState extends State<_ProgressCard> {
       future: _targets,
       builder: (context, snapshot) {
         final targets = snapshot.data;
-        final targetsLoading = snapshot.connectionState != ConnectionState.done;
         final estimatedTotalBurn =
             targets?.estimatedTotalBurnKcal ??
             _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
@@ -661,7 +660,6 @@ class _ProgressCardState extends State<_ProgressCard> {
                         hydrationMl: hydrationMl,
                         activityDetails: activityDetails,
                         targets: targets,
-                        targetsLoading: targetsLoading,
                         forceTwoColumns: true,
                       ),
                     ),
@@ -692,7 +690,6 @@ class _ProgressCardState extends State<_ProgressCard> {
                           hydrationMl: hydrationMl,
                           activityDetails: activityDetails,
                           targets: targets,
-                          targetsLoading: targetsLoading,
                         ),
                       ),
                     ),
@@ -820,7 +817,6 @@ class _ProgressCardState extends State<_ProgressCard> {
     required double hydrationMl,
     required List<String> activityDetails,
     required DynamicDailyTargetResult? targets,
-    required bool targetsLoading,
     bool forceTwoColumns = false,
   }) {
     final foodSummaryAvailable = widget.foodSummary != null && mealCount > 0;
@@ -873,9 +869,12 @@ class _ProgressCardState extends State<_ProgressCard> {
               label: 'CALORIES',
               status: _rangeStatus(
                 targets?.calories,
-                'kcal',
-                0,
-                loading: targetsLoading,
+                unit: 'kcal',
+                displayTarget:
+                    DynamicDailyTargetPresentation.caloriesTargetKcal(
+                      targets?.calories,
+                    ),
+                formatCurrent: _formatIntegerValue,
                 fallbackCurrent: foodSummaryAvailable ? calories : null,
               ),
               progress: _rangeProgress(targets?.calories),
@@ -885,9 +884,11 @@ class _ProgressCardState extends State<_ProgressCard> {
               label: 'PROTEIN',
               status: _rangeStatus(
                 targets?.protein,
-                'g',
-                1,
-                loading: targetsLoading,
+                unit: 'g',
+                displayTarget: DynamicDailyTargetPresentation.proteinTargetG(
+                  targets?.protein,
+                ),
+                formatCurrent: _formatProtein,
                 fallbackCurrent: foodSummaryAvailable ? protein : null,
               ),
               progress: _rangeProgress(targets?.protein),
@@ -897,7 +898,6 @@ class _ProgressCardState extends State<_ProgressCard> {
               label: 'WATER',
               status: _waterStatus(
                 targets?.water,
-                loading: targetsLoading,
                 fallbackCurrent: widget.foodSummary?.waterRecorded == true
                     ? hydrationMl
                     : null,
@@ -916,7 +916,7 @@ class _ProgressCardState extends State<_ProgressCard> {
             tile(
               label: 'ACTIVITY',
               status: widget.activitySummary.isRecorded
-                  ? '${_formatSteps(widget.activitySummary.steps)} steps'
+                  ? '${_formatInteger(widget.activitySummary.steps)} steps'
                   : 'Not recorded',
               progress: widget.activitySummary.isRecorded ? 1.0 : 0.0,
               fullWidth: true,
@@ -933,34 +933,23 @@ class _ProgressCardState extends State<_ProgressCard> {
     return '${duration.inHours}h ${minutes.toString().padLeft(2, '0')}m';
   }
 
-  String _formatSteps(int steps) => steps.toString().replaceAllMapped(
+  String _formatInteger(int value) => value.toString().replaceAllMapped(
     RegExp(r'(?<!^)(?=(\d{3})+$)'),
     (_) => ',',
   );
 
   String _rangeStatus(
-    DynamicRangeTarget? target,
-    String unit,
-    int fractionDigits, {
-    required bool loading,
+    DynamicRangeTarget? target, {
+    required String unit,
+    required int? displayTarget,
+    required String Function(double) formatCurrent,
     required double? fallbackCurrent,
   }) {
-    if (target == null) {
-      if (loading) return 'TARGET LOADING';
-      final current = fallbackCurrent?.toStringAsFixed(fractionDigits);
-      return '${current == null ? 'NOT RECORDED' : '$current $unit'}\n'
-          'TARGET NOT AVAILABLE';
-    }
-    final current = target.current?.toStringAsFixed(fractionDigits);
-    if (target.availability == DynamicTargetAvailability.notAvailable) {
-      return '${current == null ? 'NOT RECORDED' : '$current $unit'}\n'
-          'TARGET NOT AVAILABLE';
-    }
-    final low = target.low!.toStringAsFixed(fractionDigits);
-    final high = target.high!.toStringAsFixed(fractionDigits);
-    return current == null
-        ? 'NOT RECORDED\nTARGET $low–$high $unit'
-        : '$current / $low–$high $unit';
+    final current = target?.current ?? fallbackCurrent ?? 0;
+    final targetLabel = displayTarget == null
+        ? '--'
+        : _formatInteger(displayTarget);
+    return '${formatCurrent(current)} / $targetLabel $unit';
   }
 
   double _rangeProgress(DynamicRangeTarget? target) {
@@ -972,28 +961,21 @@ class _ProgressCardState extends State<_ProgressCard> {
 
   String _waterStatus(
     DynamicWaterTarget? target, {
-    required bool loading,
     required double? fallbackCurrent,
   }) {
-    if (target == null) {
-      if (loading) return 'TARGET LOADING';
-      final current = fallbackCurrent?.toStringAsFixed(0);
-      return '${current == null ? 'NOT RECORDED' : '$current ml'}\n'
-          'TARGET NOT AVAILABLE';
-    }
-    final current = target.current?.toStringAsFixed(0);
-    if (target.availability == DynamicTargetAvailability.notAvailable) {
-      return '${current == null ? 'NOT RECORDED' : '$current ml'}\n'
-          'TARGET NOT AVAILABLE';
-    }
-    final value = target.finalTargetMl!.toStringAsFixed(0);
-    final status = current == null
-        ? 'NOT RECORDED\nTARGET $value ml'
-        : '$current / $value ml';
-    return target.availability == DynamicTargetAvailability.partial
-        ? '$status\nACTIVITY PENDING'
-        : status;
+    final current = target?.current ?? fallbackCurrent ?? 0;
+    final displayTarget = DynamicDailyTargetPresentation.waterTargetMl(target);
+    final targetLabel = displayTarget == null
+        ? '--'
+        : _formatInteger(displayTarget);
+    return '${_formatIntegerValue(current)} / $targetLabel ml';
   }
+
+  String _formatIntegerValue(double value) => _formatInteger(value.round());
+
+  String _formatProtein(double value) => value == value.roundToDouble()
+      ? _formatInteger(value.round())
+      : value.toStringAsFixed(1);
 
   double _waterProgress(DynamicWaterTarget? target) {
     final current = target?.current;
