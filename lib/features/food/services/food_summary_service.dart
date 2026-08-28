@@ -23,6 +23,7 @@ class FoodSummaryService {
       carbohydrates: nutrition.carbs,
       hydrationMl: waterEntries.fold(0.0, (sum, entry) => sum + entry.waterMl!),
       mealCount: meals.length,
+      waterRecorded: waterEntries.isNotEmpty,
     );
   }
 }

@@ -270,7 +270,9 @@ class DailyLogCard extends StatelessWidget {
       training: trainingSummary,
     );
     final primaryReady =
-        phase == OperationPhase.awaitingDebrief && finalizeReady;
+        validation.canFinalize &&
+        phase == OperationPhase.awaitingDebrief &&
+        finalizeReady;
     final statusState = validation.statusValid
         ? _DailyLogEntryState.completed
         : _DailyLogEntryState.requiredInvalid;
@@ -338,8 +340,12 @@ class DailyLogCard extends StatelessWidget {
             },
           ),
           AppSpacing.gapMD,
-          _DailyCloseReadiness(phase: phase, finalizeReady: finalizeReady),
-          AppSpacing.gapMD,
+          _DailyCloseReadiness(
+            validation: validation,
+            phase: phase,
+            finalizeReady: finalizeReady,
+          ),
+          if (!primaryReady) AppSpacing.gapMD,
           _DailyCloseActionButton(
             text: phase == OperationPhase.finalizing
                 ? 'DAILY CLOSE IN PROGRESS'
@@ -423,32 +429,54 @@ class _DailyLogEntryStatus extends StatelessWidget {
 
 class _DailyCloseReadiness extends StatelessWidget {
   const _DailyCloseReadiness({
+    required this.validation,
     required this.phase,
     required this.finalizeReady,
   });
 
+  final DailyLogValidationResult validation;
   final OperationPhase phase;
   final bool finalizeReady;
 
   @override
   Widget build(BuildContext context) {
-    final awaiting = phase == OperationPhase.awaitingDebrief;
-    final ready = awaiting && finalizeReady;
+    final ready =
+        validation.canFinalize &&
+        phase == OperationPhase.awaitingDebrief &&
+        finalizeReady;
+    if (ready) return const SizedBox.shrink();
+
+    final blockers = <_DailyCloseBlocker>[
+      if (!validation.statusCompleteness.isComplete)
+        _DailyCloseBlocker(
+          label: 'STATUS',
+          completeness: validation.statusCompleteness,
+        ),
+      if (!validation.foodCompleteness.isComplete)
+        _DailyCloseBlocker(
+          label: 'FOOD',
+          completeness: validation.foodCompleteness,
+        ),
+      if (!validation.activityCompleteness.isComplete)
+        _DailyCloseBlocker(
+          label: 'ACTIVITY',
+          completeness: validation.activityCompleteness,
+        ),
+      if (phase != OperationPhase.awaitingDebrief || !finalizeReady)
+        const _DailyCloseBlocker(label: 'DAILY DEBRIEF'),
+    ];
     const action = 'FINALIZE';
     final colorScheme = Theme.of(context).colorScheme;
-    final color = ready ? colorScheme.primary : colorScheme.error;
+    final color = colorScheme.error;
     return Semantics(
       key: const ValueKey('daily-log-finalize-readiness'),
-      label: ready ? '$action READY' : '$action BLOCKED DAILY DEBRIEF REQUIRED',
+      label: '$action BLOCKED ${blockers.map((item) => item.label).join(', ')}',
       container: true,
       child: ExcludeSemantics(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              ready ? Icons.check_circle_outline : Icons.error_outline,
-              color: color,
-            ),
+            Icon(Icons.error_outline, color: color),
             AppSpacing.gapSM,
             Expanded(
               child: Column(
@@ -459,19 +487,25 @@ class _DailyCloseReadiness extends StatelessWidget {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        ready ? '$action READY' : '$action BLOCKED',
+                        '$action BLOCKED',
                         style: Theme.of(
                           context,
                         ).textTheme.titleSmall?.copyWith(color: color),
                       ),
                     ),
                   ),
-                  if (!ready)
+                  for (var index = 0; index < blockers.length; index++) ...[
+                    if (index > 0) AppSpacing.gapSM,
                     Text(
-                      awaiting
-                          ? 'DAILY DEBRIEF RE-CREATE REQUIRED'
-                          : 'DAILY DEBRIEF REQUIRED',
+                      blockers[index].label,
+                      style: Theme.of(context).textTheme.labelLarge,
                     ),
+                    Text(blockers[index].stateLabel),
+                    if (blockers[index].missingRequirements.isNotEmpty)
+                      Text(
+                        'Missing: ${blockers[index].missingRequirements.join(', ')}',
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -480,6 +514,23 @@ class _DailyCloseReadiness extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DailyCloseBlocker {
+  const _DailyCloseBlocker({this.completeness, required this.label});
+
+  final String label;
+  final DailyLogModuleCompleteness? completeness;
+
+  String get stateLabel => switch (completeness?.state) {
+    DailyLogCompletenessState.notRecorded => 'NOT RECORDED',
+    DailyLogCompletenessState.incomplete => 'INCOMPLETE',
+    DailyLogCompletenessState.complete => 'COMPLETE',
+    null => 'REQUIRED',
+  };
+
+  List<String> get missingRequirements =>
+      completeness?.missingRequirements ?? const [];
 }
 
 class _DailyCloseActionButton extends StatelessWidget {

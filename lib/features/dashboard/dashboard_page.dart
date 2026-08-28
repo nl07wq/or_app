@@ -11,6 +11,7 @@ import '../../core/models/meal_data.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../core/services/app_clock.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_flip_tile.dart';
@@ -677,7 +678,7 @@ class _ProgressCard extends StatelessWidget {
             : morningFact!.weight == null
             ? '未計測'
             : '${morningFact!.weight!.toStringAsFixed(1)} kg',
-        labelFirst: large,
+        labelFirst: true,
       ),
       _ProgressSummaryMetric(
         label: 'SLEEP',
@@ -686,14 +687,14 @@ class _ProgressCard extends StatelessWidget {
             : morningFact!.sleepDuration == null
             ? '未計測'
             : _formatSleep(morningFact!.sleepDuration!),
-        labelFirst: large,
+        labelFirst: true,
       ),
       _ProgressSummaryMetric(
         label: 'BASE BURN',
         value: estimatedTDEE == null
             ? '--'
             : '${estimatedTDEE!.toStringAsFixed(0)} kcal',
-        labelFirst: large,
+        labelFirst: true,
       ),
       _ProgressSummaryMetric(
         label: 'EXERCISE',
@@ -704,7 +705,7 @@ class _ProgressCard extends StatelessWidget {
             '${exerciseCalories.toStringAsFixed(0)} kcal\nPartial',
           TrainingEnergyCalculationStatus.notCalculated => 'Not calculated',
         },
-        labelFirst: large,
+        labelFirst: true,
       ),
       _ProgressSummaryMetric(
         label: 'EST. TOTAL BURN',
@@ -713,7 +714,7 @@ class _ProgressCard extends StatelessWidget {
             : energyStatus == TrainingEnergyCalculationStatus.partial
             ? '${estimatedTotalBurn.toStringAsFixed(0)} kcal\nPartial'
             : '${estimatedTotalBurn.toStringAsFixed(0)} kcal',
-        labelFirst: large,
+        labelFirst: true,
       ),
     ];
 
@@ -819,8 +820,11 @@ class _ProgressCard extends StatelessWidget {
             ),
             tile(
               label: 'WATER',
-              status: '${hydrationMl.toStringAsFixed(0)} / 3500 ml',
-              progress: (hydrationMl / 3500).clamp(0.0, 1.0).toDouble(),
+              status:
+                  '${hydrationMl.toStringAsFixed(0)} / ${OperationEngine.hydrationTargetMl.toStringAsFixed(0)} ml',
+              progress: (hydrationMl / OperationEngine.hydrationTargetMl)
+                  .clamp(0.0, 1.0)
+                  .toDouble(),
               onTap: onWaterTap,
             ),
             tile(
@@ -892,7 +896,13 @@ class _ProgressSummaryMetric extends StatelessWidget {
           Text(value, style: Theme.of(context).textTheme.titleSmall),
         AppSpacing.gapXS,
         if (labelFirst)
-          Text(value, style: Theme.of(context).textTheme.titleSmall)
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          )
         else
           Text(label, style: Theme.of(context).textTheme.labelSmall),
       ],
@@ -918,6 +928,7 @@ class _ProgressRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final completed = progress >= 1;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -945,16 +956,23 @@ class _ProgressRow extends StatelessWidget {
           ),
         ],
         AppSpacing.gapXS,
-        LinearProgressIndicator(value: progress),
+        LinearProgressIndicator(
+          value: progress,
+          color: completed ? AppColors.success : null,
+        ),
       ],
     );
 
     return Material(
-      color: Colors.transparent,
+      color: completed
+          ? AppColors.success.withValues(alpha: 0.12)
+          : Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+          color: completed
+              ? AppColors.success
+              : colorScheme.outlineVariant.withValues(alpha: 0.6),
         ),
       ),
       child: InkWell(
@@ -980,7 +998,9 @@ class _QuickWaterSheet extends StatefulWidget {
 
 class _QuickWaterSheetState extends State<_QuickWaterSheet> {
   final _customAmountController = TextEditingController();
+  final List<int> _pendingAmounts = [];
   bool _isSaving = false;
+  int _recordSequence = 0;
   String? _validationMessage;
 
   @override
@@ -989,39 +1009,51 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
     super.dispose();
   }
 
-  Future<void> _save(int amountMl) async {
+  void _queueSave(int amountMl) {
+    _pendingAmounts.add(amountMl);
     if (_isSaving) return;
+    unawaited(_drainPendingSaves());
+  }
 
+  Future<void> _drainPendingSaves() async {
     setState(() {
       _isSaving = true;
       _validationMessage = null;
     });
 
+    var addedMl = 0;
     try {
-      await FoodSubmitService.save(
-        MealData(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          date: DateTime.now().toIso8601String().split('T').first,
-          mealType: 'Water',
-          items: const [],
-          memo: '',
-          waterMl: amountMl.toDouble(),
-        ),
-      );
+      while (_pendingAmounts.isNotEmpty) {
+        final amountMl = _pendingAmounts.removeAt(0);
+        final operationDate = await const OperationDateService().current();
+        await FoodSubmitService.save(
+          MealData(
+            id: '${DateTime.now().microsecondsSinceEpoch}-${_recordSequence++}',
+            date: operationDate.value,
+            mealType: 'Water',
+            items: const [],
+            memo: '',
+            waterMl: amountMl.toDouble(),
+          ),
+        );
+        addedMl += amountMl;
+      }
 
       if (!mounted || !widget.dashboardContext.mounted) return;
 
-      Navigator.of(context).pop();
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(
         widget.dashboardContext,
-      ).showSnackBar(SnackBar(content: Text('$amountMl ml を記録しました')));
+      ).showSnackBar(SnackBar(content: Text('Water +$addedMl ml recorded')));
     } on ConfirmedDailyLogException catch (error) {
       if (!mounted) return;
+      _pendingAmounts.clear();
       setState(() => _isSaving = false);
       showConfirmedLogMessage(context, error);
     } catch (_) {
       if (!mounted) return;
 
+      _pendingAmounts.clear();
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(
         context,
@@ -1037,7 +1069,8 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
       return;
     }
 
-    _save(amountMl);
+    _customAmountController.clear();
+    _queueSave(amountMl);
   }
 
   @override
@@ -1066,13 +1099,21 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
                 ],
               ),
               AppSpacing.gapMD,
+              ValueListenableBuilder<FoodSummary?>(
+                valueListenable: foodSummaryNotifier,
+                builder: (context, summary, _) => Text(
+                  'CURRENT WATER  ${(summary?.hydrationMl ?? 0).toStringAsFixed(0)} ml',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+              AppSpacing.gapMD,
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: WaterQuickPresets.valuesMl
                     .map(
                       (amount) => OutlinedButton(
-                        onPressed: _isSaving ? null : () => _save(amount),
+                        onPressed: () => _queueSave(amount),
                         child: Text('+$amount ml'),
                       ),
                     )

@@ -9,7 +9,7 @@ import 'training_summary.dart';
 class OperationEngine {
   const OperationEngine();
 
-  static const _hydrationTargetMl = 3500.0;
+  static const hydrationTargetMl = 3000.0;
   static const _proteinTargetGrams = 100.0;
 
   double? estimateTDEE(OperationInput input, {double? weightKg}) {
@@ -158,10 +158,10 @@ class OperationEngine {
       );
     }
 
-    if (food.hydrationMl < _hydrationTargetMl) {
+    if (food.hydrationMl < hydrationTargetMl) {
       return const _DailyFocus(
         commanderIntent: '水分補給を継続して目標達成へ進める',
-        primaryAction: '3,500 mlの目標まで水分補給を続ける',
+        primaryAction: '3,000 mlの目標まで水分補給を続ける',
       );
     }
 
@@ -218,8 +218,8 @@ class OperationEngine {
       return 'タンパク質の確保が必要です。';
     }
 
-    if (food.hydrationMl < _hydrationTargetMl) {
-      return '水分補給は順調です。3,500 mlの目標まで続けましょう。';
+    if (food.hydrationMl < hydrationTargetMl) {
+      return '水分補給は順調です。3,000 mlの目標まで続けましょう。';
     }
 
     if (_isMaintenanceState(status, food, training)) {
@@ -279,8 +279,8 @@ class OperationEngine {
       return '最低ラインには近づいています。次は2,000 mlを目指しましょう。';
     }
 
-    if (food.hydrationMl < _hydrationTargetMl) {
-      return '水分補給は順調です。3,500 mlの目標まで補給を続けましょう。';
+    if (food.hydrationMl < hydrationTargetMl) {
+      return '水分補給は順調です。3,000 mlの目標まで補給を続けましょう。';
     }
 
     return '水分目標を達成しています。';
@@ -344,7 +344,7 @@ class OperationEngine {
   }
 
   String? _hydrationRecommendation(FoodSummary? food) {
-    if (food == null || food.hydrationMl >= _hydrationTargetMl) {
+    if (food == null || food.hydrationMl >= hydrationTargetMl) {
       return null;
     }
 
@@ -356,7 +356,7 @@ class OperationEngine {
       return '次の休憩で2,000 mlに届くよう水分を補給する';
     }
 
-    return '残りの水分を分けて補給し、3,500 mlを目指す';
+    return '残りの水分を分けて補給し、3,000 mlを目指す';
   }
 
   bool _isMaintenanceState(
@@ -368,7 +368,7 @@ class OperationEngine {
         food != null &&
         food.mealCount >= 3 &&
         food.protein >= _proteinTargetGrams &&
-        food.hydrationMl >= _hydrationTargetMl &&
+        food.hydrationMl >= hydrationTargetMl &&
         training?.completed == true;
   }
 
@@ -409,8 +409,8 @@ class OperationEngine {
       return 'タンパク質の確保が必要です。次の食事で補いましょう。';
     }
 
-    if (food.hydrationMl < _hydrationTargetMl) {
-      return '水分補給は順調です。3,500 mlの目標まで続けましょう。';
+    if (food.hydrationMl < hydrationTargetMl) {
+      return '水分補給は順調です。3,000 mlの目標まで続けましょう。';
     }
 
     if (training?.completed == true) {

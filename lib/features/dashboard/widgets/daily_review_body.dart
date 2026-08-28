@@ -171,7 +171,9 @@ class _WaterReviewSection extends StatelessWidget {
       icon: Icons.water_drop_outlined,
       title: 'WATER',
       child: Text(
-        food == null ? '未記録' : '${_formatWhole(food!.hydrationMl)} / 3,500 ml',
+        food == null
+            ? '未記録'
+            : '${_formatWhole(food!.hydrationMl)} / ${_formatWhole(OperationEngine.hydrationTargetMl)} ml',
       ),
     );
   }

@@ -68,7 +68,10 @@ void main() {
     );
     expect(find.bySemanticsLabel('ACTIVITY incomplete'), findsOneWidget);
     expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.text('DAILY DEBRIEF REQUIRED'), findsOneWidget);
+    expect(find.text('NOT RECORDED'), findsNWidgets(3));
+    expect(find.text('Missing: FOOD, WATER'), findsOneWidget);
+    expect(find.text('Missing: STEPS, DIGESTIVE'), findsOneWidget);
+    expect(find.text('REQUIRED'), findsOneWidget);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
   });
@@ -88,7 +91,7 @@ void main() {
     expect(find.bySemanticsLabel('TRAINING completed'), findsOneWidget);
     expect(find.bySemanticsLabel('ACTIVITY completed'), findsOneWidget);
     expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.text('DAILY DEBRIEF REQUIRED'), findsOneWidget);
+    expect(find.text('REQUIRED'), findsOneWidget);
   });
 
   testWidgets('DAILY LOG rows open existing module routes', (tester) async {
@@ -151,10 +154,19 @@ void main() {
     await _pumpDailyLogCard(
       tester,
       width: 800,
-      activity: const ActivitySummary(
+      activity: ActivitySummary(
         steps: 0,
         isRecorded: true,
         status: ActivitySummaryStatus.incomplete,
+        digestiveSummary: DigestiveSummary(
+          eventCount: 0,
+          totalAmount: 0,
+          latestShape: null,
+          latestRelief: null,
+          shapeTrend: [],
+          reliefTrend: [],
+          hasExplicitNoMovement: true,
+        ),
       ),
     );
 
@@ -168,11 +180,20 @@ void main() {
     await _pumpDailyLogCard(
       tester,
       width: 800,
-      activity: const ActivitySummary(
+      activity: ActivitySummary(
         steps: 0,
         measuredSteps: 0,
         isRecorded: true,
         status: ActivitySummaryStatus.incomplete,
+        digestiveSummary: DigestiveSummary(
+          eventCount: 0,
+          totalAmount: 0,
+          latestShape: null,
+          latestRelief: null,
+          shapeTrend: const [],
+          reliefTrend: const [],
+          hasExplicitNoMovement: true,
+        ),
         calculationBasis: ActivityCalculationBasis(
           rawSteps: 0,
           currentCarryOver: 0,
@@ -345,7 +366,7 @@ void main() {
     expect(find.text('Memo —'), findsOneWidget);
     expect(find.text('3 Meals'), findsOneWidget);
     expect(find.text('2,130 kcal'), findsOneWidget);
-    expect(find.text('3,200 / 3,500 ml'), findsOneWidget);
+    expect(find.text('3,200 / 3,000 ml'), findsOneWidget);
     expect(find.text('Est. Total Burn 2,850 kcal'), findsOneWidget);
     expect(find.text('Calorie Balance -720 kcal'), findsOneWidget);
     expect(find.text('3 Exercises'), findsOneWidget);
@@ -728,7 +749,7 @@ void main() {
       estimatedTotalBurn: 2100,
     );
 
-    expect(find.text('500 / 3,500 ml'), findsOneWidget);
+    expect(find.text('500 / 3,000 ml'), findsOneWidget);
     expect(find.text('0食'), findsNothing);
     expect(find.text('必須記録を完了してください: FOOD, ACTIVITY'), findsOneWidget);
   });
@@ -747,7 +768,7 @@ void main() {
     expect(find.text('CONFIRM'), findsNothing);
   });
 
-  testWidgets('an invalid existing Training blocks finalization', (
+  testWidgets('an invalid existing Training remains non-blocking', (
     tester,
   ) async {
     await _pumpReview(
@@ -765,7 +786,7 @@ void main() {
       estimatedTotalBurn: 2100,
     );
 
-    expect(find.text('必須記録を完了してください: TRAINING'), findsOneWidget);
+    expect(find.textContaining('必須記録を完了してください:'), findsNothing);
     expect(find.text('CONFIRM'), findsNothing);
   });
 
@@ -1639,6 +1660,14 @@ ActivitySummary _activity() {
     carryOver: 1241,
     isRecorded: true,
     bowelMovement: BowelMovementRecord.recorded(amount: 1, shape: 2),
+    digestiveSummary: DigestiveSummary(
+      eventCount: 1,
+      totalAmount: 1,
+      latestShape: 2,
+      latestRelief: 0,
+      shapeTrend: const [2],
+      reliefTrend: const [0],
+    ),
     calculationBasis: const ActivityCalculationBasis(
       rawSteps: 7659,
       currentCarryOver: 1241,

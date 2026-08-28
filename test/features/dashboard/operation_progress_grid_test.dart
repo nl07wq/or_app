@@ -5,10 +5,12 @@ import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
@@ -694,7 +696,7 @@ void main() {
     _expectTileText('FOOD', '2 / 3');
     _expectTileText('CALORIES', '1100 / 2200 kcal');
     _expectTileText('PROTEIN', '50.0 / 100 g');
-    _expectTileText('WATER', '1750 / 3500 ml');
+    _expectTileText('WATER', '1750 / 3000 ml');
     _expectTileText('TRAINING', 'Recorded');
     _expectTileText('ACTIVITY', '12,345 steps');
     expect(
@@ -709,10 +711,90 @@ void main() {
     expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
     expect(_progress(tester, 'CALORIES'), 0.5);
     expect(_progress(tester, 'PROTEIN'), 0.5);
-    expect(_progress(tester, 'WATER'), 0.5);
+    expect(_progress(tester, 'WATER'), closeTo(1750 / 3000, 1e-12));
     expect(_progress(tester, 'TRAINING'), 1);
     expect(_progress(tester, 'ACTIVITY'), 1);
   });
+
+  testWidgets(
+    'summary uses label-first accent values and goal cards use green',
+    (tester) async {
+      morningFactNotifier.value = _morning();
+      foodSummaryNotifier.value = const FoodSummary(
+        calories: 2200,
+        protein: 100,
+        fat: 60,
+        carbohydrates: 250,
+        hydrationMl: 3000,
+        mealCount: 3,
+      );
+
+      await _pumpDashboard(tester, width: 800);
+
+      final label = find.text('WEIGHT');
+      final value = find.text('90.0 kg');
+      expect(
+        tester.getTopLeft(label).dy,
+        lessThan(tester.getTopLeft(value).dy),
+      );
+      final valueWidget = tester.widget<Text>(value);
+      expect(valueWidget.style?.fontWeight, FontWeight.bold);
+      expect(
+        valueWidget.style?.color,
+        Theme.of(tester.element(value)).colorScheme.primary,
+      );
+
+      final waterTile = _tile('WATER');
+      expect(
+        tester
+            .widgetList<Material>(
+              find.descendant(of: waterTile, matching: find.byType(Material)),
+            )
+            .any(
+              (material) =>
+                  material.color == AppColors.success.withValues(alpha: 0.12),
+            ),
+        isTrue,
+      );
+      expect(_progress(tester, 'WATER'), 1);
+
+      foodSummaryNotifier.value = const FoodSummary(
+        calories: 2200,
+        protein: 100,
+        fat: 60,
+        carbohydrates: 250,
+        hydrationMl: 2999,
+        mealCount: 3,
+      );
+      await tester.pump();
+      expect(_progress(tester, 'WATER'), closeTo(2999 / 3000, 1e-12));
+      expect(
+        tester
+            .widgetList<Material>(
+              find.descendant(
+                of: _tile('WATER'),
+                matching: find.byType(Material),
+              ),
+            )
+            .any(
+              (material) =>
+                  material.color == AppColors.success.withValues(alpha: 0.12),
+            ),
+        isFalse,
+      );
+
+      foodSummaryNotifier.value = const FoodSummary(
+        calories: 2200,
+        protein: 100,
+        fat: 60,
+        carbohydrates: 250,
+        hydrationMl: 3500,
+        mealCount: 3,
+      );
+      await tester.pump();
+      expect(_progress(tester, 'WATER'), 1);
+    },
+  );
 
   testWidgets(
     'DAILY COMMAND has no COMMAND CENTER navigation but quick access remains',
@@ -848,7 +930,6 @@ void main() {
     AppRepositoryRegistry.beginStartup(controller: controller);
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
-
     final now = DateTime.utc(2020);
     await AppRepositoryRegistry.container.activityDrafts.save(
       ActivityDraft(
@@ -1100,28 +1181,61 @@ void main() {
 
     await tester.tap(_tile('WATER'));
     await tester.pumpAndSettle();
-
     expect(find.text('QUICK WATER LOG'), findsOneWidget);
-    expect(find.text('250 ml'), findsOneWidget);
+    expect(find.text('+250 ml'), findsOneWidget);
     expect(find.text('Save Water'), findsOneWidget);
   });
 
-  testWidgets('Quick Water saves to the Operation Date', (tester) async {
+  testWidgets('rapid Quick Water taps increment on the Operation Date', (
+    tester,
+  ) async {
     final database = FakeIndexedDbDatabase();
     seedOperationState(database, '2026-07-31');
     final controller = AppInitializationController()..markReady();
     AppRepositoryRegistry.beginStartup(controller: controller);
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
+    await AppRepositoryRegistry.container.food.save(
+      const MealData(
+        id: 'water-existing',
+        date: '2026-07-31',
+        mealType: 'Water',
+        items: [],
+        memo: '',
+        waterMl: 500,
+      ),
+    );
+    await refreshFoodSummary(localDate: '2026-07-31');
 
     await _pumpDashboard(tester, width: 800);
     await tester.tap(_tile('WATER'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('250 ml'));
+    expect(find.text('CURRENT WATER  500 ml'), findsOneWidget);
+    final add250 = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, '+250 ml'),
+    );
+    final add500 = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, '+500 ml'),
+    );
+    add250.onPressed!();
+    add250.onPressed!();
+    add500.onPressed!();
     await tester.pumpAndSettle();
 
     final records = await AppRepositoryRegistry.container.food.findAll();
-    expect(records.single.date, '2026-07-31');
+    expect(records.map((record) => record.waterMl).toList(), [
+      500,
+      250,
+      250,
+      500,
+    ]);
+    expect(records, hasLength(4));
+    expect(records.every((record) => record.date == '2026-07-31'), isTrue);
+    expect(
+      records.fold<double>(0, (sum, record) => sum + (record.waterMl ?? 0)),
+      1500,
+    );
+    expect(foodSummaryNotifier.value?.hydrationMl, 1500);
   });
 
   testWidgets('renders the grid without overflow in light and dark themes', (

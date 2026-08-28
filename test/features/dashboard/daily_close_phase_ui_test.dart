@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
+import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/models/bowel_movement_record.dart';
 import 'package:or_app/features/dashboard/log_confirmation_review_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
@@ -25,7 +26,7 @@ void main() {
     expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
     expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.text('DAILY DEBRIEF REQUIRED'), findsOneWidget);
+    expect(find.text('REQUIRED'), findsOneWidget);
     expect(find.text('UNDO DAILY CLOSE'), findsNothing);
   });
 
@@ -40,7 +41,7 @@ void main() {
 
     expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
-    expect(find.text('FINALIZE READY'), findsOneWidget);
+    expect(find.text('FINALIZE BLOCKED'), findsNothing);
     expect(find.text('UNDO DAILY CLOSE'), findsNothing);
   });
 
@@ -110,7 +111,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('DAILY DEBRIEF REQUIRED'), findsNWidgets(2));
+      expect(find.text('REQUIRED'), findsNWidgets(2));
 
       await container.operationState.save(
         initial.copyWith(
@@ -127,12 +128,12 @@ void main() {
       );
       notifyDailyDebriefChanged('2026-08-12');
       await tester.pumpAndSettle();
-      expect(find.text('DAILY DEBRIEF REQUIRED'), findsNWidgets(2));
+      expect(find.text('REQUIRED'), findsNWidgets(2));
       expect(find.text('DAILY DEBRIEF RE-CREATE REQUIRED'), findsNothing);
 
       notifyDailyDebriefChanged(operationDate.value);
       await tester.pumpAndSettle();
-      expect(find.text('DAILY DEBRIEF RE-CREATE REQUIRED'), findsNWidgets(2));
+      expect(find.text('REQUIRED'), findsNWidgets(2));
     },
   );
 }
@@ -194,6 +195,14 @@ ActivitySummary _activity() => ActivitySummary(
   carryOver: 1241,
   isRecorded: true,
   bowelMovement: BowelMovementRecord.recorded(amount: 1, shape: 2),
+  digestiveSummary: DigestiveSummary(
+    eventCount: 1,
+    totalAmount: 1,
+    latestShape: 2,
+    latestRelief: 0,
+    shapeTrend: const [2],
+    reliefTrend: const [0],
+  ),
   calculationBasis: const ActivityCalculationBasis(
     rawSteps: 7659,
     currentCarryOver: 1241,

@@ -5,6 +5,7 @@ class FoodSummary {
   final double carbohydrates;
   final double hydrationMl;
   final int mealCount;
+  final bool waterRecorded;
 
   const FoodSummary({
     required this.calories,
@@ -13,7 +14,8 @@ class FoodSummary {
     required this.carbohydrates,
     required this.hydrationMl,
     required this.mealCount,
-  });
+    bool? waterRecorded,
+  }) : waterRecorded = waterRecorded ?? hydrationMl > 0;
 
   Map<String, dynamic> toJson() => {
     'calories': calories,
@@ -31,5 +33,6 @@ class FoodSummary {
     carbohydrates: (json['carbohydrates'] as num).toDouble(),
     hydrationMl: (json['hydrationMl'] as num).toDouble(),
     mealCount: json['mealCount'] as int,
+    waterRecorded: (json['hydrationMl'] as num).toDouble() > 0,
   );
 }

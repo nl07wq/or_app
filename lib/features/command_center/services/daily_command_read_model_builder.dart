@@ -55,23 +55,14 @@ abstract final class DailyCommandReadModelBuilder {
           currentMorningBrief?.situationAnalysis ?? '当日のMORNING BRIEFが未登録です。',
       commanderIntent: currentMorningBrief?.commanderIntent,
       morningBriefSummary: currentMorningBrief?.argoComment,
-      statusModuleState: _requiredState(
-        recorded: status != null,
-        valid: validation.statusValid,
-      ),
-      foodModuleState: _requiredState(
-        recorded: food != null && food.mealCount > 0,
-        valid: validation.foodValid,
-      ),
+      statusModuleState: _requiredState(validation.statusCompleteness),
+      foodModuleState: _requiredState(validation.foodCompleteness),
       trainingModuleState: !validation.trainingValid
           ? DailyCommandModuleState.invalid
           : validation.trainingRecorded
           ? DailyCommandModuleState.recorded
           : DailyCommandModuleState.optionalMissing,
-      activityModuleState: _requiredState(
-        recorded: activity.isRecorded,
-        valid: validation.activityValid,
-      ),
+      activityModuleState: _requiredState(validation.activityCompleteness),
       validation: validation,
       finalizeBlockingReasons: validation.blockingModules,
       backupState:
@@ -110,13 +101,11 @@ abstract final class DailyCommandReadModelBuilder {
     return DailyCommandCycleState.active;
   }
 
-  static DailyCommandModuleState _requiredState({
-    required bool recorded,
-    required bool valid,
-  }) {
-    if (!recorded) return DailyCommandModuleState.missing;
-    return valid
-        ? DailyCommandModuleState.recorded
-        : DailyCommandModuleState.invalid;
-  }
+  static DailyCommandModuleState _requiredState(
+    DailyLogModuleCompleteness completeness,
+  ) => switch (completeness.state) {
+    DailyLogCompletenessState.notRecorded => DailyCommandModuleState.missing,
+    DailyLogCompletenessState.incomplete => DailyCommandModuleState.invalid,
+    DailyLogCompletenessState.complete => DailyCommandModuleState.recorded,
+  };
 }

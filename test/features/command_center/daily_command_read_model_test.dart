@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
+import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
@@ -79,7 +80,7 @@ void main() {
       expect(model.estimatedTotalBurnKcal, 1760);
     });
 
-    test('keeps invalid optional TRAINING as a blocker', () {
+    test('keeps invalid optional TRAINING non-blocking', () {
       final model = _build(
         status: _status(),
         food: _food(),
@@ -94,7 +95,8 @@ void main() {
       );
 
       expect(model.trainingModuleState, DailyCommandModuleState.invalid);
-      expect(model.finalizeBlockingReasons, [DailyLogModule.training]);
+      expect(model.finalizeBlockingReasons, isEmpty);
+      expect(model.canPrepareDailyDebrief, isTrue);
     });
 
     test('maps finalizing to FINALIZING', () {
@@ -215,10 +217,19 @@ FoodSummary _food() => const FoodSummary(
   mealCount: 3,
 );
 
-ActivitySummary _activity() => const ActivitySummary(
+ActivitySummary _activity() => ActivitySummary(
   steps: 5000,
   measuredSteps: 5000,
   isRecorded: true,
+  digestiveSummary: DigestiveSummary(
+    eventCount: 0,
+    totalAmount: 0,
+    latestShape: null,
+    latestRelief: null,
+    shapeTrend: const [],
+    reliefTrend: const [],
+    hasExplicitNoMovement: true,
+  ),
   calculationBasis: ActivityCalculationBasis(
     rawSteps: 5000,
     currentCarryOver: 0,
