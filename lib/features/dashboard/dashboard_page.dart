@@ -998,7 +998,6 @@ class _QuickWaterSheet extends StatefulWidget {
 
 class _QuickWaterSheetState extends State<_QuickWaterSheet> {
   final _customAmountController = TextEditingController();
-  final List<int> _pendingAmounts = [];
   bool _isSaving = false;
   int _recordSequence = 0;
   String? _validationMessage;
@@ -1009,59 +1008,23 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
     super.dispose();
   }
 
-  void _queueSave(int amountMl) {
-    _pendingAmounts.add(amountMl);
-    if (_isSaving) return;
-    unawaited(_drainPendingSaves());
-  }
+  void _addDraftAmount(int amountMl) {
+    final input = _customAmountController.text.trim();
+    final currentAmount = input.isEmpty ? 0 : int.tryParse(input);
+    if (currentAmount == null || currentAmount < 0) return;
 
-  Future<void> _drainPendingSaves() async {
-    setState(() {
-      _isSaving = true;
-      _validationMessage = null;
-    });
-
-    var addedMl = 0;
-    try {
-      while (_pendingAmounts.isNotEmpty) {
-        final amountMl = _pendingAmounts.removeAt(0);
-        final operationDate = await const OperationDateService().current();
-        await FoodSubmitService.save(
-          MealData(
-            id: '${DateTime.now().microsecondsSinceEpoch}-${_recordSequence++}',
-            date: operationDate.value,
-            mealType: 'Water',
-            items: const [],
-            memo: '',
-            waterMl: amountMl.toDouble(),
-          ),
-        );
-        addedMl += amountMl;
-      }
-
-      if (!mounted || !widget.dashboardContext.mounted) return;
-
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        widget.dashboardContext,
-      ).showSnackBar(SnackBar(content: Text('Water +$addedMl ml recorded')));
-    } on ConfirmedDailyLogException catch (error) {
-      if (!mounted) return;
-      _pendingAmounts.clear();
-      setState(() => _isSaving = false);
-      showConfirmedLogMessage(context, error);
-    } catch (_) {
-      if (!mounted) return;
-
-      _pendingAmounts.clear();
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Water を記録できませんでした')));
+    final nextAmount = currentAmount + amountMl;
+    final nextText = nextAmount.toString();
+    _customAmountController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    if (_validationMessage != null) {
+      setState(() => _validationMessage = null);
     }
   }
 
-  void _saveCustomAmount() {
+  Future<void> _saveCustomAmount() async {
     final amountMl = int.tryParse(_customAmountController.text.trim());
 
     if (amountMl == null || amountMl <= 0) {
@@ -1069,8 +1032,44 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
       return;
     }
 
-    _customAmountController.clear();
-    _queueSave(amountMl);
+    setState(() {
+      _isSaving = true;
+      _validationMessage = null;
+    });
+
+    try {
+      final operationDate = await const OperationDateService().current();
+      await FoodSubmitService.save(
+        MealData(
+          id: '${DateTime.now().microsecondsSinceEpoch}-${_recordSequence++}',
+          date: operationDate.value,
+          mealType: 'Water',
+          items: const [],
+          memo: '',
+          waterMl: amountMl.toDouble(),
+        ),
+        operationLocalDate: operationDate.value,
+      );
+
+      if (!mounted || !widget.dashboardContext.mounted) return;
+
+      _customAmountController.clear();
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(
+        widget.dashboardContext,
+      ).showSnackBar(SnackBar(content: Text('Water +$amountMl ml recorded')));
+    } on ConfirmedDailyLogException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      showConfirmedLogMessage(context, error);
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Water を記録できませんでした')));
+    }
   }
 
   @override
@@ -1113,7 +1112,9 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
                 children: WaterQuickPresets.valuesMl
                     .map(
                       (amount) => OutlinedButton(
-                        onPressed: () => _queueSave(amount),
+                        onPressed: _isSaving
+                            ? null
+                            : () => _addDraftAmount(amount),
                         child: Text('+$amount ml'),
                       ),
                     )
@@ -1122,7 +1123,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
               AppSpacing.gapLG,
               OperationTextField(
                 controller: _customAmountController,
-                label: 'Custom amount (ml)',
+                label: 'Amount (ml)',
                 keyboardType: TextInputType.number,
                 onChanged: (_) {
                   if (_validationMessage != null) {

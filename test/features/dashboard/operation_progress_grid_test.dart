@@ -1186,7 +1186,7 @@ void main() {
     expect(find.text('Save Water'), findsOneWidget);
   });
 
-  testWidgets('rapid Quick Water taps increment on the Operation Date', (
+  testWidgets('Quick Water presets update one draft and save one record', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -1218,24 +1218,117 @@ void main() {
       find.widgetWithText(OutlinedButton, '+500 ml'),
     );
     add250.onPressed!();
+    expect(find.text('250'), findsOneWidget);
     add250.onPressed!();
+    expect(find.text('500'), findsOneWidget);
     add500.onPressed!();
+    await tester.pump();
+
+    expect(find.widgetWithText(TextField, 'Amount (ml)'), findsOneWidget);
+    expect(find.text('1000'), findsOneWidget);
+    var records = await AppRepositoryRegistry.container.food.findAll();
+    expect(records.map((record) => record.waterMl).toList(), [500]);
+    expect(foodSummaryNotifier.value?.hydrationMl, 500);
+    expect(find.text('CURRENT WATER  500 ml'), findsOneWidget);
+
+    await tester.tap(find.text('Save Water'));
     await tester.pumpAndSettle();
 
-    final records = await AppRepositoryRegistry.container.food.findAll();
-    expect(records.map((record) => record.waterMl).toList(), [
-      500,
-      250,
-      250,
-      500,
-    ]);
-    expect(records, hasLength(4));
+    records = await AppRepositoryRegistry.container.food.findAll();
+    expect(records.map((record) => record.waterMl).toList(), [500, 1000]);
+    expect(records, hasLength(2));
     expect(records.every((record) => record.date == '2026-07-31'), isTrue);
     expect(
       records.fold<double>(0, (sum, record) => sum + (record.waterMl ?? 0)),
       1500,
     );
     expect(foodSummaryNotifier.value?.hydrationMl, 1500);
+  });
+
+  testWidgets('Quick Water manual input and preset share the same draft', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '600');
+    await tester.tap(find.widgetWithText(OutlinedButton, '+250 ml'));
+    await tester.pump();
+
+    expect(find.text('850'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '1000');
+    await tester.tap(find.widgetWithText(OutlinedButton, '+750 ml'));
+    await tester.pump();
+    expect(find.text('1750'), findsOneWidget);
+    expect(await AppRepositoryRegistry.container.food.findAll(), isEmpty);
+  });
+
+  testWidgets('Quick Water cancel discards the unsaved draft', (tester) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '+500 ml'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('QUICK WATER LOG'), findsNothing);
+    expect(await AppRepositoryRegistry.container.food.findAll(), isEmpty);
+  });
+
+  testWidgets('Quick Water sheet dismissal discards the unsaved draft', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '+750 ml'));
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    expect(find.text('QUICK WATER LOG'), findsNothing);
+    expect(await AppRepositoryRegistry.container.food.findAll(), isEmpty);
+  });
+
+  testWidgets('Quick Water save failure preserves the draft', (tester) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '+500 ml'));
+    database.failNextTransactionWith = StateError('save failed');
+    await tester.tap(find.text('Save Water'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('QUICK WATER LOG'), findsOneWidget);
+    expect(find.text('500'), findsOneWidget);
+    expect(await AppRepositoryRegistry.container.food.findAll(), isEmpty);
   });
 
   testWidgets('renders the grid without overflow in light and dark themes', (
