@@ -4,6 +4,7 @@ import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
+import 'package:or_app/features/command_center/models/daily_assessment.dart';
 import 'package:or_app/features/command_center/services/daily_assessment_fact_loader.dart';
 import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
@@ -27,6 +28,10 @@ void main() {
     expect(missing.currentProteinG, isNull);
     expect(missing.currentHydrationMl, isNull);
     expect(missing.currentOfficialSteps, isNull);
+    expect(
+      missing.currentWeightReference.source,
+      DailyWeightReferenceSource.notAvailable,
+    );
 
     await container.status.save(_status());
     await container.food.save(_meal());
@@ -41,6 +46,11 @@ void main() {
     expect(beforeFinalize.currentProteinG, 50);
     expect(beforeFinalize.currentHydrationMl, 750);
     expect(beforeFinalize.currentOfficialSteps, 6000);
+    expect(beforeFinalize.currentWeightReference.valueKg, 80);
+    expect(
+      beforeFinalize.currentWeightReference.source,
+      DailyWeightReferenceSource.measuredToday,
+    );
 
     final afterUndo = await loader.load(_state());
     expect(
@@ -89,6 +99,23 @@ void main() {
     expect(validWeights.first.operationDate, '2026-07-15');
     expect(validWeights.last.operationDate, '2026-08-10');
     expect(validWeights.map((point) => point.weightKg), isNot(contains(120)));
+  });
+
+  test('uses a bounded mean only when current-day weight is missing', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.status.save(_status(date: '2026-08-07', weight: 80));
+    await container.status.save(_status(date: '2026-08-08', weight: 82));
+    await container.status.save(_status(date: '2026-08-09', weight: 84));
+    await container.status.save(_status(weight: null));
+
+    final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+    expect(facts.currentWeightReference.valueKg, 82);
+    expect(
+      facts.currentWeightReference.source,
+      DailyWeightReferenceSource.sevenDayMean,
+    );
+    expect(facts.currentStatus?.weight, isNull);
   });
 }
 

@@ -1,6 +1,33 @@
 import '../../../core/models/morning_data.dart';
 import '../../body_history/models/body_history_models.dart';
 
+enum DailyWeightReferenceSource {
+  measuredToday,
+  sevenDayMean,
+  fourteenDayMean,
+  notAvailable,
+}
+
+class DailyWeightReference {
+  const DailyWeightReference({
+    required this.valueKg,
+    required this.source,
+    required this.sampleCount,
+    required this.windowDays,
+  });
+
+  const DailyWeightReference.notAvailable()
+    : valueKg = null,
+      source = DailyWeightReferenceSource.notAvailable,
+      sampleCount = 0,
+      windowDays = 0;
+
+  final double? valueKg;
+  final DailyWeightReferenceSource source;
+  final int sampleCount;
+  final int windowDays;
+}
+
 enum DailyAssessmentLevel {
   support('SUPPORT', '今日の運用を積極的に支える要因'),
   stable('STABLE', '通常運用可能'),
@@ -70,6 +97,7 @@ class DailyAssessment {
     required Iterable<DailyAssessmentItem> assessments,
     required Iterable<String> primaryConstraints,
     required Iterable<String> availableResources,
+    this.currentWeightReference = const DailyWeightReference.notAvailable(),
   }) : assessments = List.unmodifiable(assessments),
        primaryConstraints = List.unmodifiable(primaryConstraints),
        availableResources = List.unmodifiable(availableResources);
@@ -78,6 +106,7 @@ class DailyAssessment {
   final List<DailyAssessmentItem> assessments;
   final List<String> primaryConstraints;
   final List<String> availableResources;
+  final DailyWeightReference currentWeightReference;
 }
 
 class DailyAssessmentFacts {
@@ -93,6 +122,7 @@ class DailyAssessmentFacts {
     this.currentCardioPerformed = false,
     required Iterable<BodyHistoryDataPoint> weightHistory,
     this.trainingReadiness,
+    this.currentWeightReference = const DailyWeightReference.notAvailable(),
   }) : weightHistory = List.unmodifiable(weightHistory);
 
   final String operationDate;
@@ -106,6 +136,7 @@ class DailyAssessmentFacts {
   final bool currentCardioPerformed;
   final List<BodyHistoryDataPoint> weightHistory;
   final TrainingReadinessFacts? trainingReadiness;
+  final DailyWeightReference currentWeightReference;
 }
 
 enum TrainingReadinessIntervalBasis { hours, calendarDays }

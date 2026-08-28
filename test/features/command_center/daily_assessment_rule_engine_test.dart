@@ -188,6 +188,20 @@ void main() {
     expect(withOlderNoise.specificAssessment, 'ON TRACK');
   });
 
+  test('does not backfill missing current-day sleep from history', () {
+    final result = engine.evaluate(
+      _facts(status: _status(sleepHours: null, sleepScore: null)),
+    );
+    expect(
+      _find(result, DailyAssessmentMetric.sleepTime).specificAssessment,
+      'NOT AVAILABLE',
+    );
+    expect(
+      _find(result, DailyAssessmentMetric.sleepScore).specificAssessment,
+      'NOT AVAILABLE',
+    );
+  });
+
   test('strength-specific nutrition rule ignores cardio-only training', () {
     final cardioOnly = engine.evaluate(
       _facts(
@@ -383,8 +397,8 @@ TrainingReadinessFacts _training({
 );
 
 MorningData _status({
-  double sleepHours = 7,
-  int sleepScore = 80,
+  double? sleepHours = 7,
+  int? sleepScore = 80,
   int footPain = 2,
   WorkType workType = WorkType.work,
   double workHours = 8,

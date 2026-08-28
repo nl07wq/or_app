@@ -6,6 +6,8 @@ import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/models/meal_data.dart';
+import 'package:or_app/core/models/morning_data.dart';
+import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
@@ -665,9 +667,10 @@ void main() {
     expect(find.text('TUE'), findsOneWidget);
   });
 
-  testWidgets('keeps existing values, targets, progress, and module states', (
+  testWidgets('shows dynamic targets, progress, and module states', (
     tester,
   ) async {
+    await _installDdtStatus();
     morningFactNotifier.value = _morning();
     foodSummaryNotifier.value = const FoodSummary(
       calories: 1100,
@@ -688,15 +691,22 @@ void main() {
       steps: 12345,
       measuredSteps: 12345,
       isRecorded: true,
+      calculationBasis: ActivityCalculationBasis(
+        rawSteps: 12345,
+        currentCarryOver: 0,
+        previousCarryOverDeduction: 0,
+        officialSteps: 12345,
+      ),
     );
 
     await _pumpDashboard(tester, width: 800);
+    await tester.pumpAndSettle();
 
     _expectTileText('STATUS', '完了');
     _expectTileText('FOOD', '2 / 3');
-    _expectTileText('CALORIES', '1100 / 2200 kcal');
-    _expectTileText('PROTEIN', '50.0 / 100 g');
-    _expectTileText('WATER', '1750 / 3000 ml');
+    _expectTileText('CALORIES', '1100 / 2085–2363 kcal');
+    _expectTileText('PROTEIN', '50.0 / 121.5–148.5 g');
+    _expectTileText('WATER', '1750 / 3200 ml');
     _expectTileText('TRAINING', 'Recorded');
     _expectTileText('ACTIVITY', '12,345 steps');
     expect(
@@ -709,9 +719,9 @@ void main() {
 
     expect(_progress(tester, 'STATUS'), 1);
     expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
-    expect(_progress(tester, 'CALORIES'), 0.5);
-    expect(_progress(tester, 'PROTEIN'), 0.5);
-    expect(_progress(tester, 'WATER'), closeTo(1750 / 3000, 1e-12));
+    expect(_progress(tester, 'CALORIES'), closeTo(1100 / 2085, 1e-12));
+    expect(_progress(tester, 'PROTEIN'), closeTo(50 / 121.5, 1e-12));
+    expect(_progress(tester, 'WATER'), closeTo(1750 / 3200, 1e-12));
     expect(_progress(tester, 'TRAINING'), 1);
     expect(_progress(tester, 'ACTIVITY'), 1);
   });
@@ -719,6 +729,7 @@ void main() {
   testWidgets(
     'summary uses label-first accent values and goal cards use green',
     (tester) async {
+      await _installDdtStatus();
       morningFactNotifier.value = _morning();
       foodSummaryNotifier.value = const FoodSummary(
         calories: 2200,
@@ -728,8 +739,20 @@ void main() {
         hydrationMl: 3000,
         mealCount: 3,
       );
+      activitySummaryNotifier.value = const ActivitySummary(
+        steps: 0,
+        measuredSteps: 0,
+        isRecorded: true,
+        calculationBasis: ActivityCalculationBasis(
+          rawSteps: 0,
+          currentCarryOver: 0,
+          previousCarryOverDeduction: 0,
+          officialSteps: 0,
+        ),
+      );
 
       await _pumpDashboard(tester, width: 800);
+      await tester.pumpAndSettle();
 
       final label = find.text('WEIGHT');
       final value = find.text('90.0 kg');
@@ -763,11 +786,12 @@ void main() {
         protein: 100,
         fat: 60,
         carbohydrates: 250,
-        hydrationMl: 2999,
+        hydrationMl: 2699,
         mealCount: 3,
       );
       await tester.pump();
-      expect(_progress(tester, 'WATER'), closeTo(2999 / 3000, 1e-12));
+      await tester.pumpAndSettle();
+      expect(_progress(tester, 'WATER'), closeTo(2699 / 2700, 1e-12));
       expect(
         tester
             .widgetList<Material>(
@@ -792,6 +816,7 @@ void main() {
         mealCount: 3,
       );
       await tester.pump();
+      await tester.pumpAndSettle();
       expect(_progress(tester, 'WATER'), 1);
     },
   );
@@ -1498,6 +1523,32 @@ Future<void> _pumpDashboard(
     MaterialApp(theme: theme, home: const DashboardPage()),
   );
   await tester.pump();
+}
+
+Future<void> _installDdtStatus() async {
+  final database = FakeIndexedDbDatabase();
+  seedOperationState(database, '2026-07-28');
+  final container = AppRepositoryContainer.indexedDb(database);
+  AppRepositoryRegistry.install(container);
+  addTearDown(AppRepositoryRegistry.resetForTesting);
+  for (final day in [26, 27, 28]) {
+    await container.status.save(
+      MorningData(
+        date: '2026-07-${day.toString().padLeft(2, '0')}T00:00:00.000',
+        weight: 90,
+        bodyFat: 25,
+        sleepHours: null,
+        sleepScore: null,
+        footPain: 1,
+        workType: WorkType.work,
+        workStart: '09:00',
+        workEnd: '17:00',
+        workBreak: '00:00',
+        workHours: 8,
+        memo: '',
+      ),
+    );
+  }
 }
 
 DigestiveSummary _digestiveSummary({

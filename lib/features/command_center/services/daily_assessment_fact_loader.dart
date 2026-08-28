@@ -4,6 +4,7 @@ import '../../operation_date/models/operation_state.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/daily_assessment.dart';
 import 'daily_estimated_total_burn_service.dart';
+import 'daily_weight_reference_resolver.dart';
 import 'training_readiness_fact_builder.dart';
 
 class DailyAssessmentFactLoader {
@@ -69,6 +70,11 @@ class DailyAssessmentFactLoader {
       currentStrengthTrainingPerformed: strengthTrainingPerformed,
       currentCardioPerformed: cardioPerformed,
       weightHistory: weightHistory,
+      currentWeightReference: DailyWeightReferenceResolver.resolve(
+        operationDate: operationDate.value,
+        measuredTodayKg: currentStatus?.weight,
+        history: weightHistory,
+      ),
       trainingReadiness: trainingReadiness,
     );
   }

@@ -18,6 +18,7 @@ class DailyAssessmentView extends StatelessWidget {
         for (final module in DailyAssessmentModule.values) ...[
           _ModuleAssessmentCard(
             module: module,
+            currentWeightReference: assessment.currentWeightReference,
             items: assessment.assessments
                 .where((item) => item.module == module)
                 .toList(growable: false),
@@ -43,10 +44,15 @@ class DailyAssessmentView extends StatelessWidget {
 }
 
 class _ModuleAssessmentCard extends StatelessWidget {
-  const _ModuleAssessmentCard({required this.module, required this.items});
+  const _ModuleAssessmentCard({
+    required this.module,
+    required this.items,
+    required this.currentWeightReference,
+  });
 
   final DailyAssessmentModule module;
   final List<DailyAssessmentItem> items;
+  final DailyWeightReference currentWeightReference;
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -56,7 +62,10 @@ class _ModuleAssessmentCard extends StatelessWidget {
         Text(module.label, style: Theme.of(context).textTheme.titleSmall),
         AppSpacing.gapMD,
         for (var index = 0; index < items.length; index++) ...[
-          _AssessmentItem(item: items[index]),
+          _AssessmentItem(
+            item: items[index],
+            currentWeightReference: currentWeightReference,
+          ),
           if (index != items.length - 1) const Divider(height: 24),
         ],
       ],
@@ -65,9 +74,13 @@ class _ModuleAssessmentCard extends StatelessWidget {
 }
 
 class _AssessmentItem extends StatelessWidget {
-  const _AssessmentItem({required this.item});
+  const _AssessmentItem({
+    required this.item,
+    required this.currentWeightReference,
+  });
 
   final DailyAssessmentItem item;
+  final DailyWeightReference currentWeightReference;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +99,15 @@ class _AssessmentItem extends StatelessWidget {
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               AppSpacing.gapXS,
+              if (item.metric == DailyAssessmentMetric.weightTrend) ...[
+                _ReadinessFactRow(
+                  label: 'CURRENT WEIGHT',
+                  value: currentWeightReference.valueKg == null
+                      ? 'NOT AVAILABLE'
+                      : '${currentWeightReference.valueKg!.toStringAsFixed(1)} kg',
+                ),
+                AppSpacing.gapXS,
+              ],
               if (readiness == null)
                 Text(_valueLabel(item))
               else

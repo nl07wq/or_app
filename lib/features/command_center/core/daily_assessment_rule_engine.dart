@@ -101,6 +101,7 @@ class DailyAssessmentRuleEngine {
       assessments: assessments,
       primaryConstraints: _unique(constraints.map((value) => value.label)),
       availableResources: _unique(resources),
+      currentWeightReference: facts.currentWeightReference,
     );
   }
 

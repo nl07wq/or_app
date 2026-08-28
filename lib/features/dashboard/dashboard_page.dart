@@ -41,6 +41,8 @@ import '../operation_date/services/operation_date_service.dart';
 import '../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../report_sync/models/morning_brief_state.dart';
 
+import 'models/dynamic_daily_target.dart';
+import 'services/dynamic_daily_target_service.dart';
 import 'widgets/daily_log_card.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -155,6 +157,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                             foodSummary: foodSummary,
                                             trainingSummary: trainingSummary,
                                             activitySummary: activitySummary,
+                                            refreshToken:
+                                                _operationDateTransitionToken,
                                             useLargeLayout: useLargeLayout,
                                             onWaterTap: isReadOnly
                                                 ? null
@@ -555,12 +559,13 @@ class _DailyCommandSummary extends StatelessWidget {
   }
 }
 
-class _ProgressCard extends StatelessWidget {
+class _ProgressCard extends StatefulWidget {
   final MorningFact? morningFact;
   final double? estimatedTDEE;
   final FoodSummary? foodSummary;
   final TrainingSummary? trainingSummary;
   final ActivitySummary activitySummary;
+  final int refreshToken;
   final bool useLargeLayout;
   final VoidCallback? onWaterTap;
 
@@ -570,19 +575,39 @@ class _ProgressCard extends StatelessWidget {
     required this.foodSummary,
     required this.trainingSummary,
     required this.activitySummary,
+    required this.refreshToken,
     required this.useLargeLayout,
     required this.onWaterTap,
   });
 
   @override
+  State<_ProgressCard> createState() => _ProgressCardState();
+}
+
+class _ProgressCardState extends State<_ProgressCard> {
+  late Future<DynamicDailyTargetResult> _targets = _loadDynamicTargets();
+
+  @override
+  void didUpdateWidget(covariant _ProgressCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.morningFact != widget.morningFact ||
+        oldWidget.foodSummary != widget.foodSummary ||
+        oldWidget.trainingSummary != widget.trainingSummary ||
+        oldWidget.activitySummary != widget.activitySummary ||
+        oldWidget.refreshToken != widget.refreshToken) {
+      _targets = _loadDynamicTargets();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final morningComplete = morningFact != null;
-    final mealCount = foodSummary?.mealCount ?? 0;
-    final calories = foodSummary?.calories ?? 0;
-    final protein = foodSummary?.protein ?? 0;
-    final hydrationMl = foodSummary?.hydrationMl ?? 0;
-    final digestiveSummary = activitySummary.digestiveSummary;
-    final activityDetails = !activitySummary.isRecorded
+    final morningComplete = widget.morningFact != null;
+    final mealCount = widget.foodSummary?.mealCount ?? 0;
+    final calories = widget.foodSummary?.calories ?? 0;
+    final protein = widget.foodSummary?.protein ?? 0;
+    final hydrationMl = widget.foodSummary?.hydrationMl ?? 0;
+    final digestiveSummary = widget.activitySummary.digestiveSummary;
+    final activityDetails = !widget.activitySummary.isRecorded
         ? const <String>[]
         : digestiveSummary?.hasExplicitNoMovement == true
         ? const ['Digestive None']
@@ -594,77 +619,108 @@ class _ProgressCard extends StatelessWidget {
         : const <String>[];
 
     final energyStatus =
-        trainingSummary?.totalEnergyCalculationStatus ??
+        widget.trainingSummary?.totalEnergyCalculationStatus ??
         TrainingEnergyCalculationStatus.complete;
     final exerciseCalories =
-        trainingSummary?.trainingEstimatedCaloriesKcal ?? 0;
-    final estimatedTotalBurn = _estimatedTotalBurn(
-      estimatedTDEE,
-      trainingSummary,
-    );
-
-    return OperationCard(
-      child: useLargeLayout
-          ? Row(
-              key: const ValueKey('operation-progress-large-layout'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _buildSummary(
-                    context,
-                    exerciseCalories: exerciseCalories,
-                    energyStatus: energyStatus,
-                    estimatedTotalBurn: estimatedTotalBurn,
-                    large: true,
-                  ),
-                ),
-                SizedBox(width: AppSpacing.xl),
-                Expanded(
-                  flex: 3,
-                  child: _buildProgressTiles(
-                    morningComplete: morningComplete,
-                    mealCount: mealCount,
-                    calories: calories,
-                    protein: protein,
-                    hydrationMl: hydrationMl,
-                    activityDetails: activityDetails,
-                    forceTwoColumns: true,
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              key: const ValueKey('operation-progress-compact-layout'),
-              children: [
-                _buildSummary(
-                  context,
-                  exerciseCalories: exerciseCalories,
-                  energyStatus: energyStatus,
-                  estimatedTotalBurn: estimatedTotalBurn,
-                  large: false,
-                ),
-                AppSpacing.gapLG,
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: _buildProgressTiles(
-                      morningComplete: morningComplete,
-                      mealCount: mealCount,
-                      calories: calories,
-                      protein: protein,
-                      hydrationMl: hydrationMl,
-                      activityDetails: activityDetails,
+        widget.trainingSummary?.trainingEstimatedCaloriesKcal ?? 0;
+    return FutureBuilder<DynamicDailyTargetResult>(
+      future: _targets,
+      builder: (context, snapshot) {
+        final targets = snapshot.data;
+        final targetsLoading = snapshot.connectionState != ConnectionState.done;
+        final estimatedTotalBurn =
+            targets?.estimatedTotalBurnKcal ??
+            _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
+        return OperationCard(
+          child: widget.useLargeLayout
+              ? Row(
+                  key: const ValueKey('operation-progress-large-layout'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _buildSummary(
+                        context,
+                        estimatedBaseBurn:
+                            targets?.estimatedBaseBurnKcal ??
+                            widget.estimatedTDEE,
+                        exerciseCalories: exerciseCalories,
+                        energyStatus: energyStatus,
+                        estimatedTotalBurn: estimatedTotalBurn,
+                        large: true,
+                      ),
                     ),
-                  ),
+                    SizedBox(width: AppSpacing.xl),
+                    Expanded(
+                      flex: 3,
+                      child: _buildProgressTiles(
+                        morningComplete: morningComplete,
+                        mealCount: mealCount,
+                        calories: calories,
+                        protein: protein,
+                        hydrationMl: hydrationMl,
+                        activityDetails: activityDetails,
+                        targets: targets,
+                        targetsLoading: targetsLoading,
+                        forceTwoColumns: true,
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  key: const ValueKey('operation-progress-compact-layout'),
+                  children: [
+                    _buildSummary(
+                      context,
+                      estimatedBaseBurn:
+                          targets?.estimatedBaseBurnKcal ??
+                          widget.estimatedTDEE,
+                      exerciseCalories: exerciseCalories,
+                      energyStatus: energyStatus,
+                      estimatedTotalBurn: estimatedTotalBurn,
+                      large: false,
+                    ),
+                    AppSpacing.gapLG,
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: _buildProgressTiles(
+                          morningComplete: morningComplete,
+                          mealCount: mealCount,
+                          calories: calories,
+                          protein: protein,
+                          hydrationMl: hydrationMl,
+                          activityDetails: activityDetails,
+                          targets: targets,
+                          targetsLoading: targetsLoading,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+        );
+      },
+    );
+  }
+
+  Future<DynamicDailyTargetResult> _loadDynamicTargets() async {
+    final operationDate = await const OperationDateService().current();
+    final repositories = AppRepositoryRegistry.container;
+    return DynamicDailyTargetService(
+      statusRepository: repositories.status,
+      trainingRepository: repositories.training,
+    ).load(
+      operationDate: operationDate.value,
+      currentStatus: widget.morningFact,
+      food: widget.foodSummary,
+      activity: widget.activitySummary,
+      training: widget.trainingSummary,
     );
   }
 
   Widget _buildSummary(
     BuildContext context, {
+    required double? estimatedBaseBurn,
     required double exerciseCalories,
     required TrainingEnergyCalculationStatus energyStatus,
     required double? estimatedTotalBurn,
@@ -673,27 +729,27 @@ class _ProgressCard extends StatelessWidget {
     final metrics = [
       _ProgressSummaryMetric(
         label: 'WEIGHT',
-        value: morningFact == null
+        value: widget.morningFact == null
             ? '--'
-            : morningFact!.weight == null
+            : widget.morningFact!.weight == null
             ? '未計測'
-            : '${morningFact!.weight!.toStringAsFixed(1)} kg',
+            : '${widget.morningFact!.weight!.toStringAsFixed(1)} kg',
         labelFirst: true,
       ),
       _ProgressSummaryMetric(
         label: 'SLEEP',
-        value: morningFact == null
+        value: widget.morningFact == null
             ? '--'
-            : morningFact!.sleepDuration == null
+            : widget.morningFact!.sleepDuration == null
             ? '未計測'
-            : _formatSleep(morningFact!.sleepDuration!),
+            : _formatSleep(widget.morningFact!.sleepDuration!),
         labelFirst: true,
       ),
       _ProgressSummaryMetric(
         label: 'BASE BURN',
-        value: estimatedTDEE == null
+        value: estimatedBaseBurn == null
             ? '--'
-            : '${estimatedTDEE!.toStringAsFixed(0)} kcal',
+            : '${estimatedBaseBurn.toStringAsFixed(0)} kcal',
         labelFirst: true,
       ),
       _ProgressSummaryMetric(
@@ -763,8 +819,11 @@ class _ProgressCard extends StatelessWidget {
     required double protein,
     required double hydrationMl,
     required List<String> activityDetails,
+    required DynamicDailyTargetResult? targets,
+    required bool targetsLoading,
     bool forceTwoColumns = false,
   }) {
+    final foodSummaryAvailable = widget.foodSummary != null && mealCount > 0;
     return LayoutBuilder(
       key: const ValueKey('operation-progress-tiles'),
       builder: (context, constraints) {
@@ -780,6 +839,7 @@ class _ProgressCard extends StatelessWidget {
           VoidCallback? onTap,
           bool fullWidth = false,
           List<String> details = const [],
+          DynamicTargetState? targetState,
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
@@ -790,6 +850,7 @@ class _ProgressCard extends StatelessWidget {
               progress: progress,
               onTap: onTap,
               details: details,
+              targetState: targetState,
             ),
           );
         }
@@ -810,36 +871,54 @@ class _ProgressCard extends StatelessWidget {
             ),
             tile(
               label: 'CALORIES',
-              status: '${calories.toStringAsFixed(0)} / 2200 kcal',
-              progress: (calories / 2200).clamp(0.0, 1.0).toDouble(),
+              status: _rangeStatus(
+                targets?.calories,
+                'kcal',
+                0,
+                loading: targetsLoading,
+                fallbackCurrent: foodSummaryAvailable ? calories : null,
+              ),
+              progress: _rangeProgress(targets?.calories),
+              targetState: targets?.calories.state,
             ),
             tile(
               label: 'PROTEIN',
-              status: '${protein.toStringAsFixed(1)} / 100 g',
-              progress: (protein / 100).clamp(0.0, 1.0).toDouble(),
+              status: _rangeStatus(
+                targets?.protein,
+                'g',
+                1,
+                loading: targetsLoading,
+                fallbackCurrent: foodSummaryAvailable ? protein : null,
+              ),
+              progress: _rangeProgress(targets?.protein),
+              targetState: targets?.protein.state,
             ),
             tile(
               label: 'WATER',
-              status:
-                  '${hydrationMl.toStringAsFixed(0)} / ${OperationEngine.hydrationTargetMl.toStringAsFixed(0)} ml',
-              progress: (hydrationMl / OperationEngine.hydrationTargetMl)
-                  .clamp(0.0, 1.0)
-                  .toDouble(),
-              onTap: onWaterTap,
+              status: _waterStatus(
+                targets?.water,
+                loading: targetsLoading,
+                fallbackCurrent: widget.foodSummary?.waterRecorded == true
+                    ? hydrationMl
+                    : null,
+              ),
+              progress: _waterProgress(targets?.water),
+              targetState: targets?.water.state,
+              onTap: widget.onWaterTap,
             ),
             tile(
               label: 'TRAINING',
-              status: trainingSummary?.completed == true
+              status: widget.trainingSummary?.completed == true
                   ? 'Recorded'
                   : 'Not recorded',
-              progress: trainingSummary?.completed == true ? 1.0 : 0.0,
+              progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
             ),
             tile(
               label: 'ACTIVITY',
-              status: activitySummary.isRecorded
-                  ? '${_formatSteps(activitySummary.steps)} steps'
+              status: widget.activitySummary.isRecorded
+                  ? '${_formatSteps(widget.activitySummary.steps)} steps'
                   : 'Not recorded',
-              progress: activitySummary.isRecorded ? 1.0 : 0.0,
+              progress: widget.activitySummary.isRecorded ? 1.0 : 0.0,
               fullWidth: true,
               details: activityDetails,
             ),
@@ -858,6 +937,70 @@ class _ProgressCard extends StatelessWidget {
     RegExp(r'(?<!^)(?=(\d{3})+$)'),
     (_) => ',',
   );
+
+  String _rangeStatus(
+    DynamicRangeTarget? target,
+    String unit,
+    int fractionDigits, {
+    required bool loading,
+    required double? fallbackCurrent,
+  }) {
+    if (target == null) {
+      if (loading) return 'TARGET LOADING';
+      final current = fallbackCurrent?.toStringAsFixed(fractionDigits);
+      return '${current == null ? 'NOT RECORDED' : '$current $unit'}\n'
+          'TARGET NOT AVAILABLE';
+    }
+    final current = target.current?.toStringAsFixed(fractionDigits);
+    if (target.availability == DynamicTargetAvailability.notAvailable) {
+      return '${current == null ? 'NOT RECORDED' : '$current $unit'}\n'
+          'TARGET NOT AVAILABLE';
+    }
+    final low = target.low!.toStringAsFixed(fractionDigits);
+    final high = target.high!.toStringAsFixed(fractionDigits);
+    return current == null
+        ? 'NOT RECORDED\nTARGET $low–$high $unit'
+        : '$current / $low–$high $unit';
+  }
+
+  double _rangeProgress(DynamicRangeTarget? target) {
+    final current = target?.current;
+    final low = target?.low;
+    if (current == null || low == null || low <= 0) return 0;
+    return (current / low).clamp(0.0, 1.0).toDouble();
+  }
+
+  String _waterStatus(
+    DynamicWaterTarget? target, {
+    required bool loading,
+    required double? fallbackCurrent,
+  }) {
+    if (target == null) {
+      if (loading) return 'TARGET LOADING';
+      final current = fallbackCurrent?.toStringAsFixed(0);
+      return '${current == null ? 'NOT RECORDED' : '$current ml'}\n'
+          'TARGET NOT AVAILABLE';
+    }
+    final current = target.current?.toStringAsFixed(0);
+    if (target.availability == DynamicTargetAvailability.notAvailable) {
+      return '${current == null ? 'NOT RECORDED' : '$current ml'}\n'
+          'TARGET NOT AVAILABLE';
+    }
+    final value = target.finalTargetMl!.toStringAsFixed(0);
+    final status = current == null
+        ? 'NOT RECORDED\nTARGET $value ml'
+        : '$current / $value ml';
+    return target.availability == DynamicTargetAvailability.partial
+        ? '$status\nACTIVITY PENDING'
+        : status;
+  }
+
+  double _waterProgress(DynamicWaterTarget? target) {
+    final current = target?.current;
+    final goal = target?.finalTargetMl;
+    if (current == null || goal == null || goal <= 0) return 0;
+    return (current / goal).clamp(0.0, 1.0).toDouble();
+  }
 }
 
 double? _estimatedTotalBurn(
@@ -916,6 +1059,7 @@ class _ProgressRow extends StatelessWidget {
   final double progress;
   final VoidCallback? onTap;
   final List<String> details;
+  final DynamicTargetState? targetState;
 
   const _ProgressRow({
     required this.label,
@@ -923,12 +1067,25 @@ class _ProgressRow extends StatelessWidget {
     required this.progress,
     this.onTap,
     this.details = const [],
+    this.targetState,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final completed = progress >= 1;
+    final completed = targetState == null
+        ? progress >= 1
+        : targetState == DynamicTargetState.green ||
+              targetState == DynamicTargetState.greenHigh;
+    final semanticColor = switch (targetState) {
+      DynamicTargetState.green ||
+      DynamicTargetState.greenHigh => AppColors.success,
+      DynamicTargetState.yellowLow ||
+      DynamicTargetState.yellowHigh => AppColors.warning,
+      DynamicTargetState.redLow ||
+      DynamicTargetState.redHigh => AppColors.danger,
+      _ => null,
+    };
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -958,21 +1115,22 @@ class _ProgressRow extends StatelessWidget {
         AppSpacing.gapXS,
         LinearProgressIndicator(
           value: progress,
-          color: completed ? AppColors.success : null,
+          color: semanticColor ?? (completed ? AppColors.success : null),
         ),
       ],
     );
 
     return Material(
       color: completed
-          ? AppColors.success.withValues(alpha: 0.12)
+          ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
           : Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: completed
-              ? AppColors.success
-              : colorScheme.outlineVariant.withValues(alpha: 0.6),
+              ? semanticColor ?? AppColors.success
+              : semanticColor ??
+                    colorScheme.outlineVariant.withValues(alpha: 0.6),
         ),
       ),
       child: InkWell(

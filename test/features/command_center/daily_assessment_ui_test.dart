@@ -114,6 +114,8 @@ void main() {
       expect(find.text('41h ago'), findsOneWidget);
       expect(find.text('LAST 7 DAYS'), findsOneWidget);
       expect(find.text('3 sessions'), findsWidgets);
+      expect(find.text('CURRENT WEIGHT'), findsOneWidget);
+      expect(find.text('91.2 kg'), findsOneWidget);
       expect(find.text('THIS WEEK'), findsOneWidget);
       expect(find.text('RECENT INTERVALS'), findsOneWidget);
       expect(find.text('48h / 72h'), findsOneWidget);
@@ -130,6 +132,12 @@ void main() {
 
 DailyAssessment _assessment() => DailyAssessment(
   operationDate: '2026-08-10',
+  currentWeightReference: const DailyWeightReference(
+    valueKg: 91.2,
+    source: DailyWeightReferenceSource.measuredToday,
+    sampleCount: 1,
+    windowDays: 1,
+  ),
   assessments: [
     const DailyAssessmentItem(
       module: DailyAssessmentModule.body,
