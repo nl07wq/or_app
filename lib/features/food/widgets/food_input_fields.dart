@@ -67,7 +67,7 @@ class FoodInputFields extends StatelessWidget {
             Expanded(
               child: OperationTextField(
                 controller: baseAmountController,
-                label: 'BASE AMOUNT',
+                label: 'NUTRITION BASIS',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),

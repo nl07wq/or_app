@@ -15,6 +15,8 @@ import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
 import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
+import 'services/food_input_capture_gateway.dart';
+import 'services/japanese_nutrition_ocr_parser.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -185,11 +187,13 @@ class FoodCatalogEditorPage extends StatefulWidget {
     required this.repository,
     this.initialEntry,
     this.draft,
+    this.captureGateway,
   });
 
   final FoodCatalogRepository repository;
   final FoodCatalogEntry? initialEntry;
   final FoodCatalogDraft? draft;
+  final FoodInputCaptureGateway? captureGateway;
 
   @override
   State<FoodCatalogEditorPage> createState() => _FoodCatalogEditorPageState();
@@ -239,7 +243,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   FoodQuantityUnit? _packageUnit;
   FoodQuantityUnit _baseUnit = FoodQuantityUnit.gram;
   bool _saving = false;
+  bool _capturing = false;
+  bool _basisLinkedToPackage = true;
   String? _error;
+
+  FoodInputCaptureGateway get _captureGateway =>
+      widget.captureGateway ?? createFoodInputCaptureGateway();
 
   @override
   void initState() {
@@ -247,6 +256,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     final entry = widget.initialEntry;
     final draft = widget.draft;
     if (entry != null) {
+      _basisLinkedToPackage = false;
       _name.text = entry.name;
       _brand.text = entry.brand ?? '';
       _barcode.text = entry.barcodeValue ?? '';
@@ -261,6 +271,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _packageUnit = entry.packageUnit;
       _baseUnit = entry.baseQuantity.unit;
     } else if (draft != null) {
+      _basisLinkedToPackage = false;
       _name.text = draft.name;
       _baseQuantity.text = _number(draft.baseQuantity.value);
       _calories.text = _number(draft.nutrition.calories);
@@ -277,6 +288,174 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     } else {
       _baseQuantity.text = '100';
     }
+  }
+
+  void _packageQuantityChanged(String value) {
+    if (!_basisLinkedToPackage) return;
+    _baseQuantity.text = value;
+  }
+
+  void _packageUnitChanged(FoodQuantityUnit? value) {
+    setState(() {
+      _packageUnit = value;
+      if (_basisLinkedToPackage && value != null) _baseUnit = value;
+    });
+  }
+
+  void _baseQuantityChanged(String _) {
+    _basisLinkedToPackage = false;
+  }
+
+  void _baseUnitChanged(FoodQuantityUnit? value) {
+    if (value == null) return;
+    setState(() {
+      _baseUnit = value;
+      _basisLinkedToPackage = false;
+    });
+  }
+
+  Future<FoodImageSource?> _chooseImageSource() =>
+      showModalBottomSheet<FoodImageSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('CAMERA'),
+                onTap: () => Navigator.pop(context, FoodImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('PHOTO LIBRARY'),
+                onTap: () => Navigator.pop(context, FoodImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Future<void> _readNutrition() async {
+    final source = await _chooseImageSource();
+    if (source == null || !mounted) return;
+    setState(() {
+      _capturing = true;
+      _error = null;
+    });
+    try {
+      final image = await _captureGateway.selectImage(source);
+      if (image == null) return;
+      final rawText = await _captureGateway.recognizeJapaneseText(image);
+      final draft = const JapaneseNutritionOcrParser().parse(rawText);
+      if (!mounted) return;
+      if (draft.isEmpty) {
+        setState(() => _error = 'NUTRITION VALUES COULD NOT BE READ');
+        return;
+      }
+      final apply = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('OCR PREVIEW'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _previewValue(
+                  'NUTRITION BASIS',
+                  draft.basisQuantity,
+                  draft.basisUnit,
+                ),
+                _previewValue('CALORIES', draft.calories, null, suffix: 'kcal'),
+                _previewValue('PROTEIN', draft.protein, null, suffix: 'g'),
+                _previewValue('FAT', draft.fat, null, suffix: 'g'),
+                _previewValue(
+                  'CARBOHYDRATE',
+                  draft.carbohydrate,
+                  null,
+                  suffix: 'g',
+                ),
+                _previewValue(
+                  'PACKAGE',
+                  draft.packageQuantity,
+                  draft.packageUnit,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('APPLY TO FORM'),
+            ),
+          ],
+        ),
+      );
+      if (apply == true && mounted) _applyOcr(draft);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'OCR PROCESSING FAILED');
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
+  Future<void> _scanBarcode() async {
+    final source = await _chooseImageSource();
+    if (source == null || !mounted) return;
+    setState(() {
+      _capturing = true;
+      _error = null;
+    });
+    try {
+      final image = await _captureGateway.selectImage(source);
+      if (image == null) return;
+      final value = await _captureGateway.scanBarcode(image);
+      if (!mounted) return;
+      if (value == null || value.isEmpty) {
+        setState(() => _error = 'BARCODE COULD NOT BE READ');
+      } else {
+        setState(() => _barcode.text = value);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'BARCODE SCAN FAILED');
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
+  Widget _previewValue(
+    String label,
+    double? value,
+    FoodQuantityUnit? unit, {
+    String suffix = '',
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Text(
+      '$label  ${value == null ? 'NEEDS REVIEW' : '${_number(value)}${unit == null ? suffix : _unit(unit)}'}',
+    ),
+  );
+
+  void _applyOcr(NutritionOcrDraft draft) {
+    setState(() {
+      if (draft.packageQuantity != null && draft.packageUnit != null) {
+        _packageQuantity.text = _number(draft.packageQuantity);
+        _packageUnit = draft.packageUnit;
+      }
+      if (draft.basisQuantity != null && draft.basisUnit != null) {
+        _baseQuantity.text = _number(draft.basisQuantity);
+        _baseUnit = draft.basisUnit!;
+        _basisLinkedToPackage = false;
+      }
+      if (draft.calories != null) _calories.text = _number(draft.calories);
+      if (draft.protein != null) _protein.text = _number(draft.protein);
+      if (draft.fat != null) _fat.text = _number(draft.fat);
+      if (draft.carbohydrate != null) _carbs.text = _number(draft.carbohydrate);
+    });
   }
 
   @override
@@ -394,6 +573,13 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           children: [
             const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
             AppSpacing.gapMD,
+            OperationButton(
+              key: const ValueKey('food-catalog-ocr'),
+              icon: Icons.document_scanner,
+              text: _capturing ? 'PROCESSING IMAGE' : 'READ NUTRITION LABEL',
+              onPressed: _capturing || _saving ? null : _readNutrition,
+            ),
+            AppSpacing.gapMD,
             OperationTextField(controller: _name, label: 'NAME'),
             AppSpacing.gapMD,
             OperationTextField(controller: _brand, label: 'BRAND'),
@@ -406,21 +592,48 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               onChanged: (value) => setState(() => _category = value),
             ),
             AppSpacing.gapMD,
-            OperationTextField(controller: _barcode, label: 'BARCODE / JAN'),
+            Row(
+              children: [
+                Expanded(
+                  child: OperationTextField(
+                    controller: _barcode,
+                    label: 'BARCODE / JAN',
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                IconButton.filledTonal(
+                  key: const ValueKey('food-catalog-barcode-scan'),
+                  tooltip: 'SCAN BARCODE',
+                  onPressed: _capturing || _saving ? null : _scanBarcode,
+                  icon: const Icon(Icons.qr_code_scanner),
+                ),
+              ],
+            ),
+            if (_barcode.text.trim().isNotEmpty) ...[
+              AppSpacing.gapXS,
+              Text(
+                'FORMAT  ${_detectBarcodeFormat(_barcode.text.trim()).name.toUpperCase()}',
+                key: const ValueKey('food-catalog-barcode-format'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             AppSpacing.gapMD,
             _quantityRow(
               controller: _packageQuantity,
               label: 'PACKAGE QUANTITY',
               value: _packageUnit,
               allowNull: true,
-              onChanged: (value) => setState(() => _packageUnit = value),
+              onTextChanged: _packageQuantityChanged,
+              onChanged: _packageUnitChanged,
             ),
             AppSpacing.gapMD,
             _quantityRow(
               controller: _baseQuantity,
               label: 'NUTRITION BASIS',
               value: _baseUnit,
-              onChanged: (value) => setState(() => _baseUnit = value!),
+              onTextChanged: _baseQuantityChanged,
+              onChanged: _baseUnitChanged,
             ),
             AppSpacing.gapMD,
             Row(
@@ -482,11 +695,17 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     required String label,
     required FoodQuantityUnit? value,
     required ValueChanged<FoodQuantityUnit?> onChanged,
+    ValueChanged<String>? onTextChanged,
     bool allowNull = false,
   }) => Row(
     children: [
       Expanded(
-        child: OperationTextField(controller: controller, label: label),
+        child: OperationTextField(
+          controller: controller,
+          label: label,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onTextChanged,
+        ),
       ),
       const SizedBox(width: AppSpacing.md),
       Expanded(

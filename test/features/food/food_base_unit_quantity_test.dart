@@ -377,13 +377,13 @@ void main() {
       );
 
       expect(
-        tester.widget<TextField>(_field('BASE AMOUNT')).controller!.text,
+        tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
         '100',
       );
       expect(tester.widget<TextField>(_field('AMOUNT')).controller!.text, '1');
 
       await tester.enterText(_field('Food Name'), 'Chicken Breast');
-      await tester.enterText(_field('BASE AMOUNT'), '100');
+      await tester.enterText(_field('NUTRITION BASIS'), '100');
       await tester.enterText(_field('Calories'), '165');
       await tester.enterText(_field('Protein'), '31');
       await tester.enterText(_field('Fat'), '3.6');
@@ -438,7 +438,7 @@ void main() {
         await tester.enterText(_field('Fat'), '11');
         await tester.enterText(_field('Carbohydrate'), '27');
 
-        await tester.enterText(_field('BASE AMOUNT'), '10');
+        await tester.enterText(_field('NUTRITION BASIS'), '10');
         await tester.pump();
         expect(_controllerText(tester, 'Calories'), '25.8');
         expect(_controllerText(tester, 'Protein'), '1.4');
@@ -450,7 +450,7 @@ void main() {
         expect(find.text('実使用量: 10g'), findsOneWidget);
         expect(find.text('Calories : 26 kcal'), findsOneWidget);
 
-        await tester.enterText(_field('BASE AMOUNT'), '100');
+        await tester.enterText(_field('NUTRITION BASIS'), '100');
         await tester.pump();
         expect(
           double.parse(_controllerText(tester, 'Calories')),
@@ -463,7 +463,7 @@ void main() {
         expect(_controllerText(tester, 'AMOUNT'), '1');
         expect(find.text('Calories : 258 kcal'), findsOneWidget);
 
-        await tester.enterText(_field('BASE AMOUNT'), '1');
+        await tester.enterText(_field('NUTRITION BASIS'), '1');
         await tester.pump();
         expect(
           double.parse(_controllerText(tester, 'Calories')),
@@ -475,7 +475,7 @@ void main() {
         );
         expect(_controllerText(tester, 'AMOUNT'), '1');
 
-        await tester.enterText(_field('BASE AMOUNT'), '100');
+        await tester.enterText(_field('NUTRITION BASIS'), '100');
         await tester.pump();
         expect(
           double.parse(_controllerText(tester, 'Calories')),
@@ -512,14 +512,14 @@ void main() {
       );
 
       await tester.enterText(_field('Food Name'), 'Tea');
-      await tester.enterText(_field('BASE AMOUNT'), '100');
+      await tester.enterText(_field('NUTRITION BASIS'), '100');
       final unitDropdown = find.byType(DropdownButtonFormField<FoodBaseUnit>);
       await tester.ensureVisible(unitDropdown);
       await tester.tap(unitDropdown);
       await tester.pumpAndSettle();
       await tester.tap(find.text('mL').last);
       await tester.pump();
-      expect(_controllerText(tester, 'BASE AMOUNT'), '100');
+      expect(_controllerText(tester, 'NUTRITION BASIS'), '100');
       expect(_controllerText(tester, 'AMOUNT'), '1');
       await tester.enterText(_field('Calories'), '0');
       await tester.enterText(_field('Protein'), '0');
@@ -588,7 +588,7 @@ void main() {
       await tester.tap(find.text('Legacy'));
       await tester.pump();
       expect(
-        tester.widget<TextField>(_field('BASE AMOUNT')).controller!.text,
+        tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
         isEmpty,
       );
 
