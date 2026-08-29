@@ -48,6 +48,36 @@ void main() {
     );
   });
 
+  test(
+    'presentation identities map existing period metadata by report type',
+    () {
+      expect(
+        periodicReportPresentationIdentity(
+          PeriodicReportType.weekly,
+          '2026-08-17',
+          1,
+        ),
+        'WR-2026-08-17-Rev1',
+      );
+      expect(
+        periodicReportPresentationIdentity(
+          PeriodicReportType.monthly,
+          '2026-07-01',
+          2,
+        ),
+        'MR-2026-07-Rev2',
+      );
+      expect(
+        periodicReportPresentationIdentity(
+          PeriodicReportType.yearly,
+          '2025-01-01',
+          3,
+        ),
+        'YR-2025-Rev3',
+      );
+    },
+  );
+
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {
     testWidgets('Periodic Report panel has no overflow at ${width.toInt()}px', (
       tester,
@@ -61,7 +91,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('WEEKLY REPORT'), findsOneWidget);
-      expect(find.text('WEEK OF 2026-08-24'), findsOneWidget);
+      expect(find.text('2026-08-24 — 2026-08-30'), findsOneWidget);
       expect(find.text('CREATE REPORT'), findsOneWidget);
     });
   }
@@ -93,8 +123,9 @@ void main() {
       ),
     );
 
-    expect(find.text('REV 2'), findsOneWidget);
-    expect(find.text('LATEST'), findsOneWidget);
+    expect(find.text('WR-2026-08-24-Rev2'), findsOneWidget);
+    expect(find.text('REV 2'), findsNothing);
+    expect(find.text('LATEST'), findsNothing);
     for (final key in [
       'overall-summary',
       'body',
@@ -334,7 +365,7 @@ void main() {
       find.byKey(const ValueKey('periodic-report-response-input')),
     );
     expect(field.controller!.text, isEmpty);
-    expect(find.text('REV 1'), findsOneWidget);
+    expect(find.text('WR-2026-08-24-Rev1'), findsOneWidget);
     expect(
       fixture.database.rawRecord(
         IndexedDbStoreNames.periodicReportRecords,

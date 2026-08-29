@@ -576,7 +576,7 @@ void main() {
       find.byKey(const ValueKey('brief-debrief-tab-bar')),
     );
     expect(tabBar.isScrollable, isFalse);
-    expect(tabBar.indicatorSize, TabBarIndicatorSize.tab);
+    expect(tabBar.indicatorSize, TabBarIndicatorSize.label);
 
     await tester.tap(find.text('DAILY DEBRIEF').first);
     await tester.pumpAndSettle();
@@ -833,7 +833,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
-    expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DB-2026-08-01-Rev1'), findsOneWidget);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
 
     await _openDailyDebrief(tester);
@@ -880,7 +880,7 @@ void main() {
 
     expect(_morningBriefScrollPosition(tester).pixels, 0);
     expect(find.text('DAILY BRIEF'), findsWidgets);
-    expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DB-2026-08-01-Rev1'), findsOneWidget);
   });
 
   testWidgets('shows the latest Morning Brief and preserves prior revisions', (
@@ -900,7 +900,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
     await tester.pumpAndSettle();
 
-    expect(find.text('MB-2026-08-01-Rev2'), findsOneWidget);
+    expect(find.text('DB-2026-08-01-Rev2'), findsOneWidget);
     expect(find.text('REVISED MORNING INTENT'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('morning-brief-previous-revisions')),
@@ -911,7 +911,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('REV 1'));
     await tester.pumpAndSettle();
-    expect(find.text('MB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DB-2026-08-01-Rev1'), findsOneWidget);
     expect(find.text('ORIGINAL MORNING INTENT'), findsOneWidget);
   });
 

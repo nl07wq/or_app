@@ -361,6 +361,19 @@ class _ReportHeaderCard extends StatelessWidget {
           icon: Symbols.calendar_month,
           title: '${_label(reportType)} REPORT',
         ),
+        if (report != null) ...[
+          AppSpacing.gapSM,
+          Text(
+            periodicReportPresentationIdentity(
+              reportType,
+              report!.periodStart,
+              report!.revision,
+            ),
+            key: const ValueKey('periodic-report-presentation-id'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
         AppSpacing.gapMD,
         Row(
           children: [
@@ -373,17 +386,12 @@ class _ReportHeaderCard extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    _periodTitle(reportType, period),
+                    _targetPeriodLabel(reportType, period),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (reportType == PeriodicReportType.weekly)
-                    Text(
-                      '${_date(period.start)} — ${_date(period.end)}',
-                      textAlign: TextAlign.center,
-                    ),
                 ],
               ),
             ),
@@ -394,18 +402,6 @@ class _ReportHeaderCard extends StatelessWidget {
             ),
           ],
         ),
-        if (report != null) ...[
-          AppSpacing.gapMD,
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              Chip(label: Text('REV ${report!.revision}')),
-              const Chip(label: Text('LATEST')),
-            ],
-          ),
-        ],
         AppSpacing.gapLG,
         OperationButton(
           text: report == null ? 'CREATE REPORT' : 'CREATE REVISION',
@@ -1086,12 +1082,27 @@ OperationCalendarPeriod _period(PeriodicReportType type, DateTime anchor) =>
 
 String _label(PeriodicReportType type) => type.stableId.toUpperCase();
 String _date(DateTime value) => value.toIso8601String().substring(0, 10);
-String _periodTitle(PeriodicReportType type, OperationCalendarPeriod period) =>
-    switch (type) {
-      PeriodicReportType.weekly => 'WEEK OF ${_date(period.start)}',
-      PeriodicReportType.monthly => _date(period.start).substring(0, 7),
-      PeriodicReportType.yearly => '${period.start.year}',
-    };
+
+@visibleForTesting
+String periodicReportPresentationIdentity(
+  PeriodicReportType type,
+  String periodStart,
+  int revision,
+) => switch (type) {
+  PeriodicReportType.weekly => 'WR-$periodStart-Rev$revision',
+  PeriodicReportType.monthly =>
+    'MR-${periodStart.substring(0, 7)}-Rev$revision',
+  PeriodicReportType.yearly => 'YR-${periodStart.substring(0, 4)}-Rev$revision',
+};
+
+String _targetPeriodLabel(
+  PeriodicReportType type,
+  OperationCalendarPeriod period,
+) => switch (type) {
+  PeriodicReportType.weekly => '${_date(period.start)} — ${_date(period.end)}',
+  PeriodicReportType.monthly => _date(period.start).substring(0, 7),
+  PeriodicReportType.yearly => '${period.start.year}',
+};
 
 const _weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const _months = [

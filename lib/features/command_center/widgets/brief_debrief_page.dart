@@ -37,6 +37,10 @@ IconData dailyDebriefLifecycleIconForStatus(
 String dailyDebriefPresentationIdentity(String localDate, int revision) =>
     revision == 1 ? 'DD-$localDate' : 'DD-$localDate-Rev$revision';
 
+@visibleForTesting
+String dailyBriefPresentationIdentity(String localDate, int revision) =>
+    'DB-$localDate-Rev$revision';
+
 typedef _CommanderIntentOutcomePresentation = ({
   IconData icon,
   Color color,
@@ -102,7 +106,7 @@ class BriefDebriefPage extends StatelessWidget {
         const TabBar(
           key: ValueKey('brief-debrief-tab-bar'),
           isScrollable: false,
-          indicatorSize: TabBarIndicatorSize.tab,
+          indicatorSize: TabBarIndicatorSize.label,
           tabs: [
             Tab(text: 'DAILY BRIEF'),
             Tab(text: 'DAILY DEBRIEF'),
@@ -1144,7 +1148,7 @@ class _BriefHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'MB-${record.localDate}-Rev$revision',
+                    dailyBriefPresentationIdentity(record.localDate, revision),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
