@@ -15,7 +15,12 @@ import 'package:or_app/features/food/food_entry_page.dart';
 import 'package:or_app/features/food/food_history_page.dart';
 import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
+import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_provenance_models.dart';
+import 'package:or_app/features/food/models/food_quantity_models.dart';
+import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/services/beta_meal_template_resolver.dart';
+import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
@@ -355,6 +360,151 @@ void main() {
 
       completion.complete(true);
       await tester.pump();
+    });
+
+    testWidgets('food entry exposes aligned master fields and OCR apply flow', (
+      tester,
+    ) async {
+      var saveCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: _NutritionGateway(),
+                onSave: (_) async {
+                  saveCount++;
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      for (final label in [
+        'Food Name',
+        'BRAND',
+        'CATEGORY',
+        'BARCODE / JAN',
+        'PACKAGE QUANTITY',
+        'PACKAGE UNIT',
+        'NUTRITION BASIS',
+        'BASE UNIT',
+        'Calories',
+        'Protein',
+        'Fat',
+        'Carbohydrate',
+        'MEMO',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      expect(find.byKey(const ValueKey('food-entry-ocr')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('CAMERA'));
+      await tester.pumpAndSettle();
+      expect(find.text('OCR PREVIEW'), findsOneWidget);
+      expect(_controllerText(tester, 'Calories'), isEmpty);
+      expect(saveCount, 0);
+
+      await tester.tap(find.text('APPLY TO FORM'));
+      await tester.pumpAndSettle();
+      expect(_controllerText(tester, 'NUTRITION BASIS'), '100');
+      expect(_controllerText(tester, 'Calories'), '154');
+      expect(_controllerText(tester, 'Protein'), '1.9');
+      expect(_controllerText(tester, 'Fat'), '5.5');
+      expect(_controllerText(tester, 'Carbohydrate'), '24.2');
+      expect(saveCount, 0);
+    });
+
+    testWidgets('package prefills basis until manual basis override', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(onSave: (_) async => true),
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(_field('PACKAGE QUANTITY'), '500');
+      final packageUnit = find.byType(
+        DropdownButtonFormField<FoodQuantityUnit?>,
+      );
+      await tester.ensureVisible(packageUnit);
+      await tester.tap(packageUnit);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('g').last);
+      await tester.pump();
+      expect(_controllerText(tester, 'NUTRITION BASIS'), '500');
+
+      await tester.enterText(_field('NUTRITION BASIS'), '100');
+      await tester.enterText(_field('PACKAGE QUANTITY'), '600');
+      await tester.pump();
+      expect(_controllerText(tester, 'NUTRITION BASIS'), '100');
+    });
+
+    testWidgets('catalog selection prefills aligned master fields', (
+      tester,
+    ) async {
+      final database = FakeIndexedDbDatabase();
+      final controller = AppInitializationController()..markReady();
+      AppRepositoryRegistry.beginStartup(controller: controller);
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+      final entry = _catalogEntry();
+      await AppRepositoryRegistry.container.foodCatalog.create(entry);
+      var dailySaveCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                onSave: (_) async {
+                  dailySaveCount++;
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('food-catalog-select')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(entry.name));
+      await tester.pumpAndSettle();
+
+      expect(_controllerText(tester, 'Food Name'), entry.name);
+      expect(_controllerText(tester, 'BRAND'), entry.brand);
+      expect(_controllerText(tester, 'BARCODE / JAN'), entry.barcodeValue);
+      expect(_controllerText(tester, 'PACKAGE QUANTITY'), '500');
+      expect(_controllerText(tester, 'NUTRITION BASIS'), '100');
+      expect(_controllerText(tester, 'Calories'), '154');
+      expect(_controllerText(tester, 'Protein'), '1.9');
+      expect(_controllerText(tester, 'MEMO'), entry.memo);
+
+      await tester.enterText(_field('BRAND'), 'UPDATED BRAND');
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('food-save-to-catalog')),
+      );
+      await tester.tap(find.byKey(const ValueKey('food-save-to-catalog')));
+      await tester.pumpAndSettle();
+      expect(find.text('EDIT FOOD'), findsOneWidget);
+      expect(_controllerText(tester, 'BRAND'), 'UPDATED BRAND');
+      await tester.ensureVisible(find.text('SAVE'));
+      await tester.tap(find.text('SAVE'));
+      await tester.pumpAndSettle();
+
+      final updated = await AppRepositoryRegistry.container.foodCatalog
+          .readById(entry.foodId);
+      expect(updated!.brand, 'UPDATED BRAND');
+      expect(dailySaveCount, 0);
     });
 
     testWidgets('shows base controls and saves calculated snapshot', (
@@ -1000,6 +1150,19 @@ class _CountingNavigatorObserver extends NavigatorObserver {
   }
 }
 
+class _NutritionGateway implements FoodInputCaptureGateway {
+  @override
+  Future<String> recognizeJapaneseText(FoodCapturedImage image) async =>
+      '100gあたり\nエネルギー 154kcal\nたんぱく質 1.9g\n脂質 5.5g\n炭水化物 24.2g';
+
+  @override
+  Future<String?> scanBarcode(FoodCapturedImage image) async => null;
+
+  @override
+  Future<FoodCapturedImage?> selectImage(FoodImageSource source) async =>
+      const FoodCapturedImage('data:image/png;base64,AA==');
+}
+
 FoodItem _measuredItem({
   double baseAmount = 100,
   double amount = 100,
@@ -1018,6 +1181,39 @@ FoodItem _measuredItem({
     amount: amount,
     baseAmount: baseAmount,
     baseUnit: unit,
+  );
+}
+
+FoodCatalogEntry _catalogEntry() {
+  final timestamp = DateTime.utc(2026, 8, 1);
+  return FoodCatalogEntry(
+    foodId: '11111111-1111-4111-8111-111111111111',
+    name: 'Catalog Aligned Food',
+    category: FoodCatalogCategory.packagedFood,
+    brand: 'OR FOODS',
+    barcodeValue: '4901234567894',
+    barcodeFormat: FoodBarcodeFormat.ean13,
+    packageQuantity: 500,
+    packageUnit: FoodQuantityUnit.gram,
+    baseQuantity: FoodQuantityDefinition(
+      value: 100,
+      unit: FoodQuantityUnit.gram,
+    ),
+    nutrition: NutritionSnapshot(
+      calories: 154,
+      protein: 1.9,
+      fat: 5.5,
+      carbohydrate: 24.2,
+    ),
+    nutritionStatus: NutritionStatus.declared,
+    provenance: FoodDataProvenance(
+      sourceType: FoodProvenanceSourceType.userInput,
+      capturedAt: timestamp,
+    ),
+    isArchived: false,
+    memo: 'Catalog memo',
+    createdAt: timestamp,
+    updatedAt: timestamp,
   );
 }
 

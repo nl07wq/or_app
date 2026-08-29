@@ -4,21 +4,33 @@ import '../../../core/models/food_item.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/operation_text_field.dart';
+import '../food_catalog_page.dart';
+import '../models/food_catalog_models.dart';
+import '../models/food_quantity_models.dart';
 
 class FoodInputFields extends StatelessWidget {
   final TextEditingController foodNameController;
+  final TextEditingController brandController;
+  final TextEditingController barcodeController;
+  final TextEditingController packageQuantityController;
   final TextEditingController calorieController;
   final TextEditingController proteinController;
   final TextEditingController fatController;
   final TextEditingController carbohydrateController;
   final TextEditingController baseAmountController;
   final TextEditingController amountController;
+  final TextEditingController foodMemoController;
+  final FoodCatalogCategory category;
+  final FoodQuantityUnit? packageUnit;
   final FoodBaseUnit baseUnit;
   final FoodAmountMode amountMode;
 
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onBaseAmountChanged;
   final ValueChanged<FoodBaseUnit> onBaseUnitChanged;
+  final ValueChanged<FoodCatalogCategory> onCategoryChanged;
+  final ValueChanged<String> onPackageQuantityChanged;
+  final ValueChanged<FoodQuantityUnit?> onPackageUnitChanged;
   final VoidCallback onCaloriesChanged;
   final VoidCallback onProteinChanged;
   final VoidCallback onFatChanged;
@@ -27,17 +39,26 @@ class FoodInputFields extends StatelessWidget {
   const FoodInputFields({
     super.key,
     required this.foodNameController,
+    required this.brandController,
+    required this.barcodeController,
+    required this.packageQuantityController,
     required this.calorieController,
     required this.proteinController,
     required this.fatController,
     required this.carbohydrateController,
     required this.baseAmountController,
     required this.amountController,
+    required this.foodMemoController,
+    required this.category,
+    required this.packageUnit,
     required this.baseUnit,
     required this.amountMode,
     required this.onChanged,
     required this.onBaseAmountChanged,
     required this.onBaseUnitChanged,
+    required this.onCategoryChanged,
+    required this.onPackageQuantityChanged,
+    required this.onPackageUnitChanged,
     required this.onCaloriesChanged,
     required this.onProteinChanged,
     required this.onFatChanged,
@@ -70,6 +91,84 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
+        OperationTextField(
+          controller: brandController,
+          label: 'BRAND',
+          onChanged: onChanged,
+        ),
+
+        AppSpacing.gapMD,
+
+        OperationDropdown<FoodCatalogCategory>(
+          key: ValueKey('food-entry-category-${category.name}'),
+          label: 'CATEGORY',
+          value: category,
+          items: FoodCatalogCategory.values
+              .map(
+                (value) => DropdownMenuItem(
+                  value: value,
+                  child: Text(foodCatalogCategoryLabel(value)),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            if (value != null) onCategoryChanged(value);
+          },
+        ),
+
+        AppSpacing.gapMD,
+
+        OperationTextField(
+          controller: barcodeController,
+          label: 'BARCODE / JAN',
+          onChanged: onChanged,
+        ),
+
+        AppSpacing.gapMD,
+
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final quantity = OperationTextField(
+              controller: packageQuantityController,
+              label: 'PACKAGE QUANTITY',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: onPackageQuantityChanged,
+            );
+            final unit = OperationDropdown<FoodQuantityUnit?>(
+              key: ValueKey(
+                'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
+              ),
+              label: 'PACKAGE UNIT',
+              value: packageUnit,
+              items: [null, ...FoodQuantityUnit.values]
+                  .map(
+                    (unit) => DropdownMenuItem(
+                      value: unit,
+                      child: Text(
+                        unit == null ? 'NOT SET' : _quantityUnitLabel(unit),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: onPackageUnitChanged,
+            );
+            if (constraints.maxWidth < 300) {
+              return Column(children: [quantity, AppSpacing.gapMD, unit]);
+            }
+            return Row(
+              children: [
+                Expanded(child: quantity),
+                const SizedBox(width: 12),
+                Expanded(child: unit),
+              ],
+            );
+          },
+        ),
+
+        AppSpacing.gapMD,
+
         Row(
           children: [
             Expanded(
@@ -85,6 +184,7 @@ class FoodInputFields extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: OperationDropdown<FoodBaseUnit>(
+                key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
                 label: 'BASE UNIT',
                 value: baseUnit,
                 items: FoodBaseUnit.values
@@ -206,6 +306,15 @@ class FoodInputFields extends StatelessWidget {
             ),
           ),
         ],
+
+        AppSpacing.gapMD,
+
+        OperationTextField(
+          controller: foodMemoController,
+          label: 'MEMO',
+          maxLines: 2,
+          onChanged: onChanged,
+        ),
       ],
     );
   }
@@ -222,3 +331,11 @@ class FoodInputFields extends StatelessWidget {
         : value.toString();
   }
 }
+
+String _quantityUnitLabel(FoodQuantityUnit unit) => switch (unit) {
+  FoodQuantityUnit.gram => 'g',
+  FoodQuantityUnit.milliliter => 'mL',
+  FoodQuantityUnit.piece => 'piece',
+  FoodQuantityUnit.pack => 'pack',
+  FoodQuantityUnit.serving => 'serving',
+};

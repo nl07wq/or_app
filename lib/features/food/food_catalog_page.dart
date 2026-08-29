@@ -260,19 +260,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     super.initState();
     final entry = widget.initialEntry;
     final draft = widget.draft;
-    if (entry != null) {
-      _basisLinkedToPackage = false;
-      _name.text = entry.name;
-      _brand.text = entry.brand ?? '';
-      _barcode.text = entry.barcodeValue ?? '';
-      _packageQuantity.text = _number(entry.packageQuantity);
-      _baseQuantity.text = _number(entry.baseQuantity.value);
-      _setNutrition(entry.nutrition);
-      _memo.text = entry.memo ?? '';
-      _category = entry.category;
-      _packageUnit = entry.packageUnit;
-      _baseUnit = entry.baseQuantity.unit;
-    } else if (draft != null) {
+    if (draft != null) {
       _basisLinkedToPackage = false;
       _name.text = draft.name;
       _baseQuantity.text = _number(draft.baseQuantity.value);
@@ -284,20 +272,35 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _category = draft.category;
       _packageUnit = draft.packageUnit;
       _baseUnit = draft.baseQuantity.unit;
+    } else if (entry != null) {
+      _basisLinkedToPackage = false;
+      _name.text = entry.name;
+      _brand.text = entry.brand ?? '';
+      _barcode.text = entry.barcodeValue ?? '';
+      _packageQuantity.text = _number(entry.packageQuantity);
+      _baseQuantity.text = _number(entry.baseQuantity.value);
+      _setNutrition(entry.nutrition);
+      _memo.text = entry.memo ?? '';
+      _category = entry.category;
+      _packageUnit = entry.packageUnit;
+      _baseUnit = entry.baseQuantity.unit;
     } else {
       _baseQuantity.text = '100';
     }
   }
 
   void _packageQuantityChanged(String value) {
-    if (!_basisLinkedToPackage) return;
+    if (!_basisLinkedToPackage || _packageUnit?.isPhysical != true) return;
     _baseQuantity.text = value;
   }
 
   void _packageUnitChanged(FoodQuantityUnit? value) {
     setState(() {
       _packageUnit = value;
-      if (_basisLinkedToPackage && value != null) _baseUnit = value;
+      if (_basisLinkedToPackage && value?.isPhysical == true) {
+        _baseUnit = value!;
+        _baseQuantity.text = _packageQuantity.text;
+      }
     });
   }
 
@@ -848,6 +851,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             OperationCard(
+              key: const ValueKey('food-detail-information-card'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -862,26 +866,6 @@ class FoodCatalogDetailPage extends StatelessWidget {
                     _detail(
                       'PACKAGE SIZE',
                       '${_format(entry.packageQuantity!)}${_unit(entry.packageUnit!)}',
-                    ),
-                  if (nutrition.calories != null)
-                    _detail(
-                      'CALORIES',
-                      '${FoodNutritionFormatter.calories(nutrition.calories!)} kcal',
-                    ),
-                  if (nutrition.protein != null)
-                    _detail(
-                      'PROTEIN',
-                      '${FoodNutritionFormatter.macro(nutrition.protein!)} g',
-                    ),
-                  if (nutrition.fat != null)
-                    _detail(
-                      'FAT',
-                      '${FoodNutritionFormatter.macro(nutrition.fat!)} g',
-                    ),
-                  if (nutrition.carbohydrate != null)
-                    _detail(
-                      'CARBOHYDRATE',
-                      '${FoodNutritionFormatter.macro(nutrition.carbohydrate!)} g',
                     ),
                   if (entry.barcodeValue != null)
                     _detail('BARCODE / JAN', entry.barcodeValue!),
@@ -954,7 +938,30 @@ class _PfcCard extends StatelessWidget {
                 key: const ValueKey('food-detail-pfc-donut'),
                 width: 104,
                 height: 104,
-                child: CustomPaint(painter: _PfcPainter(values, colors)),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CustomPaint(painter: _PfcPainter(values, colors)),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            nutrition.calories == null
+                                ? 'N/A'
+                                : '${FoodNutritionFormatter.calories(nutrition.calories!)} kcal',
+                            key: const ValueKey(
+                              'food-detail-pfc-center-calories',
+                            ),
+                            maxLines: 1,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -962,7 +969,7 @@ class _PfcCard extends StatelessWidget {
                   children: [
                     for (var index = 0; index < values.length; index++) ...[
                       _PfcMetricRow(
-                        label: const ['P', 'F', 'C'][index],
+                        label: const ['PROTEIN', 'FAT', 'CARBOHYDRATE'][index],
                         grams: [
                           nutrition.protein!,
                           nutrition.fat!,
@@ -998,32 +1005,34 @@ class _PfcMetricRow extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => LayoutBuilder(
     key: ValueKey('food-detail-pfc-$label'),
-    children: [
-      SizedBox(
-        width: 20,
-        child: Text(
-          label,
-          style: TextStyle(color: color, fontWeight: FontWeight.bold),
-        ),
-      ),
-      Expanded(
-        child: Text(
-          '${FoodNutritionFormatter.macro(grams)} g',
-          textAlign: TextAlign.right,
-        ),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      SizedBox(
-        width: 40,
-        child: Text(
-          '$percent%',
-          textAlign: TextAlign.right,
-          style: TextStyle(color: color, fontWeight: FontWeight.bold),
-        ),
-      ),
-    ],
+    builder: (context, constraints) {
+      final style = TextStyle(color: color, fontWeight: FontWeight.bold);
+      final values = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('${FoodNutritionFormatter.macro(grams)} g', style: style),
+          const SizedBox(width: AppSpacing.sm),
+          Text('$percent%', style: style),
+        ],
+      );
+      if (constraints.maxWidth < 190) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: style),
+            values,
+          ],
+        );
+      }
+      return Row(
+        children: [
+          Expanded(child: Text(label, style: style)),
+          values,
+        ],
+      );
+    },
   );
 }
 

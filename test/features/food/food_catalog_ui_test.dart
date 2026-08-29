@@ -107,9 +107,12 @@ void main() {
     expect(find.text('PFC BALANCE'), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
     expect(find.text('286 kcal'), findsOneWidget);
-    expect(find.text('12.2 g'), findsWidgets);
-    expect(find.text('19.3 g'), findsWidgets);
-    expect(find.text('16.2 g'), findsWidgets);
+    expect(find.text('PROTEIN'), findsOneWidget);
+    expect(find.text('FAT'), findsOneWidget);
+    expect(find.text('CARBOHYDRATE'), findsOneWidget);
+    expect(find.text('12.2 g'), findsOneWidget);
+    expect(find.text('19.3 g'), findsOneWidget);
+    expect(find.text('16.2 g'), findsOneWidget);
     expect(find.text('17%'), findsOneWidget);
     expect(find.text('60%'), findsOneWidget);
     expect(find.text('23%'), findsOneWidget);
@@ -117,10 +120,19 @@ void main() {
       find.byKey(const ValueKey('food-detail-pfc-donut')),
     );
     final protein = tester.getRect(
-      find.byKey(const ValueKey('food-detail-pfc-P')),
+      find.byKey(const ValueKey('food-detail-pfc-PROTEIN')),
     );
     expect(protein.left, greaterThan(donut.right));
     expect(entry.nutrition.calories, 285.6);
+    final informationCard = find.byKey(
+      const ValueKey('food-detail-information-card'),
+    );
+    for (final label in ['CALORIES', 'PROTEIN', 'FAT', 'CARBOHYDRATE']) {
+      expect(
+        find.descendant(of: informationCard, matching: find.text(label)),
+        findsNothing,
+      );
+    }
   });
 
   testWidgets('PFC detail stays horizontal without overflow at target widths', (
@@ -240,6 +252,56 @@ void main() {
     expect(saved.nutrition.protein, entry.nutrition.protein);
     expect(saved.nutrition.fat, entry.nutrition.fat);
     expect(saved.nutrition.carbohydrate, entry.nutrition.carbohydrate);
+  });
+
+  testWidgets('catalog review updates selected identity from aligned draft', (
+    tester,
+  ) async {
+    final original = _entry(
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Original Food',
+      barcode: '04901234567890',
+    );
+    final repository = _MemoryCatalogRepository([original]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: repository,
+          initialEntry: original,
+          draft: FoodCatalogDraft(
+            name: 'Reviewed Food',
+            brand: 'Reviewed Brand',
+            category: FoodCatalogCategory.preparedFood,
+            barcodeValue: '04901234567890',
+            packageQuantity: 500,
+            packageUnit: FoodQuantityUnit.gram,
+            baseQuantity: FoodQuantityDefinition(
+              value: 100,
+              unit: FoodQuantityUnit.gram,
+            ),
+            nutrition: NutritionSnapshot(
+              calories: 200,
+              protein: 10,
+              fat: 5,
+              carbohydrate: 20,
+            ),
+            memo: 'Reviewed memo',
+          ),
+        ),
+      ),
+    );
+
+    expect(_fieldText(tester, 'NAME'), 'Reviewed Food');
+    expect(_fieldText(tester, 'BRAND'), 'Reviewed Brand');
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+
+    final entries = await repository.list();
+    expect(entries, hasLength(1));
+    expect(entries.single.foodId, original.foodId);
+    expect(entries.single.name, 'Reviewed Food');
+    expect(entries.single.brand, 'Reviewed Brand');
   });
 
   for (final testCase in [

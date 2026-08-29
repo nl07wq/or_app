@@ -20,6 +20,8 @@ import '../models/nutrition_models.dart';
 import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/beta_meal_template_resolver.dart';
+import '../services/food_input_capture_gateway.dart';
+import '../services/japanese_nutrition_ocr_parser.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
 import 'food_total_card.dart';
@@ -32,12 +34,14 @@ class FoodInputForm extends StatefulWidget {
   )?
   onSaveWithCatalog;
   final MealData? initialMeal;
+  final FoodInputCaptureGateway? captureGateway;
 
   const FoodInputForm({
     super.key,
     required this.onSave,
     this.onSaveWithCatalog,
     this.initialMeal,
+    this.captureGateway,
   });
 
   @override
@@ -49,6 +53,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   static const double _defaultAmount = 1;
 
   final foodNameController = TextEditingController();
+  final brandController = TextEditingController();
+  final barcodeController = TextEditingController();
+  final packageQuantityController = TextEditingController();
   final calorieController = TextEditingController();
   final proteinController = TextEditingController();
   final fatController = TextEditingController();
@@ -57,12 +64,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final amountController = TextEditingController();
   final waterVolumeController = TextEditingController();
   final memoController = TextEditingController();
+  final foodMemoController = TextEditingController();
 
   MealType mealType = MealType.breakfast;
 
   final List<FoodItem> items = [];
   final List<FoodCatalogEntry?> _catalogSources = [];
   FoodCatalogEntry? _currentCatalogSource;
+  FoodCatalogCategory category = FoodCatalogCategory.preparedFood;
+  FoodQuantityUnit? packageUnit;
 
   int? editingIndex;
   bool isWaterEntry = false;
@@ -75,6 +85,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
   double? _rawFat;
   double? _rawCarbohydrate;
   bool _isSaving = false;
+  bool _capturingNutrition = false;
+  bool _basisLinkedToPackage = true;
+
+  FoodInputCaptureGateway get _captureGateway =>
+      widget.captureGateway ?? createFoodInputCaptureGateway();
 
   FoodAmountMode get _inputAmountMode {
     final index = editingIndex;
@@ -111,6 +126,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   @override
   void dispose() {
     foodNameController.dispose();
+    brandController.dispose();
+    barcodeController.dispose();
+    packageQuantityController.dispose();
     calorieController.dispose();
     proteinController.dispose();
     fatController.dispose();
@@ -119,6 +137,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     amountController.dispose();
     waterVolumeController.dispose();
     memoController.dispose();
+    foodMemoController.dispose();
     super.dispose();
   }
 
@@ -198,6 +217,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _clearFoodInputs() {
     foodNameController.clear();
+    brandController.clear();
+    barcodeController.clear();
+    packageQuantityController.clear();
+    foodMemoController.clear();
     calorieController.clear();
     proteinController.clear();
     fatController.clear();
@@ -206,6 +229,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     baseAmountController.clear();
     amountController.clear();
     baseUnit = FoodBaseUnit.g;
+    category = FoodCatalogCategory.preparedFood;
+    packageUnit = null;
+    _basisLinkedToPackage = true;
     _setDefaultMeasurementInputs();
     inputError = null;
     _currentCatalogSource = null;
@@ -218,6 +244,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _onBaseAmountChanged(String source) {
+    _basisLinkedToPackage = false;
+    _updateBaseAmount(source);
+  }
+
+  void _updateBaseAmount(String source) {
     final nextBaseAmount = double.tryParse(source.trim());
     setState(() {
       inputError = null;
@@ -260,6 +291,25 @@ class _FoodInputFormState extends State<FoodInputForm> {
       }
       _lastValidBaseAmount = nextBaseAmount;
     });
+  }
+
+  void _onPackageQuantityChanged(String source) {
+    setState(() => inputError = null);
+    if (!_basisLinkedToPackage || packageUnit?.isPhysical != true) return;
+    baseAmountController.text = source;
+    _updateBaseAmount(source);
+  }
+
+  void _onPackageUnitChanged(FoodQuantityUnit? unit) {
+    setState(() {
+      packageUnit = unit;
+      inputError = null;
+    });
+    if (!_basisLinkedToPackage || unit?.isPhysical != true) return;
+    baseUnit = unit == FoodQuantityUnit.gram ? FoodBaseUnit.g : FoodBaseUnit.ml;
+    final source = packageQuantityController.text;
+    baseAmountController.text = source;
+    _updateBaseAmount(source);
   }
 
   void _clearForm() {
@@ -322,10 +372,22 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void editFood(int index) {
     final item = items[index];
+    final source = _catalogSources[index];
 
     setState(() {
       editingIndex = index;
-      _currentCatalogSource = _catalogSources[index];
+      _currentCatalogSource = source;
+      if (source != null) {
+        _setMasterFields(source);
+      } else {
+        brandController.clear();
+        barcodeController.clear();
+        packageQuantityController.clear();
+        foodMemoController.clear();
+        category = FoodCatalogCategory.preparedFood;
+        packageUnit = null;
+        _basisLinkedToPackage = false;
+      }
 
       foodNameController.text = item.name;
       _setRawNutrition(
@@ -413,6 +475,160 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
+  Future<FoodImageSource?> _chooseNutritionImageSource() =>
+      showModalBottomSheet<FoodImageSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('CAMERA'),
+                onTap: () => Navigator.pop(context, FoodImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('PHOTO LIBRARY'),
+                onTap: () => Navigator.pop(context, FoodImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Future<void> _readNutritionLabel() async {
+    final source = await _chooseNutritionImageSource();
+    if (source == null || !mounted) return;
+    setState(() {
+      _capturingNutrition = true;
+      inputError = null;
+    });
+    try {
+      final image = await _captureGateway.selectImage(source);
+      if (image == null) return;
+      final rawText = await _captureGateway.recognizeJapaneseText(image);
+      final draft = const JapaneseNutritionOcrParser().parse(rawText);
+      if (!mounted) return;
+      if (draft.isEmpty) {
+        setState(() => inputError = 'NUTRITION VALUES COULD NOT BE READ');
+        return;
+      }
+      final apply = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('OCR PREVIEW'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ocrPreviewValue(
+                  'NUTRITION BASIS',
+                  draft.basisQuantity,
+                  draft.basisUnit,
+                ),
+                _ocrPreviewValue(
+                  'CALORIES',
+                  draft.calories,
+                  null,
+                  suffix: 'kcal',
+                  calories: true,
+                ),
+                _ocrPreviewValue('PROTEIN', draft.protein, null, suffix: 'g'),
+                _ocrPreviewValue('FAT', draft.fat, null, suffix: 'g'),
+                _ocrPreviewValue(
+                  'CARBOHYDRATE',
+                  draft.carbohydrate,
+                  null,
+                  suffix: 'g',
+                ),
+                _ocrPreviewValue(
+                  'PACKAGE',
+                  draft.packageQuantity,
+                  draft.packageUnit,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('APPLY TO FORM'),
+            ),
+          ],
+        ),
+      );
+      if (apply == true && mounted) _applyNutritionOcr(draft);
+    } catch (_) {
+      if (mounted) setState(() => inputError = 'OCR PROCESSING FAILED');
+    } finally {
+      if (mounted) setState(() => _capturingNutrition = false);
+    }
+  }
+
+  Widget _ocrPreviewValue(
+    String label,
+    double? value,
+    FoodQuantityUnit? unit, {
+    String suffix = '',
+    bool calories = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+    child: Text(
+      '$label  ${value == null ? 'NEEDS REVIEW' : '${calories ? FoodNutritionFormatter.calories(value) : FoodNutritionFormatter.macro(value)}${unit == null ? suffix : _quantityUnitLabel(unit)}'}',
+    ),
+  );
+
+  void _applyNutritionOcr(NutritionOcrDraft draft) {
+    setState(() {
+      if (draft.packageQuantity != null && draft.packageUnit != null) {
+        packageQuantityController.text = _formatAmount(draft.packageQuantity!);
+        packageUnit = draft.packageUnit;
+      }
+      if (draft.basisQuantity != null && draft.basisUnit != null) {
+        baseAmountController.text = _formatAmount(draft.basisQuantity!);
+        baseUnit = draft.basisUnit == FoodQuantityUnit.gram
+            ? FoodBaseUnit.g
+            : FoodBaseUnit.ml;
+        _lastValidBaseAmount = draft.basisQuantity;
+        _basisLinkedToPackage = false;
+      } else if (_basisLinkedToPackage && packageUnit?.isPhysical == true) {
+        final source = packageQuantityController.text;
+        baseAmountController.text = source;
+        baseUnit = packageUnit == FoodQuantityUnit.gram
+            ? FoodBaseUnit.g
+            : FoodBaseUnit.ml;
+        _lastValidBaseAmount = double.tryParse(source);
+      }
+      if (draft.calories != null) {
+        _rawCalories = draft.calories;
+        calorieController.text = FoodNutritionFormatter.calories(
+          draft.calories!,
+        );
+      }
+      if (draft.protein != null) {
+        _rawProtein = draft.protein;
+        proteinController.text = FoodNutritionFormatter.macro(draft.protein!);
+      }
+      if (draft.fat != null) {
+        _rawFat = draft.fat;
+        fatController.text = FoodNutritionFormatter.macro(draft.fat!);
+      }
+      if (draft.carbohydrate != null) {
+        _rawCarbohydrate = draft.carbohydrate;
+        carbohydrateController.text = FoodNutritionFormatter.macro(
+          draft.carbohydrate!,
+        );
+      }
+      inputError = null;
+    });
+  }
+
   Future<void> _selectCatalogFood() async {
     if (!AppRepositoryRegistry.hasContainer) return;
     final entry = await Navigator.push<FoodCatalogEntry>(
@@ -428,7 +644,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final nutrition = entry.nutrition;
     setState(() {
       _currentCatalogSource = entry;
-      foodNameController.text = entry.name;
+      _setMasterFields(entry);
       _setRawNutrition(
         calories: nutrition.calories,
         protein: nutrition.protein,
@@ -447,6 +663,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         amountController.text = '1';
         _lastValidBaseAmount = 1;
       }
+      _basisLinkedToPackage = false;
       inputError = null;
     });
   }
@@ -458,21 +675,27 @@ class _FoodInputFormState extends State<FoodInputForm> {
       setState(() => inputError = 'Enter valid food and nutrition values.');
       return;
     }
+    final packageText = packageQuantityController.text.trim();
+    final packageQuantity = _optionalPositiveNumber(packageQuantityController);
+    if ((packageText.isNotEmpty && packageQuantity == null) ||
+        (packageQuantity == null) != (packageUnit == null)) {
+      setState(() => inputError = 'ENTER VALID PACKAGE QUANTITY AND UNIT.');
+      return;
+    }
     final changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogEditorPage(
           repository: AppRepositoryRegistry.container.foodCatalog,
+          initialEntry: _currentCatalogSource,
           draft: FoodCatalogDraft(
             name: item.name,
-            category:
-                _currentCatalogSource?.category ??
-                FoodCatalogCategory.preparedFood,
-            brand: _currentCatalogSource?.brand,
-            barcodeValue: _currentCatalogSource?.barcodeValue,
-            barcodeFormat: _currentCatalogSource?.barcodeFormat,
-            packageQuantity: _currentCatalogSource?.packageQuantity,
-            packageUnit: _currentCatalogSource?.packageUnit,
+            category: category,
+            brand: _nullableText(brandController.text),
+            barcodeValue: _nullableText(barcodeController.text),
+            packageQuantity: packageQuantity,
+            packageUnit: packageUnit,
+            memo: _nullableText(foodMemoController.text),
             baseQuantity: FoodQuantityDefinition(
               value: item.baseAmount ?? 1,
               unit: item.baseUnit == FoodBaseUnit.ml
@@ -675,6 +898,19 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
             AppSpacing.gapMD,
 
+            OperationButton(
+              key: const ValueKey('food-entry-ocr'),
+              icon: Icons.document_scanner,
+              text: _capturingNutrition
+                  ? 'PROCESSING IMAGE'
+                  : 'READ NUTRITION LABEL',
+              onPressed: _isSaving || _capturingNutrition
+                  ? null
+                  : _readNutritionLabel,
+            ),
+
+            AppSpacing.gapMD,
+
             if (widget.initialMeal == null) ...[
               const Align(
                 alignment: Alignment.centerLeft,
@@ -710,15 +946,27 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
             FoodInputFields(
               foodNameController: foodNameController,
+              brandController: brandController,
+              barcodeController: barcodeController,
+              packageQuantityController: packageQuantityController,
               calorieController: calorieController,
               proteinController: proteinController,
               fatController: fatController,
               carbohydrateController: carbohydrateController,
               baseAmountController: baseAmountController,
               amountController: amountController,
+              foodMemoController: foodMemoController,
+              category: category,
+              packageUnit: packageUnit,
               baseUnit: baseUnit,
               amountMode: _inputAmountMode,
               onBaseAmountChanged: _onBaseAmountChanged,
+              onCategoryChanged: (value) => setState(() {
+                category = value;
+                inputError = null;
+              }),
+              onPackageQuantityChanged: _onPackageQuantityChanged,
+              onPackageUnitChanged: _onPackageUnitChanged,
               onCaloriesChanged: () => _rawCalories = null,
               onProteinChanged: () => _rawProtein = null,
               onFatChanged: () => _rawFat = null,
@@ -829,6 +1077,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
+  void _setMasterFields(FoodCatalogEntry entry) {
+    foodNameController.text = entry.name;
+    brandController.text = entry.brand ?? '';
+    barcodeController.text = entry.barcodeValue ?? '';
+    packageQuantityController.text = entry.packageQuantity == null
+        ? ''
+        : _formatAmount(entry.packageQuantity!);
+    foodMemoController.text = entry.memo ?? '';
+    category = entry.category;
+    packageUnit = entry.packageUnit;
+  }
+
   void _setRawNutrition({
     required double? calories,
     required double? protein,
@@ -871,3 +1131,23 @@ class _FoodInputFormState extends State<FoodInputForm> {
     return result;
   }
 }
+
+String? _nullableText(String source) {
+  final value = source.trim();
+  return value.isEmpty ? null : value;
+}
+
+double? _optionalPositiveNumber(TextEditingController controller) {
+  final source = controller.text.trim();
+  if (source.isEmpty) return null;
+  final value = double.tryParse(source);
+  return value != null && value.isFinite && value > 0 ? value : null;
+}
+
+String _quantityUnitLabel(FoodQuantityUnit unit) => switch (unit) {
+  FoodQuantityUnit.gram => 'g',
+  FoodQuantityUnit.milliliter => 'mL',
+  FoodQuantityUnit.piece => 'piece',
+  FoodQuantityUnit.pack => 'pack',
+  FoodQuantityUnit.serving => 'serving',
+};

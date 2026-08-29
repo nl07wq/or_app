@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
 
@@ -15,6 +16,13 @@ void main() {
     );
 
     await tester.enterText(_field('PACKAGE QUANTITY'), '500');
+    final packageUnit = find
+        .byType(DropdownButtonFormField<FoodQuantityUnit?>)
+        .first;
+    await tester.tap(packageUnit);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('g').last);
+    await tester.pump();
     expect(
       tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
       '500',
