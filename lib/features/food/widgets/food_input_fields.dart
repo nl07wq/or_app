@@ -19,6 +19,10 @@ class FoodInputFields extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onBaseAmountChanged;
   final ValueChanged<FoodBaseUnit> onBaseUnitChanged;
+  final VoidCallback onCaloriesChanged;
+  final VoidCallback onProteinChanged;
+  final VoidCallback onFatChanged;
+  final VoidCallback onCarbohydrateChanged;
 
   const FoodInputFields({
     super.key,
@@ -34,6 +38,10 @@ class FoodInputFields extends StatelessWidget {
     required this.onChanged,
     required this.onBaseAmountChanged,
     required this.onBaseUnitChanged,
+    required this.onCaloriesChanged,
+    required this.onProteinChanged,
+    required this.onFatChanged,
+    required this.onCarbohydrateChanged,
   });
 
   @override
@@ -114,7 +122,10 @@ class FoodInputFields extends StatelessWidget {
                 controller: calorieController,
                 label: 'Calories',
                 keyboardType: TextInputType.number,
-                onChanged: onChanged,
+                onChanged: (value) {
+                  onCaloriesChanged();
+                  onChanged(value);
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -123,7 +134,10 @@ class FoodInputFields extends StatelessWidget {
                 controller: proteinController,
                 label: 'Protein',
                 keyboardType: TextInputType.number,
-                onChanged: onChanged,
+                onChanged: (value) {
+                  onProteinChanged();
+                  onChanged(value);
+                },
               ),
             ),
           ],
@@ -138,7 +152,10 @@ class FoodInputFields extends StatelessWidget {
                 controller: fatController,
                 label: 'Fat',
                 keyboardType: TextInputType.number,
-                onChanged: onChanged,
+                onChanged: (value) {
+                  onFatChanged();
+                  onChanged(value);
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -147,7 +164,10 @@ class FoodInputFields extends StatelessWidget {
                 controller: carbohydrateController,
                 label: 'Carbohydrate',
                 keyboardType: TextInputType.number,
-                onChanged: onChanged,
+                onChanged: (value) {
+                  onCarbohydrateChanged();
+                  onChanged(value);
+                },
               ),
             ),
           ],

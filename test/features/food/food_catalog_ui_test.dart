@@ -87,6 +87,12 @@ void main() {
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Protein Food',
       barcode: '04901234567890',
+      nutrition: NutritionSnapshot(
+        calories: 285.6,
+        protein: 12.2,
+        fat: 19.3,
+        carbohydrate: 16.2,
+      ),
     );
     final repository = _MemoryCatalogRepository([entry]);
     await tester.pumpWidget(
@@ -101,9 +107,47 @@ void main() {
     expect(find.text('PFC BALANCE'), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
     expect(find.text('286 kcal'), findsOneWidget);
-    expect(find.text('P 17%'), findsOneWidget);
-    expect(find.text('F 60%'), findsOneWidget);
-    expect(find.text('C 23%'), findsOneWidget);
+    expect(find.text('12.2 g'), findsWidgets);
+    expect(find.text('19.3 g'), findsWidgets);
+    expect(find.text('16.2 g'), findsWidgets);
+    expect(find.text('17%'), findsOneWidget);
+    expect(find.text('60%'), findsOneWidget);
+    expect(find.text('23%'), findsOneWidget);
+    final donut = tester.getRect(
+      find.byKey(const ValueKey('food-detail-pfc-donut')),
+    );
+    final protein = tester.getRect(
+      find.byKey(const ValueKey('food-detail-pfc-P')),
+    );
+    expect(protein.left, greaterThan(donut.right));
+    expect(entry.nutrition.calories, 285.6);
+  });
+
+  testWidgets('PFC detail stays horizontal without overflow at target widths', (
+    tester,
+  ) async {
+    final entry = _entry(
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Responsive Food',
+    );
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogDetailPage(
+            entry: entry,
+            repository: _MemoryCatalogRepository([entry]),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('food-detail-pfc-horizontal')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+    await tester.binding.setSurfaceSize(null);
   });
 
   testWidgets('missing or zero PFC does not render a chart', (tester) async {
@@ -158,6 +202,44 @@ void main() {
     expect(saved.barcodeFormat, FoodBarcodeFormat.ean13);
     expect(saved.provenance.sourceType, FoodProvenanceSourceType.userInput);
     expect(saved.nutrition.calories, 154);
+  });
+
+  testWidgets('catalog editor rounds presentation and preserves raw values', (
+    tester,
+  ) async {
+    final entry = _entry(
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Raw Food',
+      nutrition: NutritionSnapshot(
+        calories: 155.5882352941,
+        protein: 2.5294117647,
+        fat: 0.2941176471,
+        carbohydrate: 35.5882352941,
+      ),
+    );
+    final repository = _MemoryCatalogRepository([entry]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: repository,
+          initialEntry: entry,
+        ),
+      ),
+    );
+
+    expect(_fieldText(tester, 'CALORIES'), '156');
+    expect(_fieldText(tester, 'PROTEIN'), '2.5');
+    expect(_fieldText(tester, 'FAT'), '0.3');
+    expect(_fieldText(tester, 'CARBOHYDRATE'), '35.6');
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+
+    final saved = await repository.readById(entry.foodId);
+    expect(saved!.nutrition.calories, entry.nutrition.calories);
+    expect(saved.nutrition.protein, entry.nutrition.protein);
+    expect(saved.nutrition.fat, entry.nutrition.fat);
+    expect(saved.nutrition.carbohydrate, entry.nutrition.carbohydrate);
   });
 
   for (final testCase in [

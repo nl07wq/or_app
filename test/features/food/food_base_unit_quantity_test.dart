@@ -440,7 +440,7 @@ void main() {
 
         await tester.enterText(_field('NUTRITION BASIS'), '10');
         await tester.pump();
-        expect(_controllerText(tester, 'Calories'), '25.8');
+        expect(_controllerText(tester, 'Calories'), '26');
         expect(_controllerText(tester, 'Protein'), '1.4');
         expect(_controllerText(tester, 'Fat'), '1.1');
         expect(_controllerText(tester, 'Carbohydrate'), '2.7');
@@ -465,14 +465,8 @@ void main() {
 
         await tester.enterText(_field('NUTRITION BASIS'), '1');
         await tester.pump();
-        expect(
-          double.parse(_controllerText(tester, 'Calories')),
-          closeTo(2.58, 1e-12),
-        );
-        expect(
-          double.parse(_controllerText(tester, 'Protein')),
-          closeTo(0.14, 1e-12),
-        );
+        expect(_controllerText(tester, 'Calories'), '3');
+        expect(_controllerText(tester, 'Protein'), '0.1');
         expect(_controllerText(tester, 'AMOUNT'), '1');
 
         await tester.enterText(_field('NUTRITION BASIS'), '100');
@@ -491,6 +485,70 @@ void main() {
           closeTo(27, 1e-9),
         );
         expect(_controllerText(tester, 'AMOUNT'), '1');
+      },
+    );
+
+    testWidgets(
+      'nutrition fields round for humans while save keeps raw precision',
+      (tester) async {
+        final rawItem = FoodItem(
+          name: 'Raw Basis',
+          calories: 264.5,
+          protein: 4.3,
+          fat: 0.5,
+          carbohydrate: 60.5,
+          amount: 1,
+          baseAmount: 170,
+          baseUnit: FoodBaseUnit.g,
+          amountMode: FoodAmountMode.baseMultiplier,
+        );
+        MealData? saved;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FoodInputForm(
+                  initialMeal: MealData(
+                    id: 'raw-precision',
+                    date: '2026-08-30',
+                    mealType: 'Dinner',
+                    items: [rawItem],
+                    memo: '',
+                  ),
+                  onSave: (meal) async {
+                    saved = meal;
+                    return true;
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.ensureVisible(find.text('Raw Basis'));
+        await tester.tap(find.text('Raw Basis'));
+        await tester.pump();
+        await tester.enterText(_field('NUTRITION BASIS'), '100');
+        await tester.pump();
+
+        expect(_controllerText(tester, 'Calories'), '156');
+        expect(_controllerText(tester, 'Protein'), '2.5');
+        expect(_controllerText(tester, 'Fat'), '0.3');
+        expect(_controllerText(tester, 'Carbohydrate'), '35.6');
+        expect(find.textContaining('2.529411'), findsNothing);
+
+        await tester.enterText(_field('Protein'), '2.7');
+        await tester.ensureVisible(find.text('Update Food'));
+        await tester.tap(find.text('Update Food'));
+        await tester.ensureVisible(find.text('UPDATE MEAL'));
+        await tester.tap(find.text('UPDATE MEAL'));
+        await tester.pump();
+
+        final savedItem = saved!.items.single;
+        expect(savedItem.calories, closeTo(264.5 * 100 / 170, 1e-12));
+        expect(savedItem.protein, 2.7);
+        expect(savedItem.fat, closeTo(0.5 * 100 / 170, 1e-12));
+        expect(savedItem.carbohydrate, closeTo(60.5 * 100 / 170, 1e-12));
       },
     );
 
@@ -649,6 +707,29 @@ void main() {
       expect(item.amount, 10);
       expect(item.totalCalories, 25.8);
       expect(item.toJson().containsKey('amountMode'), isFalse);
+    });
+
+    testWidgets('food entry has no overflow at target widths', (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 1400);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FoodInputForm(
+                  key: ValueKey(width),
+                  onSave: (_) async => true,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'width $width');
+      }
     });
   });
 

@@ -12,6 +12,7 @@ import '../../../core/widgets/section_header.dart';
 
 import '../data/beta_meal_templates.dart';
 import '../data/water_quick_presets.dart';
+import '../food_nutrition_formatter.dart';
 import '../models/meal_template.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
@@ -69,6 +70,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
   String? inputError;
   FoodBaseUnit baseUnit = FoodBaseUnit.g;
   double? _lastValidBaseAmount = _defaultBaseAmount;
+  double? _rawCalories;
+  double? _rawProtein;
+  double? _rawFat;
+  double? _rawCarbohydrate;
   bool _isSaving = false;
 
   FoodAmountMode get _inputAmountMode {
@@ -124,10 +129,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
       return null;
     }
 
-    final calories = double.tryParse(calorieController.text.trim());
-    final protein = double.tryParse(proteinController.text.trim());
-    final fat = double.tryParse(fatController.text.trim());
-    final carbohydrate = double.tryParse(carbohydrateController.text.trim());
+    final calories =
+        _rawCalories ?? double.tryParse(calorieController.text.trim());
+    final protein =
+        _rawProtein ?? double.tryParse(proteinController.text.trim());
+    final fat = _rawFat ?? double.tryParse(fatController.text.trim());
+    final carbohydrate =
+        _rawCarbohydrate ?? double.tryParse(carbohydrateController.text.trim());
     if ([
       calories,
       protein,
@@ -194,6 +202,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     proteinController.clear();
     fatController.clear();
     carbohydrateController.clear();
+    _clearRawNutrition();
     baseAmountController.clear();
     amountController.clear();
     baseUnit = FoodBaseUnit.g;
@@ -224,17 +233,30 @@ class _FoodInputFormState extends State<FoodInputForm> {
           previousBaseAmount > 0 &&
           previousBaseAmount != nextBaseAmount) {
         final multiplier = nextBaseAmount / previousBaseAmount;
-        for (final controller in [
-          calorieController,
-          proteinController,
-          fatController,
-          carbohydrateController,
-        ]) {
-          final nutrition = double.tryParse(controller.text.trim());
-          if (nutrition != null && nutrition.isFinite && nutrition >= 0) {
-            controller.text = _formatAmount(nutrition * multiplier);
-          }
-        }
+        _rawCalories = _rescaleNutrition(
+          controller: calorieController,
+          rawValue: _rawCalories,
+          multiplier: multiplier,
+          formatter: FoodNutritionFormatter.calories,
+        );
+        _rawProtein = _rescaleNutrition(
+          controller: proteinController,
+          rawValue: _rawProtein,
+          multiplier: multiplier,
+          formatter: FoodNutritionFormatter.macro,
+        );
+        _rawFat = _rescaleNutrition(
+          controller: fatController,
+          rawValue: _rawFat,
+          multiplier: multiplier,
+          formatter: FoodNutritionFormatter.macro,
+        );
+        _rawCarbohydrate = _rescaleNutrition(
+          controller: carbohydrateController,
+          rawValue: _rawCarbohydrate,
+          multiplier: multiplier,
+          formatter: FoodNutritionFormatter.macro,
+        );
       }
       _lastValidBaseAmount = nextBaseAmount;
     });
@@ -306,10 +328,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _currentCatalogSource = _catalogSources[index];
 
       foodNameController.text = item.name;
-      calorieController.text = item.calories.toString();
-      proteinController.text = item.protein.toString();
-      fatController.text = item.fat.toString();
-      carbohydrateController.text = item.carbohydrate.toString();
+      _setRawNutrition(
+        calories: item.calories.toDouble(),
+        protein: item.protein,
+        fat: item.fat,
+        carbohydrate: item.carbohydrate,
+      );
       baseAmountController.text = item.baseAmount == null
           ? ''
           : _formatAmount(item.baseAmount!);
@@ -405,10 +429,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       _currentCatalogSource = entry;
       foodNameController.text = entry.name;
-      calorieController.text = _formatOptional(nutrition.calories);
-      proteinController.text = _formatOptional(nutrition.protein);
-      fatController.text = _formatOptional(nutrition.fat);
-      carbohydrateController.text = _formatOptional(nutrition.carbohydrate);
+      _setRawNutrition(
+        calories: nutrition.calories,
+        protein: nutrition.protein,
+        fat: nutrition.fat,
+        carbohydrate: nutrition.carbohydrate,
+      );
       final quantity = entry.baseQuantity;
       if (quantity.unit.isPhysical) {
         baseAmountController.text = _formatAmount(quantity.value);
@@ -693,6 +719,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
               baseUnit: baseUnit,
               amountMode: _inputAmountMode,
               onBaseAmountChanged: _onBaseAmountChanged,
+              onCaloriesChanged: () => _rawCalories = null,
+              onProteinChanged: () => _rawProtein = null,
+              onFatChanged: () => _rawFat = null,
+              onCarbohydrateChanged: () => _rawCarbohydrate = null,
               onChanged: (_) {
                 setState(() {
                   inputError = null;
@@ -799,6 +829,45 @@ class _FoodInputFormState extends State<FoodInputForm> {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
-  static String _formatOptional(double? value) =>
-      value == null ? '' : _formatAmount(value);
+  void _setRawNutrition({
+    required double? calories,
+    required double? protein,
+    required double? fat,
+    required double? carbohydrate,
+  }) {
+    _rawCalories = calories;
+    _rawProtein = protein;
+    _rawFat = fat;
+    _rawCarbohydrate = carbohydrate;
+    calorieController.text = calories == null
+        ? ''
+        : FoodNutritionFormatter.calories(calories);
+    proteinController.text = protein == null
+        ? ''
+        : FoodNutritionFormatter.macro(protein);
+    fatController.text = fat == null ? '' : FoodNutritionFormatter.macro(fat);
+    carbohydrateController.text = carbohydrate == null
+        ? ''
+        : FoodNutritionFormatter.macro(carbohydrate);
+  }
+
+  void _clearRawNutrition() {
+    _rawCalories = null;
+    _rawProtein = null;
+    _rawFat = null;
+    _rawCarbohydrate = null;
+  }
+
+  static double? _rescaleNutrition({
+    required TextEditingController controller,
+    required double? rawValue,
+    required double multiplier,
+    required String Function(num) formatter,
+  }) {
+    final source = rawValue ?? double.tryParse(controller.text.trim());
+    if (source == null || !source.isFinite || source < 0) return null;
+    final result = source * multiplier;
+    controller.text = formatter(result);
+    return result;
+  }
 }

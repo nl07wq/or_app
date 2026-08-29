@@ -13,6 +13,7 @@ import 'models/food_catalog_models.dart';
 import 'models/food_provenance_models.dart';
 import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
+import 'food_nutrition_formatter.dart';
 import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'services/food_input_capture_gateway.dart';
@@ -245,6 +246,10 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   bool _saving = false;
   bool _capturing = false;
   bool _basisLinkedToPackage = true;
+  double? _rawCalories;
+  double? _rawProtein;
+  double? _rawFat;
+  double? _rawCarbohydrate;
   String? _error;
 
   FoodInputCaptureGateway get _captureGateway =>
@@ -262,10 +267,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _barcode.text = entry.barcodeValue ?? '';
       _packageQuantity.text = _number(entry.packageQuantity);
       _baseQuantity.text = _number(entry.baseQuantity.value);
-      _calories.text = _number(entry.nutrition.calories);
-      _protein.text = _number(entry.nutrition.protein);
-      _fat.text = _number(entry.nutrition.fat);
-      _carbs.text = _number(entry.nutrition.carbohydrate);
+      _setNutrition(entry.nutrition);
       _memo.text = entry.memo ?? '';
       _category = entry.category;
       _packageUnit = entry.packageUnit;
@@ -274,10 +276,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _basisLinkedToPackage = false;
       _name.text = draft.name;
       _baseQuantity.text = _number(draft.baseQuantity.value);
-      _calories.text = _number(draft.nutrition.calories);
-      _protein.text = _number(draft.nutrition.protein);
-      _fat.text = _number(draft.nutrition.fat);
-      _carbs.text = _number(draft.nutrition.carbohydrate);
+      _setNutrition(draft.nutrition);
       _brand.text = draft.brand ?? '';
       _barcode.text = draft.barcodeValue ?? '';
       _packageQuantity.text = _number(draft.packageQuantity);
@@ -436,7 +435,11 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   }) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: Text(
-      '$label  ${value == null ? 'NEEDS REVIEW' : '${_number(value)}${unit == null ? suffix : _unit(unit)}'}',
+      '$label  ${value == null ? 'NEEDS REVIEW' : '${unit != null
+                ? _number(value)
+                : label == 'CALORIES'
+                ? FoodNutritionFormatter.calories(value)
+                : FoodNutritionFormatter.macro(value)}${unit == null ? suffix : _unit(unit)}'}',
     ),
   );
 
@@ -451,10 +454,22 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         _baseUnit = draft.basisUnit!;
         _basisLinkedToPackage = false;
       }
-      if (draft.calories != null) _calories.text = _number(draft.calories);
-      if (draft.protein != null) _protein.text = _number(draft.protein);
-      if (draft.fat != null) _fat.text = _number(draft.fat);
-      if (draft.carbohydrate != null) _carbs.text = _number(draft.carbohydrate);
+      if (draft.calories != null) {
+        _rawCalories = draft.calories;
+        _calories.text = FoodNutritionFormatter.calories(draft.calories!);
+      }
+      if (draft.protein != null) {
+        _rawProtein = draft.protein;
+        _protein.text = FoodNutritionFormatter.macro(draft.protein!);
+      }
+      if (draft.fat != null) {
+        _rawFat = draft.fat;
+        _fat.text = FoodNutritionFormatter.macro(draft.fat!);
+      }
+      if (draft.carbohydrate != null) {
+        _rawCarbohydrate = draft.carbohydrate;
+        _carbs.text = FoodNutritionFormatter.macro(draft.carbohydrate!);
+      }
     });
   }
 
@@ -508,10 +523,10 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     final timestamp = DateTime.now().toUtc();
     final existing = widget.initialEntry;
     final nutrition = NutritionSnapshot(
-      calories: _optionalNumber(_calories),
-      protein: _optionalNumber(_protein),
-      fat: _optionalNumber(_fat),
-      carbohydrate: _optionalNumber(_carbs),
+      calories: _rawCalories ?? _optionalNumber(_calories),
+      protein: _rawProtein ?? _optionalNumber(_protein),
+      fat: _rawFat ?? _optionalNumber(_fat),
+      carbohydrate: _rawCarbohydrate ?? _optionalNumber(_carbs),
     );
     final entry = FoodCatalogEntry(
       foodId: existing?.foodId ?? FoodMealIdGenerator().generate().substring(5),
@@ -642,6 +657,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   child: OperationTextField(
                     controller: _calories,
                     label: 'CALORIES',
+                    onChanged: (_) => _rawCalories = null,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -649,6 +665,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   child: OperationTextField(
                     controller: _protein,
                     label: 'PROTEIN',
+                    onChanged: (_) => _rawProtein = null,
                   ),
                 ),
               ],
@@ -657,13 +674,18 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             Row(
               children: [
                 Expanded(
-                  child: OperationTextField(controller: _fat, label: 'FAT'),
+                  child: OperationTextField(
+                    controller: _fat,
+                    label: 'FAT',
+                    onChanged: (_) => _rawFat = null,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: OperationTextField(
                     controller: _carbs,
                     label: 'CARBOHYDRATE',
+                    onChanged: (_) => _rawCarbohydrate = null,
                   ),
                 ),
               ],
@@ -719,6 +741,25 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       ),
     ],
   );
+
+  void _setNutrition(NutritionSnapshot nutrition) {
+    _rawCalories = nutrition.calories;
+    _rawProtein = nutrition.protein;
+    _rawFat = nutrition.fat;
+    _rawCarbohydrate = nutrition.carbohydrate;
+    _calories.text = nutrition.calories == null
+        ? ''
+        : FoodNutritionFormatter.calories(nutrition.calories!);
+    _protein.text = nutrition.protein == null
+        ? ''
+        : FoodNutritionFormatter.macro(nutrition.protein!);
+    _fat.text = nutrition.fat == null
+        ? ''
+        : FoodNutritionFormatter.macro(nutrition.fat!);
+    _carbs.text = nutrition.carbohydrate == null
+        ? ''
+        : FoodNutritionFormatter.macro(nutrition.carbohydrate!);
+  }
 
   Widget _dropdown<T>({
     required String label,
@@ -823,15 +864,24 @@ class FoodCatalogDetailPage extends StatelessWidget {
                       '${_format(entry.packageQuantity!)}${_unit(entry.packageUnit!)}',
                     ),
                   if (nutrition.calories != null)
-                    _detail('CALORIES', '${_format(nutrition.calories!)} kcal'),
+                    _detail(
+                      'CALORIES',
+                      '${FoodNutritionFormatter.calories(nutrition.calories!)} kcal',
+                    ),
                   if (nutrition.protein != null)
-                    _detail('PROTEIN', '${_format(nutrition.protein!)} g'),
+                    _detail(
+                      'PROTEIN',
+                      '${FoodNutritionFormatter.macro(nutrition.protein!)} g',
+                    ),
                   if (nutrition.fat != null)
-                    _detail('FAT', '${_format(nutrition.fat!)} g'),
+                    _detail(
+                      'FAT',
+                      '${FoodNutritionFormatter.macro(nutrition.fat!)} g',
+                    ),
                   if (nutrition.carbohydrate != null)
                     _detail(
                       'CARBOHYDRATE',
-                      '${_format(nutrition.carbohydrate!)} g',
+                      '${FoodNutritionFormatter.macro(nutrition.carbohydrate!)} g',
                     ),
                   if (entry.barcodeValue != null)
                     _detail('BARCODE / JAN', entry.barcodeValue!),
@@ -892,33 +942,89 @@ class _PfcCard extends StatelessWidget {
     ];
     return OperationCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SectionHeader(icon: Icons.donut_large, title: 'PFC BALANCE'),
-          AppSpacing.gapMD,
-          SizedBox(
-            width: 144,
-            height: 144,
-            child: CustomPaint(painter: _PfcPainter(values, colors)),
-          ),
-          AppSpacing.gapMD,
-          Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.sm,
+          AppSpacing.gapSM,
+          Row(
+            key: const ValueKey('food-detail-pfc-horizontal'),
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              for (var index = 0; index < values.length; index++)
-                Text(
-                  '${const ['P', 'F', 'C'][index]} ${(values[index] / total * 100).round()}%',
-                  style: TextStyle(
-                    color: colors[index],
-                    fontWeight: FontWeight.bold,
-                  ),
+              SizedBox(
+                key: const ValueKey('food-detail-pfc-donut'),
+                width: 104,
+                height: 104,
+                child: CustomPaint(painter: _PfcPainter(values, colors)),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  children: [
+                    for (var index = 0; index < values.length; index++) ...[
+                      _PfcMetricRow(
+                        label: const ['P', 'F', 'C'][index],
+                        grams: [
+                          nutrition.protein!,
+                          nutrition.fat!,
+                          nutrition.carbohydrate!,
+                        ][index],
+                        percent: (values[index] / total * 100).round(),
+                        color: colors[index],
+                      ),
+                      if (index < values.length - 1) AppSpacing.gapSM,
+                    ],
+                  ],
                 ),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+class _PfcMetricRow extends StatelessWidget {
+  const _PfcMetricRow({
+    required this.label,
+    required this.grams,
+    required this.percent,
+    required this.color,
+  });
+
+  final String label;
+  final double grams;
+  final int percent;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    key: ValueKey('food-detail-pfc-$label'),
+    children: [
+      SizedBox(
+        width: 20,
+        child: Text(
+          label,
+          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        ),
+      ),
+      Expanded(
+        child: Text(
+          '${FoodNutritionFormatter.macro(grams)} g',
+          textAlign: TextAlign.right,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      SizedBox(
+        width: 40,
+        child: Text(
+          '$percent%',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        ),
+      ),
+    ],
+  );
 }
 
 class _PfcPainter extends CustomPainter {
