@@ -21,6 +21,7 @@ import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/beta_meal_template_resolver.dart';
 import '../services/food_input_capture_gateway.dart';
+import '../services/food_live_capture_presenter.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
@@ -86,6 +87,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   double? _rawCarbohydrate;
   bool _isSaving = false;
   bool _capturingNutrition = false;
+  bool _capturingBarcode = false;
   bool _basisLinkedToPackage = true;
 
   FoodInputCaptureGateway get _captureGateway =>
@@ -475,22 +477,30 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
-  Future<FoodImageSource?> _chooseNutritionImageSource() =>
-      showModalBottomSheet<FoodImageSource>(
+  Future<FoodNutritionCaptureMode?> _chooseNutritionCaptureMode() =>
+      showModalBottomSheet<FoodNutritionCaptureMode>(
         context: context,
         builder: (context) => SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
+                leading: const Icon(Icons.center_focus_strong),
+                title: const Text('LIVE SCAN'),
+                onTap: () =>
+                    Navigator.pop(context, FoodNutritionCaptureMode.live),
+              ),
+              ListTile(
                 leading: const Icon(Icons.photo_camera),
                 title: const Text('CAMERA'),
-                onTap: () => Navigator.pop(context, FoodImageSource.camera),
+                onTap: () =>
+                    Navigator.pop(context, FoodNutritionCaptureMode.camera),
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library),
                 title: const Text('PHOTO LIBRARY'),
-                onTap: () => Navigator.pop(context, FoodImageSource.gallery),
+                onTap: () =>
+                    Navigator.pop(context, FoodNutritionCaptureMode.gallery),
               ),
             ],
           ),
@@ -498,16 +508,27 @@ class _FoodInputFormState extends State<FoodInputForm> {
       );
 
   Future<void> _readNutritionLabel() async {
-    final source = await _chooseNutritionImageSource();
-    if (source == null || !mounted) return;
+    final mode = await _chooseNutritionCaptureMode();
+    if (mode == null || !mounted) return;
     setState(() {
       _capturingNutrition = true;
       inputError = null;
     });
     try {
-      final image = await _captureGateway.selectImage(source);
-      if (image == null) return;
-      final rawText = await _captureGateway.recognizeJapaneseText(image);
+      final rawText = switch (mode) {
+        FoodNutritionCaptureMode.live =>
+          _captureGateway is FoodLiveCaptureGateway
+              ? await (_captureGateway as FoodLiveCaptureGateway)
+                    .recognizeNutritionLive(describeNutritionCandidate)
+              : throw UnsupportedError('Live nutrition capture unavailable.'),
+        FoodNutritionCaptureMode.camera ||
+        FoodNutritionCaptureMode.gallery => await _recognizeSelectedImage(
+          mode == FoodNutritionCaptureMode.camera
+              ? FoodImageSource.camera
+              : FoodImageSource.gallery,
+        ),
+      };
+      if (rawText == null) return;
       final draft = const JapaneseNutritionOcrParser().parse(rawText);
       if (!mounted) return;
       if (draft.isEmpty) {
@@ -568,6 +589,69 @@ class _FoodInputFormState extends State<FoodInputForm> {
       if (mounted) setState(() => inputError = 'OCR PROCESSING FAILED');
     } finally {
       if (mounted) setState(() => _capturingNutrition = false);
+    }
+  }
+
+  Future<String?> _recognizeSelectedImage(FoodImageSource source) async {
+    final image = await _captureGateway.selectImage(source);
+    if (image == null) return null;
+    return _captureGateway.recognizeJapaneseText(image);
+  }
+
+  Future<FoodImageSource?> _chooseBarcodeImageSource() =>
+      showModalBottomSheet<FoodImageSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('CAMERA'),
+                onTap: () => Navigator.pop(context, FoodImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('PHOTO LIBRARY'),
+                onTap: () => Navigator.pop(context, FoodImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Future<void> _scanBarcode() async {
+    if (_capturingBarcode) return;
+    setState(() {
+      _capturingBarcode = true;
+      inputError = null;
+    });
+    try {
+      final String? value;
+      if (_captureGateway case final FoodLiveCaptureGateway liveGateway) {
+        final candidate = await liveGateway.scanBarcodeLive();
+        if (candidate == null) return;
+        value = candidate.value;
+      } else {
+        final source = await _chooseBarcodeImageSource();
+        if (source == null || !mounted) return;
+        final image = await _captureGateway.selectImage(source);
+        if (image == null) return;
+        value = await _captureGateway.scanBarcode(image);
+      }
+      if (!mounted) return;
+      if (value == null || value.isEmpty) {
+        setState(() => inputError = 'BARCODE COULD NOT BE READ');
+        return;
+      }
+      setState(() {
+        barcodeController.text = value!;
+        inputError = null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => inputError = 'BARCODE SCAN FAILED');
+    } finally {
+      if (mounted) setState(() => _capturingBarcode = false);
     }
   }
 
@@ -971,6 +1055,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onProteinChanged: () => _rawProtein = null,
               onFatChanged: () => _rawFat = null,
               onCarbohydrateChanged: () => _rawCarbohydrate = null,
+              onScanBarcode: _isSaving || _capturingBarcode
+                  ? null
+                  : _scanBarcode,
+              barcodeScanInProgress: _capturingBarcode,
               onChanged: (_) {
                 setState(() {
                   inputError = null;

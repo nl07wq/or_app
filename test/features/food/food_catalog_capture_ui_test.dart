@@ -106,6 +106,59 @@ void main() {
     expect(find.text('FORMAT  EAN13'), findsOneWidget);
     expect(repository.entries, isEmpty);
   });
+
+  testWidgets('live barcode selection updates draft only after scanner use', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final gateway = _LiveGateway(
+      barcode: const FoodBarcodeCandidate(
+        value: '4901234567894',
+        format: 'EAN-13',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: repository,
+          captureGateway: gateway,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('food-catalog-barcode-scan')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.liveBarcodeCalls, 1);
+    expect(
+      tester.widget<TextField>(_field('BARCODE / JAN')).controller!.text,
+      '4901234567894',
+    );
+    expect(repository.entries, isEmpty);
+  });
+
+  testWidgets('closing live barcode scanner preserves the draft', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: repository,
+          captureGateway: _LiveGateway(),
+        ),
+      ),
+    );
+    await tester.enterText(_field('BARCODE / JAN'), '4006381333931');
+    await tester.tap(find.byKey(const ValueKey('food-catalog-barcode-scan')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<TextField>(_field('BARCODE / JAN')).controller!.text,
+      '4006381333931',
+    );
+    expect(repository.entries, isEmpty);
+  });
 }
 
 Finder _field(String label) => find.widgetWithText(TextField, label);
@@ -124,6 +177,33 @@ class _Gateway implements FoodInputCaptureGateway {
   @override
   Future<FoodCapturedImage?> selectImage(FoodImageSource source) async =>
       const FoodCapturedImage('data:image/png;base64,AA==');
+}
+
+class _LiveGateway implements FoodLiveCaptureGateway {
+  _LiveGateway({this.barcode});
+
+  final FoodBarcodeCandidate? barcode;
+  int liveBarcodeCalls = 0;
+
+  @override
+  Future<FoodBarcodeCandidate?> scanBarcodeLive() async {
+    liveBarcodeCalls += 1;
+    return barcode;
+  }
+
+  @override
+  Future<String?> recognizeNutritionLive(
+    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
+  ) async => null;
+
+  @override
+  Future<String> recognizeJapaneseText(FoodCapturedImage image) async => '';
+
+  @override
+  Future<String?> scanBarcode(FoodCapturedImage image) async => null;
+
+  @override
+  Future<FoodCapturedImage?> selectImage(FoodImageSource source) async => null;
 }
 
 class _Repository implements FoodCatalogRepository {

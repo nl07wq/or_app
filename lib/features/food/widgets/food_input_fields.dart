@@ -35,6 +35,8 @@ class FoodInputFields extends StatelessWidget {
   final VoidCallback onProteinChanged;
   final VoidCallback onFatChanged;
   final VoidCallback onCarbohydrateChanged;
+  final VoidCallback? onScanBarcode;
+  final bool barcodeScanInProgress;
 
   const FoodInputFields({
     super.key,
@@ -63,6 +65,8 @@ class FoodInputFields extends StatelessWidget {
     required this.onProteinChanged,
     required this.onFatChanged,
     required this.onCarbohydrateChanged,
+    this.onScanBarcode,
+    this.barcodeScanInProgress = false,
   });
 
   @override
@@ -118,10 +122,33 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
-        OperationTextField(
-          controller: barcodeController,
-          label: 'BARCODE / JAN',
-          onChanged: onChanged,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final field = OperationTextField(
+              controller: barcodeController,
+              label: 'BARCODE / JAN',
+              onChanged: onChanged,
+            );
+            final action = OutlinedButton.icon(
+              key: const ValueKey('food-entry-barcode-scan'),
+              onPressed: onScanBarcode,
+              icon: const Icon(Icons.qr_code_scanner),
+              label: Text(barcodeScanInProgress ? 'SCANNING' : 'SCAN BARCODE'),
+            );
+            if (constraints.maxWidth < 360) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [field, AppSpacing.gapSM, action],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: field),
+                const SizedBox(width: AppSpacing.md),
+                action,
+              ],
+            );
+          },
         ),
 
         AppSpacing.gapMD,

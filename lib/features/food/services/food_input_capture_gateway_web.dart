@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
+import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
@@ -11,7 +12,7 @@ FoodInputCaptureGateway createPlatformFoodInputCaptureGateway() =>
 @JS('window')
 external JSObject get _window;
 
-class WebFoodInputCaptureGateway implements FoodInputCaptureGateway {
+class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
   JSObject get _bridge {
     if (!_window.has('orAppFoodInput')) {
       throw StateError('Food input browser bridge is unavailable.');
@@ -47,6 +48,35 @@ class WebFoodInputCaptureGateway implements FoodInputCaptureGateway {
         .callMethod<JSPromise<JSString?>>(
           'scanBarcode'.toJS,
           image.dataUrl.toJS,
+        )
+        .toDart;
+    return result?.toDart;
+  }
+
+  @override
+  Future<FoodBarcodeCandidate?> scanBarcodeLive() async {
+    final result = await _bridge
+        .callMethod<JSPromise<JSString?>>('scanBarcodeLive'.toJS)
+        .toDart;
+    if (result == null) return null;
+    final payload = jsonDecode(result.toDart) as Map<String, dynamic>;
+    return FoodBarcodeCandidate(
+      value: payload['value'] as String,
+      format: payload['format'] as String,
+    );
+  }
+
+  @override
+  Future<String?> recognizeNutritionLive(
+    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
+  ) async {
+    final callback = ((JSString rawText) {
+      return jsonEncode(describeCandidate(rawText.toDart).toJson()).toJS;
+    }).toJS;
+    final result = await _bridge
+        .callMethod<JSPromise<JSString?>>(
+          'recognizeNutritionLive'.toJS,
+          callback,
         )
         .toDart;
     return result?.toDart;

@@ -17,6 +17,7 @@ import 'food_nutrition_formatter.dart';
 import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'services/food_input_capture_gateway.dart';
+import 'services/food_live_capture_presenter.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
 
 class FoodCatalogPage extends StatefulWidget {
@@ -338,17 +339,58 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         ),
       );
 
+  Future<FoodNutritionCaptureMode?> _chooseNutritionCaptureMode() =>
+      showModalBottomSheet<FoodNutritionCaptureMode>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.center_focus_strong),
+                title: const Text('LIVE SCAN'),
+                onTap: () =>
+                    Navigator.pop(context, FoodNutritionCaptureMode.live),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('CAMERA'),
+                onTap: () =>
+                    Navigator.pop(context, FoodNutritionCaptureMode.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('PHOTO LIBRARY'),
+                onTap: () =>
+                    Navigator.pop(context, FoodNutritionCaptureMode.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+
   Future<void> _readNutrition() async {
-    final source = await _chooseImageSource();
-    if (source == null || !mounted) return;
+    final mode = await _chooseNutritionCaptureMode();
+    if (mode == null || !mounted) return;
     setState(() {
       _capturing = true;
       _error = null;
     });
     try {
-      final image = await _captureGateway.selectImage(source);
-      if (image == null) return;
-      final rawText = await _captureGateway.recognizeJapaneseText(image);
+      final rawText = switch (mode) {
+        FoodNutritionCaptureMode.live =>
+          _captureGateway is FoodLiveCaptureGateway
+              ? await (_captureGateway as FoodLiveCaptureGateway)
+                    .recognizeNutritionLive(describeNutritionCandidate)
+              : throw UnsupportedError('Live nutrition capture unavailable.'),
+        FoodNutritionCaptureMode.camera ||
+        FoodNutritionCaptureMode.gallery => await _recognizeSelectedImage(
+          mode == FoodNutritionCaptureMode.camera
+              ? FoodImageSource.camera
+              : FoodImageSource.gallery,
+        ),
+      };
+      if (rawText == null) return;
       final draft = const JapaneseNutritionOcrParser().parse(rawText);
       if (!mounted) return;
       if (draft.isEmpty) {
@@ -406,22 +448,35 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     }
   }
 
+  Future<String?> _recognizeSelectedImage(FoodImageSource source) async {
+    final image = await _captureGateway.selectImage(source);
+    if (image == null) return null;
+    return _captureGateway.recognizeJapaneseText(image);
+  }
+
   Future<void> _scanBarcode() async {
-    final source = await _chooseImageSource();
-    if (source == null || !mounted) return;
     setState(() {
       _capturing = true;
       _error = null;
     });
     try {
-      final image = await _captureGateway.selectImage(source);
-      if (image == null) return;
-      final value = await _captureGateway.scanBarcode(image);
+      final String? value;
+      if (_captureGateway case final FoodLiveCaptureGateway liveGateway) {
+        final candidate = await liveGateway.scanBarcodeLive();
+        if (candidate == null) return;
+        value = candidate.value;
+      } else {
+        final source = await _chooseImageSource();
+        if (source == null || !mounted) return;
+        final image = await _captureGateway.selectImage(source);
+        if (image == null) return;
+        value = await _captureGateway.scanBarcode(image);
+      }
       if (!mounted) return;
       if (value == null || value.isEmpty) {
         setState(() => _error = 'BARCODE COULD NOT BE READ');
       } else {
-        setState(() => _barcode.text = value);
+        setState(() => _barcode.text = value!);
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'BARCODE SCAN FAILED');
@@ -610,23 +665,33 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               onChanged: (value) => setState(() => _category = value),
             ),
             AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _barcode,
-                    label: 'BARCODE / JAN',
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                IconButton.filledTonal(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final field = OperationTextField(
+                  controller: _barcode,
+                  label: 'BARCODE / JAN',
+                  onChanged: (_) => setState(() {}),
+                );
+                final action = OutlinedButton.icon(
                   key: const ValueKey('food-catalog-barcode-scan'),
-                  tooltip: 'SCAN BARCODE',
                   onPressed: _capturing || _saving ? null : _scanBarcode,
                   icon: const Icon(Icons.qr_code_scanner),
-                ),
-              ],
+                  label: Text(_capturing ? 'SCANNING' : 'SCAN BARCODE'),
+                );
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [field, AppSpacing.gapSM, action],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: field),
+                    const SizedBox(width: AppSpacing.md),
+                    action,
+                  ],
+                );
+              },
             ),
             if (_barcode.text.trim().isNotEmpty) ...[
               AppSpacing.gapXS,
