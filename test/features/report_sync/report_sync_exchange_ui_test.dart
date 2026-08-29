@@ -373,7 +373,7 @@ void main() {
     expect(find.textContaining('受信Meal：'), findsNothing);
   });
 
-  testWidgets('REPORT SYNC RECORD shows five recent rows and all records', (
+  testWidgets('food sync shows three recent rows and all records', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 1400);
@@ -402,7 +402,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('report-sync-record-request-food-5')),
+      find.byKey(const ValueKey('report-sync-record-request-food-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('report-sync-record-request-food-3')),
       findsNothing,
     );
 
@@ -435,6 +439,105 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  for (final type in const [
+    ReportSyncExchangeType.food,
+    ReportSyncExchangeType.training,
+  ]) {
+    testWidgets('${type.name} shows VIEW ALL only from four records', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      for (final count in [0, 1, 3, 4]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ReportSyncExchangePage(
+              key: ValueKey('${type.name}-$count'),
+              exchangeType: type,
+              gateway: _FakeExchangeGateway(
+                historyCount: count,
+                responseExchangeType: type,
+              ),
+              fileGateway: _FakeFileGateway(),
+              clipboardWriter: (_) async {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        if (count >= 4) {
+          await tester.scrollUntilVisible(
+            find.byKey(const ValueKey('view-all-report-sync-records')),
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
+        expect(
+          find.byKey(const ValueKey('view-all-report-sync-records')),
+          count >= 4 ? findsOneWidget : findsNothing,
+          reason: '${type.name} history count $count',
+        );
+        expect(
+          find.byKey(const ValueKey('report-sync-record-request-food-3')),
+          findsNothing,
+        );
+      }
+    });
+  }
+
+  for (final type in const [
+    ReportSyncExchangeType.morningBrief,
+    ReportSyncExchangeType.dailyDebrief,
+  ]) {
+    testWidgets('${type.name} hides inline history and uses human labels', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReportSyncExchangePage(
+            exchangeType: type,
+            gateway: _FakeExchangeGateway(
+              historyCount: 4,
+              responseExchangeType: type,
+            ),
+            fileGateway: _FakeFileGateway(),
+            clipboardWriter: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('REPORT SYNC RECORD'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('report-sync-record-request-food-0')),
+        findsNothing,
+      );
+      final viewAll = find.byKey(
+        const ValueKey('view-all-report-sync-records'),
+      );
+      await tester.scrollUntilVisible(
+        viewAll,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(viewAll, findsOneWidget);
+      await tester.tap(viewAll);
+      await tester.pumpAndSettle();
+      final humanLabel = type == ReportSyncExchangeType.morningBrief
+          ? 'DAILY BRIEF · SUCCESS'
+          : 'DAILY DEBRIEF · SUCCESS';
+      expect(find.text(humanLabel), findsNWidgets(4));
+      expect(find.textContaining(type.stableId), findsNothing);
+      expect(find.textContaining('response'), findsNothing);
+    });
+  }
 
   testWidgets('invalid target date disables import-only actions', (
     tester,

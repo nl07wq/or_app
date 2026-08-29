@@ -1302,6 +1302,7 @@ class _MorningButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationButton(
+      role: OperationActionRole.primary,
       icon: Icons.play_arrow,
       text: 'STATUS',
       onPressed: () {
@@ -1317,6 +1318,7 @@ class _FoodButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationButton(
+      role: OperationActionRole.primary,
       icon: Icons.restaurant,
       text: 'FOOD',
       onPressed: () {
@@ -1332,6 +1334,7 @@ class _ActivityButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationButton(
+      role: OperationActionRole.primary,
       icon: Icons.directions_walk_outlined,
       text: 'ACTIVITY',
       onPressed: () => Navigator.pushNamed(context, AppRoutes.activity),
@@ -1345,6 +1348,7 @@ class _TrainingButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationButton(
+      role: OperationActionRole.primary,
       icon: Icons.fitness_center,
       text: 'TRAINING',
       onPressed: () {
@@ -1360,6 +1364,7 @@ class _CommandCenterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationButton(
+      role: OperationActionRole.primary,
       icon: Icons.flag,
       text: 'COMMAND CENTER',
       onPressed: () {

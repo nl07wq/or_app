@@ -100,7 +100,9 @@ class BriefDebriefPage extends StatelessWidget {
           ),
         ),
         const TabBar(
-          isScrollable: true,
+          key: ValueKey('brief-debrief-tab-bar'),
+          isScrollable: false,
+          indicatorSize: TabBarIndicatorSize.tab,
           tabs: [
             Tab(text: 'DAILY BRIEF'),
             Tab(text: 'DAILY DEBRIEF'),

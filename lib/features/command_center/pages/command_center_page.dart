@@ -87,8 +87,8 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
               controller: _pageController,
               onPageChanged: (page) => setState(() => _currentPage = page),
               children: [
-                const BriefDebriefPage(),
                 const PeriodicReportWorkspace(),
+                const BriefDebriefPage(),
                 _DailyCommandPage(
                   refreshToken: _refreshToken,
                   onRefresh: _refresh,
@@ -496,8 +496,8 @@ class _WorkspaceHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const labels = [
-      'BRIEF / DEBRIEF',
       'PERIODIC REPORT',
+      'BRIEF / DEBRIEF',
       'DAILY COMMAND',
       'DATA CENTER',
     ];

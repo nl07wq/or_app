@@ -131,6 +131,19 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       widget.exchangeType == ReportSyncExchangeType.morningBrief ||
       widget.exchangeType == ReportSyncExchangeType.dailyDebrief;
 
+  bool get _isBriefExchange =>
+      widget.exchangeType == ReportSyncExchangeType.morningBrief ||
+      widget.exchangeType == ReportSyncExchangeType.dailyDebrief;
+
+  bool get _isCompactHistoryExchange =>
+      widget.exchangeType == ReportSyncExchangeType.food ||
+      widget.exchangeType == ReportSyncExchangeType.training;
+
+  int get _inlineHistoryLimit => _isCompactHistoryExchange ? 3 : 5;
+
+  bool get _showsArchiveAction =>
+      _isCompactHistoryExchange ? _history.length >= 4 : _history.isNotEmpty;
+
   bool get _hasValidSelectedDate {
     if (!_usesTargetDate) return false;
     try {
@@ -846,13 +859,17 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           ],
         ],
         AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.receipt_long_outlined,
-          title: 'REPORT SYNC RECORD',
-        ),
-        AppSpacing.gapSM,
-        _HistoryCard(history: _history.take(5).toList(growable: false)),
-        if (_history.isNotEmpty) ...[
+        if (!_isBriefExchange) ...[
+          const SectionHeader(
+            icon: Icons.receipt_long_outlined,
+            title: 'REPORT SYNC RECORD',
+          ),
+          AppSpacing.gapSM,
+          _HistoryCard(
+            history: _history.take(_inlineHistoryLimit).toList(growable: false),
+          ),
+        ],
+        if (_showsArchiveAction) ...[
           AppSpacing.gapSM,
           _RecordArchiveButton(
             key: const ValueKey('view-all-report-sync-records'),
@@ -889,11 +906,11 @@ class _RecordArchiveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: double.infinity,
-    height: 52,
-    child: ElevatedButton.icon(
+    child: OperationButton(
+      role: OperationActionRole.primary,
       onPressed: onPressed,
-      icon: Icon(icon, size: 20),
-      label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
+      icon: icon,
+      text: text,
     ),
   );
 }
@@ -1763,25 +1780,14 @@ class _HistoryCard extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.receipt_long_outlined),
                   title: Text(
-                    history[index].exchangeType == ReportSyncExchangeType.food
-                        ? 'FOOD SYNC · '
-                              '${history[index].result.stableId.toUpperCase()}'
-                        : '${history[index].exchangeType.stableId} · '
-                              '${history[index].direction.stableId}',
+                    '${_reportSyncExchangeLabel(history[index].exchangeType)} · '
+                    '${history[index].result.stableId.toUpperCase()}',
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        history[index].exchangeType ==
-                                ReportSyncExchangeType.food
-                            ? history[index].operationDate
-                            : '${history[index].operationDate} · '
-                                  '${history[index].result.stableId} · '
-                                  '${history[index].completedAt.toLocal()}'
-                                  '${history[index].failureCode == null ? '' : ' · ${history[index].failureCode!.stableId}'}',
-                      ),
+                      Text(history[index].operationDate),
                       if (history[index].exchangeType ==
                           ReportSyncExchangeType.food)
                         Text(_historyMealCounts(history[index])),
@@ -1820,10 +1826,8 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
         key: ValueKey('all-report-sync-record-${history[index].exchangeId}'),
         leading: Icon(_reportSyncResultIcon(history[index].result)),
         title: Text(
-          history[index].exchangeType == ReportSyncExchangeType.food
-              ? 'FOOD SYNC · ${history[index].result.stableId.toUpperCase()}'
-              : '${history[index].exchangeType.stableId} · '
-                    '${history[index].direction.stableId}',
+          '${_reportSyncExchangeLabel(history[index].exchangeType)} · '
+          '${history[index].result.stableId.toUpperCase()}',
         ),
         subtitle: Text(
           '${history[index].operationDate} · '
@@ -1871,7 +1875,7 @@ class _ReportSyncRecordPage extends StatelessWidget {
               if (record.exchangeType != ReportSyncExchangeType.food) ...[
                 _RecordField(
                   label: 'EXCHANGE TYPE',
-                  value: record.exchangeType.stableId,
+                  value: _reportSyncExchangeLabel(record.exchangeType),
                 ),
                 _RecordField(
                   label: 'DIRECTION',
@@ -1970,6 +1974,16 @@ String _title(ReportSyncExchangeType type) => switch (type) {
   ReportSyncExchangeType.trainingPlan => 'TRAINING PLAN',
   ReportSyncExchangeType.food => 'FOOD REPORT SYNC',
   ReportSyncExchangeType.morningBrief => 'DAILY BRIEF REPORT SYNC',
+  ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
+  ReportSyncExchangeType.periodicReport => 'PERIODIC REPORT',
+};
+
+String _reportSyncExchangeLabel(ReportSyncExchangeType type) => switch (type) {
+  ReportSyncExchangeType.training => 'TRAINING SYNC',
+  ReportSyncExchangeType.trainingAnalysis => 'TRAINING ANALYSIS',
+  ReportSyncExchangeType.trainingPlan => 'TRAINING PLAN',
+  ReportSyncExchangeType.food => 'FOOD SYNC',
+  ReportSyncExchangeType.morningBrief => 'DAILY BRIEF',
   ReportSyncExchangeType.dailyDebrief => 'DAILY DEBRIEF',
   ReportSyncExchangeType.periodicReport => 'PERIODIC REPORT',
 };

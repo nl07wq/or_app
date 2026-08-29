@@ -28,15 +28,12 @@ class DataCenterPage extends StatelessWidget {
             AppSpacing.gapSM,
             const Text('保存済みの正式データから、各種履歴と推移を確認します。'),
             AppSpacing.gapMD,
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.dataCenterHistory),
-                icon: const Icon(Icons.history),
-                label: const Text('OPEN HISTORY'),
-              ),
+            OperationButton(
+              role: OperationActionRole.primary,
+              text: 'OPEN HISTORY',
+              icon: Icons.history,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.dataCenterHistory),
             ),
           ],
         ),
@@ -59,6 +56,7 @@ class DataCenterPage extends StatelessWidget {
             const Text('保存済みの日次圧縮RecordとSourceを確認・保守します。'),
             AppSpacing.gapMD,
             OperationButton(
+              role: OperationActionRole.primary,
               text: 'OPEN DAILY AGGREGATE RECORDS',
               icon: Icons.inventory_2_outlined,
               onPressed: () =>

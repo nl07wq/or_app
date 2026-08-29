@@ -181,38 +181,37 @@ void main() {
         cardioAtLeast30Minutes: true,
       );
       expect(high.water.baseTargetMl, 3500);
-      expect(high.water.stepsAdjustmentMl, 500);
+      expect(high.water.stepsAdjustmentMl, 0);
       expect(high.water.trainingAdjustmentMl, 250);
       expect(high.water.cardioAdjustmentMl, 250);
-      expect(high.water.finalTargetMl, 4500);
+      expect(high.water.finalTargetMl, 4000);
     });
 
-    test('uses step bands and marks missing activity partial', () {
-      expect(
-        _evaluate(
-          history: _referenceHistory(),
-          steps: 7999,
-        ).water.stepsAdjustmentMl,
-        0,
+    test('does not use steps or mark missing activity partial', () {
+      final targets = [
+        for (final steps in [null, 7999, 8000, 12000])
+          _evaluate(history: _referenceHistory(), steps: steps).water,
+      ];
+      final expectedTarget = targets.first.finalTargetMl;
+      for (final water in targets) {
+        expect(water.stepsAdjustmentMl, 0);
+        expect(water.finalTargetMl, expectedTarget);
+        expect(water.availability, DynamicTargetAvailability.available);
+      }
+    });
+
+    test('uses the raw target for completion color', () {
+      final below = _evaluate(
+        history: _referenceHistory(weight: 95.57),
+        water: 2867,
       );
-      expect(
-        _evaluate(
-          history: _referenceHistory(),
-          steps: 8000,
-        ).water.stepsAdjustmentMl,
-        250,
+      final above = _evaluate(
+        history: _referenceHistory(weight: 95.57),
+        water: 2868,
       );
-      expect(
-        _evaluate(
-          history: _referenceHistory(),
-          steps: 12000,
-        ).water.stepsAdjustmentMl,
-        500,
-      );
-      expect(
-        _evaluate(history: _referenceHistory()).water.availability,
-        DynamicTargetAvailability.partial,
-      );
+      expect(below.water.finalTargetMl, closeTo(2867.1, 0.001));
+      expect(below.water.state, DynamicTargetState.neutral);
+      expect(above.water.state, DynamicTargetState.green);
     });
 
     test('absence of a training record is none confirmed, not skipped', () {
@@ -331,7 +330,6 @@ DynamicDailyTargetResult _evaluate({
   currentCaloriesKcal: calories,
   currentProteinG: protein,
   currentWaterMl: water,
-  officialSteps: steps,
   formalTrainingRecorded: trainingRecorded,
   formalCardioAtLeast30Minutes: cardioAtLeast30Minutes,
   trainingEnergyKcal: 0,

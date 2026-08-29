@@ -5,12 +5,14 @@ import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
+import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
@@ -129,6 +131,49 @@ void main() {
       isFalse,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Dashboard push exposes Back and returns to Dashboard', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const DashboardPage(),
+        routes: {AppRoutes.commandCenter: (_) => const CommandCenterPage()},
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final commandCenter = find.text('COMMAND CENTER').last;
+    final dashboardScrollable = find
+        .descendant(
+          of: find.byKey(const ValueKey('dashboard-scroll-view')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    tester
+        .state<ScrollableState>(dashboardScrollable)
+        .position
+        .jumpTo(
+          tester
+              .state<ScrollableState>(dashboardScrollable)
+              .position
+              .maxScrollExtent,
+        );
+    await tester.pumpAndSettle();
+    await tester.tap(commandCenter);
+    await tester.pumpAndSettle();
+    expect(find.byType(CommandCenterPage), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(DashboardPage), findsOneWidget);
+    expect(find.byType(CommandCenterPage), findsNothing);
   });
 
   testWidgets('shows Current Operation and STANDBY without invented command', (
@@ -471,7 +516,7 @@ void main() {
     await _pump(tester, width: 390);
 
     final topTabPositions =
-        ['BRIEF / DEBRIEF', 'PERIODIC REPORT', 'DAILY COMMAND', 'DATA CENTER']
+        ['PERIODIC REPORT', 'BRIEF / DEBRIEF', 'DAILY COMMAND', 'DATA CENTER']
             .map(
               (label) => tester
                   .getTopLeft(find.widgetWithText(TextButton, label).first)
@@ -491,6 +536,59 @@ void main() {
     );
   });
 
+  testWidgets('maps reordered top tabs through taps and adjacent swipes', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+
+    await _tapCommandCenterTab(tester, 'PERIODIC REPORT');
+    expect(find.text('WEEKLY REPORT'), findsOneWidget);
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+    expect(find.byKey(const ValueKey('morning-brief-content')), findsOneWidget);
+    await _tapCommandCenterTab(tester, 'DAILY COMMAND');
+    expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+    await _tapCommandCenterTab(tester, 'DATA CENTER');
+    expect(find.byKey(const ValueKey('data-center-content')), findsOneWidget);
+
+    await _tapCommandCenterTab(tester, 'DAILY COMMAND');
+    final workspace = find.byType(PageView).first;
+    final workspaceRect = tester.getRect(workspace);
+    final topSwipeOrigin = Offset(
+      workspaceRect.center.dx,
+      workspaceRect.top + 12,
+    );
+    await tester.dragFrom(topSwipeOrigin, const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('morning-brief-content')), findsOneWidget);
+    await tester.dragFrom(topSwipeOrigin, const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('WEEKLY REPORT'), findsOneWidget);
+  });
+
+  testWidgets('balances BRIEF and DEBRIEF tabs across the available width', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+
+    _expectBalancedBriefDebriefTabs(tester);
+    final tabBar = tester.widget<TabBar>(
+      find.byKey(const ValueKey('brief-debrief-tab-bar')),
+    );
+    expect(tabBar.isScrollable, isFalse);
+    expect(tabBar.indicatorSize, TabBarIndicatorSize.tab);
+
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+    expect(
+      DefaultTabController.of(
+        tester.element(find.byKey(const ValueKey('brief-debrief-tab-bar'))),
+      ).index,
+      1,
+    );
+    _expectBalancedBriefDebriefTabs(tester);
+  });
+
   testWidgets('separates BRIEF DEBRIEF content from report sync pages', (
     tester,
   ) async {
@@ -506,7 +604,7 @@ void main() {
     await tester.tap(find.text('BRIEF / DEBRIEF').first);
     await tester.pumpAndSettle();
     final selectedBriefTab = tester.widget<AnimatedContainer>(
-      find.byKey(const ValueKey('command-center-tab-0')),
+      find.byKey(const ValueKey('command-center-tab-1')),
     );
     final unselectedCommandTab = tester.widget<AnimatedContainer>(
       find.byKey(const ValueKey('command-center-tab-2')),
@@ -619,12 +717,12 @@ void main() {
       return ((tab.decoration as BoxDecoration).border as Border).bottom;
     }
 
-    expect(bottomBorder(0).color, isNot(Colors.transparent));
+    expect(bottomBorder(1).color, isNot(Colors.transparent));
     expect(bottomBorder(2).color, Colors.transparent);
     expect(find.text('DAILY BRIEF'), findsWidgets);
 
     await _tapCommandCenterTab(tester, 'DAILY COMMAND');
-    expect(bottomBorder(0).color, Colors.transparent);
+    expect(bottomBorder(1).color, Colors.transparent);
     expect(bottomBorder(2).color, isNot(Colors.transparent));
     expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
   });
@@ -636,7 +734,7 @@ void main() {
 
     await _tapCommandCenterTab(tester, 'PERIODIC REPORT');
     final tab = tester.widget<AnimatedContainer>(
-      find.byKey(const ValueKey('command-center-tab-1')),
+      find.byKey(const ValueKey('command-center-tab-0')),
     );
     expect(
       ((tab.decoration as BoxDecoration).border as Border).bottom.color,
@@ -667,7 +765,37 @@ void main() {
     expect(find.text('HISTORY'), findsNWidgets(2));
     expect(find.text('OPEN HISTORY'), findsOneWidget);
     expect(find.text('DAILY AGGREGATE RECORDS'), findsNWidgets(2));
+    final historyButton = tester.widget<OperationButton>(
+      find.widgetWithText(OperationButton, 'OPEN HISTORY'),
+    );
+    final aggregateButton = tester.widget<OperationButton>(
+      find.widgetWithText(OperationButton, 'OPEN DAILY AGGREGATE RECORDS'),
+    );
+    expect(historyButton.role, OperationActionRole.primary);
+    expect(aggregateButton.role, OperationActionRole.primary);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('subtabs and Data Center actions fit every supported width', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      await _pump(tester, width: width);
+      await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+      _expectBalancedBriefDebriefTabs(tester);
+      await _tapCommandCenterTab(tester, 'DATA CENTER');
+      expect(
+        find.widgetWithText(OperationButton, 'OPEN HISTORY'),
+        findsOneWidget,
+        reason: '${width}px',
+      );
+      expect(
+        find.widgetWithText(OperationButton, 'OPEN DAILY AGGREGATE RECORDS'),
+        findsOneWidget,
+        reason: '${width}px',
+      );
+      expect(tester.takeException(), isNull, reason: '${width}px');
+    }
   });
 
   testWidgets('shows imported brief and debrief content with history', (
@@ -1394,8 +1522,7 @@ void main() {
 
     for (final width in [320.0, 390.0, 900.0, 1280.0]) {
       await _pump(tester, width: width);
-      await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
-      await tester.pumpAndSettle();
+      await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
       while (tester.takeException() != null) {}
       await _openDailyDebrief(tester);
       await tester.pumpAndSettle();
@@ -1708,10 +1835,8 @@ void main() {
       for (final theme in [ThemeData.light(), ThemeData.dark()]) {
         await _pump(tester, width: width, theme: theme);
         expect(tester.takeException(), isNull);
-        await tester.tap(
-          find.widgetWithText(TextButton, 'BRIEF / DEBRIEF').first,
-        );
-        await tester.pumpAndSettle();
+        await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+        _expectBalancedBriefDebriefTabs(tester);
         await tester.tap(
           find.descendant(
             of: find.byType(TabBar),
@@ -1734,6 +1859,21 @@ void main() {
       }
     });
   }
+}
+
+void _expectBalancedBriefDebriefTabs(WidgetTester tester) {
+  final tabBar = find.byKey(const ValueKey('brief-debrief-tab-bar'));
+  final barRect = tester.getRect(tabBar);
+  final briefCenter = tester.getCenter(
+    find.descendant(of: tabBar, matching: find.text('DAILY BRIEF')),
+  );
+  final debriefCenter = tester.getCenter(
+    find.descendant(of: tabBar, matching: find.text('DAILY DEBRIEF')),
+  );
+
+  expect(briefCenter.dx, closeTo(barRect.left + barRect.width * 0.25, 0.1));
+  expect(debriefCenter.dx, closeTo(barRect.left + barRect.width * 0.75, 0.1));
+  expect(debriefCenter.dx - briefCenter.dx, closeTo(barRect.width * 0.5, 0.1));
 }
 
 Finder _dailyCommandScrollable() => find.descendant(
@@ -1969,9 +2109,12 @@ Future<void> _scrollDailyCommand(WidgetTester tester, double dy) async {
 }
 
 Future<void> _openDailyDebrief(WidgetTester tester) async {
-  final tab = find.text('DAILY DEBRIEF').first;
-  await tester.ensureVisible(tab);
-  await tester.pumpAndSettle();
+  final tab = find
+      .descendant(
+        of: find.byKey(const ValueKey('brief-debrief-tab-bar')),
+        matching: find.text('DAILY DEBRIEF'),
+      )
+      .first;
   await tester.tap(tab);
 }
 

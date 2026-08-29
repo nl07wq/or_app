@@ -880,6 +880,22 @@ void main() {
         find.widgetWithText(OperationButton, 'COMMAND CENTER'),
         findsOneWidget,
       );
+      for (final label in const [
+        'STATUS',
+        'FOOD',
+        'ACTIVITY',
+        'TRAINING',
+        'COMMAND CENTER',
+      ]) {
+        expect(
+          tester
+              .widget<OperationButton>(
+                find.widgetWithText(OperationButton, label),
+              )
+              .role,
+          OperationActionRole.primary,
+        );
+      }
     },
   );
 

@@ -52,7 +52,6 @@ class DynamicDailyTargetService {
           ? null
           : food.protein,
       currentWaterMl: food?.waterRecorded == true ? food!.hydrationMl : null,
-      officialSteps: activity.calculationBasis?.officialSteps,
       formalTrainingRecorded: trainingRecords.isNotEmpty,
       formalCardioAtLeast30Minutes: trainingRecords.any(_hasThirtyMinuteCardio),
       trainingEnergyKcal: energyAvailable ? trainingEnergy ?? 0 : null,
@@ -83,7 +82,6 @@ abstract final class DynamicDailyTargetEngine {
     required double? currentCaloriesKcal,
     required double? currentProteinG,
     required double? currentWaterMl,
-    required int? officialSteps,
     required bool formalTrainingRecorded,
     required bool formalCardioAtLeast30Minutes,
     required double? trainingEnergyKcal,
@@ -111,7 +109,6 @@ abstract final class DynamicDailyTargetEngine {
       water: _water(
         current: currentWaterMl,
         referenceWeightKg: weight,
-        officialSteps: officialSteps,
         formalTrainingRecorded: formalTrainingRecorded,
         formalCardioAtLeast30Minutes: formalCardioAtLeast30Minutes,
       ),
@@ -264,7 +261,6 @@ abstract final class DynamicDailyTargetEngine {
   static DynamicWaterTarget _water({
     required double? current,
     required double? referenceWeightKg,
-    required int? officialSteps,
     required bool formalTrainingRecorded,
     required bool formalCardioAtLeast30Minutes,
   }) {
@@ -284,20 +280,10 @@ abstract final class DynamicDailyTargetEngine {
       );
     }
     final base = (referenceWeightKg * 30).clamp(2500.0, 3500.0);
-    final stepsAdjustment = officialSteps == null
-        ? 0.0
-        : officialSteps >= 12000
-        ? 500.0
-        : officialSteps >= 8000
-        ? 250.0
-        : 0.0;
     final trainingAdjustment = formalTrainingRecorded ? 250.0 : 0.0;
     final cardioAdjustment = formalCardioAtLeast30Minutes ? 250.0 : 0.0;
-    final target =
-        base + stepsAdjustment + trainingAdjustment + cardioAdjustment;
-    final availability = officialSteps == null
-        ? DynamicTargetAvailability.partial
-        : DynamicTargetAvailability.available;
+    final target = base + trainingAdjustment + cardioAdjustment;
+    const availability = DynamicTargetAvailability.available;
     final state =
         availability != DynamicTargetAvailability.available ||
             current == null ||
@@ -307,7 +293,7 @@ abstract final class DynamicDailyTargetEngine {
     return DynamicWaterTarget(
       current: current,
       baseTargetMl: base,
-      stepsAdjustmentMl: stepsAdjustment,
+      stepsAdjustmentMl: 0,
       trainingAdjustmentMl: trainingAdjustment,
       cardioAdjustmentMl: cardioAdjustment,
       finalTargetMl: target,
