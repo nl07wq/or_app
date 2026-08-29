@@ -119,6 +119,59 @@ void main() {
       2,
     );
   });
+
+  test(
+    'history uses app import clock when response createdAt is in the future',
+    () async {
+      final fixture = await _fixture(now);
+      final prepared = await fixture.service.prepare(
+        type: PeriodicReportType.weekly,
+        anchor: DateTime(2026, 8, 24),
+      );
+      final responseCreatedAt = now.add(const Duration(hours: 2));
+      final response = fixture.container.reportSyncCodec.create(
+        direction: ReportSyncDirection.response,
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+        exchangeType: ReportSyncExchangeType.periodicReport,
+        exchangeId: 'periodic-future-response',
+        operationDate: prepared.facts.endDate,
+        createdAt: responseCreatedAt,
+        payload: {
+          'operationDate': prepared.facts.endDate,
+          'periodId': prepared.facts.periodId,
+          'reportType': prepared.facts.reportType.stableId,
+          'sourceDigest': ReportSyncCanonicalService.digest(
+            prepared.facts.toJson(),
+          ),
+          'analysis': _analysis('future metadata').toJson(),
+        },
+      );
+      final startedAt = now.add(const Duration(minutes: 1));
+      final completedAt = now.add(const Duration(minutes: 2));
+      final clock = _SequenceClock([startedAt, completedAt]);
+      final service = PeriodicReportService(
+        container: fixture.container,
+        clock: clock.call,
+      );
+      final preview = await service.preview(
+        type: PeriodicReportType.weekly,
+        anchor: DateTime(2026, 8, 24),
+        rawResponse: fixture.container.reportSyncCodec.encode(response),
+      );
+
+      await service.apply(preview);
+
+      final history = (await fixture.container.reportSyncHistory.list())
+          .singleWhere(
+            (value) => value.exchangeId == 'periodic-future-response',
+          );
+      expect(preview.response.createdAt, responseCreatedAt);
+      expect(history.startedAt, startedAt);
+      expect(history.completedAt, completedAt);
+      expect(history.completedAt.isBefore(history.startedAt), isFalse);
+      expect(clock.calls, 2);
+    },
+  );
 }
 
 Future<_Fixture> _fixture(DateTime now) async {
@@ -176,4 +229,13 @@ class _Fixture {
   const _Fixture(this.container, this.service);
   final AppRepositoryContainer container;
   final PeriodicReportService service;
+}
+
+class _SequenceClock {
+  _SequenceClock(this._values);
+
+  final List<DateTime> _values;
+  int calls = 0;
+
+  DateTime call() => _values[calls++];
 }

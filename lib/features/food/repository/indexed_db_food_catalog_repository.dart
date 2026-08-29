@@ -58,6 +58,7 @@ class IndexedDbFoodCatalogRepository implements FoodCatalogRepository {
         IndexedDbStoreNames.foodCatalogRecords,
       );
       final result = values.map(FoodCatalogEntry.fromJson).toList()
+        ..removeWhere((entry) => entry.isArchived)
         ..sort((a, b) => a.foodId.compareTo(b.foodId));
       return List.unmodifiable(result);
     } catch (error) {

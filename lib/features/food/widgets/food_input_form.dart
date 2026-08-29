@@ -13,6 +13,11 @@ import '../../../core/widgets/section_header.dart';
 import '../data/beta_meal_templates.dart';
 import '../data/water_quick_presets.dart';
 import '../models/meal_template.dart';
+import '../models/food_catalog_models.dart';
+import '../models/food_quantity_models.dart';
+import '../models/nutrition_models.dart';
+import '../food_catalog_page.dart';
+import '../../repositories/app_repository_container.dart';
 import '../services/beta_meal_template_resolver.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
@@ -20,9 +25,19 @@ import 'food_total_card.dart';
 
 class FoodInputForm extends StatefulWidget {
   final Future<bool> Function(MealData data) onSave;
+  final Future<bool> Function(
+    MealData data,
+    List<FoodCatalogEntry?> catalogSources,
+  )?
+  onSaveWithCatalog;
   final MealData? initialMeal;
 
-  const FoodInputForm({super.key, required this.onSave, this.initialMeal});
+  const FoodInputForm({
+    super.key,
+    required this.onSave,
+    this.onSaveWithCatalog,
+    this.initialMeal,
+  });
 
   @override
   State<FoodInputForm> createState() => _FoodInputFormState();
@@ -45,6 +60,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   MealType mealType = MealType.breakfast;
 
   final List<FoodItem> items = [];
+  final List<FoodCatalogEntry?> _catalogSources = [];
+  FoodCatalogEntry? _currentCatalogSource;
 
   int? editingIndex;
   bool isWaterEntry = false;
@@ -83,6 +100,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     waterVolumeController.text = meal.waterMl?.toStringAsFixed(0) ?? '';
 
     items.addAll(meal.items);
+    _catalogSources.addAll(List.filled(meal.items.length, null));
   }
 
   @override
@@ -181,6 +199,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     baseUnit = FoodBaseUnit.g;
     _setDefaultMeasurementInputs();
     inputError = null;
+    _currentCatalogSource = null;
   }
 
   void _setDefaultMeasurementInputs() {
@@ -224,6 +243,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void _clearForm() {
     setState(() {
       items.clear();
+      _catalogSources.clear();
       mealType = MealType.breakfast;
       memoController.clear();
       waterVolumeController.clear();
@@ -235,9 +255,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void _addWaterAmount(int amountMl) {
     final input = waterVolumeController.text.trim();
     final currentAmount = input.isEmpty ? 0.0 : double.tryParse(input);
-    if (currentAmount == null ||
-        !currentAmount.isFinite ||
-        currentAmount < 0) {
+    if (currentAmount == null || !currentAmount.isFinite || currentAmount < 0) {
       return;
     }
 
@@ -260,6 +278,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     setState(() {
       items.add(item);
+      _catalogSources.add(_currentCatalogSource);
       inputError = null;
       _clearFoodInputs();
     });
@@ -268,6 +287,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void removeFood(int index) {
     setState(() {
       items.removeAt(index);
+      _catalogSources.removeAt(index);
 
       if (editingIndex == index) {
         editingIndex = null;
@@ -283,6 +303,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     setState(() {
       editingIndex = index;
+      _currentCatalogSource = _catalogSources[index];
 
       foodNameController.text = item.name;
       calorieController.text = item.calories.toString();
@@ -316,6 +337,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     setState(() {
       items[editingIndex!] = item;
+      _catalogSources[editingIndex!] = _currentCatalogSource;
 
       editingIndex = null;
       inputError = null;
@@ -353,6 +375,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items
         ..clear()
         ..addAll(resolution.items);
+      _catalogSources
+        ..clear()
+        ..addAll(List.filled(resolution.items.length, null));
       editingIndex = null;
       _clearFoodInputs();
     });
@@ -361,6 +386,79 @@ class _FoodInputFormState extends State<FoodInputForm> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('一部のテンプレート項目を反映できませんでした。')));
+    }
+  }
+
+  Future<void> _selectCatalogFood() async {
+    if (!AppRepositoryRegistry.hasContainer) return;
+    final entry = await Navigator.push<FoodCatalogEntry>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodCatalogPage(
+          repository: AppRepositoryRegistry.container.foodCatalog,
+          selectionMode: true,
+        ),
+      ),
+    );
+    if (entry == null || !mounted) return;
+    final nutrition = entry.nutrition;
+    setState(() {
+      _currentCatalogSource = entry;
+      foodNameController.text = entry.name;
+      calorieController.text = _formatOptional(nutrition.calories);
+      proteinController.text = _formatOptional(nutrition.protein);
+      fatController.text = _formatOptional(nutrition.fat);
+      carbohydrateController.text = _formatOptional(nutrition.carbohydrate);
+      final quantity = entry.baseQuantity;
+      if (quantity.unit.isPhysical) {
+        baseAmountController.text = _formatAmount(quantity.value);
+        baseUnit = quantity.unit == FoodQuantityUnit.gram
+            ? FoodBaseUnit.g
+            : FoodBaseUnit.ml;
+        _lastValidBaseAmount = quantity.value;
+      } else {
+        baseAmountController.text = '1';
+        amountController.text = '1';
+        _lastValidBaseAmount = 1;
+      }
+      inputError = null;
+    });
+  }
+
+  Future<void> _saveCurrentToCatalog() async {
+    if (!AppRepositoryRegistry.hasContainer) return;
+    final item = _currentFoodItem();
+    if (item == null) {
+      setState(() => inputError = 'Enter valid food and nutrition values.');
+      return;
+    }
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodCatalogEditorPage(
+          repository: AppRepositoryRegistry.container.foodCatalog,
+          draft: FoodCatalogDraft(
+            name: item.name,
+            baseQuantity: FoodQuantityDefinition(
+              value: item.baseAmount ?? 1,
+              unit: item.baseUnit == FoodBaseUnit.ml
+                  ? FoodQuantityUnit.milliliter
+                  : FoodQuantityUnit.gram,
+            ),
+            nutrition: NutritionSnapshot(
+              calories: item.calories.toDouble(),
+              protein: item.protein,
+              fat: item.fat,
+              carbohydrate: item.carbohydrate,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('SAVED TO FOOD DATABASE')));
     }
   }
 
@@ -399,7 +497,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
 
     setState(() => _isSaving = true);
-    final saved = await widget.onSave(meal);
+    final sources = List<FoodCatalogEntry?>.from(_catalogSources);
+    if (editingIndex == null && _currentFoodItem() != null) {
+      sources.add(_currentCatalogSource);
+    }
+    final saved =
+        sources.any((entry) => entry != null) &&
+            widget.onSaveWithCatalog != null
+        ? await widget.onSaveWithCatalog!(meal, sources)
+        : await widget.onSave(meal);
 
     if (!mounted) return;
 
@@ -526,6 +632,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
             AppSpacing.gapXL,
 
+            OperationButton(
+              key: const ValueKey('food-catalog-select'),
+              icon: Icons.storage_outlined,
+              text: 'SELECT FROM FOOD DATABASE',
+              onPressed: _isSaving ? null : _selectCatalogFood,
+            ),
+
+            AppSpacing.gapMD,
+
             if (widget.initialMeal == null) ...[
               const Align(
                 alignment: Alignment.centerLeft,
@@ -581,6 +696,29 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   inputError = null;
                 });
               },
+            ),
+
+            if (_currentCatalogSource != null) ...[
+              AppSpacing.gapSM,
+              Text(
+                'CATALOG · ${_currentCatalogSource!.name} · '
+                '${_formatAmount(_currentCatalogSource!.baseQuantity.value)} '
+                '${_currentCatalogSource!.baseQuantity.unit.stableId}',
+                key: const ValueKey('food-catalog-selection'),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+
+            AppSpacing.gapMD,
+
+            OperationButton(
+              key: const ValueKey('food-save-to-catalog'),
+              icon: Icons.add_business,
+              text: 'SAVE TO FOOD DATABASE',
+              onPressed: _isSaving ? null : _saveCurrentToCatalog,
             ),
 
             if (inputError != null) ...[
@@ -652,4 +790,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         .replaceFirst(RegExp(r'0+$'), '')
         .replaceFirst(RegExp(r'\.$'), '');
   }
+
+  static String _formatOptional(double? value) =>
+      value == null ? '' : _formatAmount(value);
 }

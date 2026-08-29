@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_spacing.dart';
 
 import '../../core/widgets/operation_description.dart';
+import '../../core/widgets/operation_button.dart';
+import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 
 import 'widgets/food_history_button.dart';
 import 'widgets/food_manual_card.dart';
 import 'widgets/food_sync_card.dart';
+import 'food_catalog_page.dart';
 
 class FoodPage extends StatelessWidget {
   const FoodPage({super.key});
@@ -20,8 +23,8 @@ class FoodPage extends StatelessWidget {
         padding: AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: const [
-            SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+          children: [
+            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
 
             AppSpacing.gapSM,
 
@@ -33,7 +36,7 @@ class FoodPage extends StatelessWidget {
 
             AppSpacing.gapMD,
 
-            FoodSyncCard(),
+            const FoodSyncCard(),
 
             AppSpacing.gapXL,
 
@@ -49,7 +52,7 @@ class FoodPage extends StatelessWidget {
 
             AppSpacing.gapMD,
 
-            FoodManualCard(),
+            const FoodManualCard(),
 
             AppSpacing.gapXL,
 
@@ -65,7 +68,33 @@ class FoodPage extends StatelessWidget {
 
             AppSpacing.gapMD,
 
-            FoodHistoryButton(),
+            const FoodHistoryButton(),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(
+              icon: Icons.restaurant_menu,
+              title: 'FOOD DATABASE',
+            ),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(
+              text: 'Reusable food, package, and nutrition reference data.',
+            ),
+
+            AppSpacing.gapMD,
+
+            OperationCard(
+              child: OperationButton(
+                icon: Icons.storage_outlined,
+                text: 'OPEN FOOD DATABASE',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FoodCatalogPage()),
+                ),
+              ),
+            ),
           ],
         ),
       ),

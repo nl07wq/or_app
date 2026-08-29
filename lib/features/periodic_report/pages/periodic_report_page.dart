@@ -303,7 +303,8 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
     try {
       await action();
     } catch (error) {
-      _message = error.toString();
+      debugPrint('PERIODIC REPORT IMPORT: $error');
+      _message = periodicReportErrorMessage(error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -318,6 +319,15 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
       _data = _load();
     });
   }
+}
+
+@visibleForTesting
+String periodicReportErrorMessage(Object error) {
+  if (error is FormatException &&
+      error.message.toString().contains('completedAt precedes startedAt')) {
+    return 'REPORT TIME INVALID';
+  }
+  return error.toString();
 }
 
 class _ReportHeaderCard extends StatelessWidget {

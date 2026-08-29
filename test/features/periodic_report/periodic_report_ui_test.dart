@@ -38,7 +38,17 @@ void main() {
     expect(periodicReportDurationMinutes(369.9), '6:10');
   });
 
-  for (final width in [320.0, 390.0, 900.0]) {
+  test('timestamp invariant failure maps to a human-facing message', () {
+    final error = FormatException('completedAt precedes startedAt.');
+
+    expect(periodicReportErrorMessage(error), 'REPORT TIME INVALID');
+    expect(
+      periodicReportErrorMessage(const FormatException('other failure')),
+      contains('other failure'),
+    );
+  });
+
+  for (final width in [320.0, 390.0, 900.0, 1280.0]) {
     testWidgets('Periodic Report panel has no overflow at ${width.toInt()}px', (
       tester,
     ) async {
@@ -185,7 +195,7 @@ void main() {
       );
     }
 
-    for (final width in [320.0, 390.0, 900.0]) {
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
       await _pump(
         tester,
         width: width,

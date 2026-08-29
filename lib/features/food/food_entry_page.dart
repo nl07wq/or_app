@@ -9,6 +9,11 @@ import '../operation_date/services/operation_date_service.dart';
 
 import 'services/food_submit_service.dart';
 import 'services/food_summary_service.dart';
+import '../repositories/app_repository_container.dart';
+import 'models/food_catalog_models.dart';
+import 'repository/food_meal_id_generator.dart';
+import 'models/food_summary_state.dart';
+import 'services/food_catalog_meal_mapper.dart';
 
 import 'widgets/food_input_form.dart';
 import 'widgets/food_summary_card.dart';
@@ -84,6 +89,47 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     return true;
   }
 
+  Future<bool> saveWithCatalog(
+    MealData data,
+    List<FoodCatalogEntry?> catalogSources,
+  ) async {
+    final localDate = _localDate;
+    if (localDate == null || catalogSources.length != data.items.length) {
+      return false;
+    }
+    try {
+      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(localDate));
+      final timestamp = DateTime.now().toUtc();
+      final idGenerator = FoodMealIdGenerator();
+      await AppRepositoryRegistry.container.dailyMealsV2.create(
+        FoodCatalogMealMapper.map(
+          meal: data,
+          catalogSources: catalogSources,
+          localDate: localDate,
+          timestamp: timestamp,
+          idGenerator: idGenerator,
+        ),
+      );
+      await refreshFoodSummary(localDate: localDate);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return false;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('MEAL SAVE FAILED')));
+      }
+      return false;
+    }
+    if (!mounted) return true;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
+    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,7 +143,10 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    FoodInputForm(onSave: save),
+                    FoodInputForm(
+                      onSave: save,
+                      onSaveWithCatalog: saveWithCatalog,
+                    ),
                     const SizedBox(height: 20),
                     FoodSummaryCard(
                       summary: FoodSummaryService.forLocalDate(

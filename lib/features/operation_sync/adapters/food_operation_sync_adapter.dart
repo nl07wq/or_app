@@ -21,9 +21,10 @@ class FoodOperationSyncAdapter extends IndexedDbOperationTransferModuleAdapter {
             recordType: _catalogType,
             storeName: IndexedDbStoreNames.foodCatalogRecords,
             backupSection: BackupSections.foodCatalog,
-            recordVersions: const {1},
+            recordVersions: const {1, 2},
             dateBound: false,
-            matches: (record) => record['recordVersion'] == 1,
+            matches: (record) =>
+                record['recordVersion'] == 1 || record['recordVersion'] == 2,
           ),
           OperationSyncRecordPolicy(
             recordType: _recipeType,

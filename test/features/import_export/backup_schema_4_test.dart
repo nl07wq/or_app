@@ -58,6 +58,12 @@ void main() {
     );
     expect(decoded.recordCounts[BackupSections.foodCatalog], 1);
     expect(decoded.recordCounts[BackupSections.foodRecipes], 1);
+    final restored = FoodCatalogEntry.fromJson(
+      decoded.data[BackupSections.foodCatalog]!.single,
+    );
+    expect(restored.recordVersion, 2);
+    expect(restored.barcodeValue, '04901234567890');
+    expect(restored.packageQuantity, 500);
   });
 
   test('Schema 2 REPLACE ALL clears newer Food v2 stores', () async {
@@ -139,6 +145,10 @@ FoodCatalogEntry _catalog(DateTime timestamp) => FoodCatalogEntry(
   nutritionStatus: NutritionStatus.declared,
   provenance: _provenance(timestamp),
   isArchived: false,
+  barcodeValue: '04901234567890',
+  barcodeFormat: FoodBarcodeFormat.ean13,
+  packageQuantity: 500,
+  packageUnit: FoodQuantityUnit.gram,
   createdAt: timestamp,
   updatedAt: timestamp,
 );

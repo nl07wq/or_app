@@ -141,11 +141,11 @@ class PeriodicReportService {
   }
 
   Future<PeriodicReportRecord> apply(PeriodicReportPreview preview) async {
+    final syncStartedAt = _clock().toUtc();
     final responseDigest = ReportSyncCanonicalService.digest(
       preview.response.payload,
     );
     final sourceDigest = preview.response.payload['sourceDigest']! as String;
-    final now = _clock().toUtc();
     return _container.database.runTransaction(
       storeNames: const [
         IndexedDbStoreNames.periodicReportRecords,
@@ -168,7 +168,7 @@ class PeriodicReportService {
                 sourceDigest: sourceDigest,
                 responseDigest: responseDigest,
                 exchangeId: preview.response.exchangeId,
-                timestamp: now,
+                timestamp: syncStartedAt,
               )
             : noChanges
             ? existing
@@ -178,7 +178,7 @@ class PeriodicReportService {
                 sourceDigest: sourceDigest,
                 responseDigest: responseDigest,
                 exchangeId: preview.response.exchangeId,
-                timestamp: now,
+                timestamp: syncStartedAt,
               );
         if (!noChanges) {
           await _container.periodicReports.putInTransaction(
@@ -186,6 +186,7 @@ class PeriodicReportService {
             report,
           );
         }
+        final syncCompletedAt = _clock().toUtc();
         final history = ReportSyncHistory(
           exchangeId: preview.response.exchangeId,
           exchangeType: ReportSyncExchangeType.periodicReport,
@@ -197,8 +198,8 @@ class PeriodicReportService {
               ReportSyncCanonicalService.digest(preview.response.payload),
           responseDigest: responseDigest,
           confirmationDigest: null,
-          startedAt: preview.response.createdAt,
-          completedAt: now,
+          startedAt: syncStartedAt,
+          completedAt: syncCompletedAt,
           result: noChanges
               ? ReportSyncHistoryResult.noChange
               : ReportSyncHistoryResult.success,

@@ -40,7 +40,8 @@ void main() {
       expect(changed.createdAt, created);
       expect(changed.updatedAt, next);
       await repository.archive(entry.foodId);
-      expect((await repository.list()).single.isArchived, isTrue);
+      expect(await repository.list(), isEmpty);
+      expect((await repository.readById(entry.foodId))!.isArchived, isTrue);
     },
   );
 
@@ -150,35 +151,38 @@ void main() {
     await expectLater(daily.findAll(), throwsA(isA<Object>()));
   });
 
-  test('malformed v1 and malformed v2 records remain integrity failures', () async {
-    final invalidV1 = FakeIndexedDbDatabase()
-      ..seed(IndexedDbStoreNames.foodRecords, 'food:bad-v1', {
-        'id': 'food:bad-v1',
-        'recordVersion': 1,
-      });
-    expect(
-      (await IndexedDbFoodRepository(invalidV1).findAllWithIssues()).issues,
-      hasLength(1),
-    );
-    await expectLater(
-      IndexedDbDailyMealV2Repository(invalidV1).findAll(),
-      throwsA(isA<Object>()),
-    );
+  test(
+    'malformed v1 and malformed v2 records remain integrity failures',
+    () async {
+      final invalidV1 = FakeIndexedDbDatabase()
+        ..seed(IndexedDbStoreNames.foodRecords, 'food:bad-v1', {
+          'id': 'food:bad-v1',
+          'recordVersion': 1,
+        });
+      expect(
+        (await IndexedDbFoodRepository(invalidV1).findAllWithIssues()).issues,
+        hasLength(1),
+      );
+      await expectLater(
+        IndexedDbDailyMealV2Repository(invalidV1).findAll(),
+        throwsA(isA<Object>()),
+      );
 
-    final invalidV2 = FakeIndexedDbDatabase()
-      ..seed(IndexedDbStoreNames.foodRecords, 'food:bad-v2', {
-        'id': 'food:bad-v2',
-        'recordVersion': 2,
-      });
-    expect(
-      (await IndexedDbFoodRepository(invalidV2).findAllWithIssues()).issues,
-      hasLength(1),
-    );
-    await expectLater(
-      IndexedDbDailyMealV2Repository(invalidV2).findAll(),
-      throwsA(isA<Object>()),
-    );
-  });
+      final invalidV2 = FakeIndexedDbDatabase()
+        ..seed(IndexedDbStoreNames.foodRecords, 'food:bad-v2', {
+          'id': 'food:bad-v2',
+          'recordVersion': 2,
+        });
+      expect(
+        (await IndexedDbFoodRepository(invalidV2).findAllWithIssues()).issues,
+        hasLength(1),
+      );
+      await expectLater(
+        IndexedDbDailyMealV2Repository(invalidV2).findAll(),
+        throwsA(isA<Object>()),
+      );
+    },
+  );
 }
 
 FoodDataProvenance _provenance(DateTime created) => FoodDataProvenance(

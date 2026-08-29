@@ -124,11 +124,15 @@ void main() {
   });
 
   group('food catalog and recipe', () {
-    test('catalog round trip contains only formal initial fields', () {
+    test('catalog v2 round trip preserves barcode and package metadata', () {
       final json = _catalog().toJson();
       final restored = FoodCatalogEntry.fromJson(json);
 
       expect(restored.toJson(), json);
+      expect(restored.recordVersion, 2);
+      expect(restored.barcodeValue, '04901234567890');
+      expect(restored.packageQuantity, 500);
+      expect(restored.packageUnit, FoodQuantityUnit.gram);
       expect(json['category'], 'ingredient');
       expect(json['isArchived'], isFalse);
       expect(json, isNot(contains('manufacturer')));
@@ -138,16 +142,32 @@ void main() {
         throwsFormatException,
       );
       expect(
-        () => FoodCatalogEntry.fromJson({...json, 'recordVersion': 2}),
-        throwsArgumentError,
-      );
-      expect(
         () => FoodCatalogEntry.fromJson({...json, 'foodId': 'Rice'}),
         throwsArgumentError,
       );
       expect(
         () => FoodCatalogEntry.fromJson({...json, 'foodId': ' $_foodId '}),
         throwsArgumentError,
+      );
+    });
+
+    test('catalog v1 decodes with null v2 fields and remains strict', () {
+      final v1 = Map<String, Object?>.from(_catalog().toJson())
+        ..['recordVersion'] = 1
+        ..remove('barcodeValue')
+        ..remove('barcodeFormat')
+        ..remove('packageQuantity')
+        ..remove('packageUnit');
+      final restored = FoodCatalogEntry.fromJson(v1);
+
+      expect(restored.recordVersion, 1);
+      expect(restored.barcodeValue, isNull);
+      expect(restored.barcodeFormat, isNull);
+      expect(restored.packageQuantity, isNull);
+      expect(restored.packageUnit, isNull);
+      expect(
+        () => FoodCatalogEntry.fromJson({...v1, 'barcodeValue': '123'}),
+        throwsFormatException,
       );
     });
 
@@ -333,6 +353,10 @@ FoodCatalogEntry _catalog() => FoodCatalogEntry(
   provenance: _provenance(),
   isArchived: false,
   memo: null,
+  barcodeValue: '04901234567890',
+  barcodeFormat: FoodBarcodeFormat.ean13,
+  packageQuantity: 500,
+  packageUnit: FoodQuantityUnit.gram,
   createdAt: _createdAt,
   updatedAt: _updatedAt,
 );

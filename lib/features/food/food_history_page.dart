@@ -17,6 +17,12 @@ import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/state/app_initialization_state.dart';
+import '../repositories/app_repository_container.dart';
+import 'food_catalog_page.dart';
+import 'models/daily_meal_v2_models.dart';
+import 'models/food_catalog_models.dart';
+import 'models/food_quantity_models.dart';
+import 'models/nutrition_models.dart';
 
 class FoodHistoryPage extends StatefulWidget {
   const FoodHistoryPage({super.key});
@@ -28,6 +34,7 @@ class FoodHistoryPage extends StatefulWidget {
 class _FoodHistoryPageState extends State<FoodHistoryPage> {
   bool _isLoading = true;
   List<MealData> _records = const [];
+  List<DailyMealV2> _v2Records = const [];
   Object? _loadError;
 
   @override
@@ -49,6 +56,10 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     try {
       loadedRecords = (await FoodRepository.getAll()).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
+      final v2Records = AppRepositoryRegistry.hasContainer
+          ? await AppRepositoryRegistry.container.dailyMealsV2.findAll()
+          : const <DailyMealV2>[];
+      _v2Records = v2Records.reversed.toList(growable: false);
     } catch (error) {
       loadError = error;
     } finally {
@@ -139,30 +150,43 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             )
           else
             ...meal.items.map(
-              (item) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.restaurant_menu),
-                title: Text(
-                  item.hasMeasuredAmount
-                      ? item.amountMode == FoodAmountMode.baseMultiplier
-                            ? '${item.name}  AMOUNT '
-                                  '${FoodNutritionFormatter.amount(item.amount!)}'
-                                  ' (${FoodNutritionFormatter.amount(item.physicalAmount!)}'
-                                  '${item.baseUnit!.label})'
-                            : '${item.name}  '
-                                  '${FoodNutritionFormatter.amount(item.amount!)}'
-                                  '${item.baseUnit!.label}'
-                      : item.quantity > 1
-                      ? '${item.name} ×${item.quantity}'
-                      : item.name,
-                ),
-                subtitle: Text(
-                  "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
-                  "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
-                  "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
-                  "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
-                ),
+              (item) => Column(
+                children: [
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.restaurant_menu),
+                    title: Text(
+                      item.hasMeasuredAmount
+                          ? item.amountMode == FoodAmountMode.baseMultiplier
+                                ? '${item.name}  AMOUNT '
+                                      '${FoodNutritionFormatter.amount(item.amount!)}'
+                                      ' (${FoodNutritionFormatter.amount(item.physicalAmount!)}'
+                                      '${item.baseUnit!.label})'
+                                : '${item.name}  '
+                                      '${FoodNutritionFormatter.amount(item.amount!)}'
+                                      '${item.baseUnit!.label}'
+                          : item.quantity > 1
+                          ? '${item.name} ×${item.quantity}'
+                          : item.name,
+                    ),
+                    subtitle: Text(
+                      "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
+                      "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
+                      "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
+                      "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
+                    ),
+                  ),
+                  if (!appInitializationController.value.isReadOnly)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => _addLegacyItemToCatalog(item),
+                        icon: const Icon(Icons.add_business),
+                        label: const Text('ADD TO FOOD DATABASE'),
+                      ),
+                    ),
+                ],
               ),
             ),
           if (meal.memo.isNotEmpty) ...[
@@ -175,6 +199,92 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Future<void> _addLegacyItemToCatalog(FoodItem item) async {
+    if (!AppRepositoryRegistry.hasContainer) return;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodCatalogEditorPage(
+          repository: AppRepositoryRegistry.container.foodCatalog,
+          draft: FoodCatalogDraft(
+            name: item.name,
+            baseQuantity: FoodQuantityDefinition(
+              value: item.baseAmount ?? 1,
+              unit: item.baseUnit == FoodBaseUnit.ml
+                  ? FoodQuantityUnit.milliliter
+                  : item.baseUnit == FoodBaseUnit.g
+                  ? FoodQuantityUnit.gram
+                  : FoodQuantityUnit.serving,
+            ),
+            nutrition: NutritionSnapshot(
+              calories: item.calories.toDouble(),
+              protein: item.protein,
+              fat: item.fat,
+              carbohydrate: item.carbohydrate,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildV2MealCard(DailyMealV2 meal) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(meal.localDate, style: Theme.of(context).textTheme.titleMedium),
+        AppSpacing.gapSM,
+        SectionHeader(
+          icon: Icons.restaurant,
+          title: meal.mealType.stableId.toUpperCase(),
+        ),
+        AppSpacing.gapSM,
+        for (final item in meal.items) ...[
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.restaurant_menu),
+            title: Text(item.nameSnapshot),
+            subtitle: Text(
+              '${FoodNutritionFormatter.calories(item.nutritionConsumed.calories ?? 0)} kcal'
+              '  P ${FoodNutritionFormatter.macro(item.nutritionConsumed.protein ?? 0)}'
+              '  F ${FoodNutritionFormatter.macro(item.nutritionConsumed.fat ?? 0)}'
+              '  C ${FoodNutritionFormatter.macro(item.nutritionConsumed.carbohydrate ?? 0)}',
+            ),
+          ),
+          if (!appInitializationController.value.isReadOnly)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _addV2ItemToCatalog(item),
+                icon: const Icon(Icons.add_business),
+                label: const Text('ADD TO FOOD DATABASE'),
+              ),
+            ),
+        ],
+      ],
+    ),
+  );
+
+  Future<void> _addV2ItemToCatalog(DailyMealItemSnapshot item) async {
+    if (!AppRepositoryRegistry.hasContainer) return;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodCatalogEditorPage(
+          repository: AppRepositoryRegistry.container.foodCatalog,
+          draft: FoodCatalogDraft(
+            name: item.nameSnapshot,
+            category: item.category ?? FoodCatalogCategory.preparedFood,
+            baseQuantity: item.quantity,
+            nutrition: item.nutritionPerBase,
+            memo: item.memo,
+          ),
+        ),
       ),
     );
   }
@@ -221,7 +331,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
         ),
       );
     }
-    if (_records.isEmpty) {
+    if (_records.isEmpty && _v2Records.isEmpty) {
       return const Center(child: Text('No meal records.'));
     }
 
@@ -229,12 +339,10 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     for (final meal in _records) {
       groupedRecords.putIfAbsent(meal.date, () => []).add(meal);
     }
-    return ListView.separated(
-      itemCount: groupedRecords.length,
-      separatorBuilder: (_, _) => AppSpacing.gapXL,
-      itemBuilder: (context, index) {
-        final group = groupedRecords.entries.elementAt(index);
-        return Column(
+    final sections = <Widget>[
+      for (final meal in _v2Records) _buildV2MealCard(meal),
+      for (final group in groupedRecords.entries)
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(icon: Icons.calendar_today, title: group.key),
@@ -248,8 +356,12 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
               if (mealIndex < group.value.length - 1) AppSpacing.gapMD,
             ],
           ],
-        );
-      },
+        ),
+    ];
+    return ListView.separated(
+      itemCount: sections.length,
+      separatorBuilder: (_, _) => AppSpacing.gapXL,
+      itemBuilder: (context, index) => sections[index],
     );
   }
 }

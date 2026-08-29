@@ -159,6 +159,8 @@ void main() {
         localDate: '2026-08-02',
         idKey: 'foodId',
       );
+      expect(adapter.supportedRecordVersions, containsAll({1, 2}));
+      expect(catalogRecord.recordVersion, 2);
       final recipeRecord = _transfer(
         'foodRecipe',
         recipe,
@@ -197,6 +199,14 @@ void main() {
         ),
         isNotNull,
       );
+
+      final v1 = Map<String, Object?>.from(catalog)
+        ..['recordVersion'] = 1
+        ..remove('barcodeValue')
+        ..remove('barcodeFormat')
+        ..remove('packageQuantity')
+        ..remove('packageUnit');
+      expect(() => FoodCatalogEntry.fromJson(v1), returnsNormally);
       expect(
         await database.findById(
           IndexedDbStoreNames.foodRecipeRecords,
