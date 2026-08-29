@@ -439,6 +439,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
           repository: AppRepositoryRegistry.container.foodCatalog,
           draft: FoodCatalogDraft(
             name: item.name,
+            category:
+                _currentCatalogSource?.category ??
+                FoodCatalogCategory.preparedFood,
+            brand: _currentCatalogSource?.brand,
+            barcodeValue: _currentCatalogSource?.barcodeValue,
+            barcodeFormat: _currentCatalogSource?.barcodeFormat,
+            packageQuantity: _currentCatalogSource?.packageQuantity,
+            packageUnit: _currentCatalogSource?.packageUnit,
             baseQuantity: FoodQuantityDefinition(
               value: item.baseAmount ?? 1,
               unit: item.baseUnit == FoodBaseUnit.ml

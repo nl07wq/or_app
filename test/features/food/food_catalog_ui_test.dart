@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
+import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
@@ -8,6 +9,37 @@ import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 
 void main() {
+  testWidgets('food database uses Japanese human-facing description', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: FoodPage()));
+
+    expect(find.text('食品・商品情報と栄養データを登録し、\n食事記録で再利用できます。'), findsOneWidget);
+    expect(
+      find.text('Reusable food, package, and nutrition reference data.'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('catalog category is presented in Japanese without enum names', (
+    tester,
+  ) async {
+    final repository = _MemoryCatalogRepository(const []);
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
+    );
+
+    expect(find.text('市販・包装食品'), findsOneWidget);
+    expect(find.text('PACKAGEDFOOD'), findsNothing);
+    expect(find.text('BARCODE FORMAT'), findsNothing);
+
+    await tester.tap(find.text('市販・包装食品'));
+    await tester.pumpAndSettle();
+    for (final label in ['食材', '調理済み食品', '市販・包装食品', '飲料']) {
+      expect(find.text(label), findsWidgets);
+    }
+  });
+
   testWidgets('searches name brand and barcode and excludes archived entries', (
     tester,
   ) async {
@@ -65,6 +97,7 @@ void main() {
 
     expect(find.text('PACKAGE SIZE'), findsOneWidget);
     expect(find.text('NUTRITION BASIS'), findsOneWidget);
+    expect(find.text('市販・包装食品'), findsOneWidget);
     expect(find.text('PFC BALANCE'), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
     expect(find.text('286 kcal'), findsOneWidget);
@@ -122,8 +155,92 @@ void main() {
     final saved = (await repository.list()).single;
     expect(saved.recordVersion, 2);
     expect(saved.barcodeValue, '0012345678905');
+    expect(saved.barcodeFormat, FoodBarcodeFormat.ean13);
     expect(saved.provenance.sourceType, FoodProvenanceSourceType.userInput);
     expect(saved.nutrition.calories, 154);
+  });
+
+  for (final testCase in [
+    (barcode: '4006381333931', format: FoodBarcodeFormat.ean13),
+    (barcode: '96385074', format: FoodBarcodeFormat.ean8),
+    (barcode: '036000291452', format: FoodBarcodeFormat.upc),
+    (barcode: '4006381333932', format: FoodBarcodeFormat.unknown),
+    (barcode: 'not-a-barcode', format: FoodBarcodeFormat.unknown),
+  ]) {
+    testWidgets(
+      'barcode ${testCase.barcode} is saved as ${testCase.format.name}',
+      (tester) async {
+        final repository = _MemoryCatalogRepository(const []);
+        await tester.pumpWidget(
+          MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'NAME'),
+          'Barcode Food',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'BARCODE / JAN'),
+          testCase.barcode,
+        );
+        await tester.ensureVisible(find.text('SAVE'));
+        await tester.tap(find.text('SAVE'));
+        await tester.pumpAndSettle();
+
+        final saved = (await repository.list()).single;
+        expect(saved.barcodeValue, testCase.barcode);
+        expect(saved.barcodeFormat, testCase.format);
+      },
+    );
+  }
+
+  testWidgets('catalog draft preserves master metadata until user saves', (
+    tester,
+  ) async {
+    final repository = _MemoryCatalogRepository(const []);
+    final draft = FoodCatalogDraft(
+      name: 'Draft Food',
+      category: FoodCatalogCategory.beverage,
+      brand: 'Draft Brand',
+      barcodeValue: '4006381333931',
+      barcodeFormat: FoodBarcodeFormat.ean13,
+      packageQuantity: 500,
+      packageUnit: FoodQuantityUnit.milliliter,
+      baseQuantity: FoodQuantityDefinition(
+        value: 100,
+        unit: FoodQuantityUnit.milliliter,
+      ),
+      nutrition: NutritionSnapshot(
+        calories: 42,
+        protein: 1.2,
+        fat: 0.3,
+        carbohydrate: 9.4,
+      ),
+      memo: 'Draft memo',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(repository: repository, draft: draft),
+      ),
+    );
+
+    expect(await repository.list(), isEmpty);
+    expect(_fieldText(tester, 'NAME'), 'Draft Food');
+    expect(_fieldText(tester, 'BRAND'), 'Draft Brand');
+    expect(_fieldText(tester, 'BARCODE / JAN'), '4006381333931');
+    expect(_fieldText(tester, 'PACKAGE QUANTITY'), '500');
+    expect(find.text('飲料'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+
+    final saved = (await repository.list()).single;
+    expect(saved.brand, 'Draft Brand');
+    expect(saved.category, FoodCatalogCategory.beverage);
+    expect(saved.barcodeValue, '4006381333931');
+    expect(saved.barcodeFormat, FoodBarcodeFormat.ean13);
+    expect(saved.packageQuantity, 500);
+    expect(saved.packageUnit, FoodQuantityUnit.milliliter);
   });
 
   testWidgets('cancel and invalid name do not create a catalog record', (
@@ -172,6 +289,18 @@ void main() {
   });
 
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+    testWidgets('food page has no overflow at ${width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: FoodPage()));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('catalog has no overflow at ${width.toInt()}px', (
       tester,
     ) async {
@@ -191,8 +320,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('catalog editor has no overflow at ${width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            repository: _MemoryCatalogRepository(const []),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
   }
 }
+
+String _fieldText(WidgetTester tester, String label) => tester
+    .widget<TextField>(find.widgetWithText(TextField, label))
+    .controller!
+    .text;
 
 FoodCatalogEntry _entry({
   required String id,

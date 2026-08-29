@@ -165,6 +165,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             subtitle: Text(
               [
                 if (entry.brand != null) entry.brand!,
+                foodCatalogCategoryLabel(entry.category),
                 _basis(entry.baseQuantity),
                 if (entry.barcodeValue != null) entry.barcodeValue!,
               ].join(' · '),
@@ -200,13 +201,26 @@ class FoodCatalogDraft {
     required this.baseQuantity,
     required this.nutrition,
     this.category = FoodCatalogCategory.preparedFood,
+    this.brand,
+    this.barcodeValue,
+    this.barcodeFormat,
+    this.packageQuantity,
+    this.packageUnit,
     this.memo,
-  });
+  }) : assert(
+         (packageQuantity == null) == (packageUnit == null),
+         'packageQuantity and packageUnit must be provided together.',
+       );
 
   final String name;
   final FoodCatalogCategory category;
   final FoodQuantityDefinition baseQuantity;
   final NutritionSnapshot nutrition;
+  final String? brand;
+  final String? barcodeValue;
+  final FoodBarcodeFormat? barcodeFormat;
+  final double? packageQuantity;
+  final FoodQuantityUnit? packageUnit;
   final String? memo;
 }
 
@@ -222,7 +236,6 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   final _carbs = TextEditingController();
   final _memo = TextEditingController();
   FoodCatalogCategory _category = FoodCatalogCategory.packagedFood;
-  FoodBarcodeFormat? _barcodeFormat;
   FoodQuantityUnit? _packageUnit;
   FoodQuantityUnit _baseUnit = FoodQuantityUnit.gram;
   bool _saving = false;
@@ -245,7 +258,6 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _carbs.text = _number(entry.nutrition.carbohydrate);
       _memo.text = entry.memo ?? '';
       _category = entry.category;
-      _barcodeFormat = entry.barcodeFormat;
       _packageUnit = entry.packageUnit;
       _baseUnit = entry.baseQuantity.unit;
     } else if (draft != null) {
@@ -255,8 +267,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _protein.text = _number(draft.nutrition.protein);
       _fat.text = _number(draft.nutrition.fat);
       _carbs.text = _number(draft.nutrition.carbohydrate);
+      _brand.text = draft.brand ?? '';
+      _barcode.text = draft.barcodeValue ?? '';
+      _packageQuantity.text = _number(draft.packageQuantity);
       _memo.text = draft.memo ?? '';
       _category = draft.category;
+      _packageUnit = draft.packageUnit;
       _baseUnit = draft.baseQuantity.unit;
     } else {
       _baseQuantity.text = '100';
@@ -338,9 +354,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       isArchived: false,
       memo: _nullable(_memo.text),
       barcodeValue: barcode,
-      barcodeFormat: barcode == null
-          ? null
-          : (_barcodeFormat ?? FoodBarcodeFormat.unknown),
+      barcodeFormat: barcode == null ? null : _detectBarcodeFormat(barcode),
       packageQuantity: package,
       packageUnit: _packageUnit,
       createdAt: existing?.createdAt ?? timestamp,
@@ -388,19 +402,11 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               label: 'CATEGORY',
               value: _category,
               values: FoodCatalogCategory.values,
-              text: (value) => value.name.toUpperCase(),
+              text: foodCatalogCategoryLabel,
               onChanged: (value) => setState(() => _category = value),
             ),
             AppSpacing.gapMD,
             OperationTextField(controller: _barcode, label: 'BARCODE / JAN'),
-            AppSpacing.gapMD,
-            _dropdown<FoodBarcodeFormat?>(
-              label: 'BARCODE FORMAT',
-              value: _barcodeFormat,
-              values: [null, ...FoodBarcodeFormat.values],
-              text: (value) => value?.stableId.toUpperCase() ?? 'NOT SET',
-              onChanged: (value) => setState(() => _barcodeFormat = value),
-            ),
             AppSpacing.gapMD,
             _quantityRow(
               controller: _packageQuantity,
@@ -503,6 +509,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     required ValueChanged<T> onChanged,
   }) => DropdownButtonFormField<T>(
     initialValue: value,
+    isExpanded: true,
     decoration: InputDecoration(labelText: label),
     items: [
       for (final item in values)
@@ -586,7 +593,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
                 children: [
                   SectionHeader(icon: Icons.restaurant_menu, title: entry.name),
                   if (entry.brand != null) _detail('BRAND', entry.brand!),
-                  _detail('CATEGORY', entry.category.name.toUpperCase()),
+                  _detail('CATEGORY', foodCatalogCategoryLabel(entry.category)),
                   _detail(
                     'NUTRITION BASIS',
                     '${_basis(entry.baseQuantity)} PER BASIS',
@@ -744,4 +751,34 @@ String? _nullable(String value) => value.trim().isEmpty ? null : value.trim();
 double? _optionalNumber(TextEditingController controller) {
   final value = controller.text.trim();
   return value.isEmpty ? null : double.tryParse(value);
+}
+
+String foodCatalogCategoryLabel(FoodCatalogCategory category) =>
+    switch (category) {
+      FoodCatalogCategory.ingredient => '食材',
+      FoodCatalogCategory.preparedFood => '調理済み食品',
+      FoodCatalogCategory.packagedFood => '市販・包装食品',
+      FoodCatalogCategory.beverage => '飲料',
+    };
+
+FoodBarcodeFormat _detectBarcodeFormat(String barcode) {
+  if (!_hasValidGtinCheckDigit(barcode)) return FoodBarcodeFormat.unknown;
+  return switch (barcode.length) {
+    13 => FoodBarcodeFormat.ean13,
+    8 => FoodBarcodeFormat.ean8,
+    12 => FoodBarcodeFormat.upc,
+    _ => FoodBarcodeFormat.unknown,
+  };
+}
+
+bool _hasValidGtinCheckDigit(String barcode) {
+  if (!RegExp(r'^\d+$').hasMatch(barcode) || barcode.length < 2) return false;
+  var sum = 0;
+  for (var index = 0; index < barcode.length - 1; index++) {
+    final distanceFromRight = barcode.length - 2 - index;
+    final weight = distanceFromRight.isEven ? 3 : 1;
+    sum += int.parse(barcode[index]) * weight;
+  }
+  final expected = (10 - sum % 10) % 10;
+  return expected == int.parse(barcode[barcode.length - 1]);
 }

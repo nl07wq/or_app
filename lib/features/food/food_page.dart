@@ -80,7 +80,7 @@ class FoodPage extends StatelessWidget {
             AppSpacing.gapSM,
 
             const OperationDescription(
-              text: 'Reusable food, package, and nutrition reference data.',
+              text: '食品・商品情報と栄養データを登録し、\n食事記録で再利用できます。',
             ),
 
             AppSpacing.gapMD,
