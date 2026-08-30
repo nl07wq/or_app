@@ -352,7 +352,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _error = null;
     });
     try {
-      final result = await showFoodOcrScanner(
+      final result = await showNutritionLabelScanner(
         context: context,
         gateway: _captureGateway,
       );
@@ -364,7 +364,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           _applyPackageOcr(draft);
       }
     } catch (_) {
-      if (mounted) setState(() => _error = 'OCRの読み取りに失敗しました');
+      if (mounted) {
+        setState(() => _error = '栄養成分表示を読み取れませんでした');
+      }
     } finally {
       if (mounted) setState(() => _capturing = false);
     }
@@ -564,7 +566,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             OperationButton(
               key: const ValueKey('food-catalog-ocr'),
               icon: Icons.document_scanner,
-              text: _capturing ? 'PROCESSING IMAGE' : 'OCR SCANNER',
+              text: _capturing
+                  ? 'PROCESSING IMAGE'
+                  : 'SCAN NUTRITION LABEL',
               onPressed: _capturing || _saving ? null : _scanOcr,
             ),
             AppSpacing.gapMD,

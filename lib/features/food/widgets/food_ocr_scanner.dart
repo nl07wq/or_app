@@ -25,12 +25,35 @@ class FoodNutritionOcrResult extends FoodOcrResult {
   final NutritionOcrDraft draft;
 }
 
-Future<FoodOcrResult?> showFoodOcrScanner({
+/// Opens the user-facing scanner for known fields in a nutrition label.
+///
+/// Package-front OCR is intentionally not exposed here. Its browser OCR
+/// implementation remains available only for isolated tests while the feature
+/// is semi-permanently pending (see `docs/food_ocr_scope.md`).
+Future<FoodOcrResult?> showNutritionLabelScanner({
   required BuildContext context,
   required FoodInputCaptureGateway gateway,
+}) => _showOcrScanner(
+  context: context,
+  gateway: gateway,
+  mode: FoodOcrMode.nutrition,
+);
+
+@visibleForTesting
+Future<FoodOcrResult?> showPackageOcrScannerForTesting({
+  required BuildContext context,
+  required FoodInputCaptureGateway gateway,
+}) => _showOcrScanner(
+  context: context,
+  gateway: gateway,
+  mode: FoodOcrMode.package,
+);
+
+Future<FoodOcrResult?> _showOcrScanner({
+  required BuildContext context,
+  required FoodInputCaptureGateway gateway,
+  required FoodOcrMode mode,
 }) async {
-  final mode = await _chooseMode(context);
-  if (mode == null || !context.mounted) return null;
   final captureMode = await _chooseCaptureMode(context);
   if (captureMode == null || !context.mounted) return null;
 
@@ -45,8 +68,8 @@ Future<FoodOcrResult?> showFoodOcrScanner({
     if (mode == FoodOcrMode.nutrition) {
       final session = FoodNutritionCandidateSession();
       rawText = await gateway.recognizeTextLive(
-        title: 'NUTRITION OCR',
-        instruction: '栄養成分表示を枠内に合わせてください',
+        title: 'NUTRITION LABEL SCAN',
+        instruction: '栄養成分表示を枠内に入れてください',
         describeCandidate: session.describe,
       );
       if (rawText != null) {
@@ -125,31 +148,6 @@ PackageOcrDraft _packageDraft(String rawText) {
   }
   return session.draft;
 }
-
-Future<FoodOcrMode?> _chooseMode(BuildContext context) =>
-    showModalBottomSheet<FoodOcrMode>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('何を読み取りますか？')),
-            ListTile(
-              leading: const Icon(Icons.inventory_2_outlined),
-              title: const Text('PACKAGE'),
-              subtitle: const Text('商品名・ブランド・内容量など'),
-              onTap: () => Navigator.pop(context, FoodOcrMode.package),
-            ),
-            ListTile(
-              leading: const Icon(Icons.pie_chart_outline),
-              title: const Text('NUTRITION'),
-              subtitle: const Text('栄養基準量・カロリー・PFC'),
-              onTap: () => Navigator.pop(context, FoodOcrMode.nutrition),
-            ),
-          ],
-        ),
-      ),
-    );
 
 Future<FoodNutritionCaptureMode?> _chooseCaptureMode(BuildContext context) =>
     showModalBottomSheet<FoodNutritionCaptureMode>(

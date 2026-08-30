@@ -404,8 +404,6 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('NUTRITION'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('CAMERA'));
       await tester.pumpAndSettle();
       expect(find.text('REVIEW NUTRITION'), findsOneWidget);

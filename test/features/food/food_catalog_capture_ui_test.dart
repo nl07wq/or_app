@@ -51,9 +51,8 @@ void main() {
       ),
     );
 
+    expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('NUTRITION'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CAMERA'));
     await tester.pumpAndSettle();
@@ -80,8 +79,6 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('NUTRITION'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('PHOTO LIBRARY'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CANCEL'));
@@ -89,7 +86,7 @@ void main() {
     expect(tester.widget<TextField>(_field('CALORIES')).controller!.text, '');
   });
 
-  testWidgets('PACKAGE OCR reviews before applying master candidates', (
+  testWidgets('Food Database exposes only the nutrition label scanner', (
     tester,
   ) async {
     final repository = _Repository();
@@ -104,27 +101,11 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
-    expect(find.text('PACKAGE'), findsOneWidget);
-    expect(find.text('NUTRITION'), findsOneWidget);
-    await tester.tap(find.text('PACKAGE'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('CAMERA'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('REVIEW PACKAGE'), findsOneWidget);
-    expect(tester.widget<TextField>(_field('NAME')).controller!.text, isEmpty);
-    expect(repository.entries, isEmpty);
-    await tester.tap(find.text('APPLY TO FORM'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(_field('NAME')).controller!.text, 'テスト食品');
-    expect(
-      tester.widget<TextField>(_field('BRAND')).controller!.text,
-      'OR FOODS',
-    );
-    expect(
-      tester.widget<TextField>(_field('PACKAGE QUANTITY')).controller!.text,
-      '170',
-    );
+    expect(find.text('PACKAGE'), findsNothing);
+    expect(find.text('NUTRITION'), findsNothing);
+    expect(find.text('LIVE SCAN'), findsOneWidget);
+    expect(find.text('CAMERA'), findsOneWidget);
+    expect(find.text('PHOTO LIBRARY'), findsOneWidget);
     expect(repository.entries, isEmpty);
   });
 

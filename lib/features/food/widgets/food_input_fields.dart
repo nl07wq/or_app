@@ -95,7 +95,9 @@ class FoodInputFields extends StatelessWidget {
         OperationButton(
           key: const ValueKey('food-entry-ocr'),
           icon: Icons.document_scanner,
-          text: nutritionCaptureInProgress ? 'PROCESSING IMAGE' : 'OCR SCANNER',
+          text: nutritionCaptureInProgress
+              ? 'PROCESSING IMAGE'
+              : 'SCAN NUTRITION LABEL',
           onPressed: onReadNutrition,
         ),
 

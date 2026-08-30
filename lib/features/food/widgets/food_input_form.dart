@@ -484,7 +484,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       inputError = null;
     });
     try {
-      final result = await showFoodOcrScanner(
+      final result = await showNutritionLabelScanner(
         context: context,
         gateway: _captureGateway,
       );
@@ -496,7 +496,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
           _applyPackageOcr(draft);
       }
     } catch (_) {
-      if (mounted) setState(() => inputError = 'OCRの読み取りに失敗しました');
+      if (mounted) {
+        setState(() => inputError = '栄養成分表示を読み取れませんでした');
+      }
     } finally {
       if (mounted) setState(() => _capturingNutrition = false);
     }
