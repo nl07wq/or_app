@@ -48,6 +48,11 @@ Future<FoodOcrResult?> showFoodOcrScanner({
         instruction: '栄養成分表示を枠内に合わせてください',
         describeCandidate: session.describe,
       );
+      if (rawText != null) {
+        for (final pass in _ocrPasses(rawText)) {
+          session.describe(pass);
+        }
+      }
       nutritionDraft = session.draft;
     } else {
       final session = _PackageCandidateSession();
@@ -56,6 +61,11 @@ Future<FoodOcrResult?> showFoodOcrScanner({
         instruction: '商品名・ブランド・内容量を枠内に合わせてください',
         describeCandidate: session.describe,
       );
+      if (rawText != null) {
+        for (final pass in _ocrPasses(rawText)) {
+          session.describe(pass);
+        }
+      }
       packageDraft = session.draft;
     }
   } else {
@@ -65,24 +75,50 @@ Future<FoodOcrResult?> showFoodOcrScanner({
           : FoodImageSource.gallery,
     );
     if (image == null) return null;
-    rawText = await gateway.recognizeJapaneseText(image);
+    rawText = await gateway.recognizeJapaneseText(
+      image,
+      mode: mode == FoodOcrMode.nutrition
+          ? FoodTextOcrMode.nutrition
+          : FoodTextOcrMode.package,
+    );
   }
   if (rawText == null || !context.mounted) return null;
 
   if (mode == FoodOcrMode.nutrition) {
     final draft = nutritionDraft?.isEmpty == false
         ? nutritionDraft!
-        : const JapaneseNutritionOcrParser().parse(rawText);
+        : _nutritionDraft(rawText);
     if (draft.isEmpty) return null;
     final apply = await _reviewNutrition(context, draft);
     return apply ? FoodNutritionOcrResult(rawText, draft) : null;
   }
   final draft = packageDraft?.isEmpty == false
       ? packageDraft!
-      : const JapanesePackageOcrParser().parse(rawText);
+      : _packageDraft(rawText);
   if (draft.isEmpty) return null;
-  final apply = await _reviewPackage(context, draft);
-  return apply ? FoodPackageOcrResult(rawText, draft) : null;
+  final reviewed = await _reviewPackage(context, draft);
+  return reviewed == null ? null : FoodPackageOcrResult(rawText, reviewed);
+}
+
+Iterable<String> _ocrPasses(String rawText) => rawText
+    .split('\u001e')
+    .map((pass) => pass.trim())
+    .where((pass) => pass.isNotEmpty);
+
+NutritionOcrDraft _nutritionDraft(String rawText) {
+  final session = FoodNutritionCandidateSession();
+  for (final pass in _ocrPasses(rawText)) {
+    session.describe(pass);
+  }
+  return session.draft;
+}
+
+PackageOcrDraft _packageDraft(String rawText) {
+  final session = _PackageCandidateSession();
+  for (final pass in _ocrPasses(rawText)) {
+    session.describe(pass);
+  }
+  return session.draft;
 }
 
 Future<FoodOcrMode?> _chooseMode(BuildContext context) =>
@@ -169,32 +205,13 @@ Future<bool> _reviewNutrition(
     ) ??
     false;
 
-Future<bool> _reviewPackage(
+Future<PackageOcrDraft?> _reviewPackage(
   BuildContext context,
   PackageOcrDraft draft,
-) async =>
-    await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('REVIEW PACKAGE'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _value('NAME', draft.name),
-              _value('BRAND', draft.brand),
-              _value(
-                'PACKAGE',
-                _quantity(draft.packageQuantity, draft.packageUnit),
-              ),
-            ],
-          ),
-        ),
-        actions: _actions(context),
-      ),
-    ) ??
-    false;
+) => showDialog<PackageOcrDraft>(
+  context: context,
+  builder: (context) => _PackageReviewDialog(draft: draft),
+);
 
 List<Widget> _actions(BuildContext context) => [
   TextButton(
@@ -237,14 +254,148 @@ class _PackageCandidateSession {
       brand: next.brand ?? _draft.brand,
       packageQuantity: next.packageQuantity ?? _draft.packageQuantity,
       packageUnit: next.packageUnit ?? _draft.packageUnit,
+      nameCandidates: {
+        ..._draft.nameCandidates,
+        ...next.nameCandidates,
+      }.toList(growable: false),
+      brandCandidates: {
+        ..._draft.brandCandidates,
+        ...next.brandCandidates,
+      }.toList(growable: false),
     );
     return FoodOcrLiveCandidate(
-      state: _draft.isEmpty ? 'scanning' : 'partial',
+      state: _draft.isEmpty
+          ? (rawText.trim().isEmpty ? 'scanning' : 'insufficient')
+          : 'partial',
       fields: {
         'NAME': _draft.name,
         'BRAND': _draft.brand,
+        'NAME CANDIDATES': _draft.nameCandidates.isEmpty
+            ? null
+            : _draft.nameCandidates.join(' / '),
+        'BRAND CANDIDATES': _draft.brandCandidates.isEmpty
+            ? null
+            : _draft.brandCandidates.join(' / '),
         'PACKAGE': _quantity(_draft.packageQuantity, _draft.packageUnit),
       },
     );
   }
+}
+
+class _PackageReviewDialog extends StatefulWidget {
+  const _PackageReviewDialog({required this.draft});
+
+  final PackageOcrDraft draft;
+
+  @override
+  State<_PackageReviewDialog> createState() => _PackageReviewDialogState();
+}
+
+class _PackageReviewDialogState extends State<_PackageReviewDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _brand;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.draft.name);
+    _brand = TextEditingController(text: widget.draft.brand);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _brand.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('REVIEW PACKAGE'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(labelText: 'SELECTED NAME'),
+          ),
+          _candidateChoices(
+            'NAME CANDIDATES',
+            widget.draft.nameCandidates,
+            _name,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _brand,
+            decoration: const InputDecoration(labelText: 'SELECTED BRAND'),
+          ),
+          _candidateChoices(
+            'BRAND CANDIDATES',
+            widget.draft.brandCandidates,
+            _brand,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _value(
+            'PACKAGE',
+            _quantity(widget.draft.packageQuantity, widget.draft.packageUnit),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('CANCEL'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(
+          context,
+          PackageOcrDraft(
+            name: _valueOrNull(_name.text),
+            brand: _valueOrNull(_brand.text),
+            packageQuantity: widget.draft.packageQuantity,
+            packageUnit: widget.draft.packageUnit,
+            nameCandidates: widget.draft.nameCandidates,
+            brandCandidates: widget.draft.brandCandidates,
+          ),
+        ),
+        child: const Text('APPLY TO FORM'),
+      ),
+    ],
+  );
+
+  Widget _candidateChoices(
+    String label,
+    List<String> candidates,
+    TextEditingController controller,
+  ) {
+    if (candidates.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.sm),
+          child: Text(label),
+        ),
+        Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: [
+            for (final candidate in candidates)
+              ActionChip(
+                label: Text(candidate),
+                onPressed: () => setState(() => controller.text = candidate),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+String? _valueOrNull(String value) {
+  final normalized = value.trim();
+  return normalized.isEmpty ? null : normalized;
 }

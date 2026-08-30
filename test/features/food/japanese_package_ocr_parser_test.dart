@@ -26,6 +26,30 @@ void main() {
     expect(draft.brand, isNull);
     expect(draft.packageQuantity, 6);
     expect(draft.packageUnit, FoodQuantityUnit.piece);
+    expect(draft.nameCandidates, containsAll(['香ばしいおいしさ', '明太子味']));
+  });
+
+  test('offers realistic package-front text as review candidates', () {
+    final draft = parser.parse('''
+OR FOODS
+ザクザクポテト
+ハッピーターン味
+とまらないおいしさ
+内容量 70g
+OR食品株式会社
+東京都千代田区1-2-3
+開封後はお早めにお召し上がりください
+''');
+
+    expect(draft.name, isNull);
+    expect(draft.brand, isNull);
+    expect(draft.nameCandidates, contains('ザクザクポテト'));
+    expect(draft.nameCandidates, contains('ハッピーターン味'));
+    expect(draft.nameCandidates, isNot(contains('東京都千代田区1-2-3')));
+    expect(draft.nameCandidates, isNot(contains('OR食品株式会社')));
+    expect(draft.brandCandidates, containsAll(['OR FOODS', 'OR食品株式会社']));
+    expect(draft.packageQuantity, 70);
+    expect(draft.packageUnit, FoodQuantityUnit.gram);
   });
 
   test('conflicting labeled candidates remain unavailable', () {

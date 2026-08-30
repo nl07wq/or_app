@@ -5,6 +5,8 @@ enum FoodImageSource { camera, gallery }
 
 enum FoodNutritionCaptureMode { live, camera, gallery }
 
+enum FoodTextOcrMode { package, nutrition }
+
 class FoodCapturedImage {
   const FoodCapturedImage(this.dataUrl);
 
@@ -30,7 +32,10 @@ class FoodOcrLiveCandidate {
 abstract interface class FoodInputCaptureGateway {
   Future<FoodCapturedImage?> selectImage(FoodImageSource source);
 
-  Future<String> recognizeJapaneseText(FoodCapturedImage image);
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  });
 
   Future<String?> scanBarcode(FoodCapturedImage image);
 }

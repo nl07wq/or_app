@@ -1155,8 +1155,10 @@ class _CountingNavigatorObserver extends NavigatorObserver {
 
 class _NutritionGateway implements FoodInputCaptureGateway {
   @override
-  Future<String> recognizeJapaneseText(FoodCapturedImage image) async =>
-      '100gあたり\nエネルギー 154kcal\nたんぱく質 1.9g\n脂質 5.5g\n炭水化物 24.2g';
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  }) async => '100gあたり\nエネルギー 154kcal\nたんぱく質 1.9g\n脂質 5.5g\n炭水化物 24.2g';
 
   @override
   Future<String?> scanBarcode(FoodCapturedImage image) async => null;

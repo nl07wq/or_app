@@ -12,8 +12,10 @@ class _UnsupportedFoodInputCaptureGateway implements FoodLiveCaptureGateway {
       _unsupported();
 
   @override
-  Future<String> recognizeJapaneseText(FoodCapturedImage image) async =>
-      _unsupported();
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  }) async => _unsupported();
 
   @override
   Future<String?> scanBarcode(FoodCapturedImage image) async => _unsupported();

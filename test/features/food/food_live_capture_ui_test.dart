@@ -164,6 +164,100 @@ void main() {
     expect(saveCalls, 0);
   });
 
+  testWidgets('multi-pass nutrition fields merge without averaging', (
+    tester,
+  ) async {
+    final gateway = _LiveGateway(
+      nutritionRawText:
+          '1個当たり\n脂質 10.6g\u001e'
+          'エネルギー 201kcal\nたんぱく質 2.3g\n炭水化物 21.5g',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async => true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final action = find.byKey(const ValueKey('food-entry-ocr'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('NUTRITION'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CAMERA'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.lastOcrMode, FoodTextOcrMode.nutrition);
+    expect(find.text('NUTRITION BASIS  1 piece'), findsOneWidget);
+    expect(find.text('CALORIES  201 kcal'), findsOneWidget);
+    expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
+    expect(find.text('FAT  10.6 g'), findsOneWidget);
+    expect(find.text('CARBOHYDRATE  21.5 g'), findsOneWidget);
+  });
+
+  testWidgets('package candidates require user selection before draft apply', (
+    tester,
+  ) async {
+    var saveCalls = 0;
+    final gateway = _LiveGateway(
+      nutritionRawText:
+          'OR FOODS\nザクザクポテト\n明太子味\n内容量 70g\n'
+          '東京都千代田区1-2-3',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async {
+                saveCalls += 1;
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final action = find.byKey(const ValueKey('food-entry-ocr'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PACKAGE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CAMERA'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.lastOcrMode, FoodTextOcrMode.package);
+    expect(find.text('NAME CANDIDATES'), findsOneWidget);
+    expect(find.text('ザクザクポテト'), findsOneWidget);
+    expect(find.text('OR FOODS'), findsOneWidget);
+    expect(tester.widget<TextField>(_field('NAME')).controller!.text, isEmpty);
+    expect(saveCalls, 0);
+
+    await tester.tap(find.text('ザクザクポテト'));
+    await tester.tap(find.text('OR FOODS'));
+    await tester.tap(find.text('APPLY TO FORM'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(_field('NAME')).controller!.text,
+      'ザクザクポテト',
+    );
+    expect(
+      tester.widget<TextField>(_field('BRAND')).controller!.text,
+      'OR FOODS',
+    );
+    expect(saveCalls, 0);
+  });
+
   for (final capture in [
     ('CAMERA', FoodImageSource.camera),
     ('PHOTO LIBRARY', FoodImageSource.gallery),
@@ -421,6 +515,7 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   int liveNutritionCalls = 0;
   final selectedSources = <FoodImageSource>[];
   FoodOcrLiveCandidate? lastDescription;
+  FoodTextOcrMode? lastOcrMode;
 
   @override
   Future<FoodBarcodeCandidate?> scanBarcodeLive() async {
@@ -441,8 +536,13 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   }
 
   @override
-  Future<String> recognizeJapaneseText(FoodCapturedImage image) async =>
-      nutritionRawText ?? '';
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  }) async {
+    lastOcrMode = mode;
+    return nutritionRawText ?? '';
+  }
 
   @override
   Future<String?> scanBarcode(FoodCapturedImage image) async => barcode?.value;

@@ -32,11 +32,15 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
   }
 
   @override
-  Future<String> recognizeJapaneseText(FoodCapturedImage image) async {
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  }) async {
     final result = await _bridge
         .callMethod<JSPromise<JSString>>(
           'recognizeJapaneseText'.toJS,
           image.dataUrl.toJS,
+          mode.name.toJS,
         )
         .toDart;
     return result.toDart;

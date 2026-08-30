@@ -249,7 +249,10 @@ class _Gateway implements FoodInputCaptureGateway {
   final String? barcode;
 
   @override
-  Future<String> recognizeJapaneseText(FoodCapturedImage image) async => text;
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  }) async => text;
 
   @override
   Future<String?> scanBarcode(FoodCapturedImage image) async => barcode;
@@ -279,7 +282,10 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   }) async => null;
 
   @override
-  Future<String> recognizeJapaneseText(FoodCapturedImage image) async => '';
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+  }) async => '';
 
   @override
   Future<String?> scanBarcode(FoodCapturedImage image) async => null;
