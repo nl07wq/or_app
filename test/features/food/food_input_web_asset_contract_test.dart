@@ -84,6 +84,66 @@ void main() {
     expect(bridge, contains('await resetPaddleWorker()'));
   });
 
+  test('Paddle iPhone diagnostic traces stages without formal data', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+
+    for (final stage in [
+      'P0',
+      'P1',
+      'P2',
+      'P3',
+      'P4',
+      'P5',
+      'P6',
+      'P7',
+      'P8',
+      'P9',
+      'P10',
+      'P11',
+      'P12',
+      'P13',
+      'P14',
+      'P15',
+      'P16',
+      'P17',
+      'P18',
+      'P19',
+      'P20',
+      'P21',
+      'P22',
+      'P23',
+      'P24',
+      'P25',
+      'P26',
+      'P27',
+      'P28',
+    ]) {
+      expect(bridge, contains('$stage:'));
+    }
+    expect(bridge, contains('requestedEngine'));
+    expect(bridge, contains('resolvedEngine'));
+    expect(bridge, contains('actualExecutedEngine'));
+    expect(bridge, contains('failureCategory'));
+    expect(bridge, contains('errorCategory'));
+    expect(bridge, contains('watchdogFired'));
+    expect(bridge, contains('memorySnapshot()'));
+    expect(bridge, contains("method: 'HEAD'"));
+    expect(bridge, contains('content-type'));
+    expect(bridge, contains('content-length'));
+    expect(bridge, contains("new Worker(paths.paddleWorker"));
+    expect(bridge, contains("PADDLE PoC  "));
+    expect(bridge, contains('COPY DIAGNOSTICS'));
+    expect(bridge, contains('RUN SMALL TEST'));
+    expect(bridge, contains('paddleDiagnosticsSnapshot'));
+    expect(bridge, contains("maxWidth: 'calc(100vw - 16px)'"));
+    expect(bridge, contains("boxSizing: 'border-box'"));
+    expect(bridge, contains('env(safe-area-inset-bottom)'));
+    expect(bridge, isNot(contains('stack:')));
+    expect(bridge, isNot(contains('rawText:')));
+  });
+
   test('live camera bridge throttles work and cleans every session', () {
     final bridge = File(
       'web/assets/food_input/food_input_bridge.js',

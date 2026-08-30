@@ -17,6 +17,18 @@
       'paddle/models/PP-OCRv5_mobile_rec_onnx_infer.tar',
       root,
     ).href,
+    paddleWorker: new URL(
+      'paddle/assets/worker-entry-C9UNuyOJ.js',
+      root,
+    ).href,
+    paddleWasmStandard: new URL(
+      'paddle/wasm/ort-wasm-simd-threaded.wasm',
+      root,
+    ).href,
+    paddleWasmJsep: new URL(
+      'paddle/wasm/ort-wasm-simd-threaded.jsep.wasm',
+      root,
+    ).href,
     zxing: new URL('barcode/zxing-browser.min.js', root).href,
   };
   const loadedScripts = new Map();
@@ -30,6 +42,9 @@
   let paddleRuntimeLoadCount = 0;
   let paddleModelLoadCount = 0;
   let lastPaddleDiagnostics;
+  let activePaddleDiagnostics;
+  let paddleDiagnosticSequence = 0;
+  let paddleDiagnosticPanel;
   let barcodeDetectorPromise;
   let barcodeReaderPromise;
   const ocrPassSeparator = '\u001e';
@@ -45,6 +60,357 @@
   let lastCaptureDiagnostics;
   let lastPhotoDiagnostics;
   let lastStructuredDiagnostics;
+
+  const paddleStageNames = Object.freeze({
+    P0: 'engine-selected',
+    P1: 'runtime-import-start',
+    P2: 'runtime-import-success',
+    P3: 'worker-initialization',
+    P4: 'worker-ready',
+    P5: 'onnx-runtime-initialization',
+    P6: 'onnx-runtime-ready',
+    P7: 'detection-model-fetch',
+    P8: 'detection-model-fetch-success',
+    P9: 'detection-session-create',
+    P10: 'detection-session-ready',
+    P11: 'recognition-model-fetch',
+    P12: 'recognition-model-fetch-success',
+    P13: 'recognition-session-create',
+    P14: 'recognition-session-ready',
+    P15: 'image-decode-start',
+    P16: 'image-decode-success',
+    P17: 'preprocess-start',
+    P18: 'preprocess-success',
+    P19: 'detection-inference-start',
+    P20: 'detection-inference-success',
+    P21: 'detected-boxes-available',
+    P22: 'recognition-inference-start',
+    P23: 'recognition-inference-success',
+    P24: 'ocr-blocks-available',
+    P25: 'common-result-mapping',
+    P26: 'nutrition-mapping',
+    P27: 'candidate-returned-to-dart',
+    P28: 'review-ui',
+  });
+
+  function diagnosticNow() {
+    return typeof performance !== 'undefined' && performance.now
+      ? performance.now()
+      : Date.now();
+  }
+
+  function requestedOcrEngine() {
+    const queryEngine = typeof location === 'undefined'
+      ? null
+      : new URLSearchParams(location.search).get('orOcrEngine');
+    return window.__OR_APP_OCR_ENGINE__ || queryEngine || 'tesseract';
+  }
+
+  function memorySnapshot() {
+    const memory = typeof performance !== 'undefined' && performance.memory;
+    if (!memory) return { available: false };
+    return {
+      available: true,
+      usedJSHeapSize: Number(memory.usedJSHeapSize) || null,
+      totalJSHeapSize: Number(memory.totalJSHeapSize) || null,
+      jsHeapSizeLimit: Number(memory.jsHeapSizeLimit) || null,
+    };
+  }
+
+  function runtimeCapabilities() {
+    return {
+      userAgent: typeof navigator === 'undefined' ? null : navigator.userAgent,
+      webAssembly: typeof WebAssembly === 'object',
+      worker: typeof Worker === 'function',
+      crossOriginIsolated: Boolean(globalThis.crossOriginIsolated),
+      hardwareConcurrency: typeof navigator === 'undefined'
+        ? null
+        : navigator.hardwareConcurrency || null,
+      deviceMemory: typeof navigator === 'undefined'
+        ? null
+        : navigator.deviceMemory || null,
+      performanceMemory: memorySnapshot(),
+      requestedBackend: 'wasm',
+      numThreads: 1,
+      simdRequested: true,
+      recognitionBatchSize: 'library-default',
+      tensorDimensions: 'not-exposed-by-public-worker-api',
+      expectedModelAssetBytes: {
+        detection: 4843520,
+        recognition: 16701440,
+      },
+      webGpuAvailable: typeof navigator !== 'undefined' &&
+        Boolean(navigator.gpu),
+    };
+  }
+
+  function startPaddleDiagnostics(source, dimensions = {}) {
+    const requestedEngine = requestedOcrEngine();
+    const resolvedEngine = selectedOcrEngine('nutrition');
+    activePaddleDiagnostics = {
+      diagnosticVersion: 1,
+      runId: ++paddleDiagnosticSequence,
+      source,
+      startedAt: new Date().toISOString(),
+      requestedEngine,
+      resolvedEngine,
+      actualExecutedEngine: null,
+      state: 'running',
+      currentStage: 'P0',
+      failureStage: null,
+      failureCategory: null,
+      errorName: null,
+      safeErrorMessage: null,
+      watchdogFired: false,
+      dimensions: {
+        sourceWidth: Number(dimensions.width) || null,
+        sourceHeight: Number(dimensions.height) || null,
+        estimatedImageBufferBytes:
+          Number(dimensions.width) * Number(dimensions.height) * 4 || null,
+      },
+      assets: {},
+      stages: [],
+      runtime: runtimeCapabilities(),
+      standaloneChecks: {
+        detectionOnly: {
+          available: false,
+          reason: 'PaddleOCR.js public worker API exposes combined predict only',
+        },
+        recognitionOnly: {
+          available: false,
+          reason: 'PaddleOCR.js public worker API exposes combined predict only',
+        },
+      },
+    };
+    recordPaddleStage('P0', 'success', {
+      requestedEngine,
+      resolvedEngine,
+    });
+    lastPaddleDiagnostics = activePaddleDiagnostics;
+    updatePaddleDiagnosticPanel('LOADING');
+    return activePaddleDiagnostics;
+  }
+
+  function ensurePaddleDiagnostics(source, dimensions, force = false) {
+    if (force || !activePaddleDiagnostics ||
+        activePaddleDiagnostics.state !== 'running') {
+      return startPaddleDiagnostics(source, dimensions);
+    }
+    if (dimensions) {
+      activePaddleDiagnostics.dimensions.sourceWidth =
+        Number(dimensions.width) || null;
+      activePaddleDiagnostics.dimensions.sourceHeight =
+        Number(dimensions.height) || null;
+      activePaddleDiagnostics.dimensions.estimatedImageBufferBytes =
+        Number(dimensions.width) * Number(dimensions.height) * 4 || null;
+    }
+    return activePaddleDiagnostics;
+  }
+
+  function recordPaddleStage(stageId, status, details = {}) {
+    if (!activePaddleDiagnostics) return null;
+    const at = diagnosticNow();
+    const event = {
+      stageId,
+      stageName: paddleStageNames[stageId] || 'unknown',
+      status,
+      atMs: Math.round(at * 10) / 10,
+      ...(status === 'started'
+        ? { startTimeMs: Math.round(at * 10) / 10 }
+        : { endTimeMs: Math.round(at * 10) / 10 }),
+      ...details,
+    };
+    activePaddleDiagnostics.currentStage = stageId;
+    activePaddleDiagnostics.stages.push(event);
+    lastPaddleDiagnostics = activePaddleDiagnostics;
+    return event;
+  }
+
+  async function tracePaddleStage(stageId, action, details = {}) {
+    const started = diagnosticNow();
+    recordPaddleStage(stageId, 'started', details);
+    try {
+      const value = await action();
+      recordPaddleStage(stageId, 'success', {
+        ...details,
+        durationMs: Math.round(diagnosticNow() - started),
+      });
+      return value;
+    } catch (error) {
+      recordPaddleStage(stageId, 'failure', {
+        ...details,
+        durationMs: Math.round(diagnosticNow() - started),
+      });
+      throw error;
+    }
+  }
+
+  function safeErrorMessage(error) {
+    const message = String(error && error.message || 'Paddle OCR failed')
+      .replace(/[\r\n]+/g, ' ')
+      .trim();
+    return message.slice(0, 240);
+  }
+
+  function classifyPaddleFailure(error, stageId) {
+    const message = safeErrorMessage(error).toLowerCase();
+    if (message.includes('timed out')) return 'CLASS I';
+    if (message.includes('out of memory') || message.includes('memory') ||
+        message.includes('wasm trap')) return 'CLASS H';
+    if (message.includes('worker')) return 'CLASS C';
+    if (message.includes('wasm') || message.includes('onnx') ||
+        message.includes('webassembly')) return 'CLASS D';
+    if (message.includes('model') || message.includes('session')) return 'CLASS E';
+    if (['P1', 'P2', 'P7', 'P8', 'P11', 'P12'].includes(stageId)) {
+      return 'CLASS B';
+    }
+    if (['P3', 'P4'].includes(stageId)) return 'CLASS C';
+    if (['P5', 'P6', 'P9', 'P10', 'P13', 'P14'].includes(stageId)) {
+      return 'CLASS D';
+    }
+    if (['P19', 'P20', 'P21'].includes(stageId)) return 'CLASS F';
+    if (['P22', 'P23', 'P24'].includes(stageId)) return 'CLASS G';
+    return 'CLASS J';
+  }
+
+  function paddleFailureCode(error, stageId) {
+    const message = safeErrorMessage(error).toLowerCase();
+    if (message.includes('timed out')) return 'TIMEOUT-UNKNOWN';
+    return ({
+      P1: 'LOAD-MODULE',
+      P2: 'LOAD-MODULE',
+      P3: 'WORKER-INIT',
+      P4: 'WORKER-RUNTIME',
+      P5: 'ONNX-INIT',
+      P6: 'ONNX-INIT',
+      P7: 'MODEL-FETCH-DET',
+      P8: 'MODEL-FETCH-DET',
+      P9: 'MODEL-SESSION-DET',
+      P10: 'MODEL-SESSION-DET',
+      P11: 'MODEL-FETCH-REC',
+      P12: 'MODEL-FETCH-REC',
+      P13: 'MODEL-SESSION-REC',
+      P14: 'MODEL-SESSION-REC',
+      P15: 'IMAGE-DECODE',
+      P16: 'IMAGE-DECODE',
+      P17: 'PREPROCESS',
+      P18: 'PREPROCESS',
+      P19: 'DETECTION-INFERENCE',
+      P20: 'DETECTION-INFERENCE',
+      P21: 'DETECTION-INFERENCE',
+      P22: 'RECOGNITION-INFERENCE',
+      P23: 'RECOGNITION-INFERENCE',
+      P24: 'RECOGNITION-INFERENCE',
+    })[stageId] || 'POC-IMPLEMENTATION';
+  }
+
+  function failPaddleDiagnostics(error, stageId) {
+    if (!activePaddleDiagnostics) return;
+    if (!stageId && activePaddleDiagnostics.state === 'failed' &&
+        activePaddleDiagnostics.failureStage) return;
+    const failureStage = stageId || activePaddleDiagnostics.currentStage;
+    activePaddleDiagnostics.state = 'failed';
+    activePaddleDiagnostics.failureStage = failureStage;
+    activePaddleDiagnostics.failureCategory = classifyPaddleFailure(
+      error,
+      failureStage,
+    );
+    activePaddleDiagnostics.errorCategory = paddleFailureCode(
+      error,
+      failureStage,
+    );
+    activePaddleDiagnostics.errorName = String(error && error.name || 'Error');
+    activePaddleDiagnostics.safeErrorMessage = safeErrorMessage(error);
+    activePaddleDiagnostics.endedAt = new Date().toISOString();
+    activePaddleDiagnostics.memoryAfter = memorySnapshot();
+    activePaddleDiagnostics.resources = paddleResourceTelemetry();
+    lastPaddleDiagnostics = activePaddleDiagnostics;
+    updatePaddleDiagnosticPanel(
+      `FAILED: ${failureStage} ${activePaddleDiagnostics.failureCategory}`,
+    );
+  }
+
+  function completePaddleDiagnostics() {
+    if (!activePaddleDiagnostics) return;
+    activePaddleDiagnostics.state = 'ready';
+    activePaddleDiagnostics.endedAt = new Date().toISOString();
+    activePaddleDiagnostics.memoryAfter = memorySnapshot();
+    activePaddleDiagnostics.resources = paddleResourceTelemetry();
+    const wasmResource = activePaddleDiagnostics.resources.find(
+      (resource) => resource.url.endsWith('.wasm'),
+    );
+    activePaddleDiagnostics.runtime.wasmVariant = wasmResource
+      ? wasmResource.url.split('/').pop()
+      : 'not-observable';
+    lastPaddleDiagnostics = activePaddleDiagnostics;
+    updatePaddleDiagnosticPanel('READY');
+  }
+
+  function paddleResourceTelemetry() {
+    if (typeof performance === 'undefined' ||
+        !performance.getEntriesByType) return [];
+    return performance.getEntriesByType('resource')
+      .filter((entry) => String(entry.name).includes('/food_input/paddle/'))
+      .map((entry) => ({
+        url: String(entry.name),
+        durationMs: Math.round(Number(entry.duration) || 0),
+        transferSize: Number(entry.transferSize) || null,
+        encodedBodySize: Number(entry.encodedBodySize) || null,
+        responseStatus: Number(entry.responseStatus) || null,
+      }));
+  }
+
+  async function probePaddleAsset(key, url, stageId) {
+    const probe = window.__OR_APP_PADDLE_ASSET_PROBE__ ||
+      ((assetUrl) => fetch(assetUrl, { method: 'HEAD', cache: 'no-store' }));
+    const started = diagnosticNow();
+    let response;
+    try {
+      response = await tracePaddleStage(stageId, async () => {
+        const value = await probe(url);
+        if (!value || !value.ok) {
+          const status = Number(value && value.status) || 0;
+          const error = new Error(
+            `${key} returned HTTP ${status || 'unknown'}`,
+          );
+          error.name = 'PaddleAssetError';
+          error.status = status;
+          throw error;
+        }
+        return value;
+      }, {
+        assetKey: key,
+        assetUrl: url,
+      });
+    } catch (error) {
+      if (activePaddleDiagnostics) {
+        activePaddleDiagnostics.assets[key] = {
+          url,
+          status: Number(error && error.status) || null,
+          ok: false,
+          durationMs: Math.round(diagnosticNow() - started),
+        };
+      }
+      throw error;
+    }
+    const headers = response && response.headers;
+    const status = Number(response && response.status) || 0;
+    const asset = {
+      url,
+      sameOrigin: typeof location === 'undefined'
+        ? null
+        : new URL(url).origin === location.origin,
+      status,
+      ok: Boolean(response && response.ok),
+      mimeType: headers && headers.get ? headers.get('content-type') : null,
+      contentLength: headers && headers.get
+        ? Number(headers.get('content-length')) || null
+        : null,
+      durationMs: Math.round(diagnosticNow() - started),
+    };
+    activePaddleDiagnostics.assets[key] = asset;
+    return asset;
+  }
 
   function loadScript(url) {
     if (loadedScripts.has(url)) return loadedScripts.get(url);
@@ -62,12 +428,101 @@
 
   function selectedOcrEngine(mode = 'nutrition') {
     if (mode !== 'nutrition') return 'tesseract';
-    const queryEngine = typeof location === 'undefined'
-      ? null
-      : new URLSearchParams(location.search).get('orOcrEngine');
-    return (window.__OR_APP_OCR_ENGINE__ || queryEngine) === 'paddle'
+    return requestedOcrEngine() === 'paddle'
       ? 'paddle'
       : 'tesseract';
+  }
+
+  function updatePaddleDiagnosticPanel(status) {
+    if (selectedOcrEngine('nutrition') !== 'paddle' ||
+        typeof document === 'undefined' || !document.body ||
+        typeof document.createElement !== 'function') return;
+    if (!paddleDiagnosticPanel) {
+      const panel = document.createElement('div');
+      panel.id = 'or-app-paddle-diagnostics';
+      Object.assign(panel.style, {
+        position: 'fixed',
+        left: 'max(8px, env(safe-area-inset-left))',
+        bottom: 'max(8px, env(safe-area-inset-bottom))',
+        zIndex: '2147483647',
+        maxWidth: 'calc(100vw - 16px)',
+        padding: '8px',
+        borderRadius: '8px',
+        background: 'rgba(17, 24, 39, 0.94)',
+        color: '#fff',
+        font: '12px system-ui, sans-serif',
+        boxSizing: 'border-box',
+      });
+      const label = document.createElement('div');
+      label.dataset.role = 'paddle-status';
+      label.style.marginBottom = '6px';
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.textContent = 'COPY DIAGNOSTICS';
+      copy.style.marginRight = '6px';
+      copy.onclick = () => copyPaddleDiagnostics();
+      const small = document.createElement('button');
+      small.type = 'button';
+      small.textContent = 'RUN SMALL TEST';
+      small.onclick = () => runPaddleSmallFixtureDiagnostic();
+      panel.append(label, copy, small);
+      document.body.appendChild(panel);
+      paddleDiagnosticPanel = panel;
+    }
+    const label = paddleDiagnosticPanel.querySelector(
+      '[data-role="paddle-status"]',
+    );
+    if (label) label.textContent = `PADDLE PoC  ${status}`;
+  }
+
+  function paddleDiagnosticsSnapshot() {
+    return lastPaddleDiagnostics
+      ? JSON.parse(JSON.stringify(lastPaddleDiagnostics))
+      : null;
+  }
+
+  async function copyPaddleDiagnostics() {
+    const text = JSON.stringify(paddleDiagnosticsSnapshot(), null, 2);
+    if (typeof navigator !== 'undefined' && navigator.clipboard &&
+        navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      updatePaddleDiagnosticPanel('DIAGNOSTICS COPIED');
+      return true;
+    }
+    if (typeof document === 'undefined' || !document.body) return false;
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand && document.execCommand('copy');
+    area.remove();
+    updatePaddleDiagnosticPanel(copied ? 'DIAGNOSTICS COPIED' : 'COPY FAILED');
+    return Boolean(copied);
+  }
+
+  async function runPaddleSmallFixtureDiagnostic() {
+    if (typeof document === 'undefined' ||
+        typeof document.createElement !== 'function') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 360;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#111';
+    context.font = '24px sans-serif';
+    const lines = [
+      '栄養成分表示 100g当たり',
+      'エネルギー 201kcal',
+      'たんぱく質 2.3g',
+      '脂質 12.4g',
+      '炭水化物 21.5g',
+    ];
+    lines.forEach((line, index) => context.fillText(line, 24, 48 + index * 54));
+    return recognizePaddleNutrition(canvas, 'small-fixture', false);
   }
 
   async function paddleWorker() {
@@ -75,17 +530,77 @@
       paddleWorkerPromise = (async () => {
         paddleRuntimeLoadCount += 1;
         const injectedFactory = window.__OR_APP_PADDLE_FACTORY__;
+        await probePaddleAsset('runtime-module', paths.paddleModule, 'P1');
         if (!injectedFactory && !paddleModulePromise) {
-          paddleModulePromise = import(paths.paddleModule);
+          paddleModulePromise = tracePaddleStage(
+            'P2',
+            () => import(paths.paddleModule),
+            { assetUrl: paths.paddleModule },
+          );
         }
         const PaddleOCR = injectedFactory
           ? { create: injectedFactory }
           : (await paddleModulePromise).PaddleOCR;
+        if (injectedFactory) {
+          recordPaddleStage('P2', 'success', { injectedFactory: true });
+        }
+        await probePaddleAsset('worker-script', paths.paddleWorker, 'P3');
+        await probePaddleAsset('wasm-standard', paths.paddleWasmStandard, 'P5');
+        await probePaddleAsset('wasm-jsep', paths.paddleWasmJsep, 'P5');
+        await probePaddleAsset(
+          'detection-model',
+          paths.paddleDetectionModel,
+          'P7',
+        );
+        recordPaddleStage('P8', 'success', {
+          assetUrl: paths.paddleDetectionModel,
+        });
+        await probePaddleAsset(
+          'recognition-model',
+          paths.paddleRecognitionModel,
+          'P11',
+        );
+        recordPaddleStage('P12', 'success', {
+          assetUrl: paths.paddleRecognitionModel,
+        });
         const startedAt = performance.now();
-        const worker = await PaddleOCR.create({
+        recordPaddleStage('P9', 'started', {
+          note: 'combined Paddle worker initialization',
+        });
+        recordPaddleStage('P13', 'started', {
+          note: 'combined Paddle worker initialization',
+        });
+        const worker = await tracePaddleStage('P5', () => PaddleOCR.create({
           lang: 'ch',
           ocrVersion: 'PP-OCRv5',
-          worker: true,
+          worker: injectedFactory ? true : {
+            createWorker: () => {
+              const workerStarted = diagnosticNow();
+              recordPaddleStage('P3', 'started', {
+                assetUrl: paths.paddleWorker,
+              });
+              const instance = new Worker(paths.paddleWorker, { type: 'module' });
+              instance.addEventListener('error', (event) => {
+                const error = new Error(event.message || 'Paddle worker error');
+                error.name = 'PaddleWorkerError';
+                recordPaddleStage('P3', 'failure', {
+                  durationMs: Math.round(diagnosticNow() - workerStarted),
+                  assetUrl: paths.paddleWorker,
+                });
+                failPaddleDiagnostics(error, 'P3');
+              });
+              instance.addEventListener('messageerror', () => {
+                const error = new Error('Paddle worker message could not be decoded');
+                error.name = 'PaddleWorkerMessageError';
+                failPaddleDiagnostics(error, 'P3');
+              });
+              recordPaddleStage('P3', 'success', {
+                durationMs: Math.round(diagnosticNow() - workerStarted),
+                assetUrl: paths.paddleWorker,
+              });
+              return instance;
+            },
+          },
           textDetectionModelName: 'PP-OCRv5_mobile_det',
           textDetectionModelAsset: { url: paths.paddleDetectionModel },
           textRecognitionModelName: 'PP-OCRv5_mobile_rec',
@@ -96,27 +611,45 @@
             numThreads: 1,
             simd: true,
           },
+        }), {
+          combinedInitialization: true,
+          backend: 'wasm',
+          numThreads: 1,
         });
         paddleModelLoadCount += 1;
         paddleWorkerInstance = worker;
-        lastPaddleDiagnostics = {
-          engineId: 'paddle',
-          runtimeVersion: '0.4.2',
-          model: 'PP-OCRv5_mobile_det + PP-OCRv5_mobile_rec',
-          initializationMs: Math.round(performance.now() - startedAt),
-          initialization: worker.getInitializationSummary(),
-        };
+        activePaddleDiagnostics.actualExecutedEngine = 'paddle';
+        activePaddleDiagnostics.runtimeVersion = '0.4.2';
+        activePaddleDiagnostics.model =
+          'PP-OCRv5_mobile_det + PP-OCRv5_mobile_rec';
+        activePaddleDiagnostics.initializationMs =
+          Math.round(performance.now() - startedAt);
+        activePaddleDiagnostics.initialization = worker.getInitializationSummary();
+        recordPaddleStage('P4', 'success');
+        recordPaddleStage('P6', 'success', {
+          initialization: activePaddleDiagnostics.initialization,
+          combinedInitializationMs: activePaddleDiagnostics.initializationMs,
+        });
+        recordPaddleStage('P10', 'success', {
+          combinedInitialization: true,
+          combinedInitializationMs: activePaddleDiagnostics.initializationMs,
+        });
+        recordPaddleStage('P14', 'success', {
+          combinedInitialization: true,
+          combinedInitializationMs: activePaddleDiagnostics.initializationMs,
+        });
         return worker;
       })().catch((error) => {
         paddleWorkerPromise = undefined;
         paddleWorkerInstance = undefined;
-        lastPaddleDiagnostics = {
-          engineId: 'paddle',
-          state: 'load-failed',
-          message: String(error && error.message || 'Paddle OCR load failed'),
-        };
+        failPaddleDiagnostics(error);
         throw error;
       });
+    } else if (activePaddleDiagnostics && paddleWorkerInstance) {
+      activePaddleDiagnostics.actualExecutedEngine = 'paddle';
+      for (const stageId of ['P2', 'P4', 'P6', 'P10', 'P14']) {
+        recordPaddleStage(stageId, 'success', { cached: true });
+      }
     }
     return paddleWorkerPromise;
   }
@@ -134,42 +667,81 @@
     }
   }
 
-  function recognizePaddlePass(canvas) {
+  function recognizePaddlePass(canvas, source = 'capture', reuseRun = false) {
     const recognize = async () => {
+      ensurePaddleDiagnostics(source, canvas, !reuseRun);
+      if (!activePaddleDiagnostics.stages.some(
+        (stage) => stage.stageId === 'P15',
+      )) {
+        recordPaddleStage('P15', 'success', { providedCanvas: true });
+        recordPaddleStage('P16', 'success', {
+          decodedWidth: Number(canvas.width) || null,
+          decodedHeight: Number(canvas.height) || null,
+          providedCanvas: true,
+        });
+        recordPaddleStage('P17', 'success', { providedCanvas: true });
+        recordPaddleStage('P18', 'success', {
+          ocrWidth: Number(canvas.width) || null,
+          ocrHeight: Number(canvas.height) || null,
+          providedCanvas: true,
+        });
+      }
       const worker = await paddleWorker();
       const startedAt = performance.now();
       let timeout;
       let result;
       try {
+        recordPaddleStage('P19', 'started', {
+          sourceWidth: Number(canvas.width) || null,
+          sourceHeight: Number(canvas.height) || null,
+        });
+        recordPaddleStage('P22', 'started', {
+          note: 'Paddle predict performs detection then recognition',
+        });
         [result] = await Promise.race([
           worker.predict(canvas),
           new Promise((_, reject) => {
             timeout = setTimeout(
-              () => reject(new Error('Paddle OCR recognition timed out')),
+              () => {
+                if (activePaddleDiagnostics) {
+                  activePaddleDiagnostics.watchdogFired = true;
+                }
+                reject(new Error('Paddle OCR recognition timed out'));
+              },
               25000,
             );
           }),
         ]);
       } catch (error) {
+        failPaddleDiagnostics(error);
         await resetPaddleWorker();
         throw error;
       } finally {
         clearTimeout(timeout);
       }
       const durationMs = Math.round(performance.now() - startedAt);
-      lastPaddleDiagnostics = {
-        ...lastPaddleDiagnostics,
-        state: 'ready',
-        sourceWidth: result.image.width,
-        sourceHeight: result.image.height,
-        durationMs,
-        detectedTextCount: result.metrics.detectedBoxes,
-        recognizedTextCount: result.metrics.recognizedCount,
-        detectionMs: Math.round(result.metrics.detMs),
-        recognitionMs: Math.round(result.metrics.recMs),
-        confidence: result.items.map((item) => item.score),
-        runtime: result.runtime,
-      };
+      activePaddleDiagnostics.dimensions.sourceWidth = result.image.width;
+      activePaddleDiagnostics.dimensions.sourceHeight = result.image.height;
+      activePaddleDiagnostics.durationMs = durationMs;
+      activePaddleDiagnostics.detectedTextCount = result.metrics.detectedBoxes;
+      activePaddleDiagnostics.recognizedTextCount = result.metrics.recognizedCount;
+      activePaddleDiagnostics.detectionMs = Math.round(result.metrics.detMs);
+      activePaddleDiagnostics.recognitionMs = Math.round(result.metrics.recMs);
+      activePaddleDiagnostics.confidence = result.items.map((item) => item.score);
+      activePaddleDiagnostics.inferenceRuntime = result.runtime;
+      recordPaddleStage('P20', 'success', {
+        durationMs: Math.round(result.metrics.detMs),
+      });
+      recordPaddleStage('P21', 'success', {
+        detectedBoxes: result.metrics.detectedBoxes,
+      });
+      recordPaddleStage('P23', 'success', {
+        durationMs: Math.round(result.metrics.recMs),
+      });
+      recordPaddleStage('P24', 'success', {
+        recognizedBlocks: result.metrics.recognizedCount,
+        cropCount: result.metrics.detectedBoxes,
+      });
       return {
         engineId: 'paddle',
         text: result.items.map((item) => item.text).join('\n'),
@@ -847,12 +1419,23 @@
     return structuredNutritionWords(canvas, paddleWords(items), 'paddle');
   }
 
-  async function recognizePaddleNutrition(canvas) {
-    const result = await recognizePaddlePass(canvas);
+  async function recognizePaddleNutrition(
+    canvas,
+    source = 'capture',
+    reuseRun = false,
+  ) {
+    const result = await recognizePaddlePass(canvas, source, reuseRun);
     const texts = [];
     if (result.text.trim()) texts.push(result.text);
+    recordPaddleStage('P25', 'success', {
+      textBlockCount: result.items.length,
+    });
     const structured = await structuredPaddleNutritionText(canvas, result.items);
     if (structured) texts.push(structured);
+    recordPaddleStage('P26', 'success', {
+      structuredCandidate: Boolean(structured),
+    });
+    completePaddleDiagnostics();
     return {
       engineId: result.engineId,
       texts,
@@ -862,11 +1445,44 @@
   }
 
   async function recognizeJapaneseText(dataUrl, mode = 'package') {
-    const canvas = await canvasFromImage(dataUrl, mode);
     const engineId = selectedOcrEngine(mode);
     if (mode === 'nutrition' && engineId === 'paddle') {
+      startPaddleDiagnostics('photo');
+      recordPaddleStage('P15', 'started');
+    }
+    let canvas;
+    try {
+      canvas = await canvasFromImage(dataUrl, mode);
+    } catch (error) {
+      if (mode === 'nutrition' && engineId === 'paddle') {
+        failPaddleDiagnostics(error, 'P15');
+      }
+      throw error;
+    }
+    if (mode === 'nutrition' && engineId === 'paddle') {
+      recordPaddleStage('P16', 'success', {
+        originalWidth: lastPhotoDiagnostics?.originalWidth || null,
+        originalHeight: lastPhotoDiagnostics?.originalHeight || null,
+        decodedWidth: lastPhotoDiagnostics?.decodedWidth || null,
+        decodedHeight: lastPhotoDiagnostics?.decodedHeight || null,
+        orientation: lastPhotoDiagnostics?.orientation || null,
+      });
+      recordPaddleStage('P17', 'started');
+      activePaddleDiagnostics.dimensions = {
+        ...activePaddleDiagnostics.dimensions,
+        cropWidth: lastPhotoDiagnostics?.cropWidth || null,
+        cropHeight: lastPhotoDiagnostics?.cropHeight || null,
+        ocrWidth: canvas.width,
+        ocrHeight: canvas.height,
+        pixelFormat: 'canvas-rgba',
+        estimatedImageBufferBytes: canvas.width * canvas.height * 4,
+      };
+      recordPaddleStage('P18', 'success', {
+        ocrWidth: canvas.width,
+        ocrHeight: canvas.height,
+      });
       const startedAt = performance.now();
-      const paddle = await recognizePaddleNutrition(canvas);
+      const paddle = await recognizePaddleNutrition(canvas, 'photo', true);
       if (lastPhotoDiagnostics) {
         lastPhotoDiagnostics.engineId = engineId;
         lastPhotoDiagnostics.passCount = 1;
@@ -875,6 +1491,7 @@
         ];
         lastPhotoDiagnostics.structuredDurationMs = 0;
       }
+      recordPaddleStage('P27', 'success');
       return paddle.texts.join(ocrPassSeparator);
     }
     const texts = [];
@@ -1391,7 +2008,13 @@
         }
       };
       session.close.onclick = () => finish(null);
-      review.onclick = () => latestRawText && finish(latestRawText);
+      review.onclick = () => {
+        if (!latestRawText) return;
+        if (mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle') {
+          recordPaddleStage('P28', 'success');
+        }
+        finish(latestRawText);
+      };
       takePhoto.onclick = () => finishWithImage(true);
       choosePhoto.onclick = () => finishWithImage(false);
 
@@ -1440,7 +2063,10 @@
           const texts = [];
           let layoutTsv = '';
           if (mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle') {
-            const paddle = await recognizePaddleNutrition(frame.canvas);
+            const paddle = await recognizePaddleNutrition(
+              frame.canvas,
+              'live-high-accuracy',
+            );
             for (const rawText of paddle.texts) {
               if (!rawText.trim() || texts.includes(rawText)) continue;
               texts.push(rawText);
@@ -1499,7 +2125,10 @@
         session.result.textContent = '読み取り中...';
         try {
           const rawText = mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle'
-            ? (await recognizePaddleNutrition(frame.canvas)).texts.join(ocrPassSeparator)
+            ? (await recognizePaddleNutrition(
+              frame.canvas,
+              'live-preview',
+            )).texts.join(ocrPassSeparator)
             : await recognizeSinglePass(
               frame.canvas.toDataURL('image/jpeg', 0.92),
             );
@@ -1594,10 +2223,21 @@
     diagnosePaddleResult,
     benchmarkNutritionEngines,
     recognizePaddleCanvasForDiagnostics: recognizePaddleNutrition,
+    runPaddleSmallFixtureDiagnostic,
+    getPaddleDiagnostics: paddleDiagnosticsSnapshot,
+    copyPaddleDiagnostics,
+    classifyPaddleFailureForDiagnostics: (message, stageId) =>
+      classifyPaddleFailure(new Error(message), stageId),
+    mapPaddleFailureForDiagnostics: (message, stageId) => ({
+      failureCategory: classifyPaddleFailure(new Error(message), stageId),
+      errorCategory: paddleFailureCode(new Error(message), stageId),
+    }),
     diagnoseStructuredNutritionTsv: (tsv) =>
       structuredNutritionText({ width: 0, height: 0 }, tsv),
     assetState: () => ({
       selectedOcrEngine: selectedOcrEngine(),
+      requestedOcrEngine: requestedOcrEngine(),
+      resolvedOcrEngine: selectedOcrEngine(),
       ocrLoaded: loadedScripts.has(paths.tesseract),
       paddleRuntimeLoaded: Boolean(paddleModulePromise),
       paddleWorkerLoaded: Boolean(paddleWorkerInstance),
@@ -1615,4 +2255,7 @@
       lastStructuredDiagnostics,
     }),
   };
+  if (selectedOcrEngine('nutrition') === 'paddle') {
+    setTimeout(() => updatePaddleDiagnosticPanel('SELECTED'), 0);
+  }
 })();

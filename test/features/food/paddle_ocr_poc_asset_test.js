@@ -3,7 +3,11 @@
 const assert = require('node:assert/strict');
 
 global.window = {};
-global.location = { search: '' };
+global.location = {
+  search: '',
+  hash: '#/food',
+  origin: 'https://or-app.test',
+};
 global.document = { baseURI: 'https://or-app.test/' };
 global.performance = { now: () => Date.now() };
 require('../../../web/assets/food_input/food_input_bridge.js');
@@ -71,6 +75,15 @@ async function verifyLayout(items, expectedLayout) {
 
 async function main() {
   assert.equal(bridge.assetState().selectedOcrEngine, 'tesseract');
+  location.search = '?orOcrEngine=paddle';
+  assert.equal(bridge.assetState().requestedOcrEngine, 'paddle');
+  assert.equal(bridge.assetState().resolvedOcrEngine, 'paddle');
+  assert.equal(location.hash, '#/food');
+  assert.match(
+    bridge.assetState().paddlePaths.paddleModule,
+    /^https:\/\/or-app\.test\/assets\/food_input\/paddle\//,
+  );
+  location.search = '';
   window.__OR_APP_OCR_ENGINE__ = 'paddle';
   assert.equal(bridge.assetState().selectedOcrEngine, 'paddle');
   window.__OR_APP_OCR_ENGINE__ = 'tesseract';
@@ -110,6 +123,20 @@ async function main() {
   let createCount = 0;
   let predictCount = 0;
   const fakeResult = result([item('脂質 10.6g', 10, 40, 180)]);
+  window.__OR_APP_OCR_ENGINE__ = 'paddle';
+  let failRuntimeProbe = true;
+  window.__OR_APP_PADDLE_ASSET_PROBE__ = async (url) => {
+    const failed = failRuntimeProbe && url.endsWith('paddleocr-engine.mjs');
+    return {
+      ok: !failed,
+      status: failed ? 404 : 200,
+      headers: {
+        get: (name) => name === 'content-type'
+          ? (url.endsWith('.wasm') ? 'application/wasm' : 'application/javascript')
+          : (name === 'content-length' ? '1024' : null),
+      },
+    };
+  };
   window.__OR_APP_PADDLE_FACTORY__ = async () => {
     createCount += 1;
     return {
@@ -120,12 +147,75 @@ async function main() {
       },
     };
   };
+  await assert.rejects(
+    bridge.recognizePaddleCanvasForDiagnostics({ width: 320, height: 180 }),
+    /runtime-module returned HTTP 404/,
+  );
+  let diagnostics = bridge.getPaddleDiagnostics();
+  assert.equal(diagnostics.requestedEngine, 'paddle');
+  assert.equal(diagnostics.resolvedEngine, 'paddle');
+  assert.equal(diagnostics.actualExecutedEngine, null);
+  assert.equal(diagnostics.failureStage, 'P1');
+  assert.equal(diagnostics.failureCategory, 'CLASS B');
+  assert.equal(diagnostics.errorCategory, 'LOAD-MODULE');
+  assert.equal(diagnostics.assets['runtime-module'].status, 404);
+  assert.equal(diagnostics.assets['runtime-module'].ok, false);
+
+  failRuntimeProbe = false;
   await bridge.recognizePaddleCanvasForDiagnostics({ width: 900, height: 700 });
+  assert.equal(createCount, 1);
+  assert.equal(predictCount, 1);
+  assert.equal(bridge.assetState().paddleRuntimeLoadCount, 2);
+  assert.equal(bridge.assetState().paddleModelLoadCount, 1);
+  diagnostics = bridge.getPaddleDiagnostics();
+  assert.equal(diagnostics.requestedEngine, 'paddle');
+  assert.equal(diagnostics.resolvedEngine, 'paddle');
+  assert.equal(diagnostics.actualExecutedEngine, 'paddle');
+  assert.equal(diagnostics.state, 'ready');
+  assert.equal(diagnostics.detectedTextCount, 1);
+  assert.equal(diagnostics.recognizedTextCount, 1);
+  assert.equal(diagnostics.watchdogFired, false);
+  assert.equal(diagnostics.dimensions.sourceWidth, 900);
+  assert.equal(diagnostics.dimensions.sourceHeight, 700);
+  assert.ok(diagnostics.stages.some((stage) => stage.stageId === 'P5'));
+  assert.ok(diagnostics.stages.some((stage) => stage.stageId === 'P20'));
+  assert.ok(diagnostics.stages.some((stage) => stage.stageId === 'P23'));
+  assert.ok(diagnostics.stages.some((stage) => stage.stageId === 'P26'));
+  assert.equal(diagnostics.assets['detection-model'].status, 200);
+  assert.equal(diagnostics.assets['recognition-model'].status, 200);
+  assert.equal(diagnostics.runtime.numThreads, 1);
+  assert.equal(diagnostics.standaloneChecks.detectionOnly.available, false);
+  assert.equal(diagnostics.standaloneChecks.recognitionOnly.available, false);
+  const exported = JSON.stringify(diagnostics);
+  assert.doesNotMatch(exported, /脂質 10\.6g/);
+  assert.doesNotMatch(exported, /rawText|dataUrl|base64/i);
+
   await bridge.recognizePaddleCanvasForDiagnostics({ width: 900, height: 700 });
   assert.equal(createCount, 1);
   assert.equal(predictCount, 2);
-  assert.equal(bridge.assetState().paddleRuntimeLoadCount, 1);
+  assert.equal(bridge.assetState().paddleRuntimeLoadCount, 2);
   assert.equal(bridge.assetState().paddleModelLoadCount, 1);
+
+  assert.equal(
+    bridge.classifyPaddleFailureForDiagnostics('worker stopped', 'P3'),
+    'CLASS C',
+  );
+  assert.equal(
+    bridge.classifyPaddleFailureForDiagnostics('WebAssembly compile failed', 'P5'),
+    'CLASS D',
+  );
+  assert.equal(
+    bridge.classifyPaddleFailureForDiagnostics('recognition timed out', 'P22'),
+    'CLASS I',
+  );
+  assert.deepEqual(
+    bridge.mapPaddleFailureForDiagnostics('recognition timed out', 'P22'),
+    { failureCategory: 'CLASS I', errorCategory: 'TIMEOUT-UNKNOWN' },
+  );
+  assert.deepEqual(
+    bridge.mapPaddleFailureForDiagnostics('asset missing', 'P11'),
+    { failureCategory: 'CLASS B', errorCategory: 'MODEL-FETCH-REC' },
+  );
 }
 
 main().catch((error) => {
