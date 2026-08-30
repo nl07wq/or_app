@@ -70,11 +70,13 @@ class DailyAssessmentFactLoader {
       currentStrengthTrainingPerformed: strengthTrainingPerformed,
       currentCardioPerformed: cardioPerformed,
       weightHistory: weightHistory,
-      currentWeightReference: DailyWeightReferenceResolver.resolve(
-        operationDate: operationDate.value,
-        measuredTodayKg: currentStatus?.weight,
-        history: weightHistory,
-      ),
+      currentWeightReference: currentStatus == null
+          ? const DailyWeightReference.notAvailable()
+          : DailyWeightReferenceResolver.resolve(
+              operationDate: operationDate.value,
+              measuredTodayKg: currentStatus.weight,
+              history: weightHistory,
+            ),
       trainingReadiness: trainingReadiness,
     );
   }

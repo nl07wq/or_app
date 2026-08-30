@@ -119,7 +119,49 @@ void main() {
   });
 
   test(
-    'uses seven-day mean when the current STATUS record is absent',
+    'uses fourteen-day mean after seven-day reference is insufficient',
+    () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(_status(date: '2026-07-30', weight: 80));
+      await container.status.save(_status(date: '2026-08-01', weight: 82));
+      await container.status.save(_status(date: '2026-08-03', weight: 84));
+      await container.status.save(_status(weight: null));
+
+      final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+      expect(facts.currentWeightReference.valueKg, 82);
+      expect(
+        facts.currentWeightReference.source,
+        DailyWeightReferenceSource.fourteenDayMean,
+      );
+    },
+  );
+
+  test(
+    'reports unavailable when STATUS exists without a valid reference',
+    () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(_status(date: '2026-08-08', weight: 80));
+      await container.status.save(_status(date: '2026-08-09', weight: 82));
+      await container.status.save(_status(weight: null));
+
+      final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+      expect(facts.currentStatus, isNotNull);
+      expect(facts.currentWeightReference.valueKg, isNull);
+      expect(
+        facts.currentWeightReference.source,
+        DailyWeightReferenceSource.notAvailable,
+      );
+    },
+  );
+
+  test(
+    'does not use historical fallback when the current STATUS record is absent',
     () async {
       final container = AppRepositoryContainer.indexedDb(
         FakeIndexedDbDatabase(),
@@ -131,10 +173,10 @@ void main() {
       final facts = await DailyAssessmentFactLoader(container).load(_state());
 
       expect(facts.currentStatus, isNull);
-      expect(facts.currentWeightReference.valueKg, 82);
+      expect(facts.currentWeightReference.valueKg, isNull);
       expect(
         facts.currentWeightReference.source,
-        DailyWeightReferenceSource.sevenDayMean,
+        DailyWeightReferenceSource.notAvailable,
       );
     },
   );

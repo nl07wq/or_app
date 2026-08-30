@@ -184,7 +184,7 @@ void main() {
     expect(find.text('CURRENT WEIGHT'), findsNothing);
 
     await pump(const DailyWeightReference.notAvailable());
-    expect(find.text('CURRENT WEIGHT'), findsOneWidget);
+    expect(find.text('CURRENT WEIGHT'), findsNothing);
     expect(find.text('NOT AVAILABLE'), findsWidgets);
   });
 }

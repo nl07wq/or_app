@@ -7,11 +7,37 @@ class DailyAssessmentRuleEngine {
 
   DailyAssessment evaluate(DailyAssessmentFacts facts) {
     final status = facts.currentStatus;
-    final sleepTime = _sleepTime(status?.sleepHours);
-    final sleepScore = _sleepScore(status?.sleepScore);
-    final plantar = _plantar(status?.footPain);
-    final work = _work(status?.workType, status?.workHours);
-    final weight = _weightTrend(facts.weightHistory);
+    final hasStatus = status != null;
+    final sleepTime = hasStatus
+        ? _sleepTime(status.sleepHours)
+        : _notAvailable(
+            DailyAssessmentModule.recovery,
+            DailyAssessmentMetric.sleepTime,
+          );
+    final sleepScore = hasStatus
+        ? _sleepScore(status.sleepScore)
+        : _notAvailable(
+            DailyAssessmentModule.recovery,
+            DailyAssessmentMetric.sleepScore,
+          );
+    final plantar = hasStatus
+        ? _plantar(status.footPain)
+        : _notAvailable(
+            DailyAssessmentModule.condition,
+            DailyAssessmentMetric.plantarFasciitis,
+          );
+    final work = hasStatus
+        ? _work(status.workType, status.workHours)
+        : _notAvailable(
+            DailyAssessmentModule.workLoad,
+            DailyAssessmentMetric.work,
+          );
+    final weight = hasStatus
+        ? _weightTrend(facts.weightHistory)
+        : _notAvailable(
+            DailyAssessmentModule.body,
+            DailyAssessmentMetric.weightTrend,
+          );
     final calorie = _calorieBalance(facts.currentCalorieBalanceKcal);
     final protein = _protein(facts.currentProteinG);
     final hydration = _hydration(facts.currentHydrationMl);

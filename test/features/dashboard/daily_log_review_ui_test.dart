@@ -207,33 +207,65 @@ void main() {
     expect(find.byIcon(Icons.pending_outlined), findsNothing);
   });
 
-  testWidgets('DAILY LOG uses a two by two grid at desktop width', (
+  testWidgets('DAILY LOG keeps a two by two grid at all target widths', (
     tester,
   ) async {
-    await _pumpDailyLogCard(tester, width: 800);
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      await _pumpDailyLogCard(tester, width: width);
 
-    final status = tester.getTopLeft(
-      find.bySemanticsLabel('STATUS incomplete'),
-    );
-    final food = tester.getTopLeft(find.bySemanticsLabel('FOOD incomplete'));
-    final training = tester.getTopLeft(
-      find.bySemanticsLabel('TRAINING not recorded optional'),
-    );
-    final activity = tester.getTopLeft(
-      find.bySemanticsLabel('ACTIVITY incomplete'),
-    );
+      final statusFinder = find.bySemanticsLabel('STATUS incomplete');
+      final foodFinder = find.bySemanticsLabel('FOOD incomplete');
+      final trainingFinder = find.bySemanticsLabel(
+        'TRAINING not recorded optional',
+      );
+      final activityFinder = find.bySemanticsLabel('ACTIVITY incomplete');
+      final status = tester.getTopLeft(statusFinder);
+      final food = tester.getTopLeft(foodFinder);
+      final training = tester.getTopLeft(trainingFinder);
+      final activity = tester.getTopLeft(activityFinder);
 
-    expect(status.dy, food.dy);
-    expect(training.dy, activity.dy);
-    expect(training.dy, greaterThan(status.dy));
-    expect(food.dx, greaterThan(status.dx));
+      expect(status.dy, food.dy, reason: '$width STATUS / FOOD');
+      expect(training.dy, activity.dy, reason: '$width TRAINING / ACTIVITY');
+      expect(training.dy, greaterThan(status.dy), reason: '$width row order');
+      expect(food.dx, greaterThan(status.dx), reason: '$width column order');
+      for (final finder in [
+        statusFinder,
+        foodFinder,
+        trainingFinder,
+        activityFinder,
+      ]) {
+        expect(tester.getSize(finder).height, greaterThanOrEqualTo(48));
+      }
+      expect(tester.takeException(), isNull, reason: '$width overflow');
+    }
   });
 
-  testWidgets('DAILY LOG falls back without overflow at 320 pixels', (
+  testWidgets('FINALIZE BLOCKED uses two columns without training blockers', (
     tester,
   ) async {
     await _pumpDailyLogCard(tester, width: 320);
 
+    final status = tester.getTopLeft(
+      find.byKey(const ValueKey('daily-log-blocker-STATUS')),
+    );
+    final food = tester.getTopLeft(
+      find.byKey(const ValueKey('daily-log-blocker-FOOD')),
+    );
+    final activity = tester.getTopLeft(
+      find.byKey(const ValueKey('daily-log-blocker-ACTIVITY')),
+    );
+    final debrief = tester.getTopLeft(
+      find.byKey(const ValueKey('daily-log-blocker-DAILY DEBRIEF')),
+    );
+    final readiness = tester.widget<Semantics>(
+      find.byKey(const ValueKey('daily-log-finalize-readiness')),
+    );
+
+    expect(status.dy, food.dy);
+    expect(activity.dy, debrief.dy);
+    expect(activity.dy, greaterThan(status.dy));
+    expect(food.dx, greaterThan(status.dx));
+    expect(readiness.properties.label, isNot(contains('TRAINING')));
     expect(tester.takeException(), isNull);
     expect(find.text('FINALIZE DAY'), findsOneWidget);
   });

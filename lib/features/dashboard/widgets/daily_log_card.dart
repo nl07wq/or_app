@@ -87,7 +87,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           icon: Icons.fact_check_outlined,
           title: 'DAILY LOG',
         ),
-        AppSpacing.gapSM,
+        AppSpacing.gapXS,
         FutureBuilder<_DailyCloseUiState>(
           future: _closeState,
           builder: (context, closeSnapshot) {
@@ -292,60 +292,33 @@ class DailyLogCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final useTwoColumns = constraints.maxWidth >= 360;
-              final itemWidth = useTwoColumns
-                  ? (constraints.maxWidth - AppSpacing.md) / 2
-                  : constraints.maxWidth;
-
-              return Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  SizedBox(
-                    width: itemWidth,
-                    child: _DailyLogEntryStatus(
-                      label: 'STATUS',
-                      state: statusState,
-                      onTap: onStatusTap,
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _DailyLogEntryStatus(
-                      label: 'FOOD',
-                      state: foodState,
-                      onTap: onFoodTap,
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _DailyLogEntryStatus(
-                      label: 'TRAINING',
-                      state: trainingState,
-                      onTap: onTrainingTap,
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _DailyLogEntryStatus(
-                      label: 'ACTIVITY',
-                      state: activityState,
-                      onTap: onActivityTap,
-                    ),
-                  ),
-                ],
-              );
-            },
+          _DailyLogEntryGrid(
+            entries: [
+              _DailyLogEntry(
+                label: 'STATUS',
+                state: statusState,
+                onTap: onStatusTap,
+              ),
+              _DailyLogEntry(label: 'FOOD', state: foodState, onTap: onFoodTap),
+              _DailyLogEntry(
+                label: 'TRAINING',
+                state: trainingState,
+                onTap: onTrainingTap,
+              ),
+              _DailyLogEntry(
+                label: 'ACTIVITY',
+                state: activityState,
+                onTap: onActivityTap,
+              ),
+            ],
           ),
-          AppSpacing.gapMD,
+          AppSpacing.gapSM,
           _DailyCloseReadiness(
             validation: validation,
             phase: phase,
             finalizeReady: finalizeReady,
           ),
-          if (!primaryReady) AppSpacing.gapMD,
+          if (!primaryReady) AppSpacing.gapSM,
           _DailyCloseActionButton(
             text: phase == OperationPhase.finalizing
                 ? 'DAILY CLOSE IN PROGRESS'
@@ -359,6 +332,47 @@ class DailyLogCard extends StatelessWidget {
 }
 
 enum _DailyLogEntryState { completed, requiredInvalid, optionalMissing }
+
+class _DailyLogEntry {
+  const _DailyLogEntry({
+    required this.label,
+    required this.state,
+    required this.onTap,
+  });
+
+  final String label;
+  final _DailyLogEntryState state;
+  final VoidCallback? onTap;
+}
+
+class _DailyLogEntryGrid extends StatelessWidget {
+  const _DailyLogEntryGrid({required this.entries});
+
+  final List<_DailyLogEntry> entries;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (var index = 0; index < entries.length; index += 2) ...[
+        if (index > 0) AppSpacing.gapXS,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildEntry(entries[index])),
+            AppSpacing.gapSM,
+            Expanded(child: _buildEntry(entries[index + 1])),
+          ],
+        ),
+      ],
+    ],
+  );
+
+  Widget _buildEntry(_DailyLogEntry entry) => _DailyLogEntryStatus(
+    label: entry.label,
+    state: entry.state,
+    onTap: entry.onTap,
+  );
+}
 
 class _DailyLogEntryStatus extends StatelessWidget {
   const _DailyLogEntryStatus({
@@ -401,23 +415,28 @@ class _DailyLogEntryStatus extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: ExcludeSemantics(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: Theme.of(context).textTheme.labelLarge,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
                     ),
-                  ),
-                  Icon(icon, color: color, size: 24),
-                  AppSpacing.gapXS,
-                  Icon(
-                    Icons.chevron_right,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
+                    Icon(icon, color: color, size: 22),
+                    Icon(
+                      Icons.chevron_right,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 22,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -494,18 +513,8 @@ class _DailyCloseReadiness extends StatelessWidget {
                       ),
                     ),
                   ),
-                  for (var index = 0; index < blockers.length; index++) ...[
-                    if (index > 0) AppSpacing.gapSM,
-                    Text(
-                      blockers[index].label,
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    Text(blockers[index].stateLabel),
-                    if (blockers[index].missingRequirements.isNotEmpty)
-                      Text(
-                        'Missing: ${blockers[index].missingRequirements.join(', ')}',
-                      ),
-                  ],
+                  AppSpacing.gapXS,
+                  _DailyCloseBlockerGrid(blockers: blockers),
                 ],
               ),
             ),
@@ -514,6 +523,51 @@ class _DailyCloseReadiness extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DailyCloseBlockerGrid extends StatelessWidget {
+  const _DailyCloseBlockerGrid({required this.blockers});
+
+  final List<_DailyCloseBlocker> blockers;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (var index = 0; index < blockers.length; index += 2) ...[
+        if (index > 0) AppSpacing.gapXS,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _DailyCloseBlockerCell(blocker: blockers[index])),
+            AppSpacing.gapSM,
+            Expanded(
+              child: index + 1 < blockers.length
+                  ? _DailyCloseBlockerCell(blocker: blockers[index + 1])
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ],
+    ],
+  );
+}
+
+class _DailyCloseBlockerCell extends StatelessWidget {
+  const _DailyCloseBlockerCell({required this.blocker});
+
+  final _DailyCloseBlocker blocker;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    key: ValueKey('daily-log-blocker-${blocker.label}'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(blocker.label, style: Theme.of(context).textTheme.labelLarge),
+      Text(blocker.stateLabel),
+      if (blocker.missingRequirements.isNotEmpty)
+        Text('Missing: ${blocker.missingRequirements.join(', ')}'),
+    ],
+  );
 }
 
 class _DailyCloseBlocker {

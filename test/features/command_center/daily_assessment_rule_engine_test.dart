@@ -162,6 +162,7 @@ void main() {
     ]) {
       final item = _item(
         engine,
+        status: _status(),
         weights: _weights(change: value.$1),
       ).call(DailyAssessmentMetric.weightTrend);
       expect(item.specificAssessment, value.$2);
@@ -170,6 +171,7 @@ void main() {
     expect(
       _item(
         engine,
+        status: _status(),
         weights: _weights(change: -0.5).take(13).toList(),
       ).call(DailyAssessmentMetric.weightTrend).specificAssessment,
       'NOT AVAILABLE',
@@ -183,10 +185,56 @@ void main() {
     );
     final withOlderNoise = _item(
       engine,
+      status: _status(),
       weights: [olderNoise, ..._weights(change: -0.5).reversed],
     ).call(DailyAssessmentMetric.weightTrend);
     expect(withOlderNoise.specificAssessment, 'ON TRACK');
   });
+
+  test('STATUS absence gates body recovery condition and work assessments', () {
+    final result = engine.evaluate(
+      _facts(status: null, weights: _weights(change: -0.5)),
+    );
+
+    for (final metric in const [
+      DailyAssessmentMetric.weightTrend,
+      DailyAssessmentMetric.sleepTime,
+      DailyAssessmentMetric.sleepScore,
+      DailyAssessmentMetric.plantarFasciitis,
+      DailyAssessmentMetric.work,
+    ]) {
+      final item = _find(result, metric);
+      expect(item.rawValue, isNull, reason: metric.name);
+      expect(item.level, isNull, reason: metric.name);
+      expect(item.specificAssessment, 'NOT AVAILABLE', reason: metric.name);
+    }
+    expect(result.primaryConstraints, isNot(contains('WEIGHT TREND')));
+  });
+
+  test(
+    'STATUS presence preserves weight trend and missing sleep contracts',
+    () {
+      final result = engine.evaluate(
+        _facts(
+          status: _status(sleepHours: null, sleepScore: null),
+          weights: _weights(change: -0.5),
+        ),
+      );
+
+      expect(
+        _find(result, DailyAssessmentMetric.weightTrend).specificAssessment,
+        'ON TRACK',
+      );
+      expect(
+        _find(result, DailyAssessmentMetric.sleepTime).specificAssessment,
+        'NOT AVAILABLE',
+      );
+      expect(
+        _find(result, DailyAssessmentMetric.sleepScore).specificAssessment,
+        'NOT AVAILABLE',
+      );
+    },
+  );
 
   test('does not backfill missing current-day sleep from history', () {
     final result = engine.evaluate(

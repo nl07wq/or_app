@@ -348,22 +348,37 @@ void main() {
       scrollable: _dailyCommandScrollable(),
     );
 
+    final status = tester.getTopLeft(find.bySemanticsLabel('STATUS completed'));
+    final food = tester.getTopLeft(find.bySemanticsLabel('FOOD completed'));
+    final training = tester.getTopLeft(
+      find.bySemanticsLabel('TRAINING not recorded optional'),
+    );
+    final activity = tester.getTopLeft(
+      find.bySemanticsLabel('ACTIVITY incomplete'),
+    );
+    expect(status.dy, food.dy);
+    expect(training.dy, activity.dy);
+    expect(training.dy, greaterThan(status.dy));
+    expect(food.dx, greaterThan(status.dx));
+
     for (final entry in const [
       ('STATUS completed', 'STATUS ROUTE'),
       ('FOOD completed', 'FOOD ROUTE'),
       ('TRAINING not recorded optional', 'TRAINING ROUTE'),
-      ('ACTIVITY completed', 'ACTIVITY ROUTE'),
+      ('ACTIVITY incomplete', 'ACTIVITY ROUTE'),
     ]) {
-      await tester.tap(find.bySemanticsLabel(entry.$1));
+      final module = find.bySemanticsLabel(entry.$1);
+      await tester.scrollUntilVisible(
+        module,
+        100,
+        scrollable: _dailyCommandScrollable(),
+      );
+      await tester.tap(module);
       await tester.pumpAndSettle();
       expect(find.text(entry.$2), findsOneWidget);
       Navigator.of(tester.element(find.text(entry.$2))).pop();
       await tester.pumpAndSettle();
     }
-
-    await tester.tap(find.text('DAILY REVIEW'));
-    await tester.pumpAndSettle();
-    expect(find.text('DAILY REVIEW ROUTE'), findsOneWidget);
   });
 
   testWidgets(

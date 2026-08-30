@@ -245,7 +245,7 @@ String _weightReferenceLabel(DailyWeightReferenceSource source) =>
       DailyWeightReferenceSource.measuredToday => 'CURRENT WEIGHT',
       DailyWeightReferenceSource.sevenDayMean => 'WEEK AVERAGE',
       DailyWeightReferenceSource.fourteenDayMean => '14-DAY AVERAGE',
-      DailyWeightReferenceSource.notAvailable => 'CURRENT WEIGHT',
+      DailyWeightReferenceSource.notAvailable => 'NOT AVAILABLE',
     };
 
 String _valueLabel(DailyAssessmentItem item) {
