@@ -35,12 +35,14 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
   Future<String> recognizeJapaneseText(
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   }) async {
     final result = await _bridge
         .callMethod<JSPromise<JSString>>(
           'recognizeJapaneseText'.toJS,
           image.dataUrl.toJS,
           mode.name.toJS,
+          engine.bridgeValue.toJS,
         )
         .toDart;
     return result.toDart;
@@ -75,6 +77,7 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
     required String title,
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   }) async {
     final callback = ((JSString rawText) {
       return jsonEncode(describeCandidate(rawText.toDart).toJson()).toJS;
@@ -85,6 +88,7 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
           title.toJS,
           instruction.toJS,
           callback,
+          engine.bridgeValue.toJS,
         )
         .toDart;
     return result?.toDart;

@@ -7,6 +7,17 @@ enum FoodNutritionCaptureMode { live, camera, gallery }
 
 enum FoodTextOcrMode { package, nutrition }
 
+enum FoodOcrEngine { tesseract, paddle }
+
+extension FoodOcrEnginePresentation on FoodOcrEngine {
+  String get bridgeValue => name;
+
+  String get label => switch (this) {
+    FoodOcrEngine.tesseract => 'TESSERACT',
+    FoodOcrEngine.paddle => 'PADDLE PoC',
+  };
+}
+
 class FoodCapturedImage {
   const FoodCapturedImage(this.dataUrl);
 
@@ -35,6 +46,7 @@ abstract interface class FoodInputCaptureGateway {
   Future<String> recognizeJapaneseText(
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   });
 
   Future<String?> scanBarcode(FoodCapturedImage image);
@@ -48,6 +60,7 @@ abstract interface class FoodLiveCaptureGateway
     required String title,
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   });
 }
 

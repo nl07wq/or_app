@@ -99,7 +99,10 @@
       : Date.now();
   }
 
-  function requestedOcrEngine() {
+  function requestedOcrEngine(engineOverride) {
+    if (engineOverride === 'paddle' || engineOverride === 'tesseract') {
+      return engineOverride;
+    }
     const queryEngine = typeof location === 'undefined'
       ? null
       : new URLSearchParams(location.search).get('orOcrEngine');
@@ -144,9 +147,13 @@
     };
   }
 
-  function startPaddleDiagnostics(source, dimensions = {}) {
-    const requestedEngine = requestedOcrEngine();
-    const resolvedEngine = selectedOcrEngine('nutrition');
+  function startPaddleDiagnostics(
+    source,
+    dimensions = {},
+    engineOverride = null,
+  ) {
+    const requestedEngine = requestedOcrEngine(engineOverride);
+    const resolvedEngine = selectedOcrEngine('nutrition', engineOverride);
     activePaddleDiagnostics = {
       diagnosticVersion: 1,
       runId: ++paddleDiagnosticSequence,
@@ -191,10 +198,15 @@
     return activePaddleDiagnostics;
   }
 
-  function ensurePaddleDiagnostics(source, dimensions, force = false) {
+  function ensurePaddleDiagnostics(
+    source,
+    dimensions,
+    force = false,
+    engineOverride = null,
+  ) {
     if (force || !activePaddleDiagnostics ||
         activePaddleDiagnostics.state !== 'running') {
-      return startPaddleDiagnostics(source, dimensions);
+      return startPaddleDiagnostics(source, dimensions, engineOverride);
     }
     if (dimensions) {
       activePaddleDiagnostics.dimensions.sourceWidth =
@@ -426,15 +438,17 @@
     return promise;
   }
 
-  function selectedOcrEngine(mode = 'nutrition') {
+  function selectedOcrEngine(mode = 'nutrition', engineOverride = null) {
     if (mode !== 'nutrition') return 'tesseract';
-    return requestedOcrEngine() === 'paddle'
+    return requestedOcrEngine(engineOverride) === 'paddle'
       ? 'paddle'
       : 'tesseract';
   }
 
-  function updatePaddleDiagnosticPanel(status) {
-    if (selectedOcrEngine('nutrition') !== 'paddle' ||
+  function updatePaddleDiagnosticPanel(status, engineOverride = null) {
+    const paddleSession = engineOverride === 'paddle' ||
+      activePaddleDiagnostics?.resolvedEngine === 'paddle';
+    if ((!paddleSession && selectedOcrEngine('nutrition') !== 'paddle') ||
         typeof document === 'undefined' || !document.body ||
         typeof document.createElement !== 'function') return;
     if (!paddleDiagnosticPanel) {
@@ -669,7 +683,7 @@
 
   function recognizePaddlePass(canvas, source = 'capture', reuseRun = false) {
     const recognize = async () => {
-      ensurePaddleDiagnostics(source, canvas, !reuseRun);
+      ensurePaddleDiagnostics(source, canvas, !reuseRun, 'paddle');
       if (!activePaddleDiagnostics.stages.some(
         (stage) => stage.stageId === 'P15',
       )) {
@@ -1444,10 +1458,14 @@
     };
   }
 
-  async function recognizeJapaneseText(dataUrl, mode = 'package') {
-    const engineId = selectedOcrEngine(mode);
+  async function recognizeJapaneseText(
+    dataUrl,
+    mode = 'package',
+    engineOverride = null,
+  ) {
+    const engineId = selectedOcrEngine(mode, engineOverride);
     if (mode === 'nutrition' && engineId === 'paddle') {
-      startPaddleDiagnostics('photo');
+      startPaddleDiagnostics('photo', {}, engineId);
       recordPaddleStage('P15', 'started');
     }
     let canvas;
@@ -1672,7 +1690,7 @@
     actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px';
     overlay.append(header, preview, result, actions);
     document.body.appendChild(overlay);
-    return { overlay, video, guide, close, result, actions };
+    return { overlay, header, video, guide, close, result, actions };
   }
 
   function styleButton(button, primary) {
@@ -1953,37 +1971,71 @@
     }
   }
 
-  async function recognizeTextLive(title, instruction, describeCandidate) {
+  async function recognizeTextLive(
+    title,
+    instruction,
+    describeCandidate,
+    engineOverride = null,
+  ) {
     const mode = title.includes('NUTRITION') ? 'nutrition' : 'package';
+    const engineId = selectedOcrEngine(mode, engineOverride);
     const session = await openCamera(title, mode);
     session.guide.style.display = 'block';
     session.guide.firstElementChild.textContent = instruction;
     session.result.textContent = instruction;
-    const review = document.createElement('button');
-    review.type = 'button';
-    review.textContent = 'REVIEW RESULT';
-    review.disabled = true;
-    styleButton(review, true);
-    const takePhoto = document.createElement('button');
-    takePhoto.type = 'button';
-    takePhoto.textContent = 'TAKE PHOTO';
-    styleButton(takePhoto, false);
+    if (mode === 'nutrition') {
+      const engineLabel = document.createElement('div');
+      engineLabel.dataset.role = 'ocr-engine';
+      engineLabel.textContent = `ENGINE: ${engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'}`;
+      engineLabel.style.cssText = 'font-size:.82rem;font-weight:800;letter-spacing:.04em';
+      session.header.insertBefore(engineLabel, session.close);
+    }
     const choosePhoto = document.createElement('button');
     choosePhoto.type = 'button';
     choosePhoto.textContent = 'CHOOSE PHOTO';
     styleButton(choosePhoto, false);
-    const highAccuracy = document.createElement('button');
-    highAccuracy.type = 'button';
-    highAccuracy.textContent = 'HIGH ACCURACY SCAN';
-    styleButton(highAccuracy, true);
-    session.actions.append(highAccuracy, review, takePhoto, choosePhoto);
+    choosePhoto.style.justifySelf = 'start';
+    const shutter = document.createElement('button');
+    shutter.type = 'button';
+    shutter.setAttribute('aria-label', 'Scan nutrition label');
+    shutter.dataset.role = 'nutrition-shutter';
+    shutter.style.cssText = [
+      'appearance:none',
+      'width:76px',
+      'height:76px',
+      'padding:7px',
+      'border-radius:50%',
+      'border:4px solid #fff',
+      'background:transparent',
+      'box-sizing:border-box',
+      'justify-self:center',
+    ].join(';');
+    const shutterInner = document.createElement('span');
+    shutterInner.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;background:#fff';
+    shutter.appendChild(shutterInner);
+    session.actions.style.cssText = [
+      'display:grid',
+      'grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)',
+      'align-items:center',
+      'gap:12px',
+      'margin-top:12px',
+      'padding-bottom:max(4px, env(safe-area-inset-bottom))',
+    ].join(';');
+    const legacyReview = document.createElement(
+      mode === 'nutrition' ? 'span' : 'button',
+    );
+    if (mode !== 'nutrition') {
+      legacyReview.type = 'button';
+      legacyReview.textContent = 'REVIEW RESULT';
+      legacyReview.disabled = true;
+      styleButton(legacyReview, true);
+    }
+    session.actions.append(choosePhoto, shutter, legacyReview);
 
     return new Promise((resolve) => {
       let timer;
       let running = false;
       let latestRawText = null;
-      let latestDescription = null;
-      let unsuccessfulScans = 0;
       const highAccuracyValues = new Map();
       const highAccuracyConflicts = new Set();
       let finished = false;
@@ -1998,25 +2050,37 @@
         if (!cleanup()) return;
         resolve(value);
       };
-      const finishWithImage = async (preferCamera) => {
-        if (!cleanup()) return;
+      const setBusy = (busy) => {
+        running = busy;
+        shutter.disabled = busy;
+        choosePhoto.disabled = busy;
+        shutter.style.opacity = busy ? '.55' : '1';
+      };
+      const recognizePhoto = async () => {
+        if (finished || running) return;
+        setBusy(true);
+        session.result.textContent = `ENGINE: ${engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'}\n読み取り中...`;
         try {
-          const image = await selectImage(preferCamera);
-          resolve(image ? await recognizeJapaneseText(image, mode) : null);
+          const image = await selectImage(false);
+          if (!image || finished) return;
+          const rawText = await recognizeJapaneseText(image, mode, engineId);
+          let hasCandidate = false;
+          for (const pass of rawText.split(ocrPassSeparator)) {
+            if (pass.trim()) hasCandidate = present(pass, true) || hasCandidate;
+          }
+          if (hasCandidate) finish(rawText);
+          else session.result.textContent = '栄養成分を認識できませんでした。別の写真をお試しください。';
         } catch (_) {
-          resolve(null);
+          if (!finished) session.result.textContent = '写真の読み取りを完了できません。もう一度お試しください。';
+        } finally {
+          if (!finished) setBusy(false);
         }
       };
       session.close.onclick = () => finish(null);
-      review.onclick = () => {
-        if (!latestRawText) return;
-        if (mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle') {
-          recordPaddleStage('P28', 'success');
-        }
-        finish(latestRawText);
-      };
-      takePhoto.onclick = () => finishWithImage(true);
-      choosePhoto.onclick = () => finishWithImage(false);
+      choosePhoto.onclick = recognizePhoto;
+      if (mode !== 'nutrition') {
+        legacyReview.onclick = () => latestRawText && finish(latestRawText);
+      }
 
       const present = (rawText, trackConflicts = false) => {
         const description = JSON.parse(describeCandidate(rawText));
@@ -2034,26 +2098,19 @@
             };
           }
         }
-        const serialized = JSON.stringify(description);
         const hasCandidate = description.state === 'partial' ||
           description.state === 'detected';
-        if (hasCandidate) {
-          latestDescription = serialized;
-          ocrResultContent(session.result, description, mode);
-          review.disabled = false;
-        } else if (review.disabled) {
-          ocrResultContent(session.result, description, mode);
-        }
+        ocrResultContent(session.result, description, mode);
+        if (hasCandidate && mode !== 'nutrition') legacyReview.disabled = false;
         return hasCandidate;
       };
 
-      highAccuracy.onclick = async () => {
+      shutter.onclick = async () => {
         if (finished || running) return;
-        running = true;
-        highAccuracy.disabled = true;
+        setBusy(true);
         highAccuracyValues.clear();
         highAccuracyConflicts.clear();
-        session.result.textContent = '高精度で読み取り中...';
+        session.result.textContent = `ENGINE: ${engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'}\n読み取り中...`;
         try {
           const frame = await captureBestFrame(session);
           if (!frame) {
@@ -2062,7 +2119,8 @@
           }
           const texts = [];
           let layoutTsv = '';
-          if (mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle') {
+          let hasCandidate = false;
+          if (mode === 'nutrition' && engineId === 'paddle') {
             const paddle = await recognizePaddleNutrition(
               frame.canvas,
               'live-high-accuracy',
@@ -2070,7 +2128,7 @@
             for (const rawText of paddle.texts) {
               if (!rawText.trim() || texts.includes(rawText)) continue;
               texts.push(rawText);
-              present(rawText, true);
+              hasCandidate = present(rawText, true) || hasCandidate;
             }
           } else {
             for (const variant of ocrVariants(frame.canvas, mode)) {
@@ -2084,7 +2142,7 @@
               }
               if (!rawText.trim() || texts.includes(rawText)) continue;
               texts.push(rawText);
-              present(rawText, true);
+              hasCandidate = present(rawText, true) || hasCandidate;
             }
           }
           if (mode === 'nutrition' && layoutTsv) {
@@ -2094,11 +2152,16 @@
             );
             if (structured) {
               texts.push(structured);
-              present(structured, true);
+              hasCandidate = present(structured, true) || hasCandidate;
             }
           }
           if (texts.length) latestRawText = texts.join(ocrPassSeparator);
-          if (review.disabled) {
+          if (hasCandidate && latestRawText) {
+            if (mode === 'nutrition' && engineId === 'paddle') {
+              recordPaddleStage('P28', 'success');
+            }
+            finish(latestRawText);
+          } else {
             session.result.textContent = mode === 'nutrition'
               ? '栄養成分を認識できませんでした。反射を避けて再度お試しください。'
               : '商品情報候補を認識できませんでした。反射を避けて再度お試しください。';
@@ -2108,8 +2171,7 @@
             session.result.textContent = '高精度読み取りを完了できません。写真での読み取りをお試しください。';
           }
         } finally {
-          running = false;
-          highAccuracy.disabled = false;
+          if (!finished) setBusy(false);
         }
       };
 
@@ -2124,7 +2186,7 @@
         running = true;
         session.result.textContent = '読み取り中...';
         try {
-          const rawText = mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle'
+          const rawText = mode === 'nutrition' && engineId === 'paddle'
             ? (await recognizePaddleNutrition(
               frame.canvas,
               'live-preview',
@@ -2134,24 +2196,16 @@
             );
           if (finished) return;
           const description = JSON.parse(describeCandidate(rawText));
-          const serialized = JSON.stringify(description);
           const hasCandidate = description.state === 'partial' ||
             description.state === 'detected';
-          if (hasCandidate &&
-              serialized !== latestDescription) {
-            unsuccessfulScans = 0;
+          if (hasCandidate) {
             latestRawText = rawText;
-            latestDescription = serialized;
             ocrResultContent(session.result, description, mode);
-            review.disabled = false;
+            legacyReview.disabled = false;
           } else if (description.state === 'insufficient') {
-            unsuccessfulScans += 1;
             ocrResultContent(session.result, description, mode);
           } else if (description.state === 'scanning') {
-            unsuccessfulScans += 1;
-            session.result.textContent = unsuccessfulScans >= 3
-                ? '高精度読み取り、または写真での読み取りをお試しください。'
-                : '読み取り中...';
+            session.result.textContent = '読み取り中...';
           }
         } catch (_) {
           if (!finished) {
@@ -2162,8 +2216,10 @@
           running = false;
         }
       };
-      timer = setInterval(tick, 1500);
-      tick();
+      if (mode !== 'nutrition') {
+        timer = setInterval(tick, 1500);
+        tick();
+      }
     });
   }
 

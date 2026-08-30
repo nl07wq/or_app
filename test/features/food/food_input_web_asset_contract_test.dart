@@ -47,7 +47,7 @@ void main() {
     expect(bridge, isNot(contains('https://')));
   });
 
-  test('Paddle feasibility selector stays hidden and Tesseract is default', () {
+  test('visible comparison selector keeps hidden query compatibility', () {
     final bridge = File(
       'web/assets/food_input/food_input_bridge.js',
     ).readAsStringSync();
@@ -61,9 +61,13 @@ void main() {
     expect(bridge, contains("? 'paddle'"));
     expect(bridge, contains(": 'tesseract'"));
     expect(bridge, contains("if (mode !== 'nutrition') return 'tesseract'"));
-    expect(scanner, isNot(contains('PADDLE')));
-    expect(scanner, isNot(contains('TESSERACT')));
-    expect(scanner, isNot(contains('ENGINE SELECT')));
+    expect(scanner, contains('SELECT OCR ENGINE'));
+    expect(scanner, contains('TESSERACT'));
+    expect(scanner, contains('PADDLE PoC'));
+    expect(scanner, contains('CURRENT COMPARISON BASELINE'));
+    expect(scanner, contains('EXPERIMENTAL COMPARISON'));
+    expect(bridge, contains('engineOverride'));
+    expect(bridge, contains('selectedOcrEngine(mode, engineOverride)'));
   });
 
   test('Paddle result keeps text geometry confidence and diagnostics', () {
@@ -144,7 +148,7 @@ void main() {
     expect(bridge, isNot(contains('rawText:')));
   });
 
-  test('live camera bridge throttles work and cleans every session', () {
+  test('nutrition camera uses one-shot shutter and cleans every session', () {
     final bridge = File(
       'web/assets/food_input/food_input_bridge.js',
     ).readAsStringSync();
@@ -153,11 +157,14 @@ void main() {
     expect(bridge, contains("video.setAttribute('playsinline', '')"));
     expect(bridge, contains('setInterval(tick, 400)'));
     expect(bridge, contains('setInterval(tick, 1500)'));
+    expect(bridge, contains("if (mode !== 'nutrition')"));
     expect(bridge, contains('captureOcrFrame(session)'));
     expect(bridge, contains('captureBestFrame(session)'));
-    expect(bridge, contains("highAccuracy.textContent = 'HIGH ACCURACY SCAN'"));
+    expect(bridge, contains("shutter.dataset.role = 'nutrition-shutter'"));
+    expect(bridge, contains("shutter.setAttribute('aria-label', 'Scan nutrition label')"));
     expect(bridge, contains('if (finished || running) return'));
-    expect(bridge, contains('highAccuracy.disabled = true'));
+    expect(bridge, contains('shutter.disabled = busy'));
+    expect(bridge, contains('choosePhoto.disabled = busy'));
     expect(bridge, contains('for (const variant of ocrVariants'));
     expect(bridge, contains('await recognizeSinglePass(variant.dataUrl)'));
     expect(bridge, isNot(contains('Promise.all(')));
@@ -206,12 +213,15 @@ void main() {
     expect(bridge, contains('clearInterval(timer)'));
     expect(bridge, contains('getTracks().forEach((track) => track.stop())'));
     expect(bridge, contains("use.textContent = 'USE THIS CODE'"));
-    expect(bridge, contains("review.textContent = 'REVIEW RESULT'"));
-    expect(bridge, contains("takePhoto.textContent = 'TAKE PHOTO'"));
     expect(bridge, contains("choosePhoto.textContent = 'CHOOSE PHOTO'"));
-    expect(bridge, contains('serialized !== latestDescription'));
+    expect(bridge, isNot(contains("highAccuracy.textContent = 'HIGH ACCURACY SCAN'")));
+    expect(bridge, isNot(contains("takePhoto.textContent = 'TAKE PHOTO'")));
     expect(bridge, contains('candidate.value !== next.value'));
     expect(bridge, contains('latestRawText = rawText'));
+    expect(
+      bridge,
+      contains("engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'"),
+    );
     expect(
       bridge,
       contains('session.guide.firstElementChild.textContent = instruction'),

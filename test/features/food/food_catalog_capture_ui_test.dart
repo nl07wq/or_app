@@ -54,6 +54,8 @@ void main() {
     expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('TESSERACT'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('CAMERA'));
     await tester.pumpAndSettle();
     expect(find.text('REVIEW NUTRITION'), findsOneWidget);
@@ -79,6 +81,8 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('TESSERACT'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('PHOTO LIBRARY'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CANCEL'));
@@ -103,10 +107,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PACKAGE'), findsNothing);
     expect(find.text('NUTRITION'), findsNothing);
-    expect(find.text('LIVE SCAN'), findsOneWidget);
-    expect(find.text('CAMERA'), findsOneWidget);
-    expect(find.text('PHOTO LIBRARY'), findsOneWidget);
+    expect(find.text('SELECT OCR ENGINE'), findsOneWidget);
+    expect(find.text('TESSERACT'), findsOneWidget);
+    expect(find.text('PADDLE PoC'), findsOneWidget);
+    expect(find.text('LIVE SCAN'), findsNothing);
     expect(repository.entries, isEmpty);
+  });
+
+  testWidgets('same photo path routes through either selected OCR engine', (
+    tester,
+  ) async {
+    for (final engine in [
+      ('TESSERACT', FoodOcrEngine.tesseract),
+      ('PADDLE PoC', FoodOcrEngine.paddle),
+    ]) {
+      final gateway = _Gateway(
+        text:
+            '100g当たり\nエネルギー 154kcal\nたんぱく質 1.9g\n'
+            '脂質 5.5g\n炭水化物 24.2g',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            repository: _Repository(),
+            captureGateway: gateway,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(engine.$1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('PHOTO LIBRARY'));
+      await tester.pumpAndSettle();
+
+      expect(gateway.lastEngine, engine.$2);
+      expect(gateway.selectedSources, [FoodImageSource.gallery]);
+      expect(find.text('OCR ENGINE  ${engine.$1}'), findsOneWidget);
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('barcode scan updates draft only', (tester) async {
@@ -228,19 +269,27 @@ class _Gateway implements FoodInputCaptureGateway {
   _Gateway({this.text = '', this.barcode});
   final String text;
   final String? barcode;
+  FoodOcrEngine? lastEngine;
+  final selectedSources = <FoodImageSource>[];
 
   @override
   Future<String> recognizeJapaneseText(
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
-  }) async => text;
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
+  }) async {
+    lastEngine = engine;
+    return text;
+  }
 
   @override
   Future<String?> scanBarcode(FoodCapturedImage image) async => barcode;
 
   @override
-  Future<FoodCapturedImage?> selectImage(FoodImageSource source) async =>
-      const FoodCapturedImage('data:image/png;base64,AA==');
+  Future<FoodCapturedImage?> selectImage(FoodImageSource source) async {
+    selectedSources.add(source);
+    return const FoodCapturedImage('data:image/png;base64,AA==');
+  }
 }
 
 class _LiveGateway implements FoodLiveCaptureGateway {
@@ -260,12 +309,14 @@ class _LiveGateway implements FoodLiveCaptureGateway {
     required String title,
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   }) async => null;
 
   @override
   Future<String> recognizeJapaneseText(
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   }) async => '';
 
   @override

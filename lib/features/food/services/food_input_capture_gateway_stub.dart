@@ -15,6 +15,7 @@ class _UnsupportedFoodInputCaptureGateway implements FoodLiveCaptureGateway {
   Future<String> recognizeJapaneseText(
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   }) async => _unsupported();
 
   @override
@@ -28,5 +29,6 @@ class _UnsupportedFoodInputCaptureGateway implements FoodLiveCaptureGateway {
     required String title,
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
   }) async => _unsupported();
 }
