@@ -1,12 +1,13 @@
 import 'dart:math' as math;
 
-import '../../../core/models/operation_calendar_period.dart';
 import '../models/body_history_models.dart';
+import 'history_display_point_compressor.dart';
 
 class BodyHistoryChartEngine {
   static const int maximumDisplayPointsCandidate = 120;
   static const double maximumChartWidthCandidate = 3600;
-  static const double pointSpacingCandidate = 24;
+  static const double pointSpacingCandidate =
+      HistoryDisplayPointCompressor.minimumReadablePointSpacing;
   static const double minimumWeightDisplaySpanCandidate = 5;
   static const double minimumBodyFatDisplaySpanCandidate = 5;
 
@@ -20,10 +21,14 @@ class BodyHistoryChartEngine {
     required String endDate,
     double availablePlotWidth = maximumChartWidthCandidate,
   }) {
-    final observations = [
+    final observations = <HistoryDisplayObservation>[
       for (final point in source)
         if (point.valueFor(metric) case final value?)
-          if (value.isFinite) (date: _parse(point.operationDate), value: value),
+          if (value.isFinite)
+            HistoryDisplayObservation(
+              date: _parse(point.operationDate),
+              value: value,
+            ),
     ]..sort((a, b) => a.date.compareTo(b.date));
     const granularity = BodyHistoryGranularity.daily;
     if (observations.isEmpty) {
@@ -34,11 +39,19 @@ class BodyHistoryChartEngine {
         endDate: endDate,
         points: const [],
         segments: const [],
+        displayBucketDays: 1,
         summary: null,
         axis: null,
       );
     }
-    final displayPoints = _aggregate(observations, granularity);
+    final compression = const HistoryDisplayPointCompressor().compress(
+      observations: observations,
+      period: period,
+      rangeStartDate: startDate,
+      rangeEndDate: endDate,
+      availablePlotWidth: availablePlotWidth,
+    );
+    final displayPoints = compression.points;
     final values = observations.map((item) => item.value).toList();
     final summary = BodyHistorySummary(
       first: values.first,
@@ -51,10 +64,11 @@ class BodyHistoryChartEngine {
     return BodyHistoryChartModel(
       metric: metric,
       granularity: granularity,
-      startDate: displayPoints.first.startDate,
-      endDate: displayPoints.last.startDate,
+      startDate: _format(observations.first.date),
+      endDate: _format(observations.last.date),
       points: displayPoints,
-      segments: _segments(displayPoints, granularity),
+      segments: compression.segments,
+      displayBucketDays: compression.bucketDays,
       summary: summary,
       axis: axisFor(metric, values),
     );
@@ -105,76 +119,6 @@ class BodyHistoryChartEngine {
     if (span <= 5) return 1;
     if (span <= 10) return 2;
     return 5;
-  }
-
-  static List<BodyHistoryDisplayPoint> _aggregate(
-    List<({DateTime date, double value})> observations,
-    BodyHistoryGranularity granularity,
-  ) {
-    final groups = <DateTime, List<({DateTime date, double value})>>{};
-    for (final item in observations) {
-      final start = switch (granularity) {
-        BodyHistoryGranularity.daily => item.date,
-        BodyHistoryGranularity.weekly => OperationCalendarPeriod.week(
-          item.date,
-        ).start,
-        BodyHistoryGranularity.monthly => DateTime.utc(
-          item.date.year,
-          item.date.month,
-        ),
-      };
-      groups.putIfAbsent(start, () => []).add(item);
-    }
-    final starts = groups.keys.toList()..sort();
-    final viewportStart = starts.first;
-    return [
-      for (final start in starts)
-        BodyHistoryDisplayPoint(
-          x: start.difference(viewportStart).inDays.toDouble(),
-          value:
-              groups[start]!.map((item) => item.value).reduce((a, b) => a + b) /
-              groups[start]!.length,
-          startDate: _format(start),
-          endDate: _format(switch (granularity) {
-            BodyHistoryGranularity.daily => start,
-            BodyHistoryGranularity.weekly => start.add(const Duration(days: 6)),
-            BodyHistoryGranularity.monthly => DateTime.utc(
-              start.year,
-              start.month + 1,
-              0,
-            ),
-          }),
-          measurementCount: groups[start]!.length,
-        ),
-    ];
-  }
-
-  static List<List<BodyHistoryDisplayPoint>> _segments(
-    List<BodyHistoryDisplayPoint> points,
-    BodyHistoryGranularity granularity,
-  ) {
-    if (points.isEmpty) return const [];
-    final result = <List<BodyHistoryDisplayPoint>>[];
-    var current = <BodyHistoryDisplayPoint>[points.first];
-    for (var index = 1; index < points.length; index++) {
-      final previous = _parse(points[index - 1].startDate);
-      final expected = switch (granularity) {
-        BodyHistoryGranularity.daily => previous.add(const Duration(days: 1)),
-        BodyHistoryGranularity.weekly => previous.add(const Duration(days: 7)),
-        BodyHistoryGranularity.monthly => DateTime.utc(
-          previous.year,
-          previous.month + 1,
-        ),
-      };
-      final next = _parse(points[index].startDate);
-      if (next != expected) {
-        result.add(current);
-        current = <BodyHistoryDisplayPoint>[];
-      }
-      current.add(points[index]);
-    }
-    result.add(current);
-    return result;
   }
 
   static DateTime _parse(String value) => DateTime.parse('${value}T00:00:00Z');

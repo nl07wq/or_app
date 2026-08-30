@@ -59,6 +59,7 @@ class BodyHistoryDisplayPoint {
   final double value;
   final String startDate;
   final String endDate;
+  final String representativeDate;
   final int measurementCount;
 
   const BodyHistoryDisplayPoint({
@@ -66,8 +67,11 @@ class BodyHistoryDisplayPoint {
     required this.value,
     required this.startDate,
     required this.endDate,
+    String? representativeDate,
     required this.measurementCount,
-  });
+  }) : representativeDate = representativeDate ?? endDate;
+
+  bool get isCompressed => startDate != endDate || measurementCount > 1;
 }
 
 class BodyHistorySummary {
@@ -107,6 +111,7 @@ class BodyHistoryChartModel {
   final String endDate;
   final List<BodyHistoryDisplayPoint> points;
   final List<List<BodyHistoryDisplayPoint>> segments;
+  final int displayBucketDays;
   final BodyHistorySummary? summary;
   final BodyHistoryAxisRange? axis;
 
@@ -117,6 +122,7 @@ class BodyHistoryChartModel {
     required this.endDate,
     required Iterable<BodyHistoryDisplayPoint> points,
     required Iterable<List<BodyHistoryDisplayPoint>> segments,
+    this.displayBucketDays = 1,
     required this.summary,
     required this.axis,
   }) : points = List.unmodifiable(points),

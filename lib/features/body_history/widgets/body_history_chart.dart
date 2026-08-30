@@ -141,7 +141,7 @@ class BodyHistoryChart extends StatelessWidget {
           getTooltipItems: (spots) => [
             for (final spot in spots)
               LineTooltipItem(
-                _tooltip(_pointAt(spot.x)),
+                bodyHistoryTooltipText(model, _pointAt(spot.x)),
                 TextStyle(
                   color: Theme.of(context).colorScheme.onInverseSurface,
                 ),
@@ -185,25 +185,34 @@ class BodyHistoryChart extends StatelessWidget {
         .toDouble();
   }
 
-  String _tooltip(BodyHistoryDisplayPoint point) {
-    final value = '${_number(point.value)}${model.metric.unit}';
-    return switch (model.granularity) {
-      BodyHistoryGranularity.daily => '${point.startDate}\n$value',
-      BodyHistoryGranularity.weekly =>
-        '${point.startDate} – ${point.endDate}\n'
-            '週平均: $value\n記録日数: ${point.measurementCount}日',
-      BodyHistoryGranularity.monthly =>
-        '${point.startDate.substring(0, 7)}\n'
-            '月平均: $value\n記録日数: ${point.measurementCount}日',
-    };
-  }
-
   static String _number(double value) {
     final rounded = value.roundToDouble();
     return (value - rounded).abs() < 0.001
         ? rounded.toStringAsFixed(0)
         : value.toStringAsFixed(1);
   }
+}
+
+String bodyHistoryTooltipText(
+  BodyHistoryChartModel model,
+  BodyHistoryDisplayPoint point,
+) {
+  final value = '${BodyHistoryChart._number(point.value)}${model.metric.unit}';
+  if (point.isCompressed) {
+    return '${point.startDate} – ${point.endDate}\n'
+        'Representative: ${point.representativeDate}\n'
+        '${model.metric.label}: $value\n'
+        'Records: ${point.measurementCount}';
+  }
+  return switch (model.granularity) {
+    BodyHistoryGranularity.daily => '${point.representativeDate}\n$value',
+    BodyHistoryGranularity.weekly =>
+      '${point.startDate} – ${point.endDate}\n'
+          '週平均: $value\n記録日数: ${point.measurementCount}日',
+    BodyHistoryGranularity.monthly =>
+      '${point.startDate.substring(0, 7)}\n'
+          '月平均: $value\n記録日数: ${point.measurementCount}日',
+  };
 }
 
 class _ChartPlot extends StatelessWidget {

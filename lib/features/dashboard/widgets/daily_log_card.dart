@@ -359,7 +359,7 @@ class _DailyLogEntryGrid extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: _buildEntry(entries[index])),
-            AppSpacing.gapLG,
+            const SizedBox(width: AppSpacing.lg),
             Expanded(child: _buildEntry(entries[index + 1])),
           ],
         ),
@@ -431,7 +431,7 @@ class _DailyLogEntryStatus extends StatelessWidget {
                         ).textTheme.labelLarge?.copyWith(color: color),
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppSpacing.md),
                     Icon(icon, color: color, size: 22),
                     Icon(
                       Icons.chevron_right,

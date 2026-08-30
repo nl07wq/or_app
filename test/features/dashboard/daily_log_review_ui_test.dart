@@ -13,6 +13,7 @@ import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
@@ -228,6 +229,41 @@ void main() {
       expect(training.dy, activity.dy, reason: '$width TRAINING / ACTIVITY');
       expect(training.dy, greaterThan(status.dy), reason: '$width row order');
       expect(food.dx, greaterThan(status.dx), reason: '$width column order');
+      final statusTextFinder = find.descendant(
+        of: statusFinder,
+        matching: find.text('STATUS'),
+      );
+      final statusIconFinder = find.descendant(
+        of: statusFinder,
+        matching: find.byIcon(Icons.error_outline),
+      );
+      final statusChevronFinder = find.descendant(
+        of: statusFinder,
+        matching: find.byIcon(Icons.chevron_right),
+      );
+      final foodTextFinder = find.descendant(
+        of: foodFinder,
+        matching: find.text('FOOD'),
+      );
+      final statusText = tester.widget<Text>(statusTextFinder);
+      final statusIcon = tester.widget<Icon>(statusIconFinder);
+      final moduleStateGap =
+          tester.getTopLeft(statusIconFinder).dx -
+          tester.getTopRight(statusTextFinder).dx;
+      final columnGap =
+          tester.getTopLeft(foodTextFinder).dx -
+          tester.getTopRight(statusChevronFinder).dx;
+      expect(moduleStateGap, AppSpacing.md, reason: '$width module/state gap');
+      expect(
+        columnGap,
+        greaterThanOrEqualTo(AppSpacing.lg),
+        reason: '$width column gap',
+      );
+      expect(
+        statusText.style?.fontSize,
+        Theme.of(tester.element(statusTextFinder)).textTheme.labelLarge?.fontSize,
+      );
+      expect(statusText.style?.color, statusIcon.color);
       for (final finder in [
         statusFinder,
         foodFinder,

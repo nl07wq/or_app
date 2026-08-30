@@ -57,6 +57,7 @@ class NutritionHistoryChartModel {
   final String endDate;
   final List<BodyHistoryDisplayPoint> points;
   final List<List<BodyHistoryDisplayPoint>> segments;
+  final int displayBucketDays;
   final NutritionHistorySummary? summary;
   final BodyHistoryAxisRange? axis;
 
@@ -67,6 +68,7 @@ class NutritionHistoryChartModel {
     required this.endDate,
     required Iterable<BodyHistoryDisplayPoint> points,
     required Iterable<List<BodyHistoryDisplayPoint>> segments,
+    this.displayBucketDays = 1,
     required this.summary,
     required this.axis,
   }) : points = List.unmodifiable(points),

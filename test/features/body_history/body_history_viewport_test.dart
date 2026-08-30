@@ -65,7 +65,7 @@ void main() {
     );
   });
 
-  test('365 daily records retain every point while labels may compress', () {
+  test('365 daily records use fifteen-day display buckets', () {
     final model = engine.build(
       source: _dailyPoints(DateTime.utc(2025, 8, 10), 365),
       metric: BodyHistoryMetric.weight,
@@ -76,7 +76,12 @@ void main() {
     );
 
     expect(model.granularity, BodyHistoryGranularity.daily);
-    expect(model.points, hasLength(365));
+    expect(model.displayBucketDays, 15);
+    expect(model.points, hasLength(25));
+    expect(model.points.first.value, 91.4);
+    expect(model.points.first.representativeDate, '2025-08-24');
+    expect(model.points.first.measurementCount, 15);
+    expect(model.summary?.measurementCount, 365);
   });
 
   test('three-year sparse records are not forced to monthly averages', () {

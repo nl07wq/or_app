@@ -61,7 +61,7 @@ void main() {
     );
   });
 
-  test('all formal points remain available across long periods', () {
+  test('long-range display compression keeps formal summary values', () {
     const points = [
       BodyHistoryDataPoint(
         operationDate: '2026-08-03',
@@ -91,8 +91,15 @@ void main() {
       endDate: '2026-08-31',
     );
 
-    expect(weekly.points.map((point) => point.value), [90, 96]);
-    expect(weekly.points.every((point) => point.measurementCount == 1), isTrue);
+    expect(weekly.displayBucketDays, 15);
+    expect(weekly.points.map((point) => point.value), [96]);
+    expect(weekly.points.single.measurementCount, 2);
+    expect(weekly.points.single.representativeDate, '2026-08-05');
+    expect(weekly.summary?.first, 90);
+    expect(weekly.summary?.latest, 96);
+    expect(weekly.summary?.maximum, 96);
+    expect(weekly.summary?.minimum, 90);
+    expect(weekly.summary?.measurementCount, 2);
     expect(monthly.points.map((point) => point.value), [90, 96]);
     expect(
       monthly.points.every((point) => point.measurementCount == 1),

@@ -156,7 +156,7 @@ class NutritionHistoryChart extends StatelessWidget {
           getTooltipItems: (spots) => [
             for (final spot in spots)
               LineTooltipItem(
-                _tooltip(_pointAt(spot.x)),
+                nutritionHistoryTooltipText(model, _pointAt(spot.x)),
                 TextStyle(
                   color: Theme.of(context).colorScheme.onInverseSurface,
                 ),
@@ -200,21 +200,6 @@ class NutritionHistoryChart extends StatelessWidget {
         .toDouble();
   }
 
-  String _tooltip(BodyHistoryDisplayPoint point) {
-    final value = '${_number(point.value)} ${model.metric.unit}';
-    return switch (model.granularity) {
-      BodyHistoryGranularity.daily =>
-        '${model.metric.label}\n${point.startDate}\n$value',
-      BodyHistoryGranularity.weekly =>
-        '${model.metric.label}\n${point.startDate} – ${point.endDate}\n'
-            '週平均: $value\n記録日数: ${point.measurementCount}日',
-      BodyHistoryGranularity.monthly =>
-        '${model.metric.label}\n${point.startDate.substring(0, 4)}年'
-            '${int.parse(point.startDate.substring(5, 7))}月\n'
-            '月平均: $value\n記録日数: ${point.measurementCount}日',
-    };
-  }
-
   static String _number(double value) {
     final rounded = value.roundToDouble();
     final raw = (value - rounded).abs() < 0.001
@@ -230,6 +215,31 @@ class NutritionHistoryChart extends StatelessWidget {
     return '${negative ? '-' : ''}$grouped'
         '${parts.length == 2 ? '.${parts.last}' : ''}';
   }
+}
+
+String nutritionHistoryTooltipText(
+  NutritionHistoryChartModel model,
+  BodyHistoryDisplayPoint point,
+) {
+  final value =
+      '${NutritionHistoryChart._number(point.value)} ${model.metric.unit}';
+  if (point.isCompressed) {
+    return '${model.metric.label}\n${point.startDate} – ${point.endDate}\n'
+        'Representative: ${point.representativeDate}\n'
+        'Value: $value\n'
+        'Records: ${point.measurementCount}';
+  }
+  return switch (model.granularity) {
+    BodyHistoryGranularity.daily =>
+      '${model.metric.label}\n${point.representativeDate}\n$value',
+    BodyHistoryGranularity.weekly =>
+      '${model.metric.label}\n${point.startDate} – ${point.endDate}\n'
+          '週平均: $value\n記録日数: ${point.measurementCount}日',
+    BodyHistoryGranularity.monthly =>
+      '${model.metric.label}\n${point.startDate.substring(0, 4)}年'
+          '${int.parse(point.startDate.substring(5, 7))}月\n'
+          '月平均: $value\n記録日数: ${point.measurementCount}日',
+  };
 }
 
 class _NutritionChartPlot extends StatelessWidget {

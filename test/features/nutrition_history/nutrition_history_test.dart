@@ -174,10 +174,12 @@ void main() {
 
     expect(model.startDate, '2026-08-01');
     expect(model.endDate, '2026-08-08');
-    expect(model.points, hasLength(8));
+    expect(model.displayBucketDays, 15);
+    expect(model.points, hasLength(2));
+    expect(model.summary?.measurementCount, 8);
   });
 
-  test('long ranges preserve every non-null metric point', () {
+  test('long ranges compress display points and preserve formal summaries', () {
     final weeklySource = [
       for (var index = 0; index < 160; index++)
         _point(
@@ -210,14 +212,13 @@ void main() {
     );
 
     expect(weekly.granularity, BodyHistoryGranularity.daily);
-    expect(weekly.points, hasLength(159));
-    expect(weekly.points.every((point) => point.measurementCount == 1), isTrue);
+    expect(weekly.displayBucketDays, 15);
+    expect(weekly.points, hasLength(11));
+    expect(weekly.summary?.measurementCount, 159);
     expect(monthly.granularity, BodyHistoryGranularity.daily);
-    expect(monthly.points, hasLength(1099));
-    expect(
-      monthly.points.every((point) => point.measurementCount == 1),
-      isTrue,
-    );
+    expect(monthly.displayBucketDays, 100);
+    expect(monthly.points, hasLength(11));
+    expect(monthly.summary?.measurementCount, 1099);
   });
 
   test('calorie balance preserves negatives and exposes a zero line', () {
