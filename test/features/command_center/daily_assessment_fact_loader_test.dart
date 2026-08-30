@@ -117,6 +117,27 @@ void main() {
     );
     expect(facts.currentStatus?.weight, isNull);
   });
+
+  test(
+    'uses seven-day mean when the current STATUS record is absent',
+    () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(_status(date: '2026-08-07', weight: 80));
+      await container.status.save(_status(date: '2026-08-08', weight: 82));
+      await container.status.save(_status(date: '2026-08-09', weight: 84));
+
+      final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+      expect(facts.currentStatus, isNull);
+      expect(facts.currentWeightReference.valueKg, 82);
+      expect(
+        facts.currentWeightReference.source,
+        DailyWeightReferenceSource.sevenDayMean,
+      );
+    },
+  );
 }
 
 OperationState _state({String? lastFinalizedDate}) {

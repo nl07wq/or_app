@@ -128,16 +128,77 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets('distinguishes measured and fallback weight sources', (
+    tester,
+  ) async {
+    Future<void> pump(DailyWeightReference reference) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DailyAssessmentView(
+                assessment: _assessment(currentWeightReference: reference),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pump(
+      const DailyWeightReference(
+        valueKg: 95,
+        source: DailyWeightReferenceSource.measuredToday,
+        sampleCount: 1,
+        windowDays: 1,
+      ),
+    );
+    expect(find.text('CURRENT WEIGHT'), findsOneWidget);
+    expect(find.text('95.0 kg'), findsOneWidget);
+    expect(find.text('WEEK AVERAGE'), findsNothing);
+
+    await pump(
+      const DailyWeightReference(
+        valueKg: 95.5,
+        source: DailyWeightReferenceSource.sevenDayMean,
+        sampleCount: 3,
+        windowDays: 7,
+      ),
+    );
+    expect(find.text('WEEK AVERAGE'), findsOneWidget);
+    expect(find.text('95.5 kg'), findsOneWidget);
+    expect(find.text('CURRENT WEIGHT'), findsNothing);
+    expect(find.text('-0.50 kg/week'), findsOneWidget);
+
+    await pump(
+      const DailyWeightReference(
+        valueKg: 96,
+        source: DailyWeightReferenceSource.fourteenDayMean,
+        sampleCount: 3,
+        windowDays: 14,
+      ),
+    );
+    expect(find.text('14-DAY AVERAGE'), findsOneWidget);
+    expect(find.text('96.0 kg'), findsOneWidget);
+    expect(find.text('CURRENT WEIGHT'), findsNothing);
+
+    await pump(const DailyWeightReference.notAvailable());
+    expect(find.text('CURRENT WEIGHT'), findsOneWidget);
+    expect(find.text('NOT AVAILABLE'), findsWidgets);
+  });
 }
 
-DailyAssessment _assessment() => DailyAssessment(
-  operationDate: '2026-08-10',
-  currentWeightReference: const DailyWeightReference(
+DailyAssessment _assessment({
+  DailyWeightReference currentWeightReference = const DailyWeightReference(
     valueKg: 91.2,
     source: DailyWeightReferenceSource.measuredToday,
     sampleCount: 1,
     windowDays: 1,
   ),
+}) => DailyAssessment(
+  operationDate: '2026-08-10',
+  currentWeightReference: currentWeightReference,
   assessments: [
     const DailyAssessmentItem(
       module: DailyAssessmentModule.body,

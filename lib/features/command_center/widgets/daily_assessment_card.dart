@@ -101,7 +101,7 @@ class _AssessmentItem extends StatelessWidget {
               AppSpacing.gapXS,
               if (item.metric == DailyAssessmentMetric.weightTrend) ...[
                 _ReadinessFactRow(
-                  label: 'CURRENT WEIGHT',
+                  label: _weightReferenceLabel(currentWeightReference.source),
                   value: currentWeightReference.valueKg == null
                       ? 'NOT AVAILABLE'
                       : '${currentWeightReference.valueKg!.toStringAsFixed(1)} kg',
@@ -239,6 +239,14 @@ Color dailyAssessmentLevelColor(DailyAssessmentLevel level) => switch (level) {
   DailyAssessmentLevel.adjust => Colors.yellow,
   DailyAssessmentLevel.limit => Colors.red,
 };
+
+String _weightReferenceLabel(DailyWeightReferenceSource source) =>
+    switch (source) {
+      DailyWeightReferenceSource.measuredToday => 'CURRENT WEIGHT',
+      DailyWeightReferenceSource.sevenDayMean => 'WEEK AVERAGE',
+      DailyWeightReferenceSource.fourteenDayMean => '14-DAY AVERAGE',
+      DailyWeightReferenceSource.notAvailable => 'CURRENT WEIGHT',
+    };
 
 String _valueLabel(DailyAssessmentItem item) {
   final value = item.rawValue;

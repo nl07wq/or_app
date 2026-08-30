@@ -45,6 +45,37 @@ void main() {
     expect(result.valueKg, isNull);
     expect(result.source, DailyWeightReferenceSource.notAvailable);
   });
+
+  test('excludes future records and anchors windows to operation date', () {
+    final result = DailyWeightReferenceResolver.resolve(
+      operationDate: '2026-08-10',
+      measuredTodayKg: null,
+      history: [
+        _point('2026-08-08', 90),
+        _point('2026-08-09', 93),
+        _point('2026-08-10', 96),
+        _point('2026-08-11', 300),
+      ],
+    );
+
+    expect(result.valueKg, 93);
+    expect(result.source, DailyWeightReferenceSource.sevenDayMean);
+    expect(result.sampleCount, 3);
+  });
+
+  test('requires three valid positive samples and ignores missing values', () {
+    final insufficient = DailyWeightReferenceResolver.resolve(
+      operationDate: '2026-08-10',
+      measuredTodayKg: null,
+      history: [
+        _point('2026-08-08', 90),
+        _point('2026-08-09', 93),
+        _point('2026-08-10', null),
+        _point('2026-08-07', 0),
+      ],
+    );
+    expect(insufficient.source, DailyWeightReferenceSource.notAvailable);
+  });
 }
 
 List<BodyHistoryDataPoint> _points(List<double> values) => [
@@ -52,9 +83,10 @@ List<BodyHistoryDataPoint> _points(List<double> values) => [
     _point('2026-08-${(8 - index).toString().padLeft(2, '0')}', values[index]),
 ];
 
-BodyHistoryDataPoint _point(String date, double weight) => BodyHistoryDataPoint(
-  operationDate: date,
-  weightKg: weight,
-  bodyFatPercent: null,
-  source: BodyHistorySource.status,
-);
+BodyHistoryDataPoint _point(String date, double? weight) =>
+    BodyHistoryDataPoint(
+      operationDate: date,
+      weightKg: weight,
+      bodyFatPercent: null,
+      source: BodyHistorySource.status,
+    );
