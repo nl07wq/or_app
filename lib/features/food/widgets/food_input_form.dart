@@ -532,7 +532,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final draft = const JapaneseNutritionOcrParser().parse(rawText);
       if (!mounted) return;
       if (draft.isEmpty) {
-        setState(() => inputError = 'NUTRITION VALUES COULD NOT BE READ');
+        setState(() => inputError = '栄養成分を読み取れませんでした');
         return;
       }
       final apply = await showDialog<bool>(
@@ -586,7 +586,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       );
       if (apply == true && mounted) _applyNutritionOcr(draft);
     } catch (_) {
-      if (mounted) setState(() => inputError = 'OCR PROCESSING FAILED');
+      if (mounted) setState(() => inputError = '栄養成分の読み取りに失敗しました');
     } finally {
       if (mounted) setState(() => _capturingNutrition = false);
     }
@@ -641,7 +641,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       }
       if (!mounted) return;
       if (value == null || value.isEmpty) {
-        setState(() => inputError = 'BARCODE COULD NOT BE READ');
+        setState(() => inputError = 'バーコードを読み取れませんでした');
         return;
       }
       setState(() {
@@ -649,7 +649,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         inputError = null;
       });
     } catch (_) {
-      if (mounted) setState(() => inputError = 'BARCODE SCAN FAILED');
+      if (mounted) setState(() => inputError = 'バーコードの読み取りに失敗しました');
     } finally {
       if (mounted) setState(() => _capturingBarcode = false);
     }
@@ -982,19 +982,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
             AppSpacing.gapMD,
 
-            OperationButton(
-              key: const ValueKey('food-entry-ocr'),
-              icon: Icons.document_scanner,
-              text: _capturingNutrition
-                  ? 'PROCESSING IMAGE'
-                  : 'READ NUTRITION LABEL',
-              onPressed: _isSaving || _capturingNutrition
-                  ? null
-                  : _readNutritionLabel,
-            ),
-
-            AppSpacing.gapMD,
-
             if (widget.initialMeal == null) ...[
               const Align(
                 alignment: Alignment.centerLeft,
@@ -1059,6 +1046,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   ? null
                   : _scanBarcode,
               barcodeScanInProgress: _capturingBarcode,
+              onReadNutrition: _isSaving || _capturingNutrition
+                  ? null
+                  : _readNutritionLabel,
+              nutritionCaptureInProgress: _capturingNutrition,
               onChanged: (_) {
                 setState(() {
                   inputError = null;

@@ -383,7 +383,7 @@ void main() {
       );
 
       for (final label in [
-        'Food Name',
+        'NAME',
         'BRAND',
         'CATEGORY',
         'BARCODE / JAN',
@@ -391,16 +391,17 @@ void main() {
         'PACKAGE UNIT',
         'NUTRITION BASIS',
         'BASE UNIT',
-        'Calories',
-        'Protein',
-        'Fat',
-        'Carbohydrate',
+        'CALORIES',
+        'PROTEIN',
+        'FAT',
+        'CARBOHYDRATE',
         'MEMO',
       ]) {
         expect(find.text(label), findsOneWidget, reason: label);
       }
       expect(find.byKey(const ValueKey('food-entry-ocr')), findsOneWidget);
 
+      await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('CAMERA'));
@@ -1240,9 +1241,18 @@ FoodItem _multiplierItem({
 }
 
 Finder _field(String label) {
+  final alignedLabel = switch (label) {
+    'Food Name' => 'NAME',
+    'Calories' => 'CALORIES',
+    'Protein' => 'PROTEIN',
+    'Fat' => 'FAT',
+    'Carbohydrate' => 'CARBOHYDRATE',
+    _ => label,
+  };
   return find.byWidgetPredicate(
-    (widget) => widget is TextField && widget.decoration?.labelText == label,
-    description: 'TextField with label $label',
+    (widget) =>
+        widget is TextField && widget.decoration?.labelText == alignedLabel,
+    description: 'TextField with label $alignedLabel',
   );
 }
 

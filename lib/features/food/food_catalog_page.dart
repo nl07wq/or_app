@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_initialization_state.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
@@ -19,6 +20,11 @@ import 'repository/food_meal_id_generator.dart';
 import 'services/food_input_capture_gateway.dart';
 import 'services/food_live_capture_presenter.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
+
+const double foodDetailPfcRingWidth = 12;
+const Color foodDetailProteinColor = AppColors.primary;
+const Color foodDetailFatColor = AppColors.warning;
+const Color foodDetailCarbohydrateColor = AppColors.success;
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -155,7 +161,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       );
     }
     final entries = _visible;
-    if (entries.isEmpty) return const Center(child: Text('NO FOOD FOUND'));
+    if (entries.isEmpty) return const Center(child: Text('食品が見つかりません'));
     return ListView.separated(
       itemCount: entries.length,
       separatorBuilder: (_, _) => AppSpacing.gapSM,
@@ -394,7 +400,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       final draft = const JapaneseNutritionOcrParser().parse(rawText);
       if (!mounted) return;
       if (draft.isEmpty) {
-        setState(() => _error = 'NUTRITION VALUES COULD NOT BE READ');
+        setState(() => _error = '栄養成分を読み取れませんでした');
         return;
       }
       final apply = await showDialog<bool>(
@@ -442,7 +448,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       );
       if (apply == true && mounted) _applyOcr(draft);
     } catch (_) {
-      if (mounted) setState(() => _error = 'OCR PROCESSING FAILED');
+      if (mounted) setState(() => _error = '栄養成分の読み取りに失敗しました');
     } finally {
       if (mounted) setState(() => _capturing = false);
     }
@@ -474,12 +480,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       }
       if (!mounted) return;
       if (value == null || value.isEmpty) {
-        setState(() => _error = 'BARCODE COULD NOT BE READ');
+        setState(() => _error = 'バーコードを読み取れませんでした');
       } else {
         setState(() => _barcode.text = value!);
       }
     } catch (_) {
-      if (mounted) setState(() => _error = 'BARCODE SCAN FAILED');
+      if (mounted) setState(() => _error = 'バーコードの読み取りに失敗しました');
     } finally {
       if (mounted) setState(() => _capturing = false);
     }
@@ -627,7 +633,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = 'FOOD DATABASE SAVE FAILED';
+          _error = '食品データベースへの保存に失敗しました';
         });
       }
     }
@@ -645,13 +651,6 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
-            AppSpacing.gapMD,
-            OperationButton(
-              key: const ValueKey('food-catalog-ocr'),
-              icon: Icons.document_scanner,
-              text: _capturing ? 'PROCESSING IMAGE' : 'READ NUTRITION LABEL',
-              onPressed: _capturing || _saving ? null : _readNutrition,
-            ),
             AppSpacing.gapMD,
             OperationTextField(controller: _name, label: 'NAME'),
             AppSpacing.gapMD,
@@ -717,6 +716,13 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               value: _baseUnit,
               onTextChanged: _baseQuantityChanged,
               onChanged: _baseUnitChanged,
+            ),
+            AppSpacing.gapMD,
+            OperationButton(
+              key: const ValueKey('food-catalog-ocr'),
+              icon: Icons.document_scanner,
+              text: _capturing ? 'PROCESSING IMAGE' : 'READ NUTRITION LABEL',
+              onPressed: _capturing || _saving ? null : _readNutrition,
             ),
             AppSpacing.gapMD,
             Row(
@@ -876,18 +882,19 @@ class FoodCatalogDetailPage extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ARCHIVE FOOD?'),
+        title: const Text('この食品をアーカイブしますか？'),
         content: const Text(
-          'Past food logs and nutrition snapshots remain unchanged.',
+          'この食品は通常の利用対象から外れます。\n'
+          '過去の食事記録と栄養スナップショットは変更されません。',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
+            child: const Text('キャンセル'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('ARCHIVE'),
+            child: const Text('アーカイブ'),
           ),
         ],
       ),
@@ -949,7 +956,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
               AppSpacing.gapSM,
               OperationButton(
                 icon: Icons.archive_outlined,
-                text: 'ARCHIVE',
+                text: 'アーカイブ',
                 onPressed: () => _archive(context),
               ),
             ],
@@ -964,9 +971,22 @@ class FoodCatalogDetailPage extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.6,
+          ),
+        ),
         AppSpacing.gapXS,
-        Text(value),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     ),
   );
@@ -984,10 +1004,10 @@ class _PfcCard extends StatelessWidget {
       nutrition.carbohydrate! * 4,
     ];
     final total = values.reduce((a, b) => a + b);
-    final colors = [
-      Theme.of(context).colorScheme.primary,
-      Theme.of(context).colorScheme.tertiary,
-      Theme.of(context).colorScheme.secondary,
+    const colors = [
+      foodDetailProteinColor,
+      foodDetailFatColor,
+      foodDetailCarbohydrateColor,
     ];
     return OperationCard(
       child: Column(
@@ -999,36 +1019,57 @@ class _PfcCard extends StatelessWidget {
             key: const ValueKey('food-detail-pfc-horizontal'),
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                key: const ValueKey('food-detail-pfc-donut'),
-                width: 104,
-                height: 104,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CustomPaint(painter: _PfcPainter(values, colors)),
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            nutrition.calories == null
-                                ? 'N/A'
-                                : '${FoodNutritionFormatter.calories(nutrition.calories!)} kcal',
-                            key: const ValueKey(
-                              'food-detail-pfc-center-calories',
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final size = constraints.maxWidth < 300 ? 92.0 : 104.0;
+                  return SizedBox(
+                    key: const ValueKey('food-detail-pfc-donut'),
+                    width: size,
+                    height: size,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CustomPaint(painter: _PfcPainter(values, colors)),
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    nutrition.calories == null
+                                        ? 'N/A'
+                                        : FoodNutritionFormatter.calories(
+                                            nutrition.calories!,
+                                          ),
+                                    key: const ValueKey(
+                                      'food-detail-pfc-center-calories',
+                                    ),
+                                    maxLines: 1,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                                if (nutrition.calories != null)
+                                  const Text(
+                                    'kcal',
+                                    style: TextStyle(fontSize: 10, height: 1.1),
+                                  ),
+                              ],
                             ),
-                            maxLines: 1,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   children: [
@@ -1074,27 +1115,34 @@ class _PfcMetricRow extends StatelessWidget {
     key: ValueKey('food-detail-pfc-$label'),
     builder: (context, constraints) {
       final style = TextStyle(color: color, fontWeight: FontWeight.bold);
-      final values = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('${FoodNutritionFormatter.macro(grams)} g', style: style),
-          const SizedBox(width: AppSpacing.sm),
-          Text('$percent%', style: style),
-        ],
-      );
-      if (constraints.maxWidth < 190) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: style),
-            values,
-          ],
-        );
-      }
+      final compact = constraints.maxWidth < 190;
       return Row(
         children: [
-          Expanded(child: Text(label, style: style)),
-          values,
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(label, maxLines: 1, style: style),
+            ),
+          ),
+          SizedBox(
+            width: compact ? 50 : 72,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${FoodNutritionFormatter.macro(grams)} g',
+                maxLines: 1,
+                style: style,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: compact ? 36 : 48,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text('$percent%', maxLines: 1, style: style),
+            ),
+          ),
         ],
       );
     },
@@ -1114,14 +1162,14 @@ class _PfcPainter extends CustomPainter {
     for (var index = 0; index < values.length; index++) {
       final sweep = math.pi * 2 * values[index] / total;
       canvas.drawArc(
-        rect.deflate(16),
+        rect.deflate(10),
         start,
         sweep,
         false,
         Paint()
           ..color = colors[index]
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 22
+          ..strokeWidth = foodDetailPfcRingWidth
           ..strokeCap = StrokeCap.butt,
       );
       start += sweep;

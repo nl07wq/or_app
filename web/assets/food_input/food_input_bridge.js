@@ -11,6 +11,7 @@
   };
   const loadedScripts = new Map();
   let workerPromise;
+  let workerInstance;
   let ocrQueue = Promise.resolve();
   let barcodeDetectorPromise;
   let barcodeReaderPromise;
@@ -69,23 +70,53 @@
     if (!workerPromise) {
       workerPromise = (async () => {
         await loadScript(paths.tesseract);
-        return Tesseract.createWorker('jpn', 1, {
+        workerInstance = await Tesseract.createWorker('jpn', 1, {
           workerPath: paths.worker,
           corePath: paths.core,
           langPath: paths.language,
           gzip: true,
           cacheMethod: 'none',
         });
+        return workerInstance;
       })();
     }
     return workerPromise;
   }
 
+  async function resetOcrWorker() {
+    const worker = workerInstance;
+    workerPromise = undefined;
+    workerInstance = undefined;
+    if (worker) {
+      try {
+        await worker.terminate();
+      } catch (_) {
+        // The worker may already have stopped after a runtime failure.
+      }
+    }
+  }
+
   function recognizeJapaneseText(dataUrl) {
     const recognize = async () => {
       const worker = await ocrWorker();
-      const result = await worker.recognize(dataUrl);
-      return result.data.text || '';
+      let timeout;
+      try {
+        const result = await Promise.race([
+          worker.recognize(dataUrl),
+          new Promise((_, reject) => {
+            timeout = setTimeout(
+              () => reject(new Error('OCR recognition timed out')),
+              25000,
+            );
+          }),
+        ]);
+        return result.data.text || '';
+      } catch (error) {
+        await resetOcrWorker();
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
     };
     const result = ocrQueue.then(recognize, recognize);
     ocrQueue = result.catch(() => {});
@@ -210,7 +241,25 @@
     video.playsInline = true;
     video.setAttribute('playsinline', '');
     video.style.cssText = 'width:100%;height:100%;object-fit:cover';
-    preview.appendChild(video);
+    const guide = document.createElement('div');
+    guide.style.cssText = [
+      'display:none',
+      'position:absolute',
+      'left:8%',
+      'top:18%',
+      'width:84%',
+      'height:64%',
+      'box-sizing:border-box',
+      'border:2px solid rgba(255,255,255,.9)',
+      'border-radius:12px',
+      'box-shadow:0 0 0 9999px rgba(0,0,0,.18)',
+      'pointer-events:none',
+    ].join(';');
+    const guideLabel = document.createElement('span');
+    guideLabel.textContent = '栄養成分表示をこの枠内に合わせてください';
+    guideLabel.style.cssText = 'position:absolute;left:8px;right:8px;top:8px;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,.68);font-size:.82rem;text-align:center';
+    guide.appendChild(guideLabel);
+    preview.append(video, guide);
 
     const result = document.createElement('div');
     result.style.cssText = 'margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:#111923;min-height:48px';
@@ -218,7 +267,7 @@
     actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px';
     overlay.append(header, preview, result, actions);
     document.body.appendChild(overlay);
-    return { overlay, video, close, result, actions };
+    return { overlay, video, guide, close, result, actions };
   }
 
   function styleButton(button, primary) {
@@ -254,22 +303,47 @@
     }
   }
 
-  function captureFrame(video) {
+  function captureFrame(video, nutritionLabel = false) {
     if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
       return null;
     }
-    const maxWidth = 1280;
-    const scale = Math.min(1, maxWidth / video.videoWidth);
+    const sourceX = nutritionLabel ? video.videoWidth * 0.08 : 0;
+    const sourceY = nutritionLabel ? video.videoHeight * 0.18 : 0;
+    const sourceWidth = nutritionLabel ? video.videoWidth * 0.84 : video.videoWidth;
+    const sourceHeight = nutritionLabel ? video.videoHeight * 0.64 : video.videoHeight;
+    const maxWidth = nutritionLabel ? 1800 : 1280;
+    const scale = nutritionLabel
+      ? Math.min(2, maxWidth / sourceWidth)
+      : Math.min(1, maxWidth / sourceWidth);
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    canvas.getContext('2d', { alpha: false }).drawImage(
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    const context = canvas.getContext('2d', { alpha: false });
+    context.drawImage(
       video,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
       0,
       0,
       canvas.width,
       canvas.height,
     );
+    if (nutritionLabel) {
+      const image = context.getImageData(0, 0, canvas.width, canvas.height);
+      for (let index = 0; index < image.data.length; index += 4) {
+        const luminance =
+          image.data[index] * 0.299 +
+          image.data[index + 1] * 0.587 +
+          image.data[index + 2] * 0.114;
+        const value = Math.max(0, Math.min(255, (luminance - 128) * 1.35 + 128));
+        image.data[index] = value;
+        image.data[index + 1] = value;
+        image.data[index + 2] = value;
+      }
+      context.putImageData(image, 0, 0);
+    }
     return canvas.toDataURL('image/jpeg', 0.86);
   }
 
@@ -281,7 +355,7 @@
 
   async function scanBarcodeLive() {
     const session = await openCamera('SCAN BARCODE');
-    session.result.textContent = 'SCANNING...';
+    session.result.textContent = '読み取り中...';
     const use = document.createElement('button');
     use.type = 'button';
     use.textContent = 'USE THIS CODE';
@@ -316,7 +390,7 @@
             candidate = next;
             session.result.replaceChildren();
             const state = document.createElement('strong');
-            state.textContent = 'DETECTED';
+            state.textContent = '読み取り完了';
             const value = document.createElement('div');
             value.textContent = next.value;
             value.style.cssText = 'font-size:1.25rem;font-weight:800;margin-top:6px;overflow-wrap:anywhere';
@@ -338,7 +412,11 @@
   function nutritionResultContent(target, candidate) {
     target.replaceChildren();
     const state = document.createElement('strong');
-    state.textContent = candidate.state || 'SCANNING...';
+    state.textContent = candidate.state === 'detected'
+      ? '読み取り完了'
+      : candidate.state === 'partial'
+        ? '一部読み取り'
+        : '読み取り中...';
     target.appendChild(state);
     const values = [
       ['CALORIES', candidate.calories],
@@ -359,7 +437,8 @@
 
   async function recognizeNutritionLive(describeCandidate) {
     const session = await openCamera('READ NUTRITION LABEL');
-    session.result.textContent = 'SCANNING...';
+    session.guide.style.display = 'block';
+    session.result.textContent = '栄養成分表示を枠内に合わせてください';
     const review = document.createElement('button');
     review.type = 'button';
     review.textContent = 'REVIEW RESULT';
@@ -380,6 +459,7 @@
       let running = false;
       let latestRawText = null;
       let latestDescription = null;
+      let unsuccessfulScans = 0;
       let finished = false;
       const cleanup = () => {
         if (finished) return false;
@@ -408,25 +488,34 @@
 
       const tick = async () => {
         if (finished || running) return;
-        const frame = captureFrame(session.video);
+        const frame = captureFrame(session.video, true);
         if (!frame) return;
         running = true;
+        session.result.textContent = '読み取り中...';
         try {
           const rawText = await recognizeJapaneseText(frame);
           if (finished) return;
           const description = JSON.parse(describeCandidate(rawText));
           const serialized = JSON.stringify(description);
-          if (description.state !== 'SCANNING...' &&
+          if (description.state !== 'scanning' &&
               serialized !== latestDescription) {
+            unsuccessfulScans = 0;
             latestRawText = rawText;
             latestDescription = serialized;
             nutritionResultContent(session.result, description);
             review.disabled = false;
+          } else if (description.state === 'scanning') {
+            unsuccessfulScans += 1;
+            session.result.textContent = rawText.trim()
+              ? '文字を検出しました。栄養成分表示を大きく映してください'
+              : unsuccessfulScans >= 3
+                ? '栄養成分を検出できません。表示を大きく映すか写真を使用してください'
+                : '読み取り中...';
           }
         } catch (_) {
           if (!finished) {
             clearInterval(timer);
-            session.result.textContent = 'OCR PROCESSING FAILED';
+            session.result.textContent = '読み取り処理を完了できません。写真での読み取りをお試しください';
           }
         } finally {
           running = false;

@@ -77,7 +77,7 @@ void main() {
       'missing',
     );
     await tester.pump();
-    expect(find.text('NO FOOD FOUND'), findsOneWidget);
+    expect(find.text('食品が見つかりません'), findsOneWidget);
   });
 
   testWidgets('detail separates package and basis and renders PFC ring', (
@@ -86,7 +86,9 @@ void main() {
     final entry = _entry(
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Protein Food',
+      brand: 'Test Brand',
       barcode: '04901234567890',
+      memo: 'Test memo',
       nutrition: NutritionSnapshot(
         calories: 285.6,
         protein: 12.2,
@@ -104,9 +106,24 @@ void main() {
     expect(find.text('PACKAGE SIZE'), findsOneWidget);
     expect(find.text('NUTRITION BASIS'), findsOneWidget);
     expect(find.text('市販・包装食品'), findsOneWidget);
+    for (final label in [
+      'CATEGORY',
+      'NUTRITION BASIS',
+      'PACKAGE SIZE',
+      'BRAND',
+      'BARCODE / JAN',
+      'MEMO',
+    ]) {
+      expect(tester.widget<Text>(find.text(label)).style?.color, isNotNull);
+    }
+    expect(
+      tester.widget<Text>(find.text('市販・包装食品')).style?.fontWeight,
+      FontWeight.w600,
+    );
     expect(find.text('PFC BALANCE'), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
-    expect(find.text('286 kcal'), findsOneWidget);
+    expect(find.text('286'), findsOneWidget);
+    expect(find.text('kcal'), findsOneWidget);
     expect(find.text('PROTEIN'), findsOneWidget);
     expect(find.text('FAT'), findsOneWidget);
     expect(find.text('CARBOHYDRATE'), findsOneWidget);
@@ -116,6 +133,27 @@ void main() {
     expect(find.text('17%'), findsOneWidget);
     expect(find.text('60%'), findsOneWidget);
     expect(find.text('23%'), findsOneWidget);
+    expect(foodDetailPfcRingWidth, 12);
+    expect(
+      tester.widget<Text>(find.text('PROTEIN')).style?.color,
+      foodDetailProteinColor,
+    );
+    expect(
+      tester.widget<Text>(find.text('19.3 g')).style?.color,
+      foodDetailFatColor,
+    );
+    expect(
+      tester.widget<Text>(find.text('23%')).style?.color,
+      foodDetailCarbohydrateColor,
+    );
+    final carbohydrate = tester.getRect(find.text('CARBOHYDRATE'));
+    final carbohydrateGrams = tester.getRect(find.text('16.2 g'));
+    final carbohydratePercent = tester.getRect(find.text('23%'));
+    expect(carbohydrate.right, lessThanOrEqualTo(carbohydrateGrams.left));
+    expect(
+      carbohydrateGrams.right,
+      lessThanOrEqualTo(carbohydratePercent.left),
+    );
     final donut = tester.getRect(
       find.byKey(const ValueKey('food-detail-pfc-donut')),
     );
@@ -183,6 +221,39 @@ void main() {
       expect(find.text('PFC BALANCE'), findsNothing);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('archive copy matches non-destructive repository behavior', (
+    tester,
+  ) async {
+    final entry = _entry(
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Archive Food',
+    );
+    final repository = _MemoryCatalogRepository([entry]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogDetailPage(entry: entry, repository: repository),
+      ),
+    );
+
+    await tester.tap(find.text('アーカイブ'));
+    await tester.pumpAndSettle();
+    expect(find.text('この食品をアーカイブしますか？'), findsOneWidget);
+    expect(find.textContaining('通常の利用対象から外れます'), findsOneWidget);
+    await tester.tap(find.text('キャンセル'));
+    await tester.pumpAndSettle();
+    expect((await repository.readById(entry.foodId))!.isArchived, isFalse);
+
+    await tester.tap(find.text('アーカイブ'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('アーカイブ').last);
+    await tester.pumpAndSettle();
+    final archived = await repository.readById(entry.foodId);
+    expect(archived?.isArchived, isTrue);
+    expect(archived?.foodId, entry.foodId);
+    expect(archived?.nutrition.toJson(), entry.nutrition.toJson());
+    expect(await repository.list(), isEmpty);
   });
 
   testWidgets('direct entry saves v2 with userInput provenance', (
@@ -495,6 +566,7 @@ FoodCatalogEntry _entry({
   required String name,
   String? brand,
   String? barcode,
+  String? memo,
   bool archived = false,
   NutritionSnapshot? nutrition,
 }) {
@@ -524,6 +596,7 @@ FoodCatalogEntry _entry({
     isArchived: archived,
     barcodeValue: barcode,
     barcodeFormat: barcode == null ? null : FoodBarcodeFormat.ean13,
+    memo: memo,
     packageQuantity: 500,
     packageUnit: FoodQuantityUnit.gram,
     createdAt: timestamp,

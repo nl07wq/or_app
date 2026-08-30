@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/food_item.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../food_catalog_page.dart';
@@ -37,6 +38,8 @@ class FoodInputFields extends StatelessWidget {
   final VoidCallback onCarbohydrateChanged;
   final VoidCallback? onScanBarcode;
   final bool barcodeScanInProgress;
+  final VoidCallback? onReadNutrition;
+  final bool nutritionCaptureInProgress;
 
   const FoodInputFields({
     super.key,
@@ -67,6 +70,8 @@ class FoodInputFields extends StatelessWidget {
     required this.onCarbohydrateChanged,
     this.onScanBarcode,
     this.barcodeScanInProgress = false,
+    this.onReadNutrition,
+    this.nutritionCaptureInProgress = false,
   });
 
   @override
@@ -89,7 +94,7 @@ class FoodInputFields extends StatelessWidget {
       children: [
         OperationTextField(
           controller: foodNameController,
-          label: 'Food Name',
+          label: 'NAME',
           onChanged: onChanged,
         ),
 
@@ -232,6 +237,17 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
+        OperationButton(
+          key: const ValueKey('food-entry-ocr'),
+          icon: Icons.document_scanner,
+          text: nutritionCaptureInProgress
+              ? 'PROCESSING IMAGE'
+              : 'READ NUTRITION LABEL',
+          onPressed: onReadNutrition,
+        ),
+
+        AppSpacing.gapMD,
+
         Align(
           alignment: Alignment.centerLeft,
           child: Text(
@@ -247,7 +263,7 @@ class FoodInputFields extends StatelessWidget {
             Expanded(
               child: OperationTextField(
                 controller: calorieController,
-                label: 'Calories',
+                label: 'CALORIES',
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
                   onCaloriesChanged();
@@ -259,7 +275,7 @@ class FoodInputFields extends StatelessWidget {
             Expanded(
               child: OperationTextField(
                 controller: proteinController,
-                label: 'Protein',
+                label: 'PROTEIN',
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
                   onProteinChanged();
@@ -277,7 +293,7 @@ class FoodInputFields extends StatelessWidget {
             Expanded(
               child: OperationTextField(
                 controller: fatController,
-                label: 'Fat',
+                label: 'FAT',
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
                   onFatChanged();
@@ -289,7 +305,7 @@ class FoodInputFields extends StatelessWidget {
             Expanded(
               child: OperationTextField(
                 controller: carbohydrateController,
-                label: 'Carbohydrate',
+                label: 'CARBOHYDRATE',
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
                   onCarbohydrateChanged();
@@ -298,6 +314,15 @@ class FoodInputFields extends StatelessWidget {
               ),
             ),
           ],
+        ),
+
+        AppSpacing.gapMD,
+
+        OperationTextField(
+          controller: foodMemoController,
+          label: 'MEMO',
+          maxLines: 2,
+          onChanged: onChanged,
         ),
 
         AppSpacing.gapMD,
@@ -333,15 +358,6 @@ class FoodInputFields extends StatelessWidget {
             ),
           ),
         ],
-
-        AppSpacing.gapMD,
-
-        OperationTextField(
-          controller: foodMemoController,
-          label: 'MEMO',
-          maxLines: 2,
-          onChanged: onChanged,
-        ),
       ],
     );
   }

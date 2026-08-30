@@ -159,6 +159,43 @@ void main() {
     );
     expect(repository.entries, isEmpty);
   });
+
+  testWidgets('Food Database uses the aligned master capture order', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: _Repository(),
+          captureGateway: _LiveGateway(),
+        ),
+      ),
+    );
+
+    final ordered = [
+      _field('NAME'),
+      _field('BRAND'),
+      _field('BARCODE / JAN'),
+      _field('PACKAGE QUANTITY'),
+      _field('NUTRITION BASIS'),
+      find.byKey(const ValueKey('food-catalog-ocr')),
+      _field('CALORIES'),
+      _field('FAT'),
+      _field('MEMO'),
+    ];
+    for (var index = 1; index < ordered.length; index += 1) {
+      expect(
+        tester.getTopLeft(ordered[index]).dy,
+        greaterThan(tester.getTopLeft(ordered[index - 1]).dy),
+      );
+    }
+    expect(_field('PROTEIN'), findsOneWidget);
+    expect(_field('CARBOHYDRATE'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-catalog-barcode-scan')),
+      findsOneWidget,
+    );
+  });
 }
 
 Finder _field(String label) => find.widgetWithText(TextField, label);

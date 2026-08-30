@@ -38,7 +38,7 @@ class JapaneseNutritionOcrParser {
     final basis = _quantity(
       text,
       RegExp(
-        r'(\d+(?:\.\d+)?)\s*(g|ml|個|包装|袋|食)(?:当たり|あたり)',
+        r'(\d+(?:\.\d+)?)\s*(g|ml|個|包装|袋|食)\s*[）)]?\s*(?:当たり|あたり)',
         caseSensitive: false,
       ),
     );

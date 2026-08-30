@@ -53,6 +53,29 @@ NET WT ３５g
     expect(draft.packageQuantity, 35);
   });
 
+  test('parses parenthesized serving weight used by compact labels', () {
+    final draft = parser.parse('''
+1食（2.0g）あたり
+エネルギー
+9.3kcal
+たんぱく質
+0.65g
+脂質
+0.51g
+炭水化物
+0.54g
+食塩相当量
+0.18g
+''');
+
+    expect(draft.basisQuantity, 2);
+    expect(draft.basisUnit, FoodQuantityUnit.gram);
+    expect(draft.calories, 9.3);
+    expect(draft.protein, 0.65);
+    expect(draft.fat, 0.51);
+    expect(draft.carbohydrate, 0.54);
+  });
+
   test('missing basis remains unavailable', () {
     final draft = parser.parse('エネルギー 154kcal');
     expect(draft.basisQuantity, isNull);

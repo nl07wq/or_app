@@ -43,6 +43,17 @@ void main() {
     expect(bridge, contains("video.setAttribute('playsinline', '')"));
     expect(bridge, contains('setInterval(tick, 400)'));
     expect(bridge, contains('setInterval(tick, 1500)'));
+    expect(bridge, contains('captureFrame(session.video, true)'));
+    expect(bridge, contains('video.videoWidth * 0.84'));
+    expect(bridge, contains('video.videoHeight * 0.64'));
+    expect(
+      bridge,
+      contains("context.getImageData(0, 0, canvas.width, canvas.height)"),
+    );
+    expect(bridge, contains('canvas.width = Math.max(1'));
+    expect(bridge, contains('worker.recognize(dataUrl)'));
+    expect(bridge, contains('OCR recognition timed out'));
+    expect(bridge, contains('await resetOcrWorker()'));
     expect(bridge, contains('if (finished || running) return'));
     expect(bridge, contains('ocrQueue.then(recognize, recognize)'));
     expect(bridge, contains('barcodeDetectorPromise'));
@@ -56,6 +67,8 @@ void main() {
     expect(bridge, contains('serialized !== latestDescription'));
     expect(bridge, contains('candidate.value !== next.value'));
     expect(bridge, contains('latestRawText = rawText'));
+    expect(bridge, contains('栄養成分表示をこの枠内に合わせてください'));
+    expect(bridge, contains('文字を検出しました'));
     expect(bridge, isNot(contains('.reduce(')));
     expect(bridge, isNot(contains('navigator.sendBeacon')));
   });

@@ -1,9 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
+import 'package:or_app/features/food/services/food_live_capture_presenter.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
 
 void main() {
+  test('live presenter distinguishes no detection, partial, and complete', () {
+    expect(describeNutritionCandidate('').state, 'scanning');
+    expect(describeNutritionCandidate('エネルギー 9.3kcal').state, 'partial');
+    final candidate = describeNutritionCandidate(
+      '1食（2.0g）あたり\nエネルギー 9.3kcal\n'
+      'たんぱく質 0.65g\n脂質 0.51g\n炭水化物 0.54g',
+    );
+    expect(candidate.state, 'detected');
+    expect(candidate.calories, '9.3 kcal');
+    expect(candidate.protein, '0.65 g');
+    expect(candidate.fat, '0.51 g');
+    expect(candidate.carbohydrate, '0.54 g');
+    expect(candidate.basis, '2 g');
+  });
+
   testWidgets(
     'Food Entry exposes live barcode scan and applies only its result',
     (tester) async {
@@ -101,13 +117,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.liveNutritionCalls, 1);
-    expect(gateway.lastDescription?.state, 'DETECTED');
+    expect(gateway.lastDescription?.state, 'detected');
     expect(find.text('OCR PREVIEW'), findsOneWidget);
     expect(saveCalls, 0);
     await tester.tap(find.text('APPLY TO FORM'));
     await tester.pumpAndSettle();
     expect(
-      tester.widget<TextField>(_field('Calories')).controller!.text,
+      tester.widget<TextField>(_field('CALORIES')).controller!.text,
       '154',
     );
     expect(saveCalls, 0);
@@ -136,6 +152,49 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull, reason: 'width $width');
     }
+  });
+
+  testWidgets('Food Entry keeps aligned master fields before daily amount', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: _LiveGateway(),
+              onSave: (_) async => true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final ordered = [
+      _field('NAME'),
+      _field('BRAND'),
+      find.byKey(const ValueKey('food-entry-category-preparedFood')),
+      _field('BARCODE / JAN'),
+      _field('PACKAGE QUANTITY'),
+      _field('NUTRITION BASIS'),
+      find.byKey(const ValueKey('food-entry-ocr')),
+      _field('CALORIES'),
+      _field('FAT'),
+      _field('MEMO'),
+      _field('AMOUNT'),
+    ];
+    for (var index = 1; index < ordered.length; index += 1) {
+      expect(
+        tester.getTopLeft(ordered[index]).dy,
+        greaterThan(tester.getTopLeft(ordered[index - 1]).dy),
+      );
+    }
+    expect(_field('PROTEIN'), findsOneWidget);
+    expect(_field('CARBOHYDRATE'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-entry-barcode-scan')),
+      findsOneWidget,
+    );
   });
 }
 

@@ -6,7 +6,7 @@ import 'japanese_nutrition_ocr_parser.dart';
 FoodNutritionLiveCandidate describeNutritionCandidate(String rawText) {
   final draft = const JapaneseNutritionOcrParser().parse(rawText);
   if (draft.isEmpty) {
-    return const FoodNutritionLiveCandidate(state: 'SCANNING...');
+    return const FoodNutritionLiveCandidate(state: 'scanning');
   }
   final hasMajorValues =
       draft.calories != null &&
@@ -14,19 +14,19 @@ FoodNutritionLiveCandidate describeNutritionCandidate(String rawText) {
       draft.fat != null &&
       draft.carbohydrate != null;
   return FoodNutritionLiveCandidate(
-    state: hasMajorValues ? 'DETECTED' : 'PARTIAL',
+    state: hasMajorValues ? 'detected' : 'partial',
     calories: draft.calories == null
         ? null
-        : '${FoodNutritionFormatter.calories(draft.calories!)} kcal',
+        : '${FoodNutritionFormatter.amount(draft.calories!)} kcal',
     protein: draft.protein == null
         ? null
-        : '${FoodNutritionFormatter.macro(draft.protein!)} g',
+        : '${FoodNutritionFormatter.amount(draft.protein!)} g',
     fat: draft.fat == null
         ? null
-        : '${FoodNutritionFormatter.macro(draft.fat!)} g',
+        : '${FoodNutritionFormatter.amount(draft.fat!)} g',
     carbohydrate: draft.carbohydrate == null
         ? null
-        : '${FoodNutritionFormatter.macro(draft.carbohydrate!)} g',
+        : '${FoodNutritionFormatter.amount(draft.carbohydrate!)} g',
     basis: _quantity(draft.basisQuantity, draft.basisUnit),
     package: _quantity(draft.packageQuantity, draft.packageUnit),
   );
