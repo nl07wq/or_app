@@ -7,12 +7,29 @@
     worker: new URL('ocr/worker.min.js', root).href,
     core: new URL('ocr/core/', root).href,
     language: new URL('ocr/lang/', root).href,
+    paddleModule: new URL('paddle/paddleocr-engine.mjs', root).href,
+    paddleWasm: new URL('paddle/wasm/', root).href,
+    paddleDetectionModel: new URL(
+      'paddle/models/PP-OCRv5_mobile_det_onnx_infer.tar',
+      root,
+    ).href,
+    paddleRecognitionModel: new URL(
+      'paddle/models/PP-OCRv5_mobile_rec_onnx_infer.tar',
+      root,
+    ).href,
     zxing: new URL('barcode/zxing-browser.min.js', root).href,
   };
   const loadedScripts = new Map();
   let workerPromise;
   let workerInstance;
   let ocrQueue = Promise.resolve();
+  let paddleModulePromise;
+  let paddleWorkerPromise;
+  let paddleWorkerInstance;
+  let paddleQueue = Promise.resolve();
+  let paddleRuntimeLoadCount = 0;
+  let paddleModelLoadCount = 0;
+  let lastPaddleDiagnostics;
   let barcodeDetectorPromise;
   let barcodeReaderPromise;
   const ocrPassSeparator = '\u001e';
@@ -41,6 +58,130 @@
     });
     loadedScripts.set(url, promise);
     return promise;
+  }
+
+  function selectedOcrEngine(mode = 'nutrition') {
+    if (mode !== 'nutrition') return 'tesseract';
+    const queryEngine = typeof location === 'undefined'
+      ? null
+      : new URLSearchParams(location.search).get('orOcrEngine');
+    return (window.__OR_APP_OCR_ENGINE__ || queryEngine) === 'paddle'
+      ? 'paddle'
+      : 'tesseract';
+  }
+
+  async function paddleWorker() {
+    if (!paddleWorkerPromise) {
+      paddleWorkerPromise = (async () => {
+        paddleRuntimeLoadCount += 1;
+        const injectedFactory = window.__OR_APP_PADDLE_FACTORY__;
+        if (!injectedFactory && !paddleModulePromise) {
+          paddleModulePromise = import(paths.paddleModule);
+        }
+        const PaddleOCR = injectedFactory
+          ? { create: injectedFactory }
+          : (await paddleModulePromise).PaddleOCR;
+        const startedAt = performance.now();
+        const worker = await PaddleOCR.create({
+          lang: 'ch',
+          ocrVersion: 'PP-OCRv5',
+          worker: true,
+          textDetectionModelName: 'PP-OCRv5_mobile_det',
+          textDetectionModelAsset: { url: paths.paddleDetectionModel },
+          textRecognitionModelName: 'PP-OCRv5_mobile_rec',
+          textRecognitionModelAsset: { url: paths.paddleRecognitionModel },
+          ortOptions: {
+            backend: 'wasm',
+            wasmPaths: paths.paddleWasm,
+            numThreads: 1,
+            simd: true,
+          },
+        });
+        paddleModelLoadCount += 1;
+        paddleWorkerInstance = worker;
+        lastPaddleDiagnostics = {
+          engineId: 'paddle',
+          runtimeVersion: '0.4.2',
+          model: 'PP-OCRv5_mobile_det + PP-OCRv5_mobile_rec',
+          initializationMs: Math.round(performance.now() - startedAt),
+          initialization: worker.getInitializationSummary(),
+        };
+        return worker;
+      })().catch((error) => {
+        paddleWorkerPromise = undefined;
+        paddleWorkerInstance = undefined;
+        lastPaddleDiagnostics = {
+          engineId: 'paddle',
+          state: 'load-failed',
+          message: String(error && error.message || 'Paddle OCR load failed'),
+        };
+        throw error;
+      });
+    }
+    return paddleWorkerPromise;
+  }
+
+  async function resetPaddleWorker() {
+    const worker = paddleWorkerInstance;
+    paddleWorkerPromise = undefined;
+    paddleWorkerInstance = undefined;
+    if (worker) {
+      try {
+        await worker.dispose();
+      } catch (_) {
+        // The worker may already have stopped after a runtime failure.
+      }
+    }
+  }
+
+  function recognizePaddlePass(canvas) {
+    const recognize = async () => {
+      const worker = await paddleWorker();
+      const startedAt = performance.now();
+      let timeout;
+      let result;
+      try {
+        [result] = await Promise.race([
+          worker.predict(canvas),
+          new Promise((_, reject) => {
+            timeout = setTimeout(
+              () => reject(new Error('Paddle OCR recognition timed out')),
+              25000,
+            );
+          }),
+        ]);
+      } catch (error) {
+        await resetPaddleWorker();
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
+      const durationMs = Math.round(performance.now() - startedAt);
+      lastPaddleDiagnostics = {
+        ...lastPaddleDiagnostics,
+        state: 'ready',
+        sourceWidth: result.image.width,
+        sourceHeight: result.image.height,
+        durationMs,
+        detectedTextCount: result.metrics.detectedBoxes,
+        recognizedTextCount: result.metrics.recognizedCount,
+        detectionMs: Math.round(result.metrics.detMs),
+        recognitionMs: Math.round(result.metrics.recMs),
+        confidence: result.items.map((item) => item.score),
+        runtime: result.runtime,
+      };
+      return {
+        engineId: 'paddle',
+        text: result.items.map((item) => item.text).join('\n'),
+        items: result.items,
+        source: result.image,
+        durationMs,
+        runtime: result.runtime,
+      };
+    };
+    const result = paddleQueue.then(recognize, recognize);
+    paddleQueue = result.catch(() => {});
+    return result;
   }
 
   function selectImage(preferCamera) {
@@ -349,6 +490,75 @@
     );
   }
 
+  function paddleItemBox(item) {
+    const points = Array.isArray(item.poly) ? item.poly : [];
+    const xs = points.map((point) => Number(point.x ?? point[0]));
+    const ys = points.map((point) => Number(point.y ?? point[1]));
+    if (!xs.length || ![...xs, ...ys].every(Number.isFinite)) return null;
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    const right = Math.max(...xs);
+    const bottom = Math.max(...ys);
+    return {
+      left,
+      top,
+      width: Math.max(1, right - left),
+      height: Math.max(1, bottom - top),
+    };
+  }
+
+  function paddleTokenRanges(text) {
+    if (/栄養成分表示|当たり/.test(String(text || ''))) {
+      return [{ text: String(text || ''), start: 0, end: String(text || '').length }];
+    }
+    const tokenPattern = new RegExp(
+      `${Object.values(nutritionLabels).flat().join('|')}|` +
+      String.raw`\d+(?:[.,]\d+)?\s*(?:kcal|mg|g|m[lL])`,
+      'gi',
+    );
+    const ranges = [...String(text || '').matchAll(tokenPattern)].map((match) => ({
+      text: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    }));
+    return ranges.length ? ranges : [{ text: String(text || ''), start: 0, end: text.length }];
+  }
+
+  function paddleWords(items) {
+    const rows = [];
+    for (const item of items || []) {
+      const box = paddleItemBox(item);
+      const text = String(item.text || '').trim();
+      if (!box || !text) continue;
+      let row = rows.find((candidate) =>
+        Math.abs(candidate.centerY - (box.top + box.height / 2)) <=
+          Math.max(candidate.height, box.height) * 0.65,
+      );
+      if (!row) {
+        row = { id: rows.length + 1, centerY: box.top + box.height / 2, height: box.height };
+        rows.push(row);
+      }
+      for (const token of paddleTokenRanges(text)) {
+        const length = Math.max(1, text.length);
+        const left = box.left + box.width * token.start / length;
+        const right = box.left + box.width * token.end / length;
+        row.centerY = (row.centerY + box.top + box.height / 2) / 2;
+        row.height = Math.max(row.height, box.height);
+        if (!row.words) row.words = [];
+        row.words.push({
+          lineKey: `paddle:${row.id}`,
+          left,
+          top: box.top,
+          width: Math.max(1, right - left),
+          height: box.height,
+          confidence: Number(item.score) * 100,
+          text: token.text,
+        });
+      }
+    }
+    return rows.flatMap((row) => row.words || []);
+  }
+
   function lineGroups(words) {
     const groups = new Map();
     for (const word of words) {
@@ -433,11 +643,18 @@
   function relationshipScore(anchor, value, headerAnchors) {
     const anchorCenter = (anchor.left + anchor.right) / 2;
     const valueCenter = (value.left + value.right) / 2;
+    const anchorMiddle = (anchor.top + anchor.bottom) / 2;
+    const valueMiddle = (value.top + value.bottom) / 2;
     const verticalOverlap =
       Math.min(anchor.bottom, value.bottom) - Math.max(anchor.top, value.top);
-    if (verticalOverlap >= -Math.max(anchor.height, value.height) * 0.35 &&
+    if (anchor.lineKey === value.lineKey &&
         value.left >= anchor.right - 6) {
       return value.left - anchor.right;
+    }
+    if (verticalOverlap >= -Math.max(anchor.height, value.height) * 0.2 &&
+        value.left >= anchor.right - 6) {
+      return 500 + Math.abs(valueMiddle - anchorMiddle) * 10 +
+        value.left - anchor.right;
     }
     if (headerAnchors.length >= 3 && value.top >= anchor.bottom) {
       const ordered = [...headerAnchors].sort((a, b) => a.left - b.left);
@@ -504,6 +721,11 @@
         ? 'two-column-table'
         : 'vertical-list';
     }
+    const belowLabel = [...mapped.entries()].filter(([field, value]) => {
+      const anchor = target.find((candidate) => candidate.field === field);
+      return anchor && value.top >= anchor.bottom - 4;
+    });
+    if (belowLabel.length >= 3) return 'boxed-wrapped';
     if (target.length >= 3) return 'two-column-table';
     return 'boxed-wrapped';
   }
@@ -565,8 +787,7 @@
     return null;
   }
 
-  async function structuredNutritionText(canvas, tsv) {
-    const words = tsvWords(tsv);
+  async function structuredNutritionWords(canvas, words, engineId) {
     const groups = lineGroups(words);
     const anchors = nutritionAnchors(groups);
     const mapped = mapAnchorValues(anchors, numericValues(groups));
@@ -574,7 +795,7 @@
     for (const field of targetNutritionFields) {
       if (mapped.has(field)) continue;
       const anchor = anchors.find((candidate) => candidate.field === field);
-      if (!anchor) continue;
+      if (!anchor || engineId !== 'tesseract') continue;
       roiCount += 1;
       const value = await valueFromRoi(canvas, anchor, field);
       if (value) mapped.set(field, value);
@@ -596,6 +817,7 @@
         height: anchor.height,
       })),
       valueRoiCount: roiCount,
+      engineId,
       fieldSources: Object.fromEntries(
         [...mapped.keys()].map((field) => [field, 'structured']),
       ),
@@ -617,8 +839,44 @@
     return lines.length ? structuredMarker + lines.join('\n') : '';
   }
 
+  async function structuredNutritionText(canvas, tsv) {
+    return structuredNutritionWords(canvas, tsvWords(tsv), 'tesseract');
+  }
+
+  async function structuredPaddleNutritionText(canvas, items) {
+    return structuredNutritionWords(canvas, paddleWords(items), 'paddle');
+  }
+
+  async function recognizePaddleNutrition(canvas) {
+    const result = await recognizePaddlePass(canvas);
+    const texts = [];
+    if (result.text.trim()) texts.push(result.text);
+    const structured = await structuredPaddleNutritionText(canvas, result.items);
+    if (structured) texts.push(structured);
+    return {
+      engineId: result.engineId,
+      texts,
+      result,
+      structured,
+    };
+  }
+
   async function recognizeJapaneseText(dataUrl, mode = 'package') {
     const canvas = await canvasFromImage(dataUrl, mode);
+    const engineId = selectedOcrEngine(mode);
+    if (mode === 'nutrition' && engineId === 'paddle') {
+      const startedAt = performance.now();
+      const paddle = await recognizePaddleNutrition(canvas);
+      if (lastPhotoDiagnostics) {
+        lastPhotoDiagnostics.engineId = engineId;
+        lastPhotoDiagnostics.passCount = 1;
+        lastPhotoDiagnostics.passDurationsMs = [
+          Math.round(performance.now() - startedAt),
+        ];
+        lastPhotoDiagnostics.structuredDurationMs = 0;
+      }
+      return paddle.texts.join(ocrPassSeparator);
+    }
     const texts = [];
     let layoutTsv = '';
     for (const variant of ocrVariants(canvas, mode)) {
@@ -649,6 +907,7 @@
       }
       if (structured) texts.push(structured);
     }
+    if (lastPhotoDiagnostics) lastPhotoDiagnostics.engineId = engineId;
     return texts.join(ocrPassSeparator);
   }
 
@@ -1180,18 +1439,27 @@
           }
           const texts = [];
           let layoutTsv = '';
-          for (const variant of ocrVariants(frame.canvas, mode)) {
-            let rawText;
-            if (mode === 'nutrition' && variant.name === 'original') {
-              const data = await recognizeLayoutPass(variant.dataUrl);
-              rawText = data.text || '';
-              layoutTsv = data.tsv || '';
-            } else {
-              rawText = await recognizeSinglePass(variant.dataUrl);
+          if (mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle') {
+            const paddle = await recognizePaddleNutrition(frame.canvas);
+            for (const rawText of paddle.texts) {
+              if (!rawText.trim() || texts.includes(rawText)) continue;
+              texts.push(rawText);
+              present(rawText, true);
             }
-            if (!rawText.trim() || texts.includes(rawText)) continue;
-            texts.push(rawText);
-            present(rawText, true);
+          } else {
+            for (const variant of ocrVariants(frame.canvas, mode)) {
+              let rawText;
+              if (mode === 'nutrition' && variant.name === 'original') {
+                const data = await recognizeLayoutPass(variant.dataUrl);
+                rawText = data.text || '';
+                layoutTsv = data.tsv || '';
+              } else {
+                rawText = await recognizeSinglePass(variant.dataUrl);
+              }
+              if (!rawText.trim() || texts.includes(rawText)) continue;
+              texts.push(rawText);
+              present(rawText, true);
+            }
           }
           if (mode === 'nutrition' && layoutTsv) {
             const structured = await structuredNutritionText(
@@ -1230,9 +1498,11 @@
         running = true;
         session.result.textContent = '読み取り中...';
         try {
-          const rawText = await recognizeSinglePass(
-            frame.canvas.toDataURL('image/jpeg', 0.92),
-          );
+          const rawText = mode === 'nutrition' && selectedOcrEngine(mode) === 'paddle'
+            ? (await recognizePaddleNutrition(frame.canvas)).texts.join(ocrPassSeparator)
+            : await recognizeSinglePass(
+              frame.canvas.toDataURL('image/jpeg', 0.92),
+            );
           if (finished) return;
           const description = JSON.parse(describeCandidate(rawText));
           const serialized = JSON.stringify(description);
@@ -1268,16 +1538,73 @@
     });
   }
 
+  async function diagnosePaddleResult(result) {
+    const canvas = {
+      width: Number(result?.image?.width) || 0,
+      height: Number(result?.image?.height) || 0,
+    };
+    const text = (result?.items || []).map((item) => item.text).join('\n');
+    const structured = await structuredPaddleNutritionText(
+      canvas,
+      result?.items || [],
+    );
+    return {
+      engineId: 'paddle',
+      text,
+      structured,
+      items: result?.items || [],
+      source: result?.image || { width: 0, height: 0 },
+    };
+  }
+
+  async function benchmarkNutritionEngines(dataUrl) {
+    const previous = window.__OR_APP_OCR_ENGINE__;
+    const results = {};
+    try {
+      for (const engineId of ['tesseract', 'paddle']) {
+        window.__OR_APP_OCR_ENGINE__ = engineId;
+        const startedAt = performance.now();
+        try {
+          const text = await recognizeJapaneseText(dataUrl, 'nutrition');
+          results[engineId] = {
+            engineId,
+            durationMs: Math.round(performance.now() - startedAt),
+            text,
+          };
+        } catch (error) {
+          results[engineId] = {
+            engineId,
+            durationMs: Math.round(performance.now() - startedAt),
+            error: String(error && error.message || 'OCR failed'),
+          };
+        }
+      }
+      return results;
+    } finally {
+      window.__OR_APP_OCR_ENGINE__ = previous;
+    }
+  }
+
   window.orAppFoodInput = {
     selectImage,
     recognizeJapaneseText,
     scanBarcode,
     scanBarcodeLive,
     recognizeTextLive,
+    diagnosePaddleResult,
+    benchmarkNutritionEngines,
+    recognizePaddleCanvasForDiagnostics: recognizePaddleNutrition,
     diagnoseStructuredNutritionTsv: (tsv) =>
       structuredNutritionText({ width: 0, height: 0 }, tsv),
     assetState: () => ({
+      selectedOcrEngine: selectedOcrEngine(),
       ocrLoaded: loadedScripts.has(paths.tesseract),
+      paddleRuntimeLoaded: Boolean(paddleModulePromise),
+      paddleWorkerLoaded: Boolean(paddleWorkerInstance),
+      paddleRuntimeLoadCount,
+      paddleModelLoadCount,
+      paddlePaths: { ...paths },
+      lastPaddleDiagnostics,
       barcodeFallbackLoaded: loadedScripts.has(paths.zxing),
       ocrGuide: { ...ocrGuide },
       packageGuide: { ...packageGuide },

@@ -10,8 +10,16 @@ void main() {
       'Tesseract.js Core',
       'tessdata_fast',
       'ZXing Browser',
+      'PaddleOCR.js',
+      'PP-OCRv5_mobile_det',
+      'PP-OCRv5_mobile_rec',
+      'ONNX Runtime Web',
+      'OpenCV.js',
+      'Clipper Library',
+      'js-yaml',
       'Apache License 2.0',
       'MIT License',
+      'Boost Software License 1.0',
     ]) {
       expect(notice, contains(value));
     }
@@ -28,10 +36,52 @@ void main() {
     expect(index, isNot(contains('zxing-browser.min.js')));
     expect(bridge, contains("loadScript(paths.tesseract)"));
     expect(bridge, contains("loadScript(paths.zxing)"));
+    expect(bridge, contains('import(paths.paddleModule)'));
+    expect(bridge, contains('textDetectionModelAsset:'));
+    expect(bridge, contains('textRecognitionModelAsset:'));
+    expect(bridge, contains('wasmPaths: paths.paddleWasm'));
+    expect(bridge, contains("numThreads: 1"));
     expect(bridge, contains("'BarcodeDetector' in window"));
     expect(bridge, contains("['ean_13', 'ean_8', 'upc_a']"));
     expect(bridge, contains('EAN_13|EAN_8|UPC_A'));
     expect(bridge, isNot(contains('https://')));
+  });
+
+  test('Paddle feasibility selector stays hidden and Tesseract is default', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+    final scanner = File(
+      'lib/features/food/widgets/food_ocr_scanner.dart',
+    ).readAsStringSync();
+
+    expect(bridge, contains('function selectedOcrEngine'));
+    expect(bridge, contains("window.__OR_APP_OCR_ENGINE__"));
+    expect(bridge, contains("get('orOcrEngine')"));
+    expect(bridge, contains("? 'paddle'"));
+    expect(bridge, contains(": 'tesseract'"));
+    expect(bridge, contains("if (mode !== 'nutrition') return 'tesseract'"));
+    expect(scanner, isNot(contains('PADDLE')));
+    expect(scanner, isNot(contains('TESSERACT')));
+    expect(scanner, isNot(contains('ENGINE SELECT')));
+  });
+
+  test('Paddle result keeps text geometry confidence and diagnostics', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+
+    expect(bridge, contains("engineId: 'paddle'"));
+    expect(bridge, contains('items: result.items'));
+    expect(bridge, contains('source: result.image'));
+    expect(bridge, contains('durationMs'));
+    expect(bridge, contains('paddleItemBox'));
+    expect(bridge, contains('confidence: Number(item.score) * 100'));
+    expect(bridge, contains('result.metrics.detectedBoxes'));
+    expect(bridge, contains('result.metrics.recognizedCount'));
+    expect(bridge, contains('paddleQueue.then(recognize, recognize)'));
+    expect(bridge, contains('Paddle OCR recognition timed out'));
+    expect(bridge, contains('await resetPaddleWorker()'));
   });
 
   test('live camera bridge throttles work and cleans every session', () {
@@ -186,6 +236,20 @@ void main() {
       'web/assets/food_input/licenses/TESSERACT_CORE_LICENSE.txt',
       'web/assets/food_input/licenses/TESSDATA_FAST_LICENSE.txt',
       'web/assets/food_input/licenses/ZXING_BROWSER_LICENSE.txt',
+      'web/assets/food_input/paddle/paddleocr-engine.mjs',
+      'web/assets/food_input/paddle/paddleocr-engine.mjs.LEGAL.txt',
+      'web/assets/food_input/paddle/assets/worker-entry-C9UNuyOJ.js',
+      'web/assets/food_input/paddle/wasm/ort-wasm-simd-threaded.mjs',
+      'web/assets/food_input/paddle/wasm/ort-wasm-simd-threaded.wasm',
+      'web/assets/food_input/paddle/wasm/ort-wasm-simd-threaded.jsep.mjs',
+      'web/assets/food_input/paddle/wasm/ort-wasm-simd-threaded.jsep.wasm',
+      'web/assets/food_input/paddle/models/PP-OCRv5_mobile_det_onnx_infer.tar',
+      'web/assets/food_input/paddle/models/PP-OCRv5_mobile_rec_onnx_infer.tar',
+      'web/assets/food_input/licenses/PADDLEOCR_LICENSE.txt',
+      'web/assets/food_input/licenses/ONNXRUNTIME_LICENSE.txt',
+      'web/assets/food_input/licenses/OPENCV_JS_LICENSE.txt',
+      'web/assets/food_input/licenses/CLIPPER_LIB_LICENSE.txt',
+      'web/assets/food_input/licenses/JS_YAML_LICENSE.txt',
     ]) {
       expect(File(path).lengthSync(), greaterThan(0), reason: path);
     }
