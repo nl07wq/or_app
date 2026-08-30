@@ -211,7 +211,8 @@ class _MetricSection extends StatelessWidget {
           AppSpacing.gapSM,
           Text('表示単位: ${model.granularity.label}'),
           AppSpacing.gapSM,
-          if (model.summary case final summary?) _SummaryCard(summary: summary),
+          if (model.summary case final summary?)
+            _SummaryCard(summary: summary, metric: metric),
           if (model.summary != null) AppSpacing.gapSM,
           OperationCard(child: NutritionHistoryChart(model: model)),
         ],
@@ -224,13 +225,17 @@ class _MetricSection extends StatelessWidget {
     NutritionHistoryMetric.estimatedExpenditure =>
       Icons.local_fire_department_outlined,
     NutritionHistoryMetric.calorieBalance => Icons.balance_outlined,
+    NutritionHistoryMetric.protein => Icons.fitness_center_outlined,
+    NutritionHistoryMetric.fat => Icons.water_drop_outlined,
+    NutritionHistoryMetric.carbohydrate => Icons.grain_outlined,
   };
 }
 
 class _SummaryCard extends StatelessWidget {
   final NutritionHistorySummary summary;
+  final NutritionHistoryMetric metric;
 
-  const _SummaryCard({required this.summary});
+  const _SummaryCard({required this.summary, required this.metric});
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -246,7 +251,7 @@ class _SummaryCard extends StatelessWidget {
     ),
   );
 
-  String _value(double value) => '${_number(value)} kcal';
+  String _value(double value) => '${_number(value)} ${metric.unit}';
 
   static String _number(double value) {
     final rounded = value.roundToDouble();

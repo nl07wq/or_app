@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import '../../../core/models/operation_calendar_period.dart';
-
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/body_history_chart_engine.dart';
 import '../models/nutrition_history_models.dart';
@@ -25,10 +24,7 @@ class NutritionHistoryChartEngine {
         if (point.valueFor(metric) case final value?)
           if (value.isFinite) (date: _parse(point.operationDate), value: value),
     ]..sort((a, b) => a.date.compareTo(b.date));
-    final granularity = _selectGranularity(
-      observations: observations,
-      availablePlotWidth: availablePlotWidth,
-    );
+    const granularity = BodyHistoryGranularity.daily;
     if (observations.isEmpty) {
       return NutritionHistoryChartModel(
         metric: metric,
@@ -71,16 +67,19 @@ class NutritionHistoryChartEngine {
       minimum = math.min(minimum, 0);
       maximum = math.max(maximum, 0);
     }
-    if (maximum - minimum < minimumDisplaySpanKcal) {
+    final minimumSpan = metric.unit == 'kcal' ? minimumDisplaySpanKcal : 25.0;
+    if (maximum - minimum < minimumSpan) {
       final center = (minimum + maximum) / 2;
-      minimum = center - minimumDisplaySpanKcal / 2;
-      maximum = center + minimumDisplaySpanKcal / 2;
+      minimum = center - minimumSpan / 2;
+      maximum = center + minimumSpan / 2;
       if (metric == NutritionHistoryMetric.calorieBalance) {
         minimum = math.min(minimum, 0);
         maximum = math.max(maximum, 0);
       }
     }
-    final interval = _interval(maximum - minimum);
+    final interval = metric.unit == 'kcal'
+        ? _interval(maximum - minimum)
+        : _gramInterval(maximum - minimum);
     return BodyHistoryAxisRange(
       minimum: (minimum / interval).floorToDouble() * interval - interval,
       maximum: (maximum / interval).ceilToDouble() * interval + interval,
@@ -104,29 +103,12 @@ class NutritionHistoryChartEngine {
     return 2000;
   }
 
-  static BodyHistoryGranularity _selectGranularity({
-    required List<({DateTime date, double value})> observations,
-    required double availablePlotWidth,
-  }) {
-    if (_fitsDensity(observations.length, availablePlotWidth)) {
-      return BodyHistoryGranularity.daily;
-    }
-    final weeks = {
-      for (final item in observations)
-        OperationCalendarPeriod.week(item.date).start,
-    }.length;
-    if (_fitsDensity(weeks, availablePlotWidth)) {
-      return BodyHistoryGranularity.weekly;
-    }
-    return BodyHistoryGranularity.monthly;
+  static double _gramInterval(double span) {
+    if (span <= 10) return 2;
+    if (span <= 25) return 5;
+    if (span <= 60) return 10;
+    return 20;
   }
-
-  static bool _fitsDensity(int pointCount, double availablePlotWidth) =>
-      pointCount * BodyHistoryChartEngine.pointSpacingCandidate <=
-      math.max(
-        availablePlotWidth,
-        BodyHistoryChartEngine.maximumChartWidthCandidate,
-      );
 
   static List<BodyHistoryDisplayPoint> _aggregate(
     List<({DateTime date, double value})> observations,

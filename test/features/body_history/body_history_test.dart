@@ -61,7 +61,7 @@ void main() {
     );
   });
 
-  test('weekly and monthly averages exclude missing dates', () {
+  test('all formal points remain available across long periods', () {
     const points = [
       BodyHistoryDataPoint(
         operationDate: '2026-08-03',
@@ -91,10 +91,13 @@ void main() {
       endDate: '2026-08-31',
     );
 
-    expect(weekly.points.single.value, 93);
-    expect(weekly.points.single.measurementCount, 2);
-    expect(monthly.points.single.value, 93);
-    expect(monthly.points.single.measurementCount, 2);
+    expect(weekly.points.map((point) => point.value), [90, 96]);
+    expect(weekly.points.every((point) => point.measurementCount == 1), isTrue);
+    expect(monthly.points.map((point) => point.value), [90, 96]);
+    expect(
+      monthly.points.every((point) => point.measurementCount == 1),
+      isTrue,
+    );
   });
 
   test(

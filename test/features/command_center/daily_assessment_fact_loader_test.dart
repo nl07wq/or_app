@@ -51,6 +51,10 @@ void main() {
       beforeFinalize.currentWeightReference.source,
       DailyWeightReferenceSource.measuredToday,
     );
+    expect(
+      beforeFinalize.currentWeightReference.previousFormalWeightKg,
+      isNull,
+    );
 
     final afterUndo = await loader.load(_state());
     expect(
@@ -60,6 +64,19 @@ void main() {
     expect(afterUndo.currentProteinG, 50);
     expect(afterUndo.currentHydrationMl, 750);
     expect(afterUndo.currentOfficialSteps, 6000);
+  });
+
+  test('resolves the latest prior formal STATUS weight only', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.status.save(_status(date: '2026-08-01', weight: 95));
+    await container.status.save(_status(date: '2026-08-09', weight: 94.5));
+    await container.status.save(_status(weight: 94.2));
+    await container.status.save(_status(date: '2026-08-11', weight: 70));
+
+    final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+    expect(facts.currentWeightReference.valueKg, 94.2);
+    expect(facts.currentWeightReference.previousFormalWeightKg, 94.5);
   });
 
   test('keeps missing current-day facts independent', () async {

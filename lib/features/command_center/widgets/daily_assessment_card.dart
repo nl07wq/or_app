@@ -109,7 +109,7 @@ class _AssessmentItem extends StatelessWidget {
                 AppSpacing.gapXS,
               ],
               if (readiness == null)
-                Text(_valueLabel(item))
+                Text(_valueLabel(item, currentWeightReference))
               else
                 _TrainingReadinessDetails(facts: readiness),
               AppSpacing.gapXS,
@@ -248,13 +248,18 @@ String _weightReferenceLabel(DailyWeightReferenceSource source) =>
       DailyWeightReferenceSource.notAvailable => 'NOT AVAILABLE',
     };
 
-String _valueLabel(DailyAssessmentItem item) {
+String _valueLabel(
+  DailyAssessmentItem item,
+  DailyWeightReference currentWeightReference,
+) {
   final value = item.rawValue;
   if (value == null) return '—';
   return switch (item.metric) {
     DailyAssessmentMetric.sleepTime => _duration(value as int),
     DailyAssessmentMetric.weightTrend =>
-      '${(value as double) >= 0 ? '+' : ''}${value.toStringAsFixed(2)} kg/week',
+      currentWeightReference.source == DailyWeightReferenceSource.measuredToday
+          ? '${(value as double) > 0 ? '+' : ''}${value.toStringAsFixed(1)} kg'
+          : '${(value as double) >= 0 ? '+' : ''}${value.toStringAsFixed(2)} kg/week',
     DailyAssessmentMetric.work =>
       value is num ? '${value.toStringAsFixed(1)} h' : value.toString(),
     DailyAssessmentMetric.calorieBalance =>

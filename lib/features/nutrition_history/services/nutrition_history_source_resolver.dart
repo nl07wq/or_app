@@ -21,6 +21,9 @@ class NutritionHistorySourceResolver {
             intakeCaloriesKcal: record.intakeCaloriesKcal,
             estimatedExpenditureKcal: record.estimatedExpenditureKcal,
             estimatedCalorieBalanceKcal: record.estimatedCalorieBalanceKcal,
+            proteinG: record.proteinG,
+            fatG: record.fatG,
+            carbohydrateG: record.carbsG,
           ),
       ]..sort((a, b) => a.operationDate.compareTo(b.operationDate)),
     );

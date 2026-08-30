@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import '../../../core/models/operation_calendar_period.dart';
-
 import '../models/body_history_models.dart';
 
 class BodyHistoryChartEngine {
@@ -26,10 +25,7 @@ class BodyHistoryChartEngine {
         if (point.valueFor(metric) case final value?)
           if (value.isFinite) (date: _parse(point.operationDate), value: value),
     ]..sort((a, b) => a.date.compareTo(b.date));
-    final granularity = _selectGranularity(
-      observations: observations,
-      availablePlotWidth: availablePlotWidth,
-    );
+    const granularity = BodyHistoryGranularity.daily;
     if (observations.isEmpty) {
       return BodyHistoryChartModel(
         metric: metric,
@@ -110,27 +106,6 @@ class BodyHistoryChartEngine {
     if (span <= 10) return 2;
     return 5;
   }
-
-  static BodyHistoryGranularity _selectGranularity({
-    required List<({DateTime date, double value})> observations,
-    required double availablePlotWidth,
-  }) {
-    if (_fitsDensity(observations.length, availablePlotWidth)) {
-      return BodyHistoryGranularity.daily;
-    }
-    final weeks = {
-      for (final item in observations)
-        OperationCalendarPeriod.week(item.date).start,
-    }.length;
-    if (_fitsDensity(weeks, availablePlotWidth)) {
-      return BodyHistoryGranularity.weekly;
-    }
-    return BodyHistoryGranularity.monthly;
-  }
-
-  static bool _fitsDensity(int pointCount, double availablePlotWidth) =>
-      pointCount * pointSpacingCandidate <=
-      math.max(availablePlotWidth, maximumChartWidthCandidate);
 
   static List<BodyHistoryDisplayPoint> _aggregate(
     List<({DateTime date, double value})> observations,

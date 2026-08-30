@@ -30,11 +30,7 @@ class TrainingPage extends StatelessWidget {
 
             AppSpacing.gapSM,
 
-            const OperationDescription(
-              text:
-                  'Operation Reboot Reportから\n'
-                  '本日のトレーニング記録を同期します。',
-            ),
+            const OperationDescription(text: 'ChatGPTから\nトレーニング記録を取り込みます。'),
 
             AppSpacing.gapMD,
 
@@ -46,9 +42,7 @@ class TrainingPage extends StatelessWidget {
 
             AppSpacing.gapSM,
 
-            const OperationDescription(
-              text: 'Formal Training Factから次回Training Planを作成します。',
-            ),
+            const OperationDescription(text: 'トレーニング記録をもとに、\n次回のプランを作成します。'),
 
             AppSpacing.gapMD,
 
@@ -110,7 +104,7 @@ class TrainingPage extends StatelessWidget {
             AppSpacing.gapSM,
 
             const OperationDescription(
-              text: '正式なTraining Recordを選択し、\n分析Reportを作成・閲覧します。',
+              text: 'トレーニング記録を選択して、\n分析レポートを作成・確認します。',
             ),
 
             AppSpacing.gapMD,

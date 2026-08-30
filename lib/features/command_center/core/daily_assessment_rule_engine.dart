@@ -33,7 +33,10 @@ class DailyAssessmentRuleEngine {
             DailyAssessmentMetric.work,
           );
     final weight = hasStatus
-        ? _weightTrend(facts.weightHistory)
+        ? facts.currentWeightReference.source ==
+                  DailyWeightReferenceSource.measuredToday
+              ? _dailyWeightChange(facts.currentWeightReference)
+              : _weightTrend(facts.weightHistory)
         : _notAvailable(
             DailyAssessmentModule.body,
             DailyAssessmentMetric.weightTrend,
@@ -379,6 +382,43 @@ class DailyAssessmentRuleEngine {
     );
   }
 
+  DailyAssessmentItem _dailyWeightChange(DailyWeightReference reference) {
+    final today = reference.valueKg;
+    final previous = reference.previousFormalWeightKg;
+    if (today == null || previous == null) {
+      return _notAvailable(
+        DailyAssessmentModule.body,
+        DailyAssessmentMetric.weightTrend,
+      );
+    }
+    final change = double.parse((today - previous).toStringAsFixed(6));
+    if (change < 0) {
+      return _item(
+        DailyAssessmentModule.body,
+        DailyAssessmentMetric.weightTrend,
+        change,
+        'DECREASED FROM PREVIOUS',
+        DailyAssessmentLevel.support,
+      );
+    }
+    if (change > 0) {
+      return _item(
+        DailyAssessmentModule.body,
+        DailyAssessmentMetric.weightTrend,
+        change,
+        'INCREASED FROM PREVIOUS',
+        DailyAssessmentLevel.watch,
+      );
+    }
+    return _item(
+      DailyAssessmentModule.body,
+      DailyAssessmentMetric.weightTrend,
+      change,
+      'UNCHANGED FROM PREVIOUS',
+      DailyAssessmentLevel.stable,
+    );
+  }
+
   DailyAssessmentItem _calorieBalance(double? value) {
     if (value == null) {
       return _notAvailable(
@@ -691,7 +731,10 @@ class DailyAssessmentRuleEngine {
 
   static String? _constraintLabel(DailyAssessmentItem item) =>
       switch (item.metric) {
-        DailyAssessmentMetric.weightTrend => 'WEIGHT TREND',
+        DailyAssessmentMetric.weightTrend =>
+          item.specificAssessment.endsWith('FROM PREVIOUS')
+              ? 'WEIGHT CHANGE'
+              : 'WEIGHT TREND',
         DailyAssessmentMetric.sleepTime => 'SEVERE SLEEP DEFICIT',
         DailyAssessmentMetric.sleepScore => 'LOW SLEEP SCORE',
         DailyAssessmentMetric.plantarFasciitis => 'PLANTAR FASCIITIS',

@@ -98,7 +98,7 @@ void main() {
     expect(resolve(HistoryMetricColorKey.calorieBalance), Colors.teal.shade600);
   });
 
-  test('maps the three Daily Aggregate nutrition metrics', () async {
+  test('maps calories and PFC from the existing Daily Aggregate', () async {
     final resolver = NutritionHistorySourceResolver(
       dailyAggregateRepository: _AggregateRepository([
         _aggregate(
@@ -106,6 +106,9 @@ void main() {
           intake: 1479,
           expenditure: 2650,
           balance: -1150,
+          protein: 120,
+          fat: 55,
+          carbs: 210,
         ),
       ]),
     );
@@ -118,6 +121,9 @@ void main() {
     expect(point.intakeCaloriesKcal, 1479);
     expect(point.estimatedExpenditureKcal, 2650);
     expect(point.estimatedCalorieBalanceKcal, -1150);
+    expect(point.proteinG, 120);
+    expect(point.fatG, 55);
+    expect(point.carbohydrateG, 210);
   });
 
   test('missing metrics do not create points in other charts', () {
@@ -171,7 +177,7 @@ void main() {
     expect(model.points, hasLength(8));
   });
 
-  test('weekly and monthly averages exclude null metric values', () {
+  test('long ranges preserve every non-null metric point', () {
     final weeklySource = [
       for (var index = 0; index < 160; index++)
         _point(
@@ -203,12 +209,15 @@ void main() {
       availablePlotWidth: 268,
     );
 
-    expect(weekly.granularity, BodyHistoryGranularity.weekly);
-    expect(weekly.points.first.measurementCount, 6);
-    expect(weekly.points.first.value, 11000 / 6);
-    expect(monthly.granularity, BodyHistoryGranularity.monthly);
-    expect(monthly.points.first.measurementCount, 30);
-    expect(monthly.points.first.value, 89000 / 30);
+    expect(weekly.granularity, BodyHistoryGranularity.daily);
+    expect(weekly.points, hasLength(159));
+    expect(weekly.points.every((point) => point.measurementCount == 1), isTrue);
+    expect(monthly.granularity, BodyHistoryGranularity.daily);
+    expect(monthly.points, hasLength(1099));
+    expect(
+      monthly.points.every((point) => point.measurementCount == 1),
+      isTrue,
+    );
   });
 
   test('calorie balance preserves negatives and exposes a zero line', () {
@@ -255,11 +264,17 @@ NutritionHistoryDataPoint _point(
   double? intake,
   double? expenditure,
   double? balance,
+  double? protein,
+  double? fat,
+  double? carbs,
 }) => NutritionHistoryDataPoint(
   operationDate: date,
   intakeCaloriesKcal: intake,
   estimatedExpenditureKcal: expenditure,
   estimatedCalorieBalanceKcal: balance,
+  proteinG: protein,
+  fatG: fat,
+  carbohydrateG: carbs,
 );
 
 DailyAggregateV1 _aggregate(
@@ -267,6 +282,9 @@ DailyAggregateV1 _aggregate(
   double? intake,
   double? expenditure,
   double? balance,
+  double? protein,
+  double? fat,
+  double? carbs,
 }) => DailyAggregateV1(
   operationDate: date,
   weightKg: null,
@@ -282,9 +300,9 @@ DailyAggregateV1 _aggregate(
   intakeCaloriesKcal: intake,
   estimatedExpenditureKcal: expenditure,
   estimatedCalorieBalanceKcal: balance,
-  proteinG: null,
-  fatG: null,
-  carbsG: null,
+  proteinG: protein,
+  fatG: fat,
+  carbsG: carbs,
   hydrationMl: 0,
   officialSteps: null,
   measuredSteps: null,

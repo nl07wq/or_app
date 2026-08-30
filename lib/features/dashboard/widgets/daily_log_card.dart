@@ -359,7 +359,7 @@ class _DailyLogEntryGrid extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: _buildEntry(entries[index])),
-            AppSpacing.gapSM,
+            AppSpacing.gapLG,
             Expanded(child: _buildEntry(entries[index + 1])),
           ],
         ),
@@ -418,17 +418,20 @@ class _DailyLogEntryStatus extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 48),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                 child: Row(
                   children: [
-                    Expanded(
+                    Flexible(
                       child: Text(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelLarge?.copyWith(color: color),
                       ),
                     ),
+                    const SizedBox(width: 4),
                     Icon(icon, color: color, size: 22),
                     Icon(
                       Icons.chevron_right,
@@ -562,10 +565,18 @@ class _DailyCloseBlockerCell extends StatelessWidget {
     key: ValueKey('daily-log-blocker-${blocker.label}'),
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(blocker.label, style: Theme.of(context).textTheme.labelLarge),
-      Text(blocker.stateLabel),
+      Text(
+        blocker.label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      Text(blocker.stateLabel, style: Theme.of(context).textTheme.labelSmall),
       if (blocker.missingRequirements.isNotEmpty)
-        Text('Missing: ${blocker.missingRequirements.join(', ')}'),
+        Text(
+          'Missing: ${blocker.missingRequirements.join(', ')}',
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
     ],
   );
 }

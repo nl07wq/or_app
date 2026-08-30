@@ -65,7 +65,7 @@ void main() {
     );
   });
 
-  test('365 daily records compress to weekly averages', () {
+  test('365 daily records retain every point while labels may compress', () {
     final model = engine.build(
       source: _dailyPoints(DateTime.utc(2025, 8, 10), 365),
       metric: BodyHistoryMetric.weight,
@@ -75,8 +75,8 @@ void main() {
       availablePlotWidth: 268,
     );
 
-    expect(model.granularity, BodyHistoryGranularity.weekly);
-    expect(model.points.length, lessThanOrEqualTo(53));
+    expect(model.granularity, BodyHistoryGranularity.daily);
+    expect(model.points, hasLength(365));
   });
 
   test('three-year sparse records are not forced to monthly averages', () {

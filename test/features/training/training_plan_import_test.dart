@@ -21,6 +21,32 @@ import 'package:or_app/features/training_analysis/models/training_analysis_repor
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  testWidgets('IMPORT PLAN provides paste clear and validate actions', (
+    tester,
+  ) async {
+    final fixture = await _fixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainingPlanImportPage(
+          sourceRecordId: fixture.targetId,
+          service: fixture.service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('PASTE'), findsOneWidget);
+    expect(find.byIcon(Icons.content_paste_outlined), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '{"test":true}');
+
+    await tester.tap(find.text('CLEAR'));
+    await tester.pump();
+    expect(
+      (tester.widget<TextField>(find.byType(TextField))).controller?.text,
+      isEmpty,
+    );
+    expect(find.text('VALIDATE'), findsOneWidget);
+  });
   test('prompt owns facts, five comparables, and latest analysis', () async {
     final fixture = await _fixture();
     final preparation = await fixture.service.prepare(
@@ -304,7 +330,7 @@ void main() {
     );
   });
 
-  for (final width in <double>[320, 390, 900]) {
+  for (final width in <double>[320, 390, 900, 1280]) {
     testWidgets(
       'shows a responsive validated plan preview at ${width.toInt()}px',
       (tester) async {
@@ -332,6 +358,9 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        expect(find.text('PASTE'), findsOneWidget);
+        expect(find.text('CLEAR'), findsOneWidget);
+        expect(find.text('VALIDATE'), findsOneWidget);
         await tester.enterText(
           find.byType(TextField),
           fixture.container.reportSyncCodec.encode(response),
@@ -349,7 +378,7 @@ void main() {
     );
   }
 
-  for (final width in <double>[320, 390, 900]) {
+  for (final width in <double>[320, 390, 900, 1280]) {
     testWidgets('shows REST PLAN without APPLY at ${width.toInt()}px', (
       tester,
     ) async {

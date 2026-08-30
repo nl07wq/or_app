@@ -12,7 +12,7 @@ import '../services/nutrition_history_chart_engine.dart';
 
 class NutritionHistoryChart extends StatelessWidget {
   static const double _height = 300;
-  static const double yAxisWidth = 66;
+  static const double yAxisWidth = 58;
   static const double _chartTopPadding = 16;
   static const double _bottomTitlesHeight = 38;
 
@@ -34,10 +34,17 @@ class NutritionHistoryChart extends StatelessWidget {
           0.0,
           constraints.maxWidth - yAxisWidth,
         );
-        final chartWidth = const NutritionHistoryChartEngine().chartWidth(
-          pointCount: model.points.length,
-          availableWidth: availableChartWidth,
-        );
+        final totalDays =
+            DateTime.parse(
+              model.endDate,
+            ).difference(DateTime.parse(model.startDate)).inDays +
+            1;
+        final chartWidth = totalDays <= 370
+            ? availableChartWidth
+            : const NutritionHistoryChartEngine().chartWidth(
+                pointCount: model.points.length,
+                availableWidth: availableChartWidth,
+              );
         final ticks = const BodyHistoryXAxis().ticks(
           startDate: model.startDate,
           endDate: model.endDate,
@@ -51,39 +58,29 @@ class NutritionHistoryChart extends StatelessWidget {
             children: [
               SizedBox(
                 width: yAxisWidth,
-                child: _FixedYAxis(axis: model.axis!),
+                child: _FixedYAxis(axis: model.axis!, unit: model.metric.unit),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: chartWidth,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                              top: _chartTopPadding,
-                              left: 8,
-                              right: 8,
-                            ),
-                            child: LineChart(_chartData(context)),
+                child: totalDays <= 370
+                    ? SizedBox(
+                        width: chartWidth,
+                        child: _NutritionChartPlot(
+                          chart: LineChart(_chartData(context)),
+                          ticks: ticks,
+                          maximumX: _maximumX,
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: chartWidth,
+                          child: _NutritionChartPlot(
+                            chart: LineChart(_chartData(context)),
+                            ticks: ticks,
+                            maximumX: _maximumX,
                           ),
                         ),
-                        SizedBox(
-                          height: _bottomTitlesHeight,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: _XAxisLabels(
-                              ticks: ticks,
-                              maximumX: _maximumX,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               ),
             ],
           ),
@@ -105,6 +102,10 @@ class NutritionHistoryChart extends StatelessWidget {
           HistoryMetricColorKey.estimatedExpenditure,
         NutritionHistoryMetric.calorieBalance =>
           HistoryMetricColorKey.calorieBalance,
+        NutritionHistoryMetric.protein ||
+        NutritionHistoryMetric.fat ||
+        NutritionHistoryMetric.carbohydrate =>
+          HistoryMetricColorKey.intakeCalories,
       },
     );
     final gridColor = Theme.of(context).colorScheme.outlineVariant;
@@ -200,7 +201,7 @@ class NutritionHistoryChart extends StatelessWidget {
   }
 
   String _tooltip(BodyHistoryDisplayPoint point) {
-    final value = '${_number(point.value)} kcal';
+    final value = '${_number(point.value)} ${model.metric.unit}';
     return switch (model.granularity) {
       BodyHistoryGranularity.daily =>
         '${model.metric.label}\n${point.startDate}\n$value',
@@ -229,6 +230,40 @@ class NutritionHistoryChart extends StatelessWidget {
     return '${negative ? '-' : ''}$grouped'
         '${parts.length == 2 ? '.${parts.last}' : ''}';
   }
+}
+
+class _NutritionChartPlot extends StatelessWidget {
+  const _NutritionChartPlot({
+    required this.chart,
+    required this.ticks,
+    required this.maximumX,
+  });
+  final Widget chart;
+  final List<BodyHistoryXAxisTick> ticks;
+  final double maximumX;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(
+            top: NutritionHistoryChart._chartTopPadding,
+            left: 6,
+            right: 6,
+          ),
+          child: chart,
+        ),
+      ),
+      SizedBox(
+        height: NutritionHistoryChart._bottomTitlesHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: _XAxisLabels(ticks: ticks, maximumX: maximumX),
+        ),
+      ),
+    ],
+  );
 }
 
 class _XAxisLabels extends StatelessWidget {
@@ -278,8 +313,9 @@ class _XAxisLabels extends StatelessWidget {
 
 class _FixedYAxis extends StatelessWidget {
   final BodyHistoryAxisRange axis;
+  final String unit;
 
-  const _FixedYAxis({required this.axis});
+  const _FixedYAxis({required this.axis, required this.unit});
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +353,7 @@ class _FixedYAxis extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      '${NutritionHistoryChart._number(values[index])} kcal',
+                      '${NutritionHistoryChart._number(values[index])} $unit',
                       maxLines: 1,
                       style: Theme.of(context).textTheme.labelSmall,
                     ),

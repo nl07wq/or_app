@@ -11,7 +11,7 @@ import '../theme/history_metric_color_registry.dart';
 
 class BodyHistoryChart extends StatelessWidget {
   static const double _height = 300;
-  static const double yAxisWidth = 58;
+  static const double yAxisWidth = 52;
   static const double _chartTopPadding = 16;
   static const double _bottomTitlesHeight = 38;
 
@@ -34,10 +34,17 @@ class BodyHistoryChart extends StatelessWidget {
           0.0,
           constraints.maxWidth - yAxisWidth,
         );
-        final chartWidth = engine.chartWidth(
-          pointCount: model.points.length,
-          availableWidth: availableChartWidth,
-        );
+        final totalDays =
+            DateTime.parse(
+              model.endDate,
+            ).difference(DateTime.parse(model.startDate)).inDays +
+            1;
+        final chartWidth = totalDays <= 370
+            ? availableChartWidth
+            : engine.chartWidth(
+                pointCount: model.points.length,
+                availableWidth: availableChartWidth,
+              );
         final ticks = const BodyHistoryXAxis().ticks(
           startDate: model.startDate,
           endDate: model.endDate,
@@ -54,36 +61,26 @@ class BodyHistoryChart extends StatelessWidget {
                 child: _FixedYAxis(axis: model.axis!, unit: model.metric.unit),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: chartWidth,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                              top: _chartTopPadding,
-                              left: 8,
-                              right: 8,
-                            ),
-                            child: LineChart(_chartData(context)),
+                child: totalDays <= 370
+                    ? SizedBox(
+                        width: chartWidth,
+                        child: _ChartPlot(
+                          chart: LineChart(_chartData(context)),
+                          ticks: ticks,
+                          maximumX: _maximumX,
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: chartWidth,
+                          child: _ChartPlot(
+                            chart: LineChart(_chartData(context)),
+                            ticks: ticks,
+                            maximumX: _maximumX,
                           ),
                         ),
-                        SizedBox(
-                          height: _bottomTitlesHeight,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: _XAxisLabels(
-                              ticks: ticks,
-                              maximumX: _maximumX,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               ),
             ],
           ),
@@ -207,6 +204,40 @@ class BodyHistoryChart extends StatelessWidget {
         ? rounded.toStringAsFixed(0)
         : value.toStringAsFixed(1);
   }
+}
+
+class _ChartPlot extends StatelessWidget {
+  const _ChartPlot({
+    required this.chart,
+    required this.ticks,
+    required this.maximumX,
+  });
+  final Widget chart;
+  final List<BodyHistoryXAxisTick> ticks;
+  final double maximumX;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(
+            top: BodyHistoryChart._chartTopPadding,
+            left: 6,
+            right: 6,
+          ),
+          child: chart,
+        ),
+      ),
+      SizedBox(
+        height: BodyHistoryChart._bottomTitlesHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: _XAxisLabels(ticks: ticks, maximumX: maximumX),
+        ),
+      ),
+    ],
+  );
 }
 
 class _XAxisLabels extends StatelessWidget {

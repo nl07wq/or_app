@@ -191,6 +191,44 @@ void main() {
     expect(withOlderNoise.specificAssessment, 'ON TRACK');
   });
 
+  test('today formal weight uses previous formal weight as daily change', () {
+    final result = engine.evaluate(
+      _facts(
+        status: _status(),
+        weights: _weights(change: 2),
+        currentWeightReference: const DailyWeightReference(
+          valueKg: 94.2,
+          source: DailyWeightReferenceSource.measuredToday,
+          sampleCount: 1,
+          windowDays: 1,
+          previousFormalWeightKg: 94.5,
+        ),
+      ),
+    );
+    final item = _find(result, DailyAssessmentMetric.weightTrend);
+    expect(item.rawValue, closeTo(-0.3, 0.000001));
+    expect(item.specificAssessment, 'DECREASED FROM PREVIOUS');
+  });
+
+  test('today weight without a previous formal weight does not fall back', () {
+    final result = engine.evaluate(
+      _facts(
+        status: _status(),
+        weights: _weights(change: -0.5),
+        currentWeightReference: const DailyWeightReference(
+          valueKg: 94.2,
+          source: DailyWeightReferenceSource.measuredToday,
+          sampleCount: 1,
+          windowDays: 1,
+        ),
+      ),
+    );
+    expect(
+      _find(result, DailyAssessmentMetric.weightTrend).specificAssessment,
+      'NOT AVAILABLE',
+    );
+  });
+
   test('STATUS absence gates body recovery condition and work assessments', () {
     final result = engine.evaluate(
       _facts(status: null, weights: _weights(change: -0.5)),
@@ -383,6 +421,8 @@ DailyAssessmentItem Function(DailyAssessmentMetric) _item(
   bool? strengthTrainingPerformed,
   List<BodyHistoryDataPoint> weights = const [],
   TrainingReadinessFacts? training,
+  DailyWeightReference currentWeightReference =
+      const DailyWeightReference.notAvailable(),
 }) {
   final result = engine.evaluate(
     _facts(
@@ -395,6 +435,7 @@ DailyAssessmentItem Function(DailyAssessmentMetric) _item(
       strengthTrainingPerformed: strengthTrainingPerformed,
       weights: weights,
       training: training,
+      currentWeightReference: currentWeightReference,
     ),
   );
   return (metric) => _find(result, metric);
@@ -415,6 +456,8 @@ DailyAssessmentFacts _facts({
   bool? strengthTrainingPerformed,
   List<BodyHistoryDataPoint> weights = const [],
   TrainingReadinessFacts? training,
+  DailyWeightReference currentWeightReference =
+      const DailyWeightReference.notAvailable(),
 }) => DailyAssessmentFacts(
   operationDate: '2026-08-10',
   currentStatus: status,
@@ -427,6 +470,7 @@ DailyAssessmentFacts _facts({
       strengthTrainingPerformed ?? trainingPerformed,
   weightHistory: weights,
   trainingReadiness: training,
+  currentWeightReference: currentWeightReference,
 );
 
 TrainingReadinessFacts _training({

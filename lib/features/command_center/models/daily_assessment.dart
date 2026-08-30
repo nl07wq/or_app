@@ -14,18 +14,21 @@ class DailyWeightReference {
     required this.source,
     required this.sampleCount,
     required this.windowDays,
+    this.previousFormalWeightKg,
   });
 
   const DailyWeightReference.notAvailable()
     : valueKg = null,
       source = DailyWeightReferenceSource.notAvailable,
       sampleCount = 0,
-      windowDays = 0;
+      windowDays = 0,
+      previousFormalWeightKg = null;
 
   final double? valueKg;
   final DailyWeightReferenceSource source;
   final int sampleCount;
   final int windowDays;
+  final double? previousFormalWeightKg;
 }
 
 enum DailyAssessmentLevel {

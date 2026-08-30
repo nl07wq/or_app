@@ -20,6 +20,9 @@ class DailyAssessmentFactLoader {
     final currentStatus = await container.status.findByLocalDate(
       operationDate.value,
     );
+    final previousFormalWeight = await _previousFormalWeight(
+      operationDate.value,
+    );
     final currentFood = await container.foodMixedRead.readForLocalDate(
       operationDate.value,
     );
@@ -76,8 +79,24 @@ class DailyAssessmentFactLoader {
               operationDate: operationDate.value,
               measuredTodayKg: currentStatus.weight,
               history: weightHistory,
+              previousFormalWeightKg: previousFormalWeight,
             ),
       trainingReadiness: trainingReadiness,
     );
+  }
+
+  Future<double?> _previousFormalWeight(String operationDate) async {
+    final records =
+        (await container.status.findAllCanonical()).values
+            .where(
+              (status) =>
+                  status.date.compareTo(operationDate) < 0 &&
+                  status.weight != null &&
+                  status.weight!.isFinite &&
+                  status.weight! > 0,
+            )
+            .toList()
+          ..sort((first, second) => second.date.compareTo(first.date));
+    return records.isEmpty ? null : records.first.weight;
   }
 }

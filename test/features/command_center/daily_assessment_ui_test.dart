@@ -152,11 +152,13 @@ void main() {
         source: DailyWeightReferenceSource.measuredToday,
         sampleCount: 1,
         windowDays: 1,
+        previousFormalWeightKg: 95.3,
       ),
     );
     expect(find.text('CURRENT WEIGHT'), findsOneWidget);
     expect(find.text('95.0 kg'), findsOneWidget);
     expect(find.text('WEEK AVERAGE'), findsNothing);
+    expect(find.textContaining('kg/week'), findsNothing);
 
     await pump(
       const DailyWeightReference(

@@ -3,12 +3,22 @@ import '../../body_history/models/body_history_models.dart';
 enum NutritionHistoryMetric {
   intakeCalories('INTAKE CALORIES'),
   estimatedExpenditure('ESTIMATED EXPENDITURE'),
-  calorieBalance('CALORIE BALANCE');
+  calorieBalance('CALORIE BALANCE'),
+  protein('PROTEIN'),
+  fat('FAT'),
+  carbohydrate('CARBOHYDRATE');
 
   const NutritionHistoryMetric(this.label);
 
   final String label;
-  String get unit => 'kcal';
+  String get unit => switch (this) {
+    NutritionHistoryMetric.intakeCalories ||
+    NutritionHistoryMetric.estimatedExpenditure ||
+    NutritionHistoryMetric.calorieBalance => 'kcal',
+    NutritionHistoryMetric.protein ||
+    NutritionHistoryMetric.fat ||
+    NutritionHistoryMetric.carbohydrate => 'g',
+  };
 }
 
 class NutritionHistoryDataPoint {
@@ -16,18 +26,27 @@ class NutritionHistoryDataPoint {
   final double? intakeCaloriesKcal;
   final double? estimatedExpenditureKcal;
   final double? estimatedCalorieBalanceKcal;
+  final double? proteinG;
+  final double? fatG;
+  final double? carbohydrateG;
 
   const NutritionHistoryDataPoint({
     required this.operationDate,
     required this.intakeCaloriesKcal,
     required this.estimatedExpenditureKcal,
     required this.estimatedCalorieBalanceKcal,
+    this.proteinG,
+    this.fatG,
+    this.carbohydrateG,
   });
 
   double? valueFor(NutritionHistoryMetric metric) => switch (metric) {
     NutritionHistoryMetric.intakeCalories => intakeCaloriesKcal,
     NutritionHistoryMetric.estimatedExpenditure => estimatedExpenditureKcal,
     NutritionHistoryMetric.calorieBalance => estimatedCalorieBalanceKcal,
+    NutritionHistoryMetric.protein => proteinG,
+    NutritionHistoryMetric.fat => fatG,
+    NutritionHistoryMetric.carbohydrate => carbohydrateG,
   };
 }
 

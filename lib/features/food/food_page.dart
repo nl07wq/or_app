@@ -28,11 +28,7 @@ class FoodPage extends StatelessWidget {
 
             AppSpacing.gapSM,
 
-            OperationDescription(
-              text:
-                  'Operation Reboot Reportから\n'
-                  '本日の食事記録を同期します。',
-            ),
+            OperationDescription(text: 'ChatGPTから\n食事記録を取り込みます。'),
 
             AppSpacing.gapMD,
 

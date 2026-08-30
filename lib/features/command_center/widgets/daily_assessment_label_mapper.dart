@@ -8,6 +8,9 @@ String dailyAssessmentSpecificLabel(DailyAssessmentItem item) {
       'PLATEAU WATCH': '体重は停滞傾向にあります。',
       'UPWARD TREND': '体重は増加傾向にあります。',
       'RAPID LOSS': '減量ペースがやや速くなっています。',
+      'DECREASED FROM PREVIOUS': '前回計測値から減少しています。',
+      'INCREASED FROM PREVIOUS': '前回計測値から増加しています。',
+      'UNCHANGED FROM PREVIOUS': '前回計測値から変化はありません。',
     },
     DailyAssessmentMetric.sleepTime => const {
       'SUFFICIENT': '十分な睡眠時間を確保できています。',
@@ -82,6 +85,7 @@ String dailyAssessmentSpecificLabel(DailyAssessmentItem item) {
 String dailyAssessmentConstraintLabel(String canonical) =>
     const <String, String>{
       'WEIGHT TREND': '減量ペースが速いため、体重推移を確認する必要があります。',
+      'WEIGHT CHANGE': '前回計測値から体重が増加しています。',
       'SEVERE SLEEP DEFICIT': '睡眠時間が大幅に不足しています。',
       'LOW SLEEP SCORE': '睡眠の質が低下しています。',
       'PLANTAR FASCIITIS': '足底症状が強く、活動負荷を抑える必要があります。',

@@ -108,4 +108,42 @@ void main() {
 
     expect(wide.length, greaterThan(narrow.length));
   });
+
+  test('three-month axis is month-aware at 1, 5, 15 and 25', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-08-01',
+      endDate: '2026-10-31',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 900,
+    );
+    expect(
+      ticks.map((tick) => tick.label),
+      containsAll(['8/1', '5', '15', '25', '9/1', '10/1']),
+    );
+  });
+
+  test('six-month axis prioritizes month start and midpoint', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-01-01',
+      endDate: '2026-06-30',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 900,
+    );
+    expect(
+      ticks.map((tick) => tick.label),
+      containsAll(['1/1', '15', '2/1', '3/1', '30']),
+    );
+  });
+
+  test('one-year axis uses monthly density and retains first and last', () {
+    final ticks = xAxis.ticks(
+      startDate: '2025-09-01',
+      endDate: '2026-08-31',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 900,
+    );
+    expect(ticks.first.x, 0);
+    expect(ticks.last.x, 364);
+    expect(ticks.length, inInclusiveRange(12, 14));
+  });
 }

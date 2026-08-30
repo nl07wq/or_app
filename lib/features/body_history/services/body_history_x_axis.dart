@@ -27,17 +27,53 @@ class BodyHistoryXAxis {
       2,
       (availablePlotWidth / minimumLabelWidthCandidate).floor(),
     );
-    var intervalIndex = _initialIntervalIndex(totalDays);
-    if (granularity == BodyHistoryGranularity.monthly) {
-      intervalIndex = math.max(intervalIndex, 7);
-    }
-    var dates = _dates(start, end, _intervals[intervalIndex]);
-    while (dates.length > maximumLabels &&
-        intervalIndex < _intervals.length - 1) {
-      intervalIndex++;
-      dates = _dates(start, end, _intervals[intervalIndex]);
+    var dates = _presetDates(start, end, totalDays);
+    if (dates.length > maximumLabels) {
+      final stride = (dates.length / maximumLabels).ceil();
+      dates = [
+        dates.first,
+        for (var index = stride; index < dates.length - 1; index += stride)
+          dates[index],
+        if (dates.last != dates.first) dates.last,
+      ];
     }
     return _formatTicks(dates, start, granularity);
+  }
+
+  static List<DateTime> _presetDates(
+    DateTime start,
+    DateTime end,
+    int totalDays,
+  ) {
+    if (totalDays <= 7) return _dates(start, end, _intervals[0]);
+    if (totalDays <= 20) return _dates(start, end, _intervals[1]);
+    if (totalDays <= 45) return _dates(start, end, _intervals[3]);
+    if (totalDays <= 120) return _monthDays(start, end, const [1, 5, 15, 25]);
+    if (totalDays <= 210) return _monthDays(start, end, const [1, 15]);
+    if (totalDays <= 550) return _monthDays(start, end, const [1]);
+    final intervalIndex = _initialIntervalIndex(totalDays);
+    return _dates(start, end, _intervals[intervalIndex]);
+  }
+
+  static List<DateTime> _monthDays(
+    DateTime start,
+    DateTime end,
+    List<int> days,
+  ) {
+    final values = <DateTime>[];
+    for (
+      var month = DateTime.utc(start.year, start.month);
+      !month.isAfter(end);
+      month = DateTime.utc(month.year, month.month + 1)
+    ) {
+      for (final day in days) {
+        final date = DateTime.utc(month.year, month.month, day);
+        if (!date.isBefore(start) && !date.isAfter(end)) values.add(date);
+      }
+    }
+    if (values.isEmpty || values.first != start) values.insert(0, start);
+    if (values.last != end) values.add(end);
+    return values;
   }
 
   static int _initialIntervalIndex(int totalDays) {

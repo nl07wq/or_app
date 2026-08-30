@@ -68,6 +68,26 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
     }
   }
 
+  Future<void> _paste() async {
+    if (_busy) return;
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted || data?.text == null) return;
+    setState(() {
+      _response.text = data!.text!;
+      _preview = null;
+      _error = null;
+    });
+  }
+
+  void _clear() {
+    if (_busy) return;
+    setState(() {
+      _response.clear();
+      _preview = null;
+      _error = null;
+    });
+  }
+
   Future<void> _apply() async {
     final preview = _preview;
     if (preview == null || _busy) return;
@@ -147,10 +167,32 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
                     ),
                   ),
                   AppSpacing.gapMD,
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _validate,
-                    icon: const Icon(Icons.fact_check_outlined),
-                    label: const Text('VALIDATE'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _paste,
+                          icon: const Icon(Icons.content_paste_outlined),
+                          label: const Text('PASTE'),
+                        ),
+                      ),
+                      AppSpacing.gapSM,
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _clear,
+                          icon: const Icon(Icons.clear_outlined),
+                          label: const Text('CLEAR'),
+                        ),
+                      ),
+                      AppSpacing.gapSM,
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _validate,
+                          icon: const Icon(Icons.fact_check_outlined),
+                          label: const Text('VALIDATE'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

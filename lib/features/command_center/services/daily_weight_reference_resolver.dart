@@ -6,6 +6,7 @@ abstract final class DailyWeightReferenceResolver {
     required String operationDate,
     required double? measuredTodayKg,
     required Iterable<BodyHistoryDataPoint> history,
+    double? previousFormalWeightKg,
   }) {
     if (measuredTodayKg != null &&
         measuredTodayKg.isFinite &&
@@ -15,6 +16,7 @@ abstract final class DailyWeightReferenceResolver {
         source: DailyWeightReferenceSource.measuredToday,
         sampleCount: 1,
         windowDays: 1,
+        previousFormalWeightKg: previousFormalWeightKg,
       );
     }
     final target = DateTime.parse(operationDate);
