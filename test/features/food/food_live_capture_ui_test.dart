@@ -34,6 +34,8 @@ void main() {
     expect(session.draft.carbohydrate, 0.54);
     expect(session.draft.protein, isNot(0.67));
     expect(session.lastRawText, contains('0.69g'));
+    expect(session.candidateSources['CALORIES'], 'session');
+    expect(session.candidateSources['PROTEIN'], 'parser');
   });
 
   test('real-label fields accumulate across live frames without inference', () {
@@ -51,6 +53,31 @@ void main() {
     expect(session.draft.carbohydrate, 21.5);
     expect(candidate.state, 'detected');
     expect(session.draft.protein, isNot(2.15));
+  });
+
+  test('structured anchor result has priority and preserves conflict', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe('脂質 10.8g');
+    final candidate = session.describe('[[OR_STRUCTURED_NUTRITION]]\n脂質 10.6g');
+    session.describe('脂質 10.9g');
+
+    expect(session.draft.fat, 10.6);
+    expect(session.conflicts, contains('FAT'));
+    expect(candidate.fields['REVIEW CONFLICT'], 'FAT');
+    expect(session.candidateSources['FAT'], 'structured');
+    expect(session.draft.fat, isNot(10.7));
+  });
+
+  test('matching structured and parser evidence does not conflict', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe('熱量 345kcal\n脂質 10.6g');
+    session.describe('[[OR_STRUCTURED_NUTRITION]]\nエネルギー 345kcal\n脂質 10.6g');
+
+    expect(session.draft.calories, 345);
+    expect(session.draft.fat, 10.6);
+    expect(session.conflicts, isEmpty);
+    expect(session.candidateSources['CALORIES'], 'structured');
+    expect(session.candidateSources['FAT'], 'structured');
   });
 
   testWidgets(
@@ -200,6 +227,38 @@ void main() {
     expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
     expect(find.text('FAT  10.6 g'), findsOneWidget);
     expect(find.text('CARBOHYDRATE  21.5 g'), findsOneWidget);
+  });
+
+  testWidgets('photo review exposes structured OCR conflicts', (tester) async {
+    final gateway = _LiveGateway(
+      nutritionRawText:
+          '脂質 10.8g\u001e'
+          '[[OR_STRUCTURED_NUTRITION]]\n脂質 10.6g',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async => true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final action = find.byKey(const ValueKey('food-entry-ocr'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('NUTRITION'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PHOTO LIBRARY'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('FAT  10.6 g'), findsOneWidget);
+    expect(find.text('REVIEW CONFLICT  FAT'), findsOneWidget);
   });
 
   testWidgets('package candidates require user selection before draft apply', (
@@ -444,6 +503,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('REVIEW NUTRITION'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'nutrition width $width');
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('structured conflict review does not overflow', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: _LiveGateway(
+                  nutritionRawText:
+                      '脂質 10.8g\u001e'
+                      '[[OR_STRUCTURED_NUTRITION]]\n脂質 10.6g',
+                ),
+                onSave: (_) async => true,
+              ),
+            ),
+          ),
+        ),
+      );
+      final action = find.byKey(const ValueKey('food-entry-ocr'));
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('NUTRITION'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('PHOTO LIBRARY'));
+      await tester.pumpAndSettle();
+      expect(find.text('REVIEW CONFLICT  FAT'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'conflict width $width');
       await tester.tap(find.text('CANCEL'));
       await tester.pumpAndSettle();
     }

@@ -36,6 +36,7 @@ Future<FoodOcrResult?> showFoodOcrScanner({
 
   final String? rawText;
   NutritionOcrDraft? nutritionDraft;
+  Set<String> nutritionConflicts = const {};
   PackageOcrDraft? packageDraft;
   if (captureMode == FoodNutritionCaptureMode.live) {
     if (gateway is! FoodLiveCaptureGateway) {
@@ -54,6 +55,7 @@ Future<FoodOcrResult?> showFoodOcrScanner({
         }
       }
       nutritionDraft = session.draft;
+      nutritionConflicts = session.conflicts;
     } else {
       final session = _PackageCandidateSession();
       rawText = await gateway.recognizeTextLive(
@@ -85,11 +87,12 @@ Future<FoodOcrResult?> showFoodOcrScanner({
   if (rawText == null || !context.mounted) return null;
 
   if (mode == FoodOcrMode.nutrition) {
-    final draft = nutritionDraft?.isEmpty == false
-        ? nutritionDraft!
+    final parsed = nutritionDraft?.isEmpty == false
+        ? (draft: nutritionDraft!, conflicts: nutritionConflicts)
         : _nutritionDraft(rawText);
+    final draft = parsed.draft;
     if (draft.isEmpty) return null;
-    final apply = await _reviewNutrition(context, draft);
+    final apply = await _reviewNutrition(context, draft, parsed.conflicts);
     return apply ? FoodNutritionOcrResult(rawText, draft) : null;
   }
   final draft = packageDraft?.isEmpty == false
@@ -105,12 +108,14 @@ Iterable<String> _ocrPasses(String rawText) => rawText
     .map((pass) => pass.trim())
     .where((pass) => pass.isNotEmpty);
 
-NutritionOcrDraft _nutritionDraft(String rawText) {
+({NutritionOcrDraft draft, Set<String> conflicts}) _nutritionDraft(
+  String rawText,
+) {
   final session = FoodNutritionCandidateSession();
   for (final pass in _ocrPasses(rawText)) {
     session.describe(pass);
   }
-  return session.draft;
+  return (draft: session.draft, conflicts: session.conflicts);
 }
 
 PackageOcrDraft _packageDraft(String rawText) {
@@ -179,6 +184,7 @@ Future<FoodNutritionCaptureMode?> _chooseCaptureMode(BuildContext context) =>
 Future<bool> _reviewNutrition(
   BuildContext context,
   NutritionOcrDraft draft,
+  Set<String> conflicts,
 ) async =>
     await showDialog<bool>(
       context: context,
@@ -197,6 +203,8 @@ Future<bool> _reviewNutrition(
               _value('PROTEIN', _amount(draft.protein, 'g')),
               _value('FAT', _amount(draft.fat, 'g')),
               _value('CARBOHYDRATE', _amount(draft.carbohydrate, 'g')),
+              if (conflicts.isNotEmpty)
+                _value('REVIEW CONFLICT', conflicts.join(', ')),
             ],
           ),
         ),

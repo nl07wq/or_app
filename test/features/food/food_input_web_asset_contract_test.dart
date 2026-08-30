@@ -65,8 +65,10 @@ void main() {
     expect(bridge, contains('height: 0.80'));
     expect(bridge, contains('width: 0.96'));
     expect(bridge, contains('height: 0.88'));
-    expect(bridge, contains('video.videoWidth * guide.left'));
-    expect(bridge, contains('video.videoHeight * guide.top'));
+    expect(
+      bridge,
+      contains('ocrGeometry(video.videoWidth, video.videoHeight, guide)'),
+    );
     expect(bridge, contains('Math.min(1, maxWidth / sourceWidth)'));
     expect(bridge, contains('const maxWidth = 2560'));
     expect(bridge, contains('inputWidth: canvas.width'));
@@ -84,7 +86,7 @@ void main() {
       contains("context.getImageData(0, 0, canvas.width, canvas.height)"),
     );
     expect(bridge, contains('canvas.width = Math.max(1'));
-    expect(bridge, contains('worker.recognize(dataUrl)'));
+    expect(bridge, contains('worker.recognize(dataUrl, {}, outputs)'));
     expect(bridge, contains('OCR recognition timed out'));
     expect(bridge, contains('await resetOcrWorker()'));
     expect(bridge, contains('if (finished || running) return'));
@@ -111,6 +113,64 @@ void main() {
     expect(bridge, isNot(contains('大きく映すか写真を使用してください')));
     expect(bridge, isNot(contains('.reduce(')));
     expect(bridge, isNot(contains('navigator.sendBeacon')));
+  });
+
+  test('photo OCR preserves native detail before shared guide resize', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+
+    expect(bridge, contains('async function imageMetadata(dataUrl)'));
+    expect(bridge, contains('metadata.orientation'));
+    expect(bridge, contains('originalWidth: metadata.width'));
+    expect(bridge, contains('decodedWidth: image.naturalWidth'));
+    expect(bridge, contains('orientationAppliedByDecoder'));
+    expect(bridge, contains('function ocrGeometry(width, height, guide)'));
+    expect(bridge, contains('const geometry = ocrGeometry('));
+    expect(bridge, contains('image.naturalWidth'));
+    expect(bridge, contains('image.naturalHeight'));
+    expect(bridge, contains('geometry.sourceWidth'));
+    expect(bridge, contains('geometry.inputWidth'));
+    expect(bridge, contains('cropWidth: geometry.sourceWidth'));
+    expect(bridge, contains('passDurationsMs: []'));
+    expect(bridge, contains('structuredDurationMs'));
+    expect(bridge, contains('lastPhotoDiagnostics'));
+    expect(bridge, contains('lastStructuredDiagnostics'));
+  });
+
+  test('structured nutrition OCR uses anchors, layout, and numeric ROI', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+
+    for (final label in [
+      'エネルギー',
+      '熱量',
+      'たんぱく質',
+      'タンパク質',
+      '蛋白質',
+      '脂質',
+      '炭水化物',
+      '糖質',
+      '食物繊維',
+      '食塩相当量',
+    ]) {
+      expect(bridge, contains(label));
+    }
+    expect(bridge, contains('outputs: { text: true, tsv: true }'));
+    expect(bridge, contains('function nutritionAnchors(groups)'));
+    expect(bridge, contains('function mapAnchorValues(anchors, values)'));
+    expect(bridge, contains('function valueFromRoi(canvas, anchor, field)'));
+    expect(bridge, contains("whitelist: '0123456789.,kcalg'"));
+    expect(bridge, contains("return 'header-value-row'"));
+    expect(bridge, contains("'vertical-list'"));
+    expect(bridge, contains("'two-column-table'"));
+    expect(bridge, contains("return 'boxed-wrapped'"));
+    expect(bridge, contains('structuredMarker'));
+    expect(bridge, contains('nutritionBasisPattern'));
+    expect(bridge, contains("indexOf('栄養成分表示')"));
+    expect(bridge, contains("fieldSources: Object.fromEntries"));
+    expect(bridge, isNot(contains('Promise.all(')));
   });
 
   test('required OCR worker core model and license files exist', () {

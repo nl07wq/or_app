@@ -26,6 +26,8 @@
     minEdgeDensity: 0.012,
   });
   let lastCaptureDiagnostics;
+  let lastPhotoDiagnostics;
+  let lastStructuredDiagnostics;
 
   function loadScript(url) {
     if (loadedScripts.has(url)) return loadedScripts.get(url);
@@ -107,13 +109,19 @@
     }
   }
 
-  function recognizeSinglePass(dataUrl) {
+  function recognizePass(dataUrl, {
+    outputs,
+    whitelist,
+  } = {}) {
     const recognize = async () => {
       const worker = await ocrWorker();
       let timeout;
       try {
+        if (whitelist) {
+          await worker.setParameters({ tessedit_char_whitelist: whitelist });
+        }
         const result = await Promise.race([
-          worker.recognize(dataUrl),
+          worker.recognize(dataUrl, {}, outputs),
           new Promise((_, reject) => {
             timeout = setTimeout(
               () => reject(new Error('OCR recognition timed out')),
@@ -121,12 +129,15 @@
             );
           }),
         ]);
-        return result.data.text || '';
+        return result.data;
       } catch (error) {
         await resetOcrWorker();
         throw error;
       } finally {
         clearTimeout(timeout);
+        if (whitelist && workerInstance === worker) {
+          await worker.setParameters({ tessedit_char_whitelist: '' });
+        }
       }
     };
     const result = ocrQueue.then(recognize, recognize);
@@ -134,17 +145,124 @@
     return result;
   }
 
-  function canvasFromImage(dataUrl) {
+  async function recognizeSinglePass(dataUrl) {
+    const data = await recognizePass(dataUrl);
+    return data.text || '';
+  }
+
+  const recognizeLayoutPass = (dataUrl) => recognizePass(dataUrl, {
+    outputs: { text: true, tsv: true },
+  });
+
+  async function imageMetadata(dataUrl) {
+    const response = await fetch(dataUrl);
+    const buffer = await (await response.blob()).arrayBuffer();
+    const view = new DataView(buffer);
+    const metadata = { width: null, height: null, orientation: 1 };
+    if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return metadata;
+    let offset = 2;
+    while (offset + 4 <= view.byteLength) {
+      const marker = view.getUint16(offset);
+      offset += 2;
+      if ((marker & 0xff00) !== 0xff00 || marker === 0xffd9) break;
+      const length = view.getUint16(offset);
+      if (length < 2 || offset + length > view.byteLength) break;
+      const dataOffset = offset + 2;
+      if ([0xffc0, 0xffc1, 0xffc2, 0xffc3, 0xffc5, 0xffc6, 0xffc7,
+        0xffc9, 0xffca, 0xffcb, 0xffcd, 0xffce, 0xffcf].includes(marker)) {
+        metadata.height = view.getUint16(dataOffset + 1);
+        metadata.width = view.getUint16(dataOffset + 3);
+      }
+      if (marker === 0xffe1 && length >= 16 &&
+          view.getUint32(dataOffset) === 0x45786966) {
+        const tiff = dataOffset + 6;
+        const little = view.getUint16(tiff) === 0x4949;
+        const ifd = tiff + view.getUint32(tiff + 4, little);
+        if (ifd + 2 <= view.byteLength) {
+          const entries = view.getUint16(ifd, little);
+          for (let index = 0; index < entries; index += 1) {
+            const entry = ifd + 2 + index * 12;
+            if (entry + 12 > view.byteLength) break;
+            if (view.getUint16(entry, little) === 0x0112) {
+              metadata.orientation = view.getUint16(entry + 8, little);
+              break;
+            }
+          }
+        }
+      }
+      offset += length;
+    }
+    return metadata;
+  }
+
+  function ocrGeometry(width, height, guide) {
+    const sourceX = Math.round(width * guide.left);
+    const sourceY = Math.round(height * guide.top);
+    const sourceWidth = Math.max(1, Math.round(width * guide.width));
+    const sourceHeight = Math.max(1, Math.round(height * guide.height));
+    const maxWidth = 2560;
+    const scale = Math.min(1, maxWidth / sourceWidth);
+    return {
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      inputWidth: Math.max(1, Math.round(sourceWidth * scale)),
+      inputHeight: Math.max(1, Math.round(sourceHeight * scale)),
+    };
+  }
+
+  function canvasFromImage(dataUrl, mode) {
     return new Promise((resolve, reject) => {
       const image = new Image();
-      image.onload = () => {
-        const maxWidth = 2560;
-        const scale = Math.min(1, maxWidth / image.naturalWidth);
+      image.onload = async () => {
+        const metadata = await imageMetadata(dataUrl).catch(() => ({
+          width: null,
+          height: null,
+          orientation: 1,
+        }));
+        const guide = mode === 'nutrition' ? ocrGuide : packageGuide;
+        const geometry = ocrGeometry(
+          image.naturalWidth,
+          image.naturalHeight,
+          guide,
+        );
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.width = geometry.inputWidth;
+        canvas.height = geometry.inputHeight;
         const context = canvas.getContext('2d', { alpha: false });
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        context.drawImage(
+          image,
+          geometry.sourceX,
+          geometry.sourceY,
+          geometry.sourceWidth,
+          geometry.sourceHeight,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
+        lastPhotoDiagnostics = {
+          mode,
+          originalWidth: metadata.width,
+          originalHeight: metadata.height,
+          decodedWidth: image.naturalWidth,
+          decodedHeight: image.naturalHeight,
+          orientation: metadata.orientation,
+          orientationAppliedByDecoder:
+            metadata.orientation >= 5 && metadata.orientation <= 8
+              ? image.naturalWidth === metadata.height && image.naturalHeight === metadata.width
+              : true,
+          imageFormat: String(dataUrl).slice(5, String(dataUrl).indexOf(';')),
+          cropX: geometry.sourceX,
+          cropY: geometry.sourceY,
+          cropWidth: geometry.sourceWidth,
+          cropHeight: geometry.sourceHeight,
+          inputWidth: canvas.width,
+          inputHeight: canvas.height,
+          passCount: 0,
+          passDurationsMs: [],
+        };
         resolve(canvas);
       };
       image.onerror = reject;
@@ -184,12 +302,352 @@
     ];
   }
 
+  const nutritionLabels = Object.freeze({
+    energy: ['エネルギー', '熱量'],
+    protein: ['たんぱく質', 'タンパク質', '蛋白質'],
+    fat: ['脂質'],
+    carbohydrate: ['炭水化物'],
+    sugar: ['糖質'],
+    fiber: ['食物繊維'],
+    salt: ['食塩相当量'],
+  });
+  const structuredMarker = '[[OR_STRUCTURED_NUTRITION]]\n';
+  const nutritionBasisPattern =
+    /(?:100\s*(?:g|m[lL])|(?:\d+\s*)?(?:袋|個|本|枚|食)(?:\s*\d+(?:[.,]\d+)?\s*(?:g|m[lL]))?)\s*当たり/i;
+
+  function normalizeOcrToken(value) {
+    return String(value || '')
+      .replace(/[ \t　]/g, '')
+      .replace(/．/g, '.')
+      .replace(/，/g, ',')
+      .replace(/[０-９]/g, (digit) =>
+        String.fromCharCode(digit.charCodeAt(0) - 0xff10 + 0x30),
+      );
+  }
+
+  function tsvWords(tsv) {
+    if (!tsv) return [];
+    const rows = String(tsv).split(/\r?\n/).slice(1);
+    const words = [];
+    for (const row of rows) {
+      const columns = row.split('\t');
+      if (columns.length < 12 || columns[0] !== '5') continue;
+      const text = columns.slice(11).join('\t').trim();
+      if (!text) continue;
+      words.push({
+        lineKey: columns.slice(1, 5).join(':'),
+        left: Number(columns[6]),
+        top: Number(columns[7]),
+        width: Number(columns[8]),
+        height: Number(columns[9]),
+        confidence: Number(columns[10]),
+        text,
+      });
+    }
+    return words.filter((word) =>
+      [word.left, word.top, word.width, word.height].every(Number.isFinite),
+    );
+  }
+
+  function lineGroups(words) {
+    const groups = new Map();
+    for (const word of words) {
+      if (!groups.has(word.lineKey)) groups.set(word.lineKey, []);
+      groups.get(word.lineKey).push(word);
+    }
+    return [...groups.entries()].map(([lineKey, lineWords]) => ({
+      lineKey,
+      words: lineWords.sort((a, b) => a.left - b.left),
+    }));
+  }
+
+  function boxForWords(words) {
+    const left = Math.min(...words.map((word) => word.left));
+    const top = Math.min(...words.map((word) => word.top));
+    const right = Math.max(...words.map((word) => word.left + word.width));
+    const bottom = Math.max(...words.map((word) => word.top + word.height));
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  function nutritionAnchors(groups) {
+    const anchors = [];
+    for (const group of groups) {
+      const normalizedWords = group.words.map((word) => normalizeOcrToken(word.text));
+      const joined = normalizedWords.join('');
+      for (const [field, aliases] of Object.entries(nutritionLabels)) {
+        for (const alias of aliases) {
+          const start = joined.indexOf(alias);
+          if (start < 0) continue;
+          let cursor = 0;
+          const matched = [];
+          for (let index = 0; index < group.words.length; index += 1) {
+            const end = cursor + normalizedWords[index].length;
+            if (end > start && cursor < start + alias.length) matched.push(group.words[index]);
+            cursor = end;
+          }
+          if (matched.length) {
+            anchors.push({ field, alias, lineKey: group.lineKey, ...boxForWords(matched) });
+          }
+          break;
+        }
+      }
+    }
+    return anchors;
+  }
+
+  function numericValues(groups) {
+    const values = [];
+    const pattern = /^(\d+(?:[.,]\d+)?)(kcal|mg|g)$/i;
+    for (const group of groups) {
+      for (let index = 0; index < group.words.length; index += 1) {
+        for (const count of [1, 2]) {
+          const selected = group.words.slice(index, index + count);
+          if (selected.length !== count) continue;
+          const match = pattern.exec(normalizeOcrToken(selected.map((word) => word.text).join('')));
+          if (!match) continue;
+          const number = Number(match[1].replace(',', '.'));
+          if (!Number.isFinite(number) || number < 0) continue;
+          values.push({
+            value: number,
+            unit: match[2].toLowerCase(),
+            lineKey: group.lineKey,
+            ...boxForWords(selected),
+          });
+        }
+      }
+    }
+    return values.filter((value, index, all) =>
+      all.findIndex((candidate) =>
+        candidate.lineKey === value.lineKey && candidate.left === value.left &&
+        candidate.value === value.value && candidate.unit === value.unit,
+      ) === index,
+    );
+  }
+
+  const targetNutritionFields = ['energy', 'protein', 'fat', 'carbohydrate'];
+
+  function compatibleValue(field, value) {
+    return field === 'energy' ? value.unit === 'kcal' : value.unit === 'g';
+  }
+
+  function relationshipScore(anchor, value, headerAnchors) {
+    const anchorCenter = (anchor.left + anchor.right) / 2;
+    const valueCenter = (value.left + value.right) / 2;
+    const verticalOverlap =
+      Math.min(anchor.bottom, value.bottom) - Math.max(anchor.top, value.top);
+    if (verticalOverlap >= -Math.max(anchor.height, value.height) * 0.35 &&
+        value.left >= anchor.right - 6) {
+      return value.left - anchor.right;
+    }
+    if (headerAnchors.length >= 3 && value.top >= anchor.bottom) {
+      const ordered = [...headerAnchors].sort((a, b) => a.left - b.left);
+      const index = ordered.indexOf(anchor);
+      const lower = index === 0 ? 0 : (ordered[index - 1].right + anchor.left) / 2;
+      const upper = index === ordered.length - 1
+        ? Infinity
+        : (anchor.right + ordered[index + 1].left) / 2;
+      if (valueCenter >= lower && valueCenter < upper) {
+        return 1000 + value.top - anchor.bottom;
+      }
+    }
+    if (value.top >= anchor.bottom - 4 &&
+        value.top <= anchor.bottom + anchor.height * 2.6 &&
+        Math.abs(valueCenter - anchorCenter) <= Math.max(anchor.width, value.width) * 1.5) {
+      return 2000 + value.top - anchor.bottom + Math.abs(valueCenter - anchorCenter);
+    }
+    return Infinity;
+  }
+
+  function mapAnchorValues(anchors, values) {
+    const mapped = new Map();
+    const used = new Set();
+    const headerAnchors = anchors.filter((anchor) =>
+      targetNutritionFields.includes(anchor.field) &&
+      anchors.filter((candidate) => candidate.lineKey === anchor.lineKey).length >= 3,
+    );
+    for (const anchor of anchors.filter((value) => targetNutritionFields.includes(value.field))) {
+      const ranked = values
+        .map((value, index) => ({
+          value,
+          index,
+          score: compatibleValue(anchor.field, value)
+            ? relationshipScore(anchor, value, headerAnchors)
+            : Infinity,
+        }))
+        .filter((entry) => Number.isFinite(entry.score) && !used.has(entry.index))
+        .sort((a, b) => a.score - b.score);
+      const best = ranked[0];
+      if (!best) continue;
+      const competingAnchors = anchors.filter((candidate) =>
+        compatibleValue(candidate.field, best.value) &&
+        relationshipScore(candidate, best.value, headerAnchors) < best.score,
+      );
+      if (competingAnchors.length) continue;
+      mapped.set(anchor.field, best.value);
+      used.add(best.index);
+    }
+    return mapped;
+  }
+
+  function layoutPattern(anchors, mapped) {
+    const target = anchors.filter((anchor) => targetNutritionFields.includes(anchor.field));
+    if (target.some((anchor) =>
+      target.filter((candidate) => candidate.lineKey === anchor.lineKey).length >= 3,
+    )) return 'header-value-row';
+    const sameLine = [...mapped.entries()].filter(([field, value]) => {
+      const anchor = target.find((candidate) => candidate.field === field);
+      return anchor && anchor.lineKey === value.lineKey;
+    });
+    if (sameLine.length >= 3) {
+      const valueLefts = sameLine.map(([, value]) => value.left);
+      return Math.max(...valueLefts) - Math.min(...valueLefts) <= 24
+        ? 'two-column-table'
+        : 'vertical-list';
+    }
+    if (target.length >= 3) return 'two-column-table';
+    return 'boxed-wrapped';
+  }
+
+  function roiCanvas(source, region) {
+    const left = Math.max(0, Math.round(region.left));
+    const top = Math.max(0, Math.round(region.top));
+    const right = Math.min(source.width, Math.round(region.right));
+    const bottom = Math.min(source.height, Math.round(region.bottom));
+    if (right <= left || bottom <= top) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = right - left;
+    canvas.height = bottom - top;
+    canvas.getContext('2d', { alpha: false }).drawImage(
+      source,
+      left,
+      top,
+      canvas.width,
+      canvas.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    return canvas;
+  }
+
+  async function valueFromRoi(canvas, anchor, field) {
+    const regions = [
+      {
+        left: anchor.right,
+        top: anchor.top - anchor.height * 0.5,
+        right: canvas.width,
+        bottom: anchor.bottom + anchor.height * 0.5,
+      },
+      {
+        left: anchor.left - anchor.width * 0.4,
+        top: anchor.bottom,
+        right: anchor.right + Math.max(anchor.width * 2.5, 320),
+        bottom: anchor.bottom + anchor.height * 2.6,
+      },
+    ];
+    const pattern = field === 'energy'
+      ? /(\d+(?:[.,]\d+)?)\s*kcal/i
+      : /(\d+(?:[.,]\d+)?)\s*g/i;
+    for (const region of regions) {
+      const roi = roiCanvas(canvas, region);
+      if (!roi || roi.width < 8 || roi.height < 8) continue;
+      const data = await recognizePass(roi.toDataURL('image/png'), {
+        whitelist: '0123456789.,kcalg',
+      });
+      const matches = [...String(data.text || '').matchAll(new RegExp(pattern, 'gi'))];
+      if (matches.length !== 1) continue;
+      const value = Number(matches[0][1].replace(',', '.'));
+      if (Number.isFinite(value) && value >= 0) {
+        return { value, unit: field === 'energy' ? 'kcal' : 'g' };
+      }
+    }
+    return null;
+  }
+
+  async function structuredNutritionText(canvas, tsv) {
+    const words = tsvWords(tsv);
+    const groups = lineGroups(words);
+    const anchors = nutritionAnchors(groups);
+    const mapped = mapAnchorValues(anchors, numericValues(groups));
+    let roiCount = 0;
+    for (const field of targetNutritionFields) {
+      if (mapped.has(field)) continue;
+      const anchor = anchors.find((candidate) => candidate.field === field);
+      if (!anchor) continue;
+      roiCount += 1;
+      const value = await valueFromRoi(canvas, anchor, field);
+      if (value) mapped.set(field, value);
+    }
+    const fieldLabel = {
+      energy: 'エネルギー',
+      protein: 'たんぱく質',
+      fat: '脂質',
+      carbohydrate: '炭水化物',
+    };
+    lastStructuredDiagnostics = {
+      layoutPattern: layoutPattern(anchors, mapped),
+      anchors: anchors.map((anchor) => ({
+        field: anchor.field,
+        alias: anchor.alias,
+        left: anchor.left,
+        top: anchor.top,
+        width: anchor.width,
+        height: anchor.height,
+      })),
+      valueRoiCount: roiCount,
+      fieldSources: Object.fromEntries(
+        [...mapped.keys()].map((field) => [field, 'structured']),
+      ),
+    };
+    const lines = [];
+    const normalizedContext = groups
+      .map((group) => group.words.map((word) => word.text).join(' '))
+      .join('\n');
+    const nutritionContextIndex = normalizeOcrToken(normalizedContext)
+      .indexOf('栄養成分表示');
+    if (nutritionContextIndex >= 0) {
+      const basis = normalizedContext.match(nutritionBasisPattern);
+      if (basis) lines.push(`栄養成分表示 ${basis[0]}`);
+    }
+    for (const field of targetNutritionFields) {
+      const value = mapped.get(field);
+      if (value) lines.push(`${fieldLabel[field]} ${value.value}${value.unit}`);
+    }
+    return lines.length ? structuredMarker + lines.join('\n') : '';
+  }
+
   async function recognizeJapaneseText(dataUrl, mode = 'package') {
-    const canvas = await canvasFromImage(dataUrl);
+    const canvas = await canvasFromImage(dataUrl, mode);
     const texts = [];
+    let layoutTsv = '';
     for (const variant of ocrVariants(canvas, mode)) {
-      const text = await recognizeSinglePass(variant.dataUrl);
+      const startedAt = performance.now();
+      let text;
+      if (mode === 'nutrition' && variant.name === 'original') {
+        const data = await recognizeLayoutPass(variant.dataUrl);
+        text = data.text || '';
+        layoutTsv = data.tsv || '';
+      } else {
+        text = await recognizeSinglePass(variant.dataUrl);
+      }
+      if (lastPhotoDiagnostics) {
+        lastPhotoDiagnostics.passCount += 1;
+        lastPhotoDiagnostics.passDurationsMs.push(
+          Math.round(performance.now() - startedAt),
+        );
+      }
       if (text.trim() && !texts.includes(text)) texts.push(text);
+    }
+    if (mode === 'nutrition' && layoutTsv) {
+      const startedAt = performance.now();
+      const structured = await structuredNutritionText(canvas, layoutTsv);
+      if (lastPhotoDiagnostics) {
+        lastPhotoDiagnostics.structuredDurationMs = Math.round(
+          performance.now() - startedAt,
+        );
+      }
+      if (structured) texts.push(structured);
     }
     return texts.join(ocrPassSeparator);
   }
@@ -477,22 +935,17 @@
       return null;
     }
     const guide = session.guideSpec;
-    const sourceX = Math.round(video.videoWidth * guide.left);
-    const sourceY = Math.round(video.videoHeight * guide.top);
-    const sourceWidth = Math.max(1, Math.round(video.videoWidth * guide.width));
-    const sourceHeight = Math.max(1, Math.round(video.videoHeight * guide.height));
-    const maxWidth = 2560;
-    const scale = Math.min(1, maxWidth / sourceWidth);
+    const geometry = ocrGeometry(video.videoWidth, video.videoHeight, guide);
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
-    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    canvas.width = geometry.inputWidth;
+    canvas.height = geometry.inputHeight;
     const context = canvas.getContext('2d', { alpha: false });
     context.drawImage(
       video,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
+      geometry.sourceX,
+      geometry.sourceY,
+      geometry.sourceWidth,
+      geometry.sourceHeight,
       0,
       0,
       canvas.width,
@@ -506,10 +959,10 @@
       readyState: video.readyState,
       devicePixelRatio: window.devicePixelRatio || 1,
       facingMode: session.settings.facingMode || 'unknown',
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
+      sourceX: geometry.sourceX,
+      sourceY: geometry.sourceY,
+      sourceWidth: geometry.sourceWidth,
+      sourceHeight: geometry.sourceHeight,
       inputWidth: canvas.width,
       inputHeight: canvas.height,
       quality,
@@ -726,11 +1179,29 @@
             return;
           }
           const texts = [];
+          let layoutTsv = '';
           for (const variant of ocrVariants(frame.canvas, mode)) {
-            const rawText = await recognizeSinglePass(variant.dataUrl);
+            let rawText;
+            if (mode === 'nutrition' && variant.name === 'original') {
+              const data = await recognizeLayoutPass(variant.dataUrl);
+              rawText = data.text || '';
+              layoutTsv = data.tsv || '';
+            } else {
+              rawText = await recognizeSinglePass(variant.dataUrl);
+            }
             if (!rawText.trim() || texts.includes(rawText)) continue;
             texts.push(rawText);
             present(rawText, true);
+          }
+          if (mode === 'nutrition' && layoutTsv) {
+            const structured = await structuredNutritionText(
+              frame.canvas,
+              layoutTsv,
+            );
+            if (structured) {
+              texts.push(structured);
+              present(structured, true);
+            }
           }
           if (texts.length) latestRawText = texts.join(ocrPassSeparator);
           if (review.disabled) {
@@ -803,6 +1274,8 @@
     scanBarcode,
     scanBarcodeLive,
     recognizeTextLive,
+    diagnoseStructuredNutritionTsv: (tsv) =>
+      structuredNutritionText({ width: 0, height: 0 }, tsv),
     assetState: () => ({
       ocrLoaded: loadedScripts.has(paths.tesseract),
       barcodeFallbackLoaded: loadedScripts.has(paths.zxing),
@@ -811,6 +1284,8 @@
       frameQualityThreshold: { ...frameQualityThreshold },
       ocrPasses: ['original', 'grayscale', 'moderate-contrast'],
       lastCaptureDiagnostics,
+      lastPhotoDiagnostics,
+      lastStructuredDiagnostics,
     }),
   };
 })();

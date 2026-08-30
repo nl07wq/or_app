@@ -7,32 +7,104 @@ FoodOcrLiveCandidate describeNutritionCandidate(String rawText) =>
     FoodNutritionCandidateSession().describe(rawText);
 
 class FoodNutritionCandidateSession {
+  static const _structuredMarker = '[[OR_STRUCTURED_NUTRITION]]';
+
   NutritionOcrDraft _draft = const NutritionOcrDraft();
   String? _lastRawText;
+  final Map<String, String> _sources = {};
+  final Map<String, String> _candidateSources = {};
+  final Set<String> _conflicts = {};
 
   NutritionOcrDraft get draft => _draft;
   String? get lastRawText => _lastRawText;
+  Set<String> get conflicts => Set.unmodifiable(_conflicts);
+  Map<String, String> get candidateSources => Map.unmodifiable(_candidateSources);
 
   FoodOcrLiveCandidate describe(String rawText) {
     _lastRawText = rawText;
-    final next = const JapaneseNutritionOcrParser().parse(rawText);
+    final isStructured = rawText.startsWith(_structuredMarker);
+    final parserInput = isStructured
+        ? rawText.substring(_structuredMarker.length).trimLeft()
+        : rawText;
+    final next = const JapaneseNutritionOcrParser().parse(parserInput);
     _draft = NutritionOcrDraft(
       basisQuantity: next.basisQuantity ?? _draft.basisQuantity,
       basisUnit: next.basisUnit ?? _draft.basisUnit,
-      calories: next.calories ?? _draft.calories,
-      protein: next.protein ?? _draft.protein,
-      fat: next.fat ?? _draft.fat,
-      carbohydrate: next.carbohydrate ?? _draft.carbohydrate,
+      calories: _merge(
+        'CALORIES',
+        _draft.calories,
+        next.calories,
+        isStructured,
+      ),
+      protein: _merge('PROTEIN', _draft.protein, next.protein, isStructured),
+      fat: _merge('FAT', _draft.fat, next.fat, isStructured),
+      carbohydrate: _merge(
+        'CARBOHYDRATE',
+        _draft.carbohydrate,
+        next.carbohydrate,
+        isStructured,
+      ),
       packageQuantity: next.packageQuantity ?? _draft.packageQuantity,
       packageUnit: next.packageUnit ?? _draft.packageUnit,
     );
-    return _candidate(_draft, hasRawText: rawText.trim().isNotEmpty);
+    _recordCandidateSources(next);
+    return _candidate(
+      _draft,
+      hasRawText: parserInput.trim().isNotEmpty,
+      conflicts: _conflicts,
+    );
+  }
+
+  void _recordCandidateSources(NutritionOcrDraft next) {
+    final incoming = {
+      'CALORIES': next.calories,
+      'PROTEIN': next.protein,
+      'FAT': next.fat,
+      'CARBOHYDRATE': next.carbohydrate,
+    };
+    for (final entry in incoming.entries) {
+      final current = switch (entry.key) {
+        'CALORIES' => _draft.calories,
+        'PROTEIN' => _draft.protein,
+        'FAT' => _draft.fat,
+        _ => _draft.carbohydrate,
+      };
+      if (entry.value != null) {
+        _candidateSources[entry.key] = _sources[entry.key] ?? 'parser';
+      } else if (current != null) {
+        _candidateSources[entry.key] = 'session';
+      }
+    }
+  }
+
+  double? _merge(
+    String field,
+    double? current,
+    double? next,
+    bool isStructured,
+  ) {
+    if (next == null) return current;
+    if (current == null) {
+      _sources[field] = isStructured ? 'structured' : 'parser';
+      return next;
+    }
+    if (current == next) {
+      if (isStructured) _sources[field] = 'structured';
+      return current;
+    }
+    _conflicts.add(field);
+    if (isStructured) {
+      _sources[field] = 'structured';
+      return next;
+    }
+    return _sources[field] == 'structured' ? current : next;
   }
 }
 
 FoodOcrLiveCandidate _candidate(
   NutritionOcrDraft draft, {
   required bool hasRawText,
+  Set<String> conflicts = const {},
 }) {
   if (draft.isEmpty) {
     return FoodOcrLiveCandidate(
@@ -62,6 +134,7 @@ FoodOcrLiveCandidate _candidate(
           : '${FoodNutritionFormatter.amount(draft.carbohydrate!)} g',
       'BASIS': _quantity(draft.basisQuantity, draft.basisUnit),
       'PACKAGE': _quantity(draft.packageQuantity, draft.packageUnit),
+      if (conflicts.isNotEmpty) 'REVIEW CONFLICT': conflicts.join(', '),
     },
   );
 }
