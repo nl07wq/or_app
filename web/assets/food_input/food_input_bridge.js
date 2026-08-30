@@ -15,6 +15,7 @@
   let ocrQueue = Promise.resolve();
   let barcodeDetectorPromise;
   let barcodeReaderPromise;
+  const ocrGuide = Object.freeze({ left: 0.04, top: 0.10, width: 0.92, height: 0.80 });
 
   function loadScript(url) {
     if (loadedScripts.has(url)) return loadedScripts.get(url);
@@ -245,10 +246,10 @@
     guide.style.cssText = [
       'display:none',
       'position:absolute',
-      'left:8%',
-      'top:18%',
-      'width:84%',
-      'height:64%',
+      `left:${ocrGuide.left * 100}%`,
+      `top:${ocrGuide.top * 100}%`,
+      `width:${ocrGuide.width * 100}%`,
+      `height:${ocrGuide.height * 100}%`,
       'box-sizing:border-box',
       'border:2px solid rgba(255,255,255,.9)',
       'border-radius:12px',
@@ -256,7 +257,7 @@
       'pointer-events:none',
     ].join(';');
     const guideLabel = document.createElement('span');
-    guideLabel.textContent = '栄養成分表示をこの枠内に合わせてください';
+    guideLabel.textContent = '読み取り対象をこの枠内に合わせてください';
     guideLabel.style.cssText = 'position:absolute;left:8px;right:8px;top:8px;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,.68);font-size:.82rem;text-align:center';
     guide.appendChild(guideLabel);
     preview.append(video, guide);
@@ -307,10 +308,10 @@
     if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
       return null;
     }
-    const sourceX = nutritionLabel ? video.videoWidth * 0.08 : 0;
-    const sourceY = nutritionLabel ? video.videoHeight * 0.18 : 0;
-    const sourceWidth = nutritionLabel ? video.videoWidth * 0.84 : video.videoWidth;
-    const sourceHeight = nutritionLabel ? video.videoHeight * 0.64 : video.videoHeight;
+    const sourceX = nutritionLabel ? video.videoWidth * ocrGuide.left : 0;
+    const sourceY = nutritionLabel ? video.videoHeight * ocrGuide.top : 0;
+    const sourceWidth = nutritionLabel ? video.videoWidth * ocrGuide.width : video.videoWidth;
+    const sourceHeight = nutritionLabel ? video.videoHeight * ocrGuide.height : video.videoHeight;
     const maxWidth = nutritionLabel ? 1800 : 1280;
     const scale = nutritionLabel
       ? Math.min(2, maxWidth / sourceWidth)
@@ -409,7 +410,7 @@
     });
   }
 
-  function nutritionResultContent(target, candidate) {
+  function ocrResultContent(target, candidate) {
     target.replaceChildren();
     const state = document.createElement('strong');
     state.textContent = candidate.state === 'detected'
@@ -418,14 +419,7 @@
         ? '一部読み取り'
         : '読み取り中...';
     target.appendChild(state);
-    const values = [
-      ['CALORIES', candidate.calories],
-      ['PROTEIN', candidate.protein],
-      ['FAT', candidate.fat],
-      ['CARBOHYDRATE', candidate.carbohydrate],
-      ['BASIS', candidate.basis],
-      ['PACKAGE', candidate.package],
-    ];
+    const values = Object.entries(candidate.fields || {});
     for (const [label, value] of values) {
       if (!value) continue;
       const row = document.createElement('div');
@@ -435,10 +429,11 @@
     }
   }
 
-  async function recognizeNutritionLive(describeCandidate) {
-    const session = await openCamera('READ NUTRITION LABEL');
+  async function recognizeTextLive(title, instruction, describeCandidate) {
+    const session = await openCamera(title);
     session.guide.style.display = 'block';
-    session.result.textContent = '栄養成分表示を枠内に合わせてください';
+    session.guide.firstElementChild.textContent = instruction;
+    session.result.textContent = instruction;
     const review = document.createElement('button');
     review.type = 'button';
     review.textContent = 'REVIEW RESULT';
@@ -502,14 +497,14 @@
             unsuccessfulScans = 0;
             latestRawText = rawText;
             latestDescription = serialized;
-            nutritionResultContent(session.result, description);
+            ocrResultContent(session.result, description);
             review.disabled = false;
           } else if (description.state === 'scanning') {
             unsuccessfulScans += 1;
             session.result.textContent = rawText.trim()
-              ? '文字を検出しました。栄養成分表示を大きく映してください'
+              ? '文字を検出しました。読み取り対象を大きく映してください'
               : unsuccessfulScans >= 3
-                ? '栄養成分を検出できません。表示を大きく映すか写真を使用してください'
+                ? '対象を検出できません。大きく映すか写真を使用してください'
                 : '読み取り中...';
           }
         } catch (_) {
@@ -531,10 +526,11 @@
     recognizeJapaneseText,
     scanBarcode,
     scanBarcodeLive,
-    recognizeNutritionLive,
+    recognizeTextLive,
     assetState: () => ({
       ocrLoaded: loadedScripts.has(paths.tesseract),
       barcodeFallbackLoaded: loadedScripts.has(paths.zxing),
+      ocrGuide: { ...ocrGuide },
     }),
   };
 })();

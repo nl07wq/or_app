@@ -12,10 +12,12 @@ import 'package:or_app/features/activity/models/persisted_activity_record.dart';
 import 'package:or_app/features/daily_log_confirmation/models/daily_log_confirmation_lifecycle.dart';
 import 'package:or_app/features/daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/daily_meal_v2_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/models/recipe_models_v2.dart';
+import 'package:or_app/features/food/models/persisted_daily_meal_v2_record.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_date/repository/indexed_db_operation_state_repository.dart';
@@ -214,8 +216,115 @@ void main() {
         ),
         isNotNull,
       );
+      final mealRecord = _transfer(
+        'dailyMealV2',
+        _meal(timestamp).toRecord(),
+        localDate: '2026-08-02',
+      );
+      expect(
+        (await adapter.inspect(
+          mealRecord,
+          _context('food', [mealRecord]),
+        )).disposition,
+        OperationSyncRecordDisposition.create,
+      );
     },
   );
+
+  test(
+    'FOOD meal keeps missing catalog ID as optional provenance linkage',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final adapter = FoodOperationSyncAdapter(database);
+      final timestamp = DateTime.utc(2026, 8, 2);
+      final mealRecord = _transfer(
+        'dailyMealV2',
+        _meal(timestamp).toRecord(),
+        localDate: '2026-08-02',
+      );
+      final secondMealRecord = _transfer(
+        'dailyMealV2',
+        _meal(
+          timestamp,
+          mealId: '88888888-8888-4888-8888-888888888888',
+          mealItemId: '99999999-9999-4999-8999-999999999999',
+        ).toRecord(),
+        localDate: '2026-08-02',
+      );
+      final records = [mealRecord, secondMealRecord];
+      final context = _context('food', records);
+
+      final inspection = await adapter.inspect(mealRecord, context);
+      expect(inspection.disposition, OperationSyncRecordDisposition.create);
+      expect(inspection.issues, isEmpty);
+      expect(
+        (await adapter.inspect(secondMealRecord, context)).disposition,
+        OperationSyncRecordDisposition.create,
+      );
+
+      await database.runTransaction<void>(
+        storeNames: adapter.storeNames,
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          await adapter.apply(transaction, records, context);
+          expect(await adapter.verify(transaction, records), isTrue);
+        },
+      );
+      final stored = await database.findById(
+        IndexedDbStoreNames.foodRecords,
+        _meal(timestamp).id,
+      );
+      final item = PersistedDailyMealV2Record.fromRecord(
+        stored!,
+      ).data.items.single;
+      expect(item.foodReferenceId, _catalog(timestamp).foodId);
+      expect(item.nameSnapshot, 'Rice');
+      expect(item.nutritionConsumed.calories, 100);
+      expect(
+        await database.findById(
+          IndexedDbStoreNames.foodRecords,
+          _meal(
+            timestamp,
+            mealId: '88888888-8888-4888-8888-888888888888',
+            mealItemId: '99999999-9999-4999-8999-999999999999',
+          ).id,
+        ),
+        isNotNull,
+      );
+    },
+  );
+
+  test('FOOD meal still rejects an invalid embedded snapshot', () async {
+    final database = FakeIndexedDbDatabase();
+    final adapter = FoodOperationSyncAdapter(database);
+    final timestamp = DateTime.utc(2026, 8, 2);
+    final invalid = _meal(timestamp).toRecord();
+    final data = Map<String, Object?>.from(invalid['data']! as Map);
+    final items = (data['items']! as List)
+        .map((item) => Map<String, Object?>.from(item as Map))
+        .toList();
+    items.single['nameSnapshot'] = '';
+    data['items'] = items;
+    invalid['data'] = data;
+    final record = _transfer('dailyMealV2', invalid, localDate: '2026-08-02');
+
+    final inspection = await adapter.inspect(
+      record,
+      _context('food', [record]),
+    );
+
+    expect(inspection.disposition, OperationSyncRecordDisposition.conflict);
+    expect(
+      inspection.issues,
+      contains(
+        isA<OperationSyncIssue>().having(
+          (issue) => issue.code,
+          'code',
+          OperationSyncIssueCode.integrityFailure,
+        ),
+      ),
+    );
+  });
 
   test('TRAINING adapter validates Custom Exercise dependencies', () async {
     final database = FakeIndexedDbDatabase();
@@ -751,6 +860,37 @@ FoodRecipeDefinition _recipe(DateTime timestamp) => FoodRecipeDefinition(
   isArchived: false,
   createdAt: timestamp,
   updatedAt: timestamp,
+);
+
+PersistedDailyMealV2Record _meal(
+  DateTime timestamp, {
+  String mealId = '66666666-6666-4666-8666-666666666666',
+  String mealItemId = '77777777-7777-4777-8777-777777777777',
+}) => PersistedDailyMealV2Record.fromMeal(
+  DailyMealV2(
+    mealId: mealId,
+    localDate: '2026-08-02',
+    mealType: DailyMealTypeV2.breakfast,
+    items: [
+      DailyMealItemSnapshot(
+        mealItemId: mealItemId,
+        foodReferenceId: _catalog(timestamp).foodId,
+        nameSnapshot: 'Rice',
+        category: FoodCatalogCategory.ingredient,
+        quantity: FoodQuantityDefinition(
+          value: 100,
+          unit: FoodQuantityUnit.gram,
+        ),
+        nutritionPerBase: NutritionSnapshot(calories: 100),
+        nutritionConsumed: NutritionSnapshot(calories: 100),
+        provenanceSnapshot: _provenance(timestamp),
+        nutritionStatusSnapshot: NutritionStatus.declared,
+        sortOrder: 0,
+      ),
+    ],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  ),
 );
 
 Map<String, Object?> _trainingV2Record() => PersistedTrainingRecord.v2(

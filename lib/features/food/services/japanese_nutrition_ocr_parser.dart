@@ -35,6 +35,7 @@ class JapaneseNutritionOcrParser {
 
   NutritionOcrDraft parse(String rawText) {
     final text = _normalize(rawText);
+    final table = _tableValues(text);
     final basis = _quantity(
       text,
       RegExp(
@@ -52,10 +53,10 @@ class JapaneseNutritionOcrParser {
     return NutritionOcrDraft(
       basisQuantity: basis?.$1,
       basisUnit: basis?.$2,
-      calories: _value(text, const ['エネルギー', '熱量'], unit: 'kcal'),
-      protein: _value(text, const ['たんぱく質', 'タンパク質', '蛋白質']),
-      fat: _value(text, const ['脂質']),
-      carbohydrate: _value(text, const ['炭水化物']),
+      calories: _value(text, const ['エネルギー', '熱量'], unit: 'kcal') ?? table?.$1,
+      protein: _value(text, const ['たんぱく質', 'タンパク質', '蛋白質']) ?? table?.$2,
+      fat: _value(text, const ['脂質']) ?? table?.$3,
+      carbohydrate: _value(text, const ['炭水化物']) ?? table?.$4,
       packageQuantity: package?.$1,
       packageUnit: package?.$2,
     );
@@ -64,10 +65,61 @@ class JapaneseNutritionOcrParser {
   static String _normalize(String value) => value
       .replaceAll('，', ',')
       .replaceAll('．', '.')
+      .replaceAllMapped(
+        RegExp(r'(\d)\s*[.,]\s*(\d)'),
+        (match) => '${match.group(1)}.${match.group(2)}',
+      )
       .replaceAllMapped(RegExp(r'[０-９]'), (match) {
         final code = match.group(0)!.codeUnitAt(0) - 0xff10 + 0x30;
         return String.fromCharCode(code);
       });
+
+  static (double, double, double, double)? _tableValues(String text) {
+    final lines = text
+        .split(RegExp(r'[\r\n]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    const labels = [
+      ['エネルギー', '熱量'],
+      ['たんぱく質', 'タンパク質', '蛋白質'],
+      ['脂質'],
+      ['炭水化物'],
+    ];
+    var labelIndex = 0;
+    var lastLabelLine = -1;
+    for (
+      var index = 0;
+      index < lines.length && labelIndex < labels.length;
+      index++
+    ) {
+      if (labels[labelIndex].any(lines[index].contains)) {
+        labelIndex += 1;
+        lastLabelLine = index;
+      }
+    }
+    if (labelIndex != labels.length) return null;
+
+    final values = <(double, String)>[];
+    final pattern = RegExp(
+      r'^\s*(\d+(?:\.\d+)?)\s*(kcal|g)\s*$',
+      caseSensitive: false,
+    );
+    for (final line in lines.skip(lastLabelLine + 1)) {
+      final match = pattern.firstMatch(line);
+      if (match == null) continue;
+      final value = double.tryParse(match.group(1)!);
+      if (value == null || !value.isFinite || value < 0) return null;
+      values.add((value, match.group(2)!.toLowerCase()));
+      if (values.length == 4) break;
+    }
+    if (values.length != 4 ||
+        values[0].$2 != 'kcal' ||
+        values.skip(1).any((value) => value.$2 != 'g')) {
+      return null;
+    }
+    return (values[0].$1, values[1].$1, values[2].$1, values[3].$1);
+  }
 
   static double? _value(
     String text,

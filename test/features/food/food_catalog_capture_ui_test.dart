@@ -53,9 +53,11 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('NUTRITION'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('CAMERA'));
     await tester.pumpAndSettle();
-    expect(find.text('OCR PREVIEW'), findsOneWidget);
+    expect(find.text('REVIEW NUTRITION'), findsOneWidget);
     expect(repository.entries, isEmpty);
     await tester.tap(find.text('APPLY TO FORM'));
     await tester.pumpAndSettle();
@@ -78,11 +80,52 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('NUTRITION'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('PHOTO LIBRARY'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(_field('CALORIES')).controller!.text, '');
+  });
+
+  testWidgets('PACKAGE OCR reviews before applying master candidates', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: repository,
+          captureGateway: _Gateway(text: '商品名：テスト食品\nブランド：OR FOODS\n内容量 170g'),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
+    await tester.pumpAndSettle();
+    expect(find.text('PACKAGE'), findsOneWidget);
+    expect(find.text('NUTRITION'), findsOneWidget);
+    await tester.tap(find.text('PACKAGE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CAMERA'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('REVIEW PACKAGE'), findsOneWidget);
+    expect(tester.widget<TextField>(_field('NAME')).controller!.text, isEmpty);
+    expect(repository.entries, isEmpty);
+    await tester.tap(find.text('APPLY TO FORM'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(_field('NAME')).controller!.text, 'テスト食品');
+    expect(
+      tester.widget<TextField>(_field('BRAND')).controller!.text,
+      'OR FOODS',
+    );
+    expect(
+      tester.widget<TextField>(_field('PACKAGE QUANTITY')).controller!.text,
+      '170',
+    );
+    expect(repository.entries, isEmpty);
   });
 
   testWidgets('barcode scan updates draft only', (tester) async {
@@ -173,12 +216,12 @@ void main() {
     );
 
     final ordered = [
+      find.byKey(const ValueKey('food-catalog-ocr')),
       _field('NAME'),
       _field('BRAND'),
       _field('BARCODE / JAN'),
       _field('PACKAGE QUANTITY'),
       _field('NUTRITION BASIS'),
-      find.byKey(const ValueKey('food-catalog-ocr')),
       _field('CALORIES'),
       _field('FAT'),
       _field('MEMO'),
@@ -229,9 +272,11 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   }
 
   @override
-  Future<String?> recognizeNutritionLive(
-    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
-  ) async => null;
+  Future<String?> recognizeTextLive({
+    required String title,
+    required String instruction,
+    required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+  }) async => null;
 
   @override
   Future<String> recognizeJapaneseText(FoodCapturedImage image) async => '';
@@ -251,6 +296,11 @@ class _Repository implements FoodCatalogRepository {
 
   @override
   Future<void> create(FoodCatalogEntry entry) async => entries.add(entry);
+
+  @override
+  Future<void> delete(String foodId) async {
+    entries.removeWhere((entry) => entry.foodId == foodId);
+  }
 
   @override
   Future<List<FoodCatalogEntry>> list() async => List.unmodifiable(entries);

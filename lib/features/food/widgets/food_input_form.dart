@@ -21,10 +21,11 @@ import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/beta_meal_template_resolver.dart';
 import '../services/food_input_capture_gateway.dart';
-import '../services/food_live_capture_presenter.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
+import '../services/japanese_package_ocr_parser.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
+import 'food_ocr_scanner.dart';
 import 'food_total_card.dart';
 
 class FoodInputForm extends StatefulWidget {
@@ -477,125 +478,28 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
-  Future<FoodNutritionCaptureMode?> _chooseNutritionCaptureMode() =>
-      showModalBottomSheet<FoodNutritionCaptureMode>(
-        context: context,
-        builder: (context) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.center_focus_strong),
-                title: const Text('LIVE SCAN'),
-                onTap: () =>
-                    Navigator.pop(context, FoodNutritionCaptureMode.live),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera),
-                title: const Text('CAMERA'),
-                onTap: () =>
-                    Navigator.pop(context, FoodNutritionCaptureMode.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('PHOTO LIBRARY'),
-                onTap: () =>
-                    Navigator.pop(context, FoodNutritionCaptureMode.gallery),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Future<void> _readNutritionLabel() async {
-    final mode = await _chooseNutritionCaptureMode();
-    if (mode == null || !mounted) return;
+  Future<void> _scanOcr() async {
     setState(() {
       _capturingNutrition = true;
       inputError = null;
     });
     try {
-      final rawText = switch (mode) {
-        FoodNutritionCaptureMode.live =>
-          _captureGateway is FoodLiveCaptureGateway
-              ? await (_captureGateway as FoodLiveCaptureGateway)
-                    .recognizeNutritionLive(describeNutritionCandidate)
-              : throw UnsupportedError('Live nutrition capture unavailable.'),
-        FoodNutritionCaptureMode.camera ||
-        FoodNutritionCaptureMode.gallery => await _recognizeSelectedImage(
-          mode == FoodNutritionCaptureMode.camera
-              ? FoodImageSource.camera
-              : FoodImageSource.gallery,
-        ),
-      };
-      if (rawText == null) return;
-      final draft = const JapaneseNutritionOcrParser().parse(rawText);
-      if (!mounted) return;
-      if (draft.isEmpty) {
-        setState(() => inputError = '栄養成分を読み取れませんでした');
-        return;
-      }
-      final apply = await showDialog<bool>(
+      final result = await showFoodOcrScanner(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('OCR PREVIEW'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ocrPreviewValue(
-                  'NUTRITION BASIS',
-                  draft.basisQuantity,
-                  draft.basisUnit,
-                ),
-                _ocrPreviewValue(
-                  'CALORIES',
-                  draft.calories,
-                  null,
-                  suffix: 'kcal',
-                  calories: true,
-                ),
-                _ocrPreviewValue('PROTEIN', draft.protein, null, suffix: 'g'),
-                _ocrPreviewValue('FAT', draft.fat, null, suffix: 'g'),
-                _ocrPreviewValue(
-                  'CARBOHYDRATE',
-                  draft.carbohydrate,
-                  null,
-                  suffix: 'g',
-                ),
-                _ocrPreviewValue(
-                  'PACKAGE',
-                  draft.packageQuantity,
-                  draft.packageUnit,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('CANCEL'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('APPLY TO FORM'),
-            ),
-          ],
-        ),
+        gateway: _captureGateway,
       );
-      if (apply == true && mounted) _applyNutritionOcr(draft);
+      if (!mounted || result == null) return;
+      switch (result) {
+        case FoodNutritionOcrResult(:final draft):
+          _applyNutritionOcr(draft);
+        case FoodPackageOcrResult(:final draft):
+          _applyPackageOcr(draft);
+      }
     } catch (_) {
-      if (mounted) setState(() => inputError = '栄養成分の読み取りに失敗しました');
+      if (mounted) setState(() => inputError = 'OCRの読み取りに失敗しました');
     } finally {
       if (mounted) setState(() => _capturingNutrition = false);
     }
-  }
-
-  Future<String?> _recognizeSelectedImage(FoodImageSource source) async {
-    final image = await _captureGateway.selectImage(source);
-    if (image == null) return null;
-    return _captureGateway.recognizeJapaneseText(image);
   }
 
   Future<FoodImageSource?> _chooseBarcodeImageSource() =>
@@ -655,19 +559,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
-  Widget _ocrPreviewValue(
-    String label,
-    double? value,
-    FoodQuantityUnit? unit, {
-    String suffix = '',
-    bool calories = false,
-  }) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-    child: Text(
-      '$label  ${value == null ? 'NEEDS REVIEW' : '${calories ? FoodNutritionFormatter.calories(value) : FoodNutritionFormatter.macro(value)}${unit == null ? suffix : _quantityUnitLabel(unit)}'}',
-    ),
-  );
-
   void _applyNutritionOcr(NutritionOcrDraft draft) {
     setState(() {
       if (draft.packageQuantity != null && draft.packageUnit != null) {
@@ -708,6 +599,25 @@ class _FoodInputFormState extends State<FoodInputForm> {
         carbohydrateController.text = FoodNutritionFormatter.macro(
           draft.carbohydrate!,
         );
+      }
+      inputError = null;
+    });
+  }
+
+  void _applyPackageOcr(PackageOcrDraft draft) {
+    setState(() {
+      if (draft.name != null) foodNameController.text = draft.name!;
+      if (draft.brand != null) brandController.text = draft.brand!;
+      if (draft.packageQuantity != null && draft.packageUnit != null) {
+        packageQuantityController.text = _formatAmount(draft.packageQuantity!);
+        packageUnit = draft.packageUnit;
+        if (_basisLinkedToPackage && draft.packageUnit!.isPhysical) {
+          baseAmountController.text = packageQuantityController.text;
+          baseUnit = draft.packageUnit == FoodQuantityUnit.gram
+              ? FoodBaseUnit.g
+              : FoodBaseUnit.ml;
+          _lastValidBaseAmount = draft.packageQuantity;
+        }
       }
       inputError = null;
     });
@@ -1048,7 +958,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               barcodeScanInProgress: _capturingBarcode,
               onReadNutrition: _isSaving || _capturingNutrition
                   ? null
-                  : _readNutritionLabel,
+                  : _scanOcr,
               nutritionCaptureInProgress: _capturingNutrition,
               onChanged: (_) {
                 setState(() {
@@ -1222,11 +1132,3 @@ double? _optionalPositiveNumber(TextEditingController controller) {
   final value = double.tryParse(source);
   return value != null && value.isFinite && value > 0 ? value : null;
 }
-
-String _quantityUnitLabel(FoodQuantityUnit unit) => switch (unit) {
-  FoodQuantityUnit.gram => 'g',
-  FoodQuantityUnit.milliliter => 'mL',
-  FoodQuantityUnit.piece => 'piece',
-  FoodQuantityUnit.pack => 'pack',
-  FoodQuantityUnit.serving => 'serving',
-};

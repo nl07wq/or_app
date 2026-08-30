@@ -67,15 +67,19 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
   }
 
   @override
-  Future<String?> recognizeNutritionLive(
-    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
-  ) async {
+  Future<String?> recognizeTextLive({
+    required String title,
+    required String instruction,
+    required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+  }) async {
     final callback = ((JSString rawText) {
       return jsonEncode(describeCandidate(rawText.toDart).toJson()).toJS;
     }).toJS;
     final result = await _bridge
         .callMethod<JSPromise<JSString?>>(
-          'recognizeNutritionLive'.toJS,
+          'recognizeTextLive'.toJS,
+          title.toJS,
+          instruction.toJS,
           callback,
         )
         .toDart;

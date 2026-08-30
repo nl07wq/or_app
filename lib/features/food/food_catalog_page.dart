@@ -18,13 +18,14 @@ import 'food_nutrition_formatter.dart';
 import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'services/food_input_capture_gateway.dart';
-import 'services/food_live_capture_presenter.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
+import 'services/japanese_package_ocr_parser.dart';
+import 'widgets/food_ocr_scanner.dart';
 
 const double foodDetailPfcRingWidth = 12;
-const Color foodDetailProteinColor = AppColors.primary;
-const Color foodDetailFatColor = AppColors.warning;
-const Color foodDetailCarbohydrateColor = AppColors.success;
+const Color foodDetailProteinColor = Color(0xFFE08AAA);
+const Color foodDetailFatColor = Color(0xFFE9A052);
+const Color foodDetailCarbohydrateColor = Color(0xFF62BFE3);
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -345,119 +346,28 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         ),
       );
 
-  Future<FoodNutritionCaptureMode?> _chooseNutritionCaptureMode() =>
-      showModalBottomSheet<FoodNutritionCaptureMode>(
-        context: context,
-        builder: (context) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.center_focus_strong),
-                title: const Text('LIVE SCAN'),
-                onTap: () =>
-                    Navigator.pop(context, FoodNutritionCaptureMode.live),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera),
-                title: const Text('CAMERA'),
-                onTap: () =>
-                    Navigator.pop(context, FoodNutritionCaptureMode.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('PHOTO LIBRARY'),
-                onTap: () =>
-                    Navigator.pop(context, FoodNutritionCaptureMode.gallery),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Future<void> _readNutrition() async {
-    final mode = await _chooseNutritionCaptureMode();
-    if (mode == null || !mounted) return;
+  Future<void> _scanOcr() async {
     setState(() {
       _capturing = true;
       _error = null;
     });
     try {
-      final rawText = switch (mode) {
-        FoodNutritionCaptureMode.live =>
-          _captureGateway is FoodLiveCaptureGateway
-              ? await (_captureGateway as FoodLiveCaptureGateway)
-                    .recognizeNutritionLive(describeNutritionCandidate)
-              : throw UnsupportedError('Live nutrition capture unavailable.'),
-        FoodNutritionCaptureMode.camera ||
-        FoodNutritionCaptureMode.gallery => await _recognizeSelectedImage(
-          mode == FoodNutritionCaptureMode.camera
-              ? FoodImageSource.camera
-              : FoodImageSource.gallery,
-        ),
-      };
-      if (rawText == null) return;
-      final draft = const JapaneseNutritionOcrParser().parse(rawText);
-      if (!mounted) return;
-      if (draft.isEmpty) {
-        setState(() => _error = '栄養成分を読み取れませんでした');
-        return;
-      }
-      final apply = await showDialog<bool>(
+      final result = await showFoodOcrScanner(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('OCR PREVIEW'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _previewValue(
-                  'NUTRITION BASIS',
-                  draft.basisQuantity,
-                  draft.basisUnit,
-                ),
-                _previewValue('CALORIES', draft.calories, null, suffix: 'kcal'),
-                _previewValue('PROTEIN', draft.protein, null, suffix: 'g'),
-                _previewValue('FAT', draft.fat, null, suffix: 'g'),
-                _previewValue(
-                  'CARBOHYDRATE',
-                  draft.carbohydrate,
-                  null,
-                  suffix: 'g',
-                ),
-                _previewValue(
-                  'PACKAGE',
-                  draft.packageQuantity,
-                  draft.packageUnit,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('CANCEL'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('APPLY TO FORM'),
-            ),
-          ],
-        ),
+        gateway: _captureGateway,
       );
-      if (apply == true && mounted) _applyOcr(draft);
+      if (!mounted || result == null) return;
+      switch (result) {
+        case FoodNutritionOcrResult(:final draft):
+          _applyNutritionOcr(draft);
+        case FoodPackageOcrResult(:final draft):
+          _applyPackageOcr(draft);
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = '栄養成分の読み取りに失敗しました');
+      if (mounted) setState(() => _error = 'OCRの読み取りに失敗しました');
     } finally {
       if (mounted) setState(() => _capturing = false);
     }
-  }
-
-  Future<String?> _recognizeSelectedImage(FoodImageSource source) async {
-    final image = await _captureGateway.selectImage(source);
-    if (image == null) return null;
-    return _captureGateway.recognizeJapaneseText(image);
   }
 
   Future<void> _scanBarcode() async {
@@ -491,23 +401,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     }
   }
 
-  Widget _previewValue(
-    String label,
-    double? value,
-    FoodQuantityUnit? unit, {
-    String suffix = '',
-  }) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Text(
-      '$label  ${value == null ? 'NEEDS REVIEW' : '${unit != null
-                ? _number(value)
-                : label == 'CALORIES'
-                ? FoodNutritionFormatter.calories(value)
-                : FoodNutritionFormatter.macro(value)}${unit == null ? suffix : _unit(unit)}'}',
-    ),
-  );
-
-  void _applyOcr(NutritionOcrDraft draft) {
+  void _applyNutritionOcr(NutritionOcrDraft draft) {
     setState(() {
       if (draft.packageQuantity != null && draft.packageUnit != null) {
         _packageQuantity.text = _number(draft.packageQuantity);
@@ -533,6 +427,21 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       if (draft.carbohydrate != null) {
         _rawCarbohydrate = draft.carbohydrate;
         _carbs.text = FoodNutritionFormatter.macro(draft.carbohydrate!);
+      }
+    });
+  }
+
+  void _applyPackageOcr(PackageOcrDraft draft) {
+    setState(() {
+      if (draft.name != null) _name.text = draft.name!;
+      if (draft.brand != null) _brand.text = draft.brand!;
+      if (draft.packageQuantity != null && draft.packageUnit != null) {
+        _packageQuantity.text = _number(draft.packageQuantity);
+        _packageUnit = draft.packageUnit;
+        if (_basisLinkedToPackage && draft.packageUnit!.isPhysical) {
+          _baseQuantity.text = _packageQuantity.text;
+          _baseUnit = draft.packageUnit!;
+        }
       }
     });
   }
@@ -652,6 +561,13 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           children: [
             const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
             AppSpacing.gapMD,
+            OperationButton(
+              key: const ValueKey('food-catalog-ocr'),
+              icon: Icons.document_scanner,
+              text: _capturing ? 'PROCESSING IMAGE' : 'OCR SCANNER',
+              onPressed: _capturing || _saving ? null : _scanOcr,
+            ),
+            AppSpacing.gapMD,
             OperationTextField(controller: _name, label: 'NAME'),
             AppSpacing.gapMD,
             OperationTextField(controller: _brand, label: 'BRAND'),
@@ -664,33 +580,27 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               onChanged: (value) => setState(() => _category = value),
             ),
             AppSpacing.gapMD,
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final field = OperationTextField(
-                  controller: _barcode,
-                  label: 'BARCODE / JAN',
-                  onChanged: (_) => setState(() {}),
-                );
-                final action = OutlinedButton.icon(
+            Row(
+              children: [
+                Expanded(
+                  child: OperationTextField(
+                    controller: _barcode,
+                    label: 'BARCODE / JAN',
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                OutlinedButton.icon(
                   key: const ValueKey('food-catalog-barcode-scan'),
                   onPressed: _capturing || _saving ? null : _scanBarcode,
                   icon: const Icon(Icons.qr_code_scanner),
-                  label: Text(_capturing ? 'SCANNING' : 'SCAN BARCODE'),
-                );
-                if (constraints.maxWidth < 360) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [field, AppSpacing.gapSM, action],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(child: field),
-                    const SizedBox(width: AppSpacing.md),
-                    action,
-                  ],
-                );
-              },
+                  label: Text(_capturing ? '...' : 'SCAN'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(96, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                ),
+              ],
             ),
             if (_barcode.text.trim().isNotEmpty) ...[
               AppSpacing.gapXS,
@@ -716,13 +626,6 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               value: _baseUnit,
               onTextChanged: _baseQuantityChanged,
               onChanged: _baseUnitChanged,
-            ),
-            AppSpacing.gapMD,
-            OperationButton(
-              key: const ValueKey('food-catalog-ocr'),
-              icon: Icons.document_scanner,
-              text: _capturing ? 'PROCESSING IMAGE' : 'READ NUTRITION LABEL',
-              onPressed: _capturing || _saving ? null : _readNutrition,
             ),
             AppSpacing.gapMD,
             Row(
@@ -878,14 +781,14 @@ class FoodCatalogDetailPage extends StatelessWidget {
     if (changed == true && context.mounted) Navigator.pop(context, true);
   }
 
-  Future<void> _archive(BuildContext context) async {
+  Future<void> _delete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('この食品をアーカイブしますか？'),
+        title: const Text('この食品を削除しますか？'),
         content: const Text(
-          'この食品は通常の利用対象から外れます。\n'
-          '過去の食事記録と栄養スナップショットは変更されません。',
+          'Food Databaseから削除されます。\n'
+          '過去に保存済みの食事記録は変更されません。',
         ),
         actions: [
           TextButton(
@@ -894,13 +797,17 @@ class FoodCatalogDetailPage extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('アーカイブ'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: const Text('削除'),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
-    await repository.archive(entry.foodId);
+    await repository.delete(entry.foodId);
     if (context.mounted) Navigator.pop(context, true);
   }
 
@@ -955,9 +862,10 @@ class FoodCatalogDetailPage extends StatelessWidget {
               ),
               AppSpacing.gapSM,
               OperationButton(
-                icon: Icons.archive_outlined,
-                text: 'アーカイブ',
-                onPressed: () => _archive(context),
+                icon: Icons.delete_outline,
+                text: 'DELETE',
+                role: OperationActionRole.danger,
+                onPressed: () => _delete(context),
               ),
             ],
           ],

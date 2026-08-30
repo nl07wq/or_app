@@ -49,6 +49,41 @@ class IndexedDbFoodCatalogRepository implements FoodCatalogRepository {
       });
 
   @override
+  Future<void> delete(String foodId) async {
+    try {
+      await _database.runTransaction<void>(
+        storeNames: const [IndexedDbStoreNames.foodCatalogRecords],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          final existing = await transaction.findById(
+            IndexedDbStoreNames.foodCatalogRecords,
+            foodId,
+          );
+          if (existing == null) {
+            throw StateError('FOOD catalog record not found.');
+          }
+          FoodCatalogEntry.fromJson(existing);
+          await transaction.deleteById(
+            IndexedDbStoreNames.foodCatalogRecords,
+            foodId,
+          );
+          if (await transaction.findById(
+                IndexedDbStoreNames.foodCatalogRecords,
+                foodId,
+              ) !=
+              null) {
+            throw const FormatException(
+              'FOOD catalog delete verification failed.',
+            );
+          }
+        },
+      );
+    } catch (error) {
+      throw _exception('foodCatalog.delete', error);
+    }
+  }
+
+  @override
   Future<FoodCatalogEntry?> readById(String foodId) => _read(foodId);
 
   @override

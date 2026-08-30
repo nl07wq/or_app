@@ -223,12 +223,12 @@ void main() {
     }
   });
 
-  testWidgets('archive copy matches non-destructive repository behavior', (
+  testWidgets('delete removes only the catalog entry after confirmation', (
     tester,
   ) async {
     final entry = _entry(
       id: '11111111-1111-4111-8111-111111111111',
-      name: 'Archive Food',
+      name: 'Delete Food',
     );
     final repository = _MemoryCatalogRepository([entry]);
     await tester.pumpWidget(
@@ -237,23 +237,48 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('アーカイブ'));
+    await tester.tap(find.text('DELETE'));
     await tester.pumpAndSettle();
-    expect(find.text('この食品をアーカイブしますか？'), findsOneWidget);
-    expect(find.textContaining('通常の利用対象から外れます'), findsOneWidget);
+    expect(find.text('この食品を削除しますか？'), findsOneWidget);
+    expect(find.textContaining('過去に保存済みの食事記録は変更されません'), findsOneWidget);
     await tester.tap(find.text('キャンセル'));
     await tester.pumpAndSettle();
-    expect((await repository.readById(entry.foodId))!.isArchived, isFalse);
+    expect(await repository.readById(entry.foodId), isNotNull);
 
-    await tester.tap(find.text('アーカイブ'));
+    await tester.tap(find.text('DELETE'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('アーカイブ').last);
+    await tester.tap(find.text('削除'));
     await tester.pumpAndSettle();
-    final archived = await repository.readById(entry.foodId);
-    expect(archived?.isArchived, isTrue);
-    expect(archived?.foodId, entry.foodId);
-    expect(archived?.nutrition.toJson(), entry.nutrition.toJson());
+    expect(await repository.readById(entry.foodId), isNull);
     expect(await repository.list(), isEmpty);
+  });
+
+  testWidgets('delete confirmation has no overflow at target widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      final entry = _entry(
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Delete Food',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogDetailPage(
+            entry: entry,
+            repository: _MemoryCatalogRepository([entry]),
+          ),
+        ),
+      );
+      await tester.tap(find.text('DELETE'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'width $width');
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('direct entry saves v2 with userInput provenance', (
@@ -622,6 +647,9 @@ class _MemoryCatalogRepository implements FoodCatalogRepository {
   @override
   Future<void> create(FoodCatalogEntry entry) async =>
       _entries[entry.foodId] = entry;
+
+  @override
+  Future<void> delete(String foodId) async => _entries.remove(foodId);
 
   @override
   Future<List<FoodCatalogEntry>> list() async => _entries.values

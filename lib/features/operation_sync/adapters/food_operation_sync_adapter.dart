@@ -126,14 +126,6 @@ class FoodOperationSyncAdapter extends IndexedDbOperationTransferModuleAdapter {
       record.envelope.record,
     ).data;
     for (final item in meal.items) {
-      final foodId = item.foodReferenceId;
-      if (foodId != null) {
-        yield _FoodReference(
-          recordType: _catalogType,
-          recordId: foodId,
-          storeName: IndexedDbStoreNames.foodCatalogRecords,
-        );
-      }
       final recipeId = item.recipeReferenceId;
       if (recipeId != null) {
         yield _FoodReference(

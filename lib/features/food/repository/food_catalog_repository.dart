@@ -6,4 +6,5 @@ abstract interface class FoodCatalogRepository {
   Future<List<FoodCatalogEntry>> list();
   Future<void> update(FoodCatalogEntry entry);
   Future<void> archive(String foodId);
+  Future<void> delete(String foodId);
 }

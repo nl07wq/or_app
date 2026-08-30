@@ -22,7 +22,9 @@ class _UnsupportedFoodInputCaptureGateway implements FoodLiveCaptureGateway {
   Future<FoodBarcodeCandidate?> scanBarcodeLive() async => _unsupported();
 
   @override
-  Future<String?> recognizeNutritionLive(
-    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
-  ) async => _unsupported();
+  Future<String?> recognizeTextLive({
+    required String title,
+    required String instruction,
+    required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+  }) async => _unsupported();
 }

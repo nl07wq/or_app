@@ -44,8 +44,12 @@ void main() {
     expect(bridge, contains('setInterval(tick, 400)'));
     expect(bridge, contains('setInterval(tick, 1500)'));
     expect(bridge, contains('captureFrame(session.video, true)'));
-    expect(bridge, contains('video.videoWidth * 0.84'));
-    expect(bridge, contains('video.videoHeight * 0.64'));
+    expect(bridge, contains('left: 0.04'));
+    expect(bridge, contains('top: 0.10'));
+    expect(bridge, contains('width: 0.92'));
+    expect(bridge, contains('height: 0.80'));
+    expect(bridge, contains('video.videoWidth * ocrGuide.left'));
+    expect(bridge, contains('video.videoHeight * ocrGuide.top'));
     expect(
       bridge,
       contains("context.getImageData(0, 0, canvas.width, canvas.height)"),
@@ -67,7 +71,10 @@ void main() {
     expect(bridge, contains('serialized !== latestDescription'));
     expect(bridge, contains('candidate.value !== next.value'));
     expect(bridge, contains('latestRawText = rawText'));
-    expect(bridge, contains('栄養成分表示をこの枠内に合わせてください'));
+    expect(
+      bridge,
+      contains('session.guide.firstElementChild.textContent = instruction'),
+    );
     expect(bridge, contains('文字を検出しました'));
     expect(bridge, isNot(contains('.reduce(')));
     expect(bridge, isNot(contains('navigator.sendBeacon')));

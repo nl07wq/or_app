@@ -92,6 +92,15 @@ class FoodInputFields extends StatelessWidget {
 
     return Column(
       children: [
+        OperationButton(
+          key: const ValueKey('food-entry-ocr'),
+          icon: Icons.document_scanner,
+          text: nutritionCaptureInProgress ? 'PROCESSING IMAGE' : 'OCR SCANNER',
+          onPressed: onReadNutrition,
+        ),
+
+        AppSpacing.gapMD,
+
         OperationTextField(
           controller: foodNameController,
           label: 'NAME',
@@ -127,33 +136,27 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final field = OperationTextField(
-              controller: barcodeController,
-              label: 'BARCODE / JAN',
-              onChanged: onChanged,
-            );
-            final action = OutlinedButton.icon(
+        Row(
+          children: [
+            Expanded(
+              child: OperationTextField(
+                controller: barcodeController,
+                label: 'BARCODE / JAN',
+                onChanged: onChanged,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            OutlinedButton.icon(
               key: const ValueKey('food-entry-barcode-scan'),
               onPressed: onScanBarcode,
               icon: const Icon(Icons.qr_code_scanner),
-              label: Text(barcodeScanInProgress ? 'SCANNING' : 'SCAN BARCODE'),
-            );
-            if (constraints.maxWidth < 360) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [field, AppSpacing.gapSM, action],
-              );
-            }
-            return Row(
-              children: [
-                Expanded(child: field),
-                const SizedBox(width: AppSpacing.md),
-                action,
-              ],
-            );
-          },
+              label: Text(barcodeScanInProgress ? '...' : 'SCAN'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(96, 48),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+          ],
         ),
 
         AppSpacing.gapMD,
@@ -233,17 +236,6 @@ class FoodInputFields extends StatelessWidget {
               ),
             ),
           ],
-        ),
-
-        AppSpacing.gapMD,
-
-        OperationButton(
-          key: const ValueKey('food-entry-ocr'),
-          icon: Icons.document_scanner,
-          text: nutritionCaptureInProgress
-              ? 'PROCESSING IMAGE'
-              : 'READ NUTRITION LABEL',
-          onPressed: onReadNutrition,
         ),
 
         AppSpacing.gapMD,

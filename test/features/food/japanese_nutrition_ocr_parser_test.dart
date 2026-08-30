@@ -76,6 +76,29 @@ NET WT ３５g
     expect(draft.carbohydrate, 0.54);
   });
 
+  test('maps separated nutrition label and value sequences with units', () {
+    final draft = parser.parse('''
+エネルギー
+たんぱく質
+脂質
+炭水化物
+9.3kcal
+0.65g
+0.51g
+0.54g
+''');
+
+    expect(draft.calories, 9.3);
+    expect(draft.protein, 0.65);
+    expect(draft.fat, 0.51);
+    expect(draft.carbohydrate, 0.54);
+  });
+
+  test('does not map an unlabeled numeric sequence', () {
+    final draft = parser.parse('9.3kcal\n0.65g\n0.51g\n0.54g');
+    expect(draft.isEmpty, isTrue);
+  });
+
   test('missing basis remains unavailable', () {
     final draft = parser.parse('エネルギー 154kcal');
     expect(draft.basisQuantity, isNull);

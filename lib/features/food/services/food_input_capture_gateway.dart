@@ -18,34 +18,13 @@ class FoodBarcodeCandidate {
   final String format;
 }
 
-class FoodNutritionLiveCandidate {
-  const FoodNutritionLiveCandidate({
-    required this.state,
-    this.calories,
-    this.protein,
-    this.fat,
-    this.carbohydrate,
-    this.basis,
-    this.package,
-  });
+class FoodOcrLiveCandidate {
+  const FoodOcrLiveCandidate({required this.state, required this.fields});
 
   final String state;
-  final String? calories;
-  final String? protein;
-  final String? fat;
-  final String? carbohydrate;
-  final String? basis;
-  final String? package;
+  final Map<String, String?> fields;
 
-  Map<String, String?> toJson() => {
-    'state': state,
-    'calories': calories,
-    'protein': protein,
-    'fat': fat,
-    'carbohydrate': carbohydrate,
-    'basis': basis,
-    'package': package,
-  };
+  Map<String, Object?> toJson() => {'state': state, 'fields': fields};
 }
 
 abstract interface class FoodInputCaptureGateway {
@@ -60,9 +39,11 @@ abstract interface class FoodLiveCaptureGateway
     implements FoodInputCaptureGateway {
   Future<FoodBarcodeCandidate?> scanBarcodeLive();
 
-  Future<String?> recognizeNutritionLive(
-    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
-  );
+  Future<String?> recognizeTextLive({
+    required String title,
+    required String instruction,
+    required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+  });
 }
 
 FoodInputCaptureGateway createFoodInputCaptureGateway() =>

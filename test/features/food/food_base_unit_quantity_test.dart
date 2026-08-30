@@ -404,9 +404,11 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('NUTRITION'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('CAMERA'));
       await tester.pumpAndSettle();
-      expect(find.text('OCR PREVIEW'), findsOneWidget);
+      expect(find.text('REVIEW NUTRITION'), findsOneWidget);
       expect(_controllerText(tester, 'Calories'), isEmpty);
       expect(saveCount, 0);
 

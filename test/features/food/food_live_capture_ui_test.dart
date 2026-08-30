@@ -13,11 +13,26 @@ void main() {
       'たんぱく質 0.65g\n脂質 0.51g\n炭水化物 0.54g',
     );
     expect(candidate.state, 'detected');
-    expect(candidate.calories, '9.3 kcal');
-    expect(candidate.protein, '0.65 g');
-    expect(candidate.fat, '0.51 g');
-    expect(candidate.carbohydrate, '0.54 g');
-    expect(candidate.basis, '2 g');
+    expect(candidate.fields['CALORIES'], '9.3 kcal');
+    expect(candidate.fields['PROTEIN'], '0.65 g');
+    expect(candidate.fields['FAT'], '0.51 g');
+    expect(candidate.fields['CARBOHYDRATE'], '0.54 g');
+    expect(candidate.fields['BASIS'], '2 g');
+  });
+
+  test('live session retains latest parser-valid fields without averaging', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe('100g当たり\nエネルギー 9.3kcal');
+    session.describe('たんぱく質 0.65g');
+    session.describe('たんぱく質 0.69g\n脂質 0.51g\n炭水化物 0.54g');
+
+    expect(session.draft.basisQuantity, 100);
+    expect(session.draft.calories, 9.3);
+    expect(session.draft.protein, 0.69);
+    expect(session.draft.fat, 0.51);
+    expect(session.draft.carbohydrate, 0.54);
+    expect(session.draft.protein, isNot(0.67));
+    expect(session.lastRawText, contains('0.69g'));
   });
 
   testWidgets(
@@ -113,18 +128,69 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('NUTRITION'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('LIVE SCAN'));
     await tester.pumpAndSettle();
 
     expect(gateway.liveNutritionCalls, 1);
     expect(gateway.lastDescription?.state, 'detected');
-    expect(find.text('OCR PREVIEW'), findsOneWidget);
+    expect(find.text('REVIEW NUTRITION'), findsOneWidget);
     expect(saveCalls, 0);
     await tester.tap(find.text('APPLY TO FORM'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(_field('CALORIES')).controller!.text,
       '154',
+    );
+    expect(saveCalls, 0);
+  });
+
+  testWidgets('Food Entry package OCR reviews before applying master fields', (
+    tester,
+  ) async {
+    var saveCalls = 0;
+    final gateway = _LiveGateway(
+      nutritionRawText: '商品名：テスト食品\nブランド：OR FOODS\n内容量 170g',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async {
+                saveCalls += 1;
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final action = find.byKey(const ValueKey('food-entry-ocr'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PACKAGE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('LIVE SCAN'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('REVIEW PACKAGE'), findsOneWidget);
+    expect(tester.widget<TextField>(_field('NAME')).controller!.text, isEmpty);
+    expect(saveCalls, 0);
+    await tester.tap(find.text('APPLY TO FORM'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(_field('NAME')).controller!.text, 'テスト食品');
+    expect(
+      tester.widget<TextField>(_field('BRAND')).controller!.text,
+      'OR FOODS',
+    );
+    expect(
+      tester.widget<TextField>(_field('PACKAGE QUANTITY')).controller!.text,
+      '170',
     );
     expect(saveCalls, 0);
   });
@@ -154,6 +220,58 @@ void main() {
     }
   });
 
+  testWidgets('OCR mode and review surfaces do not overflow', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: _LiveGateway(
+                  nutritionRawText:
+                      '商品名：テスト食品\nブランド：OR FOODS\n内容量 170g\n'
+                      '100g当たり\n熱量 154kcal\nたんぱく質 1.9g\n'
+                      '脂質 5.5g\n炭水化物 24.2g',
+                ),
+                onSave: (_) async => true,
+              ),
+            ),
+          ),
+        ),
+      );
+      final action = find.byKey(const ValueKey('food-entry-ocr'));
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.text('PACKAGE'), findsOneWidget);
+      expect(find.text('NUTRITION'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'mode width $width');
+      await tester.tap(find.text('PACKAGE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('LIVE SCAN'));
+      await tester.pumpAndSettle();
+      expect(find.text('REVIEW PACKAGE'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'package width $width');
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('NUTRITION'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('LIVE SCAN'));
+      await tester.pumpAndSettle();
+      expect(find.text('REVIEW NUTRITION'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'nutrition width $width');
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+    }
+  });
+
   testWidgets('Food Entry keeps aligned master fields before daily amount', (
     tester,
   ) async {
@@ -171,13 +289,13 @@ void main() {
     );
 
     final ordered = [
+      find.byKey(const ValueKey('food-entry-ocr')),
       _field('NAME'),
       _field('BRAND'),
       find.byKey(const ValueKey('food-entry-category-preparedFood')),
       _field('BARCODE / JAN'),
       _field('PACKAGE QUANTITY'),
       _field('NUTRITION BASIS'),
-      find.byKey(const ValueKey('food-entry-ocr')),
       _field('CALORIES'),
       _field('FAT'),
       _field('MEMO'),
@@ -207,7 +325,7 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   final String? nutritionRawText;
   int liveBarcodeCalls = 0;
   int liveNutritionCalls = 0;
-  FoodNutritionLiveCandidate? lastDescription;
+  FoodOcrLiveCandidate? lastDescription;
 
   @override
   Future<FoodBarcodeCandidate?> scanBarcodeLive() async {
@@ -216,9 +334,11 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   }
 
   @override
-  Future<String?> recognizeNutritionLive(
-    FoodNutritionLiveCandidate Function(String rawText) describeCandidate,
-  ) async {
+  Future<String?> recognizeTextLive({
+    required String title,
+    required String instruction,
+    required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
+  }) async {
     liveNutritionCalls += 1;
     final rawText = nutritionRawText;
     if (rawText != null) lastDescription = describeCandidate(rawText);
