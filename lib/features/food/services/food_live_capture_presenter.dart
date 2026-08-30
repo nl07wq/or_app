@@ -26,13 +26,19 @@ class FoodNutritionCandidateSession {
       packageQuantity: next.packageQuantity ?? _draft.packageQuantity,
       packageUnit: next.packageUnit ?? _draft.packageUnit,
     );
-    return _candidate(_draft);
+    return _candidate(_draft, hasRawText: rawText.trim().isNotEmpty);
   }
 }
 
-FoodOcrLiveCandidate _candidate(NutritionOcrDraft draft) {
+FoodOcrLiveCandidate _candidate(
+  NutritionOcrDraft draft, {
+  required bool hasRawText,
+}) {
   if (draft.isEmpty) {
-    return const FoodOcrLiveCandidate(state: 'scanning', fields: {});
+    return FoodOcrLiveCandidate(
+      state: hasRawText ? 'insufficient' : 'scanning',
+      fields: const {},
+    );
   }
   final hasMajorValues =
       draft.calories != null &&

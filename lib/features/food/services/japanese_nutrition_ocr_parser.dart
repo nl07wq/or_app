@@ -33,6 +33,20 @@ class NutritionOcrDraft {
 class JapaneseNutritionOcrParser {
   const JapaneseNutritionOcrParser();
 
+  static const _knownLabels = [
+    '栄養成分表示',
+    'エネルギー',
+    '熱量',
+    'たんぱく質',
+    'タンパク質',
+    '蛋白質',
+    '脂質',
+    '炭水化物',
+    '糖質',
+    '食物繊維',
+    '食塩相当量',
+  ];
+
   NutritionOcrDraft parse(String rawText) {
     final text = _normalize(rawText);
     final table = _tableValues(text);
@@ -62,17 +76,27 @@ class JapaneseNutritionOcrParser {
     );
   }
 
-  static String _normalize(String value) => value
-      .replaceAll('，', ',')
-      .replaceAll('．', '.')
-      .replaceAllMapped(
-        RegExp(r'(\d)\s*[.,]\s*(\d)'),
-        (match) => '${match.group(1)}.${match.group(2)}',
-      )
-      .replaceAllMapped(RegExp(r'[０-９]'), (match) {
-        final code = match.group(0)!.codeUnitAt(0) - 0xff10 + 0x30;
-        return String.fromCharCode(code);
-      });
+  static String _normalize(String value) {
+    var normalized = value
+        .replaceAll('，', ',')
+        .replaceAll('．', '.')
+        .replaceAllMapped(RegExp(r'[０-９]'), (match) {
+          final code = match.group(0)!.codeUnitAt(0) - 0xff10 + 0x30;
+          return String.fromCharCode(code);
+        })
+        .replaceAllMapped(
+          RegExp(r'(\d)[ \t\u3000]*[.,][ \t\u3000]*(\d)'),
+          (match) => '${match.group(1)}.${match.group(2)}',
+        );
+    for (final label in _knownLabels) {
+      final spacedLabel = label
+          .split('')
+          .map(RegExp.escape)
+          .join(r'[ \t\u3000]*');
+      normalized = normalized.replaceAll(RegExp(spacedLabel), label);
+    }
+    return normalized.replaceAll(RegExp(r'(?:[.・･·…⋯][ \t\u3000]*){2,}'), ' ');
+  }
 
   static (double, double, double, double)? _tableValues(String text) {
     final lines = text
@@ -102,7 +126,7 @@ class JapaneseNutritionOcrParser {
 
     final values = <(double, String)>[];
     final pattern = RegExp(
-      r'^\s*(\d+(?:\.\d+)?)\s*(kcal|g)\s*$',
+      r'^[ \t\u3000|｜]*(\d+(?:\.\d+)?)[ \t\u3000]*(kcal|g)[ \t\u3000|｜]*$',
       caseSensitive: false,
     );
     for (final line in lines.skip(lastLabelLine + 1)) {
@@ -128,7 +152,9 @@ class JapaneseNutritionOcrParser {
   }) {
     final names = aliases.map(RegExp.escape).join('|');
     final matches = RegExp(
-      '(?:$names)\\s*[:：]?\\s*(\\d+(?:\\.\\d+)?)\\s*$unit',
+      '(?:$names)(?:[ \\t\\u3000]*\\r?\\n[ \\t\\u3000]*|'
+      '[ \\t\\u3000:：|｜\\-‐‑‒–—―]*)'
+      '(\\d+(?:\\.\\d+)?)[ \\t\\u3000]*$unit(?![A-Za-z])',
       caseSensitive: false,
     ).allMatches(text).toList(growable: false);
     if (matches.length != 1) return null;

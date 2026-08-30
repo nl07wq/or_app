@@ -75,7 +75,9 @@ void main() {
       bridge,
       contains('session.guide.firstElementChild.textContent = instruction'),
     );
-    expect(bridge, contains('文字を検出しました'));
+    expect(bridge, contains('栄養成分を十分に読み取れませんでした'));
+    expect(bridge, contains('栄養成分表示全体を枠内に入れてください'));
+    expect(bridge, isNot(contains('文字を検出しました。読み取り対象を大きく映してください')));
     expect(bridge, isNot(contains('.reduce(')));
     expect(bridge, isNot(contains('navigator.sendBeacon')));
   });

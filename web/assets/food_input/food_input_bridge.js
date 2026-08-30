@@ -417,8 +417,16 @@
       ? '読み取り完了'
       : candidate.state === 'partial'
         ? '一部読み取り'
+        : candidate.state === 'insufficient'
+          ? '栄養項目不足'
         : '読み取り中...';
     target.appendChild(state);
+    if (candidate.state === 'insufficient') {
+      const guidance = document.createElement('div');
+      guidance.textContent = '文字を検出しましたが、栄養成分を十分に読み取れませんでした。栄養成分表示全体を枠内に入れてください。';
+      guidance.style.cssText = 'margin-top:4px';
+      target.appendChild(guidance);
+    }
     const values = Object.entries(candidate.fields || {});
     for (const [label, value] of values) {
       if (!value) continue;
@@ -492,18 +500,21 @@
           if (finished) return;
           const description = JSON.parse(describeCandidate(rawText));
           const serialized = JSON.stringify(description);
-          if (description.state !== 'scanning' &&
+          const hasCandidate = description.state === 'partial' ||
+            description.state === 'detected';
+          if (hasCandidate &&
               serialized !== latestDescription) {
             unsuccessfulScans = 0;
             latestRawText = rawText;
             latestDescription = serialized;
             ocrResultContent(session.result, description);
             review.disabled = false;
+          } else if (description.state === 'insufficient') {
+            unsuccessfulScans += 1;
+            ocrResultContent(session.result, description);
           } else if (description.state === 'scanning') {
             unsuccessfulScans += 1;
-            session.result.textContent = rawText.trim()
-              ? '文字を検出しました。読み取り対象を大きく映してください'
-              : unsuccessfulScans >= 3
+            session.result.textContent = unsuccessfulScans >= 3
                 ? '対象を検出できません。大きく映すか写真を使用してください'
                 : '読み取り中...';
           }

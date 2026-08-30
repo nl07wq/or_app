@@ -5,6 +5,92 @@ import 'package:or_app/features/food/services/japanese_nutrition_ocr_parser.dart
 void main() {
   const parser = JapaneseNutritionOcrParser();
 
+  const expectedRealLabel = (
+    basis: 38.0,
+    calories: 201.0,
+    protein: 2.3,
+    fat: 12.4,
+    carbohydrate: 21.5,
+  );
+
+  void expectRealLabel(String rawText) {
+    final draft = parser.parse(rawText);
+    expect(draft.basisQuantity, expectedRealLabel.basis);
+    expect(draft.basisUnit, FoodQuantityUnit.gram);
+    expect(draft.calories, expectedRealLabel.calories);
+    expect(draft.protein, expectedRealLabel.protein);
+    expect(draft.fat, expectedRealLabel.fat);
+    expect(draft.carbohydrate, expectedRealLabel.carbohydrate);
+  }
+
+  test('parses the clean real Japanese nutrition label', () {
+    expectRealLabel('''
+栄養成分表示：1袋38g当たり
+エネルギー 201 kcal
+たんぱく質 2.3 g
+脂質 12.4 g
+炭水化物 21.5 g
+糖質 18.5 g
+食物繊維 3.0 g
+食塩相当量 0.4 g
+''');
+  });
+
+  test('normalizes spaced labels and leader dots from a real package', () {
+    expectRealLabel('''
+栄 養 成 分 表 示：1袋38 g当たり
+エ ネ ル ギ ー …… 201 kcal
+た ん ぱ く 質 ･ ･ ･ 2.3 g
+脂 質 ..... 12.4 g
+炭 水 化 物 ····· 21.5 g
+－ 糖 質 …… 18.5 g
+－ 食 物 繊 維 …… 3.0 g
+食 塩 相 当 量 …… 0.4 g
+''');
+  });
+
+  test('maps separated real-label columns with explicit units', () {
+    expectRealLabel('''
+栄養成分表示：1袋38g当たり
+エ ネ ル ギ ー
+た ん ぱ く 質
+脂 質
+炭 水 化 物
+201 kcal
+2.3 g
+12.4 g
+21.5 g
+''');
+  });
+
+  test('keeps carbohydrate distinct from sugar and dietary fiber', () {
+    final draft = parser.parse('''
+栄養成分表示 1袋38g当たり
+糖質 18.5g
+食物繊維 3.0g
+炭水化物 …… 21.5g
+''');
+
+    expect(draft.carbohydrate, 21.5);
+    expect(draft.carbohydrate, isNot(18.5));
+    expect(draft.carbohydrate, isNot(3.0));
+  });
+
+  test('does not treat package content quantity as nutrition basis', () {
+    final contentOnly = parser.parse('内容量 38g\nエネルギー 201kcal');
+    expect(contentOnly.basisQuantity, isNull);
+    expect(contentOnly.basisUnit, isNull);
+
+    final nutritionContext = parser.parse('''
+内容量 38g
+栄養成分表示：1袋38g当たり
+エネルギー 201kcal
+''');
+    expect(nutritionContext.basisQuantity, 38);
+    expect(nutritionContext.basisUnit, FoodQuantityUnit.gram);
+    expect(nutritionContext.packageQuantity, 38);
+  });
+
   test('parses Japanese nutrition label and package without guessing', () {
     final draft = parser.parse('''
 栄養成分表示 100g当たり

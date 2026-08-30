@@ -7,6 +7,7 @@ import 'package:or_app/features/food/widgets/food_input_form.dart';
 void main() {
   test('live presenter distinguishes no detection, partial, and complete', () {
     expect(describeNutritionCandidate('').state, 'scanning');
+    expect(describeNutritionCandidate('栄養成分表示').state, 'insufficient');
     expect(describeNutritionCandidate('エネルギー 9.3kcal').state, 'partial');
     final candidate = describeNutritionCandidate(
       '1食（2.0g）あたり\nエネルギー 9.3kcal\n'
@@ -33,6 +34,23 @@ void main() {
     expect(session.draft.carbohydrate, 0.54);
     expect(session.draft.protein, isNot(0.67));
     expect(session.lastRawText, contains('0.69g'));
+  });
+
+  test('real-label fields accumulate across live frames without inference', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe('栄養成分表示：1袋38g当たり');
+    session.describe('エ ネ ル ギ ー …… 201 kcal');
+    session.describe('た ん ぱ く 質 …… 2.3 g');
+    session.describe('脂 質 …… 12.4 g');
+    final candidate = session.describe('炭 水 化 物 …… 21.5 g');
+
+    expect(session.draft.basisQuantity, 38);
+    expect(session.draft.calories, 201);
+    expect(session.draft.protein, 2.3);
+    expect(session.draft.fat, 12.4);
+    expect(session.draft.carbohydrate, 21.5);
+    expect(candidate.state, 'detected');
+    expect(session.draft.protein, isNot(2.15));
   });
 
   testWidgets(
@@ -145,6 +163,71 @@ void main() {
     );
     expect(saveCalls, 0);
   });
+
+  for (final capture in [
+    ('CAMERA', FoodImageSource.camera),
+    ('PHOTO LIBRARY', FoodImageSource.gallery),
+  ]) {
+    testWidgets('${capture.$1} uses the real-label nutrition parser', (
+      tester,
+    ) async {
+      var saveCalls = 0;
+      final gateway = _LiveGateway(nutritionRawText: _realLabelRawText);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: gateway,
+                onSave: (_) async {
+                  saveCalls += 1;
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final action = find.byKey(const ValueKey('food-entry-ocr'));
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('NUTRITION'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(capture.$1));
+      await tester.pumpAndSettle();
+
+      expect(gateway.selectedSources, [capture.$2]);
+      expect(find.text('NUTRITION BASIS  38 g'), findsOneWidget);
+      expect(find.text('CALORIES  201 kcal'), findsOneWidget);
+      expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
+      expect(find.text('FAT  12.4 g'), findsOneWidget);
+      expect(find.text('CARBOHYDRATE  21.5 g'), findsOneWidget);
+      expect(saveCalls, 0);
+
+      await tester.tap(find.text('APPLY TO FORM'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
+        '38',
+      );
+      expect(
+        tester.widget<TextField>(_field('CALORIES')).controller!.text,
+        '201',
+      );
+      expect(
+        tester.widget<TextField>(_field('PROTEIN')).controller!.text,
+        '2.3',
+      );
+      expect(tester.widget<TextField>(_field('FAT')).controller!.text, '12.4');
+      expect(
+        tester.widget<TextField>(_field('CARBOHYDRATE')).controller!.text,
+        '21.5',
+      );
+      expect(saveCalls, 0);
+    });
+  }
 
   testWidgets('Food Entry package OCR reviews before applying master fields', (
     tester,
@@ -318,6 +401,17 @@ void main() {
 
 Finder _field(String label) => find.widgetWithText(TextField, label);
 
+const _realLabelRawText = '''
+栄 養 成 分 表 示：1袋38g当たり
+エ ネ ル ギ ー …… 201 kcal
+た ん ぱ く 質 …… 2.3 g
+脂 質 …… 12.4 g
+炭 水 化 物 …… 21.5 g
+－ 糖 質 …… 18.5 g
+－ 食 物 繊 維 …… 3.0 g
+食 塩 相 当 量 …… 0.4 g
+''';
+
 class _LiveGateway implements FoodLiveCaptureGateway {
   _LiveGateway({this.barcode, this.nutritionRawText});
 
@@ -325,6 +419,7 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   final String? nutritionRawText;
   int liveBarcodeCalls = 0;
   int liveNutritionCalls = 0;
+  final selectedSources = <FoodImageSource>[];
   FoodOcrLiveCandidate? lastDescription;
 
   @override
@@ -353,6 +448,8 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   Future<String?> scanBarcode(FoodCapturedImage image) async => barcode?.value;
 
   @override
-  Future<FoodCapturedImage?> selectImage(FoodImageSource source) async =>
-      const FoodCapturedImage('data:image/png;base64,AA==');
+  Future<FoodCapturedImage?> selectImage(FoodImageSource source) async {
+    selectedSources.add(source);
+    return const FoodCapturedImage('data:image/png;base64,AA==');
+  }
 }
