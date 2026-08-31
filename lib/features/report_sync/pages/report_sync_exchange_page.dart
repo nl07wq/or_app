@@ -1837,6 +1837,10 @@ class _ReportSyncRecordPage extends StatelessWidget {
             if (index != record.importedMealSnapshots.length - 1)
               AppSpacing.gapSM,
           ],
+        ] else if (record.exchangeType == ReportSyncExchangeType.food &&
+            record.detailsArchived) ...[
+          AppSpacing.gapSM,
+          const Text('DETAIL ARCHIVED / NOT AVAILABLE'),
         ],
       ],
     ),

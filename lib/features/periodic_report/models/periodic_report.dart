@@ -398,16 +398,29 @@ class PeriodicReportRecord {
     required this.importedAt,
     required this.updatedAt,
     required Iterable<PeriodicReportRevision> previousRevisions,
-  }) : previousRevisions = List.unmodifiable(previousRevisions) {
+    Iterable<Map<String, Object?>> archivedRevisions = const [],
+  }) : previousRevisions = List.unmodifiable(previousRevisions),
+       archivedRevisions = List.unmodifiable(
+         archivedRevisions.map(Map<String, Object?>.unmodifiable),
+       ) {
     if (recordVersion != currentRecordVersion ||
         revision < 1 ||
         id != facts.periodId ||
         reportType != facts.reportType ||
         periodStart != facts.startDate ||
         periodEnd != facts.endDate ||
-        previousRevisions.length != revision - 1 ||
+        this.archivedRevisions.length + previousRevisions.length !=
+            revision - 1 ||
+        this.archivedRevisions.indexed.any(
+          (entry) =>
+              entry.$2['revision'] != entry.$1 + 1 ||
+              !ReportSyncRecordUtils.isArchiveBodyDigest(
+                entry.$2['bodyDigest'],
+              ),
+        ) ||
         previousRevisions.indexed.any(
-          (entry) => entry.$2.revision != entry.$1 + 1,
+          (entry) =>
+              entry.$2.revision != this.archivedRevisions.length + entry.$1 + 1,
         )) {
       throw const FormatException('Periodic report record is invalid.');
     }
@@ -427,6 +440,7 @@ class PeriodicReportRecord {
   final DateTime importedAt;
   final DateTime updatedAt;
   final List<PeriodicReportRevision> previousRevisions;
+  final List<Map<String, Object?>> archivedRevisions;
 
   factory PeriodicReportRecord.initial({
     required PeriodicReportFacts facts,
@@ -449,6 +463,7 @@ class PeriodicReportRecord {
     importedAt: timestamp.toUtc(),
     updatedAt: timestamp.toUtc(),
     previousRevisions: const [],
+    archivedRevisions: const [],
   );
 
   PeriodicReportRecord revise({
@@ -483,6 +498,7 @@ class PeriodicReportRecord {
         importedAt: importedAt,
       ),
     ],
+    archivedRevisions: archivedRevisions,
   );
 
   Map<String, Object?> toRecord() => {
@@ -502,10 +518,11 @@ class PeriodicReportRecord {
     'previousRevisions': [
       for (final value in previousRevisions) value.toJson(),
     ],
+    if (archivedRevisions.isNotEmpty) 'archivedRevisions': archivedRevisions,
   };
 
   factory PeriodicReportRecord.fromRecord(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, const {
+    final expectedFields = <String>{
       'id',
       'recordVersion',
       'reportType',
@@ -520,10 +537,16 @@ class PeriodicReportRecord {
       'importedAt',
       'updatedAt',
       'previousRevisions',
-    });
+      if (json.containsKey('archivedRevisions')) 'archivedRevisions',
+    };
+    ReportSyncRecordUtils.exactFields(json, expectedFields);
     final revisions = json['previousRevisions'];
     if (revisions is! List || revisions.any((value) => value is! Map)) {
       throw const FormatException('Invalid periodic report revisions.');
+    }
+    final archived = json['archivedRevisions'] ?? const <Object?>[];
+    if (archived is! List || archived.any((value) => value is! Map)) {
+      throw const FormatException('Invalid archived periodic revisions.');
     }
     return PeriodicReportRecord(
       id: ReportSyncRecordUtils.string(json, 'id'),
@@ -544,6 +567,9 @@ class PeriodicReportRecord {
           PeriodicReportRevision.fromJson(
             Map<String, Object?>.from(value as Map),
           ),
+      ],
+      archivedRevisions: [
+        for (final value in archived) Map<String, Object?>.from(value as Map),
       ],
     );
   }

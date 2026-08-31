@@ -626,6 +626,8 @@ class _DailyDebriefDetail extends StatelessWidget {
               : [
                   for (final revision in record.previousRevisions)
                     'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
+                  if (record.archivedRevisions.isNotEmpty)
+                    '${record.archivedRevisions.length} OLDER REVISION(S): DETAIL ARCHIVED / NOT AVAILABLE',
                 ],
         ),
     ];
@@ -1103,6 +1105,11 @@ class _MorningBriefCard extends StatelessWidget {
                 _MorningBriefRevisionHistory(
                   revisions: record.previousRevisions,
                 ),
+              ],
+              if (showRevisionHistory &&
+                  record.archivedRevisions.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('OLDER REVISION DETAIL ARCHIVED / NOT AVAILABLE'),
               ],
             ],
           ),

@@ -296,6 +296,10 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
           AppSpacing.gapMD,
           _PreviousRevisionsCard(report: _report!),
         ],
+        if (_report?.archivedRevisions.isNotEmpty == true) ...[
+          AppSpacing.gapSM,
+          const Text('OLDER REVISION DETAIL ARCHIVED / NOT AVAILABLE'),
+        ],
       ],
     );
   }

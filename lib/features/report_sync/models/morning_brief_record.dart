@@ -295,6 +295,7 @@ class MorningBriefRecord {
     'revision',
     'previousRevisions',
   };
+  static const archivedCurrentFields = {...currentFields, 'archivedRevisions'};
 
   final String localDate;
   final int recordVersion;
@@ -321,6 +322,7 @@ class MorningBriefRecord {
   final DateTime updatedAt;
   final int revision;
   final List<MorningBriefRevision> previousRevisions;
+  final List<Map<String, Object?>> archivedRevisions;
 
   MorningBriefRecord({
     required this.localDate,
@@ -350,7 +352,8 @@ class MorningBriefRecord {
        strategicResourceDecisionV2 = null,
        actions = List.unmodifiable(actions),
        revision = 1,
-       previousRevisions = const [] {
+       previousRevisions = const [],
+       archivedRevisions = const [] {
     if (recordVersion != legacyRecordVersion) {
       throw const FormatException('Legacy DAILY BRIEF version must be 1.');
     }
@@ -391,7 +394,8 @@ class MorningBriefRecord {
        _legacyStrategicResourceDecision = null,
        actions = List.unmodifiable(actions),
        revision = 1,
-       previousRevisions = const [] {
+       previousRevisions = const [],
+       archivedRevisions = const [] {
     _validateCurrentIdentity();
     _validateTimestamps();
   }
@@ -416,6 +420,7 @@ class MorningBriefRecord {
     required this.updatedAt,
     required this.revision,
     required Iterable<MorningBriefRevision> previousRevisions,
+    Iterable<Map<String, Object?>> archivedRevisions = const [],
   }) : recordVersion = currentRecordVersion,
        requestId = null,
        requestDigest = null,
@@ -423,13 +428,25 @@ class MorningBriefRecord {
        argoComment = null,
        _legacyStrategicResourceDecision = null,
        actions = List.unmodifiable(actions),
-       previousRevisions = List.unmodifiable(previousRevisions) {
+       previousRevisions = List.unmodifiable(previousRevisions),
+       archivedRevisions = List.unmodifiable(
+         archivedRevisions.map(Map<String, Object?>.unmodifiable),
+       ) {
     _validateCurrentIdentity();
     if (revision < 1 ||
-        this.previousRevisions.length != revision - 1 ||
+        this.archivedRevisions.length + this.previousRevisions.length !=
+            revision - 1 ||
+        this.archivedRevisions.indexed.any(
+          (entry) =>
+              entry.$2['revision'] != entry.$1 + 1 ||
+              !ReportSyncRecordUtils.isArchiveBodyDigest(
+                entry.$2['bodyDigest'],
+              ),
+        ) ||
         this.previousRevisions.indexed.any(
           (entry) =>
-              entry.$2.revision != entry.$1 + 1 ||
+              entry.$2.revision !=
+                  this.archivedRevisions.length + entry.$1 + 1 ||
               entry.$2.record.localDate != localDate,
         )) {
       throw const FormatException('DAILY BRIEF revision history is invalid.');
@@ -495,6 +512,8 @@ class MorningBriefRecord {
             'previousRevisions': [
               for (final value in previousRevisions) value.toJson(),
             ],
+            if (archivedRevisions.isNotEmpty)
+              'archivedRevisions': archivedRevisions,
           },
         }
       : {
@@ -581,15 +600,25 @@ class MorningBriefRecord {
   }
 
   static MorningBriefRecord _fromCurrentRecord(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, currentFields);
+    ReportSyncRecordUtils.exactFields(
+      json,
+      json.containsKey('archivedRevisions')
+          ? archivedCurrentFields
+          : currentFields,
+    );
     final previous = json['previousRevisions'];
     if (previous is! List || previous.any((value) => value is! Map)) {
       throw const FormatException('previousRevisions is invalid.');
+    }
+    final archived = json['archivedRevisions'] ?? const <Object?>[];
+    if (archived is! List || archived.any((value) => value is! Map)) {
+      throw const FormatException('archivedRevisions is invalid.');
     }
     final base = _fromPreviousRecord({
       for (final entry in json.entries)
         if (entry.key != 'revision' &&
             entry.key != 'previousRevisions' &&
+            entry.key != 'archivedRevisions' &&
             entry.key != 'recordVersion')
           entry.key: entry.value,
       'recordVersion': previousRecordVersion,
@@ -623,6 +652,9 @@ class MorningBriefRecord {
             Map<String, Object?>.from(value as Map),
           ),
       ],
+      archivedRevisions: [
+        for (final value in archived) Map<String, Object?>.from(value as Map),
+      ],
     );
   }
 
@@ -648,6 +680,7 @@ class MorningBriefRecord {
       updatedAt: updatedAt,
       revision: 1,
       previousRevisions: const [],
+      archivedRevisions: const [],
     );
   }
 
@@ -686,6 +719,7 @@ class MorningBriefRecord {
           record: current._snapshotRecord(),
         ),
       ],
+      archivedRevisions: current.archivedRevisions,
     );
   }
 

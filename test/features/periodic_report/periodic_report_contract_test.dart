@@ -25,7 +25,7 @@ void main() {
       IndexedDbIndexNames.byReportType,
       IndexedDbIndexNames.byImportedAt,
     ]);
-    expect(BackupPackage.currentSchemaVersion, 13);
+    expect(BackupPackage.currentSchemaVersion, 14);
     expect(
       BackupSections.forSchema(12),
       isNot(contains(BackupSections.periodicReportRecords)),

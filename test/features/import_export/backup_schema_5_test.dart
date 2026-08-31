@@ -45,7 +45,7 @@ void main() {
     'Current schema exports all sections and excludes active sync state',
     () async {
       final package = await _export(database, controller, timestamp);
-      expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
+      expect(package.schemaVersion, BackupPackage.legacyFullSchemaVersion);
       expect(package.data.keys, BackupSections.all);
       expect(package.data, hasLength(BackupSections.all.length));
       expect(package.data[BackupSections.operationSyncHistory], hasLength(1));
@@ -54,7 +54,7 @@ void main() {
       final decoded = const BackupPackageCodec().decode(
         BackupExportService.encode(package),
       );
-      expect(decoded.schemaVersion, BackupPackage.currentSchemaVersion);
+      expect(decoded.schemaVersion, BackupPackage.legacyFullSchemaVersion);
       expect(decoded.digests.sections, hasLength(BackupSections.all.length));
     },
   );
@@ -75,6 +75,7 @@ void main() {
         exportedAt: timestamp,
         source: const BackupSource(platform: 'test'),
         data: data,
+        schemaVersion: BackupPackage.legacyFullSchemaVersion,
       );
       final conflict = await service.dryRun(changed, BackupImportMode.merge);
       expect(conflict.hasConflicts, isTrue);
@@ -98,6 +99,7 @@ void main() {
         exportedAt: timestamp,
         source: const BackupSource(platform: 'test'),
         data: data,
+        schemaVersion: BackupPackage.legacyFullSchemaVersion,
       );
       final service = _service(database, controller);
       final plan = await service.dryRun(
@@ -170,7 +172,7 @@ Future<BackupPackage> _export(
     database: database,
     controller: controller,
     clock: () => timestamp,
-  ).create();
+  ).createLegacyV13();
 }
 
 BackupImportService _service(

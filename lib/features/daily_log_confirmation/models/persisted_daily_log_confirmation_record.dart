@@ -85,6 +85,7 @@ class PersistedDailyLogConfirmationRecord {
     'updatedAt',
     'migrationSource',
   };
+  static const _v2ArchivedFields = {..._v2Fields, 'archivedRevisions'};
 
   final String id;
   final int recordVersion;
@@ -104,6 +105,7 @@ class PersistedDailyLogConfirmationRecord {
   final DailyLogConfirmationReopenReason? reopenReason;
   final DailyLogConfirmationSourceRecordVersions? sourceRecordVersions;
   final List<DailyLogConfirmationRevision> previousRevisions;
+  final List<Map<String, Object?>> archivedRevisions;
 
   const PersistedDailyLogConfirmationRecord({
     required this.id,
@@ -123,7 +125,8 @@ class PersistedDailyLogConfirmationRecord {
        lastRefinalizedAt = null,
        reopenReason = null,
        sourceRecordVersions = null,
-       previousRevisions = const [];
+       previousRevisions = const [],
+       archivedRevisions = const [];
 
   PersistedDailyLogConfirmationRecord.v2({
     required this.id,
@@ -140,6 +143,7 @@ class PersistedDailyLogConfirmationRecord {
     required this.reopenReason,
     required this.sourceRecordVersions,
     required Iterable<DailyLogConfirmationRevision> previousRevisions,
+    Iterable<Map<String, Object?>> archivedRevisions = const [],
     required DateTime createdAt,
     required DateTime updatedAt,
     this.migrationSource,
@@ -148,6 +152,9 @@ class PersistedDailyLogConfirmationRecord {
        reopenedAt = reopenedAt?.toUtc(),
        lastRefinalizedAt = lastRefinalizedAt?.toUtc(),
        previousRevisions = List.unmodifiable(previousRevisions),
+       archivedRevisions = List.unmodifiable(
+         archivedRevisions.map(Map<String, Object?>.unmodifiable),
+       ),
        createdAt = createdAt.toUtc(),
        updatedAt = updatedAt.toUtc() {
     _validateV2(this);
@@ -178,6 +185,7 @@ class PersistedDailyLogConfirmationRecord {
       reopenReason: null,
       sourceRecordVersions: sourceRecordVersions,
       previousRevisions: const [],
+      archivedRevisions: const [],
       createdAt: timestamp,
       updatedAt: timestamp,
       migrationSource: migrationSource,
@@ -212,6 +220,7 @@ class PersistedDailyLogConfirmationRecord {
       reopenReason: DailyLogConfirmationReopenReason.userCorrection,
       sourceRecordVersions: existing.projectedSourceRecordVersions,
       previousRevisions: existing.previousRevisions,
+      archivedRevisions: existing.archivedRevisions,
       createdAt: existing.createdAt.toUtc(),
       updatedAt: timestamp,
       migrationSource: existing.migrationSource,
@@ -259,6 +268,7 @@ class PersistedDailyLogConfirmationRecord {
       reopenReason: null,
       sourceRecordVersions: sourceRecordVersions,
       previousRevisions: [...existing.previousRevisions, previous],
+      archivedRevisions: existing.archivedRevisions,
       createdAt: existing.createdAt,
       updatedAt: timestamp,
       migrationSource: existing.migrationSource,
@@ -298,6 +308,7 @@ class PersistedDailyLogConfirmationRecord {
       'previousRevisions': [
         for (final previous in previousRevisions) previous.toJson(),
       ],
+      if (archivedRevisions.isNotEmpty) 'archivedRevisions': archivedRevisions,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'migrationSource': migrationSource?.toJson(),
@@ -372,7 +383,10 @@ class PersistedDailyLogConfirmationRecord {
   static PersistedDailyLogConfirmationRecord _fromV2Record(
     Map<String, Object?> record,
   ) {
-    _requireExactFields(record, _v2Fields);
+    _requireExactFields(
+      record,
+      record.containsKey('archivedRevisions') ? _v2ArchivedFields : _v2Fields,
+    );
     final snapshotVersion = record['snapshotVersion'];
     if (snapshotVersion is! int) {
       throw const FormatException(
@@ -393,8 +407,14 @@ class PersistedDailyLogConfirmationRecord {
     final dataValue = record['data'];
     final sourceValue = record['sourceRecordVersions'];
     final previousValue = record['previousRevisions'];
+    final archivedValue = record['archivedRevisions'] ?? const <Object?>[];
     if (dataValue is! Map || sourceValue is! Map || previousValue is! List) {
       throw const FormatException('Invalid Daily Log Confirmation v2 data.');
+    }
+    if (archivedValue is! List || archivedValue.any((value) => value is! Map)) {
+      throw const FormatException(
+        'Invalid Daily Log Confirmation archivedRevisions.',
+      );
     }
     final migrationValue = record['migrationSource'];
     if (migrationValue != null && migrationValue is! Map) {
@@ -437,6 +457,10 @@ class PersistedDailyLogConfirmationRecord {
             throw const FormatException(
               'Invalid Daily Log Confirmation previousRevisions.',
             ),
+      ],
+      archivedRevisions: [
+        for (final value in archivedValue)
+          Map<String, Object?>.from(value as Map),
       ],
       createdAt: _requiredUtcDate(record, 'createdAt'),
       updatedAt: _requiredUtcDate(record, 'updatedAt'),
@@ -613,15 +637,32 @@ class PersistedDailyLogConfirmationRecord {
       }
     } else {
       if (record.lastRefinalizedAt == null ||
-          record.previousRevisions.length != record.revision! - 1) {
+          record.archivedRevisions.length + record.previousRevisions.length !=
+              record.revision! - 1) {
         throw const FormatException(
           'Daily Log Confirmation revision history is incomplete.',
         );
       }
     }
+    for (var index = 0; index < record.archivedRevisions.length; index++) {
+      final previous = record.archivedRevisions[index];
+      if (previous['revision'] != index + 1 ||
+          previous['bodyDigest'] is! String ||
+          !RegExp(
+            r'^[0-9a-f]{8}$',
+          ).hasMatch(previous['bodyDigest']! as String) ||
+          previous['snapshotDigest'] is! String ||
+          previous['finalizedAt'] is! String ||
+          previous['reopenedAt'] is! String ||
+          previous['sourceRecordVersions'] is! Map) {
+        throw const FormatException(
+          'Daily Log Confirmation archivedRevisions are invalid.',
+        );
+      }
+    }
     for (var index = 0; index < record.previousRevisions.length; index++) {
       final previous = record.previousRevisions[index];
-      if (previous.revision != index + 1 ||
+      if (previous.revision != record.archivedRevisions.length + index + 1 ||
           previous.revision >= record.revision! ||
           localDateFromDate(previous.snapshot.date) != record.localDate ||
           digestSnapshot(previous.snapshot) != previous.snapshotDigest) {
@@ -630,9 +671,12 @@ class PersistedDailyLogConfirmationRecord {
         );
       }
     }
-    if (record.previousRevisions.isNotEmpty &&
-        record.previousRevisions.first.snapshotDigest !=
-            record.originalSnapshotDigest) {
+    final firstDigest = record.archivedRevisions.isNotEmpty
+        ? record.archivedRevisions.first['snapshotDigest']
+        : record.previousRevisions.isNotEmpty
+        ? record.previousRevisions.first.snapshotDigest
+        : null;
+    if (firstDigest != null && firstDigest != record.originalSnapshotDigest) {
       throw const FormatException(
         'Daily Log Confirmation originalSnapshotDigest is invalid.',
       );

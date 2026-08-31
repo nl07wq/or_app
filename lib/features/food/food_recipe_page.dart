@@ -17,6 +17,7 @@ import 'repository/food_meal_id_generator.dart';
 import 'repository/food_recipe_repository.dart';
 import 'services/food_recipe_nutrition.dart';
 import 'widgets/food_pfc_balance_card.dart';
+import 'widgets/food_thumbnail.dart';
 
 class FoodRecipeEditorPage extends StatefulWidget {
   const FoodRecipeEditorPage({
@@ -44,6 +45,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   final _servings = TextEditingController(text: '1');
   final _memo = TextEditingController();
   final List<RecipeIngredientV2> _ingredients = [];
+  Map<String, FoodCatalogEntry> _foodMasters = const {};
   FoodQuantityUnit _yieldUnit = FoodQuantityUnit.serving;
   bool _saving = false;
   String? _error;
@@ -54,6 +56,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   @override
   void initState() {
     super.initState();
+    _loadFoodMasters();
     final recipe = widget.initialRecipe;
     if (recipe == null) return;
     _name.text = recipe.name;
@@ -64,6 +67,18 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
         : _amount(recipe.servingCount!);
     _memo.text = recipe.memo ?? '';
     _ingredients.addAll(recipe.ingredients);
+  }
+
+  Future<void> _loadFoodMasters() async {
+    try {
+      final entries = await widget.catalogRepository.list();
+      if (!mounted) return;
+      setState(() {
+        _foodMasters = {for (final entry in entries) entry.foodId: entry};
+      });
+    } catch (_) {
+      // Ingredient snapshots remain usable when Food Master lookup is unavailable.
+    }
   }
 
   @override
@@ -310,41 +325,56 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           Text('INGREDIENTS', style: Theme.of(context).textTheme.titleSmall),
           AppSpacing.gapSM,
           for (var index = 0; index < _ingredients.length; index++) ...[
-            OperationCard(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  _ingredients[index].nameSnapshot,
-                  key: ValueKey('recipe-ingredient-name-$index'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+            Builder(
+              builder: (context) {
+                final ingredient = _ingredients[index];
+                final master = ingredient.foodReferenceId == null
+                    ? null
+                    : _foodMasters[ingredient.foodReferenceId];
+                return OperationCard(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: FoodThumbnail(visualKey: master?.visualKey),
+                    title: Text(
+                      ingredient.nameSnapshot,
+                      key: ValueKey('recipe-ingredient-name-$index'),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          [
+                            if (master != null)
+                              foodCatalogCategoryLabel(master.category),
+                            FoodNutritionFormatter.compactQuantity(
+                              ingredient.quantity,
+                            ),
+                          ].join('  '),
+                          key: ValueKey('recipe-ingredient-metadata-$index'),
+                          style: _recipeMetadataStyle(context),
+                        ),
+                        Text(
+                          FoodNutritionFormatter.compactNutrition(
+                            ingredient.nutritionSnapshot,
+                          ),
+                          key: ValueKey('recipe-ingredient-nutrition-$index'),
+                          style: _recipeMetadataStyle(context),
+                        ),
+                      ],
+                    ),
+                    isThreeLine: true,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: readOnly
+                          ? null
+                          : () => setState(() => _ingredients.removeAt(index)),
+                    ),
                   ),
-                ),
-                subtitle: Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    Text(
-                      FoodNutritionFormatter.quantity(
-                        _ingredients[index].quantity,
-                      ),
-                      style: _recipeMetadataStyle(context),
-                    ),
-                    Text(
-                      FoodNutritionFormatter.nutrition(
-                        _ingredients[index].nutritionSnapshot,
-                      ),
-                      style: _recipeMetadataStyle(context),
-                    ),
-                  ],
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: readOnly
-                      ? null
-                      : () => setState(() => _ingredients.removeAt(index)),
-                ),
-              ),
+                );
+              },
             ),
             AppSpacing.gapSM,
           ],

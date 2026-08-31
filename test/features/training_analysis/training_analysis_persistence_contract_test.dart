@@ -21,7 +21,7 @@ void main() {
   });
 
   test('Backup schema 12 adds reports without changing schema 11', () {
-    expect(BackupPackage.currentSchemaVersion, 13);
+    expect(BackupPackage.currentSchemaVersion, 14);
     expect(
       BackupSections.forSchema(11),
       isNot(contains(BackupSections.trainingAnalysisReportRecords)),

@@ -5,6 +5,7 @@ import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/services/persistence_access.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
+import 'package:or_app/features/import_export/services/backup_audit_package_codec.dart';
 import 'package:or_app/features/import_export/services/backup_file_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway_stub.dart';
@@ -41,7 +42,7 @@ void main() {
 
   tearDown(AppRepositoryRegistry.resetForTesting);
 
-  test('exports Schema 11 UTF-8 JSON with the fixed file name', () async {
+  test('exports current UTF-8 JSON with the fixed file name', () async {
     final result = await _service(
       database: database,
       controller: controller,
@@ -56,7 +57,11 @@ void main() {
 
     final package = const BackupPackageCodec().decode(gateway.content!);
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.data.keys, containsAll(BackupSections.all));
+    expect(package.data.keys, containsAll(BackupSections.schema14));
+    expect(
+      package.data.keys,
+      isNot(contains(BackupSections.operationSyncHistory)),
+    );
     expect(package.data, isNot(contains('activity_drafts')));
     expect(package.data, isNot(contains('migration_metadata')));
     expect(package.data, isNot(contains('migration_quarantine')));
@@ -77,6 +82,47 @@ void main() {
       expect(result.delivery, BackupFileDelivery.cancelled);
       expect(result.package.schemaVersion, BackupPackage.currentSchemaVersion);
       expect(database.transactionCount, 1);
+    },
+  );
+
+  test(
+    'exports matched v14 Normal and Audit files from one snapshot',
+    () async {
+      final result = await _service(
+        database: database,
+        controller: controller,
+        gateway: gateway,
+        clock: () => DateTime.utc(2026, 8, 31),
+      ).exportV14Bundle();
+
+      expect(result.normalDelivery, BackupFileDelivery.shared);
+      expect(result.auditDelivery, BackupFileDelivery.shared);
+      final normal = const BackupPackageCodec().decode(
+        gateway.writes[BackupFileExportService.normalFileName]!,
+      );
+      final audit = const BackupAuditPackageCodec().decode(
+        gateway.writes[BackupFileExportService.auditFileName]!,
+      );
+      expect(normal.schemaVersion, 14);
+      expect(normal.auditArchiveId, audit.archiveId);
+      expect(audit.normalExportId, normal.exportId);
+      expect(audit.normalPackageDigest, normal.digests.package);
+      expect(database.transactionCount, 1);
+
+      final tampered = Map<String, Object?>.from(
+        jsonDecode(gateway.writes[BackupFileExportService.auditFileName]!)
+            as Map,
+      )..['archiveId'] = 'tampered';
+      expect(
+        () => const BackupAuditPackageCodec().decode(jsonEncode(tampered)),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            'package_digest_mismatch',
+          ),
+        ),
+      );
     },
   );
 
@@ -178,6 +224,7 @@ class _RecordingGateway implements BackupFileGateway {
   Object? failure;
   String? fileName;
   String? content;
+  final Map<String, String> writes = {};
 
   @override
   String get origin => 'https://example.test';
@@ -189,6 +236,7 @@ class _RecordingGateway implements BackupFileGateway {
   }) async {
     this.fileName = fileName;
     this.content = content;
+    writes[fileName] = content;
     final failure = this.failure;
     if (failure != null) throw failure;
     return delivery;

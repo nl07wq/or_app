@@ -48,7 +48,7 @@ void main() {
       ).create();
 
       expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(package.data.keys, BackupSections.all);
+      expect(package.data.keys, BackupSections.schema14);
       expect(package.data[BackupSections.profile], [
         {
           'version': 1,
@@ -58,7 +58,10 @@ void main() {
           'nationality': '日本',
         },
       ]);
-      expect(package.includedSections, hasLength(BackupSections.all.length));
+      expect(
+        package.includedSections,
+        hasLength(BackupSections.schema14.length),
+      );
 
       await repository.save(ProfileModel.validated(userName: 'Changed'));
       final service = BackupImportService(

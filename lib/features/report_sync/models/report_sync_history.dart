@@ -14,7 +14,8 @@ enum ReportSyncHistoryResult {
 }
 
 class ReportSyncHistory {
-  static const currentRecordVersion = 3;
+  static const currentRecordVersion = 4;
+  static const fullRecordVersion = 3;
   static const version1Fields = {
     'exchangeId',
     'recordVersion',
@@ -39,7 +40,8 @@ class ReportSyncHistory {
     'conflictMealCount',
     'excludedMealCount',
   };
-  static const fields = {...version2Fields, 'importedMealSnapshots'};
+  static const version3Fields = {...version2Fields, 'importedMealSnapshots'};
+  static const fields = {...version3Fields, 'detailsArchived'};
   final String exchangeId;
   final int recordVersion;
   final ReportSyncExchangeType exchangeType;
@@ -60,10 +62,11 @@ class ReportSyncHistory {
   final int? conflictMealCount;
   final int? excludedMealCount;
   final List<MealData> importedMealSnapshots;
+  final bool detailsArchived;
 
   ReportSyncHistory({
     required this.exchangeId,
-    this.recordVersion = currentRecordVersion,
+    this.recordVersion = fullRecordVersion,
     required this.exchangeType,
     required this.direction,
     required this.operationDate,
@@ -82,6 +85,7 @@ class ReportSyncHistory {
     this.conflictMealCount,
     this.excludedMealCount,
     Iterable<MealData> importedMealSnapshots = const [],
+    this.detailsArchived = false,
   }) : importedMealSnapshots = List.unmodifiable(
          importedMealSnapshots.map(
            (meal) =>
@@ -128,6 +132,7 @@ class ReportSyncHistory {
       'importedMealSnapshots': [
         for (final meal in importedMealSnapshots) meal.toJson(),
       ],
+    if (recordVersion >= 4) 'detailsArchived': detailsArchived,
   };
 
   factory ReportSyncHistory.fromRecord(Map<String, Object?> json) {
@@ -138,6 +143,7 @@ class ReportSyncHistory {
     ReportSyncRecordUtils.exactFields(json, switch (version) {
       1 => version1Fields,
       2 => version2Fields,
+      3 => version3Fields,
       _ => fields,
     });
     T parse<T>(Iterable<T> values, Object? raw, String Function(T) id) {
@@ -205,6 +211,9 @@ class ReportSyncHistory {
           ? null
           : _nullableNonNegativeInteger(json, 'excludedMealCount'),
       importedMealSnapshots: version < 3 ? const [] : _mealSnapshots(json),
+      detailsArchived: version >= 4
+          ? _requiredBool(json, 'detailsArchived')
+          : false,
       recordVersion: version,
     );
   }
@@ -255,12 +264,19 @@ class ReportSyncHistory {
       );
     }
     if (recordVersion >= 3 &&
+        !detailsArchived &&
         importedMealCount != null &&
         importedMealSnapshots.length != importedMealCount) {
       throw const FormatException(
         'Imported meal snapshots do not match importedMealCount.',
       );
     }
+  }
+
+  static bool _requiredBool(Map<String, Object?> json, String key) {
+    final value = json[key];
+    if (value is! bool) throw FormatException('$key must be a boolean.');
+    return value;
   }
 
   static List<MealData> _mealSnapshots(Map<String, Object?> json) {

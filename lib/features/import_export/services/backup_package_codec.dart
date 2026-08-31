@@ -92,6 +92,9 @@ class BackupPackageCodec {
     final countJson = _map(json, 'recordCounts');
     final digestJson = _map(json, 'digests');
     final dataJson = _map(json, 'data');
+    final auditArchiveId = schemaVersion == 14
+        ? _string(json, 'auditArchiveId')
+        : null;
     final data = <String, List<Map<String, Object?>>>{};
     final counts = <String, int>{};
     final sectionDigests = <String, String>{};
@@ -113,6 +116,15 @@ class BackupPackageCodec {
             );
           }
           final record = Map<String, Object?>.from(value);
+          if (schemaVersion <= BackupPackage.legacyFullSchemaVersion &&
+              (record.containsKey('archivedRevisions') ||
+                  (section == BackupSections.reportSyncHistory &&
+                      record['recordVersion'] == 4))) {
+            throw const BackupException(
+              'invalid_legacy_revision_contract',
+              'Legacy Backup requires complete historical bodies.',
+            );
+          }
           if (section == BackupSections.confirmations &&
               schemaVersion < 10 &&
               record['recordVersion'] !=
@@ -159,6 +171,7 @@ class BackupPackageCodec {
       if (json['appVersion'] case final String version) 'appVersion': version,
       'databaseVersion': databaseVersion,
       'source': source.toJson(),
+      'auditArchiveId': ?auditArchiveId,
       'recordCounts': counts,
       'digests': sectionDigests,
       'data': data,
@@ -182,6 +195,7 @@ class BackupPackageCodec {
       recordCounts: BackupRecordCounts(counts),
       digests: BackupDigests(package: packageDigest, sections: sectionDigests),
       data: data,
+      auditArchiveId: auditArchiveId,
     );
   }
 

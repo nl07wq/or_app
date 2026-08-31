@@ -25,7 +25,7 @@ void main() {
   final digest = ReportSyncCanonicalService.digest(trainingRequest);
 
   test('Report Sync History version 2 remains readable with counts only', () {
-    expect(ReportSyncHistory.currentRecordVersion, 3);
+    expect(ReportSyncHistory.currentRecordVersion, 4);
     final history = _history(
       recordVersion: 2,
       received: 4,
@@ -58,6 +58,33 @@ void main() {
       restored.importedMealSnapshots.single.items.single.calories,
       57.099999999999994,
     );
+  });
+
+  test('Report Sync History version 4 preserves archived detail state', () {
+    final history = ReportSyncHistory(
+      exchangeId: 'food-history-archived',
+      recordVersion: 4,
+      exchangeType: ReportSyncExchangeType.food,
+      direction: ReportSyncDirection.response,
+      operationDate: '2026-08-02',
+      requestId: 'food-history-archived',
+      requestDigest: _digest,
+      startedAt: DateTime.utc(2026, 8, 2),
+      completedAt: DateTime.utc(2026, 8, 2),
+      result: ReportSyncHistoryResult.success,
+      packageDigest: _digest,
+      receivedMealCount: 1,
+      selectedMealCount: 1,
+      importedMealCount: 1,
+      conflictMealCount: 0,
+      excludedMealCount: 0,
+      detailsArchived: true,
+    );
+
+    final decoded = ReportSyncHistory.fromRecord(history.toRecord());
+    expect(decoded.detailsArchived, isTrue);
+    expect(decoded.importedMealSnapshots, isEmpty);
+    expect(decoded.importedMealCount, 1);
   });
 
   test('Report Sync History version 1 remains readable without counts', () {

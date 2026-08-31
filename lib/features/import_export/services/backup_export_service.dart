@@ -6,11 +6,13 @@ import '../../../core/state/app_initialization_state.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../models/backup_package.dart';
+import '../models/backup_audit_package.dart';
 import 'backup_canonical_codec.dart';
 import 'backup_id_generator.dart';
 import 'backup_store_registry.dart';
 import 'backup_operation_state_integrity.dart';
 import '../../system/models/profile_model.dart';
+import 'backup_v14_transform.dart';
 
 class BackupExportService {
   final IndexedDbDatabase _database;
@@ -28,7 +30,76 @@ class BackupExportService {
        _idGenerator = idGenerator ?? BackupIdGenerator(),
        _clock = clock ?? DateTime.now;
 
-  Future<BackupPackage> create({String? appVersion, String? origin}) async {
+  Future<BackupPackage> create({String? appVersion, String? origin}) async =>
+      (await createV14Bundle(appVersion: appVersion, origin: origin)).normal;
+
+  Future<BackupPackage> createLegacyV13({
+    String? appVersion,
+    String? origin,
+  }) async {
+    final snapshot = await _snapshot();
+    return buildPackage(
+      exportId: _idGenerator.generate(),
+      exportedAt: _clock().toUtc(),
+      appVersion: appVersion,
+      source: BackupSource(platform: 'web', origin: origin),
+      data: snapshot,
+      schemaVersion: BackupPackage.legacyFullSchemaVersion,
+    );
+  }
+
+  Future<BackupV14Bundle> createV14Bundle({
+    String? appVersion,
+    String? origin,
+  }) async {
+    final snapshot = await _snapshot();
+    final split = BackupV14Transform.split(snapshot);
+    final exportedAt = _clock().toUtc();
+    final exportId = _idGenerator.generate();
+    final archiveId = _idGenerator.generate();
+    final source = BackupSource(platform: 'web', origin: origin);
+    final normal = buildPackage(
+      exportId: exportId,
+      exportedAt: exportedAt,
+      appVersion: appVersion,
+      source: source,
+      data: split.normal,
+      schemaVersion: 14,
+      auditArchiveId: archiveId,
+    );
+    final sectionDigests = {
+      for (final entry in split.audit.entries)
+        entry.key: BackupCanonicalCodec.digest(entry.value),
+    };
+    final auditPayload = <String, Object?>{
+      'schema': BackupAuditPackage.schemaName,
+      'schemaVersion': BackupAuditPackage.schemaVersion,
+      'archiveId': archiveId,
+      'normalExportId': exportId,
+      'normalPackageDigest': normal.digests.package,
+      'exportedAt': exportedAt.toIso8601String(),
+      'source': source.toJson(),
+      'archiveComplete': split.archiveComplete,
+      'digests': sectionDigests,
+      'data': split.audit,
+    };
+    final audit = BackupAuditPackage(
+      archiveId: archiveId,
+      normalExportId: exportId,
+      normalPackageDigest: normal.digests.package,
+      exportedAt: exportedAt,
+      source: source,
+      archiveComplete: split.archiveComplete,
+      digests: BackupDigests(
+        package: BackupCanonicalCodec.digest(auditPayload),
+        sections: sectionDigests,
+      ),
+      data: split.audit,
+    );
+    return BackupV14Bundle(normal: normal, audit: audit);
+  }
+
+  Future<Map<String, List<Map<String, Object?>>>> _snapshot() async {
     if (_controller.value.mode != PersistenceMode.indexedDbReadWrite &&
         _controller.value.mode != PersistenceMode.legacyReadOnly) {
       throw const BackupException(
@@ -68,13 +139,7 @@ class BackupExportService {
       },
     );
     BackupOperationStateIntegrity.validate(data);
-    return buildPackage(
-      exportId: _idGenerator.generate(),
-      exportedAt: _clock().toUtc(),
-      appVersion: appVersion,
-      source: BackupSource(platform: 'web', origin: origin),
-      data: data,
-    );
+    return data;
   }
 
   static BackupPackage buildPackage({
@@ -84,6 +149,7 @@ class BackupExportService {
     required BackupSource source,
     required Map<String, List<Map<String, Object?>>> data,
     int schemaVersion = BackupPackage.currentSchemaVersion,
+    String? auditArchiveId,
   }) {
     final normalized = <String, List<Map<String, Object?>>>{};
     final counts = <String, int>{};
@@ -94,6 +160,18 @@ class BackupExportService {
         section,
         data[section] ?? const [],
       );
+      if (schemaVersion <= BackupPackage.legacyFullSchemaVersion &&
+          records.any(
+            (record) =>
+                record.containsKey('archivedRevisions') ||
+                (section == BackupSections.reportSyncHistory &&
+                    record['recordVersion'] == 4),
+          )) {
+        throw const BackupException(
+          'legacy_full_unavailable',
+          'Legacy Full Backup is unavailable without archived detail.',
+        );
+      }
       if (section == BackupSections.confirmations && schemaVersion < 10) {
         final containsV2 = records.any(
           (record) =>
@@ -122,6 +200,7 @@ class BackupExportService {
       'appVersion': ?appVersion,
       'databaseVersion': IndexedDbSchema.databaseVersion,
       'source': source.toJson(),
+      'auditArchiveId': ?auditArchiveId,
       'recordCounts': counts,
       'digests': sectionDigests,
       'data': normalized,
@@ -137,6 +216,7 @@ class BackupExportService {
       recordCounts: BackupRecordCounts(counts),
       digests: BackupDigests(package: packageDigest, sections: sectionDigests),
       data: normalized,
+      auditArchiveId: auditArchiveId,
     );
   }
 
@@ -144,6 +224,11 @@ class BackupExportService {
       BackupCanonicalCodec.encode(package.toJson());
 
   static String prettyEncode(BackupPackage package) =>
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert(BackupCanonicalCodec.canonicalize(package.toJson()));
+
+  static String prettyEncodeAudit(BackupAuditPackage package) =>
       const JsonEncoder.withIndent(
         '  ',
       ).convert(BackupCanonicalCodec.canonicalize(package.toJson()));

@@ -154,7 +154,11 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Rice'), findsOneWidget);
-      expect(find.text('100 g'), findsOneWidget);
+      expect(find.text('食材  100g'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('food-thumbnail-grain')),
+        findsOneWidget,
+      );
       expect(find.text('TOTAL PFC BALANCE'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('recipe-total-pfc-card')),
@@ -393,7 +397,7 @@ void main() {
       final ingredientName = tester.widget<Text>(
         find.byKey(const ValueKey('recipe-ingredient-name-0')),
       );
-      final ingredientMetadata = tester.widget<Text>(find.text('100 g'));
+      final ingredientMetadata = tester.widget<Text>(find.text('食材  100g'));
       expect(ingredientName.style?.fontWeight, FontWeight.w700);
       expect(
         ingredientName.style?.fontSize,
@@ -412,6 +416,7 @@ FoodCatalogEntry _food() {
     foodId: _foodId,
     name: 'Rice',
     category: FoodCatalogCategory.ingredient,
+    visualKey: FoodVisualKey.grain,
     baseQuantity: FoodQuantityDefinition(
       value: 100,
       unit: FoodQuantityUnit.gram,

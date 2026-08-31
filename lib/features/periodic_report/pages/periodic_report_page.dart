@@ -746,6 +746,10 @@ class _ReportViewer extends StatelessWidget {
             ),
           ),
         ],
+        if (report.archivedRevisions.isNotEmpty) ...[
+          AppSpacing.gapSM,
+          const Text('OLDER REVISION DETAIL ARCHIVED / NOT AVAILABLE'),
+        ],
       ],
     );
   }

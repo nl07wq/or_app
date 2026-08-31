@@ -493,6 +493,7 @@ class DailyDebriefRecord {
     'updatedAt',
     'previousRevisions',
   };
+  static const archivedFields = {...fields, 'archivedRevisions'};
 
   final String localDate;
   final int recordVersion;
@@ -503,6 +504,7 @@ class DailyDebriefRecord {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<DailyDebriefRevision> previousRevisions;
+  final List<Map<String, Object?>> archivedRevisions;
 
   DailyDebriefRecord({
     required this.localDate,
@@ -514,17 +516,30 @@ class DailyDebriefRecord {
     required DateTime createdAt,
     required DateTime updatedAt,
     required Iterable<DailyDebriefRevision> previousRevisions,
+    Iterable<Map<String, Object?>> archivedRevisions = const [],
   }) : createdAt = createdAt.toUtc(),
        updatedAt = updatedAt.toUtc(),
-       previousRevisions = List.unmodifiable(previousRevisions) {
+       previousRevisions = List.unmodifiable(previousRevisions),
+       archivedRevisions = List.unmodifiable(
+         archivedRevisions.map(Map<String, Object?>.unmodifiable),
+       ) {
     if (recordVersion != currentRecordVersion ||
         revision < 1 ||
         localDate != sources.dailyAggregate.operationDate ||
         updatedAt.isBefore(this.createdAt) ||
         !ReportSyncRecordUtils.isDigest(responseDigest) ||
-        this.previousRevisions.length != revision - 1 ||
+        this.archivedRevisions.length + this.previousRevisions.length !=
+            revision - 1 ||
+        this.archivedRevisions.indexed.any(
+          (entry) =>
+              entry.$2['revision'] != entry.$1 + 1 ||
+              !ReportSyncRecordUtils.isArchiveBodyDigest(
+                entry.$2['bodyDigest'],
+              ),
+        ) ||
         this.previousRevisions.indexed.any(
-          (entry) => entry.$2.revision != entry.$1 + 1,
+          (entry) =>
+              entry.$2.revision != this.archivedRevisions.length + entry.$1 + 1,
         )) {
       throw const FormatException('Daily Debrief record is invalid.');
     }
@@ -545,6 +560,7 @@ class DailyDebriefRecord {
     createdAt: timestamp,
     updatedAt: timestamp,
     previousRevisions: const [],
+    archivedRevisions: const [],
   );
 
   DailyDebriefRecord revise({
@@ -570,6 +586,7 @@ class DailyDebriefRecord {
         createdAt: updatedAt,
       ),
     ],
+    archivedRevisions: archivedRevisions,
   );
 
   Map<String, Object?> toRecord() => {
@@ -584,13 +601,21 @@ class DailyDebriefRecord {
     'previousRevisions': [
       for (final value in previousRevisions) value.toJson(),
     ],
+    if (archivedRevisions.isNotEmpty) 'archivedRevisions': archivedRevisions,
   };
 
   factory DailyDebriefRecord.fromRecord(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, fields);
+    ReportSyncRecordUtils.exactFields(
+      json,
+      json.containsKey('archivedRevisions') ? archivedFields : fields,
+    );
     final values = json['previousRevisions'];
     if (values is! List || values.any((value) => value is! Map)) {
       throw const FormatException('previousRevisions is invalid.');
+    }
+    final archived = json['archivedRevisions'] ?? const <Object?>[];
+    if (archived is! List || archived.any((value) => value is! Map)) {
+      throw const FormatException('archivedRevisions is invalid.');
     }
     return DailyDebriefRecord(
       localDate: ReportSyncRecordUtils.localDate(json, 'localDate'),
@@ -606,6 +631,9 @@ class DailyDebriefRecord {
           DailyDebriefRevision.fromJson(
             Map<String, Object?>.from(value as Map),
           ),
+      ],
+      archivedRevisions: [
+        for (final value in archived) Map<String, Object?>.from(value as Map),
       ],
     );
   }

@@ -8,10 +8,13 @@ import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import 'models/backup_package.dart';
+import 'models/backup_audit_package.dart';
+import 'services/backup_audit_package_codec.dart';
 import 'services/backup_file_export_service.dart';
 import 'services/backup_file_gateway.dart';
 import 'services/backup_import_service.dart';
 import 'services/backup_package_codec.dart';
+import 'services/backup_v14_transform.dart';
 
 class BackupRestorePage extends StatefulWidget {
   const BackupRestorePage({super.key});
@@ -23,6 +26,8 @@ class BackupRestorePage extends StatefulWidget {
 class _BackupRestorePageState extends State<BackupRestorePage> {
   late final BackupFileGateway _fileGateway;
   BackupPackage? _selectedPackage;
+  BackupPackage? _selectedNormalPackage;
+  BackupAuditPackage? _selectedAuditPackage;
   BackupImportPlan? _plan;
   BackupImportMode _mode = BackupImportMode.merge;
   String? _message;
@@ -46,7 +51,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       appInitializationController.value.mode ==
           PersistenceMode.indexedDbReadWrite;
 
-  Future<void> _export() async {
+  Future<void> _exportV14() async {
     setState(() {
       _busy = true;
       _message = null;
@@ -54,18 +59,42 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     try {
       final result = await BackupFileExportService(
         fileGateway: _fileGateway,
-      ).export();
-      if (result.delivery == BackupFileDelivery.cancelled) {
+      ).exportV14Bundle();
+      if (result.normalDelivery == BackupFileDelivery.cancelled) {
         if (mounted) {
           setState(() => _message = 'BACKUPの保存をキャンセルしました。');
         }
         return;
       }
-      final package = result.package;
+      final package = result.bundle.normal;
       if (mounted) {
         setState(() {
           _message =
-              'BACKUP READY — ${package.recordCounts.values.values.fold<int>(0, (a, b) => a + b)} records';
+              'V14 NORMAL READY — ${package.recordCounts.values.values.fold<int>(0, (a, b) => a + b)} records; '
+              'AUDIT ${result.auditDelivery == BackupFileDelivery.cancelled ? 'CANCELLED' : 'READY'}';
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _message = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _exportLegacyV13() async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final result = await BackupFileExportService(
+        fileGateway: _fileGateway,
+      ).exportLegacyV13();
+      if (mounted) {
+        setState(() {
+          _message = result.delivery == BackupFileDelivery.cancelled
+              ? 'V13 FULL BACKUP CANCELLED'
+              : 'V13 FULL BACKUP READY';
         });
       }
     } catch (error) {
@@ -80,6 +109,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       _busy = true;
       _message = null;
       _plan = null;
+      _selectedAuditPackage = null;
     });
     try {
       final file = await _fileGateway.selectJson();
@@ -93,9 +123,41 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       if (mounted) {
         setState(() {
           _selectedPackage = package;
+          _selectedNormalPackage = package;
           _mode = mode;
           _plan = plan;
           _message = _planMessage(plan);
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _message = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _selectAuditArchive() async {
+    final normal = _selectedNormalPackage;
+    if (normal == null || normal.schemaVersion != 14) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final file = await _fileGateway.selectJson();
+      if (file == null) {
+        if (mounted) setState(() => _message = 'AUDIT IMPORT CANCELLED');
+        return;
+      }
+      final audit = const BackupAuditPackageCodec().decodeUtf8(file.bytes);
+      final hydrated = BackupV14Transform.hydratePackage(normal, audit);
+      final plan = await BackupImportService().dryRun(hydrated, _mode);
+      if (mounted) {
+        setState(() {
+          _selectedAuditPackage = audit;
+          _selectedPackage = hydrated;
+          _plan = plan;
+          _message = 'NORMAL + AUDIT VALIDATED — review the import plan';
         });
       }
     } catch (error) {
@@ -172,6 +234,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           : '${result.errorCode}: ${result.message}';
       if (result.success) {
         _selectedPackage = null;
+        _selectedNormalPackage = null;
+        _selectedAuditPackage = null;
         _plan = null;
       }
     });
@@ -198,8 +262,14 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           AppSpacing.gapMD,
           OperationButton(
             icon: Icons.download_outlined,
-            text: 'EXPORT BACKUP',
-            onPressed: _exportAvailable && !_busy ? _export : null,
+            text: 'EXPORT V14 NORMAL + AUDIT',
+            onPressed: _exportAvailable && !_busy ? _exportV14 : null,
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            icon: Icons.archive_outlined,
+            text: 'EXPORT LEGACY V13 FULL',
+            onPressed: _exportAvailable && !_busy ? _exportLegacyV13 : null,
           ),
           AppSpacing.gapMD,
           OperationButton(
@@ -230,6 +300,20 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         children: [
           Text('IMPORT PLAN', style: Theme.of(context).textTheme.titleMedium),
           Text('BACKUP SCHEMA ${plan.package.schemaVersion}.0'),
+          if (plan.package.schemaVersion == 14) ...[
+            AppSpacing.gapSM,
+            Text(
+              _selectedAuditPackage == null
+                  ? 'NORMAL ONLY — archived detail will be unavailable'
+                  : 'NORMAL + MATCHED AUDIT ARCHIVE',
+            ),
+            AppSpacing.gapSM,
+            OperationButton(
+              icon: Icons.inventory_2_outlined,
+              text: 'ATTACH AUDIT ARCHIVE',
+              onPressed: !_busy ? _selectAuditArchive : null,
+            ),
+          ],
           if (plan.package.schemaVersion < 8) ...[
             AppSpacing.gapSM,
             const Text(

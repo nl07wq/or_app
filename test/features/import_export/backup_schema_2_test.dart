@@ -61,7 +61,11 @@ void main() {
       expect(package.schema, BackupPackage.schemaName);
       expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
       expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
-      expect(package.data.keys, containsAll(BackupSections.all));
+      expect(package.data.keys, containsAll(BackupSections.schema14));
+      expect(
+        package.data.keys,
+        isNot(contains(BackupSections.operationSyncHistory)),
+      );
       expect(package.data[BackupSections.operationState], hasLength(1));
       expect(package.recordCounts[BackupSections.operationState], 1);
 

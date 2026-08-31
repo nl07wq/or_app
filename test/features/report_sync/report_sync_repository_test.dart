@@ -221,7 +221,7 @@ void main() {
           packageDigest: digest,
         );
         final stored = await repository.create(history);
-        expect(stored.toRecord().keys, ReportSyncHistory.fields);
+        expect(stored.toRecord().keys, ReportSyncHistory.version3Fields);
         expect(stored.toRecord(), isNot(contains('payload')));
         expect(stored.toRecord(), isNot(contains('rawText')));
       }

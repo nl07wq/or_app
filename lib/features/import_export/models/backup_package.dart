@@ -35,7 +35,8 @@ class BackupDigests {
 
 class BackupPackage {
   static const schemaName = 'operation-reboot-backup';
-  static const currentSchemaVersion = 13;
+  static const currentSchemaVersion = 14;
+  static const legacyFullSchemaVersion = 13;
   static const previousSchemaVersion = 2;
 
   final String schema;
@@ -49,6 +50,7 @@ class BackupPackage {
   final BackupDigests digests;
   final Map<String, List<Map<String, Object?>>> data;
   final Set<String> includedSections;
+  final String? auditArchiveId;
 
   BackupPackage({
     this.schema = schemaName,
@@ -62,6 +64,7 @@ class BackupPackage {
     required this.digests,
     required Map<String, List<Map<String, Object?>>> data,
     Set<String>? includedSections,
+    this.auditArchiveId,
   }) : data = Map<String, List<Map<String, Object?>>>.unmodifiable({
          for (final entry in data.entries)
            entry.key: List<Map<String, Object?>>.unmodifiable(
@@ -85,6 +88,7 @@ class BackupPackage {
     if (appVersion != null) 'appVersion': appVersion,
     'databaseVersion': databaseVersion,
     'source': source.toJson(),
+    if (auditArchiveId != null) 'auditArchiveId': auditArchiveId,
     'recordCounts': recordCounts.toJson(),
     'digests': digests.toJson(),
     'data': data,
@@ -136,6 +140,17 @@ abstract final class BackupSections {
   static const schema11 = [...schema10, dailyAggregateRecords];
   static const schema12 = [...schema11, trainingAnalysisReportRecords];
   static const schema13 = [...schema12, periodicReportRecords];
+  static const schema14 = [
+    ...schema4,
+    morningBriefRecords,
+    dailyDebriefRecords,
+    reportSyncHistory,
+    legacyDailySummaryRecords,
+    profile,
+    dailyAggregateRecords,
+    trainingAnalysisReportRecords,
+    periodicReportRecords,
+  ];
   static const all = schema13;
 
   static List<String> forSchema(int schemaVersion) => switch (schemaVersion) {
@@ -151,6 +166,7 @@ abstract final class BackupSections {
     11 => schema11,
     12 => schema12,
     13 => schema13,
+    14 => schema14,
     _ => throw BackupException(
       'unsupported_schema',
       'Backup schema is not supported.',

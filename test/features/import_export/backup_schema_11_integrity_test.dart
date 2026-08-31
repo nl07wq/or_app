@@ -61,7 +61,7 @@ void main() {
         database: source,
         controller: sourceController,
         clock: () => timestamp,
-      ).create();
+      ).createLegacyV13();
       final decoded = const BackupPackageCodec().decode(
         BackupExportService.encode(exported),
       );

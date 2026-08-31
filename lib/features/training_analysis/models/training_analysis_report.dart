@@ -198,6 +198,7 @@ class TrainingAnalysisReport {
     'analysis',
     'previousRevisions',
   };
+  static const archivedFields = {...fields, 'archivedRevisions'};
 
   TrainingAnalysisReport({
     required this.targetRecordId,
@@ -211,12 +212,25 @@ class TrainingAnalysisReport {
     required this.updatedAt,
     required this.analysis,
     required Iterable<TrainingAnalysisRevision> previousRevisions,
-  }) : previousRevisions = List.unmodifiable(previousRevisions) {
+    Iterable<Map<String, Object?>> archivedRevisions = const [],
+  }) : previousRevisions = List.unmodifiable(previousRevisions),
+       archivedRevisions = List.unmodifiable(
+         archivedRevisions.map(Map<String, Object?>.unmodifiable),
+       ) {
     if (recordVersion != currentRecordVersion ||
         revision < 1 ||
-        this.previousRevisions.length != revision - 1 ||
+        this.archivedRevisions.length + this.previousRevisions.length !=
+            revision - 1 ||
+        this.archivedRevisions.indexed.any(
+          (entry) =>
+              entry.$2['revision'] != entry.$1 + 1 ||
+              !ReportSyncRecordUtils.isArchiveBodyDigest(
+                entry.$2['bodyDigest'],
+              ),
+        ) ||
         this.previousRevisions.indexed.any(
-          (entry) => entry.$2.revision != entry.$1 + 1,
+          (entry) =>
+              entry.$2.revision != this.archivedRevisions.length + entry.$1 + 1,
         )) {
       throw const FormatException('Training Analysis revision is invalid.');
     }
@@ -233,6 +247,7 @@ class TrainingAnalysisReport {
   final DateTime updatedAt;
   final TrainingAnalysis analysis;
   final List<TrainingAnalysisRevision> previousRevisions;
+  final List<Map<String, Object?>> archivedRevisions;
 
   factory TrainingAnalysisReport.initial({
     required String targetRecordId,
@@ -253,6 +268,7 @@ class TrainingAnalysisReport {
     updatedAt: timestamp,
     analysis: analysis,
     previousRevisions: const [],
+    archivedRevisions: const [],
   );
 
   TrainingAnalysisReport revise({
@@ -282,6 +298,7 @@ class TrainingAnalysisReport {
         analysis: this.analysis,
       ),
     ],
+    archivedRevisions: archivedRevisions,
   );
 
   Map<String, Object?> toRecord() => {
@@ -298,13 +315,21 @@ class TrainingAnalysisReport {
     'previousRevisions': [
       for (final value in previousRevisions) value.toJson(),
     ],
+    if (archivedRevisions.isNotEmpty) 'archivedRevisions': archivedRevisions,
   };
 
   factory TrainingAnalysisReport.fromRecord(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, fields);
+    ReportSyncRecordUtils.exactFields(
+      json,
+      json.containsKey('archivedRevisions') ? archivedFields : fields,
+    );
     final rawPrevious = json['previousRevisions'];
     if (rawPrevious is! List || rawPrevious.any((value) => value is! Map)) {
       throw const FormatException('previousRevisions is invalid.');
+    }
+    final archived = json['archivedRevisions'] ?? const <Object?>[];
+    if (archived is! List || archived.any((value) => value is! Map)) {
+      throw const FormatException('archivedRevisions is invalid.');
     }
     return TrainingAnalysisReport(
       targetRecordId: ReportSyncRecordUtils.string(json, 'targetRecordId'),
@@ -324,6 +349,9 @@ class TrainingAnalysisReport {
           TrainingAnalysisRevision.fromJson(
             Map<String, Object?>.from(value as Map),
           ),
+      ],
+      archivedRevisions: [
+        for (final value in archived) Map<String, Object?>.from(value as Map),
       ],
     );
   }
