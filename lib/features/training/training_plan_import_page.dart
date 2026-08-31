@@ -22,18 +22,21 @@ class TrainingPlanImportPage extends StatefulWidget {
 }
 
 class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
+  static const _autoReferenceValue = '__auto_strength_reference__';
   final _response = TextEditingController();
   late final TrainingPlanService _service;
   late Future<TrainingPlanPreparation> _preparation;
   TrainingPlanPreview? _preview;
   bool _busy = false;
   String? _error;
+  String? _selectedReferenceId;
 
   @override
   void initState() {
     super.initState();
     _service = widget.service ?? TrainingPlanService();
-    _preparation = _service.prepare(targetRecordId: widget.sourceRecordId);
+    _selectedReferenceId = widget.sourceRecordId;
+    _preparation = _service.prepare(targetRecordId: _selectedReferenceId);
   }
 
   @override
@@ -89,6 +92,19 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
     });
   }
 
+  void _selectReference(String? value) {
+    if (_busy || value == null) return;
+    final selected = value == _autoReferenceValue ? null : value;
+    if (selected == _selectedReferenceId) return;
+    setState(() {
+      _selectedReferenceId = selected;
+      _response.clear();
+      _preview = null;
+      _error = null;
+      _preparation = _service.prepare(targetRecordId: selected);
+    });
+  }
+
   Future<void> _apply() async {
     final preview = _preview;
     if (preview == null || _busy) return;
@@ -121,8 +137,28 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError || snapshot.data == null) {
-          return Center(
-            child: Text('PLAN PROMPTを準備できませんでした: ${snapshot.error}'),
+          return Padding(
+            padding: AppSpacing.cardPadding,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('REFERENCE SESSIONを利用できません: ${snapshot.error}'),
+                    if (_selectedReferenceId != null) ...[
+                      AppSpacing.gapMD,
+                      OperationButton(
+                        icon: Icons.refresh_outlined,
+                        text: 'USE AUTO REFERENCE',
+                        onPressed: () => _selectReference(_autoReferenceValue),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           );
         }
         final preparation = snapshot.data!;
@@ -136,6 +172,43 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
                   const SectionHeader(
                     icon: Icons.event_note_outlined,
                     title: 'PLAN PROMPT',
+                  ),
+                  AppSpacing.gapMD,
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'training-plan-reference-${_selectedReferenceId ?? 'auto'}',
+                    ),
+                    initialValue: _selectedReferenceId ?? _autoReferenceValue,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'REFERENCE SESSION',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: _autoReferenceValue,
+                        child: Text('AUTO — LATEST STRENGTH'),
+                      ),
+                      for (final candidate in preparation.referenceCandidates)
+                        DropdownMenuItem(
+                          value: candidate.recordId,
+                          child: Text(
+                            '${candidate.operationDate} — ${candidate.summary}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _busy ? null : _selectReference,
+                  ),
+                  AppSpacing.gapSM,
+                  Text(
+                    preparation.reference == null
+                        ? 'STRENGTH REFERENCE  UNAVAILABLE'
+                        : 'REFERENCE  ${preparation.reference!.operationDate}  '
+                              '${preparation.reference!.summary}',
+                    key: const ValueKey('training-plan-reference-status'),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   AppSpacing.gapMD,
                   Text('OPERATION DATE  ${preparation.operationDate}'),

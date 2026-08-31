@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/cardio_entry.dart';
+import 'package:or_app/core/models/cardio_entry_v2.dart';
 import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
@@ -41,6 +43,8 @@ void main() {
     expect(find.byIcon(Icons.fact_check_outlined), findsOneWidget);
     await tester.enterText(find.byType(TextField), '{"test":true}');
 
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pump();
     await tester.tap(find.text('CLEAR'));
     await tester.pump();
     expect(
@@ -105,8 +109,12 @@ void main() {
     expect(form.exercises.single.sets.last.plannedWeightKg, 70);
     expect(form.exercises.single.sets.last.targetMinReps, 8);
     expect(form.exercises.single.sets.last.targetMaxReps, 10);
-    expect(form.exercises.single.sets.last.weight.text, isEmpty);
-    expect(form.exercises.single.sets.last.reps.text, isEmpty);
+    expect(form.exercises.single.sets.first.weight.text, '20');
+    expect(form.exercises.single.sets.first.reps.text, '8');
+    expect(form.exercises.single.sets.last.weight.text, '70');
+    expect(form.exercises.single.sets.last.reps.text, '8');
+    expect(form.planSourceRecordId, fixture.targetId);
+    expect(form.planSourceOperationDate, '2026-08-24');
 
     form.exercises.single.sets.first.weight.text = '20';
     form.exercises.single.sets.first.reps.text = '8';
@@ -120,6 +128,126 @@ void main() {
 
     form.startTraining(DateTime(2026, 8, 25, 10));
     expect(form.startTime, isNotNull);
+  });
+
+  test('AUTO skips consecutive cardio-only records', () async {
+    final fixture = await _fixture(latestCardioDays: const [25, 26]);
+
+    final preparation = await fixture.service.prepare();
+
+    expect(preparation.reference?.recordId, fixture.targetId);
+    expect(preparation.reference?.operationDate, '2026-08-24');
+    expect(preparation.referenceCandidates, hasLength(7));
+    expect(preparation.prompt, contains('"latestTrainingRecord"'));
+    expect(preparation.prompt, contains('"latestStrengthReference"'));
+    expect(preparation.prompt, contains('2026-08-26'));
+    expect(preparation.prompt, contains('2026-08-24'));
+  });
+
+  test('manual reference uses exact eligible Formal record identity', () async {
+    final fixture = await _fixture(latestCardioDays: const [25]);
+    final records = await fixture.container.training.findAllRecords();
+    final selected = records.singleWhere(
+      (record) => record.localDate == '2026-08-22',
+    );
+
+    final preparation = await fixture.service.prepare(
+      targetRecordId: selected.id,
+    );
+
+    expect(preparation.reference?.recordId, selected.id);
+    expect(preparation.reference?.operationDate, '2026-08-22');
+    expect(preparation.prompt, contains('"referenceMode": "selected"'));
+  });
+
+  test('cardio-only manual reference is rejected safely', () async {
+    final fixture = await _fixture(latestCardioDays: const [25]);
+    final records = await fixture.container.training.findAllRecords();
+    final cardio = records.singleWhere(
+      (record) => record.localDate == '2026-08-25',
+    );
+
+    await expectLater(
+      fixture.service.prepare(targetRecordId: cardio.id),
+      throwsA(isA<ReportSyncException>()),
+    );
+  });
+
+  test('unavailable manual reference identity is rejected safely', () async {
+    final fixture = await _fixture();
+
+    await expectLater(
+      fixture.service.prepare(
+        targetRecordId: 'training:00000000-0000-4000-8000-000000000099',
+      ),
+      throwsA(isA<ReportSyncException>()),
+    );
+  });
+
+  test('AUTO leaves reference unavailable with cardio-only history', () async {
+    final database = FakeIndexedDbDatabase();
+    final container = AppRepositoryContainer.indexedDb(database);
+    await container.operationState.createInitial(
+      OperationLocalDate.parse('2026-08-25'),
+    );
+    await container.training.saveNewV2(_cardioSession(24));
+    final service = TrainingPlanService(
+      container: container,
+      draftRepository: IndexedDbActiveTrainingDraftRepository(database),
+      clock: () => DateTime.utc(2026, 8, 25),
+    );
+
+    final preparation = await service.prepare();
+
+    expect(preparation.reference, isNull);
+    expect(preparation.referenceCandidates, isEmpty);
+    expect(preparation.prompt, contains('"latestStrengthReference": null'));
+    expect(preparation.prompt, contains('"comparisons": []'));
+  });
+
+  testWidgets('REFERENCE SESSION selects an exact eligible session', (
+    tester,
+  ) async {
+    final fixture = await _fixture(latestCardioDays: const [25]);
+    await tester.pumpWidget(
+      MaterialApp(home: TrainingPlanImportPage(service: fixture.service)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('AUTO — LATEST STRENGTH'), findsOneWidget);
+    expect(find.textContaining('REFERENCE  2026-08-24'), findsOneWidget);
+    expect(find.textContaining('2026-08-25 —'), findsNothing);
+
+    await tester.tap(find.text('AUTO — LATEST STRENGTH'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2026-08-22 — Bench Press').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('REFERENCE  2026-08-22'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unavailable selected reference can recover to AUTO', (
+    tester,
+  ) async {
+    final fixture = await _fixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainingPlanImportPage(
+          sourceRecordId: 'training:00000000-0000-4000-8000-000000000099',
+          service: fixture.service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('REFERENCE SESSIONを利用できません'), findsOne);
+    await tester.tap(find.text('USE AUTO REFERENCE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('AUTO — LATEST STRENGTH'), findsOneWidget);
+    expect(find.textContaining('REFERENCE  2026-08-24'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   test('rejects invalid range and unknown exercise without a draft', () async {
@@ -447,7 +575,7 @@ void main() {
   }
 }
 
-Future<_Fixture> _fixture() async {
+Future<_Fixture> _fixture({List<int> latestCardioDays = const []}) async {
   final database = FakeIndexedDbDatabase();
   final container = AppRepositoryContainer.indexedDb(database);
   await container.operationState.createInitial(
@@ -455,6 +583,9 @@ Future<_Fixture> _fixture() async {
   );
   for (final day in const [18, 19, 20, 21, 22, 23, 24]) {
     await container.training.saveNewV2(_session(day));
+  }
+  for (final day in latestCardioDays) {
+    await container.training.saveNewV2(_cardioSession(day));
   }
   final records = await container.training.findAllRecords();
   final target = records.singleWhere(
@@ -529,6 +660,17 @@ TrainingSessionV2 _session(int day) => TrainingSessionV2(
           reps: 8,
         ),
       ],
+    ),
+  ],
+);
+
+TrainingSessionV2 _cardioSession(int day) => TrainingSessionV2(
+  date: '2026-08-${day.toString().padLeft(2, '0')}T10:00:00+09:00',
+  cardioEntries: [
+    CardioEntryV2(
+      purpose: CardioPurpose.main,
+      type: CardioType.walking,
+      durationSeconds: 1800,
     ),
   ],
 );

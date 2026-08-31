@@ -742,6 +742,8 @@ void main() {
             'exchangeId': 'training-plan-response-1',
             'sourceDigest':
                 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'sourceRecordId': 'training:2026-07-30',
+            'sourceOperationDate': '2026-07-30',
             'note': 'Plan note',
           },
           'exercises': [
@@ -756,8 +758,8 @@ void main() {
               'sets': [
                 {
                   'setType': 'main',
-                  'weight': '',
-                  'reps': '',
+                  'weight': '80',
+                  'reps': '8',
                   'rpe': null,
                   'rest': '90',
                   'plannedWeightKg': 80.0,
@@ -779,6 +781,47 @@ void main() {
     );
 
     expect(find.text('PLAN READY'), findsOneWidget);
+    expect(find.text('REFERENCE  2026-07-30'), findsOneWidget);
+    expect(find.text('PLAN  80 kg'), findsOneWidget);
+    expect(find.text('TARGET  8–10'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('v2-set-0-weight')))
+          .controller!
+          .text,
+      '80',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('v2-set-0-reps')))
+          .controller!
+          .text,
+      '8',
+    );
+    final weightAdjustments = find.byKey(
+      const Key('v2-set-0-weight-adjustments'),
+    );
+    final repsAdjustments = find.byKey(const Key('v2-set-0-reps-adjustments'));
+    await tester.tap(
+      find.descendant(of: weightAdjustments, matching: find.text('+2.5')),
+    );
+    await tester.tap(
+      find.descendant(of: repsAdjustments, matching: find.text('+1')),
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('v2-set-0-weight')))
+          .controller!
+          .text,
+      '82.5',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('v2-set-0-reps')))
+          .controller!
+          .text,
+      '9',
+    );
     expect(find.text('PLAN  80 kg'), findsOneWidget);
     expect(find.text('TARGET  8–10'), findsOneWidget);
     expect(find.text('RECORDING'), findsNothing);

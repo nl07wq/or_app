@@ -37,6 +37,8 @@ class TrainingV2FormController {
   final List<TrainingV2CardioFormController> cardioEntries;
   String? planExchangeId;
   String? planSourceDigest;
+  String? planSourceRecordId;
+  String? planSourceOperationDate;
   String? planNote;
 
   bool get hasPlan => planExchangeId != null;
@@ -120,6 +122,8 @@ class TrainingV2FormController {
         ? {
             'exchangeId': planExchangeId,
             'sourceDigest': planSourceDigest,
+            'sourceRecordId': planSourceRecordId,
+            'sourceOperationDate': planSourceOperationDate,
             'note': planNote,
           }
         : null,
@@ -203,6 +207,12 @@ class TrainingV2FormController {
     planSourceDigest = planMetadata == null
         ? null
         : _draftNullableString(planMetadata, 'sourceDigest');
+    planSourceRecordId = planMetadata == null
+        ? null
+        : _draftNullableString(planMetadata, 'sourceRecordId');
+    planSourceOperationDate = planMetadata == null
+        ? null
+        : _draftNullableString(planMetadata, 'sourceOperationDate');
     planNote = planMetadata == null
         ? null
         : _draftNullableString(planMetadata, 'note');

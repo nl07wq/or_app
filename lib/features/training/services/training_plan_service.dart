@@ -22,11 +22,29 @@ class TrainingPlanPreparation {
     required this.operationDate,
     required this.sourceDigest,
     required this.prompt,
+    required this.reference,
+    required this.referenceCandidates,
   });
 
   final String operationDate;
   final String sourceDigest;
   final String prompt;
+  final TrainingPlanReferenceCandidate? reference;
+  final List<TrainingPlanReferenceCandidate> referenceCandidates;
+}
+
+class TrainingPlanReferenceCandidate {
+  const TrainingPlanReferenceCandidate({
+    required this.recordId,
+    required this.operationDate,
+    required this.exerciseNames,
+  });
+
+  final String recordId;
+  final String operationDate;
+  final List<String> exerciseNames;
+
+  String get summary => exerciseNames.join(' / ');
 }
 
 class TrainingPlanPreview {
@@ -34,11 +52,13 @@ class TrainingPlanPreview {
     required this.response,
     required this.plan,
     required this.sourceDigest,
+    required this.referenceOperationDate,
   });
 
   final ReportSyncEnvelope response;
   final TrainingPlanProposal plan;
   final String sourceDigest;
+  final String? referenceOperationDate;
 }
 
 class TrainingPlanService {
@@ -64,8 +84,14 @@ class TrainingPlanService {
   Future<TrainingPlanPreparation> prepare({String? targetRecordId}) async {
     final package = await _factPackage(targetRecordId: targetRecordId);
     final operationDate = package['operationDate']! as String;
-    final latestTraining = package['latestTraining'] as Map?;
-    final sourceRecordId = latestTraining?['recordId'] as String?;
+    final strengthReference = package['latestStrengthReference'] as Map?;
+    final sourceRecordId = strengthReference?['recordId'] as String?;
+    final records = (await _container.training.findAllRecords()).toList()
+      ..sort((a, b) => b.sortDateTime.compareTo(a.sortDateTime));
+    final referenceCandidates = records
+        .where((record) => record.strengthTrainingPerformed)
+        .map(_referenceCandidate)
+        .toList(growable: false);
     final sourceDigest = ReportSyncCanonicalService.digest(package);
     final timestamp = _clock().toUtc();
     final requestId =
@@ -93,6 +119,12 @@ class TrainingPlanService {
       operationDate: operationDate,
       sourceDigest: sourceDigest,
       prompt: _prompt(request, sourceDigest),
+      reference: sourceRecordId == null
+          ? null
+          : referenceCandidates.singleWhere(
+              (candidate) => candidate.recordId == sourceRecordId,
+            ),
+      referenceCandidates: referenceCandidates,
     );
   }
 
@@ -115,7 +147,8 @@ class TrainingPlanService {
     final sourceRecordId = response.payload['sourceRecordId'] as String?;
     final currentFacts = await _factPackage(targetRecordId: sourceRecordId);
     final expectedSourceRecordId =
-        (currentFacts['latestTraining'] as Map?)?['recordId'] as String?;
+        (currentFacts['latestStrengthReference'] as Map?)?['recordId']
+            as String?;
     if (sourceRecordId != expectedSourceRecordId) {
       throw const ReportSyncException(
         ReportSyncIssueCode.integrityFailure,
@@ -173,6 +206,9 @@ class TrainingPlanService {
     return TrainingPlanPreview(
       response: response,
       sourceDigest: currentDigest,
+      referenceOperationDate:
+          (currentFacts['latestStrengthReference'] as Map?)?['operationDate']
+              as String?,
       plan: TrainingPlanProposal(
         operationDate: response.operationDate,
         planType: planType,
@@ -222,33 +258,57 @@ class TrainingPlanService {
     final state = await _container.operationState.requireCurrent();
     final records = (await _container.training.findAllRecords()).toList()
       ..sort((a, b) => b.sortDateTime.compareTo(a.sortDateTime));
-    TrainingRecordReadModel? latest;
+    final latestTrainingRecord = records.isEmpty ? null : records.first;
+    TrainingRecordReadModel? strengthReference;
     if (targetRecordId != null) {
-      latest = await _container.training.findRecordById(targetRecordId);
-      if (latest == null) {
+      strengthReference = await _container.training.findRecordById(
+        targetRecordId,
+      );
+      if (strengthReference == null) {
         throw const ReportSyncException(
           ReportSyncIssueCode.integrityFailure,
           'Target Training Record does not exist.',
         );
       }
-    } else if (records.isNotEmpty) {
-      latest = records.first;
+      if (!strengthReference.strengthTrainingPerformed) {
+        throw const ReportSyncException(
+          ReportSyncIssueCode.integrityFailure,
+          'Selected Training Record is not an eligible Strength reference.',
+        );
+      }
+    } else {
+      for (final record in records) {
+        if (record.strengthTrainingPerformed) {
+          strengthReference = record;
+          break;
+        }
+      }
     }
     final allowed = await _allowedExercises(records);
-    final latestAnalysis = latest == null
+    final latestAnalysis = strengthReference == null
         ? null
-        : await _container.trainingAnalysisReports.read(latest.id);
+        : await _container.trainingAnalysisReports.read(strengthReference.id);
     return {
       'operationDate': state.operationDate.value,
-      'latestTraining': latest == null ? null : _recordFact(latest),
-      'comparisons': latest == null
+      'referenceMode': targetRecordId == null ? 'auto' : 'selected',
+      'latestTrainingRecord': latestTrainingRecord == null
+          ? null
+          : _recordFact(latestTrainingRecord),
+      'latestStrengthReference': strengthReference == null
+          ? null
+          : _recordFact(strengthReference),
+      'comparisons': strengthReference == null
           ? <Object?>[]
           : [
-              for (final exercise in _exerciseFacts(latest))
+              for (final exercise in _exerciseFacts(strengthReference))
                 {
                   'exerciseIdentity': exercise.identity,
                   'exerciseName': exercise.name,
-                  'previous': _comparables(records, latest, exercise),
+                  'previous': _comparables(
+                    records,
+                    strengthReference,
+                    exercise,
+                  ),
                 },
             ],
       'latestAnalysis': latestAnalysis?.analysis.toJson(),
@@ -361,6 +421,16 @@ class TrainingPlanService {
     'session': record.v2Data?.toJson() ?? record.v1Data!.toJson(),
   };
 
+  TrainingPlanReferenceCandidate _referenceCandidate(
+    TrainingRecordReadModel record,
+  ) => TrainingPlanReferenceCandidate(
+    recordId: record.id,
+    operationDate: record.localDate,
+    exerciseNames: _exerciseFacts(
+      record,
+    ).map((exercise) => exercise.name).take(3).toList(growable: false),
+  );
+
   Map<String, Object?> _entryState(TrainingPlanPreview preview) => {
     'sessionName': '',
     'sessionMemo': '',
@@ -371,6 +441,8 @@ class TrainingPlanService {
     'planMetadata': {
       'exchangeId': preview.response.exchangeId,
       'sourceDigest': preview.sourceDigest,
+      'sourceRecordId': preview.response.payload['sourceRecordId'],
+      'sourceOperationDate': preview.referenceOperationDate,
       'note': preview.plan.note,
     },
     'exercises': [
@@ -387,8 +459,8 @@ class TrainingPlanService {
             for (final set in exercise.sets)
               {
                 'setType': set.setType.stableId,
-                'weight': '',
-                'reps': '',
+                'weight': _displayNumber(set.plannedWeightKg),
+                'reps': '${set.targetMinReps}',
                 'rpe': null,
                 'rest': set.restAfterSeconds?.toString() ?? '',
                 'plannedWeightKg': set.plannedWeightKg,
@@ -400,6 +472,10 @@ class TrainingPlanService {
     ],
     'cardioEntries': <Object?>[],
   };
+
+  String _displayNumber(double value) => value == value.roundToDouble()
+      ? value.round().toString()
+      : value.toStringAsFixed(1);
 
   String _prompt(ReportSyncEnvelope request, String sourceDigest) {
     final operationDate = request.operationDate;
@@ -444,7 +520,7 @@ class TrainingPlanService {
 Create the next Operation Reboot TRAINING PLAN from the exact fact package.
 
 RESPONSIBILITY
-Operation Reboot owns all Formal Training facts and comparisons. Return a proposal only. Do not modify facts, invent history, create an exercise identity, or create a Formal Training Record. Use only an exact exerciseIdentity and exerciseName from availableExercises. Preserve warmUp/main meaning. targetMinReps is the minimum and targetMaxReps is the upper target.
+Operation Reboot owns all Formal Training facts, Strength reference selection, and comparisons. latestTrainingRecord may be Cardio-only context; use latestStrengthReference as the sole Strength comparison reference. If latestStrengthReference is null, do not invent one. Return a proposal only. Do not modify facts, invent history, create an exercise identity, or create a Formal Training Record. Use only an exact exerciseIdentity and exerciseName from availableExercises. Preserve warmUp/main meaning. targetMinReps is the minimum and targetMaxReps is the upper target.
 
 PLAN TYPE CONTRACT
 If Training is appropriate, return "planType": "training" with one or more exercises. If Training is not appropriate and rest should be prioritized, return "planType": "rest", an empty exercises array, and a non-empty Japanese note explaining the reason. Never use an empty exercise array for planType training. Do not infer or alter Formal Facts when choosing the plan type.

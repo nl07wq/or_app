@@ -481,6 +481,16 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                             icon: Icons.event_note_outlined,
                             title: 'PLAN READY',
                           ),
+                          if (_form.planSourceOperationDate != null) ...[
+                            AppSpacing.gapSM,
+                            Text(
+                              'REFERENCE  ${_form.planSourceOperationDate}',
+                              key: const ValueKey(
+                                'active-training-plan-reference',
+                              ),
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                          ],
                           if (_form.planNote != null) ...[
                             AppSpacing.gapSM,
                             Text(_form.planNote!),
