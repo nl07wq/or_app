@@ -109,6 +109,14 @@ void main() {
     expect(form.exercises.single.sets.last.plannedWeightKg, 70);
     expect(form.exercises.single.sets.last.targetMinReps, 8);
     expect(form.exercises.single.sets.last.targetMaxReps, 10);
+    expect(
+      form.exercises.single.planSlots.map((slot) => slot.index),
+      [0, 1],
+    );
+    expect(
+      form.exercises.single.sets.map((set) => set.planSlotIndex),
+      [0, 1],
+    );
     expect(form.exercises.single.sets.first.weight.text, '20');
     expect(form.exercises.single.sets.first.reps.text, '8');
     expect(form.exercises.single.sets.last.weight.text, '70');

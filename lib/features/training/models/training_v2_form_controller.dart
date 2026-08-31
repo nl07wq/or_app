@@ -137,9 +137,13 @@ class TrainingV2FormController {
           'targetWeight': exercise.targetWeight.text,
           'targetReps': [for (final value in exercise.targetReps) value.text],
           'targetNotes': exercise.targetNotes.text,
+          'planSlots': [
+            for (final slot in exercise.planSlots) slot.toDraftState(),
+          ],
           'sets': [
             for (final set in exercise.sets)
               {
+                'planSlotIndex': set.planSlotIndex,
                 'setType': set.setType.stableId,
                 'weight': set.weight.text,
                 'reps': set.reps.text,
@@ -254,10 +258,49 @@ class TrainingV2FormController {
         'targetReps',
       ).map((text) => TextEditingController(text: text)),
     );
+    final setValues = _draftMaps(value, 'sets');
+    final restoredSets = [for (final set in setValues) _setFromDraft(set)];
+    final rawPlanSlots = value['planSlots'];
+    final planSlots = rawPlanSlots == null
+        ? _legacyPlanSlots(restoredSets)
+        : _draftMaps(value, 'planSlots')
+              .map(TrainingV2PlannedSetSlot.fromDraftState)
+              .toList(growable: false);
+    final planSlotIndices = planSlots.map((slot) => slot.index).toSet();
+    final executionSlotIndices = restoredSets
+        .map((set) => set.planSlotIndex)
+        .whereType<int>()
+        .toList(growable: false);
+    if (planSlotIndices.length != planSlots.length ||
+        executionSlotIndices.toSet().length != executionSlotIndices.length ||
+        executionSlotIndices.any((index) => !planSlotIndices.contains(index))) {
+      throw const FormatException(
+        'Invalid Active Training Draft plan slot linkage.',
+      );
+    }
     exercise.sets
       ..clear()
-      ..addAll(_draftMaps(value, 'sets').map(_setFromDraft));
+      ..addAll(restoredSets);
+    exercise._planSlots
+      ..clear()
+      ..addAll(planSlots);
     return exercise;
+  }
+
+  static List<TrainingV2PlannedSetSlot> _legacyPlanSlots(
+    List<TrainingV2SetFormController> sets,
+  ) {
+    final slots = <TrainingV2PlannedSetSlot>[];
+    for (final (index, set) in sets.indexed) {
+      if (set.plannedWeightKg == null &&
+          set.targetMinReps == null &&
+          set.targetMaxReps == null) {
+        continue;
+      }
+      set.planSlotIndex = index;
+      slots.add(TrainingV2PlannedSetSlot.fromExecution(index, set));
+    }
+    return slots;
   }
 
   static TrainingV2SetFormController _setFromDraft(Map<String, Object?> value) {
@@ -272,6 +315,7 @@ class TrainingV2FormController {
       throw const FormatException('Invalid Active Training Draft RPE.');
     }
     set.rpe = rpe as int?;
+    set.planSlotIndex = _draftNullableInt(value, 'planSlotIndex');
     set.plannedWeightKg = _draftNullableDouble(value, 'plannedWeightKg');
     set.targetMinReps = _draftNullableInt(value, 'targetMinReps');
     set.targetMaxReps = _draftNullableInt(value, 'targetMaxReps');
@@ -422,20 +466,25 @@ class TrainingV2ExerciseFormController {
   TrainingEquipmentSnapshot? equipment;
   bool equipmentSelectionMade;
   final List<TrainingV2SetFormController> sets;
+  final List<TrainingV2PlannedSetSlot> _planSlots;
+  List<TrainingV2PlannedSetSlot> get planSlots => List.unmodifiable(_planSlots);
   final evaluation = TextEditingController();
   final targetWeight = TextEditingController();
   final List<TextEditingController> targetReps;
   final targetNotes = TextEditingController();
 
-  TrainingV2ExerciseFormController()
-    : equipmentSelectionMade = false,
-      sets = [TrainingV2SetFormController()],
-      targetReps = [];
+  TrainingV2ExerciseFormController({
+    Iterable<TrainingV2PlannedSetSlot> planSlots = const [],
+  }) : equipmentSelectionMade = false,
+       sets = [TrainingV2SetFormController()],
+       _planSlots = List.of(planSlots),
+       targetReps = [];
 
   TrainingV2ExerciseFormController.fromDomain(TrainingExerciseV2 exercise)
     : equipment = exercise.equipment,
       equipmentSelectionMade = true,
       sets = exercise.sets.map(TrainingV2SetFormController.fromDomain).toList(),
+      _planSlots = [],
       targetReps =
           exercise.nextTarget?.targetReps
               .map((value) => TextEditingController(text: '$value'))
@@ -448,6 +497,28 @@ class TrainingV2ExerciseFormController {
   }
 
   void addSet() {
+    final representedSlots = {
+      for (final set in sets)
+        if (set.planSlotIndex != null) set.planSlotIndex!,
+    };
+    final missingSlots =
+        _planSlots
+            .where((slot) => !representedSlots.contains(slot.index))
+            .toList(growable: false)
+          ..sort((a, b) => a.index.compareTo(b.index));
+    if (missingSlots.isNotEmpty) {
+      final slot = missingSlots.first;
+      final restored = slot.createExecution();
+      final insertionIndex = sets.indexWhere(
+        (set) => set.planSlotIndex == null || set.planSlotIndex! > slot.index,
+      );
+      if (insertionIndex == -1) {
+        sets.add(restored);
+      } else {
+        sets.insert(insertionIndex, restored);
+      }
+      return;
+    }
     final previous = sets.lastOrNull;
     sets.add(
       TrainingV2SetFormController(
@@ -458,9 +529,8 @@ class TrainingV2ExerciseFormController {
   }
 
   void removeSet(TrainingV2SetFormController value) {
-    if (sets.length == 1) return;
+    if (!sets.remove(value)) return;
     value.dispose();
-    sets.remove(value);
   }
 
   void addTargetRep() => targetReps.add(TextEditingController());
@@ -485,6 +555,7 @@ class TrainingV2ExerciseFormController {
 }
 
 class TrainingV2SetFormController {
+  int? planSlotIndex;
   TrainingSetType setType;
   final weight = TextEditingController();
   final reps = TextEditingController();
@@ -513,6 +584,75 @@ class TrainingV2SetFormController {
     weight.dispose();
     reps.dispose();
     rest.dispose();
+  }
+}
+
+class TrainingV2PlannedSetSlot {
+  final int index;
+  final TrainingSetType setType;
+  final double? plannedWeightKg;
+  final int? targetMinReps;
+  final int? targetMaxReps;
+  final int? restAfterSeconds;
+
+  const TrainingV2PlannedSetSlot({
+    required this.index,
+    required this.setType,
+    required this.plannedWeightKg,
+    required this.targetMinReps,
+    required this.targetMaxReps,
+    required this.restAfterSeconds,
+  });
+
+  factory TrainingV2PlannedSetSlot.fromExecution(
+    int index,
+    TrainingV2SetFormController set,
+  ) => TrainingV2PlannedSetSlot(
+    index: index,
+    setType: set.setType,
+    plannedWeightKg: set.plannedWeightKg,
+    targetMinReps: set.targetMinReps,
+    targetMaxReps: set.targetMaxReps,
+    restAfterSeconds: int.tryParse(set.rest.text.trim()),
+  );
+
+  factory TrainingV2PlannedSetSlot.fromDraftState(Map<String, Object?> value) {
+    final index = value['index'];
+    if (index is! int || index < 0) {
+      throw const FormatException('Invalid Active Training Draft plan slot.');
+    }
+    return TrainingV2PlannedSetSlot(
+      index: index,
+      setType: TrainingSetType.fromStableId(_draftString(value, 'setType')),
+      plannedWeightKg: _draftNullableDouble(value, 'plannedWeightKg'),
+      targetMinReps: _draftNullableInt(value, 'targetMinReps'),
+      targetMaxReps: _draftNullableInt(value, 'targetMaxReps'),
+      restAfterSeconds: _draftNullableInt(value, 'restAfterSeconds'),
+    );
+  }
+
+  Map<String, Object?> toDraftState() => {
+    'index': index,
+    'setType': setType.stableId,
+    'plannedWeightKg': plannedWeightKg,
+    'targetMinReps': targetMinReps,
+    'targetMaxReps': targetMaxReps,
+    'restAfterSeconds': restAfterSeconds,
+  };
+
+  TrainingV2SetFormController createExecution() {
+    final set =
+        TrainingV2SetFormController(
+            setType: setType,
+            rest: restAfterSeconds?.toString(),
+          )
+          ..planSlotIndex = index
+          ..plannedWeightKg = plannedWeightKg
+          ..targetMinReps = targetMinReps
+          ..targetMaxReps = targetMaxReps;
+    set.weight.text = _number(plannedWeightKg);
+    set.reps.text = targetMinReps?.toString() ?? '';
+    return set;
   }
 }
 

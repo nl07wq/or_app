@@ -455,9 +455,21 @@ class TrainingPlanService {
           'targetWeight': '',
           'targetReps': <String>[],
           'targetNotes': '',
-          'sets': [
-            for (final set in exercise.sets)
+          'planSlots': [
+            for (final (index, set) in exercise.sets.indexed)
               {
+                'index': index,
+                'setType': set.setType.stableId,
+                'plannedWeightKg': set.plannedWeightKg,
+                'targetMinReps': set.targetMinReps,
+                'targetMaxReps': set.targetMaxReps,
+                'restAfterSeconds': set.restAfterSeconds,
+              },
+          ],
+          'sets': [
+            for (final (index, set) in exercise.sets.indexed)
+              {
+                'planSlotIndex': index,
                 'setType': set.setType.stableId,
                 'weight': _displayNumber(set.plannedWeightKg),
                 'reps': '${set.targetMinReps}',

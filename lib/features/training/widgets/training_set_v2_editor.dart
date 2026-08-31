@@ -31,11 +31,7 @@ class TrainingSetV2Editor extends StatelessWidget {
               activeBase: activeBase,
               set: set,
               previous: index == 0 ? null : controller.sets[index - 1],
-              canDelete: controller.sets.length > 1,
-              onDelete: () {
-                controller.removeSet(set);
-                onChanged();
-              },
+              onDelete: () => _confirmDelete(context, set),
               onChanged: onChanged,
             ),
           ),
@@ -53,6 +49,35 @@ class TrainingSetV2Editor extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    TrainingV2SetFormController set,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('このSETを削除しますか？'),
+        content: const Text('このSETの実施入力を削除します。\n元のTRAINING PLANは保持されます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    controller.removeSet(set);
+    onChanged();
+  }
 }
 
 class _SetEditor extends StatelessWidget {
@@ -60,7 +85,6 @@ class _SetEditor extends StatelessWidget {
   final Color activeBase;
   final TrainingV2SetFormController set;
   final TrainingV2SetFormController? previous;
-  final bool canDelete;
   final VoidCallback onDelete;
   final VoidCallback onChanged;
 
@@ -70,7 +94,6 @@ class _SetEditor extends StatelessWidget {
     required this.activeBase,
     required this.set,
     required this.previous,
-    required this.canDelete,
     required this.onDelete,
     required this.onChanged,
   });
@@ -112,9 +135,11 @@ class _SetEditor extends StatelessWidget {
                         onPressed: () => _copy(previous!.reps, set.reps),
                       ),
                     IconButton(
+                      key: Key('v2-set-$index-delete'),
+                      color: Theme.of(context).colorScheme.error,
                       icon: const Icon(Icons.delete_outline),
                       tooltip: 'Delete set',
-                      onPressed: canDelete ? onDelete : null,
+                      onPressed: onDelete,
                     ),
                   ],
                 ),
@@ -140,7 +165,7 @@ class _SetEditor extends StatelessWidget {
                 onChanged();
               },
             ),
-            if (set.targetMinReps != null) ...[
+            if (set.plannedWeightKg != null || set.targetMinReps != null) ...[
               AppSpacing.gapSM,
               Wrap(
                 spacing: AppSpacing.lg,
@@ -154,14 +179,15 @@ class _SetEditor extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                  Text(
-                    'TARGET  ${_targetLabel(set)}',
-                    key: Key('v2-set-$index-target'),
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w700,
+                  if (set.targetMinReps != null)
+                    Text(
+                      'TARGET  ${_targetLabel(set)}',
+                      key: Key('v2-set-$index-target'),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -246,7 +272,7 @@ class _SetEditor extends StatelessWidget {
                   label: 'Rest',
                   suffix: 'sec',
                 );
-                return constraints.maxWidth < 340
+                return constraints.maxWidth < 400
                     ? Column(children: [rpe, AppSpacing.gapSM, rest])
                     : Row(
                         children: [
