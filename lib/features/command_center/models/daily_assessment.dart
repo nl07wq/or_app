@@ -49,6 +49,7 @@ enum DailyAssessmentModule {
   recovery('RECOVERY'),
   condition('CONDITION'),
   workLoad('WORK LOAD'),
+  calorieBalance('CALORIE BALANCE'),
   nutrition('NUTRITION'),
   hydration('HYDRATION'),
   recentLoad('RECENT LOAD'),
@@ -60,16 +61,16 @@ enum DailyAssessmentModule {
 }
 
 enum DailyAssessmentMetric {
-  weightTrend('Weight Trend'),
-  sleepTime('Sleep Time'),
-  sleepScore('Sleep Score'),
-  plantarFasciitis('Plantar Fasciitis'),
-  work('Work'),
-  calorieBalance('Calorie Balance'),
-  protein('Protein'),
-  hydration('Hydration'),
-  steps('Steps'),
-  trainingReadiness('Training Readiness');
+  weightTrend('WEIGHT'),
+  sleepTime('SLEEP TIME'),
+  sleepScore('SLEEP SCORE'),
+  plantarFasciitis('PLANTAR FASCIITIS'),
+  work('WORK'),
+  calorieBalance('CALORIE BALANCE'),
+  protein('PROTEIN'),
+  hydration('HYDRATION'),
+  steps('STEPS'),
+  trainingReadiness('TRAINING READINESS');
 
   const DailyAssessmentMetric(this.label);
 
@@ -101,6 +102,9 @@ class DailyAssessment {
     required Iterable<String> primaryConstraints,
     required Iterable<String> availableResources,
     this.currentWeightReference = const DailyWeightReference.notAvailable(),
+    this.currentBodyFatPercent,
+    this.previousFormalBodyFatPercent,
+    this.workDisplayValue,
   }) : assessments = List.unmodifiable(assessments),
        primaryConstraints = List.unmodifiable(primaryConstraints),
        availableResources = List.unmodifiable(availableResources);
@@ -110,6 +114,9 @@ class DailyAssessment {
   final List<String> primaryConstraints;
   final List<String> availableResources;
   final DailyWeightReference currentWeightReference;
+  final double? currentBodyFatPercent;
+  final double? previousFormalBodyFatPercent;
+  final String? workDisplayValue;
 }
 
 class DailyAssessmentFacts {
@@ -126,6 +133,8 @@ class DailyAssessmentFacts {
     required Iterable<BodyHistoryDataPoint> weightHistory,
     this.trainingReadiness,
     this.currentWeightReference = const DailyWeightReference.notAvailable(),
+    this.previousFormalBodyFatPercent,
+    this.workDisplayValue,
   }) : weightHistory = List.unmodifiable(weightHistory);
 
   final String operationDate;
@@ -140,6 +149,8 @@ class DailyAssessmentFacts {
   final List<BodyHistoryDataPoint> weightHistory;
   final TrainingReadinessFacts? trainingReadiness;
   final DailyWeightReference currentWeightReference;
+  final double? previousFormalBodyFatPercent;
+  final String? workDisplayValue;
 }
 
 enum TrainingReadinessIntervalBasis { hours, calendarDays }

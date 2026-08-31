@@ -41,6 +41,8 @@ class ReportSyncImportFailure implements Exception {
 }
 
 class ReportSyncPersistenceService {
+  static const createdAtClockTolerance = Duration(minutes: 5);
+
   final IndexedDbDatabase database;
   final ReportSyncHistoryRepository historyRepository;
   final ReportSyncValidator validator;
@@ -757,26 +759,43 @@ class ReportSyncPersistenceService {
     ReportSyncMealCounts? mealCounts,
     Iterable<MealData> importedMealSnapshots = const [],
     required DateTime completedAt,
-  }) => ReportSyncHistory(
-    exchangeId: response.exchangeId,
-    exchangeType: response.exchangeType,
-    direction: response.direction,
-    operationDate: response.operationDate,
-    requestId: _legacyRequestId(response),
-    requestDigest: _legacyRequestDigest(response),
-    responseDigest: ReportSyncCanonicalService.digest(response.payload),
-    confirmationDigest: response.confirmationDigest,
-    startedAt: response.createdAt,
-    completedAt: completedAt,
-    result: ReportSyncHistoryResult.success,
-    packageDigest: response.packageDigest,
-    receivedMealCount: mealCounts?.received,
-    selectedMealCount: mealCounts?.selected,
-    importedMealCount: mealCounts?.imported,
-    conflictMealCount: mealCounts?.conflict,
-    excludedMealCount: mealCounts?.excluded,
-    importedMealSnapshots: importedMealSnapshots,
-  );
+  }) {
+    final normalizedCompletedAt = completedAt.toUtc();
+    final responseCreatedAt = response.createdAt.toUtc();
+    if (responseCreatedAt.isAfter(
+      normalizedCompletedAt.add(createdAtClockTolerance),
+    )) {
+      throw const FormatException(
+        'createdAt is later than the allowed clock tolerance.',
+      );
+    }
+    // A small device/source clock skew must not invalidate an otherwise valid
+    // delayed import. operationDate remains the formal data date; these values
+    // describe the sync attempt timeline only.
+    final startedAt = responseCreatedAt.isAfter(normalizedCompletedAt)
+        ? normalizedCompletedAt
+        : responseCreatedAt;
+    return ReportSyncHistory(
+      exchangeId: response.exchangeId,
+      exchangeType: response.exchangeType,
+      direction: response.direction,
+      operationDate: response.operationDate,
+      requestId: _legacyRequestId(response),
+      requestDigest: _legacyRequestDigest(response),
+      responseDigest: ReportSyncCanonicalService.digest(response.payload),
+      confirmationDigest: response.confirmationDigest,
+      startedAt: startedAt,
+      completedAt: normalizedCompletedAt,
+      result: ReportSyncHistoryResult.success,
+      packageDigest: response.packageDigest,
+      receivedMealCount: mealCounts?.received,
+      selectedMealCount: mealCounts?.selected,
+      importedMealCount: mealCounts?.imported,
+      conflictMealCount: mealCounts?.conflict,
+      excludedMealCount: mealCounts?.excluded,
+      importedMealSnapshots: importedMealSnapshots,
+    );
+  }
 
   static String _string(Map<String, Object?> json, String key) {
     final value = json[key];

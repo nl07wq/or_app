@@ -29,15 +29,44 @@ class BodyHistoryXAxis {
     );
     var dates = _presetDates(start, end, totalDays);
     if (dates.length > maximumLabels) {
-      final stride = (dates.length / maximumLabels).ceil();
-      dates = [
-        dates.first,
-        for (var index = stride; index < dates.length - 1; index += stride)
-          dates[index],
-        if (dates.last != dates.first) dates.last,
-      ];
+      dates = totalDays > 45
+          ? _calendarAwareSelection(dates, maximumLabels)
+          : _evenSelection(dates, maximumLabels);
     }
     return _formatTicks(dates, start, granularity);
+  }
+
+  static List<DateTime> _calendarAwareSelection(
+    List<DateTime> dates,
+    int maximumLabels,
+  ) {
+    final monthStarts = dates.where((date) => date.day == 1).toList();
+    final selected = <DateTime>{dates.first, dates.last};
+    if (monthStarts.length <= maximumLabels - selected.length) {
+      selected.addAll(monthStarts);
+    } else {
+      selected.addAll(_evenSelection(monthStarts, maximumLabels - 2));
+    }
+    if (selected.length < maximumLabels) {
+      final remaining = dates
+          .where((date) => !selected.contains(date))
+          .toList();
+      selected.addAll(
+        _evenSelection(remaining, maximumLabels - selected.length),
+      );
+    }
+    final result = selected.toList()..sort();
+    return result.take(maximumLabels).toList(growable: false);
+  }
+
+  static List<DateTime> _evenSelection(List<DateTime> values, int count) {
+    if (count <= 0 || values.isEmpty) return const [];
+    if (values.length <= count) return List.of(values);
+    if (count == 1) return [values.first];
+    return [
+      for (var index = 0; index < count; index++)
+        values[(index * (values.length - 1) / (count - 1)).round()],
+    ];
   }
 
   static List<DateTime> _presetDates(

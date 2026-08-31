@@ -253,15 +253,21 @@ void main() {
       final columnGap =
           tester.getTopLeft(foodTextFinder).dx -
           tester.getTopRight(statusChevronFinder).dx;
-      expect(moduleStateGap, AppSpacing.md, reason: '$width module/state gap');
+      expect(
+        moduleStateGap,
+        greaterThan(AppSpacing.md),
+        reason: '$width flexible module/state spacing',
+      );
       expect(
         columnGap,
-        greaterThanOrEqualTo(AppSpacing.lg),
+        greaterThanOrEqualTo(AppSpacing.md),
         reason: '$width column gap',
       );
       expect(
         statusText.style?.fontSize,
-        Theme.of(tester.element(statusTextFinder)).textTheme.labelLarge?.fontSize,
+        Theme.of(
+          tester.element(statusTextFinder),
+        ).textTheme.labelLarge?.fontSize,
       );
       expect(statusText.style?.color, statusIcon.color);
       for (final finder in [

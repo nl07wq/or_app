@@ -66,7 +66,7 @@ void main() {
   testWidgets('shows structured assessment, levels, and neutral unavailable', (
     tester,
   ) async {
-    for (final width in [320.0, 390.0, 900.0]) {
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
       tester.view.physicalSize = Size(width, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -83,7 +83,7 @@ void main() {
       );
 
       for (final module in DailyAssessmentModule.values) {
-        expect(find.text(module.label), findsOneWidget);
+        expect(find.text(module.label), findsWidgets);
       }
       for (final level in DailyAssessmentLevel.values) {
         final badges = tester.widgetList<Container>(
@@ -114,13 +114,15 @@ void main() {
       expect(find.text('41h ago'), findsOneWidget);
       expect(find.text('LAST 7 DAYS'), findsOneWidget);
       expect(find.text('3 sessions'), findsWidgets);
-      expect(find.text('CURRENT WEIGHT'), findsOneWidget);
+      expect(find.text('WEIGHT'), findsOneWidget);
       expect(find.text('91.2 kg'), findsOneWidget);
-      expect(find.text('THIS WEEK'), findsOneWidget);
-      expect(find.text('RECENT INTERVALS'), findsOneWidget);
+      expect(find.text('BODY FAT'), findsOneWidget);
+      expect(find.text('31.8 %'), findsOneWidget);
+      expect(find.text('THIS WEEK'), findsNothing);
+      expect(find.text('TRAINING INTERVALS'), findsOneWidget);
       expect(find.text('48h / 72h'), findsOneWidget);
-      expect(find.text('CONSECUTIVE DAYS'), findsOneWidget);
-      expect(find.text('YES · 2 days'), findsOneWidget);
+      expect(find.text('CONSECUTIVE DAYS'), findsNothing);
+      expect(find.text('YES · 2 days'), findsNothing);
       expect(find.text('トレーニング間隔は標準範囲です。'), findsOneWidget);
       expect(find.text('順調な減量ペース'), findsNothing);
       expect(find.text('評価不可'), findsNothing);
@@ -155,7 +157,7 @@ void main() {
         previousFormalWeightKg: 95.3,
       ),
     );
-    expect(find.text('CURRENT WEIGHT'), findsOneWidget);
+    expect(find.text('WEIGHT'), findsOneWidget);
     expect(find.text('95.0 kg'), findsOneWidget);
     expect(find.text('WEEK AVERAGE'), findsNothing);
     expect(find.textContaining('kg/week'), findsNothing);
@@ -201,6 +203,9 @@ DailyAssessment _assessment({
 }) => DailyAssessment(
   operationDate: '2026-08-10',
   currentWeightReference: currentWeightReference,
+  currentBodyFatPercent: 31.8,
+  previousFormalBodyFatPercent: 31.9,
+  workDisplayValue: '7:00–18:00',
   assessments: [
     const DailyAssessmentItem(
       module: DailyAssessmentModule.body,
@@ -231,7 +236,7 @@ DailyAssessment _assessment({
       level: DailyAssessmentLevel.adjust,
     ),
     const DailyAssessmentItem(
-      module: DailyAssessmentModule.nutrition,
+      module: DailyAssessmentModule.calorieBalance,
       metric: DailyAssessmentMetric.calorieBalance,
       rawValue: -1400.0,
       specificAssessment: 'EXTREME DEFICIT',

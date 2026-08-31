@@ -174,14 +174,14 @@ void main() {
     expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TESSERACT'));
+    await tester.tap(find.text('STANDARD OCR'));
     await tester.pumpAndSettle();
 
     expect(gateway.liveNutritionCalls, 1);
-    expect(gateway.lastEngine, FoodOcrEngine.tesseract);
+    expect(gateway.lastScanMode, FoodOcrScanMode.standard);
     expect(gateway.lastDescription?.state, 'detected');
     expect(find.text('REVIEW NUTRITION'), findsOneWidget);
-    expect(find.text('OCR ENGINE  TESSERACT'), findsOneWidget);
+    expect(find.text('SCAN MODE  STANDARD OCR'), findsOneWidget);
     expect(saveCalls, 0);
     await tester.tap(find.text('APPLY TO FORM'));
     await tester.pumpAndSettle();
@@ -192,7 +192,7 @@ void main() {
     expect(saveCalls, 0);
   });
 
-  testWidgets('RESCAN retains the selected OCR engine', (tester) async {
+  testWidgets('RESCAN retains the selected scan mode', (tester) async {
     final gateway = _LiveGateway(
       nutritionRawText:
           '100g当たり\n熱量 154kcal\nたんぱく質 1.9g\n'
@@ -214,16 +214,16 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
     await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('PADDLE PoC'));
+    await tester.tap(find.text('NUTRITION LABEL READER'));
     await tester.pumpAndSettle();
-    expect(find.text('OCR ENGINE  PADDLE PoC'), findsOneWidget);
+    expect(find.text('SCAN MODE  NUTRITION LABEL READER'), findsOneWidget);
 
     await tester.tap(find.text('RESCAN'));
     await tester.pumpAndSettle();
 
     expect(gateway.liveNutritionCalls, 2);
-    expect(gateway.lastEngine, FoodOcrEngine.paddle);
-    expect(find.text('OCR ENGINE  PADDLE PoC'), findsOneWidget);
+    expect(gateway.lastScanMode, FoodOcrScanMode.nutritionLabelReader);
+    expect(find.text('SCAN MODE  NUTRITION LABEL READER'), findsOneWidget);
   });
 
   testWidgets('multi-pass nutrition fields merge without averaging', (
@@ -251,10 +251,10 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TESSERACT'));
+    await tester.tap(find.text('STANDARD OCR'));
     await tester.pumpAndSettle();
 
-    expect(gateway.lastEngine, FoodOcrEngine.tesseract);
+    expect(gateway.lastScanMode, FoodOcrScanMode.standard);
     expect(find.text('NUTRITION BASIS  1 piece'), findsOneWidget);
     expect(find.text('CALORIES  201 kcal'), findsOneWidget);
     expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
@@ -285,7 +285,7 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TESSERACT'));
+    await tester.tap(find.text('STANDARD OCR'));
     await tester.pumpAndSettle();
 
     expect(find.text('FAT  10.6 g'), findsOneWidget);
@@ -323,19 +323,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PACKAGE'), findsNothing);
     expect(find.text('NUTRITION'), findsNothing);
-    expect(find.text('SELECT OCR ENGINE'), findsOneWidget);
-    expect(find.text('TESSERACT'), findsOneWidget);
-    expect(find.text('PADDLE PoC'), findsOneWidget);
+    expect(find.text('SELECT SCAN MODE'), findsOneWidget);
+    expect(find.text('STANDARD OCR'), findsOneWidget);
+    expect(find.text('NUTRITION LABEL READER'), findsOneWidget);
+    expect(find.text('PADDLE PoC'), findsNothing);
     expect(find.text('LIVE SCAN'), findsNothing);
     expect(tester.widget<TextField>(_field('NAME')).controller!.text, isEmpty);
     expect(saveCalls, 0);
   });
 
-  for (final engine in [
-    ('TESSERACT', FoodOcrEngine.tesseract),
-    ('PADDLE PoC', FoodOcrEngine.paddle),
+  for (final scanMode in [
+    ('STANDARD OCR', FoodOcrScanMode.standard),
+    ('NUTRITION LABEL READER', FoodOcrScanMode.nutritionLabelReader),
   ]) {
-    testWidgets('${engine.$1} uses the same nutrition scanner contract', (
+    testWidgets('${scanMode.$1} uses the same nutrition scanner contract', (
       tester,
     ) async {
       var saveCalls = 0;
@@ -360,11 +361,11 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
-      await tester.tap(find.text(engine.$1));
+      await tester.tap(find.text(scanMode.$1));
       await tester.pumpAndSettle();
 
-      expect(gateway.lastEngine, engine.$2);
-      expect(find.text('OCR ENGINE  ${engine.$1}'), findsOneWidget);
+      expect(gateway.lastScanMode, scanMode.$2);
+      expect(find.text('SCAN MODE  ${scanMode.$1}'), findsOneWidget);
       expect(find.text('NUTRITION BASIS  38 g'), findsOneWidget);
       expect(find.text('CALORIES  201 kcal'), findsOneWidget);
       expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
@@ -422,7 +423,7 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TESSERACT'));
+    await tester.tap(find.text('STANDARD OCR'));
     await tester.pumpAndSettle();
 
     expect(find.text('REVIEW NUTRITION'), findsOneWidget);
@@ -485,11 +486,12 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
-      expect(find.text('SELECT OCR ENGINE'), findsOneWidget);
-      expect(find.text('TESSERACT'), findsOneWidget);
-      expect(find.text('PADDLE PoC'), findsOneWidget);
+      expect(find.text('SELECT SCAN MODE'), findsOneWidget);
+      expect(find.text('STANDARD OCR'), findsOneWidget);
+      expect(find.text('NUTRITION LABEL READER'), findsOneWidget);
+      expect(find.text('PADDLE PoC'), findsNothing);
       expect(tester.takeException(), isNull, reason: 'scanner width $width');
-      await tester.tap(find.text('TESSERACT'));
+      await tester.tap(find.text('STANDARD OCR'));
       await tester.pumpAndSettle();
       expect(find.text('REVIEW NUTRITION'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'nutrition width $width');
@@ -524,7 +526,7 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('TESSERACT'));
+      await tester.tap(find.text('STANDARD OCR'));
       await tester.pumpAndSettle();
       expect(find.text('REVIEW CONFLICT  FAT'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'conflict width $width');
@@ -600,7 +602,7 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   final selectedSources = <FoodImageSource>[];
   FoodOcrLiveCandidate? lastDescription;
   FoodTextOcrMode? lastOcrMode;
-  FoodOcrEngine? lastEngine;
+  FoodOcrScanMode? lastScanMode;
 
   @override
   Future<FoodBarcodeCandidate?> scanBarcodeLive() async {
@@ -614,9 +616,10 @@ class _LiveGateway implements FoodLiveCaptureGateway {
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async {
     liveNutritionCalls += 1;
-    lastEngine = engine;
+    lastScanMode = scanMode;
     final rawText = nutritionRawText;
     if (rawText != null) lastDescription = describeCandidate(rawText);
     return rawText;
@@ -627,9 +630,10 @@ class _LiveGateway implements FoodLiveCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async {
     lastOcrMode = mode;
-    lastEngine = engine;
+    lastScanMode = scanMode;
     return nutritionRawText ?? '';
   }
 

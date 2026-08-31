@@ -12,19 +12,28 @@ class DailyAssessmentView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const rows = [
+      (DailyAssessmentModule.body, DailyAssessmentModule.recovery),
+      (DailyAssessmentModule.condition, DailyAssessmentModule.workLoad),
+      (DailyAssessmentModule.calorieBalance, DailyAssessmentModule.nutrition),
+      (DailyAssessmentModule.hydration, DailyAssessmentModule.recentLoad),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final module in DailyAssessmentModule.values) ...[
-          _ModuleAssessmentCard(
-            module: module,
-            currentWeightReference: assessment.currentWeightReference,
-            items: assessment.assessments
-                .where((item) => item.module == module)
-                .toList(growable: false),
+        for (final row in rows) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _module(row.$1)),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: _module(row.$2)),
+            ],
           ),
           AppSpacing.gapSM,
         ],
+        _module(DailyAssessmentModule.training),
+        AppSpacing.gapSM,
         _StringListCard(
           title: 'PRIMARY CONSTRAINT',
           values: assessment.primaryConstraints
@@ -41,6 +50,17 @@ class DailyAssessmentView extends StatelessWidget {
       ],
     );
   }
+
+  Widget _module(DailyAssessmentModule module) => _ModuleAssessmentCard(
+    module: module,
+    currentWeightReference: assessment.currentWeightReference,
+    currentBodyFatPercent: assessment.currentBodyFatPercent,
+    previousFormalBodyFatPercent: assessment.previousFormalBodyFatPercent,
+    workDisplayValue: assessment.workDisplayValue,
+    items: assessment.assessments
+        .where((item) => item.module == module)
+        .toList(growable: false),
+  );
 }
 
 class _ModuleAssessmentCard extends StatelessWidget {
@@ -48,79 +68,136 @@ class _ModuleAssessmentCard extends StatelessWidget {
     required this.module,
     required this.items,
     required this.currentWeightReference,
+    required this.currentBodyFatPercent,
+    required this.previousFormalBodyFatPercent,
+    required this.workDisplayValue,
   });
 
   final DailyAssessmentModule module;
   final List<DailyAssessmentItem> items;
   final DailyWeightReference currentWeightReference;
+  final double? currentBodyFatPercent;
+  final double? previousFormalBodyFatPercent;
+  final String? workDisplayValue;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(module.label, style: Theme.of(context).textTheme.titleSmall),
-        AppSpacing.gapMD,
-        for (var index = 0; index < items.length; index++) ...[
-          _AssessmentItem(
-            item: items[index],
-            currentWeightReference: currentWeightReference,
+  Widget build(BuildContext context) {
+    final level = _moduleLevel(items);
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(module.label, style: Theme.of(context).textTheme.titleSmall),
+              if (level != null) _LevelBadge(level: level),
+            ],
           ),
-          if (index != items.length - 1) const Divider(height: 24),
+          AppSpacing.gapMD,
+          for (var index = 0; index < items.length; index++) ...[
+            _AssessmentItem(
+              item: items[index],
+              currentWeightReference: currentWeightReference,
+              workDisplayValue: workDisplayValue,
+              showMetricLabel:
+                  items[index].metric != DailyAssessmentMetric.calorieBalance,
+            ),
+            if (index != items.length - 1) const Divider(height: 24),
+          ],
+          if (module == DailyAssessmentModule.body) ...[
+            if (items.isNotEmpty) const Divider(height: 24),
+            _BodyFatFact(
+              current: currentBodyFatPercent,
+              previous: previousFormalBodyFatPercent,
+            ),
+          ],
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _AssessmentItem extends StatelessWidget {
   const _AssessmentItem({
     required this.item,
     required this.currentWeightReference,
+    required this.workDisplayValue,
+    required this.showMetricLabel,
   });
 
   final DailyAssessmentItem item;
   final DailyWeightReference currentWeightReference;
+  final String? workDisplayValue;
+  final bool showMetricLabel;
 
   @override
   Widget build(BuildContext context) {
     final readiness = item.rawValue is TrainingReadinessFacts
         ? item.rawValue! as TrainingReadinessFacts
         : null;
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.metric.label,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              AppSpacing.gapXS,
-              if (item.metric == DailyAssessmentMetric.weightTrend) ...[
-                _ReadinessFactRow(
-                  label: _weightReferenceLabel(currentWeightReference.source),
-                  value: currentWeightReference.valueKg == null
-                      ? 'NOT AVAILABLE'
-                      : '${currentWeightReference.valueKg!.toStringAsFixed(1)} kg',
-                ),
-                AppSpacing.gapXS,
-              ],
-              if (readiness == null)
-                Text(_valueLabel(item, currentWeightReference))
-              else
-                _TrainingReadinessDetails(facts: readiness),
-              AppSpacing.gapXS,
-              Text(dailyAssessmentSpecificLabel(item)),
-            ],
+        if (showMetricLabel) ...[
+          Text(
+            item.metric.label,
+            style: Theme.of(context).textTheme.labelLarge,
           ),
-        ),
-        if (item.level != null) ...[
-          AppSpacing.gapSM,
-          _LevelBadge(level: item.level!),
+          AppSpacing.gapXS,
         ],
+        if (item.metric == DailyAssessmentMetric.weightTrend)
+          _WeightFactValue(reference: currentWeightReference),
+        if (readiness == null)
+          if (item.metric != DailyAssessmentMetric.weightTrend)
+            Text(
+              item.metric == DailyAssessmentMetric.work &&
+                      workDisplayValue != null
+                  ? workDisplayValue!
+                  : _valueLabel(item, currentWeightReference),
+            )
+          else ...[
+            AppSpacing.gapXS,
+            Text(_valueLabel(item, currentWeightReference)),
+          ]
+        else
+          _TrainingReadinessDetails(facts: readiness),
+        AppSpacing.gapXS,
+        Text(dailyAssessmentSpecificLabel(item)),
+      ],
+    );
+  }
+}
+
+class _WeightFactValue extends StatelessWidget {
+  const _WeightFactValue({required this.reference});
+
+  final DailyWeightReference reference;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceLabel = switch (reference.source) {
+      DailyWeightReferenceSource.sevenDayMean => 'WEEK AVERAGE',
+      DailyWeightReferenceSource.fourteenDayMean => '14-DAY AVERAGE',
+      _ => null,
+    };
+    final value = reference.valueKg;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (sourceLabel != null) ...[
+          Text(sourceLabel, style: Theme.of(context).textTheme.labelSmall),
+          AppSpacing.gapXS,
+        ],
+        Text(
+          value != null &&
+                  reference.source != DailyWeightReferenceSource.notAvailable
+              ? '${value.toStringAsFixed(1)} kg'
+              : 'NOT AVAILABLE',
+        ),
       ],
     );
   }
@@ -143,24 +220,66 @@ class _TrainingReadinessDetails extends StatelessWidget {
         value: '${facts.last7DaysSessionCount} sessions',
       ),
       _ReadinessFactRow(
-        label: 'THIS WEEK',
-        value: '${facts.currentWeekSessionCount} sessions',
-      ),
-      _ReadinessFactRow(
-        label: 'RECENT INTERVALS',
+        label: 'TRAINING INTERVALS',
         value: facts.recentIntervals.isEmpty
             ? 'NOT AVAILABLE'
             : facts.recentIntervals
                   .map((interval) => interval.compactLabel)
                   .join(' / '),
       ),
-      _ReadinessFactRow(
-        label: 'CONSECUTIVE DAYS',
-        value: facts.consecutiveTrainingDays >= 2
-            ? 'YES · ${facts.consecutiveTrainingDays} days'
-            : 'NO',
-      ),
     ],
+  );
+}
+
+class _BodyFatFact extends StatelessWidget {
+  const _BodyFatFact({required this.current, required this.previous});
+
+  final double? current;
+  final double? previous;
+
+  @override
+  Widget build(BuildContext context) {
+    final validCurrent = current != null && current!.isFinite && current! > 0;
+    final validPrevious =
+        previous != null && previous!.isFinite && previous! > 0;
+    final delta = validCurrent && validPrevious ? current! - previous! : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
+        AppSpacing.gapXS,
+        Text(
+          validCurrent ? '${current!.toStringAsFixed(1)} %' : 'NOT AVAILABLE',
+        ),
+        AppSpacing.gapXS,
+        Text(
+          delta == null
+              ? 'NOT AVAILABLE'
+              : '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} %',
+        ),
+        AppSpacing.gapXS,
+        Text(
+          delta == null
+              ? '前回計測値を確認できません。'
+              : delta < 0
+              ? '前回計測値から減少しています。'
+              : delta > 0
+              ? '前回計測値から増加しています。'
+              : '前回計測値から変化はありません。',
+        ),
+      ],
+    );
+  }
+}
+
+DailyAssessmentLevel? _moduleLevel(List<DailyAssessmentItem> items) {
+  final levels = [
+    for (final item in items)
+      if (item.level != null) item.level!,
+  ];
+  if (levels.isEmpty) return null;
+  return levels.reduce(
+    (first, second) => first.index >= second.index ? first : second,
   );
 }
 
@@ -239,14 +358,6 @@ Color dailyAssessmentLevelColor(DailyAssessmentLevel level) => switch (level) {
   DailyAssessmentLevel.adjust => Colors.yellow,
   DailyAssessmentLevel.limit => Colors.red,
 };
-
-String _weightReferenceLabel(DailyWeightReferenceSource source) =>
-    switch (source) {
-      DailyWeightReferenceSource.measuredToday => 'CURRENT WEIGHT',
-      DailyWeightReferenceSource.sevenDayMean => 'WEEK AVERAGE',
-      DailyWeightReferenceSource.fourteenDayMean => '14-DAY AVERAGE',
-      DailyWeightReferenceSource.notAvailable => 'NOT AVAILABLE',
-    };
 
 String _valueLabel(
   DailyAssessmentItem item,

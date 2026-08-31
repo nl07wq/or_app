@@ -36,6 +36,7 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async {
     final result = await _bridge
         .callMethod<JSPromise<JSString>>(
@@ -43,6 +44,7 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
           image.dataUrl.toJS,
           mode.name.toJS,
           engine.bridgeValue.toJS,
+          scanMode.bridgeValue.toJS,
         )
         .toDart;
     return result.toDart;
@@ -78,6 +80,7 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async {
     final callback = ((JSString rawText) {
       return jsonEncode(describeCandidate(rawText.toDart).toJson()).toJS;
@@ -88,7 +91,7 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
           title.toJS,
           instruction.toJS,
           callback,
-          engine.bridgeValue.toJS,
+          scanMode.bridgeValue.toJS,
         )
         .toDart;
     return result?.toDart;

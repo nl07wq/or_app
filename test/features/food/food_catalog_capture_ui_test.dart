@@ -54,7 +54,7 @@ void main() {
     expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TESSERACT'));
+    await tester.tap(find.text('STANDARD OCR'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CAMERA'));
     await tester.pumpAndSettle();
@@ -81,7 +81,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TESSERACT'));
+    await tester.tap(find.text('STANDARD OCR'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('PHOTO LIBRARY'));
     await tester.pumpAndSettle();
@@ -107,19 +107,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PACKAGE'), findsNothing);
     expect(find.text('NUTRITION'), findsNothing);
-    expect(find.text('SELECT OCR ENGINE'), findsOneWidget);
-    expect(find.text('TESSERACT'), findsOneWidget);
-    expect(find.text('PADDLE PoC'), findsOneWidget);
+    expect(find.text('SELECT SCAN MODE'), findsOneWidget);
+    expect(find.text('STANDARD OCR'), findsOneWidget);
+    expect(find.text('NUTRITION LABEL READER'), findsOneWidget);
+    expect(find.text('PADDLE PoC'), findsNothing);
     expect(find.text('LIVE SCAN'), findsNothing);
     expect(repository.entries, isEmpty);
   });
 
-  testWidgets('same photo path routes through either selected OCR engine', (
+  testWidgets('same photo path routes through either selected scan mode', (
     tester,
   ) async {
-    for (final engine in [
-      ('TESSERACT', FoodOcrEngine.tesseract),
-      ('PADDLE PoC', FoodOcrEngine.paddle),
+    for (final scanMode in [
+      ('STANDARD OCR', FoodOcrScanMode.standard),
+      ('NUTRITION LABEL READER', FoodOcrScanMode.nutritionLabelReader),
     ]) {
       final gateway = _Gateway(
         text:
@@ -137,14 +138,14 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(engine.$1));
+      await tester.tap(find.text(scanMode.$1));
       await tester.pumpAndSettle();
       await tester.tap(find.text('PHOTO LIBRARY'));
       await tester.pumpAndSettle();
 
-      expect(gateway.lastEngine, engine.$2);
+      expect(gateway.lastScanMode, scanMode.$2);
       expect(gateway.selectedSources, [FoodImageSource.gallery]);
-      expect(find.text('OCR ENGINE  ${engine.$1}'), findsOneWidget);
+      expect(find.text('SCAN MODE  ${scanMode.$1}'), findsOneWidget);
       await tester.tap(find.text('CANCEL'));
       await tester.pumpAndSettle();
     }
@@ -269,7 +270,7 @@ class _Gateway implements FoodInputCaptureGateway {
   _Gateway({this.text = '', this.barcode});
   final String text;
   final String? barcode;
-  FoodOcrEngine? lastEngine;
+  FoodOcrScanMode? lastScanMode;
   final selectedSources = <FoodImageSource>[];
 
   @override
@@ -277,8 +278,9 @@ class _Gateway implements FoodInputCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async {
-    lastEngine = engine;
+    lastScanMode = scanMode;
     return text;
   }
 
@@ -310,6 +312,7 @@ class _LiveGateway implements FoodLiveCaptureGateway {
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async => null;
 
   @override
@@ -317,6 +320,7 @@ class _LiveGateway implements FoodLiveCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async => '';
 
   @override

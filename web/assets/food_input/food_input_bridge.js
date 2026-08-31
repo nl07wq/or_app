@@ -100,13 +100,17 @@
   }
 
   function requestedOcrEngine(engineOverride) {
-    if (engineOverride === 'paddle' || engineOverride === 'tesseract') {
-      return engineOverride;
-    }
     const queryEngine = typeof location === 'undefined'
       ? null
       : new URLSearchParams(location.search).get('orOcrEngine');
-    return window.__OR_APP_OCR_ENGINE__ || queryEngine || 'tesseract';
+    const developerEngine = window.__OR_APP_OCR_ENGINE__ || queryEngine;
+    if (developerEngine === 'paddle' || developerEngine === 'tesseract') {
+      return developerEngine;
+    }
+    if (engineOverride === 'paddle' || engineOverride === 'tesseract') {
+      return engineOverride;
+    }
+    return 'tesseract';
   }
 
   function memorySnapshot() {
@@ -1462,6 +1466,7 @@
     dataUrl,
     mode = 'package',
     engineOverride = null,
+    scanStrategy = 'nutritionReader',
   ) {
     const engineId = selectedOcrEngine(mode, engineOverride);
     if (mode === 'nutrition' && engineId === 'paddle') {
@@ -1517,7 +1522,9 @@
     for (const variant of ocrVariants(canvas, mode)) {
       const startedAt = performance.now();
       let text;
-      if (mode === 'nutrition' && variant.name === 'original') {
+      if (mode === 'nutrition' &&
+          scanStrategy === 'nutritionReader' &&
+          variant.name === 'original') {
         const data = await recognizeLayoutPass(variant.dataUrl);
         text = data.text || '';
         layoutTsv = data.tsv || '';
@@ -1532,7 +1539,9 @@
       }
       if (text.trim() && !texts.includes(text)) texts.push(text);
     }
-    if (mode === 'nutrition' && layoutTsv) {
+    if (mode === 'nutrition' &&
+        scanStrategy === 'nutritionReader' &&
+        layoutTsv) {
       const startedAt = performance.now();
       const structured = await structuredNutritionText(canvas, layoutTsv);
       if (lastPhotoDiagnostics) {
@@ -1975,8 +1984,9 @@
     title,
     instruction,
     describeCandidate,
-    engineOverride = null,
+    scanStrategy = 'nutritionReader',
   ) {
+    const engineOverride = null;
     const mode = title.includes('NUTRITION') ? 'nutrition' : 'package';
     const engineId = selectedOcrEngine(mode, engineOverride);
     const session = await openCamera(title, mode);
@@ -1984,11 +1994,11 @@
     session.guide.firstElementChild.textContent = instruction;
     session.result.textContent = instruction;
     if (mode === 'nutrition') {
-      const engineLabel = document.createElement('div');
-      engineLabel.dataset.role = 'ocr-engine';
-      engineLabel.textContent = `ENGINE: ${engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'}`;
-      engineLabel.style.cssText = 'font-size:.82rem;font-weight:800;letter-spacing:.04em';
-      session.header.insertBefore(engineLabel, session.close);
+      const modeLabel = document.createElement('div');
+      modeLabel.dataset.role = 'ocr-scan-mode';
+      modeLabel.textContent = `MODE: ${scanStrategy === 'standard' ? 'STANDARD OCR' : 'NUTRITION LABEL READER'}`;
+      modeLabel.style.cssText = 'font-size:.82rem;font-weight:800;letter-spacing:.04em';
+      session.header.insertBefore(modeLabel, session.close);
     }
     const choosePhoto = document.createElement('button');
     choosePhoto.type = 'button';
@@ -2059,11 +2069,16 @@
       const recognizePhoto = async () => {
         if (finished || running) return;
         setBusy(true);
-        session.result.textContent = `ENGINE: ${engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'}\n読み取り中...`;
+        session.result.textContent = `MODE: ${scanStrategy === 'standard' ? 'STANDARD OCR' : 'NUTRITION LABEL READER'}\n読み取り中...`;
         try {
           const image = await selectImage(false);
           if (!image || finished) return;
-          const rawText = await recognizeJapaneseText(image, mode, engineId);
+          const rawText = await recognizeJapaneseText(
+            image,
+            mode,
+            engineId,
+            scanStrategy,
+          );
           let hasCandidate = false;
           for (const pass of rawText.split(ocrPassSeparator)) {
             if (pass.trim()) hasCandidate = present(pass, true) || hasCandidate;
@@ -2110,7 +2125,7 @@
         setBusy(true);
         highAccuracyValues.clear();
         highAccuracyConflicts.clear();
-        session.result.textContent = `ENGINE: ${engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'}\n読み取り中...`;
+        session.result.textContent = `MODE: ${scanStrategy === 'standard' ? 'STANDARD OCR' : 'NUTRITION LABEL READER'}\n読み取り中...`;
         try {
           const frame = await captureBestFrame(session);
           if (!frame) {
@@ -2133,7 +2148,9 @@
           } else {
             for (const variant of ocrVariants(frame.canvas, mode)) {
               let rawText;
-              if (mode === 'nutrition' && variant.name === 'original') {
+              if (mode === 'nutrition' &&
+                  scanStrategy === 'nutritionReader' &&
+                  variant.name === 'original') {
                 const data = await recognizeLayoutPass(variant.dataUrl);
                 rawText = data.text || '';
                 layoutTsv = data.tsv || '';
@@ -2145,7 +2162,9 @@
               hasCandidate = present(rawText, true) || hasCandidate;
             }
           }
-          if (mode === 'nutrition' && layoutTsv) {
+          if (mode === 'nutrition' &&
+              scanStrategy === 'nutritionReader' &&
+              layoutTsv) {
             const structured = await structuredNutritionText(
               frame.canvas,
               layoutTsv,

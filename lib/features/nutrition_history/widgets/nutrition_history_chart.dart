@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/body_history_x_axis.dart';
+import '../../body_history/services/history_y_axis_width.dart';
 import '../../body_history/theme/history_metric_color_registry.dart';
 import '../models/nutrition_history_models.dart';
 import '../services/nutrition_history_chart_engine.dart';
@@ -30,6 +31,7 @@ class NutritionHistoryChart extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
+        final yAxisWidth = _yAxisWidth(context);
         final availableChartWidth = math.max(
           0.0,
           constraints.maxWidth - yAxisWidth,
@@ -86,6 +88,22 @@ class NutritionHistoryChart extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  double _yAxisWidth(BuildContext context) {
+    final axis = model.axis!;
+    return HistoryYAxisWidth.calculate(
+      labels: [
+        for (
+          var value = axis.maximum;
+          value >= axis.minimum - axis.interval / 2;
+          value -= axis.interval
+        )
+          '${_number(value)} ${model.metric.unit}',
+      ],
+      style: Theme.of(context).textTheme.labelSmall ?? const TextStyle(),
+      textDirection: Directionality.of(context),
     );
   }
 

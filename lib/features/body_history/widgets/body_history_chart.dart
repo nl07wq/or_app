@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../models/body_history_models.dart';
 import '../services/body_history_chart_engine.dart';
 import '../services/body_history_x_axis.dart';
+import '../services/history_y_axis_width.dart';
 import '../theme/history_metric_color_registry.dart';
 
 class BodyHistoryChart extends StatelessWidget {
@@ -30,6 +31,7 @@ class BodyHistoryChart extends StatelessWidget {
     final engine = const BodyHistoryChartEngine();
     return LayoutBuilder(
       builder: (context, constraints) {
+        final yAxisWidth = _yAxisWidth(context);
         final availableChartWidth = math.max(
           0.0,
           constraints.maxWidth - yAxisWidth,
@@ -86,6 +88,22 @@ class BodyHistoryChart extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  double _yAxisWidth(BuildContext context) {
+    final axis = model.axis!;
+    return HistoryYAxisWidth.calculate(
+      labels: [
+        for (
+          var value = axis.maximum;
+          value >= axis.minimum - axis.interval / 2;
+          value -= axis.interval
+        )
+          '${_number(value)}${model.metric.unit}',
+      ],
+      style: Theme.of(context).textTheme.labelSmall ?? const TextStyle(),
+      textDirection: Directionality.of(context),
     );
   }
 

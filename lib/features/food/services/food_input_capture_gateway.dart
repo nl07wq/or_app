@@ -9,6 +9,20 @@ enum FoodTextOcrMode { package, nutrition }
 
 enum FoodOcrEngine { tesseract, paddle }
 
+enum FoodOcrScanMode { standard, nutritionLabelReader }
+
+extension FoodOcrScanModePresentation on FoodOcrScanMode {
+  String get bridgeValue => switch (this) {
+    FoodOcrScanMode.standard => 'standard',
+    FoodOcrScanMode.nutritionLabelReader => 'nutritionReader',
+  };
+
+  String get label => switch (this) {
+    FoodOcrScanMode.standard => 'STANDARD OCR',
+    FoodOcrScanMode.nutritionLabelReader => 'NUTRITION LABEL READER',
+  };
+}
+
 extension FoodOcrEnginePresentation on FoodOcrEngine {
   String get bridgeValue => name;
 
@@ -47,6 +61,7 @@ abstract interface class FoodInputCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   });
 
   Future<String?> scanBarcode(FoodCapturedImage image);
@@ -61,6 +76,7 @@ abstract interface class FoodLiveCaptureGateway
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   });
 }
 

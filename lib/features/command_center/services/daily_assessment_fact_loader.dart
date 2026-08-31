@@ -1,3 +1,5 @@
+import '../../../core/models/morning_data.dart';
+import '../../../core/models/work_type.dart';
 import '../../body_history/services/body_history_source_resolver.dart';
 import '../../daily_aggregate/services/daily_aggregate_engine.dart';
 import '../../operation_date/models/operation_state.dart';
@@ -20,8 +22,13 @@ class DailyAssessmentFactLoader {
     final currentStatus = await container.status.findByLocalDate(
       operationDate.value,
     );
-    final previousFormalWeight = await _previousFormalWeight(
+    final previousFormalWeight = await _previousFormalValue(
       operationDate.value,
+      (status) => status.weight,
+    );
+    final previousFormalBodyFat = await _previousFormalValue(
+      operationDate.value,
+      (status) => status.bodyFat,
     );
     final currentFood = await container.foodMixedRead.readForLocalDate(
       operationDate.value,
@@ -81,22 +88,31 @@ class DailyAssessmentFactLoader {
               history: weightHistory,
               previousFormalWeightKg: previousFormalWeight,
             ),
+      previousFormalBodyFatPercent: previousFormalBodyFat,
+      workDisplayValue: currentStatus == null
+          ? null
+          : currentStatus.workType == WorkType.holiday
+          ? 'HOLIDAY'
+          : '${currentStatus.workStart}–${currentStatus.workEnd}',
       trainingReadiness: trainingReadiness,
     );
   }
 
-  Future<double?> _previousFormalWeight(String operationDate) async {
+  Future<double?> _previousFormalValue(
+    String operationDate,
+    double? Function(MorningData status) select,
+  ) async {
     final records =
         (await container.status.findAllCanonical()).values
             .where(
               (status) =>
                   status.date.compareTo(operationDate) < 0 &&
-                  status.weight != null &&
-                  status.weight!.isFinite &&
-                  status.weight! > 0,
+                  select(status) != null &&
+                  select(status)!.isFinite &&
+                  select(status)! > 0,
             )
             .toList()
           ..sort((first, second) => second.date.compareTo(first.date));
-    return records.isEmpty ? null : records.first.weight;
+    return records.isEmpty ? null : select(records.first);
   }
 }

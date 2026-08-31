@@ -131,6 +131,9 @@ class DailyAssessmentRuleEngine {
       primaryConstraints: _unique(constraints.map((value) => value.label)),
       availableResources: _unique(resources),
       currentWeightReference: facts.currentWeightReference,
+      currentBodyFatPercent: status?.bodyFat,
+      previousFormalBodyFatPercent: facts.previousFormalBodyFatPercent,
+      workDisplayValue: facts.workDisplayValue,
     );
   }
 
@@ -422,13 +425,13 @@ class DailyAssessmentRuleEngine {
   DailyAssessmentItem _calorieBalance(double? value) {
     if (value == null) {
       return _notAvailable(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
       );
     }
     if (value < -1300) {
       return _item(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
         value,
         'EXTREME DEFICIT',
@@ -437,7 +440,7 @@ class DailyAssessmentRuleEngine {
     }
     if (value < -1000) {
       return _item(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
         value,
         'VERY LARGE DEFICIT',
@@ -446,7 +449,7 @@ class DailyAssessmentRuleEngine {
     }
     if (value < -800) {
       return _item(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
         value,
         'LARGE DEFICIT',
@@ -455,7 +458,7 @@ class DailyAssessmentRuleEngine {
     }
     if (value <= -300) {
       return _item(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
         value,
         'TARGET DEFICIT',
@@ -464,7 +467,7 @@ class DailyAssessmentRuleEngine {
     }
     if (value <= 200) {
       return _item(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
         value,
         'NEAR BALANCE',
@@ -473,7 +476,7 @@ class DailyAssessmentRuleEngine {
     }
     if (value <= 500) {
       return _item(
-        DailyAssessmentModule.nutrition,
+        DailyAssessmentModule.calorieBalance,
         DailyAssessmentMetric.calorieBalance,
         value,
         'SURPLUS WATCH',
@@ -481,7 +484,7 @@ class DailyAssessmentRuleEngine {
       );
     }
     return _item(
-      DailyAssessmentModule.nutrition,
+      DailyAssessmentModule.calorieBalance,
       DailyAssessmentMetric.calorieBalance,
       value,
       'HIGH SURPLUS',

@@ -16,6 +16,7 @@ class _UnsupportedFoodInputCaptureGateway implements FoodLiveCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async => _unsupported();
 
   @override
@@ -30,5 +31,6 @@ class _UnsupportedFoodInputCaptureGateway implements FoodLiveCaptureGateway {
     required String instruction,
     required FoodOcrLiveCandidate Function(String rawText) describeCandidate,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async => _unsupported();
 }

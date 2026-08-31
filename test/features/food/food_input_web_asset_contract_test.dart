@@ -47,7 +47,7 @@ void main() {
     expect(bridge, isNot(contains('https://')));
   });
 
-  test('visible comparison selector keeps hidden query compatibility', () {
+  test('visible scan-mode selector keeps hidden engine compatibility', () {
     final bridge = File(
       'web/assets/food_input/food_input_bridge.js',
     ).readAsStringSync();
@@ -61,13 +61,14 @@ void main() {
     expect(bridge, contains("? 'paddle'"));
     expect(bridge, contains(": 'tesseract'"));
     expect(bridge, contains("if (mode !== 'nutrition') return 'tesseract'"));
-    expect(scanner, contains('SELECT OCR ENGINE'));
-    expect(scanner, contains('TESSERACT'));
-    expect(scanner, contains('PADDLE PoC'));
-    expect(scanner, contains('CURRENT COMPARISON BASELINE'));
-    expect(scanner, contains('EXPERIMENTAL COMPARISON'));
+    expect(scanner, contains('SELECT SCAN MODE'));
+    expect(scanner, contains('STANDARD OCR'));
+    expect(scanner, contains('NUTRITION LABEL READER'));
+    expect(scanner, isNot(contains("title: 'PADDLE PoC'")));
     expect(bridge, contains('engineOverride'));
     expect(bridge, contains('selectedOcrEngine(mode, engineOverride)'));
+    expect(bridge, contains("scanStrategy = 'nutritionReader'"));
+    expect(bridge, contains("scanStrategy === 'standard'"));
   });
 
   test('Paddle result keeps text geometry confidence and diagnostics', () {
@@ -161,7 +162,10 @@ void main() {
     expect(bridge, contains('captureOcrFrame(session)'));
     expect(bridge, contains('captureBestFrame(session)'));
     expect(bridge, contains("shutter.dataset.role = 'nutrition-shutter'"));
-    expect(bridge, contains("shutter.setAttribute('aria-label', 'Scan nutrition label')"));
+    expect(
+      bridge,
+      contains("shutter.setAttribute('aria-label', 'Scan nutrition label')"),
+    );
     expect(bridge, contains('if (finished || running) return'));
     expect(bridge, contains('shutter.disabled = busy'));
     expect(bridge, contains('choosePhoto.disabled = busy'));
@@ -214,13 +218,18 @@ void main() {
     expect(bridge, contains('getTracks().forEach((track) => track.stop())'));
     expect(bridge, contains("use.textContent = 'USE THIS CODE'"));
     expect(bridge, contains("choosePhoto.textContent = 'CHOOSE PHOTO'"));
-    expect(bridge, isNot(contains("highAccuracy.textContent = 'HIGH ACCURACY SCAN'")));
+    expect(
+      bridge,
+      isNot(contains("highAccuracy.textContent = 'HIGH ACCURACY SCAN'")),
+    );
     expect(bridge, isNot(contains("takePhoto.textContent = 'TAKE PHOTO'")));
     expect(bridge, contains('candidate.value !== next.value'));
     expect(bridge, contains('latestRawText = rawText'));
     expect(
       bridge,
-      contains("engineId === 'paddle' ? 'PADDLE PoC' : 'TESSERACT'"),
+      contains(
+        "scanStrategy === 'standard' ? 'STANDARD OCR' : 'NUTRITION LABEL READER'",
+      ),
     );
     expect(
       bridge,

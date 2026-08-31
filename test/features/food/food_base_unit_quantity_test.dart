@@ -404,7 +404,7 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('TESSERACT'));
+      await tester.tap(find.text('STANDARD OCR'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('CAMERA'));
       await tester.pumpAndSettle();
@@ -1159,6 +1159,7 @@ class _NutritionGateway implements FoodInputCaptureGateway {
     FoodCapturedImage image, {
     FoodTextOcrMode mode = FoodTextOcrMode.package,
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async => '100gあたり\nエネルギー 154kcal\nたんぱく質 1.9g\n脂質 5.5g\n炭水化物 24.2g';
 
   @override
