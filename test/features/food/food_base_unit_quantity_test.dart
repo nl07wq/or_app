@@ -964,39 +964,55 @@ void main() {
       );
     });
 
-    testWidgets('entry header is compact and Meal Templates are hidden', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(390, 1400);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: FoodInputForm(onSave: (_) async => true),
+    testWidgets(
+      '390px Food Entry nesting keeps Entry and Meal Type in two columns',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      FoodInputForm(
+                        initialMeal: const MealData(
+                          date: '2026-08-31',
+                          mealType: 'Breakfast',
+                          items: [],
+                          memo: '',
+                          id: 'responsive-water',
+                          waterMl: 250,
+                        ),
+                        onSave: (_) async => true,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      expect(
-        find.byKey(const ValueKey('food-entry-type-two-column')),
-        findsOneWidget,
-      );
-      expect(find.text('Meal Template'), findsNothing);
-      expect(find.text('Breakfast'), findsNothing);
-      expect(find.text('Lunch'), findsNothing);
-      expect(find.text('Dinner'), findsNothing);
-      expect(find.text('SELECT FROM FOOD DATABASE'), findsOneWidget);
+        final twoColumn = find.byKey(
+          const ValueKey('food-entry-type-two-column'),
+        );
+        expect(twoColumn, findsOneWidget);
+        expect(tester.getSize(twoColumn).width, lessThan(340));
+        expect(find.text('Meal Template'), findsNothing);
+        expect(find.text('Breakfast'), findsNothing);
+        expect(find.text('Lunch'), findsNothing);
+        expect(find.text('Dinner'), findsNothing);
 
-      await tester.tap(find.text('Water'));
-      await tester.pump();
-      final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
-      expect(chips.skip(2).every((chip) => chip.onSelected == null), isTrue);
-    });
+        final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
+        expect(chips.skip(2).every((chip) => chip.onSelected == null), isTrue);
+      },
+    );
 
     testWidgets('food entry has no overflow at target widths', (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
@@ -1021,6 +1037,11 @@ void main() {
           expect(
             find.byKey(const ValueKey('food-entry-type-two-column')),
             findsNothing,
+          );
+        } else {
+          expect(
+            find.byKey(const ValueKey('food-entry-type-two-column')),
+            findsOneWidget,
           );
         }
         expect(tester.takeException(), isNull, reason: 'width $width');

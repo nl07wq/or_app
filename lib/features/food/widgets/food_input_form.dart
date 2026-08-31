@@ -884,7 +884,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Widget _entryAndMealTypeControls() => LayoutBuilder(
     builder: (context, constraints) {
-      if (constraints.maxWidth < 340) {
+      final useTwoColumns = MediaQuery.sizeOf(context).width >= 390;
+      if (!useTwoColumns) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
