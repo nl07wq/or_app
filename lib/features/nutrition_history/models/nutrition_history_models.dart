@@ -52,6 +52,7 @@ class NutritionHistoryDataPoint {
 
 class NutritionHistoryChartModel {
   final NutritionHistoryMetric metric;
+  final BodyHistoryPeriod period;
   final BodyHistoryGranularity granularity;
   final String startDate;
   final String endDate;
@@ -63,6 +64,7 @@ class NutritionHistoryChartModel {
 
   NutritionHistoryChartModel({
     required this.metric,
+    required this.period,
     required this.granularity,
     required this.startDate,
     required this.endDate,

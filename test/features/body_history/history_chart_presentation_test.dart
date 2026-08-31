@@ -113,6 +113,7 @@ List<BodyHistoryDisplayPoint> _points() => [
 
 BodyHistoryChartModel _bodyModel() => BodyHistoryChartModel(
   metric: BodyHistoryMetric.weight,
+  period: BodyHistoryPeriod.oneMonth,
   granularity: BodyHistoryGranularity.daily,
   startDate: '2026-08-01',
   endDate: '2026-08-30',
@@ -124,6 +125,7 @@ BodyHistoryChartModel _bodyModel() => BodyHistoryChartModel(
 
 NutritionHistoryChartModel _nutritionModel() => NutritionHistoryChartModel(
   metric: NutritionHistoryMetric.protein,
+  period: BodyHistoryPeriod.oneMonth,
   granularity: BodyHistoryGranularity.daily,
   startDate: '2026-08-01',
   endDate: '2026-08-30',

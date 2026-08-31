@@ -34,6 +34,7 @@ class BodyHistoryChartEngine {
     if (observations.isEmpty) {
       return BodyHistoryChartModel(
         metric: metric,
+        period: period,
         granularity: granularity,
         startDate: startDate,
         endDate: endDate,
@@ -63,6 +64,7 @@ class BodyHistoryChartEngine {
     );
     return BodyHistoryChartModel(
       metric: metric,
+      period: period,
       granularity: granularity,
       startDate: _format(observations.first.date),
       endDate: _format(observations.last.date),

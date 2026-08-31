@@ -120,7 +120,8 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
         content: OperationTextField(
           key: const ValueKey('recipe-ingredient-quantity'),
           controller: controller,
-          label: 'QUANTITY (${food.baseQuantity.unit.stableId})',
+          label:
+              'QUANTITY (${FoodNutritionFormatter.quantityUnit(food.baseQuantity.unit)})',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
         ),
         actions: [
@@ -296,9 +297,21 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(_ingredients[index].nameSnapshot),
-                subtitle: Text(
-                  '${_amount(_ingredients[index].quantity.value)} '
-                  '${_ingredients[index].quantity.unit.stableId}',
+                subtitle: Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    Text(
+                      FoodNutritionFormatter.quantity(
+                        _ingredients[index].quantity,
+                      ),
+                    ),
+                    Text(
+                      FoodNutritionFormatter.nutrition(
+                        _ingredients[index].nutritionSnapshot,
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
@@ -361,15 +374,8 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
 
 String foodRecipeNutritionLabel(NutritionSnapshot value) => _nutrition(value);
 
-String _nutrition(NutritionSnapshot value) => [
-  _nutritionValue(value.calories, 'kcal'),
-  'P ${_nutritionValue(value.protein, 'g')}',
-  'F ${_nutritionValue(value.fat, 'g')}',
-  'C ${_nutritionValue(value.carbohydrate, 'g')}',
-].join('  ·  ');
-
-String _nutritionValue(double? value, String unit) =>
-    value == null ? '—' : '${FoodNutritionFormatter.amount(value)} $unit';
+String _nutrition(NutritionSnapshot value) =>
+    FoodNutritionFormatter.nutrition(value);
 
 String _amount(double value) => FoodNutritionFormatter.amount(value);
 

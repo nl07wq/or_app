@@ -106,6 +106,7 @@ class BodyHistoryAxisRange {
 
 class BodyHistoryChartModel {
   final BodyHistoryMetric metric;
+  final BodyHistoryPeriod period;
   final BodyHistoryGranularity granularity;
   final String startDate;
   final String endDate;
@@ -117,6 +118,7 @@ class BodyHistoryChartModel {
 
   BodyHistoryChartModel({
     required this.metric,
+    required this.period,
     required this.granularity,
     required this.startDate,
     required this.endDate,

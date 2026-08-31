@@ -281,13 +281,26 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             contentPadding: EdgeInsets.zero,
             leading: FoodThumbnail(visualKey: entry.visualKey),
             title: Text(entry.name),
-            subtitle: Text(
-              [
-                if (entry.brand != null) entry.brand!,
-                foodCatalogCategoryLabel(entry.category),
-                _basis(entry.baseQuantity),
-                if (entry.barcodeValue != null) entry.barcodeValue!,
-              ].join(' · '),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  [
+                    if (entry.brand != null) entry.brand!,
+                    foodCatalogCategoryLabel(entry.category),
+                  ].join(' · '),
+                ),
+                Text(
+                  [
+                    _basis(entry.baseQuantity),
+                    if (entry.barcodeValue != null) entry.barcodeValue!,
+                  ].join(' · '),
+                ),
+                Text(
+                  FoodNutritionFormatter.nutrition(entry.nutrition),
+                  key: ValueKey('food-catalog-nutrition-${entry.foodId}'),
+                ),
+              ],
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openEntry(entry),
@@ -316,8 +329,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             subtitle: Text(
               '${recipe.ingredients.length} INGREDIENTS  ·  '
               '${foodRecipeNutritionLabel(recipe.nutrition)}\n'
-              'YIELD ${_basis(recipe.yieldQuantity)}'
-              '${recipe.servingCount == null ? '' : '  ·  ${recipe.servingCount} SERVINGS'}',
+              '${foodRecipeSummaryLabel(recipe)}',
             ),
             isThreeLine: true,
             trailing: const Icon(Icons.chevron_right),
@@ -893,17 +905,36 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             AppSpacing.gapMD,
             OperationTextField(controller: _brand, label: 'BRAND'),
             AppSpacing.gapMD,
-            _dropdown(
-              label: 'CATEGORY',
-              value: _category,
-              values: FoodCatalogCategory.values,
-              text: foodCatalogCategoryLabel,
-              onChanged: (value) => setState(() => _category = value),
-            ),
-            AppSpacing.gapMD,
-            _FoodThumbnailField(
-              visualKey: _visualKey,
-              onChange: _selectThumbnail,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final category = _dropdown(
+                  label: 'CATEGORY',
+                  value: _category,
+                  values: FoodCatalogCategory.values,
+                  text: foodCatalogCategoryLabel,
+                  onChanged: (value) => setState(() => _category = value),
+                );
+                final thumbnail = _FoodThumbnailField(
+                  visualKey: _visualKey,
+                  onChange: _selectThumbnail,
+                  dense: constraints.maxWidth >= 320,
+                );
+                if (constraints.maxWidth < 320) {
+                  return Column(
+                    key: const ValueKey('food-catalog-attributes-stacked'),
+                    children: [category, AppSpacing.gapMD, thumbnail],
+                  );
+                }
+                return Row(
+                  key: const ValueKey('food-catalog-attributes-paired'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: category),
+                    AppSpacing.gapSM,
+                    Expanded(child: thumbnail),
+                  ],
+                );
+              },
             ),
             AppSpacing.gapMD,
             Row(
@@ -1144,23 +1175,29 @@ class _FoodVisualSelection {
 }
 
 class _FoodThumbnailField extends StatelessWidget {
-  const _FoodThumbnailField({required this.visualKey, required this.onChange});
+  const _FoodThumbnailField({
+    required this.visualKey,
+    required this.onChange,
+    this.dense = false,
+  });
 
   static const double _horizontalMinimumContentWidth = 280;
 
   final FoodVisualKey? visualKey;
   final VoidCallback onChange;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('food-catalog-thumbnail-field'),
-    padding: const EdgeInsets.all(AppSpacing.md),
+    padding: EdgeInsets.all(dense ? AppSpacing.sm : AppSpacing.md),
     decoration: BoxDecoration(
       border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       borderRadius: BorderRadius.circular(8),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
+        if (dense) return _buildDenseLayout(context);
         if (constraints.maxWidth < _horizontalMinimumContentWidth) {
           return _buildCompactLayout(context);
         }
@@ -1199,6 +1236,34 @@ class _FoodThumbnailField extends StatelessWidget {
       ),
       const SizedBox(height: AppSpacing.sm),
       Align(alignment: Alignment.centerRight, child: _changeButton()),
+    ],
+  );
+
+  Widget _buildDenseLayout(BuildContext context) => Column(
+    key: const ValueKey('food-catalog-thumbnail-layout-dense'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(child: _heading(context)),
+          TextButton(
+            key: const ValueKey('food-catalog-thumbnail-change'),
+            onPressed: onChange,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(56, 40),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            ),
+            child: const Text('CHANGE'),
+          ),
+        ],
+      ),
+      Row(
+        children: [
+          FoodThumbnail(visualKey: visualKey, size: 32),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(child: _value()),
+        ],
+      ),
     ],
   );
 
@@ -1619,6 +1684,19 @@ String _format(double value) => value == value.roundToDouble()
     ? value.round().toString()
     : value.toStringAsFixed(1);
 String _number(double? value) => value == null ? '' : _format(value);
+
+String foodRecipeSummaryLabel(FoodRecipeDefinition recipe) {
+  final yield = recipe.yieldQuantity;
+  if (yield.unit == FoodQuantityUnit.serving) {
+    return FoodNutritionFormatter.servings(recipe.servingCount ?? yield.value);
+  }
+  final parts = <String>['YIELD ${FoodNutritionFormatter.quantity(yield)}'];
+  if (recipe.servingCount case final count?) {
+    parts.add(FoodNutritionFormatter.servings(count));
+  }
+  return parts.join(' · ');
+}
+
 String? _nullable(String value) => value.trim().isEmpty ? null : value.trim();
 double? _optionalNumber(TextEditingController controller) {
   final value = controller.text.trim();

@@ -32,6 +32,7 @@ class NutritionHistoryChartEngine {
     if (observations.isEmpty) {
       return NutritionHistoryChartModel(
         metric: metric,
+        period: period,
         granularity: granularity,
         startDate: startDate,
         endDate: endDate,
@@ -53,6 +54,7 @@ class NutritionHistoryChartEngine {
     final values = observations.map((item) => item.value).toList();
     return NutritionHistoryChartModel(
       metric: metric,
+      period: period,
       granularity: granularity,
       startDate: _format(observations.first.date),
       endDate: _format(observations.last.date),

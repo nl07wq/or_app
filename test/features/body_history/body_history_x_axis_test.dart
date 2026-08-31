@@ -36,6 +36,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-07',
+      period: BodyHistoryPeriod.oneWeek,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 800,
     );
@@ -55,6 +56,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-30',
+      period: BodyHistoryPeriod.oneMonth,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 200,
     );
@@ -74,6 +76,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-08-25',
       endDate: '2026-09-15',
+      period: BodyHistoryPeriod.oneMonth,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 800,
     );
@@ -92,6 +95,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-07',
+      period: BodyHistoryPeriod.oneWeek,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 192,
     );
@@ -111,12 +115,14 @@ void main() {
     final narrow = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-07',
+      period: BodyHistoryPeriod.oneWeek,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 192,
     );
     final wide = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-07',
+      period: BodyHistoryPeriod.oneWeek,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 800,
     );
@@ -128,6 +134,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-10-31',
+      period: BodyHistoryPeriod.threeMonths,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 900,
     );
@@ -149,6 +156,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-01-01',
       endDate: '2026-06-30',
+      period: BodyHistoryPeriod.sixMonths,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 900,
     );
@@ -173,6 +181,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2025-09-01',
       endDate: '2026-08-31',
+      period: BodyHistoryPeriod.oneYear,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 900,
     );
@@ -188,6 +197,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-07-31',
       endDate: '2026-08-30',
+      period: BodyHistoryPeriod.oneMonth,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 200,
     );
@@ -202,6 +212,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-31',
+      period: BodyHistoryPeriod.oneMonth,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 200,
     );
@@ -218,6 +229,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-07-31',
       endDate: '2026-10-31',
+      period: BodyHistoryPeriod.threeMonths,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 192,
     );
@@ -234,6 +246,7 @@ void main() {
     final ticks = xAxis.ticks(
       startDate: '2026-01-12',
       endDate: '2026-07-12',
+      period: BodyHistoryPeriod.sixMonths,
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 390,
     );
@@ -243,11 +256,47 @@ void main() {
     expect(ticks.map((tick) => tick.label), containsAll(['2/1', '15', '3/1']));
   });
 
+  test('contracted domain keeps the selected six-month tick rule', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-06-01',
+      endDate: '2026-08-31',
+      period: BodyHistoryPeriod.sixMonths,
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 390,
+    );
+
+    expect(ticks.map((tick) => tick.label), [
+      '6/1',
+      '15',
+      '7/1',
+      '15',
+      '8/1',
+      '15',
+      '31',
+    ]);
+    expect(ticks.map((tick) => tick.label), isNot(contains('25')));
+  });
+
+  test('contracted domain keeps the selected one-year tick rule', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-06-01',
+      endDate: '2026-08-31',
+      period: BodyHistoryPeriod.oneYear,
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 390,
+    );
+
+    expect(ticks.map((tick) => tick.label), ['6/1', '7/1', '8/1', '31']);
+    expect(ticks.map((tick) => tick.label), isNot(contains('15')));
+    expect(ticks.map((tick) => tick.label), isNot(contains('25')));
+  });
+
   test('calendar preset ticks are viewport independent', () {
     List<String> labels(double width) => xAxis
         .ticks(
           startDate: '2026-08-01',
           endDate: '2026-08-30',
+          period: BodyHistoryPeriod.oneMonth,
           granularity: BodyHistoryGranularity.daily,
           availablePlotWidth: width,
         )

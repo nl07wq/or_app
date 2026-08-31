@@ -17,6 +17,7 @@ class BodyHistoryXAxis {
   List<BodyHistoryXAxisTick> ticks({
     required String startDate,
     required String endDate,
+    required BodyHistoryPeriod period,
     required BodyHistoryGranularity granularity,
     required double availablePlotWidth,
   }) {
@@ -27,29 +28,46 @@ class BodyHistoryXAxis {
       2,
       (availablePlotWidth / minimumLabelWidthCandidate).floor(),
     );
-    var dates = _presetDates(start, end, totalDays);
-    if (_usesCalendarPreset(totalDays)) {
-      dates = _suppressBoundaryCollisions(dates, start, end, totalDays);
+    var dates = _presetDates(start, end, period, totalDays);
+    if (_usesCalendarPreset(period, totalDays)) {
+      dates = _suppressBoundaryCollisions(dates, start, end, period, totalDays);
     } else if (dates.length > maximumLabels && totalDays > 7) {
       dates = _presetSelection(dates, maximumLabels, totalDays);
     }
     return _formatTicks(dates, start, granularity);
   }
 
-  static bool _usesCalendarPreset(int totalDays) =>
-      totalDays > 20 && totalDays <= 550;
+  static bool _usesCalendarPreset(BodyHistoryPeriod period, int totalDays) =>
+      switch (period) {
+        BodyHistoryPeriod.oneMonth ||
+        BodyHistoryPeriod.threeMonths ||
+        BodyHistoryPeriod.sixMonths ||
+        BodyHistoryPeriod.oneYear => true,
+        BodyHistoryPeriod.oneWeek || BodyHistoryPeriod.fifteenDays => false,
+        BodyHistoryPeriod.allTime ||
+        BodyHistoryPeriod.custom => totalDays > 20 && totalDays <= 550,
+      };
 
   static List<DateTime> _suppressBoundaryCollisions(
     List<DateTime> dates,
     DateTime start,
     DateTime end,
+    BodyHistoryPeriod period,
     int totalDays,
   ) {
-    final nominalDays = switch (totalDays) {
-      <= 45 => 5,
-      <= 120 => 10,
-      <= 210 => 15,
-      _ => 30,
+    final nominalDays = switch (period) {
+      BodyHistoryPeriod.oneMonth => 5,
+      BodyHistoryPeriod.threeMonths => 10,
+      BodyHistoryPeriod.sixMonths => 15,
+      BodyHistoryPeriod.oneYear => 30,
+      BodyHistoryPeriod.oneWeek || BodyHistoryPeriod.fifteenDays => totalDays,
+      BodyHistoryPeriod.allTime ||
+      BodyHistoryPeriod.custom => switch (totalDays) {
+        <= 45 => 5,
+        <= 120 => 10,
+        <= 210 => 15,
+        _ => 30,
+      },
     };
     final minimumDistanceDays = (nominalDays * 2 + 2) ~/ 3;
     return [
@@ -115,8 +133,26 @@ class BodyHistoryXAxis {
   static List<DateTime> _presetDates(
     DateTime start,
     DateTime end,
+    BodyHistoryPeriod period,
     int totalDays,
   ) {
+    switch (period) {
+      case BodyHistoryPeriod.oneWeek:
+        return _dates(start, end, _intervals[0]);
+      case BodyHistoryPeriod.fifteenDays:
+        return _dates(start, end, _intervals[1]);
+      case BodyHistoryPeriod.oneMonth:
+        return _monthDays(start, end, const [1, 5, 10, 15, 20, 25, 30]);
+      case BodyHistoryPeriod.threeMonths:
+        return _monthDays(start, end, const [1, 15, 25]);
+      case BodyHistoryPeriod.sixMonths:
+        return _monthDays(start, end, const [1, 15]);
+      case BodyHistoryPeriod.oneYear:
+        return _monthDays(start, end, const [1]);
+      case BodyHistoryPeriod.allTime:
+      case BodyHistoryPeriod.custom:
+        break;
+    }
     if (totalDays <= 7) return _dates(start, end, _intervals[0]);
     if (totalDays <= 20) return _dates(start, end, _intervals[1]);
     if (totalDays <= 45) {

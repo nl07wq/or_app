@@ -4,6 +4,7 @@ import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/food_recipe_page.dart';
+import 'package:or_app/features/food/food_nutrition_formatter.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
@@ -41,7 +42,8 @@ void main() {
     expect(find.text('Rice Bowl'), findsOneWidget);
     expect(find.text('Archived Soup'), findsNothing);
     expect(find.textContaining('1 INGREDIENTS'), findsOneWidget);
-    expect(find.textContaining('YIELD 2 serving'), findsOneWidget);
+    expect(find.textContaining('2 SERVINGS'), findsOneWidget);
+    expect(find.textContaining('YIELD 2 serving'), findsNothing);
 
     await tester.enterText(
       find.byKey(const ValueKey('food-catalog-search')),
@@ -78,9 +80,19 @@ void main() {
 
       expect(find.text('CREATE RECIPE'), findsOneWidget);
       expect(find.text('Rice'), findsOneWidget);
+      expect(find.text('100 g'), findsOneWidget);
+      expect(
+        find.text('286 kcal · P 12.2 g · F 19.3 g · C 16.2 g'),
+        findsWidgets,
+      );
       await tester.drag(find.byType(ListView), const Offset(0, -700));
       await tester.pumpAndSettle();
-      expect(find.textContaining('286 kcal'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('recipe-total-nutrition')))
+            .data,
+        'TOTAL  286 kcal · P 12.2 g · F 19.3 g · C 16.2 g',
+      );
       await tester.ensureVisible(find.byKey(const ValueKey('recipe-save')));
       await tester.tap(find.byKey(const ValueKey('recipe-save')));
       await tester.pumpAndSettle();
@@ -181,6 +193,61 @@ void main() {
     expect(item.quantity.value, 0.5);
     expect(item.quantity.unit, FoodQuantityUnit.serving);
     expect(item.nutritionConsumed.calories, 71.5);
+  });
+
+  test('recipe display formatter removes floating-point artifacts', () {
+    expect(FoodNutritionFormatter.displayNumber(48.879999999999995), '48.9');
+    expect(FoodNutritionFormatter.displayNumber(9.684999999999999), '9.7');
+    expect(FoodNutritionFormatter.displayNumber(49.0), '49');
+    expect(
+      FoodNutritionFormatter.quantity(
+        FoodQuantityDefinition(value: 22.5, unit: FoodQuantityUnit.gram),
+      ),
+      '22.5 g',
+    );
+    expect(
+      FoodNutritionFormatter.quantity(
+        FoodQuantityDefinition(value: 22.5, unit: FoodQuantityUnit.milliliter),
+      ),
+      '22.5 ml',
+    );
+    expect(FoodNutritionFormatter.servings(1), '1 SERVING');
+    expect(FoodNutritionFormatter.servings(2), '2 SERVINGS');
+    expect(FoodNutritionFormatter.servings(0.5), '0.5 SERVING');
+  });
+
+  test('recipe display formatting does not mutate formal precision', () {
+    const formalProtein = 48.879999999999995;
+    final snapshot = NutritionSnapshot(
+      calories: 332.7,
+      protein: formalProtein,
+      fat: 9.684999999999999,
+      carbohydrate: null,
+    );
+
+    expect(
+      FoodNutritionFormatter.nutrition(snapshot),
+      '332.7 kcal · P 48.9 g · F 9.7 g · C —',
+    );
+    expect(snapshot.protein, formalProtein);
+    expect(snapshot.carbohydrate, isNull);
+  });
+
+  test('recipe summary avoids duplicate serving semantics', () {
+    expect(foodRecipeSummaryLabel(_recipe()), '2 SERVINGS');
+    expect(
+      foodRecipeSummaryLabel(
+        FoodRecipeDefinition.fromJson({
+          ..._recipe().toJson(),
+          'yieldQuantity': FoodQuantityDefinition(
+            value: 500,
+            unit: FoodQuantityUnit.gram,
+          ).toJson(),
+          'servingCount': 1,
+        }),
+      ),
+      'YIELD 500 g · 1 SERVING',
+    );
   });
 
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {

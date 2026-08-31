@@ -89,6 +89,12 @@ void main() {
         id: '11111111-1111-4111-8111-111111111111',
         name: 'Meat Food',
         visualKey: FoodVisualKey.meat,
+        nutrition: NutritionSnapshot(
+          calories: 224,
+          protein: 0,
+          fat: 25,
+          carbohydrate: 26.64,
+        ),
       ),
       _entry(id: '22222222-2222-4222-8222-222222222222', name: 'Unset Food'),
     ]);
@@ -102,7 +108,45 @@ void main() {
       find.byKey(const ValueKey('food-thumbnail-fallback')),
       findsOneWidget,
     );
+    expect(find.text('224 kcal · P 0 g · F 25 g · C 26.6 g'), findsOneWidget);
+    expect(
+      find.text('286 kcal · P 12.2 g · F 19.3 g · C 16.2 g'),
+      findsOneWidget,
+    );
+    expect(find.text('市販・包装食品'), findsNWidgets(2));
   });
+
+  for (final width in [320.0, 390.0]) {
+    testWidgets(
+      'food nutrition metadata wraps without overflow at ${width.toInt()}px',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final repository = _MemoryCatalogRepository([
+          _entry(
+            id: '11111111-1111-4111-8111-111111111111',
+            name: '非常に長い市販・包装食品名でも読めるテスト食品',
+            visualKey: FoodVisualKey.protein,
+          ),
+        ]);
+
+        await tester.pumpWidget(
+          MaterialApp(home: FoodCatalogPage(repository: repository)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('市販・包装食品'), findsOneWidget);
+        expect(find.textContaining('286 kcal'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('food-thumbnail-protein')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('thumbnail selector exposes exact options and persists edits', (
     tester,
@@ -237,6 +281,10 @@ void main() {
       find.byKey(const ValueKey('food-catalog-thumbnail-layout-compact')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('food-catalog-attributes-stacked')),
+      findsOneWidget,
+    );
     final heading = tester.widget<Text>(
       find.byKey(const ValueKey('food-catalog-thumbnail-label')),
     );
@@ -334,7 +382,7 @@ void main() {
   }
 
   for (final width in [390.0, 900.0, 1280.0]) {
-    testWidgets('thumbnail preview remains horizontal at ${width.toInt()}px', (
+    testWidgets('food attributes remain paired at ${width.toInt()}px', (
       tester,
     ) async {
       tester.view.physicalSize = Size(width, 1200);
@@ -358,14 +406,20 @@ void main() {
       await tester.pump();
 
       expect(
-        find.byKey(const ValueKey('food-catalog-thumbnail-layout-horizontal')),
+        find.byKey(const ValueKey('food-catalog-attributes-paired')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('food-catalog-thumbnail-layout-compact')),
+        find.byKey(const ValueKey('food-catalog-thumbnail-layout-dense')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('food-catalog-attributes-stacked')),
         findsNothing,
       );
       expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+      expect(find.text('市販・包装食品'), findsOneWidget);
+      expect(find.text('THUMBNAIL'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

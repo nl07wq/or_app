@@ -50,6 +50,7 @@ class BodyHistoryChart extends StatelessWidget {
         final ticks = const BodyHistoryXAxis().ticks(
           startDate: model.startDate,
           endDate: model.endDate,
+          period: model.period,
           granularity: model.granularity,
           availablePlotWidth: availableChartWidth,
         );
