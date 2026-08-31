@@ -7,7 +7,7 @@ import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
 
 void main() {
-  testWidgets('package initially prefills basis and user override unlinks it', (
+  testWidgets('package unit suggests basis without linking package quantity', (
     tester,
   ) async {
     final repository = _Repository();
@@ -25,14 +25,109 @@ void main() {
     await tester.pump();
     expect(
       tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
-      '500',
+      '100',
     );
-    await tester.enterText(_field('NUTRITION BASIS'), '100');
     await tester.enterText(_field('PACKAGE QUANTITY'), '600');
     expect(
       tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
       '100',
     );
+  });
+
+  testWidgets('package unit defaults follow unit type until manual override', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogEditorPage(repository: _Repository())),
+    );
+    final dropdowns = find.byType(DropdownButtonFormField<FoodQuantityUnit?>);
+
+    await tester.tap(dropdowns.first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('mL').last);
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
+      '100',
+    );
+    expect(
+      tester
+          .widget<DropdownButtonFormField<FoodQuantityUnit?>>(dropdowns.at(1))
+          .initialValue,
+      FoodQuantityUnit.milliliter,
+    );
+
+    await tester.tap(dropdowns.at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(' serving').last);
+    await tester.pump();
+    await tester.tap(dropdowns.first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('g').last);
+    await tester.pump();
+    expect(
+      tester
+          .widget<DropdownButtonFormField<FoodQuantityUnit?>>(dropdowns.at(1))
+          .initialValue,
+      FoodQuantityUnit.serving,
+    );
+  });
+
+  testWidgets('explicit nutrition recalculation previews cancels and applies', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
+    );
+    await tester.enterText(_field('NAME'), 'Historical chicken');
+    await tester.enterText(_field('PACKAGE QUANTITY'), '240');
+    final packageUnit = find
+        .byType(DropdownButtonFormField<FoodQuantityUnit?>)
+        .first;
+    await tester.tap(packageUnit);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('g').last);
+    await tester.pump();
+    await tester.enterText(_field('CALORIES'), '271');
+    await tester.enterText(_field('PROTEIN'), '45.7');
+    await tester.enterText(_field('FAT'), '7.9');
+    await tester.enterText(_field('CARBOHYDRATE'), '0');
+
+    final action = find.byKey(
+      const ValueKey('food-catalog-recalculate-nutrition'),
+    );
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(find.text('FROM  240g'), findsOneWidget);
+    expect(find.text('TO  100g'), findsOneWidget);
+    expect(_fieldText(tester, 'CALORIES'), '271');
+    await tester.tap(
+      find.byKey(const ValueKey('nutrition-recalculation-cancel')),
+    );
+    await tester.pumpAndSettle();
+    expect(_fieldText(tester, 'CALORIES'), '271');
+
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('nutrition-recalculation-apply')),
+    );
+    await tester.pumpAndSettle();
+    expect(_fieldText(tester, 'CALORIES'), '113');
+    expect(_fieldText(tester, 'PROTEIN'), '19.0');
+    expect(_fieldText(tester, 'FAT'), '3.3');
+    expect(_fieldText(tester, 'CARBOHYDRATE'), '0');
+
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    final saved = repository.entries.single;
+    expect(saved.baseQuantity.value, 100);
+    expect(saved.packageQuantity, 240);
+    expect(saved.nutrition.calories, closeTo(112.9166667, 0.000001));
+    expect(saved.nutrition.carbohydrate, 0);
   });
 
   testWidgets('OCR previews before applying and never saves before SAVE', (
@@ -265,6 +360,9 @@ void main() {
 }
 
 Finder _field(String label) => find.widgetWithText(TextField, label);
+
+String _fieldText(WidgetTester tester, String label) =>
+    tester.widget<TextField>(_field(label)).controller!.text;
 
 class _Gateway implements FoodInputCaptureGateway {
   _Gateway({this.text = '', this.barcode});

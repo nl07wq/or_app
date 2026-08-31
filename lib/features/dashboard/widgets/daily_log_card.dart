@@ -348,23 +348,43 @@ class _DailyLogEntry {
 class _DailyLogEntryGrid extends StatelessWidget {
   const _DailyLogEntryGrid({required this.entries});
 
+  static const double _minimumTwoColumnCellWidth = 144;
+
   final List<_DailyLogEntry> entries;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (var index = 0; index < entries.length; index += 2) ...[
-        if (index > 0) AppSpacing.gapXS,
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: _buildEntry(entries[index])),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _buildEntry(entries[index + 1])),
-          ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final twoColumnCellWidth = (constraints.maxWidth - AppSpacing.md) / 2;
+      final useTwoColumns = twoColumnCellWidth >= _minimumTwoColumnCellWidth;
+      return Column(
+        key: ValueKey(
+          useTwoColumns
+              ? 'daily-log-grid-two-column'
+              : 'daily-log-grid-one-column',
         ),
-      ],
-    ],
+        children: [
+          for (
+            var index = 0;
+            index < entries.length;
+            index += useTwoColumns ? 2 : 1
+          ) ...[
+            if (index > 0) AppSpacing.gapXS,
+            if (useTwoColumns)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildEntry(entries[index])),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(child: _buildEntry(entries[index + 1])),
+                ],
+              )
+            else
+              _buildEntry(entries[index]),
+          ],
+        ],
+      );
+    },
   );
 
   Widget _buildEntry(_DailyLogEntry entry) => _DailyLogEntryStatus(
@@ -407,6 +427,7 @@ class _DailyLogEntryStatus extends StatelessWidget {
     };
 
     return Semantics(
+      key: ValueKey('daily-log-entry-${label.toLowerCase()}'),
       label: '$label $semanticsState',
       container: true,
       child: Material(
@@ -421,22 +442,28 @@ class _DailyLogEntryStatus extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                 child: Row(
                   children: [
-                    Flexible(
+                    Expanded(
                       child: Text(
                         label,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(
                           context,
                         ).textTheme.labelLarge?.copyWith(color: color),
                       ),
                     ),
-                    const Spacer(),
-                    Icon(icon, color: color, size: 22),
-                    Icon(
-                      Icons.chevron_right,
-                      color: colorScheme.onSurfaceVariant,
-                      size: 22,
+                    SizedBox(
+                      key: ValueKey('daily-log-state-${label.toLowerCase()}'),
+                      width: 22,
+                      child: Icon(icon, color: color, size: 22),
+                    ),
+                    SizedBox(
+                      key: ValueKey('daily-log-chevron-${label.toLowerCase()}'),
+                      width: 22,
+                      child: Icon(
+                        Icons.chevron_right,
+                        color: colorScheme.onSurfaceVariant,
+                        size: 22,
+                      ),
                     ),
                   ],
                 ),

@@ -1,6 +1,36 @@
 import '../models/morning_brief_record.dart';
 
 abstract final class ReportHumanPresentation {
+  static String analysisText(String value) {
+    var normalized = value
+        .replaceAll('直近文脈の平均', '直近1週間の平均')
+        .replaceAll('文脈の平均', '直近平均')
+        .replaceAll('直近文脈から', '直近1週間の状態から')
+        .replaceAll('文脈から', '最近の状態から')
+        .replaceAll('直近文脈', '直近1週間の状態');
+    normalized = normalized
+        .replaceAll(RegExp('最近のcontext', caseSensitive: false), '最近の状態')
+        .replaceAll(RegExp('recent context', caseSensitive: false), '直近1週間の状態')
+        .replaceAll(RegExp(r'\bcontext\b', caseSensitive: false), '最近の状態')
+        .replaceAll(RegExp('callback', caseSensitive: false), '入力情報')
+        .replaceAll(RegExp(r'\bJSON\b', caseSensitive: false), '入力情報')
+        .replaceAll(RegExp(r'入力情報\s+入力情報'), '入力情報');
+    normalized = normalized
+        .replaceAllMapped(
+          RegExp(r'足底筋膜炎は\s*(\d+(?:\.\d+)?)'),
+          (match) => '足底筋膜炎LVは${match[1]}',
+        )
+        .replaceAllMapped(
+          RegExp(r'足底筋膜炎\s*([:：])\s*(\d+(?:\.\d+)?)'),
+          (match) => '足底筋膜炎${match[1]} LV.${match[2]}',
+        )
+        .replaceAllMapped(
+          RegExp(r'足底筋膜炎\s*(\d+(?:\.\d+)?)'),
+          (match) => '足底筋膜炎LV.${match[1]}',
+        );
+    return normalized;
+  }
+
   static bool isHoliday(String value) {
     final normalized = value.toLowerCase();
     return value.contains('公休日') || normalized.contains('holiday');

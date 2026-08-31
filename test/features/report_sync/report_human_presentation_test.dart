@@ -27,6 +27,35 @@ void main() {
     expect(source.supportingText, '0:00');
   });
 
+  test('analysis presentation removes internal context language', () {
+    expect(
+      ReportHumanPresentation.analysisText('水分は直近文脈の平均を下回り、最近のcontextから外れた。'),
+      '水分は直近1週間の平均を下回り、最近の状態から外れた。',
+    );
+    final normalized = ReportHumanPresentation.analysisText(
+      'callback JSONの文脈から判断した。',
+    );
+    for (final forbidden in ['callback', 'JSON', '文脈から']) {
+      expect(normalized, isNot(contains(forbidden)));
+    }
+  });
+
+  test('analysis presentation identifies plantar fasciitis as a level', () {
+    expect(
+      ReportHumanPresentation.analysisText('足底筋膜炎4は直近平均と同水準。'),
+      '足底筋膜炎LV.4は直近平均と同水準。',
+    );
+    expect(
+      ReportHumanPresentation.analysisText('足底筋膜炎は4だった。'),
+      '足底筋膜炎LVは4だった。',
+    );
+    expect(ReportHumanPresentation.analysisText('足底筋膜炎: 4'), '足底筋膜炎: LV.4');
+    expect(
+      ReportHumanPresentation.analysisText('足底筋膜炎はLV.4だった。'),
+      '足底筋膜炎はLV.4だった。',
+    );
+  });
+
   test('brief and debrief prompts require the dedicated holiday branch', () {
     final registry = ReportSyncInstructionProviderRegistry.standard();
     final morning = registry
@@ -62,6 +91,12 @@ void main() {
       expect(prompt, contains('complete human-readable WORK presentation'));
       expect(prompt, contains('exactly 公休日'));
       expect(prompt, contains('Preserve every formal zero value unchanged'));
+      expect(prompt, contains('直近1週間の平均'));
+      expect(prompt, contains('足底筋膜炎LV.4'));
+      expect(
+        prompt,
+        contains('must never appear in Japanese user-facing prose'),
+      );
     }
     expect(morning, contains('workDisplay.supportingText must be null'));
   });

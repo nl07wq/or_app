@@ -13,7 +13,6 @@ import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
-import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
@@ -208,7 +207,7 @@ void main() {
     expect(find.byIcon(Icons.pending_outlined), findsNothing);
   });
 
-  testWidgets('DAILY LOG keeps a two by two grid at all target widths', (
+  testWidgets('DAILY LOG aligns trailing state anchors responsively', (
     tester,
   ) async {
     for (final width in [320.0, 390.0, 900.0, 1280.0]) {
@@ -225,51 +224,70 @@ void main() {
       final training = tester.getTopLeft(trainingFinder);
       final activity = tester.getTopLeft(activityFinder);
 
-      expect(status.dy, food.dy, reason: '$width STATUS / FOOD');
-      expect(training.dy, activity.dy, reason: '$width TRAINING / ACTIVITY');
-      expect(training.dy, greaterThan(status.dy), reason: '$width row order');
-      expect(food.dx, greaterThan(status.dx), reason: '$width column order');
-      final statusTextFinder = find.descendant(
-        of: statusFinder,
-        matching: find.text('STATUS'),
-      );
-      final statusIconFinder = find.descendant(
-        of: statusFinder,
-        matching: find.byIcon(Icons.error_outline),
-      );
-      final statusChevronFinder = find.descendant(
-        of: statusFinder,
-        matching: find.byIcon(Icons.chevron_right),
-      );
-      final foodTextFinder = find.descendant(
-        of: foodFinder,
-        matching: find.text('FOOD'),
-      );
-      final statusText = tester.widget<Text>(statusTextFinder);
-      final statusIcon = tester.widget<Icon>(statusIconFinder);
-      final moduleStateGap =
-          tester.getTopLeft(statusIconFinder).dx -
-          tester.getTopRight(statusTextFinder).dx;
-      final columnGap =
-          tester.getTopLeft(foodTextFinder).dx -
-          tester.getTopRight(statusChevronFinder).dx;
+      final oneColumn = width == 320;
       expect(
-        moduleStateGap,
-        greaterThan(AppSpacing.md),
-        reason: '$width flexible module/state spacing',
+        find.byKey(
+          ValueKey(
+            oneColumn
+                ? 'daily-log-grid-one-column'
+                : 'daily-log-grid-two-column',
+          ),
+        ),
+        findsOneWidget,
       );
-      expect(
-        columnGap,
-        greaterThanOrEqualTo(AppSpacing.md),
-        reason: '$width column gap',
-      );
-      expect(
-        statusText.style?.fontSize,
-        Theme.of(
-          tester.element(statusTextFinder),
-        ).textTheme.labelLarge?.fontSize,
-      );
-      expect(statusText.style?.color, statusIcon.color);
+      if (oneColumn) {
+        expect(food.dy, greaterThan(status.dy));
+        expect(training.dy, greaterThan(food.dy));
+        expect(activity.dy, greaterThan(training.dy));
+      } else {
+        expect(status.dy, food.dy, reason: '$width STATUS / FOOD');
+        expect(training.dy, activity.dy, reason: '$width TRAINING / ACTIVITY');
+        expect(training.dy, greaterThan(status.dy), reason: '$width row order');
+        expect(food.dx, greaterThan(status.dx), reason: '$width column order');
+      }
+
+      double stateX(String label) => tester
+          .getTopLeft(
+            find.byKey(ValueKey('daily-log-state-${label.toLowerCase()}')),
+          )
+          .dx;
+      double chevronX(String label) => tester
+          .getTopLeft(
+            find.byKey(ValueKey('daily-log-chevron-${label.toLowerCase()}')),
+          )
+          .dx;
+      if (oneColumn) {
+        for (final label in ['FOOD', 'TRAINING', 'ACTIVITY']) {
+          expect(
+            stateX(label),
+            stateX('STATUS'),
+            reason: '$width state $label',
+          );
+          expect(
+            chevronX(label),
+            chevronX('STATUS'),
+            reason: '$width chevron $label',
+          );
+        }
+      } else {
+        expect(stateX('STATUS'), stateX('TRAINING'));
+        expect(chevronX('STATUS'), chevronX('TRAINING'));
+        expect(stateX('FOOD'), stateX('ACTIVITY'));
+        expect(chevronX('FOOD'), chevronX('ACTIVITY'));
+      }
+      for (final label in ['STATUS', 'FOOD', 'TRAINING', 'ACTIVITY']) {
+        final textFinder = find.descendant(
+          of: find.byKey(ValueKey('daily-log-entry-${label.toLowerCase()}')),
+          matching: find.text(label),
+        );
+        final text = tester.widget<Text>(textFinder);
+        expect(text.maxLines, 1);
+        expect(text.overflow, isNull, reason: '$width $label ellipsis');
+        expect(
+          text.style?.fontSize,
+          Theme.of(tester.element(textFinder)).textTheme.labelLarge?.fontSize,
+        );
+      }
       for (final finder in [
         statusFinder,
         foodFinder,

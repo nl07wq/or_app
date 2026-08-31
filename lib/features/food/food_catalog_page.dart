@@ -21,6 +21,7 @@ import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'repository/food_recipe_repository.dart';
 import 'services/food_input_capture_gateway.dart';
+import 'services/food_nutrition_recalculation.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
 import 'services/japanese_package_ocr_parser.dart';
 import 'widgets/food_ocr_scanner.dart';
@@ -392,7 +393,8 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   FoodQuantityUnit _baseUnit = FoodQuantityUnit.gram;
   bool _saving = false;
   bool _capturing = false;
-  bool _basisLinkedToPackage = true;
+  bool _nutritionUnitManuallyOverridden = false;
+  bool _nutritionBasisManuallyEdited = false;
   double? _rawCalories;
   double? _rawProtein;
   double? _rawFat;
@@ -408,7 +410,8 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     final entry = widget.initialEntry;
     final draft = widget.draft;
     if (draft != null) {
-      _basisLinkedToPackage = false;
+      _nutritionUnitManuallyOverridden = true;
+      _nutritionBasisManuallyEdited = true;
       _name.text = draft.name;
       _baseQuantity.text = _number(draft.baseQuantity.value);
       _setNutrition(draft.nutrition);
@@ -420,7 +423,8 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _packageUnit = draft.packageUnit;
       _baseUnit = draft.baseQuantity.unit;
     } else if (entry != null) {
-      _basisLinkedToPackage = false;
+      _nutritionUnitManuallyOverridden = true;
+      _nutritionBasisManuallyEdited = true;
       _name.text = entry.name;
       _brand.text = entry.brand ?? '';
       _barcode.text = entry.barcodeValue ?? '';
@@ -437,31 +441,39 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   }
 
   void _packageQuantityChanged(String value) {
-    if (!_basisLinkedToPackage || _packageUnit?.isPhysical != true) return;
-    _baseQuantity.text = value;
+    setState(() {});
   }
 
   void _packageUnitChanged(FoodQuantityUnit? value) {
     setState(() {
       _packageUnit = value;
-      if (_basisLinkedToPackage && value?.isPhysical == true) {
-        _baseUnit = value!;
-        _baseQuantity.text = _packageQuantity.text;
+      if (!_nutritionUnitManuallyOverridden && value != null) {
+        _baseUnit = value;
+        if (!_nutritionBasisManuallyEdited) {
+          _baseQuantity.text = _defaultNutritionBasis(value);
+        }
       }
     });
   }
 
   void _baseQuantityChanged(String _) {
-    _basisLinkedToPackage = false;
+    setState(() => _nutritionBasisManuallyEdited = true);
   }
 
   void _baseUnitChanged(FoodQuantityUnit? value) {
     if (value == null) return;
     setState(() {
       _baseUnit = value;
-      _basisLinkedToPackage = false;
+      _nutritionUnitManuallyOverridden = true;
     });
   }
+
+  String _defaultNutritionBasis(FoodQuantityUnit unit) => switch (unit) {
+    FoodQuantityUnit.gram || FoodQuantityUnit.milliliter => '100',
+    FoodQuantityUnit.piece ||
+    FoodQuantityUnit.pack ||
+    FoodQuantityUnit.serving => '1',
+  };
 
   Future<FoodImageSource?> _chooseImageSource() =>
       showModalBottomSheet<FoodImageSource>(
@@ -547,11 +559,18 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       if (draft.packageQuantity != null && draft.packageUnit != null) {
         _packageQuantity.text = _number(draft.packageQuantity);
         _packageUnit = draft.packageUnit;
+        if (!_nutritionUnitManuallyOverridden) {
+          _baseUnit = draft.packageUnit!;
+          if (!_nutritionBasisManuallyEdited) {
+            _baseQuantity.text = _defaultNutritionBasis(draft.packageUnit!);
+          }
+        }
       }
       if (draft.basisQuantity != null && draft.basisUnit != null) {
         _baseQuantity.text = _number(draft.basisQuantity);
         _baseUnit = draft.basisUnit!;
-        _basisLinkedToPackage = false;
+        _nutritionUnitManuallyOverridden = true;
+        _nutritionBasisManuallyEdited = true;
       }
       if (draft.calories != null) {
         _rawCalories = draft.calories;
@@ -579,12 +598,106 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       if (draft.packageQuantity != null && draft.packageUnit != null) {
         _packageQuantity.text = _number(draft.packageQuantity);
         _packageUnit = draft.packageUnit;
-        if (_basisLinkedToPackage && draft.packageUnit!.isPhysical) {
-          _baseQuantity.text = _packageQuantity.text;
+        if (!_nutritionUnitManuallyOverridden) {
           _baseUnit = draft.packageUnit!;
+          if (!_nutritionBasisManuallyEdited) {
+            _baseQuantity.text = _defaultNutritionBasis(draft.packageUnit!);
+          }
         }
       }
     });
+  }
+
+  NutritionSnapshot _editableNutrition() => NutritionSnapshot(
+    calories: _rawCalories ?? _optionalNumber(_calories),
+    protein: _rawProtein ?? _optionalNumber(_protein),
+    fat: _rawFat ?? _optionalNumber(_fat),
+    carbohydrate: _rawCarbohydrate ?? _optionalNumber(_carbs),
+  );
+
+  String? get _recalculationBlockReason {
+    final values = [
+      _rawCalories ?? _optionalNumber(_calories),
+      _rawProtein ?? _optionalNumber(_protein),
+      _rawFat ?? _optionalNumber(_fat),
+      _rawCarbohydrate ?? _optionalNumber(_carbs),
+    ];
+    if (values.any(
+      (value) => value != null && (!value.isFinite || value < 0),
+    )) {
+      return 'NUTRITION VALUES MUST BE ZERO OR GREATER.';
+    }
+    return FoodNutritionRecalculation.blockedReason(
+      packageQuantity: double.tryParse(_packageQuantity.text.trim()),
+      packageUnit: _packageUnit,
+      basisQuantity: double.tryParse(_baseQuantity.text.trim()),
+      basisUnit: _baseUnit,
+      nutrition: _editableNutrition(),
+    );
+  }
+
+  Future<void> _previewNutritionRecalculation() async {
+    final preview = FoodNutritionRecalculation.preview(
+      packageQuantity: double.tryParse(_packageQuantity.text.trim()),
+      packageUnit: _packageUnit,
+      basisQuantity: double.tryParse(_baseQuantity.text.trim()),
+      basisUnit: _baseUnit,
+      nutrition: _editableNutrition(),
+    );
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('RECALCULATE NUTRITION'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'FROM  ${_number(preview.packageQuantity)}${_unit(preview.packageUnit)}',
+            ),
+            Text(
+              'TO  ${_number(preview.basisQuantity)}${_unit(preview.basisUnit)}',
+            ),
+            AppSpacing.gapMD,
+            _NutritionRecalculationRow(
+              label: 'CALORIES',
+              before: preview.current.calories,
+              after: preview.recalculated.calories,
+              calories: true,
+            ),
+            _NutritionRecalculationRow(
+              label: 'PROTEIN',
+              before: preview.current.protein,
+              after: preview.recalculated.protein,
+            ),
+            _NutritionRecalculationRow(
+              label: 'FAT',
+              before: preview.current.fat,
+              after: preview.recalculated.fat,
+            ),
+            _NutritionRecalculationRow(
+              label: 'CARBOHYDRATE',
+              before: preview.current.carbohydrate,
+              after: preview.recalculated.carbohydrate,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('nutrition-recalculation-cancel'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            key: const ValueKey('nutrition-recalculation-apply'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('APPLY'),
+          ),
+        ],
+      ),
+    );
+    if (apply != true || !mounted) return;
+    setState(() => _setNutrition(preview.recalculated));
   }
 
   @override
@@ -775,7 +888,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   child: OperationTextField(
                     controller: _calories,
                     label: 'CALORIES',
-                    onChanged: (_) => _rawCalories = null,
+                    onChanged: (_) => setState(() => _rawCalories = null),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -783,7 +896,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   child: OperationTextField(
                     controller: _protein,
                     label: 'PROTEIN',
-                    onChanged: (_) => _rawProtein = null,
+                    onChanged: (_) => setState(() => _rawProtein = null),
                   ),
                 ),
               ],
@@ -795,7 +908,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   child: OperationTextField(
                     controller: _fat,
                     label: 'FAT',
-                    onChanged: (_) => _rawFat = null,
+                    onChanged: (_) => setState(() => _rawFat = null),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -803,11 +916,28 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   child: OperationTextField(
                     controller: _carbs,
                     label: 'CARBOHYDRATE',
-                    onChanged: (_) => _rawCarbohydrate = null,
+                    onChanged: (_) => setState(() => _rawCarbohydrate = null),
                   ),
                 ),
               ],
             ),
+            AppSpacing.gapMD,
+            OperationButton(
+              key: const ValueKey('food-catalog-recalculate-nutrition'),
+              icon: Icons.calculate_outlined,
+              text: 'RECALCULATE NUTRITION',
+              onPressed: _recalculationBlockReason == null
+                  ? _previewNutritionRecalculation
+                  : null,
+            ),
+            if (_recalculationBlockReason case final reason?) ...[
+              AppSpacing.gapXS,
+              Text(
+                reason,
+                key: const ValueKey('food-catalog-recalculation-reason'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             AppSpacing.gapMD,
             OperationTextField(controller: _memo, label: 'MEMO'),
             if (_error != null) ...[
@@ -898,6 +1028,40 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         onChanged(item as T);
       }
     },
+  );
+}
+
+class _NutritionRecalculationRow extends StatelessWidget {
+  const _NutritionRecalculationRow({
+    required this.label,
+    required this.before,
+    required this.after,
+    this.calories = false,
+  });
+
+  final String label;
+  final double? before;
+  final double? after;
+  final bool calories;
+
+  String _value(double? value) {
+    if (value == null) return 'NOT AVAILABLE';
+    return calories
+        ? FoodNutritionFormatter.calories(value)
+        : FoodNutritionFormatter.macro(value);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+        ),
+        Text('${_value(before)}  →  ${_value(after)}'),
+      ],
+    ),
   );
 }
 

@@ -1430,7 +1430,9 @@ class _ReadableText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paragraphs = _visualParagraphs(text);
+    final paragraphs = _visualParagraphs(
+      ReportHumanPresentation.analysisText(text),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1815,7 +1817,9 @@ class _DailyDebriefBackNumberRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final evaluation = historical.record.analysis.commanderIntentEvaluation;
-    final preview = evaluation?.rationale.trim();
+    final preview = evaluation == null
+        ? null
+        : ReportHumanPresentation.analysisText(evaluation.rationale).trim();
     return _BackNumberRow(
       date: historical.record.localDate,
       preview: preview == null || preview.isEmpty ? null : preview,
