@@ -265,7 +265,9 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         widget.selectionMode
             ? widget.recipesEnabled
                   ? widget.mealsEnabled
-                        ? 'SELECT FOOD / RECIPE / MEAL'
+                        ? MediaQuery.sizeOf(context).width < 360
+                              ? 'SELECT MASTER'
+                              : 'SELECT FOOD / RECIPE / MEAL'
                         : 'SELECT FOOD / RECIPE'
                   : 'SELECT FOOD'
             : 'FOOD DATABASE',
@@ -299,20 +301,26 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                 const ButtonSegment(
                   value: _FoodDatabaseView.food,
                   icon: Icon(Icons.restaurant_outlined),
-                  label: Text('FOOD'),
+                  label: Text('FOOD', maxLines: 1, softWrap: false),
                 ),
                 const ButtonSegment(
                   value: _FoodDatabaseView.recipe,
                   icon: Icon(Icons.menu_book_outlined),
-                  label: Text('RECIPE'),
+                  label: Text('RECIPE', maxLines: 1, softWrap: false),
                 ),
                 if (widget.mealsEnabled)
                   const ButtonSegment(
                     value: _FoodDatabaseView.meal,
                     icon: Icon(Icons.view_list_outlined),
-                    label: Text('MEAL'),
+                    label: Text('MEAL', maxLines: 1, softWrap: false),
                   ),
               ],
+              style: const ButtonStyle(
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 6),
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
               selected: {_view},
               onSelectionChanged: (value) => _selectView(value.single),
             ),

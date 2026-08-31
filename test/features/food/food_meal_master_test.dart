@@ -228,6 +228,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      if (width == 320) {
+        expect(tester.getSize(find.text('RECIPE')).height, lessThan(30));
+      }
       await tester.tap(find.text('MEAL'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -245,6 +248,23 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+
+      if (width == 320) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: FoodCatalogPage(
+              repository: foods,
+              recipeRepository: recipes,
+              mealRepository: meals,
+              selectionMode: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('SELECT MASTER'), findsOneWidget);
+        expect(tester.getSize(find.text('RECIPE')).height, lessThan(30));
+        expect(tester.takeException(), isNull);
+      }
     });
   }
 }
