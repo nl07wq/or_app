@@ -1165,6 +1165,8 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
   }
 
   Future<void> _saveCustomAmount() async {
+    if (_isSaving) return;
+
     final amountMl = int.tryParse(_customAmountController.text.trim());
 
     if (amountMl == null || amountMl <= 0) {
@@ -1193,8 +1195,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
 
       if (!mounted || !widget.dashboardContext.mounted) return;
 
-      _customAmountController.clear();
-      setState(() => _isSaving = false);
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(
         widget.dashboardContext,
       ).showSnackBar(SnackBar(content: Text('Water +$amountMl ml recorded')));

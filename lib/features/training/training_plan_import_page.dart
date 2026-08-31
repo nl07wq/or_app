@@ -6,6 +6,7 @@ import '../../core/models/training_set_v2.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../report_sync/widgets/report_sync_action_bar.dart';
 import 'models/training_plan_proposal.dart';
 import 'services/training_plan_service.dart';
 import 'training_entry_page.dart';
@@ -167,32 +168,11 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
                     ),
                   ),
                   AppSpacing.gapMD,
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _busy ? null : _paste,
-                          icon: const Icon(Icons.content_paste_outlined),
-                          label: const Text('PASTE'),
-                        ),
-                      ),
-                      AppSpacing.gapSM,
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _busy ? null : _clear,
-                          icon: const Icon(Icons.clear_outlined),
-                          label: const Text('CLEAR'),
-                        ),
-                      ),
-                      AppSpacing.gapSM,
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _busy ? null : _validate,
-                          icon: const Icon(Icons.fact_check_outlined),
-                          label: const Text('VALIDATE'),
-                        ),
-                      ),
-                    ],
+                  ReportSyncActionBar(
+                    enabled: !_busy,
+                    onPaste: _paste,
+                    onClear: _clear,
+                    onValidate: _validate,
                   ),
                 ],
               ),

@@ -20,6 +20,7 @@ import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
+import 'package:or_app/features/food/data/water_quick_presets.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
@@ -1333,6 +1334,99 @@ void main() {
       1500,
     );
     expect(foodSummaryNotifier.value?.hydrationMl, 1500);
+    expect(find.text('QUICK WATER LOG'), findsNothing);
+  });
+
+  for (final amount in WaterQuickPresets.valuesMl) {
+    testWidgets('Quick Water +$amount saves incrementally and closes', (
+      tester,
+    ) async {
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-31');
+      final controller = AppInitializationController()..markReady();
+      AppRepositoryRegistry.beginStartup(controller: controller);
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+      await AppRepositoryRegistry.container.food.save(
+        const MealData(
+          id: 'water-existing',
+          date: '2026-07-31',
+          mealType: 'Water',
+          items: [],
+          memo: '',
+          waterMl: 950,
+        ),
+      );
+      await refreshFoodSummary(localDate: '2026-07-31');
+
+      await _pumpDashboard(tester, width: 390);
+      await tester.tap(_tile('WATER'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, '+$amount ml'));
+      await tester.tap(find.text('Save Water'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('QUICK WATER LOG'), findsNothing);
+      expect(foodSummaryNotifier.value?.hydrationMl, 950 + amount);
+      final records = await AppRepositoryRegistry.container.food.findAll();
+      expect(records, hasLength(2));
+      expect(records.last.waterMl, amount);
+    });
+  }
+
+  testWidgets('Quick Water manual save closes after the incremental update', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    await AppRepositoryRegistry.container.food.save(
+      const MealData(
+        id: 'water-existing',
+        date: '2026-07-31',
+        mealType: 'Water',
+        items: [],
+        memo: '',
+        waterMl: 950,
+      ),
+    );
+    await refreshFoodSummary(localDate: '2026-07-31');
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '325');
+    await tester.tap(find.text('Save Water'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('QUICK WATER LOG'), findsNothing);
+    expect(foodSummaryNotifier.value?.hydrationMl, 1275);
+  });
+
+  testWidgets('Quick Water ignores a repeated submit while save is active', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-31');
+    final controller = AppInitializationController()..markReady();
+    AppRepositoryRegistry.beginStartup(controller: controller);
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.tap(_tile('WATER'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '+500 ml'));
+    await tester.tap(find.text('Save Water'));
+    await tester.tap(find.text('Save Water'));
+    await tester.pumpAndSettle();
+
+    expect(await AppRepositoryRegistry.container.food.findAll(), hasLength(1));
+    expect(foodSummaryNotifier.value?.hydrationMl, 500);
+    expect(find.text('QUICK WATER LOG'), findsNothing);
   });
 
   testWidgets('Quick Water manual input and preset share the same draft', (

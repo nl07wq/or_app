@@ -37,6 +37,8 @@ void main() {
 
     expect(find.text('PASTE'), findsOneWidget);
     expect(find.byIcon(Icons.content_paste_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.backspace_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.fact_check_outlined), findsOneWidget);
     await tester.enterText(find.byType(TextField), '{"test":true}');
 
     await tester.tap(find.text('CLEAR'));
@@ -361,6 +363,24 @@ void main() {
         expect(find.text('PASTE'), findsOneWidget);
         expect(find.text('CLEAR'), findsOneWidget);
         expect(find.text('VALIDATE'), findsOneWidget);
+        final paste = find.byKey(
+          const ValueKey('report-sync-response-action-paste'),
+        );
+        final clear = find.byKey(
+          const ValueKey('report-sync-response-action-clear'),
+        );
+        final validate = find.byKey(
+          const ValueKey('report-sync-response-action-validate'),
+        );
+        expect(tester.getTopLeft(paste).dy, tester.getTopLeft(clear).dy);
+        expect(tester.getTopLeft(clear).dy, tester.getTopLeft(validate).dy);
+        expect(tester.getSize(paste).height, 44);
+        expect(tester.getSize(clear).height, 44);
+        expect(tester.getSize(validate).height, 44);
+        expect(find.byIcon(Icons.content_paste_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.backspace_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.fact_check_outlined), findsOneWidget);
+        expect(tester.takeException(), isNull);
         await tester.enterText(
           find.byType(TextField),
           fixture.container.reportSyncCodec.encode(response),
