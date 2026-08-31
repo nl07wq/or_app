@@ -8,6 +8,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_record_read_model.dart';
 import '../../training/training_plan_import_page.dart';
+import '../../report_sync/widgets/report_sync_action_bar.dart';
 import '../models/training_analysis_report.dart';
 import '../services/training_analysis_service.dart';
 
@@ -21,29 +22,16 @@ class TrainingAnalysisPage extends StatefulWidget {
 }
 
 class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
-  final _response = TextEditingController();
-  late final TrainingAnalysisService _service;
   late Future<List<TrainingRecordReadModel>> _records;
   String? _targetRecordId;
-  TrainingAnalysisPreparation? _preparation;
-  TrainingAnalysisPreview? _preview;
   TrainingAnalysisReport? _report;
-  bool _busy = false;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _service = TrainingAnalysisService();
     _targetRecordId = widget.targetRecordId;
     _records = AppRepositoryRegistry.container.training.findAllRecords();
     _loadReport();
-  }
-
-  @override
-  void dispose() {
-    _response.dispose();
-    super.dispose();
   }
 
   Future<void> _loadReport() async {
@@ -54,85 +42,10 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
     if (mounted) setState(() => _report = report);
   }
 
-  Future<void> _copyPrompt() async {
-    final id = _targetRecordId;
-    if (id == null || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final preparation = await _service.prepare(id);
-      await Clipboard.setData(ClipboardData(text: preparation.prompt));
-      if (!mounted) return;
-      setState(() => _preparation = preparation);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('TRAINING ANALYSIS PROMPTをコピーしました')),
-      );
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _validate() async {
-    final id = _targetRecordId;
-    if (id == null || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _preview = null;
-    });
-    try {
-      final preview = await _service.preview(id, _response.text);
-      if (mounted) setState(() => _preview = preview);
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _import() async {
-    final preview = _preview;
-    if (preview == null || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final result = await _service.apply(preview);
-      if (!mounted) return;
-      setState(() {
-        _report = result.report;
-        _preview = null;
-        _response.clear();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.result.name == 'noChange'
-                ? 'NO CHANGES'
-                : 'TRAINING ANALYSIS REPORTを保存しました',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   void _select(TrainingRecordReadModel record) {
     setState(() {
       _targetRecordId = record.id;
-      _preparation = null;
-      _preview = null;
       _report = null;
-      _error = null;
-      _response.clear();
     });
     _loadReport();
   }
@@ -152,8 +65,6 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
               tooltip: 'SELECT TRAINING RECORD',
               onPressed: () => setState(() {
                 _targetRecordId = null;
-                _preparation = null;
-                _preview = null;
                 _report = null;
               }),
               icon: const Icon(Icons.list_alt_outlined),
@@ -209,7 +120,12 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
               AppSpacing.gapMD,
               Text('Operation Date  ${target.localDate}'),
               Text('Training  ${target.displaySessionName ?? 'SESSION'}'),
-              if (_report != null) Text('REV ${_report!.revision}  LATEST'),
+              if (_report != null)
+                Text(
+                  _report!.revision >= 2
+                      ? 'REV ${_report!.revision}  LATEST'
+                      : 'LATEST',
+                ),
             ],
           ),
         ),
@@ -231,65 +147,24 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
             ),
           ),
         ],
-        if (_report != null) AppSpacing.gapXL,
+        AppSpacing.gapMD,
         OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SectionHeader(
-                icon: Icons.auto_awesome_outlined,
-                title: 'CREATE ANALYSIS',
-              ),
-              AppSpacing.gapMD,
-              OperationButton(
-                icon: Icons.content_copy_outlined,
-                text: _report == null
-                    ? 'COPY CHATGPT PROMPT'
-                    : 'COPY REVISION PROMPT',
-                onPressed: _busy ? null : _copyPrompt,
-              ),
-              if (_preparation != null) ...[
-                AppSpacing.gapMD,
-                const Text('PromptをChatGPTへ貼り付け、返却JSONを下へ貼り付けてください。'),
-              ],
-              AppSpacing.gapMD,
-              TextField(
-                controller: _response,
-                minLines: 6,
-                maxLines: 14,
-                decoration: const InputDecoration(
-                  labelText: 'RESPONSE JSON',
-                  border: OutlineInputBorder(),
+          child: OperationButton(
+            key: const ValueKey('open-training-analysis-create'),
+            icon: Icons.auto_awesome_outlined,
+            text: 'CREATE ANALYSIS REPORT',
+            onPressed: () async {
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TrainingAnalysisCreatePage(
+                    targetRecordId: target.id,
+                    revisionMode: _report != null,
+                  ),
                 ),
-              ),
-              AppSpacing.gapMD,
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _validate,
-                icon: const Icon(Icons.fact_check_outlined),
-                label: const Text('VALIDATE'),
-              ),
-              if (_preview != null) ...[
-                AppSpacing.gapMD,
-                Text(
-                  _preview!.disposition.name == 'noChange'
-                      ? 'NO CHANGES'
-                      : 'REV ${(_preview!.current?.revision ?? 0) + 1} READY',
-                ),
-                AppSpacing.gapMD,
-                OperationButton(
-                  icon: Icons.download_done_outlined,
-                  text: 'IMPORT ANALYSIS',
-                  onPressed: _busy ? null : _import,
-                ),
-              ],
-              if (_error != null) ...[
-                AppSpacing.gapMD,
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-            ],
+              );
+              await _loadReport();
+            },
           ),
         ),
         if (_report?.previousRevisions.isNotEmpty == true) ...[
@@ -303,6 +178,252 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
       ],
     );
   }
+}
+
+class TrainingAnalysisCreatePage extends StatefulWidget {
+  const TrainingAnalysisCreatePage({
+    super.key,
+    required this.targetRecordId,
+    this.revisionMode = false,
+    this.service,
+  });
+
+  final String targetRecordId;
+  final bool revisionMode;
+  final TrainingAnalysisService? service;
+
+  @override
+  State<TrainingAnalysisCreatePage> createState() =>
+      _TrainingAnalysisCreatePageState();
+}
+
+class _TrainingAnalysisCreatePageState
+    extends State<TrainingAnalysisCreatePage> {
+  final _response = TextEditingController();
+  late final TrainingAnalysisService _service =
+      widget.service ?? TrainingAnalysisService();
+  TrainingAnalysisPreparation? _preparation;
+  TrainingAnalysisPreview? _preview;
+  bool _busy = false;
+  bool _invalid = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _response.dispose();
+    super.dispose();
+  }
+
+  Future<void> _copyPrompt() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final preparation = await _service.prepare(widget.targetRecordId);
+      await Clipboard.setData(ClipboardData(text: preparation.prompt));
+      if (!mounted) return;
+      setState(() => _preparation = preparation);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('TRAINING ANALYSIS PROMPTをコピーしました')),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted || data?.text == null) return;
+    setState(() {
+      _response.text = data!.text!;
+      _preview = null;
+      _invalid = false;
+      _error = null;
+    });
+  }
+
+  void _clear() => setState(() {
+    _response.clear();
+    _preview = null;
+    _invalid = false;
+    _error = null;
+  });
+
+  Future<void> _validate() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _invalid = false;
+      _preview = null;
+    });
+    try {
+      final preview = await _service.preview(
+        widget.targetRecordId,
+        _response.text,
+      );
+      if (mounted) setState(() => _preview = preview);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _invalid = true;
+          _error = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _import() async {
+    final preview = _preview;
+    if (preview == null || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await _service.apply(preview);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.result.name == 'noChange'
+                ? 'NO CHANGES'
+                : 'TRAINING ANALYSIS REPORTを保存しました',
+          ),
+        ),
+      );
+      if (result.result.name != 'noChange') Navigator.pop(context);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String get _readyLabel {
+    final preview = _preview!;
+    if (preview.disposition.name == 'noChange') return 'NO CHANGES';
+    final nextRevision = (preview.current?.revision ?? 0) + 1;
+    return nextRevision >= 2 ? 'REV $nextRevision  READY' : 'READY';
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('CREATE ANALYSIS REPORT')),
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: ListView(
+            padding: AppSpacing.cardPadding,
+            children: [
+              OperationCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SectionHeader(
+                      icon: Icons.auto_awesome_outlined,
+                      title: 'CREATE ANALYSIS REPORT',
+                    ),
+                    AppSpacing.gapMD,
+                    OperationButton(
+                      icon: Icons.content_copy_outlined,
+                      text: widget.revisionMode
+                          ? 'COPY REVISION PROMPT'
+                          : 'COPY CHATGPT PROMPT',
+                      onPressed: _busy ? null : _copyPrompt,
+                    ),
+                    if (_preparation != null) ...[
+                      AppSpacing.gapMD,
+                      const Text('PromptをChatGPTへ貼り付け、返却JSONを下へ貼り付けてください。'),
+                    ],
+                    AppSpacing.gapMD,
+                    TextField(
+                      key: const ValueKey('training-analysis-response-json'),
+                      controller: _response,
+                      minLines: 6,
+                      maxLines: 14,
+                      decoration: const InputDecoration(
+                        labelText: 'RESPONSE JSON',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    AppSpacing.gapMD,
+                    ReportSyncActionBar(
+                      enabled: !_busy,
+                      onPaste: _paste,
+                      onClear: _clear,
+                      onValidate: _validate,
+                    ),
+                  ],
+                ),
+              ),
+              if (_preview != null) ...[
+                AppSpacing.gapMD,
+                OperationCard(
+                  key: const ValueKey('training-analysis-import-preview'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(_readyLabel),
+                      AppSpacing.gapMD,
+                      _LabelText(
+                        label: 'SUMMARY',
+                        text: _preview!.analysis.sessionSummary,
+                      ),
+                      _LabelText(
+                        label: 'PROGRESS',
+                        text: _preview!.analysis.progressAnalysis,
+                      ),
+                      _LabelText(
+                        label: 'NEXT',
+                        text: _preview!.analysis.nextSessionProposal,
+                        isLast: true,
+                      ),
+                      AppSpacing.gapMD,
+                      OperationButton(
+                        icon: Icons.download_done_outlined,
+                        text: 'IMPORT ANALYSIS',
+                        onPressed:
+                            _busy || _preview!.disposition.name == 'noChange'
+                            ? null
+                            : _import,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (_invalid || _error != null) ...[
+                AppSpacing.gapMD,
+                OperationCard(
+                  key: const ValueKey('training-analysis-invalid'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_invalid) const Text('INVALID'),
+                      if (_error != null)
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _RecordSelector extends StatelessWidget {

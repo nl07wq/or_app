@@ -22,10 +22,12 @@ class PeriodicReportPage extends StatelessWidget {
     super.key,
     required this.initialType,
     this.initialAnchor,
+    this.onImported,
   });
 
   final PeriodicReportType initialType;
   final DateTime? initialAnchor;
+  final VoidCallback? onImported;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -33,6 +35,7 @@ class PeriodicReportPage extends StatelessWidget {
     body: PeriodicReportPanel(
       reportType: initialType,
       initialAnchor: initialAnchor,
+      onImported: onImported,
     ),
   );
 }
@@ -78,10 +81,12 @@ class PeriodicReportPanel extends StatefulWidget {
     super.key,
     required this.reportType,
     this.initialAnchor,
+    this.onImported,
   });
 
   final PeriodicReportType reportType;
   final DateTime? initialAnchor;
+  final VoidCallback? onImported;
 
   @override
   State<PeriodicReportPanel> createState() => _PeriodicReportPanelState();
@@ -293,6 +298,7 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
     _responseController.clear();
     _message = 'REPORT IMPORTED';
     _data = _load();
+    widget.onImported?.call();
   });
 
   Future<void> _run(Future<void> Function() action) async {

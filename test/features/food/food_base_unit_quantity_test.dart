@@ -937,6 +937,12 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const ValueKey('food-amount-increment')),
       );
+      final amountField = tester.getRect(_field('AMOUNT'));
+      final increment = tester.getRect(
+        find.byKey(const ValueKey('food-amount-increment')),
+      );
+      expect(increment.left, greaterThan(amountField.right));
+      expect(increment.center.dy, lessThan(amountField.center.dy));
       await tester.tap(find.byKey(const ValueKey('food-amount-increment')));
       await tester.pump();
       expect(_controllerText(tester, 'AMOUNT'), '2');
@@ -1044,6 +1050,16 @@ void main() {
             findsOneWidget,
           );
         }
+        final amountField = tester.getRect(_field('AMOUNT'));
+        final increment = tester.getRect(
+          find.byKey(const ValueKey('food-amount-increment')),
+        );
+        final decrement = tester.getRect(
+          find.byKey(const ValueKey('food-amount-decrement')),
+        );
+        expect(increment.left, greaterThan(amountField.right));
+        expect(decrement.left, greaterThan(amountField.right));
+        expect(increment.bottom, lessThanOrEqualTo(decrement.top));
         expect(tester.takeException(), isNull, reason: 'width $width');
       }
     });

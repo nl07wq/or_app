@@ -302,6 +302,66 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     );
   }
 
+  Future<void> _confirmDeleteExercise(
+    TrainingV2ExerciseFormController exercise,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('このEXERCISEを削除しますか？'),
+        content: const Text('このEXERCISEと入力中のSETを削除します。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            key: const ValueKey('confirm-delete-exercise'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !_form.exercises.contains(exercise)) return;
+    if (identical(_expandedItem, exercise)) _expandedItem = null;
+    _form.removeExercise(exercise);
+    _handleEntryChanged();
+  }
+
+  Future<void> _confirmDeleteCardio(
+    TrainingV2CardioFormController cardio,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('このCARDIOを削除しますか？'),
+        content: const Text('このCARDIOの入力内容を削除します。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            key: const ValueKey('confirm-delete-cardio'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !_form.cardioEntries.contains(cardio)) return;
+    if (identical(_expandedItem, cardio)) _expandedItem = null;
+    _form.removeCardio(cardio);
+    _handleEntryChanged();
+  }
+
   Future<void> _persistDraftSnapshot() {
     final start = _form.startTime;
     if ((start == null && !_hasPersistedDraft) || !_draftWritesEnabled) {
@@ -527,13 +587,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                         sessionDate: _form.date,
                         expanded: identical(_expandedItem, exercise),
                         onToggle: () => _toggle(exercise),
-                        onDelete: () {
-                          if (identical(_expandedItem, exercise)) {
-                            _expandedItem = null;
-                          }
-                          _form.removeExercise(exercise);
-                          _handleEntryChanged();
-                        },
+                        onDelete: () => _confirmDeleteExercise(exercise),
                         onChanged: _handleEntryChanged,
                       ),
                     ),
@@ -561,13 +615,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                         expanded: identical(_expandedItem, cardio),
                         calorieResult: _cardioPreview(cardio),
                         onToggle: () => _toggle(cardio),
-                        onDelete: () {
-                          if (identical(_expandedItem, cardio)) {
-                            _expandedItem = null;
-                          }
-                          _form.removeCardio(cardio);
-                          _handleEntryChanged();
-                        },
+                        onDelete: () => _confirmDeleteCardio(cardio),
                         onChanged: _handleEntryChanged,
                       ),
                     ),

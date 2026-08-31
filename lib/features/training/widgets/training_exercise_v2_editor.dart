@@ -100,7 +100,11 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
                 child: ExerciseSelector(controller: controller.exerciseName),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline),
+                key: ValueKey('training-exercise-delete-${widget.index}'),
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 tooltip: 'Delete exercise',
                 onPressed: widget.onDelete,
               ),

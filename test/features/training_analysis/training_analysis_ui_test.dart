@@ -10,6 +10,10 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training_analysis/models/training_analysis_report.dart';
 import 'package:or_app/features/training_analysis/pages/training_analysis_page.dart';
+import 'package:or_app/features/report_sync/widgets/report_sync_action_bar.dart';
+import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
+import 'package:or_app/features/report_sync/models/report_sync_history.dart';
+import 'package:or_app/features/training_analysis/services/training_analysis_service.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -70,9 +74,9 @@ void main() {
       expect(find.text('NEXT SESSION'), findsOneWidget);
       expect(find.text('RECOVERY / FREQUENCY'), findsOneWidget);
       expect(find.text('RISK / ATTENTION'), findsOneWidget);
-      expect(find.text('CREATE ANALYSIS'), findsOneWidget);
+      expect(find.text('CREATE ANALYSIS REPORT'), findsOneWidget);
       expect(find.text('CREATE NEXT PLAN'), findsOneWidget);
-      expect(find.text('COPY REVISION PROMPT'), findsOneWidget);
+      expect(find.text('RESPONSE JSON'), findsNothing);
       expect(find.text(_sessionSummary), findsOneWidget);
       expect(find.text(_performance), findsOneWidget);
       expect(find.text(_previous), findsOneWidget);
@@ -92,13 +96,107 @@ void main() {
       expect(find.text('PREVIOUS REVISIONS'), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(fixture.report.analysis.toJson(), fixture.analysisBefore);
+
+      await tester.tap(find.text('CREATE ANALYSIS REPORT'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TrainingAnalysisCreatePage), findsOneWidget);
+      expect(find.byType(ReportSyncActionBar), findsOneWidget);
+      expect(find.text('COPY REVISION PROMPT'), findsOneWidget);
+      expect(find.text('PASTE'), findsOneWidget);
+      expect(find.text('CLEAR'), findsOneWidget);
+      expect(find.text('VALIDATE'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('initial Analysis hides REV 1 from the viewer', (tester) async {
+    final fixture = await _pumpReport(tester, width: 390, initialOnly: true);
+
+    expect(find.text('LATEST'), findsOneWidget);
+    expect(find.textContaining('REV 1'), findsNothing);
+    expect(fixture.report.revision, 1);
+  });
+
+  testWidgets('valid Analysis shows compact initial READY preview', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainingAnalysisCreatePage(
+          key: const ValueKey('valid-initial-analysis-page'),
+          targetRecordId: 'training:test',
+          service: _FakeTrainingAnalysisService(),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('training-analysis-response-json')),
+      '{}',
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('READY'), findsOneWidget);
+    expect(find.textContaining('REV 1'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('training-analysis-import-preview')),
+      findsOneWidget,
+    );
+    expect(find.text(_sessionSummary), findsOneWidget);
+    expect(find.text(_progress), findsOneWidget);
+    expect(find.text(_nextSession), findsOneWidget);
+    expect(find.text('IMPORT ANALYSIS'), findsOneWidget);
+  });
+
+  testWidgets('revision preview shows REV 2 and invalid has no preview', (
+    tester,
+  ) async {
+    final current = TrainingAnalysisReport.initial(
+      targetRecordId: 'training:test',
+      operationDate: '2026-08-24',
+      sourceDigest: _digest('a'),
+      responseDigest: _digest('b'),
+      exchangeId: 'analysis-response-1',
+      timestamp: DateTime.utc(2026, 8, 24),
+      analysis: _analysis('previous'),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainingAnalysisCreatePage(
+          key: const ValueKey('valid-revision-analysis-page'),
+          targetRecordId: 'training:test',
+          service: _FakeTrainingAnalysisService(current: current),
+        ),
+      ),
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+    expect(find.text('REV 2  READY'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainingAnalysisCreatePage(
+          key: const ValueKey('invalid-analysis-page'),
+          targetRecordId: 'training:test',
+          service: _FakeTrainingAnalysisService(invalid: true),
+        ),
+      ),
+    );
+    await tester.tap(find.text('VALIDATE'));
+    await tester.pumpAndSettle();
+    expect(find.text('INVALID'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('training-analysis-import-preview')),
+      findsNothing,
+    );
+    expect(find.text('IMPORT ANALYSIS'), findsNothing);
+  });
 }
 
 Future<_Fixture> _pumpReport(
   WidgetTester tester, {
   required double width,
+  bool initialOnly = false,
 }) async {
   tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
@@ -136,13 +234,15 @@ Future<_Fixture> _pumpReport(
     timestamp: DateTime.utc(2026, 8, 24, 12),
     analysis: _analysis('previous'),
   );
-  final report = initial.revise(
-    sourceDigest: _digest('a'),
-    responseDigest: _digest('c'),
-    exchangeId: 'analysis-response-2',
-    timestamp: DateTime.utc(2026, 8, 24, 13),
-    analysis: _analysis('latest'),
-  );
+  final report = initialOnly
+      ? initial
+      : initial.revise(
+          sourceDigest: _digest('a'),
+          responseDigest: _digest('c'),
+          exchangeId: 'analysis-response-2',
+          timestamp: DateTime.utc(2026, 8, 24, 13),
+          analysis: _analysis('latest'),
+        );
   database.seed(
     IndexedDbStoreNames.trainingAnalysisReportRecords,
     report.targetRecordId,
@@ -199,4 +299,35 @@ class _Fixture {
 
   final TrainingAnalysisReport report;
   final Map<String, Object?> analysisBefore;
+}
+
+class _FakeTrainingAnalysisService extends TrainingAnalysisService {
+  _FakeTrainingAnalysisService({this.current, this.invalid = false});
+
+  final TrainingAnalysisReport? current;
+  final bool invalid;
+
+  @override
+  Future<TrainingAnalysisPreview> preview(
+    String targetRecordId,
+    String rawResponse,
+  ) async {
+    if (invalid) throw const FormatException('Invalid Analysis response.');
+    return TrainingAnalysisPreview(
+      response: ReportSyncEnvelope(
+        schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+        direction: ReportSyncDirection.response,
+        exchangeType: ReportSyncExchangeType.trainingAnalysis,
+        exchangeId: 'analysis-response-test',
+        operationDate: '2026-08-24',
+        createdAt: DateTime.utc(2026, 8, 24),
+        confirmationDigest: null,
+        payload: const {},
+        packageDigest: _digest('p'),
+      ),
+      analysis: _analysis('latest'),
+      disposition: ReportSyncHistoryResult.success,
+      current: current,
+    );
+  }
 }

@@ -32,6 +32,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
     final title = controller.type == null
         ? 'CARDIO ${index + 1}'
         : _typeLabel(controller.type!);
+    final useTwoColumns = MediaQuery.sizeOf(context).width >= 390;
     return TrainingCollapsibleCard(
       cardKey: ValueKey('training-cardio-card-$index'),
       icon: Icons.directions_run,
@@ -48,7 +49,11 @@ class TrainingCardioV2Editor extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: IconButton(
-              icon: const Icon(Icons.delete_outline),
+              key: ValueKey('training-cardio-delete-$index'),
+              icon: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
               tooltip: 'Delete cardio',
               onPressed: onDelete,
             ),
@@ -69,45 +74,18 @@ class TrainingCardioV2Editor extends StatelessWidget {
             },
           ),
           AppSpacing.gapSM,
-          DropdownButtonFormField<CardioPurpose?>(
-            key: Key('v2-cardio-$index-purpose'),
-            initialValue: controller.purpose,
-            isExpanded: true,
-            decoration: const InputDecoration(),
-            items: const [
-              DropdownMenuItem(value: null, child: Text('Select Purpose')),
-              DropdownMenuItem(
-                value: CardioPurpose.warmUp,
-                child: Text('Warm-up'),
-              ),
-              DropdownMenuItem(value: CardioPurpose.main, child: Text('Main')),
-              DropdownMenuItem(
-                value: CardioPurpose.cooldown,
-                child: Text('Cool-down'),
-              ),
-            ],
-            onChanged: (value) {
-              controller.purpose = value;
-              onChanged();
-            },
-          ),
-          AppSpacing.gapSM,
-          TextField(
-            key: Key('v2-cardio-$index-duration'),
-            controller: controller.duration,
-            decoration: const InputDecoration(
-              labelText: '時間',
-              hintText: 'mm:ss',
+          Container(
+            key: ValueKey(
+              useTwoColumns
+                  ? 'training-cardio-two-column'
+                  : 'training-cardio-one-column',
             ),
-            keyboardType: TextInputType.text,
-            onChanged: (_) => onChanged(),
-          ),
-          AppSpacing.gapSM,
-          LayoutBuilder(
-            builder: (context, constraints) => Column(
+            child: Column(
               children: [
+                _pair(useTwoColumns, _purposeField(), _durationField()),
+                AppSpacing.gapSM,
                 _pair(
-                  constraints.maxWidth,
+                  useTwoColumns,
                   _numberField(
                     controller.distance,
                     '距離',
@@ -118,7 +96,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                 ),
                 AppSpacing.gapSM,
                 _pair(
-                  constraints.maxWidth,
+                  useTwoColumns,
                   _numberField(
                     controller.averageHeartRate,
                     '平均心拍',
@@ -131,25 +109,28 @@ class TrainingCardioV2Editor extends StatelessWidget {
                   ),
                 ),
                 AppSpacing.gapSM,
-                TextField(
-                  controller: controller.averageSpeed,
-                  decoration: const InputDecoration(
-                    labelText: '平均速度',
-                    suffixText: 'km/h',
+                _pair(
+                  useTwoColumns,
+                  TextField(
+                    controller: controller.averageSpeed,
+                    decoration: const InputDecoration(
+                      labelText: '平均速度',
+                      suffixText: 'km/h',
+                    ),
+                    keyboardType: TextInputType.text,
+                    onChanged: (_) => onChanged(),
                   ),
-                  keyboardType: TextInputType.text,
-                  onChanged: (_) => onChanged(),
+                  InputDecorator(
+                    key: ValueKey('v2-cardio-$index-estimated-calories'),
+                    decoration: const InputDecoration(labelText: '推定消費カロリー'),
+                    child: Text(
+                      calorieResult.isComputed
+                          ? '${calorieResult.estimatedCaloriesKcal!.round()} kcal'
+                          : 'Not calculated',
+                    ),
+                  ),
                 ),
               ],
-            ),
-          ),
-          AppSpacing.gapSM,
-          InputDecorator(
-            decoration: const InputDecoration(labelText: '推定消費カロリー'),
-            child: Text(
-              calorieResult.isComputed
-                  ? '${calorieResult.estimatedCaloriesKcal!.round()} kcal'
-                  : 'Not calculated',
             ),
           ),
           AppSpacing.gapXS,
@@ -172,8 +153,8 @@ class TrainingCardioV2Editor extends StatelessWidget {
     );
   }
 
-  Widget _pair(double width, Widget first, Widget second) {
-    if (width < 520) {
+  Widget _pair(bool useTwoColumns, Widget first, Widget second) {
+    if (!useTwoColumns) {
       return Column(children: [first, AppSpacing.gapSM, second]);
     }
     return Row(
@@ -184,6 +165,31 @@ class TrainingCardioV2Editor extends StatelessWidget {
       ],
     );
   }
+
+  Widget _purposeField() => DropdownButtonFormField<CardioPurpose?>(
+    key: Key('v2-cardio-$index-purpose'),
+    initialValue: controller.purpose,
+    isExpanded: true,
+    decoration: const InputDecoration(),
+    items: const [
+      DropdownMenuItem(value: null, child: Text('Select Purpose')),
+      DropdownMenuItem(value: CardioPurpose.warmUp, child: Text('Warm-up')),
+      DropdownMenuItem(value: CardioPurpose.main, child: Text('Main')),
+      DropdownMenuItem(value: CardioPurpose.cooldown, child: Text('Cool-down')),
+    ],
+    onChanged: (value) {
+      controller.purpose = value;
+      onChanged();
+    },
+  );
+
+  Widget _durationField() => TextField(
+    key: Key('v2-cardio-$index-duration'),
+    controller: controller.duration,
+    decoration: const InputDecoration(labelText: '時間', hintText: 'mm:ss'),
+    keyboardType: TextInputType.text,
+    onChanged: (_) => onChanged(),
+  );
 
   Widget _numberField(
     TextEditingController value,

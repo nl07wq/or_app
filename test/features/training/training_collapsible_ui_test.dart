@@ -94,6 +94,27 @@ void main() {
     await tester.tap(find.byTooltip('Delete cardio'));
     await tester.pumpAndSettle();
 
+    expect(find.text('このCARDIOを削除しますか？'), findsOneWidget);
+    expect(find.text('CARDIO 1'), findsOneWidget);
+    await tester.tap(find.text('CANCEL'));
+    await tester.pumpAndSettle();
+    expect(find.text('CARDIO 1'), findsOneWidget);
+
+    final deleteIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const ValueKey('training-cardio-delete-0')),
+        matching: find.byIcon(Icons.delete_outline),
+      ),
+    );
+    expect(
+      deleteIcon.color,
+      Theme.of(tester.element(find.byType(Scaffold))).colorScheme.error,
+    );
+    await tester.tap(find.byTooltip('Delete cardio'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-delete-cardio')));
+    await tester.pumpAndSettle();
+
     expect(find.text('CARDIO 1'), findsNothing);
     expect(find.byTooltip('Delete cardio'), findsNothing);
     expect(
@@ -403,6 +424,25 @@ void main() {
       );
       await tester.tap(find.byTooltip('Delete exercise'));
       await tester.pumpAndSettle();
+      expect(find.text('このEXERCISEを削除しますか？'), findsOneWidget);
+      expect(
+        tester
+            .widget<Icon>(
+              find.descendant(
+                of: find.byKey(const ValueKey('training-exercise-delete-1')),
+                matching: find.byIcon(Icons.delete_outline),
+              ),
+            )
+            .color,
+        Theme.of(tester.element(find.byType(Scaffold))).colorScheme.error,
+      );
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+      expect(find.text('EXERCISE 2'), findsOneWidget);
+      await tester.tap(find.byTooltip('Delete exercise'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-delete-exercise')));
+      await tester.pumpAndSettle();
 
       expect(find.text('EXERCISE 1'), findsOneWidget);
       expect(find.text('EXERCISE 2'), findsNothing);
@@ -417,6 +457,9 @@ void main() {
         find.widgetWithText(OutlinedButton, 'ADD CARDIO'),
       );
       await tester.tap(find.byTooltip('Delete cardio'));
+      await tester.pumpAndSettle();
+      expect(find.text('このCARDIOを削除しますか？'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('confirm-delete-cardio')));
       await tester.pumpAndSettle();
 
       expect(find.text('CARDIO 1'), findsOneWidget);

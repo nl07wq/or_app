@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/services/daily_log_confirmation_service.dart';
+import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -17,10 +18,52 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/daily_finalize_result.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
+import '../../periodic_report/models/periodic_report.dart';
+import '../../periodic_report/pages/periodic_report_page.dart';
 import '../services/daily_estimated_total_burn_service.dart';
 
 typedef PrepareDailyDebrief =
     Future<void> Function(String localDate, double? estimatedTotalBurnKcal);
+
+typedef PeriodicReportPageBuilder =
+    Widget Function(
+      PeriodicReportType type,
+      DateTime anchor,
+      VoidCallback onImported,
+    );
+
+@visibleForTesting
+List<PeriodicReportType> periodicReportTypesAfterDailyDebrief(DateTime date) {
+  final result = <PeriodicReportType>[];
+  if (date.weekday == DateTime.sunday) {
+    result.add(PeriodicReportType.weekly);
+  }
+  final isMonthEnd = DateTime(date.year, date.month + 1, 0).day == date.day;
+  if (isMonthEnd) result.add(PeriodicReportType.monthly);
+  if (date.month == DateTime.december && date.day == 31) {
+    result.add(PeriodicReportType.yearly);
+  }
+  return result;
+}
+
+@visibleForTesting
+Future<List<PeriodicReportType>> pendingPeriodicReportTypesAfterDailyDebrief(
+  DateTime date,
+  Future<bool> Function(String periodId) reportExists,
+) async {
+  final pending = <PeriodicReportType>[];
+  for (final type in periodicReportTypesAfterDailyDebrief(date)) {
+    if (!await reportExists(_periodFor(type, date).id)) pending.add(type);
+  }
+  return pending;
+}
+
+OperationCalendarPeriod _periodFor(PeriodicReportType type, DateTime anchor) =>
+    switch (type) {
+      PeriodicReportType.weekly => OperationCalendarPeriod.week(anchor),
+      PeriodicReportType.monthly => OperationCalendarPeriod.month(anchor),
+      PeriodicReportType.yearly => OperationCalendarPeriod.year(anchor),
+    };
 
 const _backNumberPreviewLimit = 3;
 
@@ -85,11 +128,13 @@ class BriefDebriefPage extends StatelessWidget {
     super.key,
     this.dailyLogSourceLoader = DailyLogConfirmationService.loadSourceSnapshot,
     this.prepareDailyDebrief,
+    this.periodicReportPageBuilder,
   });
 
   final Future<DailyLogSourceSnapshot> Function(String localDate)
   dailyLogSourceLoader;
   final PrepareDailyDebrief? prepareDailyDebrief;
+  final PeriodicReportPageBuilder? periodicReportPageBuilder;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -119,6 +164,7 @@ class BriefDebriefPage extends StatelessWidget {
               _DailyDebriefView(
                 sourceLoader: dailyLogSourceLoader,
                 prepareDailyDebrief: prepareDailyDebrief,
+                periodicReportPageBuilder: periodicReportPageBuilder,
               ),
             ],
           ),
@@ -307,10 +353,12 @@ class _DailyDebriefView extends StatefulWidget {
   const _DailyDebriefView({
     required this.sourceLoader,
     required this.prepareDailyDebrief,
+    required this.periodicReportPageBuilder,
   });
 
   final Future<DailyLogSourceSnapshot> Function(String localDate) sourceLoader;
   final PrepareDailyDebrief? prepareDailyDebrief;
+  final PeriodicReportPageBuilder? periodicReportPageBuilder;
 
   @override
   State<_DailyDebriefView> createState() => _DailyDebriefViewState();
@@ -417,13 +465,17 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
       if (!mounted) return;
     }
     var imported = false;
+    String? importedDate;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.dailyDebrief,
           initialTargetDate: selected,
-          onApplied: () => imported = true,
+          onApplied: () {
+            imported = true;
+            importedDate = _selectedTargetDate ?? selected;
+          },
           onTargetDateChanged: (value) {
             if (mounted) setState(() => _selectedTargetDate = value);
           },
@@ -431,9 +483,42 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
       ),
     );
     if (!mounted) return;
+    if (imported && importedDate != null) {
+      await _openPeriodicReportWorkflow(importedDate!);
+      if (!mounted) return;
+    }
     _refresh();
     if (imported && _scrollController.hasClients) {
       _scrollController.jumpTo(0);
+    }
+  }
+
+  Future<void> _openPeriodicReportWorkflow(String localDate) async {
+    final anchor = DateTime.parse(localDate);
+    final container = AppRepositoryRegistry.container;
+    final pending = await pendingPeriodicReportTypesAfterDailyDebrief(
+      anchor,
+      (periodId) async =>
+          await container.periodicReports.read(periodId) != null,
+    );
+    for (final type in pending) {
+      if (!mounted) return;
+      final imported = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (routeContext) {
+            void complete() => Navigator.pop(routeContext, true);
+            final builder = widget.periodicReportPageBuilder;
+            return builder?.call(type, anchor, complete) ??
+                PeriodicReportPage(
+                  initialType: type,
+                  initialAnchor: anchor,
+                  onImported: complete,
+                );
+          },
+        ),
+      );
+      if (imported != true) return;
     }
   }
 

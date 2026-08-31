@@ -331,39 +331,41 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
-        Column(
+        Row(
+          key: const ValueKey('food-amount-stepper-row'),
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            OperationTextField(
-              controller: amountController,
-              label: recipeSelected
-                  ? 'SERVINGS'
-                  : amountMode == FoodAmountMode.baseMultiplier
-                  ? 'AMOUNT'
-                  : 'QUANTITY (${_quantityUnitLabel(baseUnit)})',
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+            Expanded(
+              child: OperationTextField(
+                controller: amountController,
+                label: recipeSelected
+                    ? 'SERVINGS'
+                    : amountMode == FoodAmountMode.baseMultiplier
+                    ? 'AMOUNT'
+                    : 'QUANTITY (${_quantityUnitLabel(baseUnit)})',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: onChanged,
               ),
-              onChanged: onChanged,
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _AmountStepButton(
-                    key: const ValueKey('food-amount-increment'),
-                    icon: Icons.keyboard_arrow_up,
-                    tooltip: 'Increase amount',
-                    onPressed: () => _stepAmount(1),
-                  ),
-                  _AmountStepButton(
-                    key: const ValueKey('food-amount-decrement'),
-                    icon: Icons.keyboard_arrow_down,
-                    tooltip: 'Decrease amount',
-                    onPressed: _canDecrement ? () => _stepAmount(-1) : null,
-                  ),
-                ],
-              ),
+            const SizedBox(width: AppSpacing.xs),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _AmountStepButton(
+                  key: const ValueKey('food-amount-increment'),
+                  icon: Icons.keyboard_arrow_up,
+                  tooltip: 'Increase amount',
+                  onPressed: () => _stepAmount(1),
+                ),
+                _AmountStepButton(
+                  key: const ValueKey('food-amount-decrement'),
+                  icon: Icons.keyboard_arrow_down,
+                  tooltip: 'Decrease amount',
+                  onPressed: _canDecrement ? () => _stepAmount(-1) : null,
+                ),
+              ],
             ),
           ],
         ),
@@ -439,7 +441,8 @@ class _AmountStepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 24,
+    width: 40,
+    height: 28,
     child: IconButton(
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,

@@ -175,6 +175,26 @@ void main() {
           expect(find.text('平均速度'), findsOneWidget);
           expect(find.text('推定消費カロリー'), findsOneWidget);
           expect(find.text('メモ'), findsOneWidget);
+          expect(
+            find.byKey(
+              ValueKey(
+                width >= 390
+                    ? 'training-cardio-two-column'
+                    : 'training-cardio-one-column',
+              ),
+            ),
+            findsOneWidget,
+          );
+          if (width >= 390) {
+            final purpose = tester.getRect(
+              find.byKey(const Key('v2-cardio-0-purpose')),
+            );
+            final duration = tester.getRect(
+              find.byKey(const Key('v2-cardio-0-duration')),
+            );
+            expect(purpose.center.dy, closeTo(duration.center.dy, 1));
+            expect(purpose.right, lessThan(duration.left));
+          }
           expect(find.text('Minutes'), findsNothing);
           expect(find.text('Seconds'), findsNothing);
           expect(find.byKey(const Key('v2-cardio-0-equipment')), findsNothing);

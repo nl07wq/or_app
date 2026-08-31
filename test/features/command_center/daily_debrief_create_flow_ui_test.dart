@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
+import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/models/bowel_movement_record.dart';
 import 'package:or_app/core/services/daily_log_confirmation_service.dart';
 import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
@@ -10,11 +11,50 @@ import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/periodic_report/models/periodic_report.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   tearDown(AppRepositoryRegistry.resetForTesting);
+
+  test('period boundaries are ordered shortest to longest', () {
+    expect(periodicReportTypesAfterDailyDebrief(DateTime(2026, 8, 30)), [
+      PeriodicReportType.weekly,
+    ]);
+    expect(periodicReportTypesAfterDailyDebrief(DateTime(2026, 8, 31)), [
+      PeriodicReportType.monthly,
+    ]);
+    expect(periodicReportTypesAfterDailyDebrief(DateTime(2026, 12, 31)), [
+      PeriodicReportType.monthly,
+      PeriodicReportType.yearly,
+    ]);
+    expect(
+      periodicReportTypesAfterDailyDebrief(DateTime(2026, 8, 12)),
+      isEmpty,
+    );
+    expect(periodicReportTypesAfterDailyDebrief(DateTime(2028, 12, 31)), [
+      PeriodicReportType.weekly,
+      PeriodicReportType.monthly,
+      PeriodicReportType.yearly,
+    ]);
+  });
+
+  test('daily debrief fixture is finalizable', () {
+    expect(_snapshot().validation.canFinalize, isTrue);
+  });
+
+  test(
+    'existing periodic identities are skipped without duplication',
+    () async {
+      final pending = await pendingPeriodicReportTypesAfterDailyDebrief(
+        DateTime(2028, 12, 31),
+        (periodId) async => periodId.startsWith('weekly:'),
+      );
+
+      expect(pending, [PeriodicReportType.monthly, PeriodicReportType.yearly]);
+    },
+  );
 
   testWidgets(
     'current eligible date prepares once and opens report sync directly',
@@ -50,8 +90,21 @@ void main() {
         findsNothing,
       );
       expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.ancestor(
+                of: find.text('CREATE DAILY DEBRIEF'),
+                matching: find.byType(ElevatedButton),
+              ),
+            )
+            .onPressed,
+        isNotNull,
+      );
       await tester.tap(find.text('CREATE DAILY DEBRIEF'));
       await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
 
       expect(preparationCount, 1);
       expect(find.byType(ReportSyncExchangePage), findsOneWidget);
@@ -140,13 +193,66 @@ void main() {
 
     expect(_dailyDebriefScrollPosition(tester).pixels, before);
   });
+
+  testWidgets('Debrief completion chains period pages in required order', (
+    tester,
+  ) async {
+    const date = '2028-12-31';
+    await _installEligibleContainer(date: date);
+    final opened = <PeriodicReportType>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BriefDebriefPage(
+            dailyLogSourceLoader: (_) async => _snapshot(date),
+            prepareDailyDebrief: (_, _) async {},
+            periodicReportPageBuilder: (type, anchor, onImported) {
+              opened.add(type);
+              return Scaffold(
+                body: TextButton(
+                  onPressed: onImported,
+                  child: Text('COMPLETE ${type.name.toUpperCase()}'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CREATE DAILY DEBRIEF'));
+    await tester.pumpAndSettle();
+    final exchange = tester.widget<ReportSyncExchangePage>(
+      find.byType(ReportSyncExchangePage),
+    );
+    exchange.onApplied!();
+    Navigator.of(tester.element(find.byType(ReportSyncExchangePage))).pop();
+    await tester.pumpAndSettle();
+
+    expect(opened, [PeriodicReportType.weekly]);
+    await tester.tap(find.text('COMPLETE WEEKLY'));
+    await tester.pumpAndSettle();
+    expect(opened, [PeriodicReportType.weekly, PeriodicReportType.monthly]);
+    await tester.tap(find.text('COMPLETE MONTHLY'));
+    await tester.pumpAndSettle();
+    expect(opened, [
+      PeriodicReportType.weekly,
+      PeriodicReportType.monthly,
+      PeriodicReportType.yearly,
+    ]);
+    await tester.tap(find.text('COMPLETE YEARLY'));
+    await tester.pumpAndSettle();
+    expect(find.text('DAILY DEBRIEF'), findsWidgets);
+  });
 }
 
-Future<AppRepositoryContainer> _installEligibleContainer() async {
+Future<AppRepositoryContainer> _installEligibleContainer({
+  String date = '2026-08-12',
+}) async {
   final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
-  await container.operationState.createInitial(
-    OperationLocalDate.parse('2026-08-12'),
-  );
+  await container.operationState.createInitial(OperationLocalDate.parse(date));
   AppRepositoryRegistry.install(container);
   return container;
 }
@@ -159,9 +265,10 @@ Finder _dailyDebriefScrollable() => find.descendant(
 ScrollPosition _dailyDebriefScrollPosition(WidgetTester tester) =>
     tester.state<ScrollableState>(_dailyDebriefScrollable()).position;
 
-DailyLogSourceSnapshot _snapshot() {
+DailyLogSourceSnapshot _snapshot([String localDate = '2026-08-12']) {
+  final date = DateTime.parse(localDate);
   final morning = MorningFact(
-    date: DateTime(2026, 8, 12),
+    date: date,
     weight: 80,
     bodyFat: 20,
     sleepDuration: const Duration(hours: 8),
@@ -184,6 +291,14 @@ DailyLogSourceSnapshot _snapshot() {
     measuredSteps: 5000,
     isRecorded: true,
     bowelMovement: BowelMovementRecord.recorded(amount: 1, shape: 2),
+    digestiveSummary: DigestiveSummary(
+      eventCount: 1,
+      totalAmount: 1,
+      latestShape: 2,
+      latestRelief: 1,
+      shapeTrend: const [2],
+      reliefTrend: const [1],
+    ),
     calculationBasis: const ActivityCalculationBasis(
       rawSteps: 5000,
       currentCarryOver: 0,
