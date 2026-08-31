@@ -929,9 +929,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   key: const ValueKey('food-catalog-attributes-paired'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: category),
+                    Expanded(flex: 11, child: category),
                     AppSpacing.gapSM,
-                    Expanded(child: thumbnail),
+                    Expanded(flex: 9, child: thumbnail),
                   ],
                 );
               },
@@ -1250,8 +1250,8 @@ class _FoodThumbnailField extends StatelessWidget {
             key: const ValueKey('food-catalog-thumbnail-change'),
             onPressed: onChange,
             style: TextButton.styleFrom(
-              minimumSize: const Size(56, 40),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+              minimumSize: const Size(52, 40),
+              padding: EdgeInsets.zero,
             ),
             child: const Text('CHANGE'),
           ),
