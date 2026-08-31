@@ -270,6 +270,9 @@ class _V2Stub implements DailyMealV2Repository {
   Future<void> create(DailyMealV2 meal) => throw UnimplementedError();
 
   @override
+  Future<void> deleteById(String mealId) => throw UnimplementedError();
+
+  @override
   Future<List<DailyMealV2>> findAll() async => const [];
 
   @override

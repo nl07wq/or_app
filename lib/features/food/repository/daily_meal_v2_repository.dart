@@ -6,4 +6,5 @@ abstract interface class DailyMealV2Repository {
   Future<List<DailyMealV2>> readForLocalDate(String localDate);
   Future<List<DailyMealV2>> findAll();
   Future<void> update(DailyMealV2 meal);
+  Future<void> deleteById(String mealId);
 }

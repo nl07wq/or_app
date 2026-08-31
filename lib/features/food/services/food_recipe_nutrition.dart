@@ -1,4 +1,5 @@
 import '../models/nutrition_models.dart';
+import '../models/food_quantity_models.dart';
 import '../models/recipe_models_v2.dart';
 
 abstract final class FoodRecipeNutrition {
@@ -29,6 +30,26 @@ abstract final class FoodRecipeNutrition {
 
   static NutritionSnapshot perServing(FoodRecipeDefinition recipe) =>
       scale(recipe.nutrition, 1 / (recipe.servingCount ?? 1));
+
+  static FoodQuantityDefinition consumptionQuantity(
+    FoodRecipeDefinition recipe,
+    double servingMultiplier,
+  ) {
+    if (!servingMultiplier.isFinite || servingMultiplier <= 0) {
+      throw ArgumentError.value(servingMultiplier, 'servingMultiplier');
+    }
+    final yield = recipe.yieldQuantity;
+    if (yield.unit == FoodQuantityUnit.serving) {
+      return FoodQuantityDefinition(
+        value: servingMultiplier,
+        unit: FoodQuantityUnit.serving,
+      );
+    }
+    return FoodQuantityDefinition(
+      value: yield.value / (recipe.servingCount ?? 1) * servingMultiplier,
+      unit: yield.unit,
+    );
+  }
 
   static double? _sum(Iterable<double?> values) {
     var found = false;

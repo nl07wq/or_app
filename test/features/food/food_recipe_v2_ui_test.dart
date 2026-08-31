@@ -89,6 +89,20 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('food-recipe-$recipeId')));
     await tester.pumpAndSettle();
     expect(find.text('EDIT RECIPE'), findsOneWidget);
+    expect(find.text('SERVING COUNT'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('recipe-save')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('recipe-save')));
+    await tester.pumpAndSettle();
+    expect(
+      (await recipes.list())
+          .firstWhere((recipe) => recipe.recipeId == recipeId)
+          .servingCount,
+      2,
+    );
   });
 
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {
@@ -148,6 +162,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('CREATE RECIPE'), findsOneWidget);
+      expect(find.text('SERVING COUNT'), findsNothing);
       await tester.scrollUntilVisible(
         find.text('Rice'),
         200,
@@ -180,6 +195,11 @@ void main() {
         const ValueKey('recipe-serving-metadata'),
       );
       final totalCard = find.byKey(const ValueKey('recipe-total-pfc-card'));
+      await tester.scrollUntilVisible(
+        servingMetadata,
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(
         tester.getRect(servingMetadata).top,
         lessThan(tester.getRect(totalCard).top),
@@ -288,6 +308,53 @@ void main() {
     expect(item.quantity.unit, FoodQuantityUnit.serving);
     expect(item.nutritionConsumed.calories, 71.5);
   });
+
+  for (final unit in [FoodQuantityUnit.gram, FoodQuantityUnit.milliliter]) {
+    test('recipe meal mapping preserves ${unit.stableId} yield semantics', () {
+      final recipe = FoodRecipeDefinition.fromJson({
+        ..._recipe(name: 'Physical Recipe').toJson(),
+        'yieldQuantity': FoodQuantityDefinition(
+          value: unit == FoodQuantityUnit.gram ? 500 : 750,
+          unit: unit,
+        ).toJson(),
+        'servingCount': 1,
+      });
+      const meal = MealData(
+        date: '2026-08-31',
+        mealType: 'Lunch',
+        items: [
+          FoodItem(
+            name: 'Physical Recipe',
+            calories: 286,
+            protein: 12.2,
+            fat: 19.3,
+            carbohydrate: 16.2,
+          ),
+        ],
+        memo: '',
+        id: 'legacy-id',
+      );
+
+      final mapped = FoodCatalogMealMapper.map(
+        meal: meal,
+        catalogSources: const [null],
+        recipeSources: [recipe],
+        localDate: '2026-08-31',
+        timestamp: DateTime.utc(2026, 8, 31),
+        idGenerator: FoodMealIdGenerator(nextInt: (_) => 9),
+      );
+
+      expect(mapped.items.single.quantity.unit, unit);
+      expect(
+        mapped.items.single.quantity.value,
+        unit == FoodQuantityUnit.gram ? 500 : 750,
+      );
+      expect(
+        mapped.items.single.nutritionConsumed.toJson(),
+        recipe.nutrition.toJson(),
+      );
+    });
+  }
 
   test('recipe display formatter removes floating-point artifacts', () {
     expect(FoodNutritionFormatter.displayNumber(48.879999999999995), '48.9');

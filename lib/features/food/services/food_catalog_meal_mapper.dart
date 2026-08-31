@@ -40,9 +40,9 @@ class FoodCatalogMealMapper {
             mealItemId: _id(idGenerator),
             recipeReferenceId: recipe.recipeId,
             nameSnapshot: recipe.name,
-            quantity: FoodQuantityDefinition(
-              value: item.multiplier,
-              unit: FoodQuantityUnit.serving,
+            quantity: FoodRecipeNutrition.consumptionQuantity(
+              recipe,
+              item.multiplier,
             ),
             nutritionPerBase: perServing,
             nutritionConsumed: FoodRecipeNutrition.scale(

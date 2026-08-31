@@ -1534,12 +1534,7 @@ double? _optionalNumber(TextEditingController controller) {
 }
 
 String foodCatalogCategoryLabel(FoodCatalogCategory category) =>
-    switch (category) {
-      FoodCatalogCategory.ingredient => '食材',
-      FoodCatalogCategory.preparedFood => '調理済み食品',
-      FoodCatalogCategory.packagedFood => '市販・包装食品',
-      FoodCatalogCategory.beverage => '飲料',
-    };
+    FoodNutritionFormatter.category(category);
 
 FoodBarcodeFormat _detectBarcodeFormat(String barcode) {
   if (!_hasValidGtinCheckDigit(barcode)) return FoodBarcodeFormat.unknown;

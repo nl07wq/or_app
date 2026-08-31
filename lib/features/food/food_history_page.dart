@@ -36,7 +36,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   bool _isLoading = true;
   List<MealData> _records = const [];
   List<DailyMealV2> _v2Records = const [];
-  Map<String, FoodVisualKey?> _catalogVisualKeys = const {};
+  Map<String, FoodCatalogEntry> _catalogEntries = const {};
   Object? _loadError;
 
   @override
@@ -73,12 +73,12 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             AppRepositoryRegistry.container.foodCatalog.readById,
           ),
         );
-        _catalogVisualKeys = {
-          for (final entry in catalog)
-            if (entry != null) entry.foodId: entry.visualKey,
+        _catalogEntries = {
+          for (final entry in catalog.whereType<FoodCatalogEntry>())
+            entry.foodId: entry,
         };
       } else {
-        _catalogVisualKeys = const {};
+        _catalogEntries = const {};
       }
     } catch (error) {
       loadError = error;
@@ -110,6 +110,28 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       return;
     }
 
+    await _loadRecords();
+  }
+
+  Future<void> _deleteV2Record(DailyMealV2 meal) async {
+    final confirmed = await showHistoryDeleteDialog(
+      context,
+      title: 'Meal Record',
+    );
+    if (!confirmed) return;
+    try {
+      await FoodSubmitService.deleteV2(meal);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('MEAL DELETE FAILED')));
+      }
+      return;
+    }
     await _loadRecords();
   }
 
@@ -256,7 +278,26 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(meal.localDate, style: Theme.of(context).textTheme.titleMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                meal.localDate,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              key: ValueKey('delete-v2-meal-${meal.mealId}'),
+              icon: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: appInitializationController.value.isReadOnly
+                  ? null
+                  : () => _deleteV2Record(meal),
+            ),
+          ],
+        ),
         AppSpacing.gapSM,
         SectionHeader(
           icon: Icons.restaurant,
@@ -270,17 +311,30 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             leading: FoodThumbnail(
               visualKey: item.foodReferenceId == null
                   ? null
-                  : _catalogVisualKeys[item.foodReferenceId!],
+                  : _catalogEntries[item.foodReferenceId!]?.visualKey,
             ),
             title: Text(item.nameSnapshot),
-            subtitle: Text(
-              '${FoodNutritionFormatter.calories(item.nutritionConsumed.calories ?? 0)} kcal'
-              '  P ${FoodNutritionFormatter.macro(item.nutritionConsumed.protein ?? 0)}'
-              '  F ${FoodNutritionFormatter.macro(item.nutritionConsumed.fat ?? 0)}'
-              '  C ${FoodNutritionFormatter.macro(item.nutritionConsumed.carbohydrate ?? 0)}',
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  [
+                    if (item.category != null)
+                      foodCatalogCategoryLabel(item.category!),
+                    FoodNutritionFormatter.compactQuantity(item.quantity),
+                  ].join('  '),
+                ),
+                Text(
+                  FoodNutritionFormatter.compactNutrition(
+                    item.nutritionConsumed,
+                  ),
+                ),
+              ],
             ),
+            isThreeLine: true,
           ),
-          if (!appInitializationController.value.isReadOnly)
+          if (!appInitializationController.value.isReadOnly &&
+              !_hasActiveFoodReference(item))
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
@@ -293,6 +347,13 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       ],
     ),
   );
+
+  bool _hasActiveFoodReference(DailyMealItemSnapshot item) {
+    final referenceId = item.foodReferenceId;
+    if (referenceId == null) return false;
+    final entry = _catalogEntries[referenceId];
+    return entry != null && !entry.isArchived;
+  }
 
   Future<void> _addV2ItemToCatalog(DailyMealItemSnapshot item) async {
     if (!AppRepositoryRegistry.hasContainer) return;

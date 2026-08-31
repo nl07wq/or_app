@@ -2,7 +2,9 @@ import '../../../core/models/meal_data.dart';
 import '../../../core/repositories/food_repository.dart';
 import '../../../core/services/daily_log_mutation_guard.dart';
 import '../../operation_date/services/operation_date_service.dart';
+import '../../repositories/app_repository_container.dart';
 
+import '../models/daily_meal_v2_models.dart';
 import '../models/food_summary_state.dart';
 
 class FoodSubmitService {
@@ -47,6 +49,18 @@ class FoodSubmitService {
       throw StateError('targetRecordDeleteReadBackFailed');
     }
     await refreshFoodSummary(localDate: data.date.substring(0, 10));
+  }
+
+  static Future<void> deleteV2(DailyMealV2 meal) async {
+    await DailyLogMutationGuard.assertDateMutable(
+      DateTime.parse(meal.localDate),
+    );
+    final repository = AppRepositoryRegistry.container.dailyMealsV2;
+    await repository.deleteById(meal.mealId);
+    if (await repository.readById(meal.mealId) != null) {
+      throw StateError('Daily Meal v2 delete verification failed.');
+    }
+    await refreshFoodSummary(localDate: meal.localDate);
   }
 
   static MealData _withLocalDate(MealData data, String localDate) => MealData(

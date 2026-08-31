@@ -294,14 +294,6 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             },
           ),
           AppSpacing.gapMD,
-          OperationTextField(
-            key: const ValueKey('recipe-serving-count'),
-            controller: _servings,
-            label: 'SERVING COUNT',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) => setState(() {}),
-          ),
-          AppSpacing.gapMD,
           _RecipeSummaryHeader(
             name: _name.text.trim().isEmpty ? 'RECIPE' : _name.text.trim(),
             serving: _servingMetadata(),

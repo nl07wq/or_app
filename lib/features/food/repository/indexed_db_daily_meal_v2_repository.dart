@@ -23,6 +23,36 @@ class IndexedDbDailyMealV2Repository implements DailyMealV2Repository {
       _write('dailyMealV2.update', meal, true);
 
   @override
+  Future<void> deleteById(String mealId) async {
+    final id = PersistedDailyMealV2Record.envelopeId(mealId);
+    try {
+      await _database.runTransaction<void>(
+        storeNames: const [IndexedDbStoreNames.foodRecords],
+        mode: IndexedDbTransactionMode.readWrite,
+        action: (transaction) async {
+          final existing = await transaction.findById(
+            IndexedDbStoreNames.foodRecords,
+            id,
+          );
+          if (existing == null) {
+            throw StateError('Daily Meal v2 not found.');
+          }
+          PersistedDailyMealV2Record.fromRecord(existing);
+          await transaction.deleteById(IndexedDbStoreNames.foodRecords, id);
+          if (await transaction.findById(IndexedDbStoreNames.foodRecords, id) !=
+              null) {
+            throw const FormatException(
+              'Daily Meal v2 delete verification failed.',
+            );
+          }
+        },
+      );
+    } catch (error) {
+      throw _exception('dailyMealV2.delete', error);
+    }
+  }
+
+  @override
   Future<DailyMealV2?> readById(String mealId) async {
     try {
       final value = await _database.findById(

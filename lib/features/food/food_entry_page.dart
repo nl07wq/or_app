@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/meal_data.dart';
 import '../../core/navigation/app_routes.dart';
-import '../../core/repositories/food_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../operation_date/services/operation_date_service.dart';
 
 import 'services/food_submit_service.dart';
-import 'services/food_summary_service.dart';
 import '../repositories/app_repository_container.dart';
 import 'models/food_catalog_models.dart';
 import 'models/recipe_models_v2.dart';
@@ -32,7 +30,6 @@ class FoodEntryPage extends StatefulWidget {
 }
 
 class _FoodEntryPageState extends State<FoodEntryPage> {
-  List<MealData> records = [];
   String? _localDate;
   Object? _dateLoadError;
 
@@ -45,8 +42,8 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   Future<void> loadRecords() async {
     try {
       final localDate = (await widget.operationDateService.current()).value;
-      records = await FoodRepository.getAll();
       _localDate = localDate;
+      await refreshFoodSummary(localDate: localDate);
       _dateLoadError = null;
     } catch (error) {
       _dateLoadError = error;
@@ -62,8 +59,6 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     if (localDate == null) return false;
     try {
       await FoodSubmitService.save(data, operationLocalDate: localDate);
-      records = await FoodRepository.getAll();
-      if (mounted) setState(() {});
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
       return false;
@@ -151,11 +146,11 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
                       onSaveWithCatalog: saveWithCatalog,
                     ),
                     const SizedBox(height: 20),
-                    FoodSummaryCard(
-                      summary: FoodSummaryService.forLocalDate(
-                        records,
-                        _localDate!,
-                      ),
+                    ValueListenableBuilder(
+                      valueListenable: foodSummaryNotifier,
+                      builder: (context, summary, _) => summary == null
+                          ? const SizedBox.shrink()
+                          : FoodSummaryCard(summary: summary),
                     ),
                   ],
                 ),

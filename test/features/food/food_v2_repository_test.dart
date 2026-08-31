@@ -119,6 +119,30 @@ void main() {
     expect(await repository.readById(meal.mealId), isNull);
   });
 
+  test(
+    'daily meal v2 delete removes only the exact verified envelope',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final repository = IndexedDbDailyMealV2Repository(database);
+      final first = _meal(created, updated);
+      final second = DailyMealV2.fromJson({
+        ...first.toJson(),
+        'mealId': '55555555-5555-4555-8555-555555555555',
+      });
+      await repository.create(first);
+      await repository.create(second);
+
+      await repository.deleteById(first.mealId);
+
+      expect(await repository.readById(first.mealId), isNull);
+      expect((await repository.findAll()).single.mealId, second.mealId);
+      await expectLater(
+        repository.deleteById(first.mealId),
+        throwsA(isA<Object>()),
+      );
+    },
+  );
+
   test('v1 and v2 repositories exclude the other known version', () async {
     final database = FakeIndexedDbDatabase();
     final legacy = IndexedDbFoodRepository(database);

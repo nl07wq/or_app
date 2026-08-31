@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../food_nutrition_formatter.dart';
+import '../models/food_catalog_models.dart';
+import '../models/recipe_models_v2.dart';
+import '../services/food_recipe_nutrition.dart';
 import '../../../core/models/food_item.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import 'food_thumbnail.dart';
 
 class FoodItemList extends StatelessWidget {
   final List<FoodItem> items;
+  final List<FoodCatalogEntry?> catalogSources;
+  final List<FoodRecipeDefinition?> recipeSources;
   final Function(int) onDelete;
   final Function(int) onTap;
   final void Function(int index, int change) onQuantityChanged;
@@ -20,6 +26,8 @@ class FoodItemList extends StatelessWidget {
   const FoodItemList({
     super.key,
     required this.items,
+    required this.catalogSources,
+    required this.recipeSources,
     required this.onDelete,
     required this.onTap,
     required this.onQuantityChanged,
@@ -27,7 +35,8 @@ class FoodItemList extends StatelessWidget {
     required this.actionIcon,
     required this.actionText,
     required this.onAction,
-  });
+  }) : assert(catalogSources.length == items.length),
+       assert(recipeSources.length == items.length);
 
   @override
   Widget build(BuildContext context) {
@@ -39,32 +48,31 @@ class FoodItemList extends StatelessWidget {
             icon: Icons.restaurant_menu,
             title: 'Meal Items (${items.length})',
           ),
-
           AppSpacing.gapMD,
-
           OperationButton(
             icon: actionIcon,
             text: actionText,
             onPressed: onAction,
           ),
-
           AppSpacing.gapMD,
-
           ...List.generate(items.length, (index) {
             final item = items[index];
+            final catalog = catalogSources[index];
+            final recipe = recipeSources[index];
             final canAdjustQuantity = index < editableItemCount;
-
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => onTap(index),
-                child: Card(
+              child: Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => onTap(index),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        FoodThumbnail(visualKey: catalog?.visualKey),
+                        AppSpacing.gapSM,
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,25 +82,26 @@ class FoodItemList extends StatelessWidget {
                                   Expanded(
                                     child: Text(
                                       item.name,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
+                                      key: ValueKey('meal-item-name-$index'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                     ),
                                   ),
-                                  if (item.hasMeasuredAmount &&
-                                      item.amountMode ==
-                                          FoodAmountMode.baseMultiplier)
+                                  if (item.hasMeasuredAmount)
                                     Text(
-                                      'AMOUNT '
-                                      '${FoodNutritionFormatter.amount(item.amount!)}',
-                                    )
-                                  else if (item.hasMeasuredAmount)
-                                    Text(
-                                      '${FoodNutritionFormatter.amount(item.amount!)}'
-                                      '${item.baseUnit!.label}',
+                                      'AMOUNT ${FoodNutritionFormatter.amount(item.amount!)}',
+                                      key: ValueKey('meal-item-amount-$index'),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
                                     )
                                   else ...[
                                     IconButton(
+                                      visualDensity: VisualDensity.compact,
                                       icon: const Icon(Icons.remove),
                                       tooltip: 'Decrease quantity',
                                       onPressed:
@@ -102,6 +111,7 @@ class FoodItemList extends StatelessWidget {
                                     ),
                                     Text('${item.quantity}'),
                                     IconButton(
+                                      visualDensity: VisualDensity.compact,
                                       icon: const Icon(Icons.add),
                                       tooltip: 'Increase quantity',
                                       onPressed: canAdjustQuantity
@@ -111,45 +121,24 @@ class FoodItemList extends StatelessWidget {
                                   ],
                                 ],
                               ),
-
-                              AppSpacing.gapMD,
-
-                              if (item.hasMeasuredAmount) ...[
-                                Text(
-                                  'Base : '
-                                  '${FoodNutritionFormatter.amount(item.baseAmount!)}'
-                                  '${item.baseUnit!.label}',
-                                ),
-                                if (item.amountMode ==
-                                    FoodAmountMode.baseMultiplier) ...[
-                                  AppSpacing.gapXS,
-                                  Text(
-                                    '実使用量 : '
-                                    '${FoodNutritionFormatter.amount(item.physicalAmount!)}'
-                                    '${item.baseUnit!.label}',
-                                  ),
-                                ],
-                                AppSpacing.gapXS,
-                                const Text('Calculated'),
-                                AppSpacing.gapXS,
-                              ],
                               Text(
-                                'Calories : ${FoodNutritionFormatter.calories(item.totalCalories)} kcal',
+                                _metadata(item, catalog, recipe),
+                                key: ValueKey('meal-item-metadata-$index'),
+                                style: Theme.of(context).textTheme.bodyMedium,
                               ),
                               Text(
-                                'Protein : ${FoodNutritionFormatter.macro(item.totalProtein)} g',
-                              ),
-                              Text(
-                                'Fat : ${FoodNutritionFormatter.macro(item.totalFat)} g',
-                              ),
-                              Text(
-                                'Carbohydrate : ${FoodNutritionFormatter.macro(item.totalCarbohydrate)} g',
+                                '${FoodNutritionFormatter.calories(item.totalCalories)}kcal'
+                                '  P ${FoodNutritionFormatter.macro(item.totalProtein)}g'
+                                '  F ${FoodNutritionFormatter.macro(item.totalFat)}g'
+                                '  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}g',
+                                key: ValueKey('meal-item-nutrition-$index'),
+                                style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ],
                           ),
                         ),
-
                         IconButton(
+                          visualDensity: VisualDensity.compact,
                           icon: Icon(
                             Icons.delete_outline,
                             color: Theme.of(context).colorScheme.error,
@@ -166,5 +155,38 @@ class FoodItemList extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _metadata(
+    FoodItem item,
+    FoodCatalogEntry? catalog,
+    FoodRecipeDefinition? recipe,
+  ) {
+    final prefix = catalog == null
+        ? recipe == null
+              ? null
+              : 'RECIPE'
+        : FoodNutritionFormatter.category(catalog.category);
+    final quantity = recipe == null
+        ? _foodQuantity(item)
+        : FoodNutritionFormatter.compactQuantity(
+            FoodRecipeNutrition.consumptionQuantity(
+              recipe,
+              (item.amount ?? item.quantity).toDouble(),
+            ),
+          );
+    return prefix == null ? quantity : '$prefix  $quantity';
+  }
+
+  static String _foodQuantity(FoodItem item) {
+    if (!item.hasMeasuredAmount) return 'AMOUNT ${item.quantity}';
+    final base =
+        '${FoodNutritionFormatter.amount(item.baseAmount!)}${item.baseUnit!.label}';
+    final used =
+        '${FoodNutritionFormatter.amount(item.physicalAmount!)}${item.baseUnit!.label}';
+    if ((item.baseAmount! - item.physicalAmount!).abs() < 0.000001) {
+      return used;
+    }
+    return 'Base $base · Used $used';
   }
 }

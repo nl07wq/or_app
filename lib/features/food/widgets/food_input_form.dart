@@ -845,6 +845,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
   @override
   Widget build(BuildContext context) {
     final preview = editingIndex == null ? previewItems : items;
+    final previewCatalogSources = List<FoodCatalogEntry?>.from(_catalogSources);
+    final previewRecipeSources = List<FoodRecipeDefinition?>.from(
+      _recipeSources,
+    );
+    if (editingIndex == null && _currentFoodItem() != null) {
+      previewCatalogSources.add(_currentCatalogSource);
+      previewRecipeSources.add(_currentRecipeSource);
+    }
 
     return OperationCard(
       child: Column(
@@ -1101,6 +1109,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
               FoodItemList(
                 items: preview,
+                catalogSources: previewCatalogSources,
+                recipeSources: previewRecipeSources,
                 onDelete: (index) {
                   if (index < items.length) {
                     removeFood(index);

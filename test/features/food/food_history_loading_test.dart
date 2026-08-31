@@ -17,6 +17,7 @@ import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
+import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   late FakeIndexedDbDatabase database;
@@ -27,6 +28,7 @@ void main() {
     controller = AppInitializationController()..markReady();
     AppRepositoryRegistry.beginStartup(controller: controller);
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    seedOperationState(database, '2026-07-26');
   });
 
   tearDown(AppRepositoryRegistry.resetForTesting);
@@ -121,6 +123,7 @@ void main() {
 
     expect(find.text('Linked Food'), findsOneWidget);
     expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+    expect(find.text('ADD TO FOOD DATABASE'), findsNothing);
   });
 
   testWidgets('legacy and unlinked v2 history use generic fallback', (
@@ -136,6 +139,137 @@ void main() {
       find.byKey(const ValueKey('food-thumbnail-fallback')),
       findsNWidgets(2),
     );
+    expect(find.text('ADD TO FOOD DATABASE'), findsNWidgets(2));
+  });
+
+  testWidgets('v2 delete removes only the selected Formal meal', (
+    tester,
+  ) async {
+    _seedV2(database, foodReferenceId: null, name: 'Delete Target');
+    _seedV2(
+      database,
+      mealId: '66666666-6666-4666-8666-666666666666',
+      foodReferenceId: null,
+      name: 'Keep Target',
+    );
+    await _pumpPage(tester);
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey('delete-v2-meal-44444444-4444-4444-8444-444444444444'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('削除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete Target'), findsNothing);
+    expect(find.text('Keep Target'), findsOneWidget);
+    expect(
+      await AppRepositoryRegistry.container.dailyMealsV2.readById(
+        '44444444-4444-4444-8444-444444444444',
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('v2 delete failure keeps record visible', (tester) async {
+    _seedV2(database, foodReferenceId: null, name: 'Retry Target');
+    await _pumpPage(tester);
+    database.failNextTransactionWith = StateError('delete failed');
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey('delete-v2-meal-44444444-4444-4444-8444-444444444444'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('削除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Retry Target'), findsOneWidget);
+    expect(find.text('MEAL DELETE FAILED'), findsOneWidget);
+    expect(
+      await AppRepositoryRegistry.container.dailyMealsV2.readById(
+        '44444444-4444-4444-8444-444444444444',
+      ),
+      isNotNull,
+    );
+  });
+
+  testWidgets('v2 delete respects the finalized operation-date lock', (
+    tester,
+  ) async {
+    _seedV2(database, foodReferenceId: null, name: 'Locked Target');
+    final state = database.rawRecord('operation_state', 'current')!;
+    database.seed('operation_state', 'current', {
+      ...state,
+      'phase': 'finalizing',
+      'activeAttempt': {
+        'idempotencyKey': 'delete-lock-test',
+        'targetLocalDate': '2026-07-26',
+        'startedAt': '2026-07-26T12:00:00.000Z',
+        'confirmationId': null,
+        'confirmationDigest': null,
+        'backupPackageDigest': null,
+        'backupGeneratedAt': null,
+        'failureCode': null,
+      },
+    });
+    await _pumpPage(tester);
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey('delete-v2-meal-44444444-4444-4444-8444-444444444444'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('削除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Locked Target'), findsOneWidget);
+    expect(find.textContaining('この日のログは確定済みです'), findsOneWidget);
+    expect(
+      await AppRepositoryRegistry.container.dailyMealsV2.readById(
+        '44444444-4444-4444-8444-444444444444',
+      ),
+      isNotNull,
+    );
+  });
+
+  testWidgets('archived Food Master linkage exposes add action', (
+    tester,
+  ) async {
+    final entry = FoodCatalogEntry.fromJson({
+      ..._catalog(FoodVisualKey.meat).toJson(),
+      'isArchived': true,
+    });
+    database.seed(
+      IndexedDbStoreNames.foodCatalogRecords,
+      entry.foodId,
+      entry.toJson(),
+    );
+    _seedV2(database, foodReferenceId: entry.foodId, name: 'Archived Link');
+
+    await _pumpPage(tester);
+
+    expect(find.text('ADD TO FOOD DATABASE'), findsOneWidget);
+  });
+
+  testWidgets('same Food name without stable linkage remains unregistered', (
+    tester,
+  ) async {
+    final entry = _catalog(FoodVisualKey.meat);
+    database.seed(
+      IndexedDbStoreNames.foodCatalogRecords,
+      entry.foodId,
+      entry.toJson(),
+    );
+    _seedV2(database, foodReferenceId: null, name: entry.name);
+
+    await _pumpPage(tester);
+
+    expect(find.text('ADD TO FOOD DATABASE'), findsOneWidget);
   });
 
   testWidgets('repository error replaces spinner with error and Retry', (
@@ -232,12 +366,13 @@ void _seed(FakeIndexedDbDatabase database, MealData meal) {
 
 void _seedV2(
   FakeIndexedDbDatabase database, {
+  String mealId = '44444444-4444-4444-8444-444444444444',
   required String? foodReferenceId,
   required String name,
 }) {
   final timestamp = DateTime.utc(2026, 7, 26);
   final meal = DailyMealV2(
-    mealId: '44444444-4444-4444-8444-444444444444',
+    mealId: mealId,
     localDate: '2026-07-26',
     mealType: DailyMealTypeV2.lunch,
     items: [

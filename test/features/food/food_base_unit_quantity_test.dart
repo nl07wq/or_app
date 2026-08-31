@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:or_app/core/models/daily_log_confirmation.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
-import 'package:or_app/core/repositories/daily_log_confirmation_repository.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/data/beta_meal_templates.dart';
@@ -552,7 +550,7 @@ void main() {
       await tester.pump();
       expect(find.text('実使用量: 250g'), findsOneWidget);
       expect(find.text('AMOUNT 2.5'), findsOneWidget);
-      expect(find.text('Calories : 413 kcal'), findsOneWidget);
+      expect(find.textContaining('413kcal'), findsOneWidget);
       expect(find.text('ADD FOOD'), findsOneWidget);
       expect(find.text('Add Another Food'), findsNothing);
       expect(find.text('+ ADD FOOD'), findsNothing);
@@ -601,7 +599,7 @@ void main() {
         expect(find.text('NUTRITION PER 10g'), findsOneWidget);
         expect(find.text('1 AMOUNT = 10g'), findsOneWidget);
         expect(find.text('実使用量: 10g'), findsOneWidget);
-        expect(find.text('Calories : 26 kcal'), findsOneWidget);
+        expect(find.textContaining('26kcal'), findsOneWidget);
 
         await tester.enterText(_field('NUTRITION BASIS'), '100');
         await tester.pump();
@@ -614,7 +612,7 @@ void main() {
           closeTo(14, 1e-9),
         );
         expect(_controllerText(tester, 'AMOUNT'), '1');
-        expect(find.text('Calories : 258 kcal'), findsOneWidget);
+        expect(find.textContaining('258kcal'), findsOneWidget);
 
         await tester.enterText(_field('NUTRITION BASIS'), '1');
         await tester.pump();
@@ -1058,22 +1056,27 @@ void main() {
     testWidgets('save failure keeps the FOOD input and its values', (
       tester,
     ) async {
-      final now = DateTime.now();
-      await DailyLogConfirmationRepository.save(
-        DailyLogConfirmation(
-          date: DateTime(now.year, now.month, now.day),
-          confirmedAt: now,
-          morning: null,
-          food: null,
-          activity: null,
-          training: null,
-        ),
-      );
       await _pumpFoodModule(tester);
       await tester.tap(find.text('FOOD ENTRY'));
       await tester.pumpAndSettle();
 
       await _enterNavigationMeal(tester);
+      final state = database.rawRecord('operation_state', 'current')!;
+      final localDate = state['operationDate']! as String;
+      database.seed('operation_state', 'current', {
+        ...state,
+        'phase': OperationPhase.finalizing.name,
+        'activeAttempt': {
+          'idempotencyKey': 'food-save-lock-test',
+          'targetLocalDate': localDate,
+          'startedAt': DateTime.now().toUtc().toIso8601String(),
+          'confirmationId': null,
+          'confirmationDigest': null,
+          'backupPackageDigest': null,
+          'backupGeneratedAt': null,
+          'failureCode': null,
+        },
+      });
       await tester.ensureVisible(find.text('SAVE MEAL'));
       await tester.tap(find.text('SAVE MEAL'));
       await tester.pumpAndSettle();

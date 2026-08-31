@@ -1,3 +1,4 @@
+import 'models/food_catalog_models.dart';
 import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
 
@@ -52,6 +53,13 @@ class FoodNutritionFormatter {
 
   static String servings(num value) =>
       '${displayNumber(value)} ${value > 1 ? 'SERVINGS' : 'SERVING'}';
+
+  static String category(FoodCatalogCategory value) => switch (value) {
+    FoodCatalogCategory.ingredient => '食材',
+    FoodCatalogCategory.preparedFood => '調理済み食品',
+    FoodCatalogCategory.packagedFood => '市販・包装食品',
+    FoodCatalogCategory.beverage => '飲料',
+  };
 
   static String _nutritionValue(num? value, String unit) =>
       value == null ? '—' : '${displayNumber(value)} $unit';
