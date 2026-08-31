@@ -33,42 +33,12 @@ import '../operation_date/operation_date_test_fixture.dart';
 void main() {
   late FakeIndexedDbDatabase database;
 
-  test('maps debrief lifecycle statuses to distinct formal symbols', () {
-    final lifecycleIcons = {
-      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.active),
-      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.stale),
-      dailyDebriefLifecycleIconForStatus(
-        DailyDebriefLifecycleStatus.invalidated,
-      ),
-    };
-
+  test('omits only initial revision suffix from report presentation IDs', () {
+    expect(dailyBriefPresentationIdentity('2026-08-14', 1), 'DB-2026-08-14');
     expect(
-      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.active),
-      Icons.verified_outlined,
+      dailyBriefPresentationIdentity('2026-08-14', 2),
+      'DB-2026-08-14-Rev2',
     );
-    expect(
-      dailyDebriefLifecycleIconForStatus(DailyDebriefLifecycleStatus.stale),
-      Icons.history,
-    );
-    expect(
-      dailyDebriefLifecycleIconForStatus(
-        DailyDebriefLifecycleStatus.invalidated,
-      ),
-      Icons.block,
-    );
-    expect(lifecycleIcons, hasLength(3));
-    expect(
-      lifecycleIcons.intersection({
-        Icons.check_circle,
-        Icons.adjust,
-        Icons.cancel,
-        Icons.help_outline,
-      }),
-      isEmpty,
-    );
-  });
-
-  test('omits only the first revision suffix from debrief presentation', () {
     expect(dailyDebriefPresentationIdentity('2026-08-14', 1), 'DD-2026-08-14');
     expect(
       dailyDebriefPresentationIdentity('2026-08-14', 2),
@@ -848,7 +818,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
-    expect(find.text('DB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DB-2026-08-01'), findsOneWidget);
+    expect(find.textContaining('Rev1'), findsNothing);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
 
     await _openDailyDebrief(tester);
@@ -895,7 +866,8 @@ void main() {
 
     expect(_morningBriefScrollPosition(tester).pixels, 0);
     expect(find.text('DAILY BRIEF'), findsWidgets);
-    expect(find.text('DB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DB-2026-08-01'), findsOneWidget);
+    expect(find.textContaining('Rev1'), findsNothing);
   });
 
   testWidgets('shows the latest Morning Brief and preserves prior revisions', (
@@ -921,12 +893,14 @@ void main() {
       find.byKey(const ValueKey('morning-brief-previous-revisions')),
       findsOneWidget,
     );
-    expect(find.text('REV 1'), findsOneWidget);
-    await tester.ensureVisible(find.text('REV 1'));
+    expect(find.text('INITIAL'), findsOneWidget);
+    expect(find.text('REV 1'), findsNothing);
+    await tester.ensureVisible(find.text('INITIAL'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('REV 1'));
+    await tester.tap(find.text('INITIAL'));
     await tester.pumpAndSettle();
-    expect(find.text('DB-2026-08-01-Rev1'), findsOneWidget);
+    expect(find.text('DB-2026-08-01'), findsOneWidget);
+    expect(find.textContaining('Rev1'), findsNothing);
     expect(find.text('ORIGINAL MORNING INTENT'), findsOneWidget);
   });
 
@@ -1004,9 +978,8 @@ void main() {
     expect(find.text('INVALIDATED'), findsNothing);
     expect(
       find.byKey(const ValueKey('daily-debrief-lifecycle-invalidated')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.byIcon(Icons.block), findsOneWidget);
     expect(find.text('COMMANDER INTENT EVALUATION'), findsOneWidget);
     expect(find.text('OUTCOME'), findsNothing);
     expect(find.text('PARTIALLY ACHIEVED'), findsNothing);
@@ -1021,7 +994,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.adjust), findsNWidgets(2));
+    expect(find.byIcon(Icons.adjust), findsNothing);
     expect(find.text('YELLOW'), findsNWidgets(2));
     expect(find.text('評価理由'), findsOneWidget);
     expect(find.text('判定根拠'), findsOneWidget);
@@ -1609,30 +1582,10 @@ void main() {
   });
 
   for (final outcomeCase in const [
-    (
-      DailyDebriefCommanderIntentOutcome.achieved,
-      Icons.check_circle,
-      'green',
-      'GREEN',
-    ),
-    (
-      DailyDebriefCommanderIntentOutcome.partiallyAchieved,
-      Icons.adjust,
-      'amber',
-      'YELLOW',
-    ),
-    (
-      DailyDebriefCommanderIntentOutcome.notAchieved,
-      Icons.cancel,
-      'error',
-      'RED',
-    ),
-    (
-      DailyDebriefCommanderIntentOutcome.notAssessable,
-      Icons.help_outline,
-      'outline',
-      'GRAY',
-    ),
+    (DailyDebriefCommanderIntentOutcome.achieved, 'green', 'GREEN'),
+    (DailyDebriefCommanderIntentOutcome.partiallyAchieved, 'amber', 'YELLOW'),
+    (DailyDebriefCommanderIntentOutcome.notAchieved, 'error', 'RED'),
+    (DailyDebriefCommanderIntentOutcome.notAssessable, 'outline', 'GRAY'),
   ]) {
     testWidgets('maps ${outcomeCase.$1.name} to its semantic outcome visual', (
       tester,
@@ -1662,22 +1615,27 @@ void main() {
       final headerIndicator = find.byKey(
         ValueKey('daily-debrief-header-outcome-${outcomeCase.$1.name}'),
       );
-      final sectionIcon = tester.widget<Icon>(sectionIndicator);
-      final headerIcon = tester.widget<Icon>(headerIndicator);
       final colorScheme = Theme.of(
         tester.element(sectionIndicator),
       ).colorScheme;
-      final expectedColor = switch (outcomeCase.$3) {
+      final expectedColor = switch (outcomeCase.$2) {
         'green' => Colors.green,
         'amber' => Colors.amber,
         'error' => colorScheme.error,
         _ => colorScheme.outline,
       };
-      expect(sectionIcon.icon, outcomeCase.$2);
-      expect(sectionIcon.color, expectedColor);
-      expect(headerIcon.icon, outcomeCase.$2);
-      expect(headerIcon.color, expectedColor);
-      expect(find.text(outcomeCase.$4), findsNWidgets(2));
+      for (final indicator in [sectionIndicator, headerIndicator]) {
+        final lamp = tester.widget<Container>(
+          find.descendant(of: indicator, matching: find.byType(Container)),
+        );
+        final decoration = lamp.decoration! as BoxDecoration;
+        expect(decoration.shape, BoxShape.circle);
+        expect(decoration.color, expectedColor);
+      }
+      expect(find.text(outcomeCase.$3), findsNWidgets(2));
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.byIcon(Icons.adjust), findsNothing);
+      expect(find.byIcon(Icons.cancel), findsNothing);
       expect(find.text(outcomeCase.$1.name), findsNothing);
       expect(find.text('OUTCOME'), findsNothing);
       expect(

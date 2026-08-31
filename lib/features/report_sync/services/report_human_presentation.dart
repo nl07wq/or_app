@@ -1,6 +1,12 @@
 import '../models/morning_brief_record.dart';
 
 abstract final class ReportHumanPresentation {
+  static String recordIdentity(String baseIdentity, int revision) =>
+      revision <= 1 ? baseIdentity : '$baseIdentity-Rev$revision';
+
+  static String revisionLabel(int revision) =>
+      revision <= 1 ? 'INITIAL' : 'REV $revision';
+
   static String analysisText(String value) {
     var normalized = value
         .replaceAll('直近文脈の平均', '直近1週間の平均')

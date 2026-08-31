@@ -68,49 +68,32 @@ OperationCalendarPeriod _periodFor(PeriodicReportType type, DateTime anchor) =>
 const _backNumberPreviewLimit = 3;
 
 @visibleForTesting
-IconData dailyDebriefLifecycleIconForStatus(
-  DailyDebriefLifecycleStatus status,
-) => switch (status) {
-  DailyDebriefLifecycleStatus.active => Icons.verified_outlined,
-  DailyDebriefLifecycleStatus.stale => Icons.history,
-  DailyDebriefLifecycleStatus.invalidated => Icons.block,
-};
-
-@visibleForTesting
 String dailyDebriefPresentationIdentity(String localDate, int revision) =>
-    revision == 1 ? 'DD-$localDate' : 'DD-$localDate-Rev$revision';
+    ReportHumanPresentation.recordIdentity('DD-$localDate', revision);
 
 @visibleForTesting
 String dailyBriefPresentationIdentity(String localDate, int revision) =>
-    'DB-$localDate-Rev$revision';
+    ReportHumanPresentation.recordIdentity('DB-$localDate', revision);
 
-typedef _CommanderIntentOutcomePresentation = ({
-  IconData icon,
-  Color color,
-  String label,
-});
+typedef _CommanderIntentOutcomePresentation = ({Color color, String label});
 
 _CommanderIntentOutcomePresentation _commanderIntentOutcomePresentation(
   BuildContext context,
   DailyDebriefCommanderIntentOutcome outcome,
 ) => switch (outcome) {
   DailyDebriefCommanderIntentOutcome.achieved => (
-    icon: Icons.check_circle,
     color: Colors.green,
     label: 'GREEN',
   ),
   DailyDebriefCommanderIntentOutcome.partiallyAchieved => (
-    icon: Icons.adjust,
     color: Colors.amber,
     label: 'YELLOW',
   ),
   DailyDebriefCommanderIntentOutcome.notAchieved => (
-    icon: Icons.cancel,
     color: Theme.of(context).colorScheme.error,
     label: 'RED',
   ),
   DailyDebriefCommanderIntentOutcome.notAssessable => (
-    icon: Icons.help_outline,
     color: Theme.of(context).colorScheme.outline,
     label: 'GRAY',
   ),
@@ -545,7 +528,6 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           _DailyDebriefDetail(
             key: const ValueKey('current-daily-debrief'),
             record: snapshot.data!.current!.record,
-            status: snapshot.data!.current!.status,
             includeAuditSections: false,
           ),
         AppSpacing.gapMD,
@@ -631,17 +613,16 @@ class _DailyDebriefViewData {
 }
 
 class _DailyDebriefDetailPage extends StatelessWidget {
-  const _DailyDebriefDetailPage({required this.record, required this.status});
+  const _DailyDebriefDetailPage({required this.record});
 
   final DailyDebriefRecord record;
-  final DailyDebriefLifecycleStatus status;
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('DAILY DEBRIEF')),
     body: ListView(
       padding: AppSpacing.cardPadding,
-      children: [_DailyDebriefDetail(record: record, status: status)],
+      children: [_DailyDebriefDetail(record: record)],
     ),
   );
 }
@@ -650,12 +631,10 @@ class _DailyDebriefDetail extends StatelessWidget {
   const _DailyDebriefDetail({
     super.key,
     required this.record,
-    required this.status,
     this.includeAuditSections = true,
   });
 
   final DailyDebriefRecord record;
-  final DailyDebriefLifecycleStatus status;
   final bool includeAuditSections;
 
   @override
@@ -710,7 +689,7 @@ class _DailyDebriefDetail extends StatelessWidget {
               ? const ['NONE']
               : [
                   for (final revision in record.previousRevisions)
-                    'REVISION ${revision.revision}  ${revision.createdAt.toLocal()}',
+                    '${ReportHumanPresentation.revisionLabel(revision.revision)}  ${revision.createdAt.toLocal()}',
                   if (record.archivedRevisions.isNotEmpty)
                     '${record.archivedRevisions.length} OLDER REVISION(S): DETAIL ARCHIVED / NOT AVAILABLE',
                 ],
@@ -724,7 +703,7 @@ class _DailyDebriefDetail extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _DailyDebriefHeader(record: record, status: status),
+              _DailyDebriefHeader(record: record),
               for (var index = 0; index < sections.length; index++) ...[
                 const SizedBox(height: 24),
                 sections[index],
@@ -748,10 +727,9 @@ bool _hasDomainEvaluations(DailyDebriefDomainEvaluations evaluations) =>
     evaluations.training != null;
 
 class _DailyDebriefHeader extends StatelessWidget {
-  const _DailyDebriefHeader({required this.record, required this.status});
+  const _DailyDebriefHeader({required this.record});
 
   final DailyDebriefRecord record;
-  final DailyDebriefLifecycleStatus status;
 
   @override
   Widget build(BuildContext context) {
@@ -780,24 +758,11 @@ class _DailyDebriefHeader extends StatelessWidget {
                     letterSpacing: 1.1,
                   ),
                 ),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        dailyDebriefPresentationIdentity(
-                          record.localDate,
-                          record.revision,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      dailyDebriefLifecycleIconForStatus(status),
-                      key: ValueKey('daily-debrief-lifecycle-${status.name}'),
-                      size: 18,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ],
+                Text(
+                  dailyDebriefPresentationIdentity(
+                    record.localDate,
+                    record.revision,
+                  ),
                 ),
                 if (outcome != null) ...[
                   const SizedBox(height: 8),
@@ -876,25 +841,11 @@ class _CommanderIntentOutcomeIndicator extends StatelessWidget {
     final presentation = _commanderIntentOutcomePresentation(context, outcome);
     return Align(
       alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            presentation.icon,
-            key: ValueKey('$keyPrefix-${outcome.name}'),
-            size: 30,
-            color: presentation.color,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            presentation.label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: presentation.color,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-          ),
-        ],
+      child: _ColoredStatusLamp(
+        key: ValueKey('$keyPrefix-${outcome.name}'),
+        color: presentation.color,
+        label: presentation.label,
+        prominent: true,
       ),
     );
   }
@@ -1288,7 +1239,7 @@ class _MorningBriefRevisionHistory extends StatelessWidget {
       for (final revision in revisions)
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: Text('REV ${revision.revision}'),
+          title: Text(ReportHumanPresentation.revisionLabel(revision.revision)),
           subtitle: Text(
             revision.record.commanderIntent,
             maxLines: 2,
@@ -1300,7 +1251,9 @@ class _MorningBriefRevisionHistory extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => Scaffold(
                 appBar: AppBar(
-                  title: Text('DAILY BRIEF REV ${revision.revision}'),
+                  title: Text(
+                    'DAILY BRIEF ${ReportHumanPresentation.revisionLabel(revision.revision)}',
+                  ),
                 ),
                 body: ListView(
                   padding: AppSpacing.cardPadding,
@@ -1617,24 +1570,44 @@ class _OperationStatusLamp extends StatelessWidget {
   };
 
   @override
+  Widget build(BuildContext context) => _ColoredStatusLamp(
+    key: ValueKey('morning-brief-status-lamp-${status.stableId}'),
+    color: _color,
+    label: status.stableId.toUpperCase(),
+    prominent: prominent,
+  );
+}
+
+class _ColoredStatusLamp extends StatelessWidget {
+  const _ColoredStatusLamp({
+    super.key,
+    required this.color,
+    required this.label,
+    this.prominent = false,
+  });
+
+  final Color color;
+  final String label;
+  final bool prominent;
+
+  @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       Container(
-        key: ValueKey('morning-brief-status-lamp-${status.stableId}'),
         width: prominent ? 20 : 18,
         height: prominent ? 20 : 18,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: _color,
+          color: color,
           boxShadow: [
-            BoxShadow(color: _color.withValues(alpha: 0.35), blurRadius: 6),
+            BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 6),
           ],
         ),
       ),
       const SizedBox(width: 9),
       Text(
-        status.stableId.toUpperCase(),
+        label,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
           fontSize: prominent ? 19 : 18,
           fontWeight: FontWeight.w800,
@@ -1924,10 +1897,7 @@ class _DailyDebriefBackNumberRow extends StatelessWidget {
       onTap: () => Navigator.push<void>(
         context,
         MaterialPageRoute(
-          builder: (_) => _DailyDebriefDetailPage(
-            record: historical.record,
-            status: historical.status,
-          ),
+          builder: (_) => _DailyDebriefDetailPage(record: historical.record),
         ),
       ),
     );

@@ -11,6 +11,7 @@ import '../../body_history/theme/history_metric_color_registry.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../report_sync/models/report_sync_history.dart';
+import '../../report_sync/services/report_human_presentation.dart';
 import '../../training/services/exercise_name_localization.dart';
 import '../models/periodic_report.dart';
 import '../services/periodic_report_presentation_formatter.dart';
@@ -94,6 +95,7 @@ class PeriodicReportPanel extends StatefulWidget {
 
 class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
   final _responseController = TextEditingController();
+  final _scrollController = ScrollController();
   late Future<_PeriodicReportViewData> _data = _load();
   DateTime? _anchor;
   PeriodicReportPreparation? _preparation;
@@ -104,6 +106,7 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
   @override
   void dispose() {
     _responseController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -164,6 +167,7 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
           child: ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
             children: [
               _ReportHeaderCard(
@@ -235,6 +239,8 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
                   report: selectedRecord,
                   dailyFacts: data.dailyFacts,
                   monthlyFacts: data.monthlyFacts,
+                  busy: _busy,
+                  onCreateRevision: _prepare,
                 ),
               ],
               if (_message != null)
@@ -273,14 +279,26 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
     });
   }
 
-  Future<void> _prepare() => _run(() async {
-    _preparation = await PeriodicReportService().prepare(
-      type: widget.reportType,
-      anchor: _anchor!,
-    );
-    _preview = null;
-    _message = 'FORMAL FACT PACKAGE READY';
-  });
+  Future<void> _prepare() async {
+    await _run(() async {
+      _preparation = await PeriodicReportService().prepare(
+        type: widget.reportType,
+        anchor: _anchor!,
+      );
+      _preview = null;
+      _message = 'FORMAL FACT PACKAGE READY';
+    });
+    if (!mounted || _preparation == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   Future<void> _previewResponse() => _run(() async {
     _preview = await PeriodicReportService().preview(
@@ -408,12 +426,14 @@ class _ReportHeaderCard extends StatelessWidget {
             ),
           ],
         ),
-        AppSpacing.gapLG,
-        OperationButton(
-          text: report == null ? 'CREATE REPORT' : 'CREATE REVISION',
-          icon: Symbols.auto_awesome,
-          onPressed: busy ? null : onCreate,
-        ),
+        if (report == null) ...[
+          AppSpacing.gapLG,
+          OperationButton(
+            text: 'CREATE REPORT',
+            icon: Symbols.auto_awesome,
+            onPressed: busy ? null : onCreate,
+          ),
+        ],
       ],
     ),
   );
@@ -548,11 +568,15 @@ class _ReportViewer extends StatelessWidget {
     required this.report,
     required this.dailyFacts,
     required this.monthlyFacts,
+    required this.busy,
+    required this.onCreateRevision,
   });
 
   final PeriodicReportRecord report;
   final List<DailyAggregateV1> dailyFacts;
   final List<PeriodicReportRecord> monthlyFacts;
+  final bool busy;
+  final VoidCallback onCreateRevision;
 
   @override
   Widget build(BuildContext context) {
@@ -735,6 +759,13 @@ class _ReportViewer extends StatelessWidget {
           if (index > 0) AppSpacing.gapMD,
           card,
         ],
+        AppSpacing.gapLG,
+        OperationButton(
+          key: const ValueKey('periodic-report-create-revision'),
+          text: 'CREATE REVISION',
+          icon: Symbols.auto_awesome,
+          onPressed: busy ? null : onCreateRevision,
+        ),
         if (report.previousRevisions.isNotEmpty) ...[
           AppSpacing.gapMD,
           OperationCard(
@@ -745,7 +776,9 @@ class _ReportViewer extends StatelessWidget {
               children: [
                 for (final revision in report.previousRevisions.reversed)
                   ListTile(
-                    title: Text('REV ${revision.revision}'),
+                    title: Text(
+                      ReportHumanPresentation.revisionLabel(revision.revision),
+                    ),
                     subtitle: Text(revision.analysis.overallSummary),
                   ),
               ],
@@ -1098,12 +1131,11 @@ String periodicReportPresentationIdentity(
   PeriodicReportType type,
   String periodStart,
   int revision,
-) => switch (type) {
-  PeriodicReportType.weekly => 'WR-$periodStart-Rev$revision',
-  PeriodicReportType.monthly =>
-    'MR-${periodStart.substring(0, 7)}-Rev$revision',
-  PeriodicReportType.yearly => 'YR-${periodStart.substring(0, 4)}-Rev$revision',
-};
+) => ReportHumanPresentation.recordIdentity(switch (type) {
+  PeriodicReportType.weekly => 'WR-$periodStart',
+  PeriodicReportType.monthly => 'MR-${periodStart.substring(0, 7)}',
+  PeriodicReportType.yearly => 'YR-${periodStart.substring(0, 4)}',
+}, revision);
 
 String _targetPeriodLabel(
   PeriodicReportType type,

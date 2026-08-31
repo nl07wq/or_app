@@ -6,6 +6,19 @@ import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/services/report_sync_instruction_provider.dart';
 
 void main() {
+  test('human revision presentation distinguishes initial from revisions', () {
+    expect(
+      ReportHumanPresentation.recordIdentity('DB-2026-08-31', 1),
+      'DB-2026-08-31',
+    );
+    expect(
+      ReportHumanPresentation.recordIdentity('DB-2026-08-31', 2),
+      'DB-2026-08-31-Rev2',
+    );
+    expect(ReportHumanPresentation.revisionLabel(1), 'INITIAL');
+    expect(ReportHumanPresentation.revisionLabel(3), 'REV 3');
+  });
+
   test('holiday work presentation hides formal zero-duration artifacts', () {
     expect(ReportHumanPresentation.workText('公休日、実働0時間（0:00）'), '公休日');
     expect(ReportHumanPresentation.workText('公休日で実働だった。'), '公休日');

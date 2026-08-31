@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/body_history/theme/history_metric_color_registry.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
@@ -57,7 +58,7 @@ void main() {
           '2026-08-17',
           1,
         ),
-        'WR-2026-08-17-Rev1',
+        'WR-2026-08-17',
       );
       expect(
         periodicReportPresentationIdentity(
@@ -74,6 +75,22 @@ void main() {
           3,
         ),
         'YR-2025-Rev3',
+      );
+      expect(
+        periodicReportPresentationIdentity(
+          PeriodicReportType.monthly,
+          '2026-07-01',
+          1,
+        ),
+        'MR-2026-07',
+      );
+      expect(
+        periodicReportPresentationIdentity(
+          PeriodicReportType.yearly,
+          '2025-01-01',
+          1,
+        ),
+        'YR-2025',
       );
     },
   );
@@ -95,6 +112,93 @@ void main() {
       expect(find.text('CREATE REPORT'), findsOneWidget);
     });
   }
+
+  testWidgets('record identity cards stay responsive for every report type', (
+    tester,
+  ) async {
+    final fixture = await _install(operationDate: '2026-09-01');
+    for (final entry in const [
+      (
+        PeriodicReportType.weekly,
+        '2026-08-24',
+        'WR-2026-08-24',
+        '2026-08-24 — 2026-08-30',
+      ),
+      (PeriodicReportType.monthly, '2026-07-01', 'MR-2026-07', '2026-07'),
+      (PeriodicReportType.yearly, '2025-01-01', 'YR-2025', '2025'),
+    ]) {
+      _seedReport(fixture.database, _report(entry.$1, entry.$2));
+      for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+        await _pump(
+          tester,
+          width: width,
+          height: 1600,
+          child: PeriodicReportPanel(
+            key: ValueKey('${entry.$1.name}-$width'),
+            reportType: entry.$1,
+            initialAnchor: DateTime.parse(entry.$2),
+          ),
+        );
+
+        final header = find.byKey(
+          const ValueKey('periodic-report-header-card'),
+        );
+        expect(header, findsOneWidget);
+        expect(
+          find.descendant(of: header, matching: find.text(entry.$3)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: header, matching: find.text(entry.$4)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: header, matching: find.text('CREATE REVISION')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('periodic-report-create-revision')),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Rev1'), findsNothing);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
+  testWidgets('period navigator preserves previous and next semantics', (
+    tester,
+  ) async {
+    await _install(operationDate: '2027-02-01');
+    for (final entry in [
+      (
+        PeriodicReportType.weekly,
+        DateTime(2026, 8, 24),
+        '2026-08-17 — 2026-08-23',
+        '2026-08-24 — 2026-08-30',
+      ),
+      (PeriodicReportType.monthly, DateTime(2026, 7), '2026-06', '2026-07'),
+      (PeriodicReportType.yearly, DateTime(2025), '2024', '2025'),
+    ]) {
+      await _pump(
+        tester,
+        width: 390,
+        child: PeriodicReportPanel(
+          key: ValueKey('navigator-${entry.$1.name}'),
+          reportType: entry.$1,
+          initialAnchor: entry.$2,
+        ),
+      );
+
+      await tester.tap(find.byTooltip('PREVIOUS PERIOD'));
+      await tester.pumpAndSettle();
+      expect(find.text(entry.$3), findsOneWidget);
+      await tester.tap(find.byTooltip('NEXT PERIOD'));
+      await tester.pumpAndSettle();
+      expect(find.text(entry.$4), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets('weekly report uses semantic cards and formal daily charts', (
     tester,
@@ -124,6 +228,10 @@ void main() {
     );
 
     expect(find.text('WR-2026-08-24-Rev2'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('periodic-report-header-card')),
+      findsOneWidget,
+    );
     expect(find.text('REV 2'), findsNothing);
     expect(find.text('LATEST'), findsNothing);
     for (final key in [
@@ -174,6 +282,22 @@ void main() {
     expect(
       find.byKey(const ValueKey('periodic-report-previous-revisions')),
       findsOneWidget,
+    );
+    final revisionAction = find.byKey(
+      const ValueKey('periodic-report-create-revision'),
+    );
+    expect(revisionAction, findsOneWidget);
+    expect(
+      tester.getTopLeft(revisionAction).dy,
+      greaterThan(
+        tester
+            .getTopLeft(
+              find.byKey(
+                const ValueKey('periodic-report-section-next-period-focus'),
+              ),
+            )
+            .dy,
+      ),
     );
 
     final chart = tester.widget<PeriodicReportChart>(
@@ -342,7 +466,12 @@ void main() {
         initialAnchor: DateTime(2026, 8, 24),
       ),
     );
-    await tester.tap(find.text('CREATE REVISION'));
+    final revisionAction = find.byKey(
+      const ValueKey('periodic-report-create-revision'),
+    );
+    await tester.ensureVisible(revisionAction);
+    await tester.pumpAndSettle();
+    tester.widget<OperationButton>(revisionAction).onPressed!();
     await tester.pumpAndSettle();
 
     expect(
@@ -365,7 +494,8 @@ void main() {
       find.byKey(const ValueKey('periodic-report-response-input')),
     );
     expect(field.controller!.text, isEmpty);
-    expect(find.text('WR-2026-08-24-Rev1'), findsOneWidget);
+    expect(find.text('WR-2026-08-24'), findsOneWidget);
+    expect(find.textContaining('Rev1'), findsNothing);
     expect(
       fixture.database.rawRecord(
         IndexedDbStoreNames.periodicReportRecords,
