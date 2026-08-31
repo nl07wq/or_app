@@ -722,7 +722,9 @@ void main() {
 
       await tester.enterText(_field('Food Name'), 'Tea');
       await tester.enterText(_field('NUTRITION BASIS'), '100');
-      final unitDropdown = find.byType(DropdownButtonFormField<FoodBaseUnit>);
+      final unitDropdown = find.byType(
+        DropdownButtonFormField<FoodQuantityUnit>,
+      );
       await tester.ensureVisible(unitDropdown);
       await tester.tap(unitDropdown);
       await tester.pumpAndSettle();
@@ -860,6 +862,142 @@ void main() {
       expect(item.toJson().containsKey('amountMode'), isFalse);
     });
 
+    testWidgets('nutrition basis offers Formal discrete units', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(onSave: (_) async => true),
+            ),
+          ),
+        ),
+      );
+
+      final dropdown = find.byKey(const ValueKey('food-entry-base-unit-gram'));
+      await tester.ensureVisible(dropdown);
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+      expect(find.text('piece'), findsOneWidget);
+      expect(find.text('pack'), findsOneWidget);
+      expect(find.text('serving'), findsOneWidget);
+      await tester.tap(find.text('piece'));
+      await tester.pump();
+      expect(find.text('NUTRITION PER 100piece'), findsOneWidget);
+    });
+
+    testWidgets('discrete package unit suggests a one-unit basis', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(onSave: (_) async => true),
+            ),
+          ),
+        ),
+      );
+
+      final packageDropdown = find.byType(
+        DropdownButtonFormField<FoodQuantityUnit?>,
+      );
+      await tester.ensureVisible(packageDropdown);
+      await tester.tap(packageDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('pack').last);
+      await tester.pump();
+
+      expect(_controllerText(tester, 'NUTRITION BASIS'), '1');
+      expect(
+        find.byKey(const ValueKey('food-entry-base-unit-pack')),
+        findsOneWidget,
+      );
+      expect(find.text('NUTRITION PER 1pack'), findsOneWidget);
+    });
+
+    testWidgets('amount stepper shares direct-input recalculation path', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(onSave: (_) async => true),
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(_field('Food Name'), 'Stepper Food');
+      await tester.enterText(_field('Calories'), '80');
+      await tester.enterText(_field('Protein'), '7.6');
+      await tester.enterText(_field('Fat'), '6.2');
+      await tester.enterText(_field('Carbohydrate'), '0.2');
+      await tester.pump();
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('food-amount-increment')),
+      );
+      await tester.tap(find.byKey(const ValueKey('food-amount-increment')));
+      await tester.pump();
+      expect(_controllerText(tester, 'AMOUNT'), '2');
+      expect(find.textContaining('160kcal'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('food-amount-decrement')));
+      await tester.pump();
+      expect(_controllerText(tester, 'AMOUNT'), '1');
+      expect(find.textContaining('80kcal'), findsOneWidget);
+
+      await tester.enterText(_field('AMOUNT'), '0.5');
+      await tester.pump();
+      expect(_controllerText(tester, 'AMOUNT'), '0.5');
+      expect(find.textContaining('40kcal'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.descendant(
+                of: find.byKey(const ValueKey('food-amount-decrement')),
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('entry header is compact and Meal Templates are hidden', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(onSave: (_) async => true),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('food-entry-type-two-column')),
+        findsOneWidget,
+      );
+      expect(find.text('Meal Template'), findsNothing);
+      expect(find.text('Breakfast'), findsNothing);
+      expect(find.text('Lunch'), findsNothing);
+      expect(find.text('Dinner'), findsNothing);
+      expect(find.text('SELECT FROM FOOD DATABASE'), findsOneWidget);
+
+      await tester.tap(find.text('Water'));
+      await tester.pump();
+      final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
+      expect(chips.skip(2).every((chip) => chip.onSelected == null), isTrue);
+    });
+
     testWidgets('food entry has no overflow at target widths', (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -879,6 +1017,12 @@ void main() {
           ),
         );
         await tester.pump();
+        if (width == 320) {
+          expect(
+            find.byKey(const ValueKey('food-entry-type-two-column')),
+            findsNothing,
+          );
+        }
         expect(tester.takeException(), isNull, reason: 'width $width');
       }
     });

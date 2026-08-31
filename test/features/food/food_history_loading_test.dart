@@ -14,6 +14,7 @@ import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/models/persisted_daily_meal_v2_record.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
+import 'package:or_app/features/food/models/recipe_models_v2.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -256,6 +257,49 @@ void main() {
     expect(find.text('ADD TO FOOD DATABASE'), findsOneWidget);
   });
 
+  testWidgets('active Recipe Master linkage hides add action', (tester) async {
+    final recipe = _recipe();
+    database.seed(
+      IndexedDbStoreNames.foodRecipeRecords,
+      recipe.recipeId,
+      recipe.toJson(),
+    );
+    _seedV2(
+      database,
+      foodReferenceId: null,
+      recipeReferenceId: recipe.recipeId,
+      name: recipe.name,
+    );
+
+    await _pumpPage(tester);
+
+    expect(find.text('ADD TO FOOD DATABASE'), findsNothing);
+  });
+
+  testWidgets('archived Recipe Master linkage exposes add action', (
+    tester,
+  ) async {
+    final recipe = FoodRecipeDefinition.fromJson({
+      ..._recipe().toJson(),
+      'isArchived': true,
+    });
+    database.seed(
+      IndexedDbStoreNames.foodRecipeRecords,
+      recipe.recipeId,
+      recipe.toJson(),
+    );
+    _seedV2(
+      database,
+      foodReferenceId: null,
+      recipeReferenceId: recipe.recipeId,
+      name: recipe.name,
+    );
+
+    await _pumpPage(tester);
+
+    expect(find.text('ADD TO FOOD DATABASE'), findsOneWidget);
+  });
+
   testWidgets('same Food name without stable linkage remains unregistered', (
     tester,
   ) async {
@@ -368,6 +412,7 @@ void _seedV2(
   FakeIndexedDbDatabase database, {
   String mealId = '44444444-4444-4444-8444-444444444444',
   required String? foodReferenceId,
+  String? recipeReferenceId,
   required String name,
 }) {
   final timestamp = DateTime.utc(2026, 7, 26);
@@ -379,6 +424,7 @@ void _seedV2(
       DailyMealItemSnapshot(
         mealItemId: '55555555-5555-4555-8555-555555555555',
         foodReferenceId: foodReferenceId,
+        recipeReferenceId: recipeReferenceId,
         nameSnapshot: name,
         quantity: FoodQuantityDefinition(
           value: 1,
@@ -420,6 +466,45 @@ FoodCatalogEntry _catalog(FoodVisualKey visualKey) {
     nutritionStatus: NutritionStatus.declared,
     provenance: FoodDataProvenance(
       sourceType: FoodProvenanceSourceType.userInput,
+      capturedAt: timestamp,
+    ),
+    isArchived: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
+}
+
+FoodRecipeDefinition _recipe() {
+  final timestamp = DateTime.utc(2026, 7, 26);
+  return FoodRecipeDefinition(
+    recipeId: '77777777-7777-4777-8777-777777777777',
+    name: 'Linked Recipe',
+    ingredients: [
+      RecipeIngredientV2(
+        ingredientId: '88888888-8888-4888-8888-888888888888',
+        nameSnapshot: 'Ingredient',
+        quantity: FoodQuantityDefinition(
+          value: 100,
+          unit: FoodQuantityUnit.gram,
+        ),
+        nutritionSnapshot: NutritionSnapshot(calories: 200),
+        nutritionStatus: NutritionStatus.declared,
+        provenanceSnapshot: FoodDataProvenance(
+          sourceType: FoodProvenanceSourceType.userInput,
+          capturedAt: timestamp,
+        ),
+        sortOrder: 0,
+      ),
+    ],
+    yieldQuantity: FoodQuantityDefinition(
+      value: 1,
+      unit: FoodQuantityUnit.serving,
+    ),
+    servingCount: 1,
+    nutrition: NutritionSnapshot(calories: 200),
+    nutritionStatus: NutritionStatus.calculated,
+    provenance: FoodDataProvenance(
+      sourceType: FoodProvenanceSourceType.recipeCalculation,
       capturedAt: timestamp,
     ),
     isArchived: false,

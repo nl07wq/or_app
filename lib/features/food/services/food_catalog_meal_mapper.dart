@@ -16,13 +16,26 @@ class FoodCatalogMealMapper {
     required MealData meal,
     required List<FoodCatalogEntry?> catalogSources,
     List<FoodRecipeDefinition?>? recipeSources,
+    List<FoodQuantityUnit>? quantityUnits,
     required String localDate,
     required DateTime timestamp,
     required FoodMealIdGenerator idGenerator,
   }) {
     final recipes = recipeSources ?? List.filled(meal.items.length, null);
+    final units =
+        quantityUnits ??
+        meal.items
+            .map(
+              (item) => item.baseUnit == null
+                  ? FoodQuantityUnit.serving
+                  : item.baseUnit!.label == 'mL'
+                  ? FoodQuantityUnit.milliliter
+                  : FoodQuantityUnit.gram,
+            )
+            .toList(growable: false);
     if (catalogSources.length != meal.items.length ||
-        recipes.length != meal.items.length) {
+        recipes.length != meal.items.length ||
+        units.length != meal.items.length) {
       throw ArgumentError('FOOD sources must match FOOD items.');
     }
     final items = <DailyMealItemSnapshot>[];
@@ -30,6 +43,7 @@ class FoodCatalogMealMapper {
       final item = meal.items[index];
       final catalog = catalogSources[index];
       final recipe = recipes[index];
+      final inputUnit = units[index];
       if (catalog != null && recipe != null) {
         throw ArgumentError('A FOOD item cannot reference food and recipe.');
       }
@@ -59,11 +73,7 @@ class FoodCatalogMealMapper {
       final quantity = catalog == null
           ? FoodQuantityDefinition(
               value: item.physicalAmount ?? item.quantity.toDouble(),
-              unit: item.baseUnit == null
-                  ? FoodQuantityUnit.serving
-                  : item.baseUnit!.label == 'mL'
-                  ? FoodQuantityUnit.milliliter
-                  : FoodQuantityUnit.gram,
+              unit: inputUnit,
             )
           : FoodQuantityDefinition(
               value: item.hasMeasuredAmount

@@ -136,6 +136,7 @@ void main() {
                 ],
                 catalogSources: [_catalog()],
                 recipeSources: const [null],
+                quantityUnits: const [FoodQuantityUnit.gram],
                 onDelete: (_) {},
                 onTap: (_) {},
                 onQuantityChanged: (_, _) {},
@@ -181,6 +182,7 @@ void main() {
             ],
             catalogSources: const [null],
             recipeSources: [_recipe()],
+            quantityUnits: const [FoodQuantityUnit.serving],
             onDelete: (_) {},
             onTap: (_) {},
             onQuantityChanged: (_, _) {},
@@ -199,6 +201,45 @@ void main() {
       find.byKey(const ValueKey('food-thumbnail-fallback')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('discrete Food preview uses compact consumed quantity', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FoodItemList(
+            items: const [
+              FoodItem(
+                name: 'Boiled Egg',
+                calories: 80,
+                protein: 7.6,
+                fat: 6.2,
+                carbohydrate: 0.2,
+                amount: 2,
+                baseAmount: 1,
+                baseUnit: FoodBaseUnit.g,
+                amountMode: FoodAmountMode.baseMultiplier,
+              ),
+            ],
+            catalogSources: [_catalog()],
+            recipeSources: const [null],
+            quantityUnits: const [FoodQuantityUnit.piece],
+            onDelete: (_) {},
+            onTap: (_) {},
+            onQuantityChanged: (_, _) {},
+            editableItemCount: 1,
+            actionIcon: Icons.add,
+            actionText: 'ADD FOOD',
+            onAction: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('食材  2piece'), findsOneWidget);
+    expect(find.textContaining('Base 1piece'), findsNothing);
   });
 }
 

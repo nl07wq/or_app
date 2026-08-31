@@ -93,4 +93,43 @@ void main() {
       expect(item.nutritionConsumed.calories, 100);
     },
   );
+
+  for (final unit in [FoodQuantityUnit.piece, FoodQuantityUnit.pack]) {
+    test('unlinked ${unit.name} input preserves its Formal unit', () {
+      var byte = 0;
+      final timestamp = DateTime.utc(2026, 9, 1, 10);
+      final mapped = FoodCatalogMealMapper.map(
+        meal: MealData(
+          date: '2026-09-01',
+          mealType: MealType.breakfast.label,
+          items: const [
+            FoodItem(
+              name: 'Discrete Food',
+              calories: 80,
+              protein: 7.6,
+              fat: 6.2,
+              carbohydrate: 0.2,
+              amount: 2,
+              baseAmount: 1,
+              baseUnit: FoodBaseUnit.g,
+              amountMode: FoodAmountMode.baseMultiplier,
+            ),
+          ],
+          memo: '',
+          id: 'discrete-draft',
+        ),
+        catalogSources: const [null],
+        quantityUnits: [unit],
+        localDate: '2026-09-01',
+        timestamp: timestamp,
+        idGenerator: FoodMealIdGenerator(nextInt: (_) => byte++ & 0xff),
+      );
+
+      expect(mapped.items.single.quantity.value, 2);
+      expect(mapped.items.single.quantity.unit, unit);
+      expect(mapped.items.single.nutritionConsumed.calories, 160);
+      expect(mapped.items.single.foodReferenceId, isNull);
+      expect(mapped.items.single.recipeReferenceId, isNull);
+    });
+  }
 }

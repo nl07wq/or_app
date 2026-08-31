@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../food_nutrition_formatter.dart';
 import '../models/food_catalog_models.dart';
+import '../models/food_quantity_models.dart';
 import '../models/recipe_models_v2.dart';
 import '../services/food_recipe_nutrition.dart';
 import '../../../core/models/food_item.dart';
@@ -15,6 +16,7 @@ class FoodItemList extends StatelessWidget {
   final List<FoodItem> items;
   final List<FoodCatalogEntry?> catalogSources;
   final List<FoodRecipeDefinition?> recipeSources;
+  final List<FoodQuantityUnit> quantityUnits;
   final Function(int) onDelete;
   final Function(int) onTap;
   final void Function(int index, int change) onQuantityChanged;
@@ -28,6 +30,7 @@ class FoodItemList extends StatelessWidget {
     required this.items,
     required this.catalogSources,
     required this.recipeSources,
+    required this.quantityUnits,
     required this.onDelete,
     required this.onTap,
     required this.onQuantityChanged,
@@ -36,7 +39,8 @@ class FoodItemList extends StatelessWidget {
     required this.actionText,
     required this.onAction,
   }) : assert(catalogSources.length == items.length),
-       assert(recipeSources.length == items.length);
+       assert(recipeSources.length == items.length),
+       assert(quantityUnits.length == items.length);
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,7 @@ class FoodItemList extends StatelessWidget {
             final item = items[index];
             final catalog = catalogSources[index];
             final recipe = recipeSources[index];
+            final quantityUnit = quantityUnits[index];
             final canAdjustQuantity = index < editableItemCount;
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -122,7 +127,7 @@ class FoodItemList extends StatelessWidget {
                                 ],
                               ),
                               Text(
-                                _metadata(item, catalog, recipe),
+                                _metadata(item, catalog, recipe, quantityUnit),
                                 key: ValueKey('meal-item-metadata-$index'),
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
@@ -161,6 +166,7 @@ class FoodItemList extends StatelessWidget {
     FoodItem item,
     FoodCatalogEntry? catalog,
     FoodRecipeDefinition? recipe,
+    FoodQuantityUnit quantityUnit,
   ) {
     final prefix = catalog == null
         ? recipe == null
@@ -168,7 +174,7 @@ class FoodItemList extends StatelessWidget {
               : 'RECIPE'
         : FoodNutritionFormatter.category(catalog.category);
     final quantity = recipe == null
-        ? _foodQuantity(item)
+        ? _foodQuantity(item, quantityUnit)
         : FoodNutritionFormatter.compactQuantity(
             FoodRecipeNutrition.consumptionQuantity(
               recipe,
@@ -178,12 +184,12 @@ class FoodItemList extends StatelessWidget {
     return prefix == null ? quantity : '$prefix  $quantity';
   }
 
-  static String _foodQuantity(FoodItem item) {
+  static String _foodQuantity(FoodItem item, FoodQuantityUnit quantityUnit) {
     if (!item.hasMeasuredAmount) return 'AMOUNT ${item.quantity}';
-    final base =
-        '${FoodNutritionFormatter.amount(item.baseAmount!)}${item.baseUnit!.label}';
-    final used =
-        '${FoodNutritionFormatter.amount(item.physicalAmount!)}${item.baseUnit!.label}';
+    final unit = FoodNutritionFormatter.quantityUnit(quantityUnit);
+    final base = '${FoodNutritionFormatter.amount(item.baseAmount!)}$unit';
+    final used = '${FoodNutritionFormatter.amount(item.physicalAmount!)}$unit';
+    if (!quantityUnit.isPhysical) return used;
     if ((item.baseAmount! - item.physicalAmount!).abs() < 0.000001) {
       return used;
     }

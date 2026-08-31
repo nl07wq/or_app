@@ -23,6 +23,7 @@ import 'models/daily_meal_v2_models.dart';
 import 'models/food_catalog_models.dart';
 import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
+import 'models/recipe_models_v2.dart';
 import 'widgets/food_thumbnail.dart';
 
 class FoodHistoryPage extends StatefulWidget {
@@ -37,6 +38,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   List<MealData> _records = const [];
   List<DailyMealV2> _v2Records = const [];
   Map<String, FoodCatalogEntry> _catalogEntries = const {};
+  Map<String, FoodRecipeDefinition> _recipeEntries = const {};
   Object? _loadError;
 
   @override
@@ -77,8 +79,23 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           for (final entry in catalog.whereType<FoodCatalogEntry>())
             entry.foodId: entry,
         };
+        final recipeReferenceIds = v2Records
+            .expand((meal) => meal.items)
+            .map((item) => item.recipeReferenceId)
+            .whereType<String>()
+            .toSet();
+        final recipes = await Future.wait(
+          recipeReferenceIds.map(
+            AppRepositoryRegistry.container.foodRecipes.readById,
+          ),
+        );
+        _recipeEntries = {
+          for (final recipe in recipes.whereType<FoodRecipeDefinition>())
+            recipe.recipeId: recipe,
+        };
       } else {
         _catalogEntries = const {};
+        _recipeEntries = const {};
       }
     } catch (error) {
       loadError = error;
@@ -334,7 +351,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             isThreeLine: true,
           ),
           if (!appInitializationController.value.isReadOnly &&
-              !_hasActiveFoodReference(item))
+              !_hasActiveMasterReference(item))
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
@@ -348,11 +365,18 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     ),
   );
 
-  bool _hasActiveFoodReference(DailyMealItemSnapshot item) {
-    final referenceId = item.foodReferenceId;
-    if (referenceId == null) return false;
-    final entry = _catalogEntries[referenceId];
-    return entry != null && !entry.isArchived;
+  bool _hasActiveMasterReference(DailyMealItemSnapshot item) {
+    final foodReferenceId = item.foodReferenceId;
+    if (foodReferenceId != null) {
+      final entry = _catalogEntries[foodReferenceId];
+      return entry != null && !entry.isArchived;
+    }
+    final recipeReferenceId = item.recipeReferenceId;
+    if (recipeReferenceId != null) {
+      final recipe = _recipeEntries[recipeReferenceId];
+      return recipe != null && !recipe.isArchived;
+    }
+    return false;
   }
 
   Future<void> _addV2ItemToCatalog(DailyMealItemSnapshot item) async {

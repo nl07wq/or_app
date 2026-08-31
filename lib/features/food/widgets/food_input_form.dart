@@ -10,17 +10,14 @@ import '../../../core/widgets/operation_description.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 
-import '../data/beta_meal_templates.dart';
 import '../data/water_quick_presets.dart';
 import '../food_nutrition_formatter.dart';
-import '../models/meal_template.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/recipe_models_v2.dart';
 import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
-import '../services/beta_meal_template_resolver.dart';
 import '../services/food_input_capture_gateway.dart';
 import '../services/food_recipe_nutrition.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
@@ -36,6 +33,7 @@ class FoodInputForm extends StatefulWidget {
     MealData data,
     List<FoodCatalogEntry?> catalogSources,
     List<FoodRecipeDefinition?> recipeSources,
+    List<FoodQuantityUnit> quantityUnits,
   )?
   onSaveWithCatalog;
   final MealData? initialMeal;
@@ -76,6 +74,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final List<FoodItem> items = [];
   final List<FoodCatalogEntry?> _catalogSources = [];
   final List<FoodRecipeDefinition?> _recipeSources = [];
+  final List<FoodQuantityUnit> _quantityUnits = [];
   FoodCatalogEntry? _currentCatalogSource;
   FoodRecipeDefinition? _currentRecipeSource;
   FoodCatalogCategory category = FoodCatalogCategory.preparedFood;
@@ -83,9 +82,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   int? editingIndex;
   bool isWaterEntry = false;
-  String? selectedTemplateId;
   String? inputError;
-  FoodBaseUnit baseUnit = FoodBaseUnit.g;
+  FoodQuantityUnit baseUnit = FoodQuantityUnit.gram;
   double? _lastValidBaseAmount = _defaultBaseAmount;
   double? _rawCalories;
   double? _rawProtein;
@@ -130,6 +128,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
     items.addAll(meal.items);
     _catalogSources.addAll(List.filled(meal.items.length, null));
     _recipeSources.addAll(List.filled(meal.items.length, null));
+    _quantityUnits.addAll(
+      meal.items.map(
+        (item) => item.baseUnit == FoodBaseUnit.ml
+            ? FoodQuantityUnit.milliliter
+            : FoodQuantityUnit.gram,
+      ),
+    );
   }
 
   @override
@@ -221,7 +226,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
         quantity: quantity,
         amount: preservesLegacy ? null : amount,
         baseAmount: preservesLegacy ? null : baseAmount,
-        baseUnit: preservesLegacy ? null : baseUnit,
+        baseUnit: preservesLegacy
+            ? null
+            : baseUnit == FoodQuantityUnit.milliliter
+            ? FoodBaseUnit.ml
+            : FoodBaseUnit.g,
         amountMode: preservesLegacy ? null : amountMode,
       );
     } on ArgumentError {
@@ -254,7 +263,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _clearRawNutrition();
     baseAmountController.clear();
     amountController.clear();
-    baseUnit = FoodBaseUnit.g;
+    baseUnit = FoodQuantityUnit.gram;
     category = FoodCatalogCategory.preparedFood;
     packageUnit = null;
     _basisLinkedToPackage = true;
@@ -322,9 +331,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _onPackageQuantityChanged(String source) {
     setState(() => inputError = null);
-    if (!_basisLinkedToPackage || packageUnit?.isPhysical != true) return;
-    baseAmountController.text = source;
-    _updateBaseAmount(source);
+    if (!_basisLinkedToPackage || packageUnit == null) return;
+    if (packageUnit!.isPhysical) {
+      baseAmountController.text = source;
+      _updateBaseAmount(source);
+    }
   }
 
   void _onPackageUnitChanged(FoodQuantityUnit? unit) {
@@ -332,9 +343,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       packageUnit = unit;
       inputError = null;
     });
-    if (!_basisLinkedToPackage || unit?.isPhysical != true) return;
-    baseUnit = unit == FoodQuantityUnit.gram ? FoodBaseUnit.g : FoodBaseUnit.ml;
-    final source = packageQuantityController.text;
+    if (!_basisLinkedToPackage || unit == null) return;
+    baseUnit = unit;
+    final source = unit.isPhysical ? packageQuantityController.text : '1';
     baseAmountController.text = source;
     _updateBaseAmount(source);
   }
@@ -344,6 +355,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.clear();
       _catalogSources.clear();
       _recipeSources.clear();
+      _quantityUnits.clear();
       mealType = MealType.breakfast;
       memoController.clear();
       waterVolumeController.clear();
@@ -380,6 +392,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.add(item);
       _catalogSources.add(_currentCatalogSource);
       _recipeSources.add(_currentRecipeSource);
+      _quantityUnits.add(baseUnit);
       inputError = null;
       _clearFoodInputs();
     });
@@ -390,6 +403,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.removeAt(index);
       _catalogSources.removeAt(index);
       _recipeSources.removeAt(index);
+      _quantityUnits.removeAt(index);
 
       if (editingIndex == index) {
         editingIndex = null;
@@ -434,7 +448,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       amountController.text = item.amount == null
           ? ''
           : _formatAmount(item.amount!);
-      baseUnit = item.baseUnit ?? FoodBaseUnit.g;
+      baseUnit = recipe != null
+          ? FoodQuantityUnit.serving
+          : source?.baseQuantity.unit ?? _quantityUnits[index];
       _lastValidBaseAmount = item.baseAmount;
       inputError = null;
     });
@@ -457,6 +473,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items[editingIndex!] = item;
       _catalogSources[editingIndex!] = _currentCatalogSource;
       _recipeSources[editingIndex!] = _currentRecipeSource;
+      _quantityUnits[editingIndex!] = baseUnit;
 
       editingIndex = null;
       inputError = null;
@@ -477,38 +494,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       items[index] = item.copyWith(quantity: quantity);
     });
-  }
-
-  void _applyTemplate(MealTemplate template) {
-    final resolution = BetaMealTemplateResolver.resolve(template);
-
-    setState(() {
-      isWaterEntry = false;
-      mealType = switch (template.mealType) {
-        MealTemplateMealType.breakfast => MealType.breakfast,
-        MealTemplateMealType.lunch => MealType.lunch,
-        MealTemplateMealType.dinner => MealType.dinner,
-      };
-      selectedTemplateId = template.id;
-      inputError = null;
-      items
-        ..clear()
-        ..addAll(resolution.items);
-      _catalogSources
-        ..clear()
-        ..addAll(List.filled(resolution.items.length, null));
-      _recipeSources
-        ..clear()
-        ..addAll(List.filled(resolution.items.length, null));
-      editingIndex = null;
-      _clearFoodInputs();
-    });
-
-    if (resolution.skippedEntryCount > 0 && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('一部のテンプレート項目を反映できませんでした。')));
-    }
   }
 
   Future<void> _scanOcr() async {
@@ -602,17 +587,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
       }
       if (draft.basisQuantity != null && draft.basisUnit != null) {
         baseAmountController.text = _formatAmount(draft.basisQuantity!);
-        baseUnit = draft.basisUnit == FoodQuantityUnit.gram
-            ? FoodBaseUnit.g
-            : FoodBaseUnit.ml;
+        baseUnit = draft.basisUnit!;
         _lastValidBaseAmount = draft.basisQuantity;
         _basisLinkedToPackage = false;
-      } else if (_basisLinkedToPackage && packageUnit?.isPhysical == true) {
-        final source = packageQuantityController.text;
+      } else if (_basisLinkedToPackage && packageUnit != null) {
+        final source = packageUnit!.isPhysical
+            ? packageQuantityController.text
+            : '1';
         baseAmountController.text = source;
-        baseUnit = packageUnit == FoodQuantityUnit.gram
-            ? FoodBaseUnit.g
-            : FoodBaseUnit.ml;
+        baseUnit = packageUnit!;
         _lastValidBaseAmount = double.tryParse(source);
       }
       if (draft.calories != null) {
@@ -646,12 +629,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
       if (draft.packageQuantity != null && draft.packageUnit != null) {
         packageQuantityController.text = _formatAmount(draft.packageQuantity!);
         packageUnit = draft.packageUnit;
-        if (_basisLinkedToPackage && draft.packageUnit!.isPhysical) {
-          baseAmountController.text = packageQuantityController.text;
-          baseUnit = draft.packageUnit == FoodQuantityUnit.gram
-              ? FoodBaseUnit.g
-              : FoodBaseUnit.ml;
-          _lastValidBaseAmount = draft.packageQuantity;
+        if (_basisLinkedToPackage) {
+          baseAmountController.text = draft.packageUnit!.isPhysical
+              ? packageQuantityController.text
+              : '1';
+          baseUnit = draft.packageUnit!;
+          _lastValidBaseAmount = draft.packageUnit!.isPhysical
+              ? draft.packageQuantity
+              : 1;
         }
       }
       inputError = null;
@@ -700,7 +685,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         );
         baseAmountController.text = '1';
         amountController.text = '1';
-        baseUnit = FoodBaseUnit.g;
+        baseUnit = FoodQuantityUnit.serving;
         _lastValidBaseAmount = 1;
         _basisLinkedToPackage = false;
         inputError = null;
@@ -720,17 +705,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
         carbohydrate: nutrition.carbohydrate,
       );
       final quantity = entry.baseQuantity;
-      if (quantity.unit.isPhysical) {
-        baseAmountController.text = _formatAmount(quantity.value);
-        baseUnit = quantity.unit == FoodQuantityUnit.gram
-            ? FoodBaseUnit.g
-            : FoodBaseUnit.ml;
-        _lastValidBaseAmount = quantity.value;
-      } else {
-        baseAmountController.text = '1';
-        amountController.text = '1';
-        _lastValidBaseAmount = 1;
-      }
+      baseAmountController.text = _formatAmount(quantity.value);
+      baseUnit = quantity.unit;
+      amountController.text = '1';
+      _lastValidBaseAmount = quantity.value;
       _basisLinkedToPackage = false;
       inputError = null;
     });
@@ -766,9 +744,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
             memo: _nullableText(foodMemoController.text),
             baseQuantity: FoodQuantityDefinition(
               value: item.baseAmount ?? 1,
-              unit: item.baseUnit == FoodBaseUnit.ml
-                  ? FoodQuantityUnit.milliliter
-                  : FoodQuantityUnit.gram,
+              unit: baseUnit,
             ),
             nutrition: NutritionSnapshot(
               calories: item.calories.toDouble(),
@@ -824,15 +800,23 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() => _isSaving = true);
     final sources = List<FoodCatalogEntry?>.from(_catalogSources);
     final recipeSources = List<FoodRecipeDefinition?>.from(_recipeSources);
+    final quantityUnits = List<FoodQuantityUnit>.from(_quantityUnits);
     if (editingIndex == null && _currentFoodItem() != null) {
       sources.add(_currentCatalogSource);
       recipeSources.add(_currentRecipeSource);
+      quantityUnits.add(baseUnit);
     }
     final saved =
         (sources.any((entry) => entry != null) ||
-                recipeSources.any((entry) => entry != null)) &&
+                recipeSources.any((entry) => entry != null) ||
+                quantityUnits.any((unit) => !unit.isPhysical)) &&
             widget.onSaveWithCatalog != null
-        ? await widget.onSaveWithCatalog!(meal, sources, recipeSources)
+        ? await widget.onSaveWithCatalog!(
+            meal,
+            sources,
+            recipeSources,
+            quantityUnits,
+          )
         : await widget.onSave(meal);
 
     if (!mounted) return;
@@ -841,6 +825,86 @@ class _FoodInputFormState extends State<FoodInputForm> {
     if (!saved) return;
     _clearForm();
   }
+
+  Widget _entryTypeControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('Entry Type', style: TextStyle(fontWeight: FontWeight.bold)),
+      AppSpacing.gapSM,
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ChoiceChip(
+            avatar: const Icon(Icons.restaurant, size: 18),
+            label: const Text('Meal'),
+            selected: !isWaterEntry,
+            onSelected: (_) => setState(() => isWaterEntry = false),
+          ),
+          ChoiceChip(
+            avatar: const Icon(Icons.water_drop_outlined, size: 18),
+            label: const Text('Water'),
+            selected: isWaterEntry,
+            onSelected: (_) => setState(() => isWaterEntry = true),
+          ),
+        ],
+      ),
+    ],
+  );
+
+  Widget _mealTypeControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Meal Type',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: isWaterEntry
+              ? Theme.of(context).colorScheme.onSurfaceVariant
+              : null,
+        ),
+      ),
+      AppSpacing.gapSM,
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: MealType.values.map((type) {
+          return ChoiceChip(
+            avatar: Icon(type.icon, size: 18),
+            label: Text(type.label),
+            selected: !isWaterEntry && mealType == type,
+            onSelected: isWaterEntry
+                ? null
+                : (_) => setState(() => mealType = type),
+          );
+        }).toList(),
+      ),
+    ],
+  );
+
+  Widget _entryAndMealTypeControls() => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 340) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _entryTypeControls(),
+            AppSpacing.gapMD,
+            _mealTypeControls(),
+          ],
+        );
+      }
+      return Row(
+        key: const ValueKey('food-entry-type-two-column'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 4, child: _entryTypeControls()),
+          AppSpacing.gapMD,
+          Expanded(flex: 6, child: _mealTypeControls()),
+        ],
+      );
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -868,34 +932,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
           AppSpacing.gapXL,
 
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Entry Type',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-
-          AppSpacing.gapMD,
-
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                avatar: const Icon(Icons.restaurant, size: 18),
-                label: const Text('Meal'),
-                selected: !isWaterEntry,
-                onSelected: (_) => setState(() => isWaterEntry = false),
-              ),
-              ChoiceChip(
-                avatar: const Icon(Icons.water_drop_outlined, size: 18),
-                label: const Text('Water'),
-                selected: isWaterEntry,
-                onSelected: (_) => setState(() => isWaterEntry = true),
-              ),
-            ],
-          ),
+          _entryAndMealTypeControls(),
 
           AppSpacing.gapXL,
 
@@ -938,36 +975,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onPressed: _isSaving ? null : saveMeal,
             ),
           ] else ...[
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Meal Type',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            AppSpacing.gapMD,
-
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: MealType.values.map((type) {
-                return ChoiceChip(
-                  avatar: Icon(type.icon, size: 18),
-                  label: Text(type.label),
-                  selected: mealType == type,
-                  onSelected: (_) {
-                    setState(() {
-                      mealType = type;
-                      selectedTemplateId = null;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-
-            AppSpacing.gapXL,
-
             OperationButton(
               key: const ValueKey('food-catalog-select'),
               icon: Icons.storage_outlined,
@@ -975,33 +982,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onPressed: _isSaving ? null : _selectCatalogFood,
             ),
 
-            AppSpacing.gapMD,
-
-            if (widget.initialMeal == null) ...[
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Meal Template',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-
-              AppSpacing.gapMD,
-
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: betaMealTemplates.map((template) {
-                  return ChoiceChip(
-                    label: Text(template.name),
-                    selected: selectedTemplateId == template.id,
-                    onSelected: (_) => _applyTemplate(template),
-                  );
-                }).toList(),
-              ),
-
-              AppSpacing.gapXL,
-            ],
+            AppSpacing.gapXL,
 
             const SectionHeader(
               icon: Icons.restaurant_menu,
@@ -1054,6 +1035,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onBaseUnitChanged: (unit) {
                 setState(() {
                   baseUnit = unit;
+                  _basisLinkedToPackage = false;
                   inputError = null;
                 });
               },
@@ -1111,6 +1093,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 items: preview,
                 catalogSources: previewCatalogSources,
                 recipeSources: previewRecipeSources,
+                quantityUnits: [
+                  ..._quantityUnits,
+                  if (editingIndex == null && _currentFoodItem() != null)
+                    baseUnit,
+                ],
                 onDelete: (index) {
                   if (index < items.length) {
                     removeFood(index);

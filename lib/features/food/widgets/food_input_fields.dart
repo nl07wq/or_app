@@ -23,13 +23,13 @@ class FoodInputFields extends StatelessWidget {
   final TextEditingController foodMemoController;
   final FoodCatalogCategory category;
   final FoodQuantityUnit? packageUnit;
-  final FoodBaseUnit baseUnit;
+  final FoodQuantityUnit baseUnit;
   final FoodAmountMode amountMode;
   final bool recipeSelected;
 
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onBaseAmountChanged;
-  final ValueChanged<FoodBaseUnit> onBaseUnitChanged;
+  final ValueChanged<FoodQuantityUnit> onBaseUnitChanged;
   final ValueChanged<FoodCatalogCategory> onCategoryChanged;
   final ValueChanged<String> onPackageQuantityChanged;
   final ValueChanged<FoodQuantityUnit?> onPackageUnitChanged;
@@ -209,38 +209,43 @@ class FoodInputFields extends StatelessWidget {
         AppSpacing.gapMD,
 
         if (!recipeSelected)
-          Row(
-            children: [
-              Expanded(
-                child: OperationTextField(
-                  controller: baseAmountController,
-                  label: 'NUTRITION BASIS',
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  onChanged: onBaseAmountChanged,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final quantity = OperationTextField(
+                controller: baseAmountController,
+                label: 'NUTRITION BASIS',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OperationDropdown<FoodBaseUnit>(
-                  key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
-                  label: 'BASE UNIT',
-                  value: baseUnit,
-                  items: FoodBaseUnit.values
-                      .map(
-                        (unit) => DropdownMenuItem(
-                          value: unit,
-                          child: Text(unit.label),
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (unit) {
-                    if (unit != null) onBaseUnitChanged(unit);
-                  },
-                ),
-              ),
-            ],
+                onChanged: onBaseAmountChanged,
+              );
+              final unit = OperationDropdown<FoodQuantityUnit>(
+                key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
+                label: 'BASE UNIT',
+                value: baseUnit,
+                items: FoodQuantityUnit.values
+                    .map(
+                      (unit) => DropdownMenuItem(
+                        value: unit,
+                        child: Text(_quantityUnitLabel(unit)),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (unit) {
+                  if (unit != null) onBaseUnitChanged(unit);
+                },
+              );
+              if (constraints.maxWidth < 300) {
+                return Column(children: [quantity, AppSpacing.gapMD, unit]);
+              }
+              return Row(
+                children: [
+                  Expanded(child: quantity),
+                  const SizedBox(width: 12),
+                  Expanded(child: unit),
+                ],
+              );
+            },
           ),
 
         AppSpacing.gapMD,
@@ -250,7 +255,7 @@ class FoodInputFields extends StatelessWidget {
           child: Text(
             recipeSelected
                 ? 'NUTRITION PER SERVING'
-                : 'NUTRITION PER $baseAmount${baseUnit.label}',
+                : 'NUTRITION PER $baseAmount${_quantityUnitLabel(baseUnit)}',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
@@ -326,15 +331,41 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
-        OperationTextField(
-          controller: amountController,
-          label: recipeSelected
-              ? 'SERVINGS'
-              : amountMode == FoodAmountMode.baseMultiplier
-              ? 'AMOUNT'
-              : 'QUANTITY (${baseUnit.label})',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: onChanged,
+        Column(
+          children: [
+            OperationTextField(
+              controller: amountController,
+              label: recipeSelected
+                  ? 'SERVINGS'
+                  : amountMode == FoodAmountMode.baseMultiplier
+                  ? 'AMOUNT'
+                  : 'QUANTITY (${_quantityUnitLabel(baseUnit)})',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: onChanged,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _AmountStepButton(
+                    key: const ValueKey('food-amount-increment'),
+                    icon: Icons.keyboard_arrow_up,
+                    tooltip: 'Increase amount',
+                    onPressed: () => _stepAmount(1),
+                  ),
+                  _AmountStepButton(
+                    key: const ValueKey('food-amount-decrement'),
+                    icon: Icons.keyboard_arrow_down,
+                    tooltip: 'Decrease amount',
+                    onPressed: _canDecrement ? () => _stepAmount(-1) : null,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
 
         if (!recipeSelected && amountMode == FoodAmountMode.baseMultiplier) ...[
@@ -342,7 +373,7 @@ class FoodInputFields extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '1 AMOUNT = $baseAmount${baseUnit.label}',
+              '1 AMOUNT = $baseAmount${_quantityUnitLabel(baseUnit)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -354,7 +385,7 @@ class FoodInputFields extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               '実使用量: ${_formatNumber(physicalAmount)}'
-              '${baseUnit.label}',
+              '${_quantityUnitLabel(baseUnit)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -374,6 +405,50 @@ class FoodInputFields extends StatelessWidget {
         ? value.round().toString()
         : value.toString();
   }
+
+  bool get _canDecrement {
+    final value = double.tryParse(amountController.text.trim());
+    return value != null && value.isFinite && value - 1 > 0;
+  }
+
+  void _stepAmount(double delta) {
+    final current = double.tryParse(amountController.text.trim());
+    if (current == null || !current.isFinite) return;
+    final next = current + delta;
+    if (next <= 0) return;
+    final value = _formatNumber(next);
+    amountController.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+    onChanged(value);
+  }
+}
+
+class _AmountStepButton extends StatelessWidget {
+  const _AmountStepButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 24,
+    child: IconButton(
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      iconSize: 20,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+    ),
+  );
 }
 
 String _quantityUnitLabel(FoodQuantityUnit unit) => switch (unit) {
