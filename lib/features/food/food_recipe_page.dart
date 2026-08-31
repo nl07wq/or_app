@@ -16,6 +16,7 @@ import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'repository/food_recipe_repository.dart';
 import 'services/food_recipe_nutrition.dart';
+import 'widgets/food_pfc_balance_card.dart';
 
 class FoodRecipeEditorPage extends StatefulWidget {
   const FoodRecipeEditorPage({
@@ -236,6 +237,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             key: const ValueKey('recipe-name'),
             controller: _name,
             label: 'NAME',
+            onChanged: (_) => setState(() {}),
           ),
           AppSpacing.gapMD,
           LayoutBuilder(
@@ -247,6 +249,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                onChanged: (_) => setState(() {}),
               );
               final unit = DropdownButtonFormField<FoodQuantityUnit>(
                 initialValue: _yieldUnit,
@@ -281,7 +284,21 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             controller: _servings,
             label: 'SERVING COUNT',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
           ),
+          AppSpacing.gapMD,
+          _RecipeSummaryHeader(
+            name: _name.text.trim().isEmpty ? 'RECIPE' : _name.text.trim(),
+            serving: _servingMetadata(),
+          ),
+          if (FoodPfcBalanceCard.hasBalance(nutrition)) ...[
+            AppSpacing.gapMD,
+            FoodPfcBalanceCard(
+              nutrition: nutrition,
+              title: 'TOTAL PFC BALANCE',
+              keyPrefix: 'recipe-total-pfc',
+            ),
+          ],
           AppSpacing.gapMD,
           OperationTextField(
             key: const ValueKey('recipe-memo'),
@@ -296,7 +313,13 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             OperationCard(
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_ingredients[index].nameSnapshot),
+                title: Text(
+                  _ingredients[index].nameSnapshot,
+                  key: ValueKey('recipe-ingredient-name-$index'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 subtitle: Wrap(
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.xs,
@@ -305,11 +328,13 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                       FoodNutritionFormatter.quantity(
                         _ingredients[index].quantity,
                       ),
+                      style: _recipeMetadataStyle(context),
                     ),
                     Text(
                       FoodNutritionFormatter.nutrition(
                         _ingredients[index].nutritionSnapshot,
                       ),
+                      style: _recipeMetadataStyle(context),
                     ),
                   ],
                 ),
@@ -328,13 +353,6 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             icon: Icons.add,
             text: 'ADD INGREDIENT FROM FOOD DATABASE',
             onPressed: readOnly || _saving ? null : _addIngredient,
-          ),
-          AppSpacing.gapLG,
-          OperationCard(
-            child: Text(
-              'TOTAL  ${_nutrition(nutrition)}',
-              key: const ValueKey('recipe-total-nutrition'),
-            ),
           ),
           if (_error != null) ...[
             AppSpacing.gapSM,
@@ -370,7 +388,54 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
     final value = _ids.generate();
     return value.startsWith('food:') ? value.substring(5) : value;
   }
+
+  String _servingMetadata() {
+    final value = double.tryParse(_servings.text.trim());
+    if (value != null && value.isFinite && value > 0) {
+      return FoodNutritionFormatter.servings(value);
+    }
+    if (_yieldUnit == FoodQuantityUnit.serving) {
+      final yieldValue = double.tryParse(_yield.text.trim());
+      if (yieldValue != null && yieldValue.isFinite && yieldValue > 0) {
+        return FoodNutritionFormatter.servings(yieldValue);
+      }
+    }
+    return 'SERVING NOT SET';
+  }
 }
+
+class _RecipeSummaryHeader extends StatelessWidget {
+  const _RecipeSummaryHeader({required this.name, required this.serving});
+
+  final String name;
+  final String serving;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    key: const ValueKey('recipe-summary-header'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        name,
+        key: const ValueKey('recipe-primary-name'),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      AppSpacing.gapXS,
+      Text(
+        serving,
+        key: const ValueKey('recipe-serving-metadata'),
+        style: _recipeMetadataStyle(context),
+      ),
+    ],
+  );
+}
+
+TextStyle? _recipeMetadataStyle(BuildContext context) => Theme.of(context)
+    .textTheme
+    .bodySmall
+    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
 String foodRecipeNutritionLabel(NutritionSnapshot value) => _nutrition(value);
 

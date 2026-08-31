@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_initialization_state.dart';
@@ -25,12 +23,8 @@ import 'services/food_nutrition_recalculation.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
 import 'services/japanese_package_ocr_parser.dart';
 import 'widgets/food_ocr_scanner.dart';
+import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
-
-const double foodDetailPfcRingWidth = 12;
-const Color foodDetailProteinColor = Color(0xFFE08AAA);
-const Color foodDetailFatColor = Color(0xFFE9A052);
-const Color foodDetailCarbohydrateColor = Color(0xFF62BFE3);
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -280,7 +274,12 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
           child: ListTile(
             contentPadding: EdgeInsets.zero,
             leading: FoodThumbnail(visualKey: entry.visualKey),
-            title: Text(entry.name),
+            title: Text(
+              entry.name,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -289,16 +288,19 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                     if (entry.brand != null) entry.brand!,
                     foodCatalogCategoryLabel(entry.category),
                   ].join(' · '),
+                  style: _metadataStyle(context),
                 ),
                 Text(
                   [
                     _basis(entry.baseQuantity),
                     if (entry.barcodeValue != null) entry.barcodeValue!,
                   ].join(' · '),
+                  style: _metadataStyle(context),
                 ),
                 Text(
                   FoodNutritionFormatter.nutrition(entry.nutrition),
                   key: ValueKey('food-catalog-nutrition-${entry.foodId}'),
+                  style: _metadataStyle(context),
                 ),
               ],
             ),
@@ -325,11 +327,27 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             key: ValueKey('food-recipe-${recipe.recipeId}'),
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.menu_book_outlined),
-            title: Text(recipe.name),
-            subtitle: Text(
-              '${recipe.ingredients.length} INGREDIENTS  ·  '
-              '${foodRecipeNutritionLabel(recipe.nutrition)}\n'
-              '${foodRecipeSummaryLabel(recipe)}',
+            title: Text(
+              recipe.name,
+              key: ValueKey('food-recipe-name-${recipe.recipeId}'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  foodRecipeSummaryLabel(recipe),
+                  key: ValueKey('food-recipe-serving-${recipe.recipeId}'),
+                  style: _metadataStyle(context),
+                ),
+                Text(
+                  foodRecipeNutritionLabel(recipe.nutrition),
+                  key: ValueKey('food-recipe-nutrition-${recipe.recipeId}'),
+                  style: _metadataStyle(context),
+                ),
+              ],
             ),
             isThreeLine: true,
             trailing: const Icon(Icons.chevron_right),
@@ -342,6 +360,11 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
 }
 
 enum _FoodDatabaseView { food, recipe }
+
+TextStyle? _metadataStyle(BuildContext context) => Theme.of(context)
+    .textTheme
+    .bodySmall
+    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
 class FoodCatalogEditorPage extends StatefulWidget {
   const FoodCatalogEditorPage({
@@ -1398,14 +1421,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nutrition = entry.nutrition;
-    final hasChart =
-        nutrition.protein != null &&
-        nutrition.fat != null &&
-        nutrition.carbohydrate != null &&
-        nutrition.protein! * 4 +
-                nutrition.fat! * 9 +
-                nutrition.carbohydrate! * 4 >
-            0;
+    final hasChart = FoodPfcBalanceCard.hasBalance(nutrition);
     return Scaffold(
       appBar: AppBar(title: const Text('FOOD DETAIL')),
       body: SingleChildScrollView(
@@ -1436,7 +1452,10 @@ class FoodCatalogDetailPage extends StatelessWidget {
                 ],
               ),
             ),
-            if (hasChart) ...[AppSpacing.gapMD, _PfcCard(nutrition: nutrition)],
+            if (hasChart) ...[
+              AppSpacing.gapMD,
+              FoodPfcBalanceCard(nutrition: nutrition),
+            ],
             if (!appInitializationController.value.isReadOnly) ...[
               AppSpacing.gapMD,
               OperationButton(
@@ -1482,195 +1501,6 @@ class FoodCatalogDetailPage extends StatelessWidget {
       ],
     ),
   );
-}
-
-class _PfcCard extends StatelessWidget {
-  const _PfcCard({required this.nutrition});
-  final NutritionSnapshot nutrition;
-
-  @override
-  Widget build(BuildContext context) {
-    final values = [
-      nutrition.protein! * 4,
-      nutrition.fat! * 9,
-      nutrition.carbohydrate! * 4,
-    ];
-    final total = values.reduce((a, b) => a + b);
-    const colors = [
-      foodDetailProteinColor,
-      foodDetailFatColor,
-      foodDetailCarbohydrateColor,
-    ];
-    return OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionHeader(icon: Icons.donut_large, title: 'PFC BALANCE'),
-          AppSpacing.gapSM,
-          Row(
-            key: const ValueKey('food-detail-pfc-horizontal'),
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final size = constraints.maxWidth < 300 ? 92.0 : 104.0;
-                  return SizedBox(
-                    key: const ValueKey('food-detail-pfc-donut'),
-                    width: size,
-                    height: size,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CustomPaint(painter: _PfcPainter(values, colors)),
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppSpacing.lg),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    nutrition.calories == null
-                                        ? 'N/A'
-                                        : FoodNutritionFormatter.calories(
-                                            nutrition.calories!,
-                                          ),
-                                    key: const ValueKey(
-                                      'food-detail-pfc-center-calories',
-                                    ),
-                                    maxLines: 1,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      height: 1,
-                                    ),
-                                  ),
-                                ),
-                                if (nutrition.calories != null)
-                                  const Text(
-                                    'kcal',
-                                    style: TextStyle(fontSize: 10, height: 1.1),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  children: [
-                    for (var index = 0; index < values.length; index++) ...[
-                      _PfcMetricRow(
-                        label: const ['PROTEIN', 'FAT', 'CARBOHYDRATE'][index],
-                        grams: [
-                          nutrition.protein!,
-                          nutrition.fat!,
-                          nutrition.carbohydrate!,
-                        ][index],
-                        percent: (values[index] / total * 100).round(),
-                        color: colors[index],
-                      ),
-                      if (index < values.length - 1) AppSpacing.gapSM,
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PfcMetricRow extends StatelessWidget {
-  const _PfcMetricRow({
-    required this.label,
-    required this.grams,
-    required this.percent,
-    required this.color,
-  });
-
-  final String label;
-  final double grams;
-  final int percent;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    key: ValueKey('food-detail-pfc-$label'),
-    builder: (context, constraints) {
-      final style = TextStyle(color: color, fontWeight: FontWeight.bold);
-      final compact = constraints.maxWidth < 190;
-      return Row(
-        children: [
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(label, maxLines: 1, style: style),
-            ),
-          ),
-          SizedBox(
-            width: compact ? 50 : 72,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '${FoodNutritionFormatter.macro(grams)} g',
-                maxLines: 1,
-                style: style,
-              ),
-            ),
-          ),
-          SizedBox(
-            width: compact ? 36 : 48,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Text('$percent%', maxLines: 1, style: style),
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-class _PfcPainter extends CustomPainter {
-  const _PfcPainter(this.values, this.colors);
-  final List<double> values;
-  final List<Color> colors;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final total = values.reduce((a, b) => a + b);
-    final rect = Offset.zero & size;
-    var start = -math.pi / 2;
-    for (var index = 0; index < values.length; index++) {
-      final sweep = math.pi * 2 * values[index] / total;
-      canvas.drawArc(
-        rect.deflate(10),
-        start,
-        sweep,
-        false,
-        Paint()
-          ..color = colors[index]
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = foodDetailPfcRingWidth
-          ..strokeCap = StrokeCap.butt,
-      );
-      start += sweep;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PfcPainter oldDelegate) =>
-      oldDelegate.values != values || oldDelegate.colors != colors;
 }
 
 String _basis(FoodQuantityDefinition quantity) =>

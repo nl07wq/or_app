@@ -7,6 +7,7 @@ import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/repository/food_catalog_repository.dart';
+import 'package:or_app/features/food/widgets/food_pfc_balance_card.dart';
 import 'package:or_app/features/food/widgets/food_thumbnail.dart';
 
 void main() {
@@ -114,6 +115,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('市販・包装食品'), findsNWidgets(2));
+    final primaryName = tester.widget<Text>(find.text('Meat Food'));
+    final metadata = tester.widget<Text>(find.text('市販・包装食品').first);
+    expect(primaryName.style?.fontWeight, FontWeight.w700);
+    expect(primaryName.style?.fontSize, greaterThan(metadata.style!.fontSize!));
   });
 
   for (final width in [320.0, 390.0]) {

@@ -41,9 +41,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Rice Bowl'), findsOneWidget);
     expect(find.text('Archived Soup'), findsNothing);
-    expect(find.textContaining('1 INGREDIENTS'), findsOneWidget);
+    expect(find.textContaining('INGREDIENTS'), findsNothing);
     expect(find.textContaining('2 SERVINGS'), findsOneWidget);
     expect(find.textContaining('YIELD 2 serving'), findsNothing);
+    const recipeId = '22222222-2222-4222-8222-222222222222';
+    final serving = find.byKey(ValueKey('food-recipe-serving-$recipeId'));
+    final nutrition = find.byKey(ValueKey('food-recipe-nutrition-$recipeId'));
+    expect(
+      tester.getRect(serving).top,
+      lessThan(tester.getRect(nutrition).top),
+    );
+    final recipeName = tester.widget<Text>(
+      find.byKey(ValueKey('food-recipe-name-$recipeId')),
+    );
+    final servingText = tester.widget<Text>(serving);
+    expect(recipeName.style?.fontWeight, FontWeight.w700);
+    expect(
+      recipeName.style?.fontSize,
+      greaterThan(servingText.style!.fontSize!),
+    );
 
     await tester.enterText(
       find.byKey(const ValueKey('food-catalog-search')),
@@ -79,21 +95,42 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('CREATE RECIPE'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Rice'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Rice'), findsOneWidget);
       expect(find.text('100 g'), findsOneWidget);
+      expect(find.text('TOTAL PFC BALANCE'), findsOneWidget);
       expect(
-        find.text('286 kcal · P 12.2 g · F 19.3 g · C 16.2 g'),
-        findsWidgets,
+        find.byKey(const ValueKey('recipe-total-pfc-card')),
+        findsOneWidget,
       );
-      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      expect(
+        find.byKey(const ValueKey('recipe-total-pfc-donut')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('recipe-total-nutrition')),
+        findsNothing,
+      );
+      expect(find.text('286'), findsOneWidget);
+      expect(find.text('12.2 g'), findsWidgets);
+      expect(find.text('19.3 g'), findsWidgets);
+      expect(find.text('16.2 g'), findsWidgets);
+      final servingMetadata = find.byKey(
+        const ValueKey('recipe-serving-metadata'),
+      );
+      final totalCard = find.byKey(const ValueKey('recipe-total-pfc-card'));
+      expect(
+        tester.getRect(servingMetadata).top,
+        lessThan(tester.getRect(totalCard).top),
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('recipe-save'), skipOffstage: false),
+      );
       await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<Text>(find.byKey(const ValueKey('recipe-total-nutrition')))
-            .data,
-        'TOTAL  286 kcal · P 12.2 g · F 19.3 g · C 16.2 g',
-      );
-      await tester.ensureVisible(find.byKey(const ValueKey('recipe-save')));
       await tester.tap(find.byKey(const ValueKey('recipe-save')));
       await tester.pumpAndSettle();
 
@@ -268,6 +305,20 @@ void main() {
         ),
       );
       await tester.pump();
+      expect(find.text('TOTAL PFC BALANCE'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('recipe-total-pfc-horizontal')),
+        findsOneWidget,
+      );
+      final ingredientName = tester.widget<Text>(
+        find.byKey(const ValueKey('recipe-ingredient-name-0')),
+      );
+      final ingredientMetadata = tester.widget<Text>(find.text('100 g'));
+      expect(ingredientName.style?.fontWeight, FontWeight.w700);
+      expect(
+        ingredientName.style?.fontSize,
+        greaterThan(ingredientMetadata.style!.fontSize!),
+      );
       expect(tester.takeException(), isNull);
     });
   }

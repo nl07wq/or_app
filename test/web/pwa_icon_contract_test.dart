@@ -12,6 +12,8 @@ void main() {
     final icons = (manifest['icons']! as List<Object?>)
         .cast<Map<String, Object?>>();
 
+    expect(manifest['background_color'], '#061522');
+    expect(manifest['theme_color'], '#061522');
     expect(icons, hasLength(4));
     expect(icons.map((icon) => icon['src']), [
       'icons/Icon-192.png',
@@ -31,7 +33,7 @@ void main() {
     }
   });
 
-  test('launcher and HTML contracts use the intended transparent source', () {
+  test('launcher and HTML contracts use the intended icon source', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final index = File('web/index.html').readAsStringSync();
 
