@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v14 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v15 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 14);
+    expect(IndexedDbSchema.databaseVersion, 15);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -14,6 +14,7 @@ void main() {
         IndexedDbStoreNames.foodRecords,
         IndexedDbStoreNames.foodCatalogRecords,
         IndexedDbStoreNames.foodRecipeRecords,
+        IndexedDbStoreNames.foodMealMasterRecords,
         IndexedDbStoreNames.trainingRecords,
         IndexedDbStoreNames.activityRecords,
         IndexedDbStoreNames.dailyLogConfirmations,
@@ -523,5 +524,14 @@ void main() {
       IndexedDbIndexNames.byReportType,
       IndexedDbIndexNames.byImportedAt,
     ]);
+  });
+
+  test('v14 to v15 adds only the Food Meal Master store', () {
+    final store = IndexedDbSchema.storeDefinitions.singleWhere(
+      (definition) =>
+          definition.name == IndexedDbStoreNames.foodMealMasterRecords,
+    );
+    expect(store.keyPath, 'mealMasterId');
+    expect(store.indexes, isEmpty);
   });
 }

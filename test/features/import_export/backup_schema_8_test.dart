@@ -48,7 +48,7 @@ void main() {
       ).create();
 
       expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(package.data.keys, BackupSections.schema14);
+      expect(package.data.keys, BackupSections.schema15);
       expect(package.data[BackupSections.profile], [
         {
           'version': 1,
@@ -60,7 +60,7 @@ void main() {
       ]);
       expect(
         package.includedSections,
-        hasLength(BackupSections.schema14.length),
+        hasLength(BackupSections.schema15.length),
       );
 
       await repository.save(ProfileModel.validated(userName: 'Changed'));

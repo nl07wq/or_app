@@ -6,6 +6,7 @@ import '../../food/models/persisted_food_record.dart';
 import '../../food/models/persisted_daily_meal_v2_record.dart';
 import '../../food/models/food_catalog_models.dart';
 import '../../food/models/recipe_models_v2.dart';
+import '../../food/models/food_meal_master_models.dart';
 import '../../food/services/food_v2_canonical_service.dart';
 import '../../status/models/persisted_status_record.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
@@ -33,6 +34,7 @@ abstract final class BackupStoreRegistry {
     BackupSections.operationState: IndexedDbStoreNames.operationState,
     BackupSections.foodCatalog: IndexedDbStoreNames.foodCatalogRecords,
     BackupSections.foodRecipes: IndexedDbStoreNames.foodRecipeRecords,
+    BackupSections.foodMealMasters: IndexedDbStoreNames.foodMealMasterRecords,
     BackupSections.operationSyncHistory:
         IndexedDbStoreNames.operationSyncHistory,
     BackupSections.morningBriefRecords: IndexedDbStoreNames.morningBriefRecords,
@@ -73,6 +75,8 @@ abstract final class BackupStoreRegistry {
         FoodCatalogEntry.fromJson(record);
       case BackupSections.foodRecipes:
         FoodRecipeDefinition.fromJson(record);
+      case BackupSections.foodMealMasters:
+        FoodMealMaster.fromJson(record);
       case BackupSections.operationSyncHistory:
         validateOperationSyncStoredRecord(record);
       case BackupSections.morningBriefRecords:
@@ -160,7 +164,9 @@ abstract final class BackupStoreRegistry {
       BackupSections.confirmations => '${record['localDate']}\u0000$id',
       BackupSections.customExercises => '${record['normalizedName']}\u0000$id',
       BackupSections.operationState => id.toString(),
-      BackupSections.foodCatalog || BackupSections.foodRecipes => id,
+      BackupSections.foodCatalog ||
+      BackupSections.foodRecipes ||
+      BackupSections.foodMealMasters => id,
       BackupSections.operationSyncHistory =>
         '${record['completedAt']}\u0000$id',
       BackupSections.morningBriefRecords ||
@@ -190,7 +196,8 @@ abstract final class BackupStoreRegistry {
     Map<String, Object?> second,
   ) {
     if (section == BackupSections.foodCatalog ||
-        section == BackupSections.foodRecipes) {
+        section == BackupSections.foodRecipes ||
+        section == BackupSections.foodMealMasters) {
       return FoodV2CanonicalService.digest(first) ==
           FoodV2CanonicalService.digest(second);
     }
@@ -215,6 +222,7 @@ abstract final class BackupStoreRegistry {
     final key = switch (section) {
       BackupSections.foodCatalog => 'foodId',
       BackupSections.foodRecipes => 'recipeId',
+      BackupSections.foodMealMasters => 'mealMasterId',
       BackupSections.operationSyncHistory => 'operationId',
       BackupSections.morningBriefRecords ||
       BackupSections.dailyDebriefRecords => 'localDate',

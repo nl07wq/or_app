@@ -17,11 +17,14 @@ abstract final class BackupV14Transform {
     Map<String, List<Map<String, Object?>>> audit,
     bool archiveComplete,
   })
-  split(Map<String, List<Map<String, Object?>>> source) {
+  split(
+    Map<String, List<Map<String, Object?>>> source, {
+    int schemaVersion = BackupPackage.currentSchemaVersion,
+  }) {
     final normal = <String, List<Map<String, Object?>>>{};
     final revisionBodies = <Map<String, Object?>>[];
     var archiveComplete = true;
-    for (final section in BackupSections.schema14) {
+    for (final section in BackupSections.forSchema(schemaVersion)) {
       final records = source[section] ?? const [];
       normal[section] = [
         for (final record in records)
@@ -113,7 +116,7 @@ abstract final class BackupV14Transform {
   }
 
   static void validatePair(BackupPackage normal, BackupAuditPackage audit) {
-    if (normal.schemaVersion != 14 ||
+    if ((normal.schemaVersion != 14 && normal.schemaVersion != 15) ||
         normal.auditArchiveId != audit.archiveId ||
         normal.exportId != audit.normalExportId ||
         normal.digests.package != audit.normalPackageDigest) {
@@ -132,7 +135,10 @@ abstract final class BackupV14Transform {
     final normalized = <String, List<Map<String, Object?>>>{};
     final counts = <String, int>{};
     final digests = <String, String>{};
-    for (final section in BackupSections.all) {
+    final fullSections = normal.schemaVersion >= 15
+        ? BackupSections.allCurrent
+        : BackupSections.all;
+    for (final section in fullSections) {
       final records = BackupStoreRegistry.validateAndSort(
         section,
         hydrated[section] ?? const [],
@@ -142,7 +148,7 @@ abstract final class BackupV14Transform {
       digests[section] = BackupCanonicalCodec.digest(records);
     }
     return BackupPackage(
-      schemaVersion: 14,
+      schemaVersion: normal.schemaVersion,
       exportId: normal.exportId,
       exportedAt: normal.exportedAt,
       appVersion: normal.appVersion,
@@ -154,7 +160,7 @@ abstract final class BackupV14Transform {
         sections: digests,
       ),
       data: normalized,
-      includedSections: BackupSections.all.toSet(),
+      includedSections: fullSections.toSet(),
       auditArchiveId: audit.archiveId,
     );
   }

@@ -92,7 +92,7 @@ class BackupPackageCodec {
     final countJson = _map(json, 'recordCounts');
     final digestJson = _map(json, 'digests');
     final dataJson = _map(json, 'data');
-    final auditArchiveId = schemaVersion == 14
+    final auditArchiveId = schemaVersion >= 14
         ? _string(json, 'auditArchiveId')
         : null;
     final data = <String, List<Map<String, Object?>>>{};

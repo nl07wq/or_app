@@ -86,7 +86,7 @@ void main() {
       );
 
       expect(decoded.schemaVersion, BackupPackage.currentSchemaVersion);
-      expect(decoded.data.keys, hasLength(BackupSections.schema14.length));
+      expect(decoded.data.keys, hasLength(BackupSections.schema15.length));
       expect(decoded.databaseVersion, IndexedDbSchema.databaseVersion);
       expect(
         decoded.data[BackupSections.confirmations]!.map(

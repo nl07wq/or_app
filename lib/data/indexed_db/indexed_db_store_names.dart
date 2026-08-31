@@ -8,6 +8,7 @@ abstract final class IndexedDbStoreNames {
   static const foodRecords = 'food_records';
   static const foodCatalogRecords = 'food_catalog_records';
   static const foodRecipeRecords = 'food_recipe_records';
+  static const foodMealMasterRecords = 'food_meal_master_records';
   static const trainingRecords = 'training_records';
   static const activityRecords = 'activity_records';
   static const activityDrafts = 'activity_drafts';
@@ -36,6 +37,7 @@ abstract final class IndexedDbStoreNames {
     foodRecords,
     foodCatalogRecords,
     foodRecipeRecords,
+    foodMealMasterRecords,
     trainingRecords,
     activityRecords,
     dailyLogConfirmations,

@@ -50,7 +50,7 @@ void main() {
     ).create();
 
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.data.keys, BackupSections.schema14);
+    expect(package.data.keys, BackupSections.schema15);
     expect(package.data[BackupSections.foodCatalog], hasLength(1));
     expect(package.data[BackupSections.foodRecipes], hasLength(1));
     final decoded = const BackupPackageCodec().decode(

@@ -9,15 +9,18 @@ import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
 import '../repositories/app_repository_container.dart';
 import 'models/food_catalog_models.dart';
+import 'models/food_meal_master_models.dart';
 import 'models/food_provenance_models.dart';
 import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
 import 'models/recipe_models_v2.dart';
 import 'food_nutrition_formatter.dart';
 import 'food_recipe_page.dart';
+import 'food_meal_master_page.dart';
 import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'repository/food_recipe_repository.dart';
+import 'repository/food_meal_master_repository.dart';
 import 'services/food_input_capture_gateway.dart';
 import 'services/food_nutrition_recalculation.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
@@ -31,14 +34,18 @@ class FoodCatalogPage extends StatefulWidget {
     super.key,
     this.repository,
     this.recipeRepository,
+    this.mealRepository,
     this.selectionMode = false,
     this.recipesEnabled = true,
+    this.mealsEnabled = true,
   });
 
   final FoodCatalogRepository? repository;
   final FoodRecipeRepository? recipeRepository;
+  final FoodMealMasterRepository? mealRepository;
   final bool selectionMode;
   final bool recipesEnabled;
+  final bool mealsEnabled;
 
   @override
   State<FoodCatalogPage> createState() => _FoodCatalogPageState();
@@ -48,6 +55,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   final _search = TextEditingController();
   List<FoodCatalogEntry> _entries = const [];
   List<FoodRecipeDefinition> _recipes = const [];
+  List<FoodMealMaster> _meals = const [];
   Object? _error;
   bool _loading = true;
   _FoodDatabaseView _view = _FoodDatabaseView.food;
@@ -56,6 +64,8 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       widget.repository ?? AppRepositoryRegistry.container.foodCatalog;
   FoodRecipeRepository get _recipeRepository =>
       widget.recipeRepository ?? AppRepositoryRegistry.container.foodRecipes;
+  FoodMealMasterRepository get _mealRepository =>
+      widget.mealRepository ?? AppRepositoryRegistry.container.foodMealMasters;
 
   @override
   void initState() {
@@ -111,15 +121,52 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         .toList(growable: false);
   }
 
+  List<FoodMealMaster> get _visibleMeals {
+    final query = _search.text.trim().toLowerCase();
+    return _meals
+        .where(
+          (meal) =>
+              !meal.isArchived &&
+              (query.isEmpty || meal.name.toLowerCase().contains(query)),
+        )
+        .toList(growable: false);
+  }
+
   Future<void> _selectView(_FoodDatabaseView view) async {
     if (_view == view) return;
     setState(() {
       _view = view;
       _search.clear();
-      _loading = view == _FoodDatabaseView.recipe && _recipes.isEmpty;
+      _loading =
+          (view == _FoodDatabaseView.recipe && _recipes.isEmpty) ||
+          (view == _FoodDatabaseView.meal && _meals.isEmpty);
       _error = null;
     });
-    if (_loading) await _loadRecipes();
+    if (_loading) {
+      if (view == _FoodDatabaseView.recipe) {
+        await _loadRecipes();
+      } else {
+        await _loadMeals();
+      }
+    }
+  }
+
+  Future<void> _loadMeals() async {
+    try {
+      final meals = await _mealRepository.list();
+      if (!mounted) return;
+      setState(() {
+        _meals = meals;
+        _error = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _loadRecipes() async {
@@ -188,13 +235,38 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     await _openRecipeEditor(recipe);
   }
 
+  Future<void> _openMealEditor([FoodMealMaster? meal]) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodMealMasterEditorPage(
+          repository: _mealRepository,
+          catalogRepository: _repository,
+          recipeRepository: _recipeRepository,
+          initialMeal: meal,
+        ),
+      ),
+    );
+    if (changed == true) await _loadMeals();
+  }
+
+  Future<void> _openMeal(FoodMealMaster meal) async {
+    if (widget.selectionMode) {
+      Navigator.pop(context, meal);
+      return;
+    }
+    await _openMealEditor(meal);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(
         widget.selectionMode
             ? widget.recipesEnabled
-                  ? 'SELECT FOOD / RECIPE'
+                  ? widget.mealsEnabled
+                        ? 'SELECT FOOD / RECIPE / MEAL'
+                        : 'SELECT FOOD / RECIPE'
                   : 'SELECT FOOD'
             : 'FOOD DATABASE',
       ),
@@ -204,13 +276,17 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         ? null
         : FloatingActionButton.extended(
             key: const ValueKey('food-catalog-add'),
-            onPressed: _view == _FoodDatabaseView.food
-                ? _openEditor
-                : _openRecipeEditor,
+            onPressed: switch (_view) {
+              _FoodDatabaseView.food => _openEditor,
+              _FoodDatabaseView.recipe => _openRecipeEditor,
+              _FoodDatabaseView.meal => _openMealEditor,
+            },
             icon: const Icon(Icons.add),
-            label: Text(
-              _view == _FoodDatabaseView.food ? 'ADD FOOD' : 'ADD RECIPE',
-            ),
+            label: Text(switch (_view) {
+              _FoodDatabaseView.food => 'ADD FOOD',
+              _FoodDatabaseView.recipe => 'ADD RECIPE',
+              _FoodDatabaseView.meal => 'CREATE MEAL',
+            }),
           ),
     body: Padding(
       padding: AppSpacing.cardPadding,
@@ -219,17 +295,23 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
           if (widget.recipesEnabled) ...[
             SegmentedButton<_FoodDatabaseView>(
               key: const ValueKey('food-database-type'),
-              segments: const [
-                ButtonSegment(
+              segments: [
+                const ButtonSegment(
                   value: _FoodDatabaseView.food,
                   icon: Icon(Icons.restaurant_outlined),
                   label: Text('FOOD'),
                 ),
-                ButtonSegment(
+                const ButtonSegment(
                   value: _FoodDatabaseView.recipe,
                   icon: Icon(Icons.menu_book_outlined),
                   label: Text('RECIPE'),
                 ),
+                if (widget.mealsEnabled)
+                  const ButtonSegment(
+                    value: _FoodDatabaseView.meal,
+                    icon: Icon(Icons.view_list_outlined),
+                    label: Text('MEAL'),
+                  ),
               ],
               selected: {_view},
               onSelectionChanged: (value) => _selectView(value.single),
@@ -239,9 +321,11 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
           OperationTextField(
             key: const ValueKey('food-catalog-search'),
             controller: _search,
-            label: _view == _FoodDatabaseView.food
-                ? 'SEARCH NAME / BRAND / BARCODE'
-                : 'SEARCH RECIPE NAME',
+            label: switch (_view) {
+              _FoodDatabaseView.food => 'SEARCH NAME / BRAND / BARCODE',
+              _FoodDatabaseView.recipe => 'SEARCH RECIPE NAME',
+              _FoodDatabaseView.meal => 'SEARCH MEAL NAME',
+            },
             onChanged: (_) => setState(() {}),
           ),
           AppSpacing.gapMD,
@@ -258,11 +342,16 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         child: OperationButton(
           icon: Icons.refresh,
           text: 'RETRY',
-          onPressed: _view == _FoodDatabaseView.food ? _load : _loadRecipes,
+          onPressed: switch (_view) {
+            _FoodDatabaseView.food => _load,
+            _FoodDatabaseView.recipe => _loadRecipes,
+            _FoodDatabaseView.meal => _loadMeals,
+          },
         ),
       );
     }
     if (_view == _FoodDatabaseView.recipe) return _recipeBody();
+    if (_view == _FoodDatabaseView.meal) return _mealBody();
     final entries = _visible;
     if (entries.isEmpty) return const Center(child: Text('食品が見つかりません'));
     return ListView.separated(
@@ -350,9 +439,35 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       },
     );
   }
+
+  Widget _mealBody() {
+    final meals = _visibleMeals;
+    if (meals.isEmpty) return const Center(child: Text('MEAL NOT FOUND'));
+    return ListView.separated(
+      itemCount: meals.length,
+      separatorBuilder: (_, _) => AppSpacing.gapSM,
+      itemBuilder: (context, index) {
+        final meal = meals[index];
+        return OperationCard(
+          child: ListTile(
+            key: ValueKey('food-meal-master-${meal.mealMasterId}'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.view_list_outlined),
+            title: Text(meal.name, style: _databaseListPrimaryStyle(context)),
+            subtitle: Text(
+              '${meal.components.length} ITEMS',
+              style: _databaseListMetadataStyle(context),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openMeal(meal),
+          ),
+        );
+      },
+    );
+  }
 }
 
-enum _FoodDatabaseView { food, recipe }
+enum _FoodDatabaseView { food, recipe, meal }
 
 TextStyle? _databaseListPrimaryStyle(BuildContext context) => Theme.of(
   context,

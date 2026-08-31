@@ -31,7 +31,10 @@ class BackupExportService {
        _clock = clock ?? DateTime.now;
 
   Future<BackupPackage> create({String? appVersion, String? origin}) async =>
-      (await createV14Bundle(appVersion: appVersion, origin: origin)).normal;
+      (await createCurrentBundle(
+        appVersion: appVersion,
+        origin: origin,
+      )).normal;
 
   Future<BackupPackage> createLegacyV13({
     String? appVersion,
@@ -51,9 +54,28 @@ class BackupExportService {
   Future<BackupV14Bundle> createV14Bundle({
     String? appVersion,
     String? origin,
+  }) =>
+      _createBundle(schemaVersion: 14, appVersion: appVersion, origin: origin);
+
+  Future<BackupV14Bundle> createCurrentBundle({
+    String? appVersion,
+    String? origin,
+  }) => _createBundle(
+    schemaVersion: BackupPackage.currentSchemaVersion,
+    appVersion: appVersion,
+    origin: origin,
+  );
+
+  Future<BackupV14Bundle> _createBundle({
+    required int schemaVersion,
+    String? appVersion,
+    String? origin,
   }) async {
     final snapshot = await _snapshot();
-    final split = BackupV14Transform.split(snapshot);
+    final split = BackupV14Transform.split(
+      snapshot,
+      schemaVersion: schemaVersion,
+    );
     final exportedAt = _clock().toUtc();
     final exportId = _idGenerator.generate();
     final archiveId = _idGenerator.generate();
@@ -64,7 +86,7 @@ class BackupExportService {
       appVersion: appVersion,
       source: source,
       data: split.normal,
-      schemaVersion: 14,
+      schemaVersion: schemaVersion,
       auditArchiveId: archiveId,
     );
     final sectionDigests = {
@@ -112,7 +134,7 @@ class BackupExportService {
       mode: IndexedDbTransactionMode.readOnly,
       action: (transaction) async {
         final snapshot = <String, List<Map<String, Object?>>>{};
-        for (final section in BackupSections.all) {
+        for (final section in BackupSections.allCurrent) {
           final records = await transaction.findAll(
             BackupStoreRegistry.stores[section]!,
           );

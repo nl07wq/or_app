@@ -51,7 +51,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       appInitializationController.value.mode ==
           PersistenceMode.indexedDbReadWrite;
 
-  Future<void> _exportV14() async {
+  Future<void> _exportV15() async {
     setState(() {
       _busy = true;
       _message = null;
@@ -59,7 +59,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     try {
       final result = await BackupFileExportService(
         fileGateway: _fileGateway,
-      ).exportV14Bundle();
+      ).exportV15Bundle();
       if (result.normalDelivery == BackupFileDelivery.cancelled) {
         if (mounted) {
           setState(() => _message = 'BACKUPの保存をキャンセルしました。');
@@ -70,7 +70,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       if (mounted) {
         setState(() {
           _message =
-              'V14 NORMAL READY — ${package.recordCounts.values.values.fold<int>(0, (a, b) => a + b)} records; '
+              'V15 NORMAL READY — ${package.recordCounts.values.values.fold<int>(0, (a, b) => a + b)} records; '
               'AUDIT ${result.auditDelivery == BackupFileDelivery.cancelled ? 'CANCELLED' : 'READY'}';
         });
       }
@@ -138,7 +138,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
 
   Future<void> _selectAuditArchive() async {
     final normal = _selectedNormalPackage;
-    if (normal == null || normal.schemaVersion != 14) return;
+    if (normal == null ||
+        (normal.schemaVersion != 14 && normal.schemaVersion != 15)) {
+      return;
+    }
     setState(() {
       _busy = true;
       _message = null;
@@ -262,8 +265,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           AppSpacing.gapMD,
           OperationButton(
             icon: Icons.download_outlined,
-            text: 'EXPORT V14 NORMAL + AUDIT',
-            onPressed: _exportAvailable && !_busy ? _exportV14 : null,
+            text: 'EXPORT V15 NORMAL + AUDIT',
+            onPressed: _exportAvailable && !_busy ? _exportV15 : null,
           ),
           AppSpacing.gapSM,
           OperationButton(
@@ -300,7 +303,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         children: [
           Text('IMPORT PLAN', style: Theme.of(context).textTheme.titleMedium),
           Text('BACKUP SCHEMA ${plan.package.schemaVersion}.0'),
-          if (plan.package.schemaVersion == 14) ...[
+          if (plan.package.schemaVersion >= 14) ...[
             AppSpacing.gapSM,
             Text(
               _selectedAuditPackage == null

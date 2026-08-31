@@ -12,9 +12,11 @@ import '../daily_aggregate/services/recent_context_builder.dart';
 import '../food/repository/food_repository.dart';
 import '../food/repository/food_catalog_repository.dart';
 import '../food/repository/food_recipe_repository.dart';
+import '../food/repository/food_meal_master_repository.dart';
 import '../food/repository/daily_meal_v2_repository.dart';
 import '../food/repository/indexed_db_food_catalog_repository.dart';
 import '../food/repository/indexed_db_food_recipe_repository.dart';
+import '../food/repository/indexed_db_food_meal_master_repository.dart';
 import '../food/repository/indexed_db_daily_meal_v2_repository.dart';
 import '../food/repository/indexed_db_food_repository.dart';
 import '../food/services/food_mixed_read_service.dart';
@@ -59,6 +61,7 @@ class AppRepositoryContainer {
   final FoodRepository food;
   final FoodCatalogRepository foodCatalog;
   final FoodRecipeRepository foodRecipes;
+  final FoodMealMasterRepository foodMealMasters;
   final DailyMealV2Repository dailyMealsV2;
   final FoodMixedReadService foodMixedRead;
   final TrainingSessionRepository training;
@@ -95,6 +98,7 @@ class AppRepositoryContainer {
     required this.food,
     required this.foodCatalog,
     required this.foodRecipes,
+    required this.foodMealMasters,
     required this.dailyMealsV2,
     required this.foodMixedRead,
     required this.training,
@@ -169,6 +173,7 @@ class AppRepositoryContainer {
       food: food,
       foodCatalog: IndexedDbFoodCatalogRepository(database),
       foodRecipes: IndexedDbFoodRecipeRepository(database),
+      foodMealMasters: IndexedDbFoodMealMasterRepository(database),
       dailyMealsV2: dailyMealsV2,
       foodMixedRead: FoodMixedReadService(
         legacyRepository: food,

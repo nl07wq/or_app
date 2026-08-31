@@ -7,7 +7,7 @@ import 'package:or_app/features/training_analysis/models/training_analysis_repor
 
 void main() {
   test('IndexedDB 13 adds the dedicated Training Analysis Report store', () {
-    expect(IndexedDbSchema.databaseVersion, 14);
+    expect(IndexedDbSchema.databaseVersion, 15);
     final store = IndexedDbSchema.storeDefinitions.singleWhere(
       (definition) =>
           definition.name == IndexedDbStoreNames.trainingAnalysisReportRecords,
@@ -21,7 +21,7 @@ void main() {
   });
 
   test('Backup schema 12 adds reports without changing schema 11', () {
-    expect(BackupPackage.currentSchemaVersion, 14);
+    expect(BackupPackage.currentSchemaVersion, 15);
     expect(
       BackupSections.forSchema(11),
       isNot(contains(BackupSections.trainingAnalysisReportRecords)),

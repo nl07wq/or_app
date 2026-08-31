@@ -13,6 +13,7 @@ import '../../../core/widgets/section_header.dart';
 import '../data/water_quick_presets.dart';
 import '../food_nutrition_formatter.dart';
 import '../models/food_catalog_models.dart';
+import '../models/food_meal_master_models.dart';
 import '../models/food_quantity_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/recipe_models_v2.dart';
@@ -20,6 +21,7 @@ import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/food_input_capture_gateway.dart';
 import '../services/food_recipe_nutrition.dart';
+import '../services/food_meal_master_expander.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
 import 'food_input_fields.dart';
@@ -655,6 +657,25 @@ class _FoodInputFormState extends State<FoodInputForm> {
       ),
     );
     if (selection == null || !mounted) return;
+    if (selection case final FoodMealMaster meal) {
+      try {
+        final expansion = await FoodMealMasterExpander(
+          foods: AppRepositoryRegistry.container.foodCatalog,
+          recipes: AppRepositoryRegistry.container.foodRecipes,
+        ).expand(meal);
+        if (!mounted) return;
+        setState(() {
+          items.addAll(expansion.items);
+          _catalogSources.addAll(expansion.foodSources);
+          _recipeSources.addAll(expansion.recipeSources);
+          _quantityUnits.addAll(expansion.quantityUnits);
+          inputError = null;
+        });
+      } on FoodMealMasterExpansionException catch (error) {
+        if (mounted) setState(() => inputError = error.toString());
+      }
+      return;
+    }
     if (selection case final FoodRecipeDefinition recipe) {
       final nutrition = FoodRecipeNutrition.perServing(recipe);
       if ([

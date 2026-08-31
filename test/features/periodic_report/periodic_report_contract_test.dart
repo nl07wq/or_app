@@ -16,7 +16,7 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   test('IndexedDB 14 and Backup schema 13 add one periodic report store', () {
-    expect(IndexedDbSchema.databaseVersion, 14);
+    expect(IndexedDbSchema.databaseVersion, 15);
     final store = IndexedDbSchema.storeDefinitions.singleWhere(
       (value) => value.name == IndexedDbStoreNames.periodicReportRecords,
     );
@@ -25,7 +25,7 @@ void main() {
       IndexedDbIndexNames.byReportType,
       IndexedDbIndexNames.byImportedAt,
     ]);
-    expect(BackupPackage.currentSchemaVersion, 14);
+    expect(BackupPackage.currentSchemaVersion, 15);
     expect(
       BackupSections.forSchema(12),
       isNot(contains(BackupSections.periodicReportRecords)),

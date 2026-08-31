@@ -5,6 +5,7 @@ import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/repositories/food_repository.dart' as production;
 import 'package:or_app/data/indexed_db/indexed_db_migration_metadata.dart';
+import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_quarantined_record.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/migration/food_legacy_reader.dart';
@@ -52,7 +53,7 @@ void main() {
     expect(result.foodRecordIds, isEmpty);
     final metadata = _metadata(database);
     expect(metadata.status, IndexedDbMigrationStatus.completed);
-    expect(metadata.targetDatabaseVersion, 6);
+    expect(metadata.targetDatabaseVersion, IndexedDbSchema.databaseVersion);
     expect(metadata.targetDigest, isNotNull);
     expect(metadata.validCounts['verifiedRecordCount'], 0);
   });

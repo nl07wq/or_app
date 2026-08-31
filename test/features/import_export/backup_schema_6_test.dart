@@ -49,8 +49,8 @@ void main() {
       clock: () => timestamp,
     ).create();
     expect(package.schemaVersion, BackupPackage.currentSchemaVersion);
-    expect(package.data.keys, BackupSections.schema14);
-    expect(package.data, hasLength(BackupSections.schema14.length));
+    expect(package.data.keys, BackupSections.schema15);
+    expect(package.data, hasLength(BackupSections.schema15.length));
     expect(package.data[BackupSections.morningBriefRecords], hasLength(1));
     expect(package.data[BackupSections.dailyDebriefRecords], isEmpty);
     expect(package.data[BackupSections.reportSyncHistory], hasLength(1));

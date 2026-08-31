@@ -32,6 +32,8 @@ class BackupFileExportService {
   static const legacyFileName = 'operation_reboot_backup_v13_full.json';
   static const normalFileName = 'operation_reboot_backup_v14_normal.json';
   static const auditFileName = 'operation_reboot_backup_v14_audit.json';
+  static const v15NormalFileName = 'operation_reboot_backup_v15_normal.json';
+  static const v15AuditFileName = 'operation_reboot_backup_v15_audit.json';
 
   final BackupExportService _exportService;
   final BackupFileGateway _fileGateway;
@@ -67,6 +69,32 @@ class BackupFileExportService {
       package: package,
       fileName: legacyFileName,
       delivery: delivery,
+    );
+  }
+
+  Future<BackupV14FileExportResult> exportV15Bundle() async {
+    final bundle = await _exportService.createCurrentBundle(
+      origin: _fileGateway.origin,
+    );
+    final normalDelivery = await _fileGateway.shareOrSave(
+      fileName: v15NormalFileName,
+      content: BackupExportService.prettyEncode(bundle.normal),
+    );
+    if (normalDelivery == BackupFileDelivery.cancelled) {
+      return BackupV14FileExportResult(
+        bundle: bundle,
+        normalDelivery: normalDelivery,
+        auditDelivery: BackupFileDelivery.cancelled,
+      );
+    }
+    final auditDelivery = await _fileGateway.shareOrSave(
+      fileName: v15AuditFileName,
+      content: BackupExportService.prettyEncodeAudit(bundle.audit),
+    );
+    return BackupV14FileExportResult(
+      bundle: bundle,
+      normalDelivery: normalDelivery,
+      auditDelivery: auditDelivery,
     );
   }
 

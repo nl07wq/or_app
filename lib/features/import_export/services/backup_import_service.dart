@@ -61,7 +61,7 @@ class BackupImportService {
     try {
       final replaceAllSections =
           approvedPlan.mode == BackupImportMode.replaceAll
-          ? BackupSections.all
+          ? BackupSections.allCurrent
                 .where(
                   (section) =>
                       section != BackupSections.operationState ||
@@ -360,7 +360,7 @@ class BackupImportService {
     bool requireOperationState = false,
   }) async {
     try {
-      for (final section in BackupSections.all) {
+      for (final section in BackupSections.allCurrent) {
         if (section == BackupSections.operationState) continue;
         final records = await _database.findAll(
           BackupStoreRegistry.stores[section]!,
