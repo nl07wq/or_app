@@ -10,11 +10,14 @@ class OperationCard extends StatefulWidget {
 
   final bool selectable;
 
+  final EdgeInsetsGeometry padding;
+
   const OperationCard({
     super.key,
     required this.child,
     this.onTap,
     this.selectable = false,
+    this.padding = AppSpacing.cardPadding,
   });
 
   @override
@@ -55,10 +58,7 @@ class _OperationCardState extends State<OperationCard> {
                     ).colorScheme.primary.withValues(alpha: 0.04)
                   : Colors.transparent,
             ),
-            child: Padding(
-              padding: AppSpacing.cardPadding,
-              child: widget.child,
-            ),
+            child: Padding(padding: widget.padding, child: widget.child),
           ),
         ),
       ),

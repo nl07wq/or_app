@@ -25,6 +25,7 @@ class FoodInputFields extends StatelessWidget {
   final FoodQuantityUnit? packageUnit;
   final FoodBaseUnit baseUnit;
   final FoodAmountMode amountMode;
+  final bool recipeSelected;
 
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onBaseAmountChanged;
@@ -58,6 +59,7 @@ class FoodInputFields extends StatelessWidget {
     required this.packageUnit,
     required this.baseUnit,
     required this.amountMode,
+    this.recipeSelected = false,
     required this.onChanged,
     required this.onBaseAmountChanged,
     required this.onBaseUnitChanged,
@@ -206,46 +208,49 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
-        Row(
-          children: [
-            Expanded(
-              child: OperationTextField(
-                controller: baseAmountController,
-                label: 'NUTRITION BASIS',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+        if (!recipeSelected)
+          Row(
+            children: [
+              Expanded(
+                child: OperationTextField(
+                  controller: baseAmountController,
+                  label: 'NUTRITION BASIS',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: onBaseAmountChanged,
                 ),
-                onChanged: onBaseAmountChanged,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OperationDropdown<FoodBaseUnit>(
-                key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
-                label: 'BASE UNIT',
-                value: baseUnit,
-                items: FoodBaseUnit.values
-                    .map(
-                      (unit) => DropdownMenuItem(
-                        value: unit,
-                        child: Text(unit.label),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (unit) {
-                  if (unit != null) onBaseUnitChanged(unit);
-                },
+              const SizedBox(width: 12),
+              Expanded(
+                child: OperationDropdown<FoodBaseUnit>(
+                  key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
+                  label: 'BASE UNIT',
+                  value: baseUnit,
+                  items: FoodBaseUnit.values
+                      .map(
+                        (unit) => DropdownMenuItem(
+                          value: unit,
+                          child: Text(unit.label),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (unit) {
+                    if (unit != null) onBaseUnitChanged(unit);
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
 
         AppSpacing.gapMD,
 
         Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            'NUTRITION PER $baseAmount${baseUnit.label}',
+            recipeSelected
+                ? 'NUTRITION PER SERVING'
+                : 'NUTRITION PER $baseAmount${baseUnit.label}',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
@@ -323,14 +328,16 @@ class FoodInputFields extends StatelessWidget {
 
         OperationTextField(
           controller: amountController,
-          label: amountMode == FoodAmountMode.baseMultiplier
+          label: recipeSelected
+              ? 'SERVINGS'
+              : amountMode == FoodAmountMode.baseMultiplier
               ? 'AMOUNT'
               : 'QUANTITY (${baseUnit.label})',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: onChanged,
         ),
 
-        if (amountMode == FoodAmountMode.baseMultiplier) ...[
+        if (!recipeSelected && amountMode == FoodAmountMode.baseMultiplier) ...[
           AppSpacing.gapXS,
           Align(
             alignment: Alignment.centerLeft,
@@ -341,7 +348,7 @@ class FoodInputFields extends StatelessWidget {
           ),
         ],
 
-        if (physicalAmount != null) ...[
+        if (!recipeSelected && physicalAmount != null) ...[
           AppSpacing.gapXS,
           Align(
             alignment: Alignment.centerLeft,

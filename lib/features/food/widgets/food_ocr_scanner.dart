@@ -1,4 +1,8 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../food_nutrition_formatter.dart';
@@ -37,8 +41,22 @@ Future<FoodOcrResult?> showNutritionLabelScanner({
   required BuildContext context,
   required FoodInputCaptureGateway gateway,
 }) async {
-  final scanMode = await _chooseScanMode(context);
-  if (scanMode == null || !context.mounted) return null;
+  final choice = await _chooseScanMode(
+    context,
+    diagnosticsAvailable: gateway is FoodOcrDiagnosticGateway,
+  );
+  if (choice == null || !context.mounted) return null;
+  if (choice == _NutritionScanChoice.diagnostics) {
+    await _showNutritionOcrDiagnostics(context, gateway);
+    return null;
+  }
+  final scanMode = switch (choice) {
+    _NutritionScanChoice.standard => FoodOcrScanMode.standard,
+    _NutritionScanChoice.reader => FoodOcrScanMode.nutritionLabelReader,
+    _NutritionScanChoice.diagnostics => throw StateError(
+      'Diagnostics is not a scan mode.',
+    ),
+  };
 
   while (context.mounted) {
     if (!context.mounted) return null;
@@ -184,42 +202,162 @@ PackageOcrDraft _packageDraft(String rawText) {
   return session.draft;
 }
 
-Future<FoodOcrScanMode?> _chooseScanMode(BuildContext context) =>
-    showModalBottomSheet<FoodOcrScanMode>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.xs,
-              ),
-              child: Text('SELECT SCAN MODE'),
-            ),
-            ListTile(
-              key: const ValueKey('nutrition-mode-standard'),
-              leading: const Icon(Icons.document_scanner_outlined),
-              title: const Text('STANDARD OCR'),
-              subtitle: const Text('従来方式'),
-              onTap: () => Navigator.pop(context, FoodOcrScanMode.standard),
-            ),
-            ListTile(
-              key: const ValueKey('nutrition-mode-reader'),
-              leading: const Icon(Icons.document_scanner_outlined),
-              title: const Text('NUTRITION LABEL READER'),
-              subtitle: const Text('栄養表示専用'),
-              onTap: () =>
-                  Navigator.pop(context, FoodOcrScanMode.nutritionLabelReader),
-            ),
-          ],
+enum _NutritionScanChoice { standard, reader, diagnostics }
+
+Future<_NutritionScanChoice?> _chooseScanMode(
+  BuildContext context, {
+  required bool diagnosticsAvailable,
+}) => showModalBottomSheet<_NutritionScanChoice>(
+  context: context,
+  builder: (context) => SafeArea(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.xs,
+          ),
+          child: Text('SELECT SCAN MODE'),
         ),
+        ListTile(
+          key: const ValueKey('nutrition-mode-standard'),
+          leading: const Icon(Icons.document_scanner_outlined),
+          title: const Text('STANDARD OCR'),
+          subtitle: const Text('従来方式'),
+          onTap: () => Navigator.pop(context, _NutritionScanChoice.standard),
+        ),
+        ListTile(
+          key: const ValueKey('nutrition-mode-reader'),
+          leading: const Icon(Icons.document_scanner_outlined),
+          title: const Text('NUTRITION LABEL READER'),
+          subtitle: const Text('栄養表示専用'),
+          onTap: () => Navigator.pop(context, _NutritionScanChoice.reader),
+        ),
+        if (kDebugMode && diagnosticsAvailable)
+          ListTile(
+            key: const ValueKey('nutrition-ocr-diagnostics'),
+            leading: const Icon(Icons.bug_report_outlined),
+            title: const Text('OCR DIAGNOSTICS'),
+            subtitle: const Text('Developer-only pipeline comparison'),
+            onTap: () =>
+                Navigator.pop(context, _NutritionScanChoice.diagnostics),
+          ),
+      ],
+    ),
+  ),
+);
+
+Future<void> _showNutritionOcrDiagnostics(
+  BuildContext context,
+  FoodInputCaptureGateway gateway,
+) async {
+  final FoodOcrDiagnosticGateway? diagnosticGateway =
+      gateway is FoodOcrDiagnosticGateway
+      ? gateway as FoodOcrDiagnosticGateway
+      : null;
+  if (!kDebugMode || diagnosticGateway == null) return;
+  final source = await _chooseStillImageSource(context);
+  if (source == null || !context.mounted) return;
+  final image = await gateway.selectImage(source);
+  if (image == null || !context.mounted) return;
+
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => const AlertDialog(
+      content: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(width: AppSpacing.md),
+          Text('RUNNING OCR DIAGNOSTICS'),
+        ],
       ),
-    );
+    ),
+  );
+  Map<String, dynamic> diagnostics;
+  try {
+    diagnostics = await diagnosticGateway.diagnoseNutritionImage(image);
+  } finally {
+    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+  }
+  if (!context.mounted) return;
+
+  final copyPayload = _withoutOcrImages(diagnostics);
+  final formatted = const JsonEncoder.withIndent('  ').convert(copyPayload);
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('OCR DIAGNOSTICS'),
+      content: SizedBox(
+        width: 760,
+        child: SingleChildScrollView(child: SelectableText(formatted)),
+      ),
+      actions: [
+        if (_diagnosticPreview(diagnostics) case final preview?)
+          TextButton(
+            onPressed: () => showDialog<void>(
+              context: dialogContext,
+              builder: (previewContext) => AlertDialog(
+                title: const Text('OCR INPUT'),
+                content: InteractiveViewer(child: Image.network(preview)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(previewContext),
+                    child: const Text('CLOSE'),
+                  ),
+                ],
+              ),
+            ),
+            child: const Text('VIEW OCR INPUT'),
+          ),
+        TextButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: formatted));
+            if (dialogContext.mounted) {
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(content: Text('OCR diagnostics copied')),
+              );
+            }
+          },
+          child: const Text('COPY OCR DIAGNOSTICS'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('CLOSE'),
+        ),
+      ],
+    ),
+  );
+}
+
+Map<String, dynamic> _withoutOcrImages(Map<String, dynamic> value) =>
+    _sanitizeDiagnosticValue(value) as Map<String, dynamic>;
+
+Object? _sanitizeDiagnosticValue(Object? value) {
+  if (value is List) return value.map(_sanitizeDiagnosticValue).toList();
+  if (value is Map) {
+    return <String, dynamic>{
+      for (final entry in value.entries)
+        if (!entry.key.toString().toLowerCase().contains('preview'))
+          entry.key.toString(): _sanitizeDiagnosticValue(entry.value),
+    };
+  }
+  return value;
+}
+
+String? _diagnosticPreview(Map<String, dynamic> diagnostics) {
+  final standard = diagnostics['standard'];
+  if (standard is! Map) return null;
+  final preview = standard['inputPreviewDataUrl'];
+  return preview is String && preview.startsWith('data:image/')
+      ? preview
+      : null;
+}
 
 Future<FoodImageSource?> _chooseStillImageSource(BuildContext context) =>
     showModalBottomSheet<FoodImageSource>(

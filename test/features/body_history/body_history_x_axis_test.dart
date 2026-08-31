@@ -78,10 +78,17 @@ void main() {
       availablePlotWidth: 800,
     );
 
-    expect(ticks.map((tick) => tick.label), ['8/25', '30', '9/5', '10', '15']);
+    expect(ticks.map((tick) => tick.label), [
+      '8/25',
+      '30',
+      '9/1',
+      '5',
+      '10',
+      '15',
+    ]);
   });
 
-  test('narrow width selects a coarser calendar interval', () {
+  test('one-week axis keeps every calendar day at narrow width', () {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-07',
@@ -89,10 +96,18 @@ void main() {
       availablePlotWidth: 192,
     );
 
-    expect(ticks.map((tick) => tick.label), ['8/1', '3', '5', '7']);
+    expect(ticks.map((tick) => tick.label), [
+      '8/1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+    ]);
   });
 
-  test('wide width exposes more calendar labels than narrow width', () {
+  test('one-week label count is viewport independent', () {
     final narrow = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-07',
@@ -106,10 +121,10 @@ void main() {
       availablePlotWidth: 800,
     );
 
-    expect(wide.length, greaterThan(narrow.length));
+    expect(wide.map((tick) => tick.label), narrow.map((tick) => tick.label));
   });
 
-  test('three-month axis is month-aware at 1, 5, 15 and 25', () {
+  test('three-month axis is deterministic at month days 1, 15 and 25', () {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-10-31',
@@ -118,8 +133,9 @@ void main() {
     );
     expect(
       ticks.map((tick) => tick.label),
-      containsAll(['8/1', '5', '15', '25', '9/1', '10/1']),
+      containsAll(['8/1', '15', '25', '9/1', '10/1']),
     );
+    expect(ticks.map((tick) => tick.label), isNot(contains('5')));
   });
 
   test('six-month axis prioritizes month start and midpoint', () {
@@ -145,5 +161,18 @@ void main() {
     expect(ticks.first.x, 0);
     expect(ticks.last.x, 364);
     expect(ticks.length, inInclusiveRange(12, 14));
+  });
+
+  test('one-month collision keeps midpoint before lower priorities', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 200,
+    );
+
+    expect(ticks.first.label, '8/1');
+    expect(ticks.last.label, '30');
+    expect(ticks.map((tick) => tick.label), contains('15'));
   });
 }

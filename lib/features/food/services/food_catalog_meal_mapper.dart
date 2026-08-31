@@ -5,7 +5,9 @@ import '../models/food_catalog_models.dart';
 import '../models/food_provenance_models.dart';
 import '../models/food_quantity_models.dart';
 import '../models/nutrition_models.dart';
+import '../models/recipe_models_v2.dart';
 import '../repository/food_meal_id_generator.dart';
+import 'food_recipe_nutrition.dart';
 
 class FoodCatalogMealMapper {
   const FoodCatalogMealMapper._();
@@ -13,17 +15,47 @@ class FoodCatalogMealMapper {
   static DailyMealV2 map({
     required MealData meal,
     required List<FoodCatalogEntry?> catalogSources,
+    List<FoodRecipeDefinition?>? recipeSources,
     required String localDate,
     required DateTime timestamp,
     required FoodMealIdGenerator idGenerator,
   }) {
-    if (catalogSources.length != meal.items.length) {
-      throw ArgumentError('Catalog sources must match FOOD items.');
+    final recipes = recipeSources ?? List.filled(meal.items.length, null);
+    if (catalogSources.length != meal.items.length ||
+        recipes.length != meal.items.length) {
+      throw ArgumentError('FOOD sources must match FOOD items.');
     }
     final items = <DailyMealItemSnapshot>[];
     for (var index = 0; index < meal.items.length; index++) {
       final item = meal.items[index];
       final catalog = catalogSources[index];
+      final recipe = recipes[index];
+      if (catalog != null && recipe != null) {
+        throw ArgumentError('A FOOD item cannot reference food and recipe.');
+      }
+      if (recipe != null) {
+        final perServing = FoodRecipeNutrition.perServing(recipe);
+        items.add(
+          DailyMealItemSnapshot(
+            mealItemId: _id(idGenerator),
+            recipeReferenceId: recipe.recipeId,
+            nameSnapshot: recipe.name,
+            quantity: FoodQuantityDefinition(
+              value: item.multiplier,
+              unit: FoodQuantityUnit.serving,
+            ),
+            nutritionPerBase: perServing,
+            nutritionConsumed: FoodRecipeNutrition.scale(
+              perServing,
+              item.multiplier,
+            ),
+            provenanceSnapshot: recipe.provenance,
+            nutritionStatusSnapshot: recipe.nutritionStatus,
+            sortOrder: index,
+          ),
+        );
+        continue;
+      }
       final quantity = catalog == null
           ? FoodQuantityDefinition(
               value: item.physicalAmount ?? item.quantity.toDouble(),

@@ -217,7 +217,15 @@ class _MetricSection extends StatelessWidget {
           if (model.summary case final summary?)
             _SummaryCard(model: model, summary: summary),
           if (model.summary != null) AppSpacing.gapSM,
-          OperationCard(child: BodyHistoryChart(model: model)),
+          OperationCard(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
+            child: BodyHistoryChart(model: model),
+          ),
         ],
       );
     },

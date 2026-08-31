@@ -80,5 +80,13 @@ abstract interface class FoodLiveCaptureGateway
   });
 }
 
+/// Developer-only access to transient OCR pipeline diagnostics.
+///
+/// Implementations must not persist the source image or include image bytes in
+/// copied diagnostic JSON.
+abstract interface class FoodOcrDiagnosticGateway {
+  Future<Map<String, dynamic>> diagnoseNutritionImage(FoodCapturedImage image);
+}
+
 FoodInputCaptureGateway createFoodInputCaptureGateway() =>
     createPlatformFoodInputCaptureGateway();

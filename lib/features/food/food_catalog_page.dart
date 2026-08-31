@@ -14,9 +14,12 @@ import 'models/food_catalog_models.dart';
 import 'models/food_provenance_models.dart';
 import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
+import 'models/recipe_models_v2.dart';
 import 'food_nutrition_formatter.dart';
+import 'food_recipe_page.dart';
 import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
+import 'repository/food_recipe_repository.dart';
 import 'services/food_input_capture_gateway.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
 import 'services/japanese_package_ocr_parser.dart';
@@ -31,11 +34,15 @@ class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
     super.key,
     this.repository,
+    this.recipeRepository,
     this.selectionMode = false,
+    this.recipesEnabled = true,
   });
 
   final FoodCatalogRepository? repository;
+  final FoodRecipeRepository? recipeRepository;
   final bool selectionMode;
+  final bool recipesEnabled;
 
   @override
   State<FoodCatalogPage> createState() => _FoodCatalogPageState();
@@ -44,11 +51,15 @@ class FoodCatalogPage extends StatefulWidget {
 class _FoodCatalogPageState extends State<FoodCatalogPage> {
   final _search = TextEditingController();
   List<FoodCatalogEntry> _entries = const [];
+  List<FoodRecipeDefinition> _recipes = const [];
   Object? _error;
   bool _loading = true;
+  _FoodDatabaseView _view = _FoodDatabaseView.food;
 
   FoodCatalogRepository get _repository =>
       widget.repository ?? AppRepositoryRegistry.container.foodCatalog;
+  FoodRecipeRepository get _recipeRepository =>
+      widget.recipeRepository ?? AppRepositoryRegistry.container.foodRecipes;
 
   @override
   void initState() {
@@ -93,6 +104,46 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         .toList(growable: false);
   }
 
+  List<FoodRecipeDefinition> get _visibleRecipes {
+    final query = _search.text.trim().toLowerCase();
+    return _recipes
+        .where(
+          (recipe) =>
+              !recipe.isArchived &&
+              (query.isEmpty || recipe.name.toLowerCase().contains(query)),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> _selectView(_FoodDatabaseView view) async {
+    if (_view == view) return;
+    setState(() {
+      _view = view;
+      _search.clear();
+      _loading = view == _FoodDatabaseView.recipe && _recipes.isEmpty;
+      _error = null;
+    });
+    if (_loading) await _loadRecipes();
+  }
+
+  Future<void> _loadRecipes() async {
+    try {
+      final recipes = await _recipeRepository.list();
+      if (!mounted) return;
+      setState(() {
+        _recipes = recipes;
+        _error = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+    }
+  }
+
   Future<void> _openEditor([FoodCatalogEntry? entry]) async {
     final changed = await Navigator.push<bool>(
       context,
@@ -119,28 +170,82 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     if (changed == true) await _load();
   }
 
+  Future<void> _openRecipeEditor([FoodRecipeDefinition? recipe]) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodRecipeEditorPage(
+          repository: _recipeRepository,
+          catalogRepository: _repository,
+          initialRecipe: recipe,
+        ),
+      ),
+    );
+    if (changed == true) await _loadRecipes();
+  }
+
+  Future<void> _openRecipe(FoodRecipeDefinition recipe) async {
+    if (widget.selectionMode) {
+      Navigator.pop(context, recipe);
+      return;
+    }
+    await _openRecipeEditor(recipe);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.selectionMode ? 'SELECT FOOD' : 'FOOD DATABASE'),
+      title: Text(
+        widget.selectionMode
+            ? widget.recipesEnabled
+                  ? 'SELECT FOOD / RECIPE'
+                  : 'SELECT FOOD'
+            : 'FOOD DATABASE',
+      ),
     ),
     floatingActionButton:
         widget.selectionMode || appInitializationController.value.isReadOnly
         ? null
         : FloatingActionButton.extended(
             key: const ValueKey('food-catalog-add'),
-            onPressed: _openEditor,
+            onPressed: _view == _FoodDatabaseView.food
+                ? _openEditor
+                : _openRecipeEditor,
             icon: const Icon(Icons.add),
-            label: const Text('ADD FOOD'),
+            label: Text(
+              _view == _FoodDatabaseView.food ? 'ADD FOOD' : 'ADD RECIPE',
+            ),
           ),
     body: Padding(
       padding: AppSpacing.cardPadding,
       child: Column(
         children: [
+          if (widget.recipesEnabled) ...[
+            SegmentedButton<_FoodDatabaseView>(
+              key: const ValueKey('food-database-type'),
+              segments: const [
+                ButtonSegment(
+                  value: _FoodDatabaseView.food,
+                  icon: Icon(Icons.restaurant_outlined),
+                  label: Text('FOOD'),
+                ),
+                ButtonSegment(
+                  value: _FoodDatabaseView.recipe,
+                  icon: Icon(Icons.menu_book_outlined),
+                  label: Text('RECIPE'),
+                ),
+              ],
+              selected: {_view},
+              onSelectionChanged: (value) => _selectView(value.single),
+            ),
+            AppSpacing.gapMD,
+          ],
           OperationTextField(
             key: const ValueKey('food-catalog-search'),
             controller: _search,
-            label: 'SEARCH NAME / BRAND / BARCODE',
+            label: _view == _FoodDatabaseView.food
+                ? 'SEARCH NAME / BRAND / BARCODE'
+                : 'SEARCH RECIPE NAME',
             onChanged: (_) => setState(() {}),
           ),
           AppSpacing.gapMD,
@@ -157,10 +262,11 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         child: OperationButton(
           icon: Icons.refresh,
           text: 'RETRY',
-          onPressed: _load,
+          onPressed: _view == _FoodDatabaseView.food ? _load : _loadRecipes,
         ),
       );
     }
+    if (_view == _FoodDatabaseView.recipe) return _recipeBody();
     final entries = _visible;
     if (entries.isEmpty) return const Center(child: Text('食品が見つかりません'));
     return ListView.separated(
@@ -188,7 +294,40 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       },
     );
   }
+
+  Widget _recipeBody() {
+    final recipes = _visibleRecipes;
+    if (recipes.isEmpty) {
+      return const Center(child: Text('RECIPE NOT FOUND'));
+    }
+    return ListView.separated(
+      itemCount: recipes.length,
+      separatorBuilder: (_, _) => AppSpacing.gapSM,
+      itemBuilder: (context, index) {
+        final recipe = recipes[index];
+        return OperationCard(
+          child: ListTile(
+            key: ValueKey('food-recipe-${recipe.recipeId}'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.menu_book_outlined),
+            title: Text(recipe.name),
+            subtitle: Text(
+              '${recipe.ingredients.length} INGREDIENTS  ·  '
+              '${foodRecipeNutritionLabel(recipe.nutrition)}\n'
+              'YIELD ${_basis(recipe.yieldQuantity)}'
+              '${recipe.servingCount == null ? '' : '  ·  ${recipe.servingCount} SERVINGS'}',
+            ),
+            isThreeLine: true,
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openRecipe(recipe),
+          ),
+        );
+      },
+    );
+  }
 }
+
+enum _FoodDatabaseView { food, recipe }
 
 class FoodCatalogEditorPage extends StatefulWidget {
   const FoodCatalogEditorPage({
@@ -566,9 +705,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             OperationButton(
               key: const ValueKey('food-catalog-ocr'),
               icon: Icons.document_scanner,
-              text: _capturing
-                  ? 'PROCESSING IMAGE'
-                  : 'SCAN NUTRITION LABEL',
+              text: _capturing ? 'PROCESSING IMAGE' : 'SCAN NUTRITION LABEL',
               onPressed: _capturing || _saving ? null : _scanOcr,
             ),
             AppSpacing.gapMD,

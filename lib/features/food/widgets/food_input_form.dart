@@ -17,10 +17,12 @@ import '../models/meal_template.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
 import '../models/nutrition_models.dart';
+import '../models/recipe_models_v2.dart';
 import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/beta_meal_template_resolver.dart';
 import '../services/food_input_capture_gateway.dart';
+import '../services/food_recipe_nutrition.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
 import 'food_input_fields.dart';
@@ -33,6 +35,7 @@ class FoodInputForm extends StatefulWidget {
   final Future<bool> Function(
     MealData data,
     List<FoodCatalogEntry?> catalogSources,
+    List<FoodRecipeDefinition?> recipeSources,
   )?
   onSaveWithCatalog;
   final MealData? initialMeal;
@@ -72,7 +75,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   final List<FoodItem> items = [];
   final List<FoodCatalogEntry?> _catalogSources = [];
+  final List<FoodRecipeDefinition?> _recipeSources = [];
   FoodCatalogEntry? _currentCatalogSource;
+  FoodRecipeDefinition? _currentRecipeSource;
   FoodCatalogCategory category = FoodCatalogCategory.preparedFood;
   FoodQuantityUnit? packageUnit;
 
@@ -124,6 +129,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     items.addAll(meal.items);
     _catalogSources.addAll(List.filled(meal.items.length, null));
+    _recipeSources.addAll(List.filled(meal.items.length, null));
   }
 
   @override
@@ -165,6 +171,23 @@ class _FoodInputFormState extends State<FoodInputForm> {
       carbohydrate,
     ].any((value) => value == null || !value.isFinite || value < 0)) {
       return null;
+    }
+
+    if (_currentRecipeSource != null) {
+      final servings = double.tryParse(amountController.text.trim());
+      if (servings == null || !servings.isFinite || servings <= 0) return null;
+      return FoodItem(
+        name: name,
+        calories: calories!,
+        protein: protein!,
+        fat: fat!,
+        carbohydrate: carbohydrate!,
+        quantity: quantity,
+        amount: servings,
+        baseAmount: 1,
+        baseUnit: FoodBaseUnit.g,
+        amountMode: FoodAmountMode.baseMultiplier,
+      );
     }
 
     final baseAmount = double.tryParse(baseAmountController.text.trim());
@@ -238,6 +261,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _setDefaultMeasurementInputs();
     inputError = null;
     _currentCatalogSource = null;
+    _currentRecipeSource = null;
   }
 
   void _setDefaultMeasurementInputs() {
@@ -319,6 +343,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       items.clear();
       _catalogSources.clear();
+      _recipeSources.clear();
       mealType = MealType.breakfast;
       memoController.clear();
       waterVolumeController.clear();
@@ -354,6 +379,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       items.add(item);
       _catalogSources.add(_currentCatalogSource);
+      _recipeSources.add(_currentRecipeSource);
       inputError = null;
       _clearFoodInputs();
     });
@@ -363,6 +389,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       items.removeAt(index);
       _catalogSources.removeAt(index);
+      _recipeSources.removeAt(index);
 
       if (editingIndex == index) {
         editingIndex = null;
@@ -376,10 +403,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void editFood(int index) {
     final item = items[index];
     final source = _catalogSources[index];
+    final recipe = _recipeSources[index];
 
     setState(() {
       editingIndex = index;
       _currentCatalogSource = source;
+      _currentRecipeSource = recipe;
       if (source != null) {
         _setMasterFields(source);
       } else {
@@ -427,6 +456,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       items[editingIndex!] = item;
       _catalogSources[editingIndex!] = _currentCatalogSource;
+      _recipeSources[editingIndex!] = _currentRecipeSource;
 
       editingIndex = null;
       inputError = null;
@@ -465,6 +495,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ..clear()
         ..addAll(resolution.items);
       _catalogSources
+        ..clear()
+        ..addAll(List.filled(resolution.items.length, null));
+      _recipeSources
         ..clear()
         ..addAll(List.filled(resolution.items.length, null));
       editingIndex = null;
@@ -627,7 +660,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Future<void> _selectCatalogFood() async {
     if (!AppRepositoryRegistry.hasContainer) return;
-    final entry = await Navigator.push<FoodCatalogEntry>(
+    final selection = await Navigator.push<Object>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogPage(
@@ -636,10 +669,49 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
       ),
     );
-    if (entry == null || !mounted) return;
+    if (selection == null || !mounted) return;
+    if (selection case final FoodRecipeDefinition recipe) {
+      final nutrition = FoodRecipeNutrition.perServing(recipe);
+      if ([
+        nutrition.calories,
+        nutrition.protein,
+        nutrition.fat,
+        nutrition.carbohydrate,
+      ].any((value) => value == null)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('RECIPE NUTRITION IS INCOMPLETE')),
+        );
+        return;
+      }
+      setState(() {
+        _currentCatalogSource = null;
+        _currentRecipeSource = recipe;
+        foodNameController.text = recipe.name;
+        brandController.clear();
+        barcodeController.clear();
+        packageQuantityController.clear();
+        foodMemoController.text = recipe.memo ?? '';
+        packageUnit = null;
+        _setRawNutrition(
+          calories: nutrition.calories,
+          protein: nutrition.protein,
+          fat: nutrition.fat,
+          carbohydrate: nutrition.carbohydrate,
+        );
+        baseAmountController.text = '1';
+        amountController.text = '1';
+        baseUnit = FoodBaseUnit.g;
+        _lastValidBaseAmount = 1;
+        _basisLinkedToPackage = false;
+        inputError = null;
+      });
+      return;
+    }
+    final entry = selection as FoodCatalogEntry;
     final nutrition = entry.nutrition;
     setState(() {
       _currentCatalogSource = entry;
+      _currentRecipeSource = null;
       _setMasterFields(entry);
       _setRawNutrition(
         calories: nutrition.calories,
@@ -751,13 +823,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     setState(() => _isSaving = true);
     final sources = List<FoodCatalogEntry?>.from(_catalogSources);
+    final recipeSources = List<FoodRecipeDefinition?>.from(_recipeSources);
     if (editingIndex == null && _currentFoodItem() != null) {
       sources.add(_currentCatalogSource);
+      recipeSources.add(_currentRecipeSource);
     }
     final saved =
-        sources.any((entry) => entry != null) &&
+        (sources.any((entry) => entry != null) ||
+                recipeSources.any((entry) => entry != null)) &&
             widget.onSaveWithCatalog != null
-        ? await widget.onSaveWithCatalog!(meal, sources)
+        ? await widget.onSaveWithCatalog!(meal, sources, recipeSources)
         : await widget.onSave(meal);
 
     if (!mounted) return;
@@ -943,6 +1018,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
               packageUnit: packageUnit,
               baseUnit: baseUnit,
               amountMode: _inputAmountMode,
+              recipeSelected: _currentRecipeSource != null,
               onBaseAmountChanged: _onBaseAmountChanged,
               onCategoryChanged: (value) => setState(() {
                 category = value;
@@ -982,6 +1058,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 '${_formatAmount(_currentCatalogSource!.baseQuantity.value)} '
                 '${_currentCatalogSource!.baseQuantity.unit.stableId}',
                 key: const ValueKey('food-catalog-selection'),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+
+            if (_currentRecipeSource != null) ...[
+              AppSpacing.gapSM,
+              Text(
+                'RECIPE · ${_currentRecipeSource!.name}',
+                key: const ValueKey('food-recipe-selection'),
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.bold,

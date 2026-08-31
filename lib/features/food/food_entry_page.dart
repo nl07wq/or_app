@@ -11,6 +11,7 @@ import 'services/food_submit_service.dart';
 import 'services/food_summary_service.dart';
 import '../repositories/app_repository_container.dart';
 import 'models/food_catalog_models.dart';
+import 'models/recipe_models_v2.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'models/food_summary_state.dart';
 import 'services/food_catalog_meal_mapper.dart';
@@ -92,6 +93,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   Future<bool> saveWithCatalog(
     MealData data,
     List<FoodCatalogEntry?> catalogSources,
+    List<FoodRecipeDefinition?> recipeSources,
   ) async {
     final localDate = _localDate;
     if (localDate == null || catalogSources.length != data.items.length) {
@@ -105,6 +107,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
         FoodCatalogMealMapper.map(
           meal: data,
           catalogSources: catalogSources,
+          recipeSources: recipeSources,
           localDate: localDate,
           timestamp: timestamp,
           idGenerator: idGenerator,

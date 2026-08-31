@@ -5,6 +5,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'food_input_capture_gateway.dart';
+import 'japanese_nutrition_ocr_parser.dart';
 
 FoodInputCaptureGateway createPlatformFoodInputCaptureGateway() =>
     WebFoodInputCaptureGateway();
@@ -12,7 +13,8 @@ FoodInputCaptureGateway createPlatformFoodInputCaptureGateway() =>
 @JS('window')
 external JSObject get _window;
 
-class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
+class WebFoodInputCaptureGateway
+    implements FoodLiveCaptureGateway, FoodOcrDiagnosticGateway {
   JSObject get _bridge {
     if (!_window.has('orAppFoodInput')) {
       throw StateError('Food input browser bridge is unavailable.');
@@ -95,5 +97,43 @@ class WebFoodInputCaptureGateway implements FoodLiveCaptureGateway {
         )
         .toDart;
     return result?.toDart;
+  }
+
+  @override
+  Future<Map<String, dynamic>> diagnoseNutritionImage(
+    FoodCapturedImage image,
+  ) async {
+    final result = await _bridge
+        .callMethod<JSPromise<JSString>>(
+          'diagnoseNutritionPhoto'.toJS,
+          image.dataUrl.toJS,
+        )
+        .toDart;
+    final report = (jsonDecode(result.toDart) as Map).cast<String, dynamic>();
+    for (final key in ['standard', 'nutritionLabelReader']) {
+      final branch = report[key];
+      if (branch is! Map) continue;
+      final rawText = branch['rawText'];
+      if (rawText is! String) continue;
+      final draft = const JapaneseNutritionOcrParser().parse(rawText);
+      final finalResult = <String, dynamic>{
+        'basis': draft.basisQuantity == null
+            ? null
+            : {'value': draft.basisQuantity, 'unit': draft.basisUnit?.name},
+        'calories': draft.calories,
+        'protein': draft.protein,
+        'fat': draft.fat,
+        'carbohydrate': draft.carbohydrate,
+      };
+      finalResult['needsReviewFields'] = [
+        if (draft.basisQuantity == null) 'basis',
+        if (draft.calories == null) 'calories',
+        if (draft.protein == null) 'protein',
+        if (draft.fat == null) 'fat',
+        if (draft.carbohydrate == null) 'carbohydrate',
+      ];
+      branch['finalResult'] = finalResult;
+    }
+    return report;
   }
 }

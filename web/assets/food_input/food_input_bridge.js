@@ -60,6 +60,7 @@
   let lastCaptureDiagnostics;
   let lastPhotoDiagnostics;
   let lastStructuredDiagnostics;
+  let activeNutritionPipelineDiagnostics;
 
   const paddleStageNames = Object.freeze({
     P0: 'engine-selected',
@@ -1186,7 +1187,13 @@
             cursor = end;
           }
           if (matched.length) {
-            anchors.push({ field, alias, lineKey: group.lineKey, ...boxForWords(matched) });
+            anchors.push({
+              field,
+              alias,
+              lineKey: group.lineKey,
+              confidence: averageConfidence(matched),
+              ...boxForWords(matched),
+            });
           }
           break;
         }
@@ -1296,6 +1303,123 @@
     return mapped;
   }
 
+  function nutritionWordDiagnostics(words) {
+    return words.map((word) => ({
+      rawToken: word.text,
+      normalizedToken: normalizeOcrToken(word.text),
+      confidence: Number.isFinite(word.confidence) ? word.confidence : null,
+      boundingBox: {
+        left: word.left,
+        top: word.top,
+        width: word.width,
+        height: word.height,
+      },
+      lineKey: word.lineKey,
+    }));
+  }
+
+  function labelDiagnostics(groups, anchors) {
+    const fields = [
+      'basis',
+      'energy',
+      'protein',
+      'fat',
+      'carbohydrate',
+      'sugar',
+      'fiber',
+      'salt',
+    ];
+    const labels = fields.map((field) => {
+      const anchor = anchors.find((candidate) => candidate.field === field);
+      if (!anchor) return { field, detected: false };
+      return {
+        field,
+        detected: true,
+        matchedAlias: anchor.alias,
+        confidence: anchor.confidence ?? null,
+        boundingBox: {
+          left: anchor.left,
+          top: anchor.top,
+          width: anchor.width,
+          height: anchor.height,
+        },
+      };
+    });
+    const basisGroup = groups.find((group) => {
+      const text = group.words.map((word) => word.text).join(' ');
+      return normalizeOcrToken(text).includes('栄養成分表示') ||
+        nutritionBasisPattern.test(text);
+    });
+    if (basisGroup) {
+      const box = boxForWords(basisGroup.words);
+      labels[0] = {
+        field: 'basis',
+        detected: true,
+        matchedAlias: basisGroup.words.map((word) => word.text).join(' '),
+        confidence: averageConfidence(basisGroup.words),
+        boundingBox: {
+          left: box.left,
+          top: box.top,
+          width: box.width,
+          height: box.height,
+        },
+      };
+    }
+    return labels;
+  }
+
+  function averageConfidence(words) {
+    const values = words
+      .map((word) => Number(word.confidence))
+      .filter(Number.isFinite);
+    if (!values.length) return null;
+    let total = 0;
+    for (const value of values) total += value;
+    return Math.round(total / values.length * 100) / 100;
+  }
+
+  function nearestAnchorDiagnostic(value, anchors) {
+    const ranked = anchors.map((anchor) => ({
+      anchor,
+      score: compatibleValue(anchor.field, value)
+        ? relationshipScore(anchor, value, anchors)
+        : Infinity,
+    })).filter((entry) => Number.isFinite(entry.score))
+      .sort((a, b) => a.score - b.score);
+    if (!ranked.length) return { nearestLabel: null, relationScore: null };
+    return {
+      nearestLabel: ranked[0].anchor.field,
+      relationScore: Math.round(ranked[0].score * 100) / 100,
+    };
+  }
+
+  function structuredMappingDiagnostics(anchors, values, mapped) {
+    return targetNutritionFields.map((field) => {
+      const anchor = anchors.find((candidate) => candidate.field === field);
+      const candidates = anchor
+        ? values.map((value) => ({
+            value: value.value,
+            unit: value.unit,
+            score: compatibleValue(field, value)
+              ? relationshipScore(anchor, value, anchors)
+              : null,
+          })).filter((candidate) => Number.isFinite(candidate.score))
+            .sort((a, b) => a.score - b.score)
+        : [];
+      const selected = mapped.get(field);
+      return {
+        field,
+        candidateCount: candidates.length,
+        selectedCandidate: selected
+          ? { value: selected.value, unit: selected.unit }
+          : null,
+        selectionReason: selected ? 'lowest-compatible-relationship-score' : null,
+        rejectedCandidates: candidates.slice(selected ? 1 : 0),
+        confidenceRule: 'geometry-and-compatible-unit',
+      };
+    });
+  }
+
   function layoutPattern(anchors, mapped) {
     const target = anchors.filter((anchor) => targetNutritionFields.includes(anchor.field));
     if (target.some((anchor) =>
@@ -1380,15 +1504,25 @@
   async function structuredNutritionWords(canvas, words, engineId) {
     const groups = lineGroups(words);
     const anchors = nutritionAnchors(groups);
-    const mapped = mapAnchorValues(anchors, numericValues(groups));
+    const values = numericValues(groups);
+    const mapped = mapAnchorValues(anchors, values);
+    const mappingBeforeFallback = structuredMappingDiagnostics(
+      anchors,
+      values,
+      mapped,
+    );
     let roiCount = 0;
+    const roiFields = [];
     for (const field of targetNutritionFields) {
       if (mapped.has(field)) continue;
       const anchor = anchors.find((candidate) => candidate.field === field);
       if (!anchor || engineId !== 'tesseract') continue;
       roiCount += 1;
       const value = await valueFromRoi(canvas, anchor, field);
-      if (value) mapped.set(field, value);
+      if (value) {
+        mapped.set(field, value);
+        roiFields.push(field);
+      }
     }
     const fieldLabel = {
       energy: 'エネルギー',
@@ -1407,7 +1541,30 @@
         height: anchor.height,
       })),
       valueRoiCount: roiCount,
+      roiFields,
       engineId,
+      detectedLabels: labelDiagnostics(groups, anchors),
+      numericCandidates: values.map((value) => ({
+        rawToken: `${value.value}${value.unit}`,
+        normalizedToken: `${value.value}${value.unit}`,
+        value: value.value,
+        unit: value.unit,
+        boundingBox: {
+          left: value.left,
+          top: value.top,
+          width: value.width,
+          height: value.height,
+        },
+        ...nearestAnchorDiagnostic(value, anchors),
+      })),
+      structuredCandidates: mappingBeforeFallback,
+      selectedMappings: Object.fromEntries(
+        [...mapped.entries()].map(([field, value]) => [field, {
+          value: value.value,
+          unit: value.unit,
+          source: roiFields.includes(field) ? 'numeric-roi-fallback' : 'structured',
+        }]),
+      ),
       fieldSources: Object.fromEntries(
         [...mapped.keys()].map((field) => [field, 'structured']),
       ),
@@ -1467,6 +1624,7 @@
     mode = 'package',
     engineOverride = null,
     scanStrategy = 'nutritionReader',
+    collectDiagnostics = false,
   ) {
     const engineId = selectedOcrEngine(mode, engineOverride);
     if (mode === 'nutrition' && engineId === 'paddle') {
@@ -1519,17 +1677,70 @@
     }
     const texts = [];
     let layoutTsv = '';
+    const diagnosticPasses = [];
+    if (collectDiagnostics) {
+      activeNutritionPipelineDiagnostics = {
+        diagnosticVersion: 1,
+        scanMode: scanStrategy === 'standard'
+          ? 'STANDARD OCR'
+          : 'NUTRITION LABEL READER',
+        engineId,
+        input: { ...lastPhotoDiagnostics },
+        inputPreviewDataUrl: canvas.toDataURL('image/jpeg', 0.9),
+        passes: diagnosticPasses,
+      };
+    }
     for (const variant of ocrVariants(canvas, mode)) {
       const startedAt = performance.now();
       let text;
+      let passTsv = '';
       if (mode === 'nutrition' &&
           scanStrategy === 'nutritionReader' &&
           variant.name === 'original') {
         const data = await recognizeLayoutPass(variant.dataUrl);
         text = data.text || '';
         layoutTsv = data.tsv || '';
+        passTsv = layoutTsv;
+      } else if (collectDiagnostics) {
+        const data = await recognizeLayoutPass(variant.dataUrl);
+        text = data.text || '';
+        passTsv = data.tsv || '';
       } else {
         text = await recognizeSinglePass(variant.dataUrl);
+      }
+      if (collectDiagnostics) {
+        const words = tsvWords(passTsv);
+        const groups = lineGroups(words);
+        const anchors = nutritionAnchors(groups);
+        const values = numericValues(groups);
+        diagnosticPasses.push({
+          preprocessVariant: variant.name,
+          rawText: text,
+          lines: lineGroups(words).map((group) =>
+            group.words.map((word) => word.text).join(' '),
+          ),
+          words: nutritionWordDiagnostics(words),
+          wordCount: words.length,
+          averageConfidence: averageConfidence(words),
+        });
+        if (variant.name === 'original' && activeNutritionPipelineDiagnostics) {
+          activeNutritionPipelineDiagnostics.rawStage = {
+            detectedLabels: labelDiagnostics(groups, anchors),
+            numericCandidates: values.map((value) => ({
+              rawToken: `${value.value}${value.unit}`,
+              normalizedToken: `${value.value}${value.unit}`,
+              value: value.value,
+              unit: value.unit,
+              boundingBox: {
+                left: value.left,
+                top: value.top,
+                width: value.width,
+                height: value.height,
+              },
+              ...nearestAnchorDiagnostic(value, anchors),
+            })),
+          };
+        }
       }
       if (lastPhotoDiagnostics) {
         lastPhotoDiagnostics.passCount += 1;
@@ -1552,6 +1763,13 @@
       if (structured) texts.push(structured);
     }
     if (lastPhotoDiagnostics) lastPhotoDiagnostics.engineId = engineId;
+    if (collectDiagnostics && activeNutritionPipelineDiagnostics) {
+      activeNutritionPipelineDiagnostics.input = { ...lastPhotoDiagnostics };
+      activeNutritionPipelineDiagnostics.rawText = texts.join(ocrPassSeparator);
+      activeNutritionPipelineDiagnostics.structured = lastStructuredDiagnostics
+        ? JSON.parse(JSON.stringify(lastStructuredDiagnostics))
+        : null;
+    }
     return texts.join(ocrPassSeparator);
   }
 
@@ -2289,6 +2507,160 @@
     }
   }
 
+  function nutritionDiagnosticResult(pipeline, durationMs) {
+    const input = pipeline.input || {};
+    const structured = pipeline.structured || {};
+    const rawStage = pipeline.rawStage || {};
+    const selectedMappings = structured.selectedMappings || {};
+    const requiredFields = ['energy', 'protein', 'fat', 'carbohydrate'];
+    const missing = requiredFields.filter((field) => !selectedMappings[field]);
+    const words = (pipeline.passes || []).flatMap((pass) => pass.words || []);
+    return {
+      diagnosticVersion: pipeline.diagnosticVersion,
+      scanMode: pipeline.scanMode,
+      engineId: pipeline.engineId,
+      sourceDimensions: {
+        width: input.originalWidth,
+        height: input.originalHeight,
+        decodedWidth: input.decodedWidth,
+        decodedHeight: input.decodedHeight,
+      },
+      orientation: {
+        exif: input.orientation,
+        appliedByDecoder: input.orientationAppliedByDecoder,
+      },
+      cropRect: {
+        x: input.cropX,
+        y: input.cropY,
+        width: input.cropWidth,
+        height: input.cropHeight,
+      },
+      cropDimensions: { width: input.cropWidth, height: input.cropHeight },
+      ocrDimensions: { width: input.inputWidth, height: input.inputHeight },
+      preprocessVariant: (pipeline.passes || []).map((pass) => pass.preprocessVariant),
+      inputPreviewDataUrl: pipeline.inputPreviewDataUrl,
+      rawText: pipeline.rawText || '',
+      lines: (pipeline.passes || []).flatMap((pass) => pass.lines || []),
+      words,
+      wordCount: words.length,
+      averageConfidence: averageConfidence(words),
+      detectedLabels: structured.detectedLabels || rawStage.detectedLabels || [],
+      numericCandidates: structured.numericCandidates || rawStage.numericCandidates || [],
+      structuredCandidates: structured.structuredCandidates || [],
+      selectedMappings,
+      fallbackUsed: pipeline.scanMode === 'STANDARD OCR' || missing.length > 0,
+      fallbackReason: pipeline.scanMode === 'STANDARD OCR'
+        ? 'standard-mode-bypasses-structured-path'
+        : missing.length
+          ? 'structured-result-incomplete; Dart parser receives all OCR passes'
+          : null,
+      fallbackPathName: 'JapaneseNutritionOcrParser',
+      finalResult: {
+        basis: null,
+        calories: selectedMappings.energy || null,
+        protein: selectedMappings.protein || null,
+        fat: selectedMappings.fat || null,
+        carbohydrate: selectedMappings.carbohydrate || null,
+        needsReviewFields: missing,
+      },
+      timings: {
+        totalMs: durationMs,
+        ocrPassesMs: input.passDurationsMs || [],
+        structuredMs: input.structuredDurationMs ?? null,
+      },
+    };
+  }
+
+  async function diagnoseNutritionPhoto(dataUrl) {
+    const report = {
+      diagnosticVersion: 1,
+      generatedAt: new Date().toISOString(),
+      engine: 'tesseract',
+      persistence: 'none',
+    };
+    for (const [key, strategy] of [
+      ['standard', 'standard'],
+      ['nutritionLabelReader', 'nutritionReader'],
+    ]) {
+      lastStructuredDiagnostics = null;
+      activeNutritionPipelineDiagnostics = null;
+      const startedAt = performance.now();
+      await recognizeJapaneseText(
+        dataUrl,
+        'nutrition',
+        'tesseract',
+        strategy,
+        true,
+      );
+      report[key] = nutritionDiagnosticResult(
+        activeNutritionPipelineDiagnostics,
+        Math.round(performance.now() - startedAt),
+      );
+    }
+    const standardRaw = report.standard.rawText;
+    const readerRaw = report.nutritionLabelReader.rawText;
+    const readerLabels = report.nutritionLabelReader.detectedLabels
+      .filter((label) => label.detected).length;
+    const readerNumbers = report.nutritionLabelReader.numericCandidates.length;
+    const readerMappings = Object.keys(
+      report.nutritionLabelReader.selectedMappings,
+    ).length;
+    report.comparison = {
+      sameRawOcr: standardRaw === readerRaw,
+      standard: {
+        wordCount: report.standard.wordCount,
+        labelCount: report.standard.detectedLabels.filter((label) => label.detected).length,
+        numericCandidateCount: report.standard.numericCandidates.length,
+        selectedMappingCount: Object.keys(report.standard.selectedMappings).length,
+        fallbackUsed: report.standard.fallbackUsed,
+      },
+      nutritionLabelReader: {
+        wordCount: report.nutritionLabelReader.wordCount,
+        labelCount: readerLabels,
+        numericCandidateCount: readerNumbers,
+        selectedMappingCount: readerMappings,
+        fallbackUsed: report.nutritionLabelReader.fallbackUsed,
+      },
+    };
+    report.rootCauseClassification = report.nutritionLabelReader.wordCount === 0 ||
+        readerNumbers === 0
+      ? {
+          case: 'A',
+          primary: 'TESSERACT',
+          secondary: readerNumbers === 0 ? 'NUMERIC EXTRACTION' : null,
+          reason: 'Required words or numeric tokens are absent before structured mapping.',
+        }
+      : readerLabels === 0
+        ? {
+            case: 'B',
+            primary: 'LABEL DETECTION',
+            secondary: null,
+            reason: 'OCR words and numeric candidates exist but no nutrition label was detected.',
+          }
+      : readerMappings === 0
+        ? {
+            case: 'C',
+            primary: 'STRUCTURED MAPPING',
+            secondary: null,
+            reason: 'Labels and numeric candidates exist but no field was mapped.',
+          }
+        : report.nutritionLabelReader.fallbackUsed &&
+            report.comparison.sameRawOcr
+          ? {
+              case: 'D',
+              primary: 'FALLBACK',
+              secondary: 'STRUCTURED MAPPING',
+              reason: 'Reader output is incomplete and rejoins the same Dart parser path.',
+            }
+          : {
+              case: 'OTHER',
+              primary: 'OTHER',
+              secondary: null,
+              reason: 'The captured diagnostic does not isolate a failing stage.',
+            };
+    return JSON.stringify(report);
+  }
+
   window.orAppFoodInput = {
     selectImage,
     recognizeJapaneseText,
@@ -2297,6 +2669,7 @@
     recognizeTextLive,
     diagnosePaddleResult,
     benchmarkNutritionEngines,
+    diagnoseNutritionPhoto,
     recognizePaddleCanvasForDiagnostics: recognizePaddleNutrition,
     runPaddleSmallFixtureDiagnostic,
     getPaddleDiagnostics: paddleDiagnosticsSnapshot,

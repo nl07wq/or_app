@@ -84,17 +84,26 @@ class _ModuleAssessmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final level = _moduleLevel(items);
     return OperationCard(
+      key: ValueKey('daily-assessment-card-${module.name}'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(module.label, style: Theme.of(context).textTheme.titleSmall),
-              if (level != null) _LevelBadge(level: level),
+              Expanded(
+                child: Text(
+                  module.label,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              if (level != null) ...[
+                AppSpacing.gapXS,
+                KeyedSubtree(
+                  key: ValueKey('daily-assessment-badge-${module.name}'),
+                  child: _LevelBadge(level: level),
+                ),
+              ],
             ],
           ),
           AppSpacing.gapMD,
@@ -313,7 +322,7 @@ class _LevelBadge extends StatelessWidget {
     final color = dailyAssessmentLevelColor(level);
     return Container(
       key: ValueKey('daily-assessment-level-${level.name}'),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.16),
         border: Border.all(color: color),
@@ -323,7 +332,7 @@ class _LevelBadge extends StatelessWidget {
         level.label,
         style: Theme.of(
           context,
-        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }

@@ -146,7 +146,11 @@ void main() {
     expect(bridge, contains("boxSizing: 'border-box'"));
     expect(bridge, contains('env(safe-area-inset-bottom)'));
     expect(bridge, isNot(contains('stack:')));
-    expect(bridge, isNot(contains('rawText:')));
+    final paddleDiagnostics = bridge.substring(
+      bridge.indexOf('function startPaddleDiagnostics'),
+      bridge.indexOf('function ensurePaddleDiagnostics'),
+    );
+    expect(paddleDiagnostics, isNot(contains('rawText:')));
   });
 
   test('nutrition camera uses one-shot shutter and cleans every session', () {
@@ -266,6 +270,48 @@ void main() {
     expect(bridge, contains('lastPhotoDiagnostics'));
     expect(bridge, contains('lastStructuredDiagnostics'));
   });
+
+  test(
+    'developer nutrition diagnostics compare both modes without persistence',
+    () {
+      final bridge = File(
+        'web/assets/food_input/food_input_bridge.js',
+      ).readAsStringSync();
+      final scanner = File(
+        'lib/features/food/widgets/food_ocr_scanner.dart',
+      ).readAsStringSync();
+
+      expect(bridge, contains('async function diagnoseNutritionPhoto'));
+      expect(bridge, contains("['standard', 'standard']"));
+      expect(bridge, contains("['nutritionLabelReader', 'nutritionReader']"));
+      for (final field in [
+        'sourceDimensions',
+        'cropRect',
+        'cropDimensions',
+        'ocrDimensions',
+        'preprocessVariant',
+        'rawText',
+        'wordCount',
+        'averageConfidence',
+        'detectedLabels',
+        'numericCandidates',
+        'structuredCandidates',
+        'selectedMappings',
+        'fallbackUsed',
+        'fallbackReason',
+        'finalResult',
+        'timings',
+      ]) {
+        expect(bridge, contains('$field:'));
+      }
+      expect(bridge, contains("persistence: 'none'"));
+      expect(bridge, isNot(contains('localStorage.setItem')));
+      expect(scanner, contains('kDebugMode && diagnosticsAvailable'));
+      expect(scanner, contains('COPY OCR DIAGNOSTICS'));
+      expect(scanner, contains('VIEW OCR INPUT'));
+      expect(scanner, contains('_withoutOcrImages(diagnostics)'));
+    },
+  );
 
   test('structured nutrition OCR uses anchors, layout, and numeric ROI', () {
     final bridge = File(

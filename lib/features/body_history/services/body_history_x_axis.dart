@@ -10,7 +10,7 @@ class BodyHistoryXAxisTick {
 }
 
 class BodyHistoryXAxis {
-  static const double minimumLabelWidthCandidate = 48;
+  static const double minimumLabelWidthCandidate = 40;
 
   const BodyHistoryXAxis();
 
@@ -28,24 +28,39 @@ class BodyHistoryXAxis {
       (availablePlotWidth / minimumLabelWidthCandidate).floor(),
     );
     var dates = _presetDates(start, end, totalDays);
-    if (dates.length > maximumLabels) {
-      dates = totalDays > 45
-          ? _calendarAwareSelection(dates, maximumLabels)
-          : _evenSelection(dates, maximumLabels);
+    if (dates.length > maximumLabels && totalDays > 7) {
+      dates = _presetSelection(dates, maximumLabels, totalDays);
     }
     return _formatTicks(dates, start, granularity);
   }
 
-  static List<DateTime> _calendarAwareSelection(
+  static List<DateTime> _presetSelection(
     List<DateTime> dates,
     int maximumLabels,
+    int totalDays,
   ) {
-    final monthStarts = dates.where((date) => date.day == 1).toList();
     final selected = <DateTime>{dates.first, dates.last};
-    if (monthStarts.length <= maximumLabels - selected.length) {
-      selected.addAll(monthStarts);
-    } else {
-      selected.addAll(_evenSelection(monthStarts, maximumLabels - 2));
+    final priorities = switch (totalDays) {
+      <= 45 => <bool Function(DateTime)>[(date) => date.day == 15],
+      <= 120 => <bool Function(DateTime)>[
+        (date) => date.day == 1,
+        (date) => date.day == 15,
+        (date) => date.day == 25,
+      ],
+      <= 210 => <bool Function(DateTime)>[
+        (date) => date.day == 1,
+        (date) => date.day == 15,
+      ],
+      <= 550 => <bool Function(DateTime)>[(date) => date.day == 1],
+      _ => <bool Function(DateTime)>[],
+    };
+    for (final matches in priorities) {
+      final slots = maximumLabels - selected.length;
+      if (slots <= 0) break;
+      final candidates = dates
+          .where((date) => !selected.contains(date) && matches(date))
+          .toList(growable: false);
+      selected.addAll(_evenSelection(candidates, slots));
     }
     if (selected.length < maximumLabels) {
       final remaining = dates
@@ -56,7 +71,7 @@ class BodyHistoryXAxis {
       );
     }
     final result = selected.toList()..sort();
-    return result.take(maximumLabels).toList(growable: false);
+    return result.toList(growable: false);
   }
 
   static List<DateTime> _evenSelection(List<DateTime> values, int count) {
@@ -76,8 +91,18 @@ class BodyHistoryXAxis {
   ) {
     if (totalDays <= 7) return _dates(start, end, _intervals[0]);
     if (totalDays <= 20) return _dates(start, end, _intervals[1]);
-    if (totalDays <= 45) return _dates(start, end, _intervals[3]);
-    if (totalDays <= 120) return _monthDays(start, end, const [1, 5, 15, 25]);
+    if (totalDays <= 45) {
+      return _monthDays(start, end, const [
+        1,
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+      ], includeEnd: false);
+    }
+    if (totalDays <= 120) return _monthDays(start, end, const [1, 15, 25]);
     if (totalDays <= 210) return _monthDays(start, end, const [1, 15]);
     if (totalDays <= 550) return _monthDays(start, end, const [1]);
     final intervalIndex = _initialIntervalIndex(totalDays);
@@ -87,8 +112,9 @@ class BodyHistoryXAxis {
   static List<DateTime> _monthDays(
     DateTime start,
     DateTime end,
-    List<int> days,
-  ) {
+    List<int> days, {
+    bool includeEnd = true,
+  }) {
     final values = <DateTime>[];
     for (
       var month = DateTime.utc(start.year, start.month);
@@ -101,7 +127,7 @@ class BodyHistoryXAxis {
       }
     }
     if (values.isEmpty || values.first != start) values.insert(0, start);
-    if (values.last != end) values.add(end);
+    if (includeEnd && values.last != end) values.add(end);
     return values;
   }
 

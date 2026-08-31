@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/features/command_center/models/daily_assessment.dart';
 import 'package:or_app/features/command_center/widgets/daily_assessment_card.dart';
 import 'package:or_app/features/command_center/widgets/daily_assessment_label_mapper.dart';
@@ -67,6 +68,7 @@ void main() {
     tester,
   ) async {
     for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      final assessment = _assessment();
       tester.view.physicalSize = Size(width, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -76,7 +78,7 @@ void main() {
           theme: ThemeData.dark(),
           home: Scaffold(
             body: SingleChildScrollView(
-              child: DailyAssessmentView(assessment: _assessment()),
+              child: DailyAssessmentView(assessment: assessment),
             ),
           ),
         ),
@@ -84,6 +86,31 @@ void main() {
 
       for (final module in DailyAssessmentModule.values) {
         expect(find.text(module.label), findsWidgets);
+        final card = find.byKey(
+          ValueKey('daily-assessment-card-${module.name}'),
+        );
+        final badge = find.byKey(
+          ValueKey('daily-assessment-badge-${module.name}'),
+        );
+        expect(card, findsOneWidget);
+        final hasLevel = assessment.assessments.any(
+          (item) => item.module == module && item.level != null,
+        );
+        if (!hasLevel) {
+          expect(badge, findsNothing);
+          continue;
+        }
+        expect(badge, findsOneWidget);
+        expect(
+          tester.getTopRight(card).dx - tester.getTopRight(badge).dx,
+          AppSpacing.cardPadding.right,
+          reason: '$width ${module.label} badge right track',
+        );
+        expect(
+          tester.getTopLeft(badge).dy - tester.getTopLeft(card).dy,
+          AppSpacing.cardMargin.top + AppSpacing.cardPadding.top,
+          reason: '$width ${module.label} badge top track',
+        );
       }
       for (final level in DailyAssessmentLevel.values) {
         final badges = tester.widgetList<Container>(
