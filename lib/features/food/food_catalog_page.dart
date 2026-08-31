@@ -276,31 +276,26 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             leading: FoodThumbnail(visualKey: entry.visualKey),
             title: Text(
               entry.name,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              key: ValueKey('food-catalog-name-${entry.foodId}'),
+              style: _databaseListPrimaryStyle(context),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   [
-                    if (entry.brand != null) entry.brand!,
+                    if (entry.brand != null) '${entry.brand!} ·',
                     foodCatalogCategoryLabel(entry.category),
-                  ].join(' · '),
-                  style: _metadataStyle(context),
-                ),
-                Text(
-                  [
-                    _basis(entry.baseQuantity),
+                    FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
                     if (entry.barcodeValue != null) entry.barcodeValue!,
-                  ].join(' · '),
-                  style: _metadataStyle(context),
+                  ].join('  '),
+                  key: ValueKey('food-catalog-metadata-${entry.foodId}'),
+                  style: _databaseListMetadataStyle(context),
                 ),
                 Text(
-                  FoodNutritionFormatter.nutrition(entry.nutrition),
+                  FoodNutritionFormatter.compactNutrition(entry.nutrition),
                   key: ValueKey('food-catalog-nutrition-${entry.foodId}'),
-                  style: _metadataStyle(context),
+                  style: _databaseListMetadataStyle(context),
                 ),
               ],
             ),
@@ -330,9 +325,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             title: Text(
               recipe.name,
               key: ValueKey('food-recipe-name-${recipe.recipeId}'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: _databaseListPrimaryStyle(context),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,12 +333,12 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                 Text(
                   foodRecipeSummaryLabel(recipe),
                   key: ValueKey('food-recipe-serving-${recipe.recipeId}'),
-                  style: _metadataStyle(context),
+                  style: _databaseListMetadataStyle(context),
                 ),
                 Text(
-                  foodRecipeNutritionLabel(recipe.nutrition),
+                  FoodNutritionFormatter.compactNutrition(recipe.nutrition),
                   key: ValueKey('food-recipe-nutrition-${recipe.recipeId}'),
-                  style: _metadataStyle(context),
+                  style: _databaseListMetadataStyle(context),
                 ),
               ],
             ),
@@ -361,10 +354,15 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
 
 enum _FoodDatabaseView { food, recipe }
 
-TextStyle? _metadataStyle(BuildContext context) => Theme.of(context)
-    .textTheme
-    .bodySmall
-    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+TextStyle? _databaseListPrimaryStyle(BuildContext context) => Theme.of(
+  context,
+).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+
+TextStyle? _databaseListMetadataStyle(BuildContext context) =>
+    Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      height: 1.2,
+    );
 
 class FoodCatalogEditorPage extends StatefulWidget {
   const FoodCatalogEditorPage({

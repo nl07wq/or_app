@@ -37,6 +37,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final foodName = tester.widget<Text>(
+      find.byKey(const ValueKey('food-catalog-name-$_foodId')),
+    );
+    final foodMetadata = tester.widget<Text>(
+      find.byKey(const ValueKey('food-catalog-metadata-$_foodId')),
+    );
+    final foodNutrition = tester.widget<Text>(
+      find.byKey(const ValueKey('food-catalog-nutrition-$_foodId')),
+    );
+
     await tester.tap(find.text('RECIPE'));
     await tester.pumpAndSettle();
     expect(find.text('Rice Bowl'), findsOneWidget);
@@ -44,6 +54,7 @@ void main() {
     expect(find.textContaining('INGREDIENTS'), findsNothing);
     expect(find.textContaining('2 SERVINGS'), findsOneWidget);
     expect(find.textContaining('YIELD 2 serving'), findsNothing);
+    expect(find.text('286kcal  P 12.2g  F 19.3g  C 16.2g'), findsOneWidget);
     const recipeId = '22222222-2222-4222-8222-222222222222';
     final serving = find.byKey(ValueKey('food-recipe-serving-$recipeId'));
     final nutrition = find.byKey(ValueKey('food-recipe-nutrition-$recipeId'));
@@ -55,11 +66,14 @@ void main() {
       find.byKey(ValueKey('food-recipe-name-$recipeId')),
     );
     final servingText = tester.widget<Text>(serving);
+    final recipeNutrition = tester.widget<Text>(nutrition);
     expect(recipeName.style?.fontWeight, FontWeight.w700);
-    expect(
-      recipeName.style?.fontSize,
-      greaterThan(servingText.style!.fontSize!),
-    );
+    expect(recipeName.style?.fontSize, foodName.style?.fontSize);
+    expect(recipeName.style?.fontWeight, foodName.style?.fontWeight);
+    expect(servingText.style?.fontSize, foodMetadata.style?.fontSize);
+    expect(servingText.style?.color, foodMetadata.style?.color);
+    expect(recipeNutrition.style?.fontSize, foodNutrition.style?.fontSize);
+    expect(recipeNutrition.style?.color, foodNutrition.style?.color);
 
     await tester.enterText(
       find.byKey(const ValueKey('food-catalog-search')),
@@ -67,7 +81,46 @@ void main() {
     );
     await tester.pump();
     expect(find.text('RECIPE NOT FOUND'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('food-catalog-search')),
+      '',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('food-recipe-$recipeId')));
+    await tester.pumpAndSettle();
+    expect(find.text('EDIT RECIPE'), findsOneWidget);
   });
+
+  for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+    testWidgets('recipe list metadata is overflow-free at ${width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final recipes = _MemoryRecipeRepository([
+        _recipe(name: '非常に長いレシピ名でも読みやすさを維持するテスト'),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogPage(
+            repository: _MemoryCatalogRepository([_food()]),
+            recipeRepository: recipes,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('RECIPE'));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
+      expect(find.text('2 SERVINGS'), findsOneWidget);
+      expect(find.text('286kcal  P 12.2g  F 19.3g  C 16.2g'), findsOneWidget);
+      expect(find.textContaining('INGREDIENTS'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'recipe create uses catalog snapshots, calculates, and archives',
@@ -251,6 +304,29 @@ void main() {
     expect(FoodNutritionFormatter.servings(1), '1 SERVING');
     expect(FoodNutritionFormatter.servings(2), '2 SERVINGS');
     expect(FoodNutritionFormatter.servings(0.5), '0.5 SERVING');
+    expect(
+      FoodNutritionFormatter.compactQuantity(
+        FoodQuantityDefinition(value: 100, unit: FoodQuantityUnit.gram),
+      ),
+      '100g',
+    );
+    expect(
+      FoodNutritionFormatter.compactQuantity(
+        FoodQuantityDefinition(value: 100, unit: FoodQuantityUnit.milliliter),
+      ),
+      '100ml',
+    );
+    expect(
+      FoodNutritionFormatter.compactNutrition(
+        NutritionSnapshot(
+          calories: 33,
+          protein: 1,
+          fat: 0.1,
+          carbohydrate: 8.4,
+        ),
+      ),
+      '33kcal  P 1g  F 0.1g  C 8.4g',
+    );
   });
 
   test('recipe display formatting does not mutate formal precision', () {
@@ -268,6 +344,10 @@ void main() {
     );
     expect(snapshot.protein, formalProtein);
     expect(snapshot.carbohydrate, isNull);
+    expect(
+      FoodNutritionFormatter.compactNutrition(snapshot),
+      '332.7kcal  P 48.9g  F 9.7g  C —',
+    );
   });
 
   test('recipe summary avoids duplicate serving semantics', () {

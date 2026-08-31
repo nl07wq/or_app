@@ -89,12 +89,13 @@ void main() {
       _entry(
         id: '11111111-1111-4111-8111-111111111111',
         name: 'Meat Food',
+        category: FoodCatalogCategory.ingredient,
         visualKey: FoodVisualKey.meat,
         nutrition: NutritionSnapshot(
-          calories: 224,
-          protein: 0,
-          fat: 25,
-          carbohydrate: 26.64,
+          calories: 33,
+          protein: 1,
+          fat: 0.1,
+          carbohydrate: 8.4,
         ),
       ),
       _entry(id: '22222222-2222-4222-8222-222222222222', name: 'Unset Food'),
@@ -109,19 +110,18 @@ void main() {
       find.byKey(const ValueKey('food-thumbnail-fallback')),
       findsOneWidget,
     );
-    expect(find.text('224 kcal · P 0 g · F 25 g · C 26.6 g'), findsOneWidget);
-    expect(
-      find.text('286 kcal · P 12.2 g · F 19.3 g · C 16.2 g'),
-      findsOneWidget,
-    );
-    expect(find.text('市販・包装食品'), findsNWidgets(2));
+    expect(find.text('食材  100g'), findsOneWidget);
+    expect(find.text('33kcal  P 1g  F 0.1g  C 8.4g'), findsOneWidget);
+    expect(find.text('286kcal  P 12.2g  F 19.3g  C 16.2g'), findsOneWidget);
+    expect(find.text('市販・包装食品  100g'), findsOneWidget);
     final primaryName = tester.widget<Text>(find.text('Meat Food'));
-    final metadata = tester.widget<Text>(find.text('市販・包装食品').first);
+    final metadata = tester.widget<Text>(find.text('食材  100g'));
     expect(primaryName.style?.fontWeight, FontWeight.w700);
     expect(primaryName.style?.fontSize, greaterThan(metadata.style!.fontSize!));
+    expect(metadata.style?.fontSize, 14);
   });
 
-  for (final width in [320.0, 390.0]) {
+  for (final width in [320.0, 390.0, 900.0, 1280.0]) {
     testWidgets(
       'food nutrition metadata wraps without overflow at ${width.toInt()}px',
       (tester) async {
@@ -142,8 +142,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('市販・包装食品'), findsOneWidget);
-        expect(find.textContaining('286 kcal'), findsOneWidget);
+        final metadata = find.text('市販・包装食品  100g');
+        expect(metadata, findsOneWidget);
+        expect(find.text('286kcal  P 12.2g  F 19.3g  C 16.2g'), findsOneWidget);
+        if (width == 390) {
+          expect(tester.getSize(metadata).height, lessThan(20));
+        }
         expect(
           find.byKey(const ValueKey('food-thumbnail-protein')),
           findsOneWidget,
@@ -982,12 +986,13 @@ FoodCatalogEntry _entry({
   bool archived = false,
   NutritionSnapshot? nutrition,
   FoodVisualKey? visualKey,
+  FoodCatalogCategory category = FoodCatalogCategory.packagedFood,
 }) {
   final timestamp = DateTime.utc(2026, 8, 29);
   return FoodCatalogEntry(
     foodId: id,
     name: name,
-    category: FoodCatalogCategory.packagedFood,
+    category: category,
     visualKey: visualKey,
     brand: brand,
     baseQuantity: FoodQuantityDefinition(

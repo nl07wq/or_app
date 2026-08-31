@@ -33,6 +33,9 @@ class FoodNutritionFormatter {
   static String quantity(FoodQuantityDefinition value) =>
       '${displayNumber(value.value)} ${quantityUnit(value.unit)}';
 
+  static String compactQuantity(FoodQuantityDefinition value) =>
+      '${displayNumber(value.value)}${quantityUnit(value.unit)}';
+
   static String nutrition(NutritionSnapshot value) => [
     _nutritionValue(value.calories, 'kcal'),
     'P ${_nutritionValue(value.protein, 'g')}',
@@ -40,9 +43,19 @@ class FoodNutritionFormatter {
     'C ${_nutritionValue(value.carbohydrate, 'g')}',
   ].join(' · ');
 
+  static String compactNutrition(NutritionSnapshot value) => [
+    _compactNutritionValue(value.calories, 'kcal'),
+    'P ${_compactNutritionValue(value.protein, 'g')}',
+    'F ${_compactNutritionValue(value.fat, 'g')}',
+    'C ${_compactNutritionValue(value.carbohydrate, 'g')}',
+  ].join('  ');
+
   static String servings(num value) =>
       '${displayNumber(value)} ${value > 1 ? 'SERVINGS' : 'SERVING'}';
 
   static String _nutritionValue(num? value, String unit) =>
       value == null ? '—' : '${displayNumber(value)} $unit';
+
+  static String _compactNutritionValue(num? value, String unit) =>
+      value == null ? '—' : '${displayNumber(value)}$unit';
 }
