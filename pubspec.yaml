@@ -67,6 +67,7 @@ flutter:
     - assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png
     - assets/animations/sandbox/boot_sequence/phase_02/jeep/jeep_side.png
     - assets/animations/sandbox/pixel_lab/
+    - assets/images/food_category/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

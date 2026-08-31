@@ -28,10 +28,38 @@ class BodyHistoryXAxis {
       (availablePlotWidth / minimumLabelWidthCandidate).floor(),
     );
     var dates = _presetDates(start, end, totalDays);
-    if (dates.length > maximumLabels && totalDays > 7) {
+    if (_usesCalendarPreset(totalDays)) {
+      dates = _suppressBoundaryCollisions(dates, start, end, totalDays);
+    } else if (dates.length > maximumLabels && totalDays > 7) {
       dates = _presetSelection(dates, maximumLabels, totalDays);
     }
     return _formatTicks(dates, start, granularity);
+  }
+
+  static bool _usesCalendarPreset(int totalDays) =>
+      totalDays > 20 && totalDays <= 550;
+
+  static List<DateTime> _suppressBoundaryCollisions(
+    List<DateTime> dates,
+    DateTime start,
+    DateTime end,
+    int totalDays,
+  ) {
+    final nominalDays = switch (totalDays) {
+      <= 45 => 5,
+      <= 120 => 10,
+      <= 210 => 15,
+      _ => 30,
+    };
+    final minimumDistanceDays = (nominalDays * 2 + 2) ~/ 3;
+    return [
+      for (final date in dates)
+        if (date == start ||
+            date == end ||
+            (date.difference(start).inDays >= minimumDistanceDays &&
+                end.difference(date).inDays >= minimumDistanceDays))
+          date,
+    ];
   }
 
   static List<DateTime> _presetSelection(
@@ -92,15 +120,7 @@ class BodyHistoryXAxis {
     if (totalDays <= 7) return _dates(start, end, _intervals[0]);
     if (totalDays <= 20) return _dates(start, end, _intervals[1]);
     if (totalDays <= 45) {
-      return _monthDays(start, end, const [
-        1,
-        5,
-        10,
-        15,
-        20,
-        25,
-        30,
-      ], includeEnd: false);
+      return _monthDays(start, end, const [1, 5, 10, 15, 20, 25, 30]);
     }
     if (totalDays <= 120) return _monthDays(start, end, const [1, 15, 25]);
     if (totalDays <= 210) return _monthDays(start, end, const [1, 15]);
@@ -112,9 +132,8 @@ class BodyHistoryXAxis {
   static List<DateTime> _monthDays(
     DateTime start,
     DateTime end,
-    List<int> days, {
-    bool includeEnd = true,
-  }) {
+    List<int> days,
+  ) {
     final values = <DateTime>[];
     for (
       var month = DateTime.utc(start.year, start.month);
@@ -127,7 +146,7 @@ class BodyHistoryXAxis {
       }
     }
     if (values.isEmpty || values.first != start) values.insert(0, start);
-    if (includeEnd && values.last != end) values.add(end);
+    if (values.last != end) values.add(end);
     return values;
   }
 

@@ -25,6 +25,7 @@ import 'services/food_nutrition_recalculation.dart';
 import 'services/japanese_nutrition_ocr_parser.dart';
 import 'services/japanese_package_ocr_parser.dart';
 import 'widgets/food_ocr_scanner.dart';
+import 'widgets/food_thumbnail.dart';
 
 const double foodDetailPfcRingWidth = 12;
 const Color foodDetailProteinColor = Color(0xFFE08AAA);
@@ -278,7 +279,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         return OperationCard(
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.restaurant_menu),
+            leading: FoodThumbnail(visualKey: entry.visualKey),
             title: Text(entry.name),
             subtitle: Text(
               [
@@ -359,6 +360,7 @@ class FoodCatalogDraft {
     this.barcodeFormat,
     this.packageQuantity,
     this.packageUnit,
+    this.visualKey,
     this.memo,
   }) : assert(
          (packageQuantity == null) == (packageUnit == null),
@@ -374,6 +376,7 @@ class FoodCatalogDraft {
   final FoodBarcodeFormat? barcodeFormat;
   final double? packageQuantity;
   final FoodQuantityUnit? packageUnit;
+  final FoodVisualKey? visualKey;
   final String? memo;
 }
 
@@ -389,6 +392,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   final _carbs = TextEditingController();
   final _memo = TextEditingController();
   FoodCatalogCategory _category = FoodCatalogCategory.packagedFood;
+  FoodVisualKey? _visualKey;
   FoodQuantityUnit? _packageUnit;
   FoodQuantityUnit _baseUnit = FoodQuantityUnit.gram;
   bool _saving = false;
@@ -420,6 +424,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _packageQuantity.text = _number(draft.packageQuantity);
       _memo.text = draft.memo ?? '';
       _category = draft.category;
+      _visualKey = draft.visualKey ?? entry?.visualKey;
       _packageUnit = draft.packageUnit;
       _baseUnit = draft.baseQuantity.unit;
     } else if (entry != null) {
@@ -433,6 +438,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       _setNutrition(entry.nutrition);
       _memo.text = entry.memo ?? '';
       _category = entry.category;
+      _visualKey = entry.visualKey;
       _packageUnit = entry.packageUnit;
       _baseUnit = entry.baseQuantity.unit;
     } else {
@@ -474,6 +480,66 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     FoodQuantityUnit.pack ||
     FoodQuantityUnit.serving => '1',
   };
+
+  Future<void> _selectThumbnail() async {
+    final selection = await showModalBottomSheet<_FoodVisualSelection>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+            ),
+            child: Padding(
+              padding: AppSpacing.cardPadding,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'SELECT THUMBNAIL',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  AppSpacing.gapMD,
+                  Flexible(
+                    child: GridView.count(
+                      shrinkWrap: true,
+                      crossAxisCount: constraints.maxWidth < 360 ? 2 : 3,
+                      mainAxisSpacing: AppSpacing.sm,
+                      crossAxisSpacing: AppSpacing.sm,
+                      childAspectRatio: 1.18,
+                      children: [
+                        _FoodVisualChoice(
+                          visualKey: null,
+                          selected: _visualKey == null,
+                          onTap: () => Navigator.pop(
+                            context,
+                            const _FoodVisualSelection(null),
+                          ),
+                        ),
+                        for (final visualKey in FoodVisualKey.values)
+                          _FoodVisualChoice(
+                            visualKey: visualKey,
+                            selected: _visualKey == visualKey,
+                            onTap: () => Navigator.pop(
+                              context,
+                              _FoodVisualSelection(visualKey),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (selection == null || !mounted) return;
+    setState(() => _visualKey = selection.visualKey);
+  }
 
   Future<FoodImageSource?> _chooseImageSource() =>
       showModalBottomSheet<FoodImageSource>(
@@ -778,6 +844,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       barcodeFormat: barcode == null ? null : _detectBarcodeFormat(barcode),
       packageQuantity: package,
       packageUnit: _packageUnit,
+      visualKey: _visualKey,
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     );
@@ -832,6 +899,11 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               values: FoodCatalogCategory.values,
               text: foodCatalogCategoryLabel,
               onChanged: (value) => setState(() => _category = value),
+            ),
+            AppSpacing.gapMD,
+            _FoodThumbnailField(
+              visualKey: _visualKey,
+              onChange: _selectThumbnail,
             ),
             AppSpacing.gapMD,
             Row(
@@ -1063,6 +1135,107 @@ class _NutritionRecalculationRow extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _FoodVisualSelection {
+  const _FoodVisualSelection(this.visualKey);
+
+  final FoodVisualKey? visualKey;
+}
+
+class _FoodThumbnailField extends StatelessWidget {
+  const _FoodThumbnailField({required this.visualKey, required this.onChange});
+
+  final FoodVisualKey? visualKey;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('food-catalog-thumbnail-field'),
+    padding: const EdgeInsets.all(AppSpacing.md),
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      children: [
+        FoodThumbnail(visualKey: visualKey, size: 48),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('THUMBNAIL', style: Theme.of(context).textTheme.labelLarge),
+              Text(
+                visualKey == null ? 'NOT SET' : foodVisualKeyLabel(visualKey!),
+                key: const ValueKey('food-catalog-thumbnail-value'),
+              ),
+            ],
+          ),
+        ),
+        OutlinedButton(
+          key: const ValueKey('food-catalog-thumbnail-change'),
+          onPressed: onChange,
+          child: const Text('CHANGE'),
+        ),
+      ],
+    ),
+  );
+}
+
+class _FoodVisualChoice extends StatelessWidget {
+  const _FoodVisualChoice({
+    required this.visualKey,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final FoodVisualKey? visualKey;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = visualKey == null
+        ? 'NOT SET'
+        : foodVisualKeyLabel(visualKey!);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label thumbnail',
+      child: Material(
+        color: selected
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(
+            color: selected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outlineVariant,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: ValueKey(
+            'food-thumbnail-choice-${visualKey?.stableId ?? 'not-set'}',
+          ),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FoodThumbnail(visualKey: visualKey, size: 52),
+                AppSpacing.gapXS,
+                Text(label, maxLines: 1),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class FoodCatalogDetailPage extends StatelessWidget {

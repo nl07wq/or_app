@@ -7,6 +7,12 @@ import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/food_history_page.dart';
+import 'package:or_app/features/food/models/daily_meal_v2_models.dart';
+import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_provenance_models.dart';
+import 'package:or_app/features/food/models/food_quantity_models.dart';
+import 'package:or_app/features/food/models/nutrition_models.dart';
+import 'package:or_app/features/food/models/persisted_daily_meal_v2_record.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 
@@ -100,6 +106,38 @@ void main() {
     expect(find.textContaining('P 77.5'), findsOneWidget);
   });
 
+  testWidgets('v2 history resolves thumbnail only through Food Master ID', (
+    tester,
+  ) async {
+    final entry = _catalog(FoodVisualKey.meat);
+    database.seed(
+      IndexedDbStoreNames.foodCatalogRecords,
+      entry.foodId,
+      entry.toJson(),
+    );
+    _seedV2(database, foodReferenceId: entry.foodId, name: 'Linked Food');
+
+    await _pumpPage(tester);
+
+    expect(find.text('Linked Food'), findsOneWidget);
+    expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+  });
+
+  testWidgets('legacy and unlinked v2 history use generic fallback', (
+    tester,
+  ) async {
+    _seed(database, _meal(id: 'legacy', date: '2026-07-25'));
+    _seedV2(database, foodReferenceId: null, name: 'Unlinked Food');
+
+    await _pumpPage(tester);
+
+    expect(find.text('Unlinked Food'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-thumbnail-fallback')),
+      findsNWidgets(2),
+    );
+  });
+
   testWidgets('repository error replaces spinner with error and Retry', (
     tester,
   ) async {
@@ -189,6 +227,69 @@ void _seed(FakeIndexedDbDatabase database, MealData meal) {
     IndexedDbStoreNames.foodRecords,
     record['id']! as String,
     record,
+  );
+}
+
+void _seedV2(
+  FakeIndexedDbDatabase database, {
+  required String? foodReferenceId,
+  required String name,
+}) {
+  final timestamp = DateTime.utc(2026, 7, 26);
+  final meal = DailyMealV2(
+    mealId: '44444444-4444-4444-8444-444444444444',
+    localDate: '2026-07-26',
+    mealType: DailyMealTypeV2.lunch,
+    items: [
+      DailyMealItemSnapshot(
+        mealItemId: '55555555-5555-4555-8555-555555555555',
+        foodReferenceId: foodReferenceId,
+        nameSnapshot: name,
+        quantity: FoodQuantityDefinition(
+          value: 1,
+          unit: FoodQuantityUnit.serving,
+        ),
+        nutritionPerBase: NutritionSnapshot(calories: 200),
+        nutritionConsumed: NutritionSnapshot(calories: 200),
+        provenanceSnapshot: FoodDataProvenance(
+          sourceType: FoodProvenanceSourceType.userInput,
+          capturedAt: timestamp,
+        ),
+        nutritionStatusSnapshot: NutritionStatus.declared,
+        sortOrder: 0,
+      ),
+    ],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
+  final record = PersistedDailyMealV2Record.fromMeal(meal).toRecord();
+  database.seed(
+    IndexedDbStoreNames.foodRecords,
+    record['id']! as String,
+    record,
+  );
+}
+
+FoodCatalogEntry _catalog(FoodVisualKey visualKey) {
+  final timestamp = DateTime.utc(2026, 7, 26);
+  return FoodCatalogEntry(
+    foodId: '11111111-1111-4111-8111-111111111111',
+    name: 'Linked Food',
+    category: FoodCatalogCategory.ingredient,
+    visualKey: visualKey,
+    baseQuantity: FoodQuantityDefinition(
+      value: 100,
+      unit: FoodQuantityUnit.gram,
+    ),
+    nutrition: NutritionSnapshot(calories: 200),
+    nutritionStatus: NutritionStatus.declared,
+    provenance: FoodDataProvenance(
+      sourceType: FoodProvenanceSourceType.userInput,
+      capturedAt: timestamp,
+    ),
+    isArchived: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   );
 }
 

@@ -80,6 +80,168 @@ void main() {
     expect(find.text('食品が見つかりません'), findsOneWidget);
   });
 
+  testWidgets('catalog list uses selected thumbnail and null fallback', (
+    tester,
+  ) async {
+    final repository = _MemoryCatalogRepository([
+      _entry(
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Meat Food',
+        visualKey: FoodVisualKey.meat,
+      ),
+      _entry(id: '22222222-2222-4222-8222-222222222222', name: 'Unset Food'),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-thumbnail-fallback')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('thumbnail selector exposes exact options and persists edits', (
+    tester,
+  ) async {
+    final original = _entry(
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Visual Food',
+    );
+    final repository = _MemoryCatalogRepository([original]);
+
+    Future<void> pumpEditor(FoodCatalogEntry entry) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              key: const ValueKey('open-food-editor'),
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FoodCatalogEditorPage(
+                    repository: repository,
+                    initialEntry: entry,
+                  ),
+                ),
+              ),
+              child: const Text('OPEN'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('open-food-editor')));
+      await tester.pumpAndSettle();
+    }
+
+    await pumpEditor(original);
+    expect(find.text('NOT SET'), findsOneWidget);
+    final change = find.byKey(const ValueKey('food-catalog-thumbnail-change'));
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    expect(find.text('SELECT THUMBNAIL'), findsOneWidget);
+    expect(
+      tester
+          .widget<GridView>(find.byType(GridView))
+          .childrenDelegate
+          .estimatedChildCount,
+      12,
+    );
+    final expectedChoiceKeys = {
+      'food-thumbnail-choice-not-set',
+      for (final key in FoodVisualKey.values)
+        'food-thumbnail-choice-${key.stableId}',
+    };
+    final seenChoiceKeys = <String>{};
+    for (var page = 0; page < 5; page++) {
+      for (final inkWell in tester.widgetList<InkWell>(find.byType(InkWell))) {
+        final value = switch (inkWell.key) {
+          ValueKey<String>(value: final value) => value,
+          _ => null,
+        };
+        if (value != null && value.startsWith('food-thumbnail-choice-')) {
+          seenChoiceKeys.add(value);
+        }
+      }
+      if (seenChoiceKeys.containsAll(expectedChoiceKeys)) break;
+      await tester.drag(find.byType(GridView), const Offset(0, -250));
+      await tester.pumpAndSettle();
+    }
+    expect(seenChoiceKeys, containsAll(expectedChoiceKeys));
+    await tester.drag(find.byType(GridView), const Offset(0, 1000));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('food-thumbnail-choice-meat')));
+    await tester.pumpAndSettle();
+    expect(find.text('MEAT'), findsOneWidget);
+    expect(find.text('市販・包装食品'), findsOneWidget);
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    var saved = (await repository.list()).single;
+    expect(saved.visualKey, FoodVisualKey.meat);
+    expect(saved.category, FoodCatalogCategory.packagedFood);
+
+    await pumpEditor(saved);
+    final category = find.byType(DropdownButtonFormField<FoodCatalogCategory>);
+    await tester.tap(category);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('飲料').last);
+    await tester.pump();
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('food-thumbnail-choice-fish')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    saved = (await repository.list()).single;
+    expect(saved.visualKey, FoodVisualKey.fish);
+    expect(saved.category, FoodCatalogCategory.beverage);
+
+    await pumpEditor(saved);
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('food-thumbnail-choice-not-set')),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    saved = (await repository.list()).single;
+    expect(saved.visualKey, isNull);
+    expect(saved.category, FoodCatalogCategory.beverage);
+  });
+
+  testWidgets('thumbnail selector remains usable at 320px', (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: _MemoryCatalogRepository(const []),
+        ),
+      ),
+    );
+    final change = find.byKey(const ValueKey('food-catalog-thumbnail-change'));
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    expect(find.text('SELECT THUMBNAIL'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-thumbnail-choice-meat')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('detail separates package and basis and renders PFC ring', (
     tester,
   ) async {
@@ -357,6 +519,7 @@ void main() {
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Original Food',
       barcode: '04901234567890',
+      visualKey: FoodVisualKey.protein,
     );
     final repository = _MemoryCatalogRepository([original]);
     await tester.pumpWidget(
@@ -398,6 +561,7 @@ void main() {
     expect(entries.single.foodId, original.foodId);
     expect(entries.single.name, 'Reviewed Food');
     expect(entries.single.brand, 'Reviewed Brand');
+    expect(entries.single.visualKey, FoodVisualKey.protein);
   });
 
   for (final testCase in [
@@ -551,7 +715,8 @@ void main() {
       final repository = _MemoryCatalogRepository([
         _entry(
           id: '11111111-1111-4111-8111-111111111111',
-          name: 'Responsive Food',
+          name: 'Responsive Food With A Long Display Name',
+          visualKey: FoodVisualKey.fruit,
         ),
       ]);
       await tester.pumpWidget(
@@ -594,12 +759,14 @@ FoodCatalogEntry _entry({
   String? memo,
   bool archived = false,
   NutritionSnapshot? nutrition,
+  FoodVisualKey? visualKey,
 }) {
   final timestamp = DateTime.utc(2026, 8, 29);
   return FoodCatalogEntry(
     foodId: id,
     name: name,
     category: FoodCatalogCategory.packagedFood,
+    visualKey: visualKey,
     brand: brand,
     baseQuantity: FoodQuantityDefinition(
       value: 100,

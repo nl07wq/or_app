@@ -194,20 +194,20 @@ void main() {
           expect(await adapter.verify(transaction, records), isTrue);
         },
       );
-      expect(
-        await database.findById(
-          IndexedDbStoreNames.foodCatalogRecords,
-          _catalog(timestamp).foodId,
-        ),
-        isNotNull,
+      final storedCatalog = await database.findById(
+        IndexedDbStoreNames.foodCatalogRecords,
+        _catalog(timestamp).foodId,
       );
+      expect(storedCatalog, isNotNull);
+      expect(storedCatalog!['visualKey'], FoodVisualKey.grain.stableId);
 
       final v1 = Map<String, Object?>.from(catalog)
         ..['recordVersion'] = 1
         ..remove('barcodeValue')
         ..remove('barcodeFormat')
         ..remove('packageQuantity')
-        ..remove('packageUnit');
+        ..remove('packageUnit')
+        ..remove('visualKey');
       expect(() => FoodCatalogEntry.fromJson(v1), returnsNormally);
       expect(
         await database.findById(
@@ -826,6 +826,7 @@ FoodCatalogEntry _catalog(DateTime timestamp) => FoodCatalogEntry(
   foodId: '11111111-1111-4111-8111-111111111111',
   name: 'Rice',
   category: FoodCatalogCategory.ingredient,
+  visualKey: FoodVisualKey.grain,
   baseQuantity: FoodQuantityDefinition(value: 100, unit: FoodQuantityUnit.gram),
   nutrition: NutritionSnapshot(calories: 100),
   nutritionStatus: NutritionStatus.declared,

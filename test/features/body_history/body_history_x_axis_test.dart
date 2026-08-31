@@ -51,12 +51,12 @@ void main() {
     ]);
   });
 
-  test('one-month axis uses natural five-day calendar labels', () {
+  test('one-month axis preserves interior preset ticks', () {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
-      endDate: '2026-08-31',
+      endDate: '2026-08-30',
       granularity: BodyHistoryGranularity.daily,
-      availablePlotWidth: 800,
+      availablePlotWidth: 200,
     );
 
     expect(ticks.map((tick) => tick.label), [
@@ -124,34 +124,52 @@ void main() {
     expect(wide.map((tick) => tick.label), narrow.map((tick) => tick.label));
   });
 
-  test('three-month axis is deterministic at month days 1, 15 and 25', () {
+  test('three-month axis preserves internal month days 1, 15 and 25', () {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-10-31',
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 900,
     );
-    expect(
-      ticks.map((tick) => tick.label),
-      containsAll(['8/1', '15', '25', '9/1', '10/1']),
-    );
+    expect(ticks.map((tick) => tick.label), [
+      '8/1',
+      '15',
+      '25',
+      '9/1',
+      '15',
+      '25',
+      '10/1',
+      '15',
+      '31',
+    ]);
     expect(ticks.map((tick) => tick.label), isNot(contains('5')));
   });
 
-  test('six-month axis prioritizes month start and midpoint', () {
+  test('six-month axis preserves internal month starts and midpoints', () {
     final ticks = xAxis.ticks(
       startDate: '2026-01-01',
       endDate: '2026-06-30',
       granularity: BodyHistoryGranularity.daily,
       availablePlotWidth: 900,
     );
-    expect(
-      ticks.map((tick) => tick.label),
-      containsAll(['1/1', '15', '2/1', '3/1', '30']),
-    );
+    expect(ticks.map((tick) => tick.label), [
+      '1/1',
+      '15',
+      '2/1',
+      '15',
+      '3/1',
+      '15',
+      '4/1',
+      '15',
+      '5/1',
+      '15',
+      '6/1',
+      '15',
+      '30',
+    ]);
   });
 
-  test('one-year axis uses monthly density and retains first and last', () {
+  test('one-year axis preserves month starts and retains boundaries', () {
     final ticks = xAxis.ticks(
       startDate: '2025-09-01',
       endDate: '2026-08-31',
@@ -160,10 +178,27 @@ void main() {
     );
     expect(ticks.first.x, 0);
     expect(ticks.last.x, 364);
-    expect(ticks.length, inInclusiveRange(12, 14));
+    expect(
+      ticks.map((tick) => tick.label),
+      containsAll(['9/1', '10/1', '11/1', '12/1', '2026/1/1', '8/1']),
+    );
   });
 
-  test('one-month collision keeps midpoint before lower priorities', () {
+  test('start boundary suppresses a nearby lower-priority preset tick', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-07-31',
+      endDate: '2026-08-30',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 200,
+    );
+
+    expect(ticks.first.label, '7/31');
+    expect(ticks.last.label, '30');
+    expect(ticks.map((tick) => tick.label), isNot(contains('8/1')));
+    expect(ticks.map((tick) => tick.label), containsAll(['8/5', '10', '15']));
+  });
+
+  test('end boundary suppresses only its nearby preset tick', () {
     final ticks = xAxis.ticks(
       startDate: '2026-08-01',
       endDate: '2026-08-31',
@@ -171,8 +206,54 @@ void main() {
       availablePlotWidth: 200,
     );
 
-    expect(ticks.first.label, '8/1');
-    expect(ticks.last.label, '30');
-    expect(ticks.map((tick) => tick.label), contains('15'));
+    expect(ticks.last.label, '31');
+    expect(ticks.map((tick) => tick.label), isNot(contains('30')));
+    expect(
+      ticks.map((tick) => tick.label),
+      containsAll(['5', '10', '15', '20', '25']),
+    );
+  });
+
+  test('boundary suppression preserves unrelated three-month ticks', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-07-31',
+      endDate: '2026-10-31',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 192,
+    );
+
+    expect(ticks.first.label, '7/31');
+    expect(ticks.map((tick) => tick.label), isNot(contains('8/1')));
+    expect(
+      ticks.map((tick) => tick.label),
+      containsAll(['8/15', '25', '9/1', '15', '10/1']),
+    );
+  });
+
+  test('six-month start suppresses only a nearby 15-day preset tick', () {
+    final ticks = xAxis.ticks(
+      startDate: '2026-01-12',
+      endDate: '2026-07-12',
+      granularity: BodyHistoryGranularity.daily,
+      availablePlotWidth: 390,
+    );
+
+    expect(ticks.first.label, '1/12');
+    expect(ticks.map((tick) => tick.x), isNot(contains(3)));
+    expect(ticks.map((tick) => tick.label), containsAll(['2/1', '15', '3/1']));
+  });
+
+  test('calendar preset ticks are viewport independent', () {
+    List<String> labels(double width) => xAxis
+        .ticks(
+          startDate: '2026-08-01',
+          endDate: '2026-08-30',
+          granularity: BodyHistoryGranularity.daily,
+          availablePlotWidth: width,
+        )
+        .map((tick) => tick.label)
+        .toList();
+
+    expect(labels(192), labels(1280));
   });
 }

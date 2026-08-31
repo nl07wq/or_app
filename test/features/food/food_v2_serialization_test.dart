@@ -49,6 +49,28 @@ void main() {
       expect(restored.items.first.nutritionConsumed.fat, isNull);
       expect(restored.memo, isNull);
     });
+
+    test('visual key is optional and all approved values round-trip', () {
+      final legacy = Map<String, Object?>.from(_catalog().toJson())
+        ..remove('visualKey');
+      expect(FoodCatalogEntry.fromJson(legacy).visualKey, isNull);
+
+      for (final key in FoodVisualKey.values) {
+        final json = _catalog(visualKey: key).toJson();
+        expect(json['visualKey'], key.stableId);
+        expect(FoodCatalogEntry.fromJson(json).visualKey, key);
+        expect(json.toString(), isNot(contains('assets/images')));
+        expect(json.toString(), isNot(contains('base64')));
+      }
+
+      expect(
+        () => FoodCatalogEntry.fromJson({
+          ..._catalog().toJson(),
+          'visualKey': 'legacy-unknown',
+        }),
+        throwsFormatException,
+      );
+    });
   });
 
   group('canonical representation', () {
@@ -122,10 +144,11 @@ FoodDataProvenance _provenance() => FoodDataProvenance(
   notes: null,
 );
 
-FoodCatalogEntry _catalog() => FoodCatalogEntry(
+FoodCatalogEntry _catalog({FoodVisualKey? visualKey}) => FoodCatalogEntry(
   foodId: _foodId,
   name: 'Rice',
   category: FoodCatalogCategory.ingredient,
+  visualKey: visualKey,
   brand: null,
   baseQuantity: FoodQuantityDefinition(value: 100, unit: FoodQuantityUnit.gram),
   nutrition: NutritionSnapshot(calories: 156, carbohydrate: 35.6),

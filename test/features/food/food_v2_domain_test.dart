@@ -157,7 +157,8 @@ void main() {
         ..remove('barcodeValue')
         ..remove('barcodeFormat')
         ..remove('packageQuantity')
-        ..remove('packageUnit');
+        ..remove('packageUnit')
+        ..remove('visualKey');
       final restored = FoodCatalogEntry.fromJson(v1);
 
       expect(restored.recordVersion, 1);
@@ -165,6 +166,7 @@ void main() {
       expect(restored.barcodeFormat, isNull);
       expect(restored.packageQuantity, isNull);
       expect(restored.packageUnit, isNull);
+      expect(restored.visualKey, isNull);
       expect(
         () => FoodCatalogEntry.fromJson({...v1, 'barcodeValue': '123'}),
         throwsFormatException,

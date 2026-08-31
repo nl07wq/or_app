@@ -113,6 +113,10 @@ void main() {
       expect(activityData['stepsEntered'], isTrue);
       expect(activityData['carryOver'], 0);
       expect(activityData['carryOverEntered'], isFalse);
+      expect(
+        decoded.data[BackupSections.foodCatalog]!.single['visualKey'],
+        FoodVisualKey.grain.stableId,
+      );
       expect(activityData['actualWork'], '');
       expect((activityData['digestiveEvents']! as List), hasLength(2));
 
@@ -831,6 +835,7 @@ FoodCatalogEntry _catalog(DateTime timestamp) => FoodCatalogEntry(
   foodId: '11111111-1111-4111-8111-111111111111',
   name: 'Rice',
   category: FoodCatalogCategory.ingredient,
+  visualKey: FoodVisualKey.grain,
   brand: null,
   baseQuantity: FoodQuantityDefinition(value: 100, unit: FoodQuantityUnit.gram),
   nutrition: NutritionSnapshot(

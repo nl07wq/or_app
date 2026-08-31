@@ -19,6 +19,7 @@ void main() {
     final packageUnit = find
         .byType(DropdownButtonFormField<FoodQuantityUnit?>)
         .first;
+    await tester.ensureVisible(packageUnit);
     await tester.tap(packageUnit);
     await tester.pumpAndSettle();
     await tester.tap(find.text('g').last);
@@ -42,6 +43,7 @@ void main() {
     );
     final dropdowns = find.byType(DropdownButtonFormField<FoodQuantityUnit?>);
 
+    await tester.ensureVisible(dropdowns.first);
     await tester.tap(dropdowns.first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('mL').last);
@@ -57,10 +59,12 @@ void main() {
       FoodQuantityUnit.milliliter,
     );
 
+    await tester.ensureVisible(dropdowns.at(1));
     await tester.tap(dropdowns.at(1));
     await tester.pumpAndSettle();
     await tester.tap(find.text(' serving').last);
     await tester.pump();
+    await tester.ensureVisible(dropdowns.first);
     await tester.tap(dropdowns.first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('g').last);
@@ -85,6 +89,7 @@ void main() {
     final packageUnit = find
         .byType(DropdownButtonFormField<FoodQuantityUnit?>)
         .first;
+    await tester.ensureVisible(packageUnit);
     await tester.tap(packageUnit);
     await tester.pumpAndSettle();
     await tester.tap(find.text('g').last);

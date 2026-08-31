@@ -20,6 +20,30 @@ enum FoodCatalogCategory {
   }
 }
 
+enum FoodVisualKey {
+  meat,
+  fish,
+  egg,
+  dairy,
+  grain,
+  vegetable,
+  fruit,
+  snack,
+  drink,
+  condiment,
+  protein;
+
+  String get stableId => name;
+
+  static FoodVisualKey fromStableId(String value) {
+    try {
+      return values.byName(value);
+    } on ArgumentError {
+      throw FormatException('Unknown FOOD visual key: $value.');
+    }
+  }
+}
+
 enum FoodBarcodeFormat {
   ean13,
   ean8,
@@ -62,6 +86,7 @@ class FoodCatalogEntry {
     'barcodeFormat',
     'packageQuantity',
     'packageUnit',
+    'visualKey',
   };
 
   final String foodId;
@@ -79,6 +104,7 @@ class FoodCatalogEntry {
   final FoodBarcodeFormat? barcodeFormat;
   final double? packageQuantity;
   final FoodQuantityUnit? packageUnit;
+  final FoodVisualKey? visualKey;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -98,6 +124,7 @@ class FoodCatalogEntry {
     this.barcodeFormat,
     this.packageQuantity,
     this.packageUnit,
+    this.visualKey,
     required this.createdAt,
     required this.updatedAt,
   }) {
@@ -109,7 +136,8 @@ class FoodCatalogEntry {
         (barcodeValue != null ||
             barcodeFormat != null ||
             packageQuantity != null ||
-            packageUnit != null)) {
+            packageUnit != null ||
+            visualKey != null)) {
       throw ArgumentError('FOOD catalog v1 cannot contain v2 fields.');
     }
     if (barcodeValue != null &&
@@ -150,6 +178,7 @@ class FoodCatalogEntry {
       'barcodeFormat': barcodeFormat?.stableId,
       'packageQuantity': packageQuantity,
       'packageUnit': packageUnit?.stableId,
+      'visualKey': visualKey?.stableId,
     },
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
@@ -209,6 +238,12 @@ class FoodCatalogEntry {
               'FOOD catalog',
             )) {
               final value? => FoodQuantityUnit.fromStableId(value),
+              null => null,
+            },
+      visualKey: version == recordVersion1 || !json.containsKey('visualKey')
+          ? null
+          : switch (requireNullableString(json, 'visualKey', 'FOOD catalog')) {
+              final value? => FoodVisualKey.fromStableId(value),
               null => null,
             },
       createdAt: requireUtcDateTime(json, 'createdAt', 'FOOD catalog'),

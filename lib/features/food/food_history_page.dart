@@ -23,6 +23,7 @@ import 'models/daily_meal_v2_models.dart';
 import 'models/food_catalog_models.dart';
 import 'models/food_quantity_models.dart';
 import 'models/nutrition_models.dart';
+import 'widgets/food_thumbnail.dart';
 
 class FoodHistoryPage extends StatefulWidget {
   const FoodHistoryPage({super.key});
@@ -35,6 +36,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   bool _isLoading = true;
   List<MealData> _records = const [];
   List<DailyMealV2> _v2Records = const [];
+  Map<String, FoodVisualKey?> _catalogVisualKeys = const {};
   Object? _loadError;
 
   @override
@@ -60,6 +62,24 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           ? await AppRepositoryRegistry.container.dailyMealsV2.findAll()
           : const <DailyMealV2>[];
       _v2Records = v2Records.reversed.toList(growable: false);
+      if (AppRepositoryRegistry.hasContainer) {
+        final referenceIds = v2Records
+            .expand((meal) => meal.items)
+            .map((item) => item.foodReferenceId)
+            .whereType<String>()
+            .toSet();
+        final catalog = await Future.wait(
+          referenceIds.map(
+            AppRepositoryRegistry.container.foodCatalog.readById,
+          ),
+        );
+        _catalogVisualKeys = {
+          for (final entry in catalog)
+            if (entry != null) entry.foodId: entry.visualKey,
+        };
+      } else {
+        _catalogVisualKeys = const {};
+      }
     } catch (error) {
       loadError = error;
     } finally {
@@ -155,7 +175,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                   ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.restaurant_menu),
+                    leading: const FoodThumbnail(visualKey: null),
                     title: Text(
                       item.hasMeasuredAmount
                           ? item.amountMode == FoodAmountMode.baseMultiplier
@@ -247,7 +267,11 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.restaurant_menu),
+            leading: FoodThumbnail(
+              visualKey: item.foodReferenceId == null
+                  ? null
+                  : _catalogVisualKeys[item.foodReferenceId!],
+            ),
             title: Text(item.nameSnapshot),
             subtitle: Text(
               '${FoodNutritionFormatter.calories(item.nutritionConsumed.calories ?? 0)} kcal'
