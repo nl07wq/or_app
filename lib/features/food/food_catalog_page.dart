@@ -393,6 +393,8 @@ class FoodCatalogDraft {
 }
 
 class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
+  static const double _pairedAttributeMinimumWidth = 344;
+
   final _name = TextEditingController();
   final _brand = TextEditingController();
   final _barcode = TextEditingController();
@@ -917,9 +919,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                 final thumbnail = _FoodThumbnailField(
                   visualKey: _visualKey,
                   onChange: _selectThumbnail,
-                  dense: constraints.maxWidth >= 320,
+                  dense: constraints.maxWidth >= _pairedAttributeMinimumWidth,
                 );
-                if (constraints.maxWidth < 320) {
+                if (constraints.maxWidth < _pairedAttributeMinimumWidth) {
                   return Column(
                     key: const ValueKey('food-catalog-attributes-stacked'),
                     children: [category, AppSpacing.gapMD, thumbnail],

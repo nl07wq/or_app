@@ -381,7 +381,42 @@ void main() {
     });
   }
 
-  for (final width in [390.0, 900.0, 1280.0]) {
+  for (final width in [320.0, 390.0]) {
+    testWidgets('food attributes stack readably at ${width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            repository: _MemoryCatalogRepository(const []),
+            initialEntry: _entry(
+              id: '11111111-1111-4111-8111-111111111111',
+              name: 'Responsive Food',
+              visualKey: FoodVisualKey.meat,
+            ),
+          ),
+        ),
+      );
+      final field = find.byKey(const ValueKey('food-catalog-thumbnail-field'));
+      await tester.ensureVisible(field);
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('food-catalog-attributes-stacked')),
+        findsOneWidget,
+      );
+      expect(find.text('市販・包装食品'), findsOneWidget);
+      expect(find.text('THUMBNAIL'), findsOneWidget);
+      expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in [900.0, 1280.0]) {
     testWidgets('food attributes remain paired at ${width.toInt()}px', (
       tester,
     ) async {
