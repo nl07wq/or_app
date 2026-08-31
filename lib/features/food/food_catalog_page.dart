@@ -1146,6 +1146,8 @@ class _FoodVisualSelection {
 class _FoodThumbnailField extends StatelessWidget {
   const _FoodThumbnailField({required this.visualKey, required this.onChange});
 
+  static const double _horizontalMinimumContentWidth = 280;
+
   final FoodVisualKey? visualKey;
   final VoidCallback onChange;
 
@@ -1157,29 +1159,66 @@ class _FoodThumbnailField extends StatelessWidget {
       border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       borderRadius: BorderRadius.circular(8),
     ),
-    child: Row(
-      children: [
-        FoodThumbnail(visualKey: visualKey, size: 48),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('THUMBNAIL', style: Theme.of(context).textTheme.labelLarge),
-              Text(
-                visualKey == null ? 'NOT SET' : foodVisualKeyLabel(visualKey!),
-                key: const ValueKey('food-catalog-thumbnail-value'),
-              ),
-            ],
-          ),
-        ),
-        OutlinedButton(
-          key: const ValueKey('food-catalog-thumbnail-change'),
-          onPressed: onChange,
-          child: const Text('CHANGE'),
-        ),
-      ],
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _horizontalMinimumContentWidth) {
+          return _buildCompactLayout(context);
+        }
+        return _buildHorizontalLayout(context);
+      },
     ),
+  );
+
+  Widget _buildHorizontalLayout(BuildContext context) => Row(
+    key: const ValueKey('food-catalog-thumbnail-layout-horizontal'),
+    children: [
+      FoodThumbnail(visualKey: visualKey, size: 48),
+      const SizedBox(width: AppSpacing.sm),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [_heading(context), _value()],
+        ),
+      ),
+      _changeButton(),
+    ],
+  );
+
+  Widget _buildCompactLayout(BuildContext context) => Column(
+    key: const ValueKey('food-catalog-thumbnail-layout-compact'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _heading(context),
+      const SizedBox(height: AppSpacing.sm),
+      Row(
+        children: [
+          FoodThumbnail(visualKey: visualKey, size: 48),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: _value()),
+        ],
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      Align(alignment: Alignment.centerRight, child: _changeButton()),
+    ],
+  );
+
+  Widget _heading(BuildContext context) => Text(
+    'THUMBNAIL',
+    key: const ValueKey('food-catalog-thumbnail-label'),
+    maxLines: 1,
+    softWrap: false,
+    style: Theme.of(context).textTheme.labelLarge,
+  );
+
+  Widget _value() => Text(
+    visualKey == null ? 'NOT SET' : foodVisualKeyLabel(visualKey!),
+    key: const ValueKey('food-catalog-thumbnail-value'),
+  );
+
+  Widget _changeButton() => OutlinedButton(
+    key: const ValueKey('food-catalog-thumbnail-change'),
+    onPressed: onChange,
+    child: const Text('CHANGE'),
   );
 }
 

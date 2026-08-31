@@ -7,6 +7,7 @@ import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/repository/food_catalog_repository.dart';
+import 'package:or_app/features/food/widgets/food_thumbnail.dart';
 
 void main() {
   testWidgets('food database uses Japanese human-facing description', (
@@ -232,6 +233,24 @@ void main() {
     );
     final change = find.byKey(const ValueKey('food-catalog-thumbnail-change'));
     await tester.ensureVisible(change);
+    expect(
+      find.byKey(const ValueKey('food-catalog-thumbnail-layout-compact')),
+      findsOneWidget,
+    );
+    final heading = tester.widget<Text>(
+      find.byKey(const ValueKey('food-catalog-thumbnail-label')),
+    );
+    expect(heading.maxLines, 1);
+    expect(heading.softWrap, isFalse);
+    expect(heading.overflow, isNot(TextOverflow.ellipsis));
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('food-catalog-thumbnail-value')),
+          )
+          .data,
+      'NOT SET',
+    );
     await tester.tap(change);
     await tester.pumpAndSettle();
     expect(find.text('SELECT THUMBNAIL'), findsOneWidget);
@@ -239,8 +258,117 @@ void main() {
       find.byKey(const ValueKey('food-thumbnail-choice-meat')),
       findsOneWidget,
     );
+    await tester.tap(find.byKey(const ValueKey('food-thumbnail-choice-meat')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+    expect(find.text('MEAT'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final visualKey in <FoodVisualKey?>[
+    null,
+    FoodVisualKey.meat,
+    FoodVisualKey.condiment,
+    FoodVisualKey.protein,
+  ]) {
+    testWidgets('selected thumbnail preview stays readable at 320px for '
+        '${visualKey?.stableId ?? 'not-set'}', (tester) async {
+      tester.view.physicalSize = const Size(320, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            repository: _MemoryCatalogRepository(const []),
+            initialEntry: _entry(
+              id: '11111111-1111-4111-8111-111111111111',
+              name: 'Responsive Food With A Very Long Neighboring Name',
+              brand: 'Responsive Brand With Long Neighboring Content',
+              visualKey: visualKey,
+            ),
+          ),
+        ),
+      );
+      final field = find.byKey(const ValueKey('food-catalog-thumbnail-field'));
+      await tester.ensureVisible(field);
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('food-catalog-thumbnail-layout-compact')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('food-catalog-thumbnail-label')))
+            .height,
+        lessThan(30),
+      );
+      expect(
+        find.byKey(
+          ValueKey(
+            visualKey == null
+                ? 'food-thumbnail-fallback'
+                : 'food-thumbnail-${visualKey.stableId}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('food-catalog-thumbnail-value')),
+            )
+            .data,
+        visualKey == null ? 'NOT SET' : foodVisualKeyLabel(visualKey),
+      );
+      final change = find.byKey(
+        const ValueKey('food-catalog-thumbnail-change'),
+      );
+      expect(tester.getSize(change).width, greaterThanOrEqualTo(64));
+      await tester.tap(change);
+      await tester.pumpAndSettle();
+      expect(find.text('SELECT THUMBNAIL'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in [390.0, 900.0, 1280.0]) {
+    testWidgets('thumbnail preview remains horizontal at ${width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            repository: _MemoryCatalogRepository(const []),
+            initialEntry: _entry(
+              id: '11111111-1111-4111-8111-111111111111',
+              name: 'Responsive Food',
+              visualKey: FoodVisualKey.meat,
+            ),
+          ),
+        ),
+      );
+      final field = find.byKey(const ValueKey('food-catalog-thumbnail-field'));
+      await tester.ensureVisible(field);
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('food-catalog-thumbnail-layout-horizontal')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('food-catalog-thumbnail-layout-compact')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('detail separates package and basis and renders PFC ring', (
     tester,
