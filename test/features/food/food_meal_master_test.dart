@@ -249,7 +249,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      if (width == 320) {
+      if (width <= 390) {
         await tester.pumpWidget(
           MaterialApp(
             home: FoodCatalogPage(

@@ -265,7 +265,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         widget.selectionMode
             ? widget.recipesEnabled
                   ? widget.mealsEnabled
-                        ? MediaQuery.sizeOf(context).width < 360
+                        ? MediaQuery.sizeOf(context).width < 480
                               ? 'SELECT MASTER'
                               : 'SELECT FOOD / RECIPE / MEAL'
                         : 'SELECT FOOD / RECIPE'
