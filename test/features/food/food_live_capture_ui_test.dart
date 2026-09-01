@@ -104,6 +104,60 @@ void main() {
     expect(session.conflicts, contains('CARBOHYDRATE'));
   });
 
+  test('high structured energy bridges without legacy text parsing', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe(
+      '[[OR_STRUCTURED_NUTRITION]]\n'
+      '[[OR_OCR_DECISIONS]]\n'
+      '{"energy":{"value":188,"unit":"kcal","unitStatus":"EXACT",'
+      '"confidence":"HIGH","reviewRequired":false,"conflict":false,'
+      '"decision":"AUTO_FILL_ALLOWED"}}',
+    );
+
+    expect(session.draft.calories, 188);
+    expect(session.candidateSources['CALORIES'], 'structured');
+    expect(
+      session.fieldDecisions['ENERGY']?['bridgeStatus'],
+      'ACCEPTED_STRUCTURED',
+    );
+  });
+
+  test('unit-incompatible high structured evidence is review-only', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe(
+      '[[OR_STRUCTURED_NUTRITION]]\n'
+      '[[OR_OCR_DECISIONS]]\n'
+      '{"energy":{"value":188,"unit":"g","confidence":"HIGH",'
+      '"reviewRequired":false,"conflict":false,'
+      '"decision":"AUTO_FILL_ALLOWED"}}',
+    );
+
+    expect(session.draft.calories, isNull);
+    expect(
+      session.fieldDecisions['ENERGY']?['bridgeStatus'],
+      'RETAINED_FOR_REVIEW',
+    );
+  });
+
+  test('medium fat candidate is retained for review without draft binding', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe(
+      '[[OR_STRUCTURED_NUTRITION]]\n'
+      '[[OR_OCR_DECISIONS]]\n'
+      '{"fat":{"value":8,"unit":"g","unitStatus":"EXACT",'
+      '"confidence":"MEDIUM","reviewRequired":true,"conflict":true,'
+      '"decision":"REVIEW_REQUIRED","supportingPasses":['
+      '"moderate-contrast"],"rawTokens":["肥","質","8g"]}}',
+    );
+
+    expect(session.draft.fat, isNull);
+    expect(session.fieldDecisions['FAT']?['value'], 8);
+    expect(
+      session.fieldDecisions['FAT']?['bridgeStatus'],
+      'RETAINED_FOR_REVIEW',
+    );
+  });
+
   test('unit-less structured evidence remains review-only', () {
     final session = FoodNutritionCandidateSession();
     session.describe(

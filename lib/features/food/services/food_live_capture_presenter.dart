@@ -47,28 +47,34 @@ class FoodNutritionCandidateSession {
       }
     }
     final next = const JapaneseNutritionOcrParser().parse(parserInput);
+    final structured = _structuredDraft(next);
     _draft = NutritionOcrDraft(
-      basisQuantity: next.basisQuantity ?? _draft.basisQuantity,
-      basisUnit: next.basisUnit ?? _draft.basisUnit,
+      basisQuantity: structured.basisQuantity ?? _draft.basisQuantity,
+      basisUnit: structured.basisUnit ?? _draft.basisUnit,
       calories: _merge(
         'CALORIES',
         _draft.calories,
-        next.calories,
+        structured.calories,
         isStructured,
       ),
-      protein: _merge('PROTEIN', _draft.protein, next.protein, isStructured),
-      fat: _merge('FAT', _draft.fat, next.fat, isStructured),
+      protein: _merge(
+        'PROTEIN',
+        _draft.protein,
+        structured.protein,
+        isStructured,
+      ),
+      fat: _merge('FAT', _draft.fat, structured.fat, isStructured),
       carbohydrate: _merge(
         'CARBOHYDRATE',
         _draft.carbohydrate,
-        next.carbohydrate,
+        structured.carbohydrate,
         isStructured,
       ),
-      packageQuantity: next.packageQuantity ?? _draft.packageQuantity,
-      packageUnit: next.packageUnit ?? _draft.packageUnit,
+      packageQuantity: structured.packageQuantity ?? _draft.packageQuantity,
+      packageUnit: structured.packageUnit ?? _draft.packageUnit,
     );
     _applyFieldDecisionPolicy();
-    _recordCandidateSources(next);
+    _recordCandidateSources(structured);
     return _candidate(
       _draft,
       hasRawText: parserInput.trim().isNotEmpty,
@@ -79,9 +85,7 @@ class FoodNutritionCandidateSession {
   void _applyFieldDecisionPolicy() {
     final excludedFields = <String>{};
     for (final entry in _fieldDecisions.entries) {
-      if (entry.value['conflict'] == true ||
-          entry.value['decision'] == 'CANDIDATE_ONLY' ||
-          entry.value['decision'] == 'NOT_AVAILABLE') {
+      if (!_isAutoFillDecision(entry.key, entry.value)) {
         excludedFields.add(entry.key);
         _sources.remove(entry.key);
         _candidateSources.remove(entry.key);
@@ -100,6 +104,54 @@ class FoodNutritionCandidateSession {
       packageQuantity: _draft.packageQuantity,
       packageUnit: _draft.packageUnit,
     );
+  }
+
+  NutritionOcrDraft _structuredDraft(NutritionOcrDraft parsed) =>
+      NutritionOcrDraft(
+        basisQuantity: parsed.basisQuantity,
+        basisUnit: parsed.basisUnit,
+        calories: _structuredValue('ENERGY') ?? parsed.calories,
+        protein: _structuredValue('PROTEIN') ?? parsed.protein,
+        fat: _structuredValue('FAT') ?? parsed.fat,
+        carbohydrate: _structuredValue('CARBOHYDRATE') ?? parsed.carbohydrate,
+        packageQuantity: parsed.packageQuantity,
+        packageUnit: parsed.packageUnit,
+      );
+
+  double? _structuredValue(String field) {
+    final decision = _fieldDecisions[field];
+    if (decision == null) return null;
+    if (!_isAutoFillDecision(field, decision)) {
+      decision['bridgeStatus'] = 'RETAINED_FOR_REVIEW';
+      decision['bridgeReason'] = decision['conflict'] == true
+          ? 'conflicting-structured-evidence'
+          : 'structured-decision-is-not-auto-fill-eligible';
+      return null;
+    }
+    final value = decision['value'];
+    if (value is! num || !value.isFinite) {
+      decision['bridgeStatus'] = 'REJECTED';
+      decision['bridgeReason'] = 'structured-decision-value-is-not-numeric';
+      return null;
+    }
+    decision['bridgeStatus'] = 'ACCEPTED_STRUCTURED';
+    decision['bridgeReason'] = 'typed-high-confidence-decision';
+    return value.toDouble();
+  }
+
+  bool _isAutoFillDecision(String field, Map<String, dynamic> decision) {
+    if (decision['confidence'] != 'HIGH' ||
+        decision['decision'] != 'AUTO_FILL_ALLOWED' ||
+        decision['reviewRequired'] != false ||
+        decision['conflict'] == true) {
+      return false;
+    }
+    final unit = decision['unit'];
+    return switch (field) {
+      'ENERGY' => unit == 'kcal',
+      'PROTEIN' || 'FAT' || 'CARBOHYDRATE' => unit == 'g',
+      _ => false,
+    };
   }
 
   void _readFieldDecisions(String encoded) {

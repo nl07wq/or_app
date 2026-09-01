@@ -32,7 +32,16 @@ jobs:
           python3 tool/generate_japanese_holiday_asset.py
           --output web/data/japanese_holidays.json
 
-      - run: flutter build web --release --base-href /or_app/
+      - name: Generate release metadata
+        id: release_metadata
+        run: |
+          echo "commit=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "last_updated=$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST')" >> "$GITHUB_OUTPUT"
+
+      - run: >-
+          flutter build web --release --base-href /or_app/
+          --dart-define=OR_APP_RELEASE_COMMIT=${{ steps.release_metadata.outputs.commit }}
+          --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}"
 
       - uses: actions/upload-pages-artifact@v3
         with:

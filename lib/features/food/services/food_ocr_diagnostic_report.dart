@@ -96,6 +96,7 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
       if (pass.trim().isNotEmpty) session.describe(pass);
     }
     final draft = session.draft;
+    final decisions = session.fieldDecisions;
     final finalResult = <String, dynamic>{
       'basis': draft.basisQuantity == null
           ? null
@@ -104,6 +105,12 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
       'protein': draft.protein,
       'fat': draft.fat,
       'carbohydrate': draft.carbohydrate,
+      'fieldSources': {
+        'calories': _finalFieldSource(decisions['ENERGY']),
+        'protein': _finalFieldSource(decisions['PROTEIN']),
+        'fat': _finalFieldSource(decisions['FAT']),
+        'carbohydrate': _finalFieldSource(decisions['CARBOHYDRATE']),
+      },
     };
     finalResult['needsReviewFields'] = [
       if (draft.basisQuantity == null) 'basis',
@@ -117,7 +124,30 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
       branch,
       finalResult,
       session.candidateSources,
+      decisions,
     );
+    branch['reviewCandidates'] = decisions.entries
+        .where((entry) => entry.value['bridgeStatus'] != 'ACCEPTED_STRUCTURED')
+        .map(
+          (entry) => <String, dynamic>{
+            'field': entry.key,
+            'candidateValue': entry.value['value'],
+            'candidateUnit': entry.value['unit'],
+            'unitStatus': entry.value['unitStatus'],
+            'confidence': entry.value['confidence'],
+            'conflict': entry.value['conflict'],
+            'reviewRequired': entry.value['reviewRequired'],
+            'decision': entry.value['decision'],
+            'sourcePasses': entry.value['supportingPasses'],
+            'rawTokens': entry.value['rawTokens'],
+            'labelEvidence': entry.value['labelEvidence'],
+            'consensusStatus': entry.value['consensusStatus'],
+            'decisionReason': entry.value['decisionReason'],
+            'reviewBridgeStatus':
+                entry.value['bridgeStatus'] ?? 'RETAINED_FOR_REVIEW',
+          },
+        )
+        .toList(growable: false);
     branch['formBinding'] = {
       'status': 'NOT EXECUTED',
       'reason':
@@ -305,6 +335,10 @@ void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
     ..writeln('fallbackReason: ${_text(branch['fallbackReason'])}')
     ..writeln('\nNORMALIZATION / PARSER')
     ..writeln(_items(branch['parserDiagnostics']))
+    ..writeln('\nDECISION → PARSER HANDOFF')
+    ..writeln(_items(branch['parserDiagnostics']))
+    ..writeln('\nREVIEW BRIDGE')
+    ..writeln(_items(branch['reviewCandidates']))
     ..writeln('\nFINAL OCR RESULT')
     ..writeln(_lines(_map(branch['finalResult'])))
     ..writeln('\nFORM BINDING')
@@ -320,6 +354,7 @@ List<Map<String, dynamic>> _parserDiagnostics(
   Map<String, dynamic> branch,
   Map<String, dynamic> result,
   Map<String, String> candidateSources,
+  Map<String, Map<String, dynamic>> decisions,
 ) {
   final mapped = _map(branch['selectedMappings']);
   return const {
@@ -331,9 +366,16 @@ List<Map<String, dynamic>> _parserDiagnostics(
       }.entries
       .map((entry) {
         final parsed = result[entry.key];
+        final decision = decisions[entry.value.toUpperCase()];
         return <String, dynamic>{
           'field': entry.key,
           'rawMappedValue': mapped[entry.value],
+          'decisionValue': decision?['value'],
+          'decisionUnit': decision?['unit'],
+          'decisionConfidence': decision?['confidence'],
+          'decisionStatus': decision?['decision'],
+          'bridgeStatus': decision?['bridgeStatus'],
+          'bridgeReason': decision?['bridgeReason'],
           'normalizedValue': parsed,
           'parsedNumericValue': parsed,
           'candidateSource': candidateSources[entry.key.toUpperCase()],
@@ -344,6 +386,13 @@ List<Map<String, dynamic>> _parserDiagnostics(
         };
       })
       .toList(growable: false);
+}
+
+String _finalFieldSource(Map<String, dynamic>? decision) {
+  if (decision == null) return 'NOT_AVAILABLE';
+  return decision['bridgeStatus'] == 'ACCEPTED_STRUCTURED'
+      ? 'STRUCTURED_DECISION'
+      : 'REVIEW_ONLY';
 }
 
 bool _sameValues(

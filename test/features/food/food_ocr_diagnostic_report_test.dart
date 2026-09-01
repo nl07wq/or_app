@@ -114,6 +114,33 @@ void main() {
     expect(text, contains('COMPARISON SUMMARY'));
     expect(text, isNot(contains('data:image/png;base64')));
   });
+
+  test(
+    'keeps high decisions typed and lower decisions in the review bridge',
+    () {
+      final report = enrichFoodOcrDiagnosticReport(
+        _fixtureReportWithDecisions(),
+        source: FoodImageSource.gallery,
+      );
+      final nutrition = (report['nutritionLabelReader'] as Map)
+          .cast<String, dynamic>();
+      final result = (nutrition['finalResult'] as Map).cast<String, dynamic>();
+      final handoff = (nutrition['parserDiagnostics'] as List)
+          .cast<Map>()
+          .firstWhere((item) => item['field'] == 'calories');
+      final review = (nutrition['reviewCandidates'] as List).cast<Map>();
+
+      expect(result['calories'], 188);
+      expect(
+        (result['fieldSources'] as Map)['calories'],
+        'STRUCTURED_DECISION',
+      );
+      expect(handoff['bridgeStatus'], 'ACCEPTED_STRUCTURED');
+      expect(review.single['field'], 'FAT');
+      expect(review.single['candidateValue'], 8);
+      expect(review.single['reviewBridgeStatus'], 'RETAINED_FOR_REVIEW');
+    },
+  );
 }
 
 Map<String, dynamic> _fixtureReport() => {
@@ -124,6 +151,17 @@ Map<String, dynamic> _fixtureReport() => {
   'nutritionLabelReader': _branch('NUTRITION LABEL READER'),
   'comparison': {'sameRawOcr': true},
 };
+
+Map<String, dynamic> _fixtureReportWithDecisions() {
+  const decisions = '''[[OR_STRUCTURED_NUTRITION]]
+[[OR_OCR_DECISIONS]]
+{"energy":{"value":188,"unit":"kcal","confidence":"HIGH","reviewRequired":false,"conflict":false,"decision":"AUTO_FILL_ALLOWED"},"fat":{"value":8,"unit":"g","confidence":"MEDIUM","reviewRequired":true,"conflict":true,"decision":"REVIEW_REQUIRED"}}''';
+  final report = _fixtureReport();
+  for (final key in ['standard', 'nutritionLabelReader']) {
+    (report[key] as Map<String, dynamic>)['rawText'] = decisions;
+  }
+  return report;
+}
 
 Map<String, dynamic> _branch(String mode) => {
   'scanMode': mode,

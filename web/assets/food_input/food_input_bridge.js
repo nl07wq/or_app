@@ -1390,6 +1390,17 @@
 
   function nutritionLabelConfusionRecovery(rawText, selected, group) {
     const normalized = normalizeOcrToken(rawText);
+    if (normalized === 'たんばぱく質' || normalized === 'たんぱく算') {
+      return {
+        field: 'protein',
+        alias: 'たんぱく質',
+        status: normalized === 'たんばぱく質' ? 'RECOVERED_HIGH' : 'RECOVERED_MEDIUM',
+        recoveryMethod: 'nutrition-protein-label-confusion',
+        recoveryConfidence: normalized === 'たんばぱく質' ? 0.78 : 0.62,
+        ambiguity: null,
+        contextEvidence: ['nutrition-label-reader', 'japanese-nutrition-label'],
+      };
+    }
     if (normalized !== '肥質') return null;
     const selectedBox = boxForWords(selected);
     const hasSameRowGramEvidence = group.words.some((word) => {
@@ -1453,8 +1464,8 @@
           const selected = group.words.slice(index, index + count);
           if (selected.length !== count) continue;
           const rawText = selected.map((word) => word.text).join('');
-          const recovered = labelRecovery(rawText, averageConfidence(selected)) ||
-            nutritionLabelConfusionRecovery(rawText, selected, group);
+          const recovered = nutritionLabelConfusionRecovery(rawText, selected, group) ||
+            labelRecovery(rawText, averageConfidence(selected));
           if (!recovered || anchors.some((anchor) =>
             anchor.field === recovered.field && anchor.lineKey === group.lineKey,
           )) continue;
@@ -2430,6 +2441,14 @@
               decisionReason: decision.decisionReason,
               supportingPasses: decision.supportingPasses,
               rawTokens: decision.rawTokens,
+              labelEvidence: decision.selectedEvidence?.labelEvidence
+                ? {
+                    field: decision.field,
+                    status: decision.selectedEvidence.labelEvidence.status,
+                    recoveryMethod: decision.selectedEvidence.labelEvidence.recoveryMethod,
+                    recoveryConfidence: decision.selectedEvidence.labelEvidence.recoveryConfidence,
+                  }
+                : null,
               consensusStatus: decision.consensusStatus,
             },
           ])),
@@ -2500,6 +2519,12 @@
     consensus = consensusForAnalyses(analyses);
     const consistency = nutritionConsistency(consensus);
     applyNutritionConsistency(consensus, consistency);
+    const labels = {
+      energy: 'エネルギー',
+      protein: 'たんぱく質',
+      fat: '脂質',
+      carbohydrate: '炭水化物',
+    };
     const allValues = analyses.flatMap((analysis) => analysis.values);
     const allSemanticValues = analyses.flatMap((analysis) => analysis.semanticValues);
     const allAnchors = analyses.flatMap((analysis) => analysis.anchors);
@@ -2627,12 +2652,6 @@
           .map(([field, decision]) => [field, decision.source]),
       ),
     };
-    const labels = {
-      energy: 'エネルギー',
-      protein: 'たんぱく質',
-      fat: '脂質',
-      carbohydrate: '炭水化物',
-    };
     const lines = [];
     const basis = analyses.flatMap((analysis) => analysis.groups)
       .map((group) => recoverNutritionBasis(
@@ -2667,6 +2686,14 @@
               decisionReason: decision.decisionReason,
               supportingPasses: decision.supportingPasses,
               rawTokens: decision.rawTokens,
+              labelEvidence: decision.selectedEvidence?.labelEvidence
+                ? {
+                    field: decision.field,
+                    status: decision.selectedEvidence.labelEvidence.status,
+                    recoveryMethod: decision.selectedEvidence.labelEvidence.recoveryMethod,
+                    recoveryConfidence: decision.selectedEvidence.labelEvidence.recoveryConfidence,
+                  }
+                : null,
               consensusStatus: decision.consensusStatus,
             },
           ])),

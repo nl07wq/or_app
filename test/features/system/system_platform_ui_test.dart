@@ -153,6 +153,8 @@ void main() {
     expect(find.text('Database Version'), findsOneWidget);
     expect(find.text('Backup Schema Version'), findsOneWidget);
     expect(find.text('Build Number'), findsOneWidget);
+    expect(find.text('Last Updated'), findsOneWidget);
+    expect(find.text('Release Commit'), findsOneWidget);
     expect(find.text('Appearance'), findsNothing);
     expect(find.text('Theme'), findsNothing);
     expect(find.byType(TextField), findsNothing);
@@ -331,6 +333,8 @@ void main() {
       'Database Version',
       'Backup Schema Version',
       'Build Number',
+      'Last Updated',
+      'Release Commit',
       'Copyright',
       'License',
     ]) {
@@ -338,11 +342,51 @@ void main() {
     }
     expect(find.text('1.0.0'), findsOneWidget);
     expect(find.text('5.2'), findsOneWidget);
-    expect(find.text('10'), findsOneWidget);
+    expect(find.text(AppMetadata.databaseVersion), findsOneWidget);
     expect(find.text(AppMetadata.backupSchemaVersion), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
+    expect(find.text('NOT AVAILABLE'), findsNWidgets(2));
     expect(find.text('未設定'), findsNWidgets(2));
     expect(find.text('Version'), findsNothing);
+  });
+
+  testWidgets('ABOUT displays supplied release metadata', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AboutPage(
+          releaseMetadata: ReleaseMetadata(
+            lastUpdated: '2026-09-02 12:34 JST',
+            releaseCommit: 'abcdef1',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('2026-09-02 12:34 JST'), findsOneWidget);
+    expect(find.text('abcdef1'), findsOneWidget);
+  });
+
+  testWidgets('ABOUT release metadata remains readable at 320px', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AboutPage(
+          releaseMetadata: ReleaseMetadata(
+            lastUpdated: '2026-09-02 12:34 JST',
+            releaseCommit: 'abcdef1',
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Last Updated'), findsOneWidget);
+    expect(find.text('Release Commit'), findsOneWidget);
   });
 
   testWidgets('INITIALIZE requires exact confirmation and resets app data', (
