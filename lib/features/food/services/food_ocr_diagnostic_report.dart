@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'food_input_capture_gateway.dart';
 import 'food_live_capture_presenter.dart';
 
@@ -94,6 +96,10 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
     final session = FoodNutritionCandidateSession();
     for (final pass in rawText.split('\u001e')) {
       if (pass.trim().isNotEmpty) session.describe(pass);
+    }
+    final structuredDecisionInput = _structuredDecisionInput(branch);
+    if (structuredDecisionInput.isNotEmpty) {
+      session.describe(structuredDecisionInput);
     }
     final draft = session.draft;
     final decisions = session.fieldDecisions;
@@ -316,6 +322,8 @@ void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
     ..writeln(_items(branch['semanticDuplicateCollapse']))
     ..writeln('\nPRE-MAPPING EVIDENCE')
     ..writeln(_items(branch['preMappingEvidence']))
+    ..writeln('\nFIELD OWNERSHIP')
+    ..writeln(_items(branch['fieldOwnership']))
     ..writeln('\nMAPPING')
     ..writeln(_items(branch['structuredCandidates']))
     ..writeln('\nUNIT TIE BREAK')
@@ -393,6 +401,20 @@ String _finalFieldSource(Map<String, dynamic>? decision) {
   return decision['bridgeStatus'] == 'ACCEPTED_STRUCTURED'
       ? 'STRUCTURED_DECISION'
       : 'REVIEW_ONLY';
+}
+
+String _structuredDecisionInput(Map<String, dynamic> branch) {
+  final decisions = <String, dynamic>{};
+  for (final item in _list(branch['confidenceDecisions'])) {
+    final decision = _map(item);
+    final field = decision['field'];
+    if (field is String && field.isNotEmpty) {
+      decisions[field] = decision;
+    }
+  }
+  if (decisions.isEmpty) return '';
+  return '[[OR_STRUCTURED_NUTRITION]]\n'
+      '[[OR_OCR_DECISIONS]]\n${jsonEncode(decisions)}';
 }
 
 bool _sameValues(

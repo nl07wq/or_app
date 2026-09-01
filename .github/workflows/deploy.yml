@@ -37,11 +37,13 @@ jobs:
         run: |
           echo "commit=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           echo "last_updated=$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST')" >> "$GITHUB_OUTPUT"
+          echo "title=$(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
 
       - run: >-
           flutter build web --release --base-href /or_app/
           --dart-define=OR_APP_RELEASE_COMMIT=${{ steps.release_metadata.outputs.commit }}
           --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}"
+          --dart-define="OR_APP_RELEASE_TITLE=${{ steps.release_metadata.outputs.title }}"
 
       - uses: actions/upload-pages-artifact@v3
         with:

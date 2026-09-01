@@ -56,6 +56,11 @@ class AboutPage extends StatelessWidget {
               ),
               const Divider(),
               _AboutValue(
+                label: 'Release Title',
+                value: releaseMetadata.releaseTitle,
+              ),
+              const Divider(),
+              _AboutValue(
                 label: 'Release Commit',
                 value: releaseMetadata.releaseCommit,
               ),

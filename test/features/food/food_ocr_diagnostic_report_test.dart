@@ -153,12 +153,31 @@ Map<String, dynamic> _fixtureReport() => {
 };
 
 Map<String, dynamic> _fixtureReportWithDecisions() {
-  const decisions = '''[[OR_STRUCTURED_NUTRITION]]
-[[OR_OCR_DECISIONS]]
-{"energy":{"value":188,"unit":"kcal","confidence":"HIGH","reviewRequired":false,"conflict":false,"decision":"AUTO_FILL_ALLOWED"},"fat":{"value":8,"unit":"g","confidence":"MEDIUM","reviewRequired":true,"conflict":true,"decision":"REVIEW_REQUIRED"}}''';
+  const decisions = [
+    {
+      'field': 'energy',
+      'value': 188,
+      'unit': 'kcal',
+      'confidence': 'HIGH',
+      'reviewRequired': false,
+      'conflict': false,
+      'decision': 'AUTO_FILL_ALLOWED',
+    },
+    {
+      'field': 'fat',
+      'value': 8,
+      'unit': 'g',
+      'confidence': 'MEDIUM',
+      'reviewRequired': true,
+      'conflict': true,
+      'decision': 'REVIEW_REQUIRED',
+    },
+  ];
   final report = _fixtureReport();
   for (final key in ['standard', 'nutritionLabelReader']) {
-    (report[key] as Map<String, dynamic>)['rawText'] = decisions;
+    final branch = report[key] as Map<String, dynamic>;
+    branch['rawText'] = 'raw OCR remains separate from structured decisions';
+    branch['confidenceDecisions'] = decisions;
   }
   return report;
 }

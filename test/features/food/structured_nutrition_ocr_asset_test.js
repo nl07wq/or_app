@@ -368,6 +368,10 @@ async function main() {
     .find((item) => item.field === 'protein');
   assert.equal(proteinDecision.value, null);
   assert.equal(proteinDecision.decision, 'NOT_AVAILABLE');
+  assert.ok(proteinDiagnostics.detectedLabels.some((item) =>
+    item.field === 'protein' && item.detected === true &&
+    item.matchedRawText === 'たんばぱく質',
+  ));
 
   const carbohydratePass1 = tsv([
     word(1, 1, 10, 10, 110, '炭水化物'),
@@ -409,6 +413,50 @@ async function main() {
     .conflictingCandidates.some((item) =>
       item.value === 5 && item.status === 'DOWNRANKED_SINGLE_PASS_OUTLIER',
     ));
+
+  const substring = window.orAppFoodInput.recoverNumericTokenForDiagnostics(
+    "'23.5手",
+  );
+  assert.equal(substring.numericValue, 23.5);
+  assert.equal(substring.unit, null);
+  assert.equal(substring.unitStatus, 'MISSING');
+  assert.equal(substring.candidateType, 'NUMERIC_WITHOUT_UNIT');
+  assert.equal(substring.recoveryMethod, 'safe-numeric-substring-unitless');
+  const ambiguousNumeric = window.orAppFoodInput
+    .recoverNumericTokenForDiagnostics('2@3.5');
+  assert.equal(ambiguousNumeric.numericValue, null);
+  assert.match(ambiguousNumeric.ambiguity, /multiple-plausible/);
+
+  const passLocalOriginal = tsv([
+    word(1, 1, 10, 10, 110, '炭水化物'),
+    word(1, 2, 300, 10, 24, '5'),
+  ]);
+  const passLocalGrayscale = tsv([
+    word(1, 1, 10, 10, 70, '糖質'),
+    word(1, 2, 300, 10, 56, '23.4g'),
+  ]);
+  const passLocalFat = tsv([
+    word(1, 1, 10, 10, 24, '肥'),
+    word(1, 2, 36, 10, 24, '質'),
+    word(1, 3, 220, 10, 48, '8g'),
+  ]);
+  await window.orAppFoodInput.diagnoseStructuredNutritionPassesForTesting([
+    passLocalOriginal,
+    passLocalGrayscale,
+    passLocalFat,
+  ]);
+  const passLocalDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  const originalFive = passLocalDiagnostics.numericCandidates.find((item) =>
+    item.rawToken === '5' && item.sourcePass === 'original',
+  );
+  assert.equal(originalFive.nearestLabel, 'carbohydrate');
+  assert.equal(originalFive.nearestLabelSourcePass, 'original');
+  const sugarOwnership = passLocalDiagnostics.fieldOwnership.find((item) =>
+    item.rawToken === '23.4g',
+  );
+  assert.equal(sugarOwnership.ownerField, 'sugar');
+  assert.equal(sugarOwnership.nearestLabelSourcePass, 'grayscale');
 
   const consistentPass = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),

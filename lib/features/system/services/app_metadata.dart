@@ -4,15 +4,18 @@ import '../../import_export/models/backup_package.dart';
 class ReleaseMetadata {
   const ReleaseMetadata({
     required this.lastUpdated,
+    required this.releaseTitle,
     required this.releaseCommit,
   });
 
   static const unavailable = ReleaseMetadata(
     lastUpdated: 'NOT AVAILABLE',
+    releaseTitle: 'NOT AVAILABLE',
     releaseCommit: 'NOT AVAILABLE',
   );
 
   final String lastUpdated;
+  final String releaseTitle;
   final String releaseCommit;
 }
 
@@ -25,6 +28,10 @@ abstract final class AppMetadata {
   static const releaseMetadata = ReleaseMetadata(
     lastUpdated: String.fromEnvironment(
       'OR_APP_LAST_UPDATED',
+      defaultValue: 'NOT AVAILABLE',
+    ),
+    releaseTitle: String.fromEnvironment(
+      'OR_APP_RELEASE_TITLE',
       defaultValue: 'NOT AVAILABLE',
     ),
     releaseCommit: String.fromEnvironment(

@@ -154,6 +154,7 @@ void main() {
     expect(find.text('Backup Schema Version'), findsOneWidget);
     expect(find.text('Build Number'), findsOneWidget);
     expect(find.text('Last Updated'), findsOneWidget);
+    expect(find.text('Release Title'), findsOneWidget);
     expect(find.text('Release Commit'), findsOneWidget);
     expect(find.text('Appearance'), findsNothing);
     expect(find.text('Theme'), findsNothing);
@@ -334,6 +335,7 @@ void main() {
       'Backup Schema Version',
       'Build Number',
       'Last Updated',
+      'Release Title',
       'Release Commit',
       'Copyright',
       'License',
@@ -345,7 +347,7 @@ void main() {
     expect(find.text(AppMetadata.databaseVersion), findsOneWidget);
     expect(find.text(AppMetadata.backupSchemaVersion), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
-    expect(find.text('NOT AVAILABLE'), findsNWidgets(2));
+    expect(find.text('NOT AVAILABLE'), findsNWidgets(3));
     expect(find.text('未設定'), findsNWidgets(2));
     expect(find.text('Version'), findsNothing);
   });
@@ -356,6 +358,7 @@ void main() {
         home: AboutPage(
           releaseMetadata: ReleaseMetadata(
             lastUpdated: '2026-09-02 12:34 JST',
+            releaseTitle: 'feat: bridge food ocr decisions to review',
             releaseCommit: 'abcdef1',
           ),
         ),
@@ -363,6 +366,10 @@ void main() {
     );
 
     expect(find.text('2026-09-02 12:34 JST'), findsOneWidget);
+    expect(
+      find.text('feat: bridge food ocr decisions to review'),
+      findsOneWidget,
+    );
     expect(find.text('abcdef1'), findsOneWidget);
   });
 
@@ -378,6 +385,8 @@ void main() {
         home: AboutPage(
           releaseMetadata: ReleaseMetadata(
             lastUpdated: '2026-09-02 12:34 JST',
+            releaseTitle:
+                'feat: bridge food ocr decisions to review with a long title',
             releaseCommit: 'abcdef1',
           ),
         ),
@@ -386,6 +395,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Last Updated'), findsOneWidget);
+    expect(find.text('Release Title'), findsOneWidget);
     expect(find.text('Release Commit'), findsOneWidget);
   });
 

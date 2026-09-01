@@ -135,7 +135,7 @@ class FoodNutritionCandidateSession {
       return null;
     }
     decision['bridgeStatus'] = 'ACCEPTED_STRUCTURED';
-    decision['bridgeReason'] = 'typed-high-confidence-decision';
+    decision['bridgeReason'] = 'compatible-high-confidence-structured-decision';
     return value.toDouble();
   }
 
@@ -203,7 +203,13 @@ class FoodNutritionCandidateSession {
   ) {
     if (next == null) return current;
     if (current == null) {
-      _sources[field] = isStructured ? 'structured' : 'parser';
+      _sources[field] =
+          isStructured &&
+              _fieldDecisions[field]?['bridgeStatus'] == 'ACCEPTED_STRUCTURED'
+          ? 'STRUCTURED_DECISION'
+          : isStructured
+          ? 'structured'
+          : 'parser';
       return next;
     }
     if (current == next) {

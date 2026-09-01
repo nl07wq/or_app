@@ -1186,7 +1186,8 @@
       .replace(/^[^A-Za-zａ-ｚＡ-Ｚ]+/, '');
     const unit = recoverUnit(suffix);
     const unitlessToken = /^\d+(?:\.\d+)?$/.test(normalized);
-    if (!unit.unit && !unitlessToken) return null;
+    const safeNumericSubstring = /^[^\d@]*\d+(?:\.\d+)?[^\d@]*$/.test(normalized);
+    if (!unit.unit && !unitlessToken && !safeNumericSubstring) return null;
     if (!unit.unit) {
       const exactToken = /^\d+(?:\.\d+)?$/.test(raw.trim());
       return {
@@ -1199,7 +1200,7 @@
         unitStatus: 'MISSING',
         recoveryMethod: exactToken
           ? 'exact-unitless-numeric'
-          : 'safe-normalized-unitless-numeric',
+          : 'safe-numeric-substring-unitless',
         recoveryConfidence: exactToken ? 0.75 : 0.64,
         ambiguity: 'unit-not-observed',
       };
@@ -1582,6 +1583,12 @@
   }
 
   const targetNutritionFields = ['energy', 'protein', 'fat', 'carbohydrate'];
+  const nutritionOwnershipFields = [
+    ...targetNutritionFields,
+    'sugar',
+    'fiber',
+    'salt',
+  ];
 
   function compatibleValue(field, value) {
     if (!Number.isFinite(value.value) ||
@@ -1833,6 +1840,7 @@
     if (!ranked.length) return { nearestLabel: null, relationScore: null };
     return {
       nearestLabel: ranked[0].anchor.field,
+      nearestLabelSourcePass: ranked[0].anchor.sourcePass || null,
       relationScore: Math.round(ranked[0].score * 100) / 100,
     };
   }
@@ -1915,7 +1923,7 @@
     const anchor = analysis.anchors.find((item) => item.field === field);
     if (!anchor) return [];
     const headerAnchors = analysis.anchors.filter((candidate) =>
-      targetNutritionFields.includes(candidate.field) &&
+      nutritionOwnershipFields.includes(candidate.field) &&
       analysis.anchors.filter((item) => item.lineKey === candidate.lineKey).length >= 3,
     );
     const mapped = analysis.mapped.get(field);
@@ -1924,7 +1932,7 @@
       const score = relationshipScore(anchor, value, headerAnchors);
       if (!Number.isFinite(score)) return null;
       const strongerOtherField = analysis.anchors.some((candidate) =>
-        candidate.field !== field && targetNutritionFields.includes(candidate.field) &&
+        candidate.field !== field && nutritionOwnershipFields.includes(candidate.field) &&
         compatibleValue(candidate.field, value) &&
         relationshipScore(candidate, value, headerAnchors) < score,
       );
@@ -2526,6 +2534,9 @@
       carbohydrate: '炭水化物',
     };
     const allValues = analyses.flatMap((analysis) => analysis.values);
+    const passLocalNumericDiagnostics = analyses.flatMap((analysis) =>
+      analysis.values.map((value) => numericDiagnostic(value, analysis.anchors)),
+    );
     const allSemanticValues = analyses.flatMap((analysis) => analysis.semanticValues);
     const allAnchors = analyses.flatMap((analysis) => analysis.anchors);
     const mappings = analyses.flatMap((analysis) =>
@@ -2568,7 +2579,7 @@
           sourcePass: analysis.sourcePass,
         })),
       ),
-      tokenRecovery: allValues.map((value) => numericDiagnostic(value, allAnchors)),
+      tokenRecovery: passLocalNumericDiagnostics,
       labelRecovery: allAnchors.map((anchor) => ({
         rawText: anchor.rawText,
         candidate: anchor.alias,
@@ -2580,8 +2591,8 @@
         ambiguity: anchor.ambiguity,
         contextEvidence: anchor.contextEvidence || [],
       })),
-      numericRecovery: allValues.map((value) => numericDiagnostic(value, allAnchors)),
-      numericCandidates: allValues.map((value) => numericDiagnostic(value, allAnchors)),
+      numericRecovery: passLocalNumericDiagnostics,
+      numericCandidates: passLocalNumericDiagnostics,
       semanticDuplicateCollapse: allSemanticValues
         .filter((value) => value.rawCandidateCount > 1)
         .map((value) => ({
@@ -2608,6 +2619,20 @@
             geometry: item.geometry,
           })),
         )),
+      fieldOwnership: analyses.flatMap((analysis) =>
+        analysis.semanticValues.map((value) => {
+          const nearest = nearestAnchorDiagnostic(value, analysis.anchors);
+          return {
+            value: value.value,
+            unit: value.unit,
+            rawToken: value.rawToken,
+            sourcePass: value.sourcePass,
+            ownerField: nearest.nearestLabel,
+            nearestLabelSourcePass: nearest.nearestLabelSourcePass,
+            relationScore: nearest.relationScore,
+          };
+        }),
+      ),
       structuredCandidates: mappings,
       geometryMapping: mappings,
       unitTieBreak: mappings.filter((item) =>
