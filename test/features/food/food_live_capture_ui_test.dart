@@ -535,6 +535,81 @@ void main() {
     }
   });
 
+  testWidgets(
+    'temporary OCR diagnostics compares one still image responsively',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        var saveCalls = 0;
+        final gateway = _DiagnosticGateway();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FoodInputForm(
+                  captureGateway: gateway,
+                  onSave: (_) async {
+                    saveCalls += 1;
+                    return true;
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('food-entry-ocr')),
+        );
+        await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('nutrition-ocr-diagnostics')),
+          findsOne,
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('nutrition-ocr-diagnostics')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('PHOTO LIBRARY'));
+        await tester.pumpAndSettle();
+
+        expect(gateway.diagnosticCalls, 1);
+        expect(gateway.selectedSources, [FoodImageSource.gallery]);
+        expect(find.textContaining('OCR PIPELINE DIAGNOSTICS'), findsOneWidget);
+        expect(find.byKey(const ValueKey('view-standard-ocr-input')), findsOne);
+        expect(
+          find.byKey(const ValueKey('view-nutrition-ocr-input')),
+          findsOne,
+        );
+        expect(find.byKey(const ValueKey('copy-ocr-diagnostics')), findsOne);
+        expect(saveCalls, 0);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'diagnostics width $width',
+        );
+        await tester.tap(find.byKey(const ValueKey('view-standard-ocr-input')));
+        await tester.pumpAndSettle();
+        expect(find.text('STANDARD OCR INPUT'), findsOneWidget);
+        await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('view-nutrition-ocr-input')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('NUTRITION OCR INPUT'), findsOneWidget);
+        await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'CLOSE'));
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
   testWidgets('Food Entry keeps aligned master fields before daily amount', (
     tester,
   ) async {
@@ -644,5 +719,54 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   Future<FoodCapturedImage?> selectImage(FoodImageSource source) async {
     selectedSources.add(source);
     return const FoodCapturedImage('data:image/png;base64,AA==');
+  }
+}
+
+class _DiagnosticGateway extends _LiveGateway
+    implements FoodOcrDiagnosticGateway {
+  int diagnosticCalls = 0;
+
+  @override
+  Future<Map<String, dynamic>> diagnoseNutritionImage(
+    FoodCapturedImage image, {
+    required FoodImageSource source,
+  }) async {
+    diagnosticCalls += 1;
+    final branch = <String, dynamic>{
+      'scanMode': 'STANDARD OCR',
+      'engineId': 'tesseract',
+      'sourceDimensions': {'width': 1200, 'height': 800},
+      'orientation': {'exif': 1, 'appliedByDecoder': true},
+      'cropApplied': true,
+      'cropRect': {'x': 48, 'y': 80, 'width': 1104, 'height': 640},
+      'resizeApplied': false,
+      'ocrDimensions': {'width': 1104, 'height': 640},
+      'rotationCorrection': 'NOT REQUIRED',
+      'perspectiveCorrection': 'NOT APPLIED',
+      'inputPreviewDataUrl':
+          'data:image/png;base64,'
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLZAAAAAElFTkSuQmCC',
+      'passes': const [],
+      'words': const [],
+      'detectedLabels': const [],
+      'numericCandidates': const [],
+      'structuredCandidates': const [],
+      'selectedMappings': const {},
+      'parserDiagnostics': const [],
+      'finalResult': const {},
+      'formBinding': const {'status': 'NOT EXECUTED'},
+      'summary': const {},
+      'bottleneckClassification': 'UNKNOWN',
+    };
+    return {
+      'diagnosticVersion': 1,
+      'generatedAt': '2026-09-01T00:00:00Z',
+      'sourceType': 'photoLibrary',
+      'persistence': 'none',
+      'standard': branch,
+      'nutritionLabelReader': {...branch, 'scanMode': 'NUTRITION LABEL READER'},
+      'comparison': const {'sameRawOcr': true},
+      'rootCauseClassification': const {'primary': 'UNKNOWN'},
+    };
   }
 }

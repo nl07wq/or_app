@@ -289,7 +289,12 @@ void main() {
         'cropRect',
         'cropDimensions',
         'ocrDimensions',
+        'cropApplied',
+        'resizeApplied',
+        'rotationCorrection',
+        'perspectiveCorrection',
         'preprocessVariant',
+        'passes',
         'rawText',
         'wordCount',
         'averageConfidence',
@@ -306,10 +311,12 @@ void main() {
       }
       expect(bridge, contains("persistence: 'none'"));
       expect(bridge, isNot(contains('localStorage.setItem')));
-      expect(scanner, contains('kDebugMode && diagnosticsAvailable'));
+      expect(scanner, contains('if (diagnosticsAvailable)'));
+      expect(scanner, isNot(contains('kDebugMode && diagnosticsAvailable')));
       expect(scanner, contains('COPY OCR DIAGNOSTICS'));
-      expect(scanner, contains('VIEW OCR INPUT'));
-      expect(scanner, contains('_withoutOcrImages(diagnostics)'));
+      expect(scanner, contains('VIEW STANDARD INPUT'));
+      expect(scanner, contains('VIEW NUTRITION INPUT'));
+      expect(scanner, contains('formatFoodOcrDiagnosticReport(diagnostics)'));
     },
   );
 

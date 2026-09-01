@@ -1331,11 +1331,20 @@
     ];
     const labels = fields.map((field) => {
       const anchor = anchors.find((candidate) => candidate.field === field);
-      if (!anchor) return { field, detected: false };
+      if (!anchor) {
+        return {
+          field,
+          detected: false,
+          matchedRawText: null,
+          matchingRule: 'normalized exact alias within OCR line group',
+        };
+      }
       return {
         field,
         detected: true,
         matchedAlias: anchor.alias,
+        matchedRawText: anchor.alias,
+        matchingRule: 'normalized exact alias within OCR line group',
         confidence: anchor.confidence ?? null,
         boundingBox: {
           left: anchor.left,
@@ -1356,6 +1365,8 @@
         field: 'basis',
         detected: true,
         matchedAlias: basisGroup.words.map((word) => word.text).join(' '),
+        matchedRawText: basisGroup.words.map((word) => word.text).join(' '),
+        matchingRule: 'nutrition heading or existing basis pattern',
         confidence: averageConfidence(basisGroup.words),
         boundingBox: {
           left: box.left,
@@ -2515,6 +2526,11 @@
     const requiredFields = ['energy', 'protein', 'fat', 'carbohydrate'];
     const missing = requiredFields.filter((field) => !selectedMappings[field]);
     const words = (pipeline.passes || []).flatMap((pass) => pass.words || []);
+    const cropApplied = Number(input.cropX) !== 0 || Number(input.cropY) !== 0 ||
+      Number(input.cropWidth) !== Number(input.decodedWidth) ||
+      Number(input.cropHeight) !== Number(input.decodedHeight);
+    const resizeApplied = Number(input.inputWidth) !== Number(input.cropWidth) ||
+      Number(input.inputHeight) !== Number(input.cropHeight);
     return {
       diagnosticVersion: pipeline.diagnosticVersion,
       scanMode: pipeline.scanMode,
@@ -2535,9 +2551,26 @@
         width: input.cropWidth,
         height: input.cropHeight,
       },
+      cropApplied: cropApplied,
       cropDimensions: { width: input.cropWidth, height: input.cropHeight },
       ocrDimensions: { width: input.inputWidth, height: input.inputHeight },
+      resizeApplied: resizeApplied,
+      rotationCorrection: Number(input.orientation) === 1
+        ? 'NOT REQUIRED'
+        : input.orientationAppliedByDecoder
+          ? 'APPLIED BY BROWSER IMAGE DECODER'
+          : 'NOT CONFIRMED',
+      perspectiveCorrection: 'NOT APPLIED',
       preprocessVariant: (pipeline.passes || []).map((pass) => pass.preprocessVariant),
+      passes: (pipeline.passes || []).map((pass) => ({
+        ...pass,
+        size: { width: input.inputWidth, height: input.inputHeight },
+        parameters: pass.preprocessVariant === 'moderate-contrast'
+          ? { grayscale: true, contrast: 1.35 }
+          : pass.preprocessVariant === 'grayscale'
+            ? { grayscale: true, contrast: 1 }
+            : { jpegQuality: 0.94 },
+      })),
       inputPreviewDataUrl: pipeline.inputPreviewDataUrl,
       rawText: pipeline.rawText || '',
       lines: (pipeline.passes || []).flatMap((pass) => pass.lines || []),
@@ -2625,36 +2658,33 @@
     report.rootCauseClassification = report.nutritionLabelReader.wordCount === 0 ||
         readerNumbers === 0
       ? {
-          case: 'A',
-          primary: 'TESSERACT',
-          secondary: readerNumbers === 0 ? 'NUMERIC EXTRACTION' : null,
+          primary: report.nutritionLabelReader.wordCount === 0
+            ? 'RAW_OCR'
+            : 'NUMERIC_EXTRACTION',
+          secondary: null,
           reason: 'Required words or numeric tokens are absent before structured mapping.',
         }
       : readerLabels === 0
         ? {
-            case: 'B',
-            primary: 'LABEL DETECTION',
+            primary: 'LABEL_DETECTION',
             secondary: null,
             reason: 'OCR words and numeric candidates exist but no nutrition label was detected.',
           }
-      : readerMappings === 0
-        ? {
-            case: 'C',
-            primary: 'STRUCTURED MAPPING',
-            secondary: null,
-            reason: 'Labels and numeric candidates exist but no field was mapped.',
-          }
-        : report.nutritionLabelReader.fallbackUsed &&
-            report.comparison.sameRawOcr
+        : readerMappings === 0
           ? {
-              case: 'D',
-              primary: 'FALLBACK',
-              secondary: 'STRUCTURED MAPPING',
+              primary: 'MAPPING',
+              secondary: null,
+              reason: 'Labels and numeric candidates exist but no field was mapped.',
+            }
+          : report.nutritionLabelReader.fallbackUsed &&
+            report.comparison.sameRawOcr
+            ? {
+              primary: 'MAPPING',
+              secondary: null,
               reason: 'Reader output is incomplete and rejoins the same Dart parser path.',
             }
           : {
-              case: 'OTHER',
-              primary: 'OTHER',
+              primary: 'UNKNOWN',
               secondary: null,
               reason: 'The captured diagnostic does not isolate a failing stage.',
             };

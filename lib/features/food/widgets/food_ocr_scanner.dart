@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../food_nutrition_formatter.dart';
 import '../models/food_quantity_models.dart';
 import '../services/food_input_capture_gateway.dart';
+import '../services/food_ocr_diagnostic_report.dart';
 import '../services/food_live_capture_presenter.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
@@ -237,12 +237,12 @@ Future<_NutritionScanChoice?> _chooseScanMode(
           subtitle: const Text('栄養表示専用'),
           onTap: () => Navigator.pop(context, _NutritionScanChoice.reader),
         ),
-        if (kDebugMode && diagnosticsAvailable)
+        if (diagnosticsAvailable)
           ListTile(
             key: const ValueKey('nutrition-ocr-diagnostics'),
             leading: const Icon(Icons.bug_report_outlined),
             title: const Text('OCR DIAGNOSTICS'),
-            subtitle: const Text('Developer-only pipeline comparison'),
+            subtitle: const Text('一時監査：同一画像で両モードを比較'),
             onTap: () =>
                 Navigator.pop(context, _NutritionScanChoice.diagnostics),
           ),
@@ -259,7 +259,7 @@ Future<void> _showNutritionOcrDiagnostics(
       gateway is FoodOcrDiagnosticGateway
       ? gateway as FoodOcrDiagnosticGateway
       : null;
-  if (!kDebugMode || diagnosticGateway == null) return;
+  if (diagnosticGateway == null) return;
   final source = await _chooseStillImageSource(context);
   if (source == null || !context.mounted) return;
   final image = await gateway.selectImage(source);
@@ -281,14 +281,16 @@ Future<void> _showNutritionOcrDiagnostics(
   );
   Map<String, dynamic> diagnostics;
   try {
-    diagnostics = await diagnosticGateway.diagnoseNutritionImage(image);
+    diagnostics = await diagnosticGateway.diagnoseNutritionImage(
+      image,
+      source: source,
+    );
   } finally {
     if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
   }
   if (!context.mounted) return;
 
-  final copyPayload = _withoutOcrImages(diagnostics);
-  final formatted = const JsonEncoder.withIndent('  ').convert(copyPayload);
+  final formatted = formatFoodOcrDiagnosticReport(diagnostics);
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -298,13 +300,14 @@ Future<void> _showNutritionOcrDiagnostics(
         child: SingleChildScrollView(child: SelectableText(formatted)),
       ),
       actions: [
-        if (_diagnosticPreview(diagnostics) case final preview?)
+        if (_diagnosticPreview(diagnostics, 'standard') case final preview?)
           TextButton(
+            key: const ValueKey('view-standard-ocr-input'),
             onPressed: () => showDialog<void>(
               context: dialogContext,
               builder: (previewContext) => AlertDialog(
-                title: const Text('OCR INPUT'),
-                content: InteractiveViewer(child: Image.network(preview)),
+                title: const Text('STANDARD OCR INPUT'),
+                content: InteractiveViewer(child: _diagnosticImage(preview)),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(previewContext),
@@ -313,9 +316,29 @@ Future<void> _showNutritionOcrDiagnostics(
                 ],
               ),
             ),
-            child: const Text('VIEW OCR INPUT'),
+            child: const Text('VIEW STANDARD INPUT'),
+          ),
+        if (_diagnosticPreview(diagnostics, 'nutritionLabelReader')
+            case final preview?)
+          TextButton(
+            key: const ValueKey('view-nutrition-ocr-input'),
+            onPressed: () => showDialog<void>(
+              context: dialogContext,
+              builder: (previewContext) => AlertDialog(
+                title: const Text('NUTRITION OCR INPUT'),
+                content: InteractiveViewer(child: _diagnosticImage(preview)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(previewContext),
+                    child: const Text('CLOSE'),
+                  ),
+                ],
+              ),
+            ),
+            child: const Text('VIEW NUTRITION INPUT'),
           ),
         TextButton(
+          key: const ValueKey('copy-ocr-diagnostics'),
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: formatted));
             if (dialogContext.mounted) {
@@ -335,28 +358,18 @@ Future<void> _showNutritionOcrDiagnostics(
   );
 }
 
-Map<String, dynamic> _withoutOcrImages(Map<String, dynamic> value) =>
-    _sanitizeDiagnosticValue(value) as Map<String, dynamic>;
-
-Object? _sanitizeDiagnosticValue(Object? value) {
-  if (value is List) return value.map(_sanitizeDiagnosticValue).toList();
-  if (value is Map) {
-    return <String, dynamic>{
-      for (final entry in value.entries)
-        if (!entry.key.toString().toLowerCase().contains('preview'))
-          entry.key.toString(): _sanitizeDiagnosticValue(entry.value),
-    };
-  }
-  return value;
-}
-
-String? _diagnosticPreview(Map<String, dynamic> diagnostics) {
-  final standard = diagnostics['standard'];
-  if (standard is! Map) return null;
-  final preview = standard['inputPreviewDataUrl'];
+String? _diagnosticPreview(Map<String, dynamic> diagnostics, String mode) {
+  final branch = diagnostics[mode];
+  if (branch is! Map) return null;
+  final preview = branch['inputPreviewDataUrl'];
   return preview is String && preview.startsWith('data:image/')
       ? preview
       : null;
+}
+
+Widget _diagnosticImage(String dataUrl) {
+  final separator = dataUrl.indexOf(',');
+  return Image.memory(base64Decode(dataUrl.substring(separator + 1)));
 }
 
 Future<FoodImageSource?> _chooseStillImageSource(BuildContext context) =>
