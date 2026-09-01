@@ -82,6 +82,7 @@ void main() {
 
   test('structured recovery decisions remain advisory and observable', () {
     final session = FoodNutritionCandidateSession();
+    session.describe('炭水化物 23.9g');
     session.describe(
       '[[OR_STRUCTURED_NUTRITION]]\nエネルギー 188kcal\n'
       '[[OR_OCR_DECISIONS]]\n'
@@ -94,6 +95,7 @@ void main() {
     );
 
     expect(session.draft.calories, 188);
+    expect(session.draft.carbohydrate, isNull);
     expect(session.fieldDecisions['ENERGY']?['confidence'], 'HIGH');
     expect(
       session.fieldDecisions['CARBOHYDRATE']?['decision'],

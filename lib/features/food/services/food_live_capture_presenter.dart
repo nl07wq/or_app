@@ -67,11 +67,38 @@ class FoodNutritionCandidateSession {
       packageQuantity: next.packageQuantity ?? _draft.packageQuantity,
       packageUnit: next.packageUnit ?? _draft.packageUnit,
     );
+    _applyFieldDecisionPolicy();
     _recordCandidateSources(next);
     return _candidate(
       _draft,
       hasRawText: parserInput.trim().isNotEmpty,
       conflicts: _conflicts,
+    );
+  }
+
+  void _applyFieldDecisionPolicy() {
+    final excludedFields = <String>{};
+    for (final entry in _fieldDecisions.entries) {
+      if (entry.value['conflict'] == true ||
+          entry.value['decision'] == 'CANDIDATE_ONLY' ||
+          entry.value['decision'] == 'NOT_AVAILABLE') {
+        excludedFields.add(entry.key);
+        _sources.remove(entry.key);
+        _candidateSources.remove(entry.key);
+      }
+    }
+
+    _draft = NutritionOcrDraft(
+      basisQuantity: _draft.basisQuantity,
+      basisUnit: _draft.basisUnit,
+      calories: excludedFields.contains('ENERGY') ? null : _draft.calories,
+      protein: excludedFields.contains('PROTEIN') ? null : _draft.protein,
+      fat: excludedFields.contains('FAT') ? null : _draft.fat,
+      carbohydrate: excludedFields.contains('CARBOHYDRATE')
+          ? null
+          : _draft.carbohydrate,
+      packageQuantity: _draft.packageQuantity,
+      packageUnit: _draft.packageUnit,
     );
   }
 
