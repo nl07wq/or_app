@@ -197,6 +197,20 @@ void main() {
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
       expect(find.text('COMMAND CENTER'), findsOneWidget);
+      final briefDebriefTab = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('command-center-tab-1')),
+          matching: find.text('BRIEF / DEBRIEF'),
+        ),
+      );
+      final periodicTab = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('command-center-tab-0')),
+          matching: find.text('PERIODIC REPORT'),
+        ),
+      );
+      expect(briefDebriefTab.style?.fontWeight, FontWeight.bold);
+      expect(periodicTab.style?.fontWeight, isNot(FontWeight.bold));
       expect(
         find.byKey(const ValueKey('morning-brief-content')),
         findsOneWidget,

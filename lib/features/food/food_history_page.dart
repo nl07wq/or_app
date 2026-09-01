@@ -22,6 +22,7 @@ import 'food_catalog_page.dart';
 import 'models/daily_meal_v2_models.dart';
 import 'models/food_catalog_models.dart';
 import 'models/food_quantity_models.dart';
+import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'models/recipe_models_v2.dart';
 import 'widgets/food_thumbnail.dart';
@@ -37,6 +38,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   bool _isLoading = true;
   List<MealData> _records = const [];
   List<DailyMealV2> _v2Records = const [];
+  List<FoodUnifiedReadModel> _historyOrder = const [];
   Map<String, FoodCatalogEntry> _catalogEntries = const {};
   Map<String, FoodRecipeDefinition> _recipeEntries = const {};
   Object? _loadError;
@@ -65,6 +67,8 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           : const <DailyMealV2>[];
       _v2Records = v2Records.reversed.toList(growable: false);
       if (AppRepositoryRegistry.hasContainer) {
+        _historyOrder = await AppRepositoryRegistry.container.foodMixedRead
+            .readHistory();
         final referenceIds = v2Records
             .expand((meal) => meal.items)
             .map((item) => item.foodReferenceId)
@@ -94,6 +98,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             recipe.recipeId: recipe,
         };
       } else {
+        _historyOrder = const [];
         _catalogEntries = const {};
         _recipeEntries = const {};
       }
@@ -154,6 +159,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
   Widget _buildMealCard(BuildContext context, MealData meal) {
     return OperationCard(
+      key: ValueKey('food-history-v1-${meal.id}'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -292,6 +298,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   }
 
   Widget _buildV2MealCard(DailyMealV2 meal) => OperationCard(
+    key: ValueKey('food-history-v2-${meal.mealId}'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -444,25 +451,42 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       return const Center(child: Text('No meal records.'));
     }
 
-    final groupedRecords = <String, List<MealData>>{};
-    for (final meal in _records) {
-      groupedRecords.putIfAbsent(meal.date, () => []).add(meal);
+    final legacyById = {for (final meal in _records) meal.id: meal};
+    final v2ById = {for (final meal in _v2Records) meal.mealId: meal};
+    final groupedCards = <String, List<Widget>>{};
+    for (final record in _historyOrder) {
+      final card = switch (record.identity.recordKind) {
+        FoodRecordKind.legacyV1 =>
+          legacyById[record.identity.recordId] == null
+              ? null
+              : _buildMealCard(context, legacyById[record.identity.recordId]!),
+        FoodRecordKind.dailyMealV2 =>
+          v2ById[record.identity.recordId] == null
+              ? null
+              : _buildV2MealCard(v2ById[record.identity.recordId]!),
+      };
+      if (card != null) {
+        groupedCards.putIfAbsent(record.localDate, () => []).add(card);
+      }
     }
-    final sections = <Widget>[
-      for (final meal in _v2Records) _buildV2MealCard(meal),
-      for (final group in groupedRecords.entries)
+    if (groupedCards.isEmpty) {
+      for (final meal in _records) {
+        groupedCards
+            .putIfAbsent(meal.date.substring(0, 10), () => [])
+            .add(_buildMealCard(context, meal));
+      }
+    }
+    final sections = [
+      for (final group in groupedCards.entries)
         Column(
+          key: ValueKey('food-history-date-${group.key}'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(icon: Icons.calendar_today, title: group.key),
             AppSpacing.gapMD,
-            for (
-              var mealIndex = 0;
-              mealIndex < group.value.length;
-              mealIndex++
-            ) ...[
-              _buildMealCard(context, group.value[mealIndex]),
-              if (mealIndex < group.value.length - 1) AppSpacing.gapMD,
+            for (var index = 0; index < group.value.length; index++) ...[
+              group.value[index],
+              if (index < group.value.length - 1) AppSpacing.gapMD,
             ],
           ],
         ),

@@ -34,6 +34,8 @@ String dailyBriefPresentationIdentity(String localDate, int revision) =>
 
 typedef _CommanderIntentOutcomePresentation = ({Color color, String label});
 
+enum BriefDebriefTab { dailyBrief, dailyDebrief }
+
 _CommanderIntentOutcomePresentation _commanderIntentOutcomePresentation(
   BuildContext context,
   DailyDebriefCommanderIntentOutcome outcome,
@@ -66,10 +68,12 @@ Color _morningBriefBackNumberColor(MorningBriefOperationStatus status) =>
 class BriefDebriefPage extends StatelessWidget {
   const BriefDebriefPage({
     super.key,
+    this.initialTab = BriefDebriefTab.dailyBrief,
     this.dailyLogSourceLoader = DailyLogConfirmationService.loadSourceSnapshot,
     this.prepareDailyDebrief,
   });
 
+  final BriefDebriefTab initialTab;
   final Future<DailyLogSourceSnapshot> Function(String localDate)
   dailyLogSourceLoader;
   final PrepareDailyDebrief? prepareDailyDebrief;
@@ -77,6 +81,7 @@ class BriefDebriefPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DefaultTabController(
     length: 2,
+    initialIndex: initialTab.index,
     child: Column(
       children: [
         const Padding(

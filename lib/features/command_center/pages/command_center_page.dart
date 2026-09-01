@@ -86,10 +86,22 @@ String cycleStateHelp(DailyCommandCycleState state) => switch (state) {
     '日次確定のバックアップまたは日付更新の復旧が必要です。復旧完了後に通常運用へ戻ります。',
 };
 
-class CommandCenterPage extends StatefulWidget {
-  const CommandCenterPage({super.key, this.initialPage = 2});
+enum CommandCenterSection {
+  periodicReport,
+  briefDebrief,
+  dailyCommand,
+  dataCenter,
+}
 
-  final int initialPage;
+class CommandCenterPage extends StatefulWidget {
+  const CommandCenterPage({
+    super.key,
+    this.initialSection = CommandCenterSection.dailyCommand,
+    this.initialBriefDebriefTab = BriefDebriefTab.dailyBrief,
+  });
+
+  final CommandCenterSection initialSection;
+  final BriefDebriefTab initialBriefDebriefTab;
 
   @override
   State<CommandCenterPage> createState() => _CommandCenterPageState();
@@ -103,7 +115,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
   @override
   void initState() {
     super.initState();
-    _currentPage = widget.initialPage;
+    _currentPage = widget.initialSection.index;
     _pageController = PageController(initialPage: _currentPage);
   }
 
@@ -137,7 +149,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
               onPageChanged: (page) => setState(() => _currentPage = page),
               children: [
                 const PeriodicReportWorkspace(),
-                const BriefDebriefPage(),
+                BriefDebriefPage(initialTab: widget.initialBriefDebriefTab),
                 _DailyCommandPage(
                   refreshToken: _refreshToken,
                   onRefresh: _refresh,

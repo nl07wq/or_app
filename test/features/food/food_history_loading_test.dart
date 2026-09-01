@@ -77,6 +77,61 @@ void main() {
     expect(find.text('Rice'), findsOneWidget);
   });
 
+  testWidgets('mixed v1 and v2 history is grouped by operation date', (
+    tester,
+  ) async {
+    _seed(
+      database,
+      _meal(id: 'current-water', date: '2026-09-01', waterMl: 500),
+    );
+    _seed(database, _meal(id: 'previous-food', date: '2026-08-31'));
+    _seedV2(
+      database,
+      mealId: '66666666-6666-4666-8666-666666666666',
+      foodReferenceId: null,
+      name: 'Current Food',
+      localDate: '2026-09-01',
+    );
+    _seedV2(
+      database,
+      mealId: '77777777-7777-4777-8777-777777777777',
+      foodReferenceId: null,
+      name: 'Previous Food',
+      localDate: '2026-08-31',
+    );
+
+    await _pumpPage(tester);
+
+    final currentGroup = find.byKey(
+      const ValueKey('food-history-date-2026-09-01'),
+    );
+    final previousGroup = find.byKey(
+      const ValueKey('food-history-date-2026-08-31'),
+    );
+    expect(currentGroup, findsOneWidget);
+    expect(previousGroup, findsOneWidget);
+    expect(
+      tester.getTopLeft(currentGroup).dy,
+      lessThan(tester.getTopLeft(previousGroup).dy),
+    );
+    expect(
+      find.descendant(of: currentGroup, matching: find.text('500 ml')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: currentGroup, matching: find.text('Current Food')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: previousGroup, matching: find.text('Rice')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: previousGroup, matching: find.text('Previous Food')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('measured food shows amount and calculated nutrition', (
     tester,
   ) async {
@@ -414,11 +469,12 @@ void _seedV2(
   required String? foodReferenceId,
   String? recipeReferenceId,
   required String name,
+  String localDate = '2026-07-26',
 }) {
-  final timestamp = DateTime.utc(2026, 7, 26);
+  final timestamp = DateTime.parse('${localDate}T10:00:00.000Z');
   final meal = DailyMealV2(
     mealId: mealId,
-    localDate: '2026-07-26',
+    localDate: localDate,
     mealType: DailyMealTypeV2.lunch,
     items: [
       DailyMealItemSnapshot(

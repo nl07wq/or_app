@@ -108,6 +108,33 @@ void main() {
     },
   );
 
+  testWidgets('Food Entry Water persists the canonical operation date', (
+    tester,
+  ) async {
+    final operationDate = operationDateServiceFromFuture(
+      Future.value(operationStateForTest('2026-08-31')),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: FoodEntryPage(operationDateService: operationDate)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Water'));
+    await tester.pump();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Water Volume (ml)'),
+      '500',
+    );
+    await tester.ensureVisible(find.text('Save Water'));
+    await tester.tap(find.text('Save Water'));
+    await tester.pumpAndSettle();
+
+    final records = await AppRepositoryRegistry.container.food.findAll();
+    expect(records, hasLength(1));
+    expect(records.single.date, '2026-08-31');
+    expect(records.single.waterMl, 500);
+  });
+
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {
     testWidgets('compact Meal item UI is responsive at ${width.toInt()}px', (
       tester,

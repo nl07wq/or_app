@@ -7,6 +7,7 @@ import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../command_center/pages/command_center_page.dart';
+import '../command_center/widgets/brief_debrief_page.dart';
 import '../report_sync/models/report_sync_envelope.dart';
 import '../report_sync/pages/report_sync_exchange_page.dart';
 
@@ -205,7 +206,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
       Navigator.of(context).pushAndRemoveUntil<void>(
         MaterialPageRoute(
           settings: const RouteSettings(name: AppRoutes.commandCenter),
-          builder: (_) => const CommandCenterPage(initialPage: 0),
+          builder: (_) => const CommandCenterPage(
+            initialSection: CommandCenterSection.briefDebrief,
+            initialBriefDebriefTab: BriefDebriefTab.dailyBrief,
+          ),
         ),
         ModalRoute.withName(AppRoutes.dashboard),
       );

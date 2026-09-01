@@ -214,6 +214,19 @@ void main() {
       expect(above.water.state, DynamicTargetState.green);
     });
 
+    test('intake changes progress state but never changes the target', () {
+      final values = [
+        _evaluate(history: _referenceHistory(weight: 90)),
+        _evaluate(history: _referenceHistory(weight: 90), water: 500),
+        _evaluate(history: _referenceHistory(weight: 90), water: 2700),
+      ];
+
+      expect(values.map((value) => value.water.finalTargetMl).toSet(), {2700});
+      expect(values[0].water.state, DynamicTargetState.neutral);
+      expect(values[1].water.state, DynamicTargetState.neutral);
+      expect(values[2].water.state, DynamicTargetState.green);
+    });
+
     test('absence of a training record is none confirmed, not skipped', () {
       final before = _evaluate(
         history: _referenceHistory(weight: 90),
