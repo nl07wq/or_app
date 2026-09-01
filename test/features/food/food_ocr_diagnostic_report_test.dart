@@ -98,6 +98,12 @@ void main() {
     expect(text, contains('STANDARD OCR'));
     expect(text, contains('NUTRITION LABEL READER'));
     expect(text, contains('RAW OCR:'));
+    expect(text, contains('TOKEN RECOVERY'));
+    expect(text, contains('LABEL RECOVERY'));
+    expect(text, contains('NUMERIC RECOVERY'));
+    expect(text, contains('GEOMETRY MAPPING'));
+    expect(text, contains('MULTI-PASS CONSENSUS'));
+    expect(text, contains('CONFIDENCE DECISION'));
     expect(text, contains('FORM BINDING'));
     expect(text, contains('NOT EXECUTED'));
     expect(text, contains('COMPARISON SUMMARY'));

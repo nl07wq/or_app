@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../food_nutrition_formatter.dart';
 import '../models/food_quantity_models.dart';
 import 'food_input_capture_gateway.dart';
@@ -8,24 +10,42 @@ FoodOcrLiveCandidate describeNutritionCandidate(String rawText) =>
 
 class FoodNutritionCandidateSession {
   static const _structuredMarker = '[[OR_STRUCTURED_NUTRITION]]';
+  static const _decisionMarker = '[[OR_OCR_DECISIONS]]';
 
   NutritionOcrDraft _draft = const NutritionOcrDraft();
   String? _lastRawText;
   final Map<String, String> _sources = {};
   final Map<String, String> _candidateSources = {};
   final Set<String> _conflicts = {};
+  final Map<String, Map<String, dynamic>> _fieldDecisions = {};
 
   NutritionOcrDraft get draft => _draft;
   String? get lastRawText => _lastRawText;
   Set<String> get conflicts => Set.unmodifiable(_conflicts);
-  Map<String, String> get candidateSources => Map.unmodifiable(_candidateSources);
+  Map<String, String> get candidateSources =>
+      Map.unmodifiable(_candidateSources);
+  Map<String, Map<String, dynamic>> get fieldDecisions => Map.unmodifiable(
+    _fieldDecisions.map(
+      (key, value) => MapEntry(key, Map<String, dynamic>.unmodifiable(value)),
+    ),
+  );
 
   FoodOcrLiveCandidate describe(String rawText) {
     _lastRawText = rawText;
     final isStructured = rawText.startsWith(_structuredMarker);
-    final parserInput = isStructured
+    var parserInput = isStructured
         ? rawText.substring(_structuredMarker.length).trimLeft()
         : rawText;
+    if (isStructured) {
+      final decisionIndex = parserInput.indexOf(_decisionMarker);
+      if (decisionIndex >= 0) {
+        final encoded = parserInput
+            .substring(decisionIndex + _decisionMarker.length)
+            .trim();
+        parserInput = parserInput.substring(0, decisionIndex).trimRight();
+        _readFieldDecisions(encoded);
+      }
+    }
     final next = const JapaneseNutritionOcrParser().parse(parserInput);
     _draft = NutritionOcrDraft(
       basisQuantity: next.basisQuantity ?? _draft.basisQuantity,
@@ -53,6 +73,25 @@ class FoodNutritionCandidateSession {
       hasRawText: parserInput.trim().isNotEmpty,
       conflicts: _conflicts,
     );
+  }
+
+  void _readFieldDecisions(String encoded) {
+    try {
+      final decoded = jsonDecode(encoded);
+      if (decoded is! Map) return;
+      for (final entry in decoded.entries) {
+        if (entry.value case final Map value) {
+          _fieldDecisions[entry.key.toString().toUpperCase()] = value.map(
+            (key, item) => MapEntry(key.toString(), item),
+          );
+          if (value['conflict'] == true) {
+            _conflicts.add(entry.key.toString().toUpperCase());
+          }
+        }
+      }
+    } on FormatException {
+      // Decision metadata is advisory. Raw OCR parsing remains available.
+    }
   }
 
   void _recordCandidateSources(NutritionOcrDraft next) {

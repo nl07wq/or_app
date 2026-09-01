@@ -1043,18 +1043,148 @@
     fiber: ['食物繊維'],
     salt: ['食塩相当量'],
   });
+  const nutritionBasisAliases = Object.freeze([
+    '製品1個あたり',
+    '1個あたり',
+    '100gあたり',
+    '100mlあたり',
+    '1包装あたり',
+  ]);
   const structuredMarker = '[[OR_STRUCTURED_NUTRITION]]\n';
+  const decisionMarker = '\n[[OR_OCR_DECISIONS]]\n';
   const nutritionBasisPattern =
-    /(?:100\s*(?:g|m[lL])|(?:\d+\s*)?(?:袋|個|本|枚|食)(?:\s*\d+(?:[.,]\d+)?\s*(?:g|m[lL]))?)\s*当たり/i;
+    /(?:製品\s*)?(?:100\s*(?:g|m[lL])|(?:\d+\s*)?(?:包装|袋|個|本|枚|食)(?:\s*\d+(?:[.,]\d+)?\s*(?:g|m[lL]))?)\s*(?:当たり|あたり)/i;
 
   function normalizeOcrToken(value) {
     return String(value || '')
       .replace(/[ \t　]/g, '')
       .replace(/．/g, '.')
       .replace(/，/g, ',')
+      .replace(/[Ａ-Ｚａ-ｚ]/g, (letter) =>
+        String.fromCharCode(letter.charCodeAt(0) - 0xfee0),
+      )
       .replace(/[０-９]/g, (digit) =>
         String.fromCharCode(digit.charCodeAt(0) - 0xff10 + 0x30),
-      );
+      )
+      .replace(/ｇ/gi, 'g');
+  }
+
+  function editDistance(first, second) {
+    const left = [...String(first || '')];
+    const right = [...String(second || '')];
+    const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let row = 1; row <= left.length; row += 1) {
+      const current = [row];
+      for (let column = 1; column <= right.length; column += 1) {
+        current[column] = Math.min(
+          current[column - 1] + 1,
+          previous[column] + 1,
+          previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
+        );
+      }
+      previous.splice(0, previous.length, ...current);
+    }
+    return previous[right.length];
+  }
+
+  function recoveryConfidenceValue(status) {
+    return status === 'EXACT' ? 1 :
+      status === 'RECOVERED_HIGH' ? 0.86 :
+        status === 'RECOVERED_MEDIUM' ? 0.64 : 0;
+  }
+
+  function recoverUnit(rawSuffix) {
+    const raw = String(rawSuffix || '');
+    const normalized = normalizeOcrToken(raw).toLowerCase();
+    const exact = /^(kcal|mg|g|ml)$/.exec(normalized);
+    if (exact) {
+      const canonicalRaw = raw.replace(/[ \t　]/g, '').toLowerCase();
+      const status = canonicalRaw === exact[1] ? 'EXACT' : 'RECOVERED_HIGH';
+      return {
+        unit: exact[1],
+        status,
+        recoveryMethod: status === 'EXACT' ? 'exact-unit' : 'safe-unit-normalization',
+        recoveryConfidence: recoveryConfidenceValue(status),
+        ambiguity: null,
+      };
+    }
+    const fuzzyVariants = [
+      normalized,
+      normalized.replace(/[^a-z]/g, ''),
+      normalized.replace(/[^a-z]/g, '').replace(/(.)\1+/g, '$1'),
+    ];
+    const distance = Math.min(...fuzzyVariants.map((candidate) =>
+      editDistance(candidate, 'kcal'),
+    ));
+    if (normalized.length >= 3 && normalized.length <= 7 &&
+        distance <= 2 && /k/i.test(normalized) && /l/i.test(normalized)) {
+      const status = distance === 1 ? 'RECOVERED_HIGH' : 'RECOVERED_MEDIUM';
+      return {
+        unit: 'kcal',
+        status,
+        recoveryMethod: 'limited-fuzzy-unit',
+        recoveryConfidence: recoveryConfidenceValue(status),
+        ambiguity: null,
+      };
+    }
+    return {
+      unit: null,
+      status: 'REJECTED',
+      recoveryMethod: null,
+      recoveryConfidence: 0,
+      ambiguity: raw ? 'unsupported-or-ambiguous-unit' : null,
+    };
+  }
+
+  function recoverNumericToken(rawToken) {
+    const raw = String(rawToken || '');
+    const normalized = normalizeOcrToken(raw)
+      .replace(/(\d),(?=\d)/g, '$1.');
+    const ambiguousSpan = /\d[OolI@][\d.]/i.test(normalized) ||
+      /\d[\d.]*[OolI@][\d.]*\d/i.test(normalized) ||
+      /^\D*\d+(?:\.\d+)?@(?=[a-z])/i.test(normalized);
+    if (ambiguousSpan) {
+      return {
+        rawToken: raw,
+        normalizedToken: normalized,
+        normalizationCandidates: [],
+        candidateType: 'AMBIGUOUS_NUMERIC',
+        numericValue: null,
+        unit: null,
+        unitStatus: 'REJECTED',
+        recoveryMethod: 'ambiguous-character-preserved',
+        recoveryConfidence: 0,
+        ambiguity: 'multiple-plausible-character-interpretations',
+      };
+    }
+    const numeric = /\d+(?:\.\d+)?/.exec(normalized);
+    if (!numeric) return null;
+    const value = Number(numeric[0]);
+    if (!Number.isFinite(value) || value < 0) return null;
+    const suffix = normalized.slice(numeric.index + numeric[0].length)
+      .replace(/^[^A-Za-zａ-ｚＡ-Ｚ]+/, '');
+    const unit = recoverUnit(suffix);
+    if (!unit.unit) return null;
+    const exactToken = /^(\d+(?:\.\d+)?)\s*(kcal|mg|g|ml)$/i.test(raw.trim());
+    const status = exactToken && unit.status === 'EXACT' ? 'EXACT' :
+      unit.status === 'RECOVERED_MEDIUM' ? 'RECOVERED_MEDIUM' : 'RECOVERED_HIGH';
+    return {
+      rawToken: raw,
+      normalizedToken: normalized,
+      normalizationCandidates: normalized === raw ? [] : [normalized],
+      candidateType: 'NUMERIC_WITH_UNIT',
+      numericValue: value,
+      unit: unit.unit,
+      unitStatus: unit.status,
+      recoveryMethod: exactToken
+        ? 'exact-numeric-unit'
+        : `numeric-substring+${unit.recoveryMethod}`,
+      recoveryConfidence: Math.min(
+        recoveryConfidenceValue(status),
+        unit.recoveryConfidence,
+      ),
+      ambiguity: unit.ambiguity,
+    };
   }
 
   function tsvWords(tsv) {
@@ -1170,6 +1300,55 @@
     return { left, top, right, bottom, width: right - left, height: bottom - top };
   }
 
+  function labelRecovery(rawText, confidence = null) {
+    const normalized = normalizeOcrToken(rawText)
+      .replace(/[：:・。、()（）\[\]]/g, '');
+    let best = null;
+    for (const [field, aliases] of Object.entries(nutritionLabels)) {
+      for (const alias of aliases) {
+        if (normalized === alias || normalized.includes(alias)) {
+          return {
+            field,
+            alias,
+            status: normalized === alias ? 'EXACT' : 'RECOVERED_HIGH',
+            recoveryMethod: normalized === alias
+              ? 'exact-label'
+              : 'safe-normalized-label-within-token',
+            recoveryConfidence: normalized === alias ? 1 : 0.9,
+            ambiguity: null,
+          };
+        }
+        if (alias.length <= 2 || normalized.length < alias.length - 1 ||
+            normalized.length > alias.length + 2) continue;
+        const distance = editDistance(normalized, alias);
+        const allowed = Math.max(1, Math.floor(alias.length * 0.25));
+        if (distance > allowed) continue;
+        const similarity = 1 - distance / Math.max(normalized.length, alias.length);
+        const confidenceFactor = Number.isFinite(Number(confidence))
+          ? Math.max(0.5, Math.min(1, Number(confidence) / 100))
+          : 0.8;
+        const score = similarity * confidenceFactor;
+        const status = score >= 0.72 ? 'RECOVERED_HIGH' : 'RECOVERED_MEDIUM';
+        const candidate = {
+          field,
+          alias,
+          status,
+          recoveryMethod: 'limited-fuzzy-label',
+          recoveryConfidence: Math.round(score * 100) / 100,
+          ambiguity: null,
+          distance,
+        };
+        if (!best || candidate.recoveryConfidence > best.recoveryConfidence) {
+          best = candidate;
+        } else if (candidate.recoveryConfidence === best.recoveryConfidence &&
+            candidate.field !== best.field) {
+          best = { ...best, status: 'REJECTED', ambiguity: 'equal-label-candidates' };
+        }
+      }
+    }
+    return best && best.status !== 'REJECTED' ? best : null;
+  }
+
   function nutritionAnchors(groups) {
     const anchors = [];
     for (const group of groups) {
@@ -1187,9 +1366,20 @@
             cursor = end;
           }
           if (matched.length) {
+            const matchedNormalized = matched
+              .map((word) => normalizeOcrToken(word.text))
+              .join('');
+            const exactLabel = matchedNormalized === alias;
             anchors.push({
               field,
               alias,
+              rawText: matched.map((word) => word.text).join(' '),
+              status: exactLabel ? 'EXACT' : 'RECOVERED_HIGH',
+              recoveryMethod: exactLabel
+                ? 'exact-label'
+                : 'safe-normalized-label-within-line',
+              recoveryConfidence: exactLabel ? 1 : 0.9,
+              ambiguity: null,
               lineKey: group.lineKey,
               confidence: averageConfidence(matched),
               ...boxForWords(matched),
@@ -1198,26 +1388,54 @@
           break;
         }
       }
+      for (let index = 0; index < group.words.length; index += 1) {
+        for (const count of [1, 2]) {
+          const selected = group.words.slice(index, index + count);
+          if (selected.length !== count) continue;
+          const rawText = selected.map((word) => word.text).join('');
+          const recovered = labelRecovery(rawText, averageConfidence(selected));
+          if (!recovered || anchors.some((anchor) =>
+            anchor.field === recovered.field && anchor.lineKey === group.lineKey,
+          )) continue;
+          anchors.push({
+            ...recovered,
+            rawText,
+            lineKey: group.lineKey,
+            confidence: averageConfidence(selected),
+            ...boxForWords(selected),
+          });
+        }
+      }
     }
     return anchors;
   }
 
   function numericValues(groups) {
     const values = [];
-    const pattern = /^(\d+(?:[.,]\d+)?)(kcal|mg|g)$/i;
     for (const group of groups) {
       for (let index = 0; index < group.words.length; index += 1) {
         for (const count of [1, 2]) {
           const selected = group.words.slice(index, index + count);
           if (selected.length !== count) continue;
-          const match = pattern.exec(normalizeOcrToken(selected.map((word) => word.text).join('')));
-          if (!match) continue;
-          const number = Number(match[1].replace(',', '.'));
-          if (!Number.isFinite(number) || number < 0) continue;
+          if (count === 2 && labelRecovery(selected[0].text, selected[0].confidence)) {
+            continue;
+          }
+          const rawToken = selected.map((word) => word.text).join('');
+          const recovered = recoverNumericToken(rawToken);
+          if (!recovered) continue;
           values.push({
-            value: number,
-            unit: match[2].toLowerCase(),
+            value: recovered.numericValue,
+            unit: recovered.unit,
+            rawToken,
+            normalizedToken: recovered.normalizedToken,
+            normalizationCandidates: recovered.normalizationCandidates,
+            candidateType: recovered.candidateType,
+            unitStatus: recovered.unitStatus,
+            recoveryMethod: recovered.recoveryMethod,
+            recoveryConfidence: recovered.recoveryConfidence,
+            ambiguity: recovered.ambiguity,
             lineKey: group.lineKey,
+            ocrConfidence: averageConfidence(selected),
             ...boxForWords(selected),
           });
         }
@@ -1226,7 +1444,8 @@
     return values.filter((value, index, all) =>
       all.findIndex((candidate) =>
         candidate.lineKey === value.lineKey && candidate.left === value.left &&
-        candidate.value === value.value && candidate.unit === value.unit,
+        candidate.value === value.value && candidate.unit === value.unit &&
+        candidate.ambiguity === value.ambiguity,
       ) === index,
     );
   }
@@ -1234,6 +1453,7 @@
   const targetNutritionFields = ['energy', 'protein', 'fat', 'carbohydrate'];
 
   function compatibleValue(field, value) {
+    if (!Number.isFinite(value.value) || value.ambiguity) return false;
     return field === 'energy' ? value.unit === 'kcal' : value.unit === 'g';
   }
 
@@ -1297,7 +1517,34 @@
         relationshipScore(candidate, best.value, headerAnchors) < best.score,
       );
       if (competingAnchors.length) continue;
-      mapped.set(anchor.field, best.value);
+      const sameLine = anchor.lineKey === best.value.lineKey;
+      const rightOfLabel = best.value.left >= anchor.right - 6;
+      const anchorMiddle = (anchor.top + anchor.bottom) / 2;
+      const valueMiddle = (best.value.top + best.value.bottom) / 2;
+      const verticalDistance = Math.abs(valueMiddle - anchorMiddle);
+      const horizontalDistance = best.value.left - anchor.right;
+      const geometryConfidence = sameLine && rightOfLabel
+        ? 'HIGH'
+        : best.score < 1000 ? 'MEDIUM' : 'LOW';
+      mapped.set(anchor.field, {
+        ...best.value,
+        geometry: {
+          sameLine,
+          rightOfLabel,
+          verticalDistance: Math.round(verticalDistance * 100) / 100,
+          horizontalDistance: Math.round(horizontalDistance * 100) / 100,
+          relationScore: Math.round(best.score * 100) / 100,
+          unitCompatibility: true,
+          geometryConfidence,
+        },
+        labelEvidence: {
+          rawText: anchor.rawText || anchor.alias,
+          candidate: anchor.alias,
+          status: anchor.status || 'EXACT',
+          recoveryMethod: anchor.recoveryMethod || 'exact-label',
+          recoveryConfidence: anchor.recoveryConfidence ?? 1,
+        },
+      });
       used.add(best.index);
     }
     return mapped;
@@ -1336,15 +1583,19 @@
           field,
           detected: false,
           matchedRawText: null,
-          matchingRule: 'normalized exact alias within OCR line group',
+          status: 'REJECTED',
+          matchingRule: 'exact, safe-normalized, then limited-fuzzy label recovery',
         };
       }
       return {
         field,
         detected: true,
         matchedAlias: anchor.alias,
-        matchedRawText: anchor.alias,
-        matchingRule: 'normalized exact alias within OCR line group',
+        matchedRawText: anchor.rawText || anchor.alias,
+        status: anchor.status || 'EXACT',
+        matchingRule: anchor.recoveryMethod || 'exact-label',
+        recoveryConfidence: anchor.recoveryConfidence ?? 1,
+        ambiguity: anchor.ambiguity || null,
         confidence: anchor.confidence ?? null,
         boundingBox: {
           left: anchor.left,
@@ -1354,19 +1605,22 @@
         },
       };
     });
-    const basisGroup = groups.find((group) => {
-      const text = group.words.map((word) => word.text).join(' ');
-      return normalizeOcrToken(text).includes('栄養成分表示') ||
-        nutritionBasisPattern.test(text);
-    });
+    const basisGroup = groups.find((group) =>
+      recoverNutritionBasis(group.words.map((word) => word.text).join(' ')),
+    );
     if (basisGroup) {
       const box = boxForWords(basisGroup.words);
+      const rawText = basisGroup.words.map((word) => word.text).join(' ');
+      const basis = recoverNutritionBasis(rawText);
       labels[0] = {
         field: 'basis',
         detected: true,
-        matchedAlias: basisGroup.words.map((word) => word.text).join(' '),
-        matchedRawText: basisGroup.words.map((word) => word.text).join(' '),
-        matchingRule: 'nutrition heading or existing basis pattern',
+        matchedAlias: basis?.basis || null,
+        matchedRawText: rawText,
+        status: basis?.status || 'RECOVERED_HIGH',
+        matchingRule: basis?.recoveryMethod || 'basis-pattern',
+        recoveryConfidence: basis?.recoveryConfidence ?? 0.9,
+        ambiguity: null,
         confidence: averageConfidence(basisGroup.words),
         boundingBox: {
           left: box.left,
@@ -1377,6 +1631,33 @@
       };
     }
     return labels;
+  }
+
+  function recoverNutritionBasis(rawText) {
+    const raw = String(rawText || '');
+    const normalized = normalizeOcrToken(raw).toLowerCase();
+    for (const alias of nutritionBasisAliases) {
+      const normalizedAlias = normalizeOcrToken(alias).toLowerCase();
+      if (normalized.includes(normalizedAlias)) {
+        return {
+          rawText: raw,
+          basis: alias,
+          status: raw.includes(alias) ? 'EXACT' : 'RECOVERED_HIGH',
+          recoveryMethod: raw.includes(alias)
+            ? 'exact-basis'
+            : 'safe-basis-normalization',
+          recoveryConfidence: raw.includes(alias) ? 1 : 0.9,
+        };
+      }
+    }
+    const match = normalized.match(nutritionBasisPattern);
+    return match ? {
+      rawText: raw,
+      basis: match[0],
+      status: 'RECOVERED_HIGH',
+      recoveryMethod: 'formal-basis-pattern',
+      recoveryConfidence: 0.86,
+    } : null;
   }
 
   function averageConfidence(words) {
@@ -1422,13 +1703,174 @@
         field,
         candidateCount: candidates.length,
         selectedCandidate: selected
-          ? { value: selected.value, unit: selected.unit }
+          ? {
+              value: selected.value,
+              unit: selected.unit,
+              rawToken: selected.rawToken,
+              label: selected.labelEvidence,
+              geometry: selected.geometry,
+            }
           : null,
         selectionReason: selected ? 'lowest-compatible-relationship-score' : null,
         rejectedCandidates: candidates.slice(selected ? 1 : 0),
-        confidenceRule: 'geometry-and-compatible-unit',
+        confidenceRule: 'row-alignment, right-of-label, distance, unit, and recovery evidence',
       };
     });
+  }
+
+  function numericDiagnostic(value, anchors) {
+    return {
+      rawToken: value.rawToken,
+      normalizedToken: value.normalizedToken,
+      normalizationCandidates: value.normalizationCandidates,
+      candidateType: value.candidateType,
+      numericValue: value.value,
+      unit: value.unit,
+      unitStatus: value.unitStatus,
+      sourcePass: value.sourcePass || null,
+      ocrConfidence: value.ocrConfidence,
+      recoveryMethod: value.recoveryMethod,
+      recoveryConfidence: value.recoveryConfidence,
+      ambiguity: value.ambiguity,
+      boundingBox: {
+        left: value.left,
+        top: value.top,
+        width: value.width,
+        height: value.height,
+      },
+      ...nearestAnchorDiagnostic(value, anchors),
+    };
+  }
+
+  function analyzeNutritionWords(words, sourcePass) {
+    const groups = lineGroups(words);
+    const anchors = nutritionAnchors(groups).map((anchor) => ({
+      ...anchor,
+      sourcePass,
+    }));
+    const values = numericValues(groups).map((value) => ({
+      ...value,
+      sourcePass,
+    }));
+    const mapped = mapAnchorValues(anchors, values);
+    return { sourcePass, groups, anchors, values, mapped };
+  }
+
+  function consensusForAnalyses(analyses) {
+    const fields = {};
+    for (const field of targetNutritionFields) {
+      const evidence = analyses.flatMap((analysis) => {
+        const mapped = analysis.mapped.get(field);
+        return mapped ? [mapped] : [];
+      });
+      const ambiguousEvidence = analyses.flatMap((analysis) => {
+        const anchor = analysis.anchors.find((item) => item.field === field);
+        if (!anchor) return [];
+        return analysis.values.filter((item) =>
+          item.ambiguity && item.lineKey === anchor.lineKey &&
+          item.left >= anchor.right - 6,
+        );
+      });
+      const groups = new Map();
+      for (const item of evidence) {
+        const key = `${item.value}|${item.unit}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+      const grouped = [...groups.values()].sort((a, b) => b.length - a.length);
+      const conflict = grouped.length > 1;
+      const selectedGroup = conflict ? null : grouped[0] || null;
+      const selected = selectedGroup?.[0] || null;
+      const supportCount = selectedGroup?.length || 0;
+      const exactEvidence = Boolean(selected) &&
+        selected.labelEvidence?.status === 'EXACT' &&
+        selected.unitStatus === 'EXACT' &&
+        selected.recoveryMethod === 'exact-numeric-unit';
+      const highGeometry = selected?.geometry?.geometryConfidence === 'HIGH';
+      const reliableRecovery = Boolean(selected) &&
+        (selected.labelEvidence?.recoveryConfidence ?? 0) >= 0.7 &&
+        (selected.recoveryConfidence ?? 0) >= 0.6 &&
+        (!Number.isFinite(selected.ocrConfidence) || selected.ocrConfidence >= 50);
+      const finalConfidence = conflict
+        ? 'MEDIUM'
+        : !selected
+          ? ambiguousEvidence.length ? 'LOW' : 'NONE'
+          : highGeometry && reliableRecovery && (supportCount >= 2 || exactEvidence)
+            ? 'HIGH'
+            : 'MEDIUM';
+      fields[field] = {
+        field,
+        value: selected?.value ?? null,
+        unit: selected?.unit ?? null,
+        confidence: finalConfidence,
+        source: selected && !exactEvidence ? 'RECOVERED_OCR' :
+          selected ? 'EXACT_OCR' : null,
+        reviewRequired: finalConfidence !== 'HIGH',
+        supportingPasses: selectedGroup?.map((item) => item.sourcePass) || [],
+        agreement: `${supportCount}/${analyses.length}`,
+        conflict,
+        conflictingCandidates: conflict
+          ? grouped.map((items) => ({
+              value: items[0].value,
+              unit: items[0].unit,
+              passes: items.map((item) => item.sourcePass),
+            }))
+          : [],
+        decision: finalConfidence === 'HIGH'
+          ? 'AUTO_FILL_ALLOWED'
+          : finalConfidence === 'MEDIUM'
+            ? 'REVIEW_REQUIRED'
+            : finalConfidence === 'LOW'
+              ? 'CANDIDATE_ONLY'
+              : 'NOT_AVAILABLE',
+        selectedEvidence: selected || ambiguousEvidence[0] || null,
+      };
+    }
+    return fields;
+  }
+
+  function nutritionConsistency(fields) {
+    const energy = fields.energy?.value;
+    const protein = fields.protein?.value;
+    const fat = fields.fat?.value;
+    const carbohydrate = fields.carbohydrate?.value;
+    if (![energy, protein, fat, carbohydrate].every(Number.isFinite)) {
+      return {
+        evaluated: false,
+        support: null,
+        reason: 'all energy and P/F/C evidence is required; no value is generated',
+      };
+    }
+    const estimate = protein * 4 + fat * 9 + carbohydrate * 4;
+    const difference = Math.abs(energy - estimate);
+    const tolerance = Math.max(20, estimate * 0.15);
+    return {
+      evaluated: true,
+      energyCandidate: energy,
+      macroEstimatedEnergy: Math.round(estimate * 10) / 10,
+      difference: Math.round(difference * 10) / 10,
+      tolerance: Math.round(tolerance * 10) / 10,
+      support: difference <= tolerance,
+      valueGenerated: false,
+      reason: difference <= tolerance
+        ? 'existing OCR values are mutually supportive'
+        : 'existing OCR values are inconsistent; values are not corrected',
+    };
+  }
+
+  function applyNutritionConsistency(fields, consistency) {
+    for (const decision of Object.values(fields)) {
+      decision.consistencySupport = consistency.evaluated
+        ? consistency.support
+        : null;
+      if (consistency.evaluated && !consistency.support &&
+          decision.value != null && decision.confidence === 'HIGH') {
+        decision.confidence = 'MEDIUM';
+        decision.reviewRequired = true;
+        decision.decision = 'REVIEW_REQUIRED';
+      }
+    }
+    return fields;
   }
 
   function layoutPattern(anchors, mapped) {
@@ -1512,11 +1954,9 @@
     return null;
   }
 
-  async function structuredNutritionWords(canvas, words, engineId) {
-    const groups = lineGroups(words);
-    const anchors = nutritionAnchors(groups);
-    const values = numericValues(groups);
-    const mapped = mapAnchorValues(anchors, values);
+  async function structuredNutritionWords(canvas, words, engineId, sourcePass = 'original') {
+    const analysis = analyzeNutritionWords(words, sourcePass);
+    const { groups, anchors, values, mapped } = analysis;
     const mappingBeforeFallback = structuredMappingDiagnostics(
       anchors,
       values,
@@ -1531,10 +1971,40 @@
       roiCount += 1;
       const value = await valueFromRoi(canvas, anchor, field);
       if (value) {
-        mapped.set(field, value);
+        mapped.set(field, {
+          ...value,
+          rawToken: `${value.value}${value.unit}`,
+          normalizedToken: `${value.value}${value.unit}`,
+          normalizationCandidates: [],
+          candidateType: 'NUMERIC_WITH_UNIT',
+          unitStatus: 'EXACT',
+          recoveryMethod: 'numeric-roi-fallback',
+          recoveryConfidence: 0.7,
+          ambiguity: null,
+          sourcePass,
+          geometry: {
+            sameLine: null,
+            rightOfLabel: null,
+            verticalDistance: null,
+            horizontalDistance: null,
+            relationScore: null,
+            unitCompatibility: true,
+            geometryConfidence: 'MEDIUM',
+          },
+          labelEvidence: {
+            rawText: anchor.rawText || anchor.alias,
+            candidate: anchor.alias,
+            status: anchor.status || 'EXACT',
+            recoveryMethod: anchor.recoveryMethod || 'exact-label',
+            recoveryConfidence: anchor.recoveryConfidence ?? 1,
+          },
+        });
         roiFields.push(field);
       }
     }
+    const consensus = consensusForAnalyses([analysis]);
+    const consistency = nutritionConsistency(consensus);
+    applyNutritionConsistency(consensus, consistency);
     const fieldLabel = {
       energy: 'エネルギー',
       protein: 'たんぱく質',
@@ -1555,29 +2025,58 @@
       roiFields,
       engineId,
       detectedLabels: labelDiagnostics(groups, anchors),
-      numericCandidates: values.map((value) => ({
-        rawToken: `${value.value}${value.unit}`,
-        normalizedToken: `${value.value}${value.unit}`,
-        value: value.value,
-        unit: value.unit,
-        boundingBox: {
-          left: value.left,
-          top: value.top,
-          width: value.width,
-          height: value.height,
-        },
-        ...nearestAnchorDiagnostic(value, anchors),
+      tokenRecovery: values.map((value) => numericDiagnostic(value, anchors)),
+      labelRecovery: anchors.map((anchor) => ({
+        rawText: anchor.rawText,
+        candidate: anchor.alias,
+        field: anchor.field,
+        sourcePass: anchor.sourcePass,
+        method: anchor.recoveryMethod,
+        confidence: anchor.recoveryConfidence,
+        status: anchor.status,
+        ambiguity: anchor.ambiguity,
       })),
+      numericRecovery: values.map((value) => numericDiagnostic(value, anchors)),
+      numericCandidates: values.map((value) => numericDiagnostic(value, anchors)),
       structuredCandidates: mappingBeforeFallback,
+      geometryMapping: mappingBeforeFallback,
+      multiPassConsensus: Object.values(consensus).map((decision) => ({
+        field: decision.field,
+        value: decision.value,
+        unit: decision.unit,
+        agreement: decision.agreement,
+        supportingPasses: decision.supportingPasses,
+        conflict: decision.conflict,
+        conflictingCandidates: decision.conflictingCandidates,
+      })),
+      conflicts: Object.values(consensus)
+        .filter((decision) => decision.conflict),
+      nutritionConsistency: consistency,
+      confidenceDecisions: Object.values(consensus).map((decision) => ({
+        field: decision.field,
+        value: decision.value,
+        confidence: decision.confidence,
+        source: decision.source,
+        reviewRequired: decision.reviewRequired,
+        conflict: decision.conflict,
+        consistencySupport: decision.consistencySupport,
+        decision: decision.decision,
+      })),
       selectedMappings: Object.fromEntries(
-        [...mapped.entries()].map(([field, value]) => [field, {
-          value: value.value,
-          unit: value.unit,
-          source: roiFields.includes(field) ? 'numeric-roi-fallback' : 'structured',
-        }]),
+        Object.entries(consensus)
+          .filter(([, decision]) => decision.value != null && !decision.conflict)
+          .map(([field, decision]) => [field, {
+            value: decision.value,
+            unit: decision.unit,
+            source: decision.source,
+            confidence: decision.confidence,
+            reviewRequired: decision.reviewRequired,
+          }]),
       ),
       fieldSources: Object.fromEntries(
-        [...mapped.keys()].map((field) => [field, 'structured']),
+        Object.entries(consensus)
+          .filter(([, decision]) => decision.value != null && !decision.conflict)
+          .map(([field, decision]) => [field, decision.source]),
       ),
     };
     const lines = [];
@@ -1591,14 +2090,212 @@
       if (basis) lines.push(`栄養成分表示 ${basis[0]}`);
     }
     for (const field of targetNutritionFields) {
-      const value = mapped.get(field);
-      if (value) lines.push(`${fieldLabel[field]} ${value.value}${value.unit}`);
+      const decision = consensus[field];
+      if (decision?.value != null && !decision.conflict &&
+          decision.confidence !== 'LOW') {
+        lines.push(`${fieldLabel[field]} ${decision.value}${decision.unit}`);
+      }
     }
-    return lines.length ? structuredMarker + lines.join('\n') : '';
+    return lines.length
+      ? structuredMarker + lines.join('\n') + decisionMarker + JSON.stringify(
+          Object.fromEntries(Object.entries(consensus).map(([field, decision]) => [
+            field,
+            {
+              value: decision.value,
+              unit: decision.unit,
+              confidence: decision.confidence,
+              source: decision.source,
+              reviewRequired: decision.reviewRequired,
+              conflict: decision.conflict,
+              consistencySupport: decision.consistencySupport,
+              decision: decision.decision,
+            },
+          ])),
+        )
+      : '';
   }
 
   async function structuredNutritionText(canvas, tsv) {
     return structuredNutritionWords(canvas, tsvWords(tsv), 'tesseract');
+  }
+
+  async function structuredNutritionPasses(canvas, passes) {
+    if (passes.length === 1) {
+      return structuredNutritionWords(
+        canvas,
+        tsvWords(passes[0].tsv),
+        'tesseract',
+        passes[0].name,
+      );
+    }
+    const analyses = passes.map((pass) =>
+      analyzeNutritionWords(tsvWords(pass.tsv), pass.name),
+    );
+    let consensus = consensusForAnalyses(analyses);
+    const original = analyses.find((analysis) => analysis.sourcePass === 'original') ||
+      analyses[0];
+    const roiFields = [];
+    for (const field of targetNutritionFields) {
+      if (consensus[field]?.value != null || consensus[field]?.conflict) continue;
+      const anchor = original.anchors.find((candidate) => candidate.field === field);
+      if (!anchor) continue;
+      const value = await valueFromRoi(canvas, anchor, field);
+      if (!value) continue;
+      original.mapped.set(field, {
+        ...value,
+        rawToken: `${value.value}${value.unit}`,
+        normalizedToken: `${value.value}${value.unit}`,
+        normalizationCandidates: [],
+        candidateType: 'NUMERIC_WITH_UNIT',
+        unitStatus: 'EXACT',
+        recoveryMethod: 'numeric-roi-fallback',
+        recoveryConfidence: 0.7,
+        ambiguity: null,
+        sourcePass: original.sourcePass,
+        geometry: {
+          sameLine: null,
+          rightOfLabel: null,
+          verticalDistance: null,
+          horizontalDistance: null,
+          relationScore: null,
+          unitCompatibility: true,
+          geometryConfidence: 'MEDIUM',
+        },
+        labelEvidence: {
+          rawText: anchor.rawText || anchor.alias,
+          candidate: anchor.alias,
+          status: anchor.status || 'EXACT',
+          recoveryMethod: anchor.recoveryMethod || 'exact-label',
+          recoveryConfidence: anchor.recoveryConfidence ?? 1,
+        },
+      });
+      roiFields.push(field);
+    }
+    consensus = consensusForAnalyses(analyses);
+    const consistency = nutritionConsistency(consensus);
+    applyNutritionConsistency(consensus, consistency);
+    const allValues = analyses.flatMap((analysis) => analysis.values);
+    const allAnchors = analyses.flatMap((analysis) => analysis.anchors);
+    const mappings = analyses.flatMap((analysis) =>
+      structuredMappingDiagnostics(
+        analysis.anchors,
+        analysis.values,
+        analysis.mapped,
+      ).map((mapping) => ({ ...mapping, sourcePass: analysis.sourcePass })),
+    );
+    const selectedMappings = Object.fromEntries(
+      Object.entries(consensus)
+        .filter(([, decision]) => decision.value != null && !decision.conflict)
+        .map(([field, decision]) => [field, {
+          value: decision.value,
+          unit: decision.unit,
+          source: decision.source,
+          confidence: decision.confidence,
+          reviewRequired: decision.reviewRequired,
+        }]),
+    );
+    lastStructuredDiagnostics = {
+      layoutPattern: layoutPattern(original.anchors, original.mapped),
+      anchors: allAnchors.map((anchor) => ({
+        field: anchor.field,
+        alias: anchor.alias,
+        rawText: anchor.rawText,
+        status: anchor.status,
+        sourcePass: anchor.sourcePass,
+        left: anchor.left,
+        top: anchor.top,
+        width: anchor.width,
+        height: anchor.height,
+      })),
+      valueRoiCount: roiFields.length,
+      roiFields,
+      engineId: 'tesseract',
+      detectedLabels: analyses.flatMap((analysis) =>
+        labelDiagnostics(analysis.groups, analysis.anchors).map((label) => ({
+          ...label,
+          sourcePass: analysis.sourcePass,
+        })),
+      ),
+      tokenRecovery: allValues.map((value) => numericDiagnostic(value, allAnchors)),
+      labelRecovery: allAnchors.map((anchor) => ({
+        rawText: anchor.rawText,
+        candidate: anchor.alias,
+        field: anchor.field,
+        sourcePass: anchor.sourcePass,
+        method: anchor.recoveryMethod,
+        confidence: anchor.recoveryConfidence,
+        status: anchor.status,
+        ambiguity: anchor.ambiguity,
+      })),
+      numericRecovery: allValues.map((value) => numericDiagnostic(value, allAnchors)),
+      numericCandidates: allValues.map((value) => numericDiagnostic(value, allAnchors)),
+      structuredCandidates: mappings,
+      geometryMapping: mappings,
+      multiPassConsensus: Object.values(consensus).map((decision) => ({
+        field: decision.field,
+        value: decision.value,
+        unit: decision.unit,
+        agreement: decision.agreement,
+        supportingPasses: decision.supportingPasses,
+        conflict: decision.conflict,
+        conflictingCandidates: decision.conflictingCandidates,
+      })),
+      conflicts: Object.values(consensus).filter((decision) => decision.conflict),
+      nutritionConsistency: consistency,
+      confidenceDecisions: Object.values(consensus).map((decision) => ({
+        field: decision.field,
+        value: decision.value,
+        confidence: decision.confidence,
+        source: decision.source,
+        reviewRequired: decision.reviewRequired,
+        conflict: decision.conflict,
+        consistencySupport: decision.consistencySupport,
+        decision: decision.decision,
+      })),
+      selectedMappings,
+      fieldSources: Object.fromEntries(
+        Object.entries(consensus)
+          .filter(([, decision]) => decision.value != null && !decision.conflict)
+          .map(([field, decision]) => [field, decision.source]),
+      ),
+    };
+    const labels = {
+      energy: 'エネルギー',
+      protein: 'たんぱく質',
+      fat: '脂質',
+      carbohydrate: '炭水化物',
+    };
+    const lines = [];
+    const basis = analyses.flatMap((analysis) => analysis.groups)
+      .map((group) => recoverNutritionBasis(
+        group.words.map((word) => word.text).join(' '),
+      ))
+      .find(Boolean);
+    if (basis) lines.push(`栄養成分表示 ${basis.basis}`);
+    for (const field of targetNutritionFields) {
+      const decision = consensus[field];
+      if (decision?.value != null && !decision.conflict &&
+          decision.confidence !== 'LOW') {
+        lines.push(`${labels[field]} ${decision.value}${decision.unit}`);
+      }
+    }
+    return lines.length
+      ? structuredMarker + lines.join('\n') + decisionMarker + JSON.stringify(
+          Object.fromEntries(Object.entries(consensus).map(([field, decision]) => [
+            field,
+            {
+              value: decision.value,
+              unit: decision.unit,
+              confidence: decision.confidence,
+              source: decision.source,
+              reviewRequired: decision.reviewRequired,
+              conflict: decision.conflict,
+              consistencySupport: decision.consistencySupport,
+              decision: decision.decision,
+            },
+          ])),
+        )
+      : '';
   }
 
   async function structuredPaddleNutritionText(canvas, items) {
@@ -1687,7 +2384,7 @@
       return paddle.texts.join(ocrPassSeparator);
     }
     const texts = [];
-    let layoutTsv = '';
+    const layoutPasses = [];
     const diagnosticPasses = [];
     if (collectDiagnostics) {
       activeNutritionPipelineDiagnostics = {
@@ -1705,13 +2402,11 @@
       const startedAt = performance.now();
       let text;
       let passTsv = '';
-      if (mode === 'nutrition' &&
-          scanStrategy === 'nutritionReader' &&
-          variant.name === 'original') {
+      if (mode === 'nutrition' && scanStrategy === 'nutritionReader') {
         const data = await recognizeLayoutPass(variant.dataUrl);
         text = data.text || '';
-        layoutTsv = data.tsv || '';
-        passTsv = layoutTsv;
+        passTsv = data.tsv || '';
+        layoutPasses.push({ name: variant.name, tsv: passTsv });
       } else if (collectDiagnostics) {
         const data = await recognizeLayoutPass(variant.dataUrl);
         text = data.text || '';
@@ -1731,25 +2426,37 @@
             group.words.map((word) => word.text).join(' '),
           ),
           words: nutritionWordDiagnostics(words),
+          tokenRecovery: values.map((value) => numericDiagnostic(value, anchors)),
+          labelRecovery: anchors.map((anchor) => ({
+            rawText: anchor.rawText,
+            candidate: anchor.alias,
+            field: anchor.field,
+            sourcePass: variant.name,
+            method: anchor.recoveryMethod,
+            confidence: anchor.recoveryConfidence,
+            status: anchor.status,
+            ambiguity: anchor.ambiguity,
+          })),
+          numericRecovery: values.map((value) => numericDiagnostic(value, anchors)),
           wordCount: words.length,
           averageConfidence: averageConfidence(words),
         });
         if (variant.name === 'original' && activeNutritionPipelineDiagnostics) {
           activeNutritionPipelineDiagnostics.rawStage = {
             detectedLabels: labelDiagnostics(groups, anchors),
-            numericCandidates: values.map((value) => ({
-              rawToken: `${value.value}${value.unit}`,
-              normalizedToken: `${value.value}${value.unit}`,
-              value: value.value,
-              unit: value.unit,
-              boundingBox: {
-                left: value.left,
-                top: value.top,
-                width: value.width,
-                height: value.height,
-              },
-              ...nearestAnchorDiagnostic(value, anchors),
+            tokenRecovery: values.map((value) => numericDiagnostic(value, anchors)),
+            labelRecovery: anchors.map((anchor) => ({
+              rawText: anchor.rawText,
+              candidate: anchor.alias,
+              field: anchor.field,
+              sourcePass: variant.name,
+              method: anchor.recoveryMethod,
+              confidence: anchor.recoveryConfidence,
+              status: anchor.status,
+              ambiguity: anchor.ambiguity,
             })),
+            numericRecovery: values.map((value) => numericDiagnostic(value, anchors)),
+            numericCandidates: values.map((value) => numericDiagnostic(value, anchors)),
           };
         }
       }
@@ -1763,9 +2470,12 @@
     }
     if (mode === 'nutrition' &&
         scanStrategy === 'nutritionReader' &&
-        layoutTsv) {
+        layoutPasses.some((pass) => pass.tsv)) {
       const startedAt = performance.now();
-      const structured = await structuredNutritionText(canvas, layoutTsv);
+      const structured = await structuredNutritionPasses(
+        canvas,
+        layoutPasses.filter((pass) => pass.tsv),
+      );
       if (lastPhotoDiagnostics) {
         lastPhotoDiagnostics.structuredDurationMs = Math.round(
           performance.now() - startedAt,
@@ -2526,6 +3236,12 @@
     const requiredFields = ['energy', 'protein', 'fat', 'carbohydrate'];
     const missing = requiredFields.filter((field) => !selectedMappings[field]);
     const words = (pipeline.passes || []).flatMap((pass) => pass.words || []);
+    const passTokenRecovery = (pipeline.passes || [])
+      .flatMap((pass) => pass.tokenRecovery || []);
+    const passLabelRecovery = (pipeline.passes || [])
+      .flatMap((pass) => pass.labelRecovery || []);
+    const passNumericRecovery = (pipeline.passes || [])
+      .flatMap((pass) => pass.numericRecovery || []);
     const cropApplied = Number(input.cropX) !== 0 || Number(input.cropY) !== 0 ||
       Number(input.cropWidth) !== Number(input.decodedWidth) ||
       Number(input.cropHeight) !== Number(input.decodedHeight);
@@ -2578,8 +3294,25 @@
       wordCount: words.length,
       averageConfidence: averageConfidence(words),
       detectedLabels: structured.detectedLabels || rawStage.detectedLabels || [],
+      tokenRecovery: structured.tokenRecovery?.length
+        ? structured.tokenRecovery
+        : passTokenRecovery.length ? passTokenRecovery : rawStage.tokenRecovery || [],
+      labelRecovery: structured.labelRecovery?.length
+        ? structured.labelRecovery
+        : passLabelRecovery.length ? passLabelRecovery : rawStage.labelRecovery || [],
+      numericRecovery: structured.numericRecovery?.length
+        ? structured.numericRecovery
+        : passNumericRecovery.length ? passNumericRecovery : rawStage.numericRecovery || [],
       numericCandidates: structured.numericCandidates || rawStage.numericCandidates || [],
       structuredCandidates: structured.structuredCandidates || [],
+      geometryMapping: structured.geometryMapping || [],
+      multiPassConsensus: structured.multiPassConsensus || [],
+      conflicts: structured.conflicts || [],
+      nutritionConsistency: structured.nutritionConsistency || {
+        evaluated: false,
+        reason: 'not available',
+      },
+      confidenceDecisions: structured.confidenceDecisions || [],
       selectedMappings,
       fallbackUsed: pipeline.scanMode === 'STANDARD OCR' || missing.length > 0,
       fallbackReason: pipeline.scanMode === 'STANDARD OCR'
@@ -2595,6 +3328,7 @@
         fat: selectedMappings.fat || null,
         carbohydrate: selectedMappings.carbohydrate || null,
         needsReviewFields: missing,
+        decisions: structured.confidenceDecisions || [],
       },
       timings: {
         totalMs: durationMs,
@@ -2712,6 +3446,18 @@
     }),
     diagnoseStructuredNutritionTsv: (tsv) =>
       structuredNutritionText({ width: 0, height: 0 }, tsv),
+    diagnoseStructuredNutritionPassesForTesting: (tsvs) =>
+      structuredNutritionPasses(
+        { width: 0, height: 0 },
+        (tsvs || []).map((tsv, index) => ({
+          name: ['original', 'grayscale', 'moderate-contrast'][index] ||
+            `pass-${index + 1}`,
+          tsv,
+        })),
+      ),
+    recoverNumericTokenForDiagnostics: recoverNumericToken,
+    recoverLabelForDiagnostics: labelRecovery,
+    recoverBasisForDiagnostics: recoverNutritionBasis,
     assetState: () => ({
       selectedOcrEngine: selectedOcrEngine(),
       requestedOcrEngine: requestedOcrEngine(),

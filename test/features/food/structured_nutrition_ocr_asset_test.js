@@ -40,6 +40,38 @@ function expectMajorFields(text) {
 
 async function main() {
   const diagnose = window.orAppFoodInput.diagnoseStructuredNutritionTsv;
+  const recoverNumeric =
+    window.orAppFoodInput.recoverNumericTokenForDiagnostics;
+  const recoverLabel = window.orAppFoodInput.recoverLabelForDiagnostics;
+  const recoverBasis = window.orAppFoodInput.recoverBasisForDiagnostics;
+
+  assert.deepEqual(
+    {
+      value: recoverNumeric('188 kcal').numericValue,
+      unit: recoverNumeric('188 kcal').unit,
+      method: recoverNumeric('188 kcal').recoveryMethod,
+    },
+    { value: 188, unit: 'kcal', method: 'exact-numeric-unit' },
+  );
+  assert.equal(recoverNumeric('188keal').numericValue, 188);
+  assert.equal(recoverNumeric('188keal').unit, 'kcal');
+  assert.match(recoverNumeric('188keal').recoveryMethod, /fuzzy-unit/);
+  assert.equal(recoverNumeric('188kKe@l').rawToken, '188kKe@l');
+  assert.equal(recoverNumeric('188kKe@l').numericValue, 188);
+  assert.equal(recoverNumeric('23.8g').numericValue, 23.8);
+  assert.equal(recoverNumeric('２３．８ｇ').numericValue, 23.8);
+  assert.equal(recoverNumeric('２３．８ｇ').unit, 'g');
+  const ambiguous = recoverNumeric('2@3.9g');
+  assert.equal(ambiguous.candidateType, 'AMBIGUOUS_NUMERIC');
+  assert.equal(ambiguous.numericValue, null);
+  assert.match(ambiguous.ambiguity, /multiple-plausible/);
+
+  assert.equal(recoverLabel('エネルギー', 95).status, 'EXACT');
+  assert.equal(recoverLabel('ィネルギー', 95).field, 'energy');
+  assert.match(recoverLabel('ィネルギー', 95).status, /RECOVERED/);
+  assert.equal(recoverLabel('たんばぱく質', 95).field, 'protein');
+  assert.equal(recoverBasis('栄養成分表示'), null);
+  assert.equal(recoverBasis('栄養成分表示（製品1個あたり）').basis, '製品1個あたり');
 
   const vertical = tsv([
     word(1, 1, 10, 0, 300, '栄養成分表示：1袋38g当たり'),
@@ -110,6 +142,114 @@ async function main() {
     word(2, 2, 300, 50, 60, '21.5g'),
   ]);
   assert.doesNotMatch(await diagnose(contentOnly), /94g/);
+
+  const wrongRow = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(2, 1, 10, 50, 110, '炭水化物'),
+    word(2, 2, 300, 50, 60, '23.8g'),
+  ]);
+  assert.doesNotMatch(await diagnose(wrongRow), /エネルギー 23.8/);
+
+  const ambiguousOnly = tsv([
+    word(1, 1, 10, 10, 110, '炭水化物'),
+    word(1, 2, 300, 10, 60, '2@3.9g'),
+  ]);
+  assert.equal(await diagnose(ambiguousOnly), '');
+  const lowDecision =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .confidenceDecisions.find((item) => item.field === 'carbohydrate');
+  assert.equal(lowDecision.confidence, 'LOW');
+  assert.equal(lowDecision.decision, 'CANDIDATE_ONLY');
+
+  const recovered = tsv([
+    word(1, 1, 10, 10, 120, 'ィネルギー'),
+    word(1, 2, 300, 10, 90, '188keal'),
+    word(2, 1, 10, 50, 150, 'たんばぱく質'),
+    word(2, 2, 300, 50, 60, '2.8g'),
+  ]);
+  const recoveredText = await diagnose(recovered);
+  assert.match(recoveredText, /エネルギー 188kcal/);
+  assert.match(recoveredText, /たんぱく質 2.8g/);
+  const recoveredDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  assert.ok(recoveredDiagnostics.labelRecovery.some((item) =>
+    item.rawText === 'ィネルギー' && item.candidate === 'エネルギー',
+  ));
+  assert.ok(recoveredDiagnostics.numericRecovery.some((item) =>
+    item.rawToken === '188keal' && item.numericValue === 188,
+  ));
+
+  const pass1 = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 90, '188keal'),
+    word(2, 1, 10, 50, 110, '炭水化物'),
+    word(2, 2, 300, 50, 60, '23.8g'),
+  ]);
+  const pass2 = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 90, '19@kcal'),
+    word(2, 1, 10, 50, 110, '炭水化物'),
+    word(2, 2, 300, 50, 60, '23.9g'),
+  ]);
+  const pass3 = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 90, '188kKe@l'),
+    word(2, 1, 10, 50, 110, '炭水化物'),
+    word(2, 2, 300, 50, 60, '2@3.9g'),
+  ]);
+  const consensusText = await window.orAppFoodInput
+    .diagnoseStructuredNutritionPassesForTesting([pass1, pass2, pass3]);
+  assert.match(consensusText, /エネルギー 188kcal/);
+  assert.doesNotMatch(consensusText, /炭水化物/);
+  const consensusDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  const energyDecision = consensusDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'energy');
+  assert.equal(energyDecision.confidence, 'HIGH');
+  assert.equal(energyDecision.decision, 'AUTO_FILL_ALLOWED');
+  const carbohydrateDecision = consensusDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'carbohydrate');
+  assert.equal(carbohydrateDecision.conflict, true);
+  assert.equal(carbohydrateDecision.confidence, 'MEDIUM');
+  assert.equal(carbohydrateDecision.decision, 'REVIEW_REQUIRED');
+  assert.ok(consensusDiagnostics.conflicts.some((item) =>
+    item.field === 'carbohydrate' && item.conflict === true,
+  ));
+
+  const consistentPass = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 70, '188kcal'),
+    word(2, 1, 10, 50, 140, 'たんぱく質'),
+    word(2, 2, 300, 50, 50, '2.8g'),
+    word(3, 1, 10, 90, 60, '脂質'),
+    word(3, 2, 300, 90, 50, '9.2g'),
+    word(4, 1, 10, 130, 110, '炭水化物'),
+    word(4, 2, 300, 130, 60, '23.8g'),
+  ]);
+  await diagnose(consistentPass);
+  const consistency =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .nutritionConsistency;
+  assert.equal(consistency.evaluated, true);
+  assert.equal(consistency.support, true);
+  assert.equal(consistency.valueGenerated, false);
+
+  const inconsistentPass = consistentPass.replace('188kcal', '818kcal');
+  const inconsistentText = await diagnose(inconsistentPass);
+  assert.match(inconsistentText, /エネルギー 818kcal/);
+  assert.doesNotMatch(inconsistentText, /エネルギー 188kcal/);
+  const inconsistency =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .nutritionConsistency;
+  assert.equal(inconsistency.evaluated, true);
+  assert.equal(inconsistency.support, false);
+  assert.equal(inconsistency.valueGenerated, false);
+  const suspiciousEnergy =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .confidenceDecisions.find((item) => item.field === 'energy');
+  assert.equal(suspiciousEnergy.value, 818);
+  assert.equal(suspiciousEnergy.confidence, 'MEDIUM');
+  assert.equal(suspiciousEnergy.decision, 'REVIEW_REQUIRED');
 }
 
 main().catch((error) => {

@@ -67,13 +67,18 @@ Future<FoodOcrResult?> showNutritionLabelScanner({
     );
     if (capture == null || !context.mounted) return null;
     final parsed = capture.draft?.isEmpty == false
-        ? (draft: capture.draft!, conflicts: capture.conflicts)
+        ? (
+            draft: capture.draft!,
+            conflicts: capture.conflicts,
+            decisions: capture.decisions,
+          )
         : _nutritionDraft(capture.rawText);
     if (parsed.draft.isEmpty) return null;
     final action = await _reviewNutrition(
       context,
       parsed.draft,
       parsed.conflicts,
+      parsed.decisions,
       scanMode,
     );
     if (action == _NutritionReviewAction.rescan) continue;
@@ -87,7 +92,14 @@ Future<FoodOcrResult?> showNutritionLabelScanner({
   return null;
 }
 
-Future<({String rawText, NutritionOcrDraft? draft, Set<String> conflicts})?>
+Future<
+  ({
+    String rawText,
+    NutritionOcrDraft? draft,
+    Set<String> conflicts,
+    Map<String, Map<String, dynamic>> decisions,
+  })?
+>
 _captureNutrition({
   required BuildContext context,
   required FoodInputCaptureGateway gateway,
@@ -110,6 +122,7 @@ _captureNutrition({
       rawText: rawText,
       draft: session.draft,
       conflicts: session.conflicts,
+      decisions: session.fieldDecisions,
     );
   }
 
@@ -123,7 +136,12 @@ _captureNutrition({
     engine: FoodOcrEngine.tesseract,
     scanMode: scanMode,
   );
-  return (rawText: rawText, draft: null, conflicts: const <String>{});
+  return (
+    rawText: rawText,
+    draft: null,
+    conflicts: const <String>{},
+    decisions: const <String, Map<String, dynamic>>{},
+  );
 }
 
 @visibleForTesting
@@ -184,14 +202,21 @@ Iterable<String> _ocrPasses(String rawText) => rawText
     .map((pass) => pass.trim())
     .where((pass) => pass.isNotEmpty);
 
-({NutritionOcrDraft draft, Set<String> conflicts}) _nutritionDraft(
-  String rawText,
-) {
+({
+  NutritionOcrDraft draft,
+  Set<String> conflicts,
+  Map<String, Map<String, dynamic>> decisions,
+})
+_nutritionDraft(String rawText) {
   final session = FoodNutritionCandidateSession();
   for (final pass in _ocrPasses(rawText)) {
     session.describe(pass);
   }
-  return (draft: session.draft, conflicts: session.conflicts);
+  return (
+    draft: session.draft,
+    conflicts: session.conflicts,
+    decisions: session.fieldDecisions,
+  );
 }
 
 PackageOcrDraft _packageDraft(String rawText) {
@@ -430,6 +455,7 @@ Future<_NutritionReviewAction> _reviewNutrition(
   BuildContext context,
   NutritionOcrDraft draft,
   Set<String> conflicts,
+  Map<String, Map<String, dynamic>> decisions,
   FoodOcrScanMode scanMode,
 ) async =>
     await showDialog<_NutritionReviewAction>(
@@ -452,6 +478,12 @@ Future<_NutritionReviewAction> _reviewNutrition(
               _value('CARBOHYDRATE', _amount(draft.carbohydrate, 'g')),
               if (conflicts.isNotEmpty)
                 _value('REVIEW CONFLICT', conflicts.join(', ')),
+              for (final entry in decisions.entries)
+                _value(
+                  '${entry.key} OCR',
+                  '${entry.value['confidence'] ?? 'NONE'} / '
+                      '${entry.value['decision'] ?? 'NOT_AVAILABLE'}',
+                ),
             ],
           ),
         ),

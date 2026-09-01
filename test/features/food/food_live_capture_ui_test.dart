@@ -80,6 +80,28 @@ void main() {
     expect(session.candidateSources['FAT'], 'structured');
   });
 
+  test('structured recovery decisions remain advisory and observable', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe(
+      '[[OR_STRUCTURED_NUTRITION]]\nエネルギー 188kcal\n'
+      '[[OR_OCR_DECISIONS]]\n'
+      '{"energy":{"value":188,"unit":"kcal","confidence":"HIGH",'
+      '"source":"RECOVERED_OCR","reviewRequired":false,'
+      '"conflict":false,"decision":"AUTO_FILL_ALLOWED"},'
+      '"carbohydrate":{"value":null,"unit":null,'
+      '"confidence":"MEDIUM","source":null,"reviewRequired":true,'
+      '"conflict":true,"decision":"REVIEW_REQUIRED"}}',
+    );
+
+    expect(session.draft.calories, 188);
+    expect(session.fieldDecisions['ENERGY']?['confidence'], 'HIGH');
+    expect(
+      session.fieldDecisions['CARBOHYDRATE']?['decision'],
+      'REVIEW_REQUIRED',
+    );
+    expect(session.conflicts, contains('CARBOHYDRATE'));
+  });
+
   testWidgets(
     'Food Entry exposes live barcode scan and applies only its result',
     (tester) async {
