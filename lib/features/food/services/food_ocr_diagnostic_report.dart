@@ -149,6 +149,8 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
             'labelEvidence': entry.value['labelEvidence'],
             'consensusStatus': entry.value['consensusStatus'],
             'decisionReason': entry.value['decisionReason'],
+            'selectedEvidence': entry.value['selectedEvidence'],
+            'ownershipEvidence': entry.value['ownershipEvidence'],
             'reviewBridgeStatus':
                 entry.value['bridgeStatus'] ?? 'RETAINED_FOR_REVIEW',
           },
@@ -397,7 +399,7 @@ List<Map<String, dynamic>> _parserDiagnostics(
 }
 
 String _finalFieldSource(Map<String, dynamic>? decision) {
-  if (decision == null) return 'NOT_AVAILABLE';
+  if (decision == null || decision['value'] is! num) return 'NOT_AVAILABLE';
   return decision['bridgeStatus'] == 'ACCEPTED_STRUCTURED'
       ? 'STRUCTURED_DECISION'
       : 'REVIEW_ONLY';

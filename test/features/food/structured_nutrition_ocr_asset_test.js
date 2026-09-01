@@ -458,6 +458,92 @@ async function main() {
   assert.equal(sugarOwnership.ownerField, 'sugar');
   assert.equal(sugarOwnership.nearestLabelSourcePass, 'grayscale');
 
+  const difficultOriginal = tsv([
+    word(1, 1, 10, 10, 150, 'たんばぱく質'),
+    word(2, 1, 10, 50, 110, '炭'),
+    word(2, 2, 124, 50, 26, '水'),
+    word(2, 3, 154, 50, 26, '化'),
+    word(2, 4, 184, 50, 26, '物'),
+    word(2, 5, 300, 50, 24, '5'),
+    word(3, 1, 10, 90, 70, '糖質'),
+    word(3, 2, 300, 90, 56, '23.28'),
+  ]);
+  const difficultGrayscale = tsv([
+    word(1, 1, 10, 10, 120, 'ィネルギー'),
+    word(1, 2, 300, 10, 70, '188'),
+    word(1, 3, 374, 10, 54, 'kcal'),
+    word(2, 1, 10, 50, 140, 'たんぱく算'),
+    word(3, 1, 10, 90, 110, '大水化物'),
+    word(3, 2, 300, 90, 64, "'23.5手"),
+    word(4, 1, 10, 130, 70, '糖質'),
+    word(4, 2, 300, 130, 56, '23.4g'),
+  ]);
+  const difficultModerate = tsv([
+    word(1, 1, 10, 10, 120, 'ィネルギー'),
+    word(1, 2, 300, 10, 70, '188'),
+    word(1, 3, 374, 10, 54, 'kcal'),
+    word(2, 1, 10, 50, 150, 'たんばぱく質'),
+    word(3, 1, 10, 90, 24, '肥'),
+    word(3, 2, 36, 90, 24, '質'),
+    word(3, 3, 220, 90, 48, '8g'),
+    word(4, 1, 10, 130, 110, '大水化物'),
+    word(4, 2, 300, 130, 64, '2@3.5'),
+    word(5, 1, 10, 170, 70, '糖質'),
+    word(5, 2, 300, 170, 56, '23.4g'),
+  ]);
+  await window.orAppFoodInput.diagnoseStructuredNutritionPassesForTesting([
+    difficultOriginal,
+    difficultGrayscale,
+    difficultModerate,
+  ]);
+  const difficultDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  const difficultEnergy = difficultDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'energy');
+  const difficultFat = difficultDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'fat');
+  const difficultCarbohydrate = difficultDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'carbohydrate');
+  assert.equal(difficultEnergy.value, 188);
+  assert.equal(difficultEnergy.unit, 'kcal');
+  assert.deepEqual(difficultEnergy.supportingPasses, [
+    'grayscale',
+    'moderate-contrast',
+  ]);
+  assert.equal(difficultEnergy.conflict, false);
+  assert.equal(difficultEnergy.confidence, 'HIGH');
+  assert.equal(difficultEnergy.decision, 'AUTO_FILL_ALLOWED');
+  assert.equal(difficultFat.value, 8);
+  assert.equal(difficultFat.unit, 'g');
+  assert.equal(difficultFat.conflict, false);
+  assert.equal(difficultFat.reviewRequired, true);
+  assert.equal(difficultCarbohydrate.value, 23.5);
+  assert.equal(difficultCarbohydrate.unit, null);
+  assert.equal(difficultCarbohydrate.reviewRequired, true);
+  assert.ok(difficultDiagnostics.labelRecovery.some((item) =>
+    item.field === 'carbohydrate' &&
+    item.rawText === '大水化物' &&
+    item.method === 'nutrition-carbohydrate-label-confusion',
+  ));
+  assert.ok(difficultDiagnostics.labelRecovery.some((item) =>
+    item.field === 'protein' && item.rawText === 'たんばぱく質',
+  ));
+  assert.ok(difficultDiagnostics.labelRecovery.some((item) =>
+    item.field === 'protein' && item.rawText === 'たんぱく算',
+  ));
+  assert.ok(difficultDiagnostics.fieldOwnership.some((item) =>
+    item.rawToken === "'23.5手" &&
+    item.ownerField === 'carbohydrate' &&
+    ['MAPPED', 'OWNED_REVIEW'].includes(item.ownershipStatus) &&
+    item.conflictEligible === true,
+  ));
+  assert.ok(difficultDiagnostics.fieldOwnership.some((item) =>
+    item.rawToken === '23.4g' && item.ownerField === 'sugar',
+  ));
+  assert.ok(difficultDiagnostics.numericCandidates.some((item) =>
+    item.rawToken === '2@3.5' && item.numericValue === null,
+  ));
+
   const consistentPass = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
     word(1, 2, 300, 10, 70, '188kcal'),

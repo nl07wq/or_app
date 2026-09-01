@@ -1402,6 +1402,24 @@
         contextEvidence: ['nutrition-label-reader', 'japanese-nutrition-label'],
       };
     }
+    if (normalized === '大水化物') {
+      const selectedBox = boxForWords(selected);
+      const hasSameRowNumericEvidence = group.words.some((word) => {
+        if (word.left < selectedBox.right - 2) return false;
+        const numeric = recoverNumericToken(word.text);
+        return numeric && (numeric.numericValue != null || numeric.ambiguity);
+      });
+      if (!hasSameRowNumericEvidence) return null;
+      return {
+        field: 'carbohydrate',
+        alias: '炭水化物',
+        status: 'RECOVERED_MEDIUM',
+        recoveryMethod: 'nutrition-carbohydrate-label-confusion',
+        recoveryConfidence: 0.66,
+        ambiguity: null,
+        contextEvidence: ['same-row-nutrition-value', 'nutrition-layout'],
+      };
+    }
     if (normalized !== '肥質') return null;
     const selectedBox = boxForWords(selected);
     const hasSameRowGramEvidence = group.words.some((word) => {
@@ -1919,44 +1937,156 @@
     return { sourcePass, groups, anchors, values, semanticValues, mapped };
   }
 
-  function evidenceForField(analysis, field) {
-    const anchor = analysis.anchors.find((item) => item.field === field);
-    if (!anchor) return [];
+  function matchesMappedValue(mapped, value) {
+    return mapped?.rawToken === value.rawToken && mapped?.left === value.left;
+  }
+
+  function ownershipForValue(analysis, value) {
     const headerAnchors = analysis.anchors.filter((candidate) =>
       nutritionOwnershipFields.includes(candidate.field) &&
       analysis.anchors.filter((item) => item.lineKey === candidate.lineKey).length >= 3,
     );
-    const mapped = analysis.mapped.get(field);
-    const retained = analysis.semanticValues.map((value) => {
-      if (!compatibleValue(field, value)) return null;
-      const score = relationshipScore(anchor, value, headerAnchors);
-      if (!Number.isFinite(score)) return null;
-      const strongerOtherField = analysis.anchors.some((candidate) =>
-        candidate.field !== field && nutritionOwnershipFields.includes(candidate.field) &&
-        compatibleValue(candidate.field, value) &&
-        relationshipScore(candidate, value, headerAnchors) < score,
-      );
-      if (strongerOtherField) return null;
+    const ranked = analysis.anchors
+      .filter((anchor) => nutritionOwnershipFields.includes(anchor.field))
+      .map((anchor) => ({
+        anchor,
+        score: (value.ambiguity && value.value == null) || compatibleValue(anchor.field, value)
+          ? relationshipScore(anchor, value, headerAnchors)
+          : Infinity,
+      }))
+      .filter((entry) => Number.isFinite(entry.score))
+      .sort((left, right) => left.score - right.score);
+    const nearest = ranked[0] || null;
+    if (value.ambiguity && value.value == null) {
+      return {
+        candidateField: nearest?.anchor.field || null,
+        nearestLabel: nearest?.anchor.field || null,
+        nearestLabelSourcePass: nearest?.anchor.sourcePass || null,
+        ownershipStatus: nearest ? 'AMBIGUOUS_UNOWNED' : 'AMBIGUOUS_UNOWNED',
+        ownershipReason: 'ambiguous-numeric-evidence-is-not-a-confirmed-value',
+        conflictEligible: false,
+        relationScore: nearest ? Math.round(nearest.score * 100) / 100 : null,
+        anchor: nearest?.anchor || null,
+      };
+    }
+    if (!nearest) {
+      return {
+        candidateField: null,
+        nearestLabel: null,
+        nearestLabelSourcePass: null,
+        ownershipStatus: 'UNMAPPED_RETAINED',
+        ownershipReason: 'no-pass-local-compatible-label-relationship',
+        conflictEligible: false,
+        relationScore: null,
+        anchor: null,
+      };
+    }
+    const anchor = nearest.anchor;
+    const sameLine = anchor.lineKey === value.lineKey;
+    const rightOfLabel = value.left >= anchor.right - 6;
+    const geometryConfidence = sameLine && rightOfLabel
+      ? 'HIGH'
+      : nearest.score < 1000 ? 'MEDIUM' : 'LOW';
+    const mapped = analysis.mapped.get(anchor.field);
+    const mappingStatus = matchesMappedValue(mapped, value)
+      ? 'MAPPED'
+      : geometryConfidence === 'LOW'
+        ? 'UNMAPPED_RETAINED'
+        : 'OWNED_REVIEW';
+    return {
+      candidateField: anchor.field,
+      nearestLabel: anchor.field,
+      nearestLabelSourcePass: anchor.sourcePass || null,
+      ownershipStatus: mappingStatus,
+      ownershipReason: mappingStatus === 'MAPPED'
+        ? 'selected-by-pass-local-geometry-mapping'
+        : mappingStatus === 'OWNED_REVIEW'
+          ? 'pass-local-label-affinity-with-review-only-evidence'
+          : 'low-geometry-pass-local-label-affinity',
+      conflictEligible: mappingStatus === 'MAPPED' || mappingStatus === 'OWNED_REVIEW',
+      relationScore: Math.round(nearest.score * 100) / 100,
+      anchor,
+    };
+  }
+
+  function fieldOwnershipDiagnostics(analyses) {
+    return analyses.flatMap((analysis) => analysis.values.map((value) => {
+      const ownership = ownershipForValue(analysis, value);
+      const anchor = ownership.anchor;
+      const sameLine = Boolean(anchor) && anchor.lineKey === value.lineKey;
+      const rightOfLabel = Boolean(anchor) && value.left >= anchor.right - 6;
+      const verticalDistance = anchor
+        ? Math.round(Math.abs((value.top + value.bottom - anchor.top - anchor.bottom) / 2) * 100) / 100
+        : null;
+      const horizontalDistance = anchor
+        ? Math.round((value.left - anchor.right) * 100) / 100
+        : null;
+      return {
+        field: ownership.candidateField,
+        value: value.value,
+        unit: value.unit,
+        unitStatus: value.unitStatus,
+        rawToken: value.rawToken,
+        supportingRawTokens: value.supportingRawTokens || [value.rawToken],
+        sourcePass: value.sourcePass,
+        candidateField: ownership.candidateField,
+        ownerField: ownership.candidateField,
+        nearestLabel: ownership.nearestLabel,
+        nearestLabelSourcePass: ownership.nearestLabelSourcePass,
+        sameLine,
+        rightOfLabel,
+        verticalDistance,
+        horizontalDistance,
+        relationScore: ownership.relationScore,
+        geometryConfidence: sameLine && rightOfLabel
+          ? 'HIGH'
+          : ownership.relationScore != null && ownership.relationScore < 1000
+            ? 'MEDIUM'
+            : 'LOW',
+        ownershipStatus: ownership.ownershipStatus,
+        ownershipReason: ownership.ownershipReason,
+        conflictEligible: ownership.conflictEligible,
+        excludedFromConflict: !ownership.conflictEligible,
+        exclusionReason: ownership.conflictEligible
+          ? null
+          : ownership.ownershipReason,
+        labelEvidence: anchor ? {
+          rawText: anchor.rawText || anchor.alias,
+          candidate: anchor.alias,
+          status: anchor.status || 'EXACT',
+          recoveryMethod: anchor.recoveryMethod || 'exact-label',
+          recoveryConfidence: anchor.recoveryConfidence ?? 1,
+        } : null,
+      };
+    }));
+  }
+
+  function evidenceForField(analysis, field) {
+    return analysis.semanticValues.map((value) => {
+      const ownership = ownershipForValue(analysis, value);
+      if (ownership.candidateField !== field) return null;
+      const anchor = ownership.anchor;
+      if (!anchor || !compatibleValue(field, value)) return null;
       const sameLine = anchor.lineKey === value.lineKey;
       const rightOfLabel = value.left >= anchor.right - 6;
       const anchorMiddle = (anchor.top + anchor.bottom) / 2;
       const valueMiddle = (value.top + value.bottom) / 2;
-      const geometryConfidence = sameLine && rightOfLabel
-        ? 'HIGH'
-        : score < 1000 ? 'MEDIUM' : 'LOW';
-      const isMapped = mapped?.rawToken === value.rawToken &&
-        mapped?.left === value.left;
       return {
         ...value,
-        mappingStatus: isMapped ? 'MAPPED' : 'UNMAPPED_RETAINED',
+        mappingStatus: ownership.ownershipStatus,
+        ownershipStatus: ownership.ownershipStatus,
+        ownershipReason: ownership.ownershipReason,
+        conflictEligible: ownership.conflictEligible,
         geometry: {
           sameLine,
           rightOfLabel,
           verticalDistance: Math.round(Math.abs(valueMiddle - anchorMiddle) * 100) / 100,
           horizontalDistance: Math.round((value.left - anchor.right) * 100) / 100,
-          relationScore: Math.round(score * 100) / 100,
+          relationScore: ownership.relationScore,
           unitCompatibility: value.unit ? true : 'MISSING',
-          geometryConfidence,
+          geometryConfidence: sameLine && rightOfLabel
+            ? 'HIGH'
+            : ownership.relationScore < 1000 ? 'MEDIUM' : 'LOW',
         },
         labelEvidence: {
           rawText: anchor.rawText || anchor.alias,
@@ -1968,21 +2098,14 @@
         },
       };
     }).filter(Boolean);
-    if (mapped && !retained.some((item) =>
-      item.rawToken === mapped.rawToken && item.left === mapped.left,
-    )) {
-      retained.push({ ...mapped, mappingStatus: 'MAPPED' });
-    }
-    return retained;
   }
 
   function ambiguousEvidenceForField(analysis, field) {
-    const anchor = analysis.anchors.find((item) => item.field === field);
-    if (!anchor) return [];
-    return analysis.values.filter((item) =>
-      item.ambiguity && item.lineKey === anchor.lineKey &&
-      item.left >= anchor.right - 6,
-    );
+    return analysis.values.filter((item) => {
+      if (!item.ambiguity) return false;
+      const ownership = ownershipForValue(analysis, item);
+      return ownership.candidateField === field;
+    });
   }
 
   function ambiguousEvidenceRelatesTo(candidate, ambiguous) {
@@ -2006,11 +2129,12 @@
     const fields = {};
     for (const field of targetNutritionFields) {
       const evidence = analyses.flatMap((analysis) => evidenceForField(analysis, field));
+      const conflictEligibleEvidence = evidence.filter((item) => item.conflictEligible);
       const ambiguousEvidence = analyses.flatMap((analysis) =>
         ambiguousEvidenceForField(analysis, field),
       );
       const byValue = new Map();
-      for (const item of evidence) {
+      for (const item of conflictEligibleEvidence) {
         const key = `${item.value}|${item.unit}`;
         if (!byValue.has(key)) byValue.set(key, new Map());
         const perPass = byValue.get(key);
@@ -2096,6 +2220,8 @@
           passes: cluster.supportingPasses,
           relatedAmbiguousPasses: cluster.relatedAmbiguousPasses,
           mappingStatuses: cluster.observations.map((item) => item.mappingStatus),
+          ownershipStatuses: cluster.observations.map((item) => item.ownershipStatus),
+          conflictEligible: cluster.observations.every((item) => item.conflictEligible),
           status: cluster === selectedCluster
             ? 'SELECTED_REVIEW_CANDIDATE'
             : outlierClusters.includes(cluster)
@@ -2117,6 +2243,14 @@
         rawTokens: selectedCluster?.observations
           .flatMap((item) => item.supportingRawTokens || [item.rawToken]) ||
           ambiguousEvidence.map((item) => item.rawToken),
+        excludedEvidence: evidence.filter((item) => !item.conflictEligible).map((item) => ({
+          value: item.value,
+          unit: item.unit,
+          rawToken: item.rawToken,
+          sourcePass: item.sourcePass,
+          ownershipStatus: item.ownershipStatus,
+          exclusionReason: item.ownershipReason,
+        })),
       };
     }
     return fields;
@@ -2148,6 +2282,28 @@
       reason: difference <= tolerance
         ? 'existing OCR values are mutually supportive'
         : 'existing OCR values are inconsistent; values are not corrected',
+    };
+  }
+
+  function bridgeSelectedEvidence(value) {
+    if (!value) return null;
+    return {
+      value: value.value,
+      unit: value.unit,
+      unitStatus: value.unitStatus,
+      rawToken: value.rawToken,
+      sourcePass: value.sourcePass,
+      candidateType: value.candidateType,
+      ambiguity: value.ambiguity,
+      geometry: value.geometry || null,
+      labelEvidence: value.labelEvidence ? {
+        status: value.labelEvidence.status,
+        recoveryMethod: value.labelEvidence.recoveryMethod,
+        recoveryConfidence: value.labelEvidence.recoveryConfidence,
+      } : null,
+      ownershipStatus: value.ownershipStatus || null,
+      ownershipReason: value.ownershipReason || null,
+      conflictEligible: value.conflictEligible ?? null,
     };
   }
 
@@ -2354,9 +2510,12 @@
           rawTokens: item.supportingRawTokens || [item.rawToken],
           sourcePass: item.sourcePass,
           mappingStatus: item.mappingStatus,
+          ownershipStatus: item.ownershipStatus,
+          conflictEligible: item.conflictEligible,
           geometry: item.geometry,
         })),
       ),
+      fieldOwnership: fieldOwnershipDiagnostics([analysis]),
       structuredCandidates: mappingBeforeFallback,
       geometryMapping: mappingBeforeFallback,
       unitTieBreak: mappingBeforeFallback.filter((item) =>
@@ -2375,6 +2534,7 @@
         conflict: decision.conflict,
         consensusStatus: decision.consensusStatus,
         conflictingCandidates: decision.conflictingCandidates,
+        excludedEvidence: decision.excludedEvidence,
       })),
       conflicts: Object.values(consensus)
         .filter((decision) => decision.conflict),
@@ -2394,6 +2554,13 @@
         supportingPasses: decision.supportingPasses,
         rawTokens: decision.rawTokens,
         consensusStatus: decision.consensusStatus,
+        excludedEvidence: decision.excludedEvidence,
+        selectedEvidence: decision.selectedEvidence,
+        ownershipEvidence: decision.selectedEvidence ? {
+          ownershipStatus: decision.selectedEvidence.ownershipStatus,
+          ownershipReason: decision.selectedEvidence.ownershipReason,
+          conflictEligible: decision.selectedEvidence.conflictEligible,
+        } : null,
       })),
       selectedMappings: Object.fromEntries(
         Object.entries(consensus)
@@ -2449,6 +2616,12 @@
               decisionReason: decision.decisionReason,
               supportingPasses: decision.supportingPasses,
               rawTokens: decision.rawTokens,
+              selectedEvidence: bridgeSelectedEvidence(decision.selectedEvidence),
+              ownershipEvidence: decision.selectedEvidence ? {
+                ownershipStatus: decision.selectedEvidence.ownershipStatus,
+                ownershipReason: decision.selectedEvidence.ownershipReason,
+                conflictEligible: decision.selectedEvidence.conflictEligible,
+              } : null,
               labelEvidence: decision.selectedEvidence?.labelEvidence
                 ? {
                     field: decision.field,
@@ -2616,23 +2789,12 @@
             rawTokens: item.supportingRawTokens || [item.rawToken],
             sourcePass: item.sourcePass,
             mappingStatus: item.mappingStatus,
+            ownershipStatus: item.ownershipStatus,
+            conflictEligible: item.conflictEligible,
             geometry: item.geometry,
           })),
         )),
-      fieldOwnership: analyses.flatMap((analysis) =>
-        analysis.semanticValues.map((value) => {
-          const nearest = nearestAnchorDiagnostic(value, analysis.anchors);
-          return {
-            value: value.value,
-            unit: value.unit,
-            rawToken: value.rawToken,
-            sourcePass: value.sourcePass,
-            ownerField: nearest.nearestLabel,
-            nearestLabelSourcePass: nearest.nearestLabelSourcePass,
-            relationScore: nearest.relationScore,
-          };
-        }),
-      ),
+      fieldOwnership: fieldOwnershipDiagnostics(analyses),
       structuredCandidates: mappings,
       geometryMapping: mappings,
       unitTieBreak: mappings.filter((item) =>
@@ -2651,6 +2813,7 @@
         conflict: decision.conflict,
         consensusStatus: decision.consensusStatus,
         conflictingCandidates: decision.conflictingCandidates,
+        excludedEvidence: decision.excludedEvidence,
       })),
       conflicts: Object.values(consensus).filter((decision) => decision.conflict),
       nutritionConsistency: consistency,
@@ -2669,6 +2832,13 @@
         supportingPasses: decision.supportingPasses,
         rawTokens: decision.rawTokens,
         consensusStatus: decision.consensusStatus,
+        excludedEvidence: decision.excludedEvidence,
+        selectedEvidence: decision.selectedEvidence,
+        ownershipEvidence: decision.selectedEvidence ? {
+          ownershipStatus: decision.selectedEvidence.ownershipStatus,
+          ownershipReason: decision.selectedEvidence.ownershipReason,
+          conflictEligible: decision.selectedEvidence.conflictEligible,
+        } : null,
       })),
       selectedMappings,
       fieldSources: Object.fromEntries(
@@ -2711,6 +2881,12 @@
               decisionReason: decision.decisionReason,
               supportingPasses: decision.supportingPasses,
               rawTokens: decision.rawTokens,
+              selectedEvidence: bridgeSelectedEvidence(decision.selectedEvidence),
+              ownershipEvidence: decision.selectedEvidence ? {
+                ownershipStatus: decision.selectedEvidence.ownershipStatus,
+                ownershipReason: decision.selectedEvidence.ownershipReason,
+                conflictEligible: decision.selectedEvidence.conflictEligible,
+              } : null,
               labelEvidence: decision.selectedEvidence?.labelEvidence
                 ? {
                     field: decision.field,

@@ -188,7 +188,12 @@ class FoodNutritionCandidateSession {
         _ => _draft.carbohydrate,
       };
       if (entry.value != null) {
-        _candidateSources[entry.key] = _sources[entry.key] ?? 'parser';
+        _candidateSources[entry.key] =
+            _isAcceptedStructuredDecision(
+              _decisionFieldForDraftField(entry.key),
+            )
+            ? 'STRUCTURED_DECISION'
+            : _sources[entry.key] ?? 'parser';
       } else if (current != null) {
         _candidateSources[entry.key] = 'session';
       }
@@ -203,9 +208,7 @@ class FoodNutritionCandidateSession {
   ) {
     if (next == null) return current;
     if (current == null) {
-      _sources[field] =
-          isStructured &&
-              _fieldDecisions[field]?['bridgeStatus'] == 'ACCEPTED_STRUCTURED'
+      _sources[field] = isStructured && _isAcceptedStructuredDecision(field)
           ? 'STRUCTURED_DECISION'
           : isStructured
           ? 'structured'
@@ -213,16 +216,30 @@ class FoodNutritionCandidateSession {
       return next;
     }
     if (current == next) {
-      if (isStructured) _sources[field] = 'structured';
+      if (isStructured) {
+        _sources[field] = _isAcceptedStructuredDecision(field)
+            ? 'STRUCTURED_DECISION'
+            : 'structured';
+      }
       return current;
     }
     _conflicts.add(field);
     if (isStructured) {
-      _sources[field] = 'structured';
+      _sources[field] = _isAcceptedStructuredDecision(field)
+          ? 'STRUCTURED_DECISION'
+          : 'structured';
       return next;
     }
     return _sources[field] == 'structured' ? current : next;
   }
+
+  bool _isAcceptedStructuredDecision(String field) =>
+      _fieldDecisions[field]?['bridgeStatus'] == 'ACCEPTED_STRUCTURED';
+
+  String _decisionFieldForDraftField(String field) => switch (field) {
+    'CALORIES' => 'ENERGY',
+    _ => field,
+  };
 }
 
 FoodOcrLiveCandidate _candidate(

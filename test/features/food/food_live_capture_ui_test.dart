@@ -115,7 +115,7 @@ void main() {
     );
 
     expect(session.draft.calories, 188);
-    expect(session.candidateSources['CALORIES'], 'structured');
+    expect(session.candidateSources['CALORIES'], 'STRUCTURED_DECISION');
     expect(
       session.fieldDecisions['ENERGY']?['bridgeStatus'],
       'ACCEPTED_STRUCTURED',

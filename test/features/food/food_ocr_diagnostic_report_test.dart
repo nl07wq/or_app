@@ -136,9 +136,21 @@ void main() {
         'STRUCTURED_DECISION',
       );
       expect(handoff['bridgeStatus'], 'ACCEPTED_STRUCTURED');
-      expect(review.single['field'], 'FAT');
-      expect(review.single['candidateValue'], 8);
-      expect(review.single['reviewBridgeStatus'], 'RETAINED_FOR_REVIEW');
+      expect(result['protein'], isNull);
+      expect(result['fat'], isNull);
+      expect(result['carbohydrate'], isNull);
+      expect((result['fieldSources'] as Map)['fat'], 'REVIEW_ONLY');
+      expect((result['fieldSources'] as Map)['carbohydrate'], 'REVIEW_ONLY');
+      expect((result['fieldSources'] as Map)['protein'], 'NOT_AVAILABLE');
+      final fat = review.firstWhere((item) => item['field'] == 'FAT');
+      final carbohydrate = review.firstWhere(
+        (item) => item['field'] == 'CARBOHYDRATE',
+      );
+      expect(fat['candidateValue'], 8);
+      expect(fat['reviewBridgeStatus'], 'RETAINED_FOR_REVIEW');
+      expect(carbohydrate['candidateValue'], 23.5);
+      expect(carbohydrate['candidateUnit'], isNull);
+      expect(carbohydrate['reviewBridgeStatus'], 'RETAINED_FOR_REVIEW');
     },
   );
 }
@@ -171,6 +183,35 @@ Map<String, dynamic> _fixtureReportWithDecisions() {
       'reviewRequired': true,
       'conflict': true,
       'decision': 'REVIEW_REQUIRED',
+    },
+    {
+      'field': 'carbohydrate',
+      'value': 23.5,
+      'unit': null,
+      'unitStatus': 'MISSING',
+      'confidence': 'MEDIUM',
+      'reviewRequired': true,
+      'conflict': true,
+      'decision': 'REVIEW_REQUIRED',
+      'rawTokens': ['5', "'23.5手", '2@3.5'],
+      'ownershipEvidence': {
+        'ownershipStatus': 'OWNED_REVIEW',
+        'conflictEligible': true,
+      },
+    },
+    {
+      'field': 'protein',
+      'value': null,
+      'unit': null,
+      'confidence': 'NONE',
+      'reviewRequired': true,
+      'conflict': false,
+      'decision': 'NOT_AVAILABLE',
+      'labelEvidence': {
+        'field': 'protein',
+        'status': 'RECOVERED_HIGH',
+        'recoveryMethod': 'nutrition-protein-label-confusion',
+      },
     },
   ];
   final report = _fixtureReport();
