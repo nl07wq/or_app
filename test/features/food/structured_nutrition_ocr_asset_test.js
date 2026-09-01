@@ -61,6 +61,11 @@ async function main() {
   assert.equal(recoverNumeric('23.8g').numericValue, 23.8);
   assert.equal(recoverNumeric('２３．８ｇ').numericValue, 23.8);
   assert.equal(recoverNumeric('２３．８ｇ').unit, 'g');
+  const unitless = recoverNumeric('23.9');
+  assert.equal(unitless.numericValue, 23.9);
+  assert.equal(unitless.unit, null);
+  assert.equal(unitless.unitStatus, 'MISSING');
+  assert.equal(unitless.candidateType, 'NUMERIC_WITHOUT_UNIT');
   const ambiguous = recoverNumeric('2@3.9g');
   assert.equal(ambiguous.candidateType, 'AMBIGUOUS_NUMERIC');
   assert.equal(ambiguous.numericValue, null);
@@ -161,6 +166,56 @@ async function main() {
   assert.equal(lowDecision.confidence, 'LOW');
   assert.equal(lowDecision.decision, 'CANDIDATE_ONLY');
 
+  const unitlessCarbohydrate = tsv([
+    word(1, 1, 10, 10, 110, '炭水化物'),
+    word(1, 2, 300, 10, 60, '23.9'),
+  ]);
+  const unitlessText = await diagnose(unitlessCarbohydrate);
+  assert.match(unitlessText, /\[\[OR_OCR_DECISIONS\]\]/);
+  const unitlessDecision =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .confidenceDecisions.find((item) => item.field === 'carbohydrate');
+  assert.equal(unitlessDecision.value, 23.9);
+  assert.equal(unitlessDecision.unit, null);
+  assert.equal(unitlessDecision.confidence, 'MEDIUM');
+  assert.equal(unitlessDecision.decision, 'REVIEW_REQUIRED');
+  assert.equal(unitlessDecision.reviewRequired, true);
+  assert.ok(
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .numericCandidates.some((item) =>
+        item.rawToken === '23.9' &&
+        item.candidateType === 'NUMERIC_WITHOUT_UNIT' &&
+        item.unit === null && item.sourcePass === 'original',
+      ),
+  );
+
+  const noLabelUnitless = tsv([word(1, 1, 10, 10, 60, '23.9')]);
+  assert.equal(await diagnose(noLabelUnitless), '');
+
+  const shared = await window.orAppFoodInput.collectSharedOcrPassesForTesting();
+  assert.equal(shared.generatedOnce, true);
+  assert.deepEqual(shared.consumerModes, ['STANDARD', 'NUTRITION']);
+  assert.equal(shared.invocationCount, 3);
+  assert.deepEqual(
+    shared.passes.map((pass) => pass.name),
+    ['original', 'grayscale', 'moderate-contrast'],
+  );
+
+  const resized = window.orAppFoodInput.ocrGeometryForDiagnostics(1199, 859);
+  assert.equal(resized.inputWidth, 2048);
+  assert.equal(resized.resizeMethod, 'canvas-image-smoothing-upscale');
+  assert.ok(resized.resizeScale > 1 && resized.resizeScale < 2);
+  assert.ok(
+    Math.abs(
+      resized.inputWidth / resized.inputHeight -
+      resized.sourceWidth / resized.sourceHeight,
+    ) < 0.002,
+  );
+  const alreadyLarge = window.orAppFoodInput.ocrGeometryForDiagnostics(2500, 1200);
+  assert.equal(alreadyLarge.resizeScale, 1);
+  const tiny = window.orAppFoodInput.ocrGeometryForDiagnostics(320, 200);
+  assert.equal(tiny.resizeScale, 2);
+
   const recovered = tsv([
     word(1, 1, 10, 10, 120, 'ィネルギー'),
     word(1, 2, 300, 10, 90, '188keal'),
@@ -215,6 +270,21 @@ async function main() {
   assert.ok(consensusDiagnostics.conflicts.some((item) =>
     item.field === 'carbohydrate' && item.conflict === true,
   ));
+
+  const sharedDiagnostic = await window.orAppFoodInput
+    .diagnoseSharedArtifactPassesForTesting([pass1, pass2, pass3]);
+  assert.equal(sharedDiagnostic.generatedOnce, true);
+  assert.deepEqual(sharedDiagnostic.consumerModes, ['STANDARD', 'NUTRITION']);
+  assert.equal(sharedDiagnostic.sameRawOcr, true);
+  assert.equal(
+    sharedDiagnostic.standard.sharedOcrArtifact.artifactId,
+    sharedDiagnostic.nutrition.sharedOcrArtifact.artifactId,
+  );
+  assert.equal(
+    sharedDiagnostic.nutrition.structured.confidenceDecisions
+      .find((item) => item.field === 'energy').value,
+    188,
+  );
 
   const consistentPass = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),

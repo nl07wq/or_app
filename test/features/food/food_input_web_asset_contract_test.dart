@@ -194,8 +194,10 @@ void main() {
       bridge,
       contains('ocrGeometry(video.videoWidth, video.videoHeight, guide)'),
     );
-    expect(bridge, contains('Math.min(1, maxWidth / sourceWidth)'));
-    expect(bridge, contains('const maxWidth = 2560'));
+    expect(bridge, contains('const maxLongEdge = 2560'));
+    expect(bridge, contains('const resizeTargetLongEdge = 2048'));
+    expect(bridge, contains('const maximumUpscale = 2'));
+    expect(bridge, contains("'canvas-image-smoothing-upscale'"));
     expect(bridge, contains('inputWidth: canvas.width'));
     expect(bridge, contains('inputHeight: canvas.height'));
     expect(bridge, contains('devicePixelRatio: window.devicePixelRatio'));
@@ -288,9 +290,13 @@ void main() {
         'sourceDimensions',
         'cropRect',
         'cropDimensions',
+        'preResizeDimensions',
         'ocrDimensions',
         'cropApplied',
         'resizeApplied',
+        'resizeMethod',
+        'resizeScale',
+        'sharedOcrArtifact',
         'rotationCorrection',
         'perspectiveCorrection',
         'preprocessVariant',
@@ -310,6 +316,11 @@ void main() {
         expect(bridge, contains('$field:'));
       }
       expect(bridge, contains("persistence: 'none'"));
+      expect(bridge, contains('createSharedNutritionOcrArtifact'));
+      expect(bridge, contains('consumeSharedNutritionOcrArtifact'));
+      expect(bridge, contains('collectSharedOcrPasses'));
+      expect(bridge, contains('generatedOnce: true'));
+      expect(bridge, contains('sameRawOcr: standardRaw === readerRaw'));
       expect(bridge, isNot(contains('localStorage.setItem')));
       expect(scanner, contains('if (diagnosticsAvailable)'));
       expect(scanner, isNot(contains('kDebugMode && diagnosticsAvailable')));

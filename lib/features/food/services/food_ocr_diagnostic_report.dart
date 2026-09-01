@@ -243,12 +243,17 @@ void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
     ..writeln('\nINPUT TRANSFORM')
     ..writeln('cropApplied: ${_text(branch['cropApplied'])}')
     ..writeln('cropRect: ${_lines(_map(branch['cropRect']))}')
+    ..writeln('preResizeSize: ${_lines(_map(branch['preResizeDimensions']))}')
     ..writeln('resizeApplied: ${_text(branch['resizeApplied'])}')
+    ..writeln('resizeMethod: ${_text(branch['resizeMethod'])}')
+    ..writeln('resizeScale: ${_text(branch['resizeScale'])}')
     ..writeln('processedSize: ${_lines(_map(branch['ocrDimensions']))}')
     ..writeln('rotationCorrection: ${_text(branch['rotationCorrection'])}')
     ..writeln(
       'perspectiveCorrection: ${_text(branch['perspectiveCorrection'])}',
     )
+    ..writeln('\nSHARED OCR ARTIFACT')
+    ..writeln(_lines(_map(branch['sharedOcrArtifact'])))
     ..writeln('\nPREPROCESS');
   final passes = _list(branch['passes']);
   if (passes.isEmpty) {

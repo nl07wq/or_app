@@ -104,6 +104,26 @@ void main() {
     expect(session.conflicts, contains('CARBOHYDRATE'));
   });
 
+  test('unit-less structured evidence remains review-only', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe(
+      '[[OR_STRUCTURED_NUTRITION]]\n'
+      '[[OR_OCR_DECISIONS]]\n'
+      '{"carbohydrate":{"value":23.9,"unit":null,'
+      '"confidence":"MEDIUM","source":"RECOVERED_OCR",'
+      '"reviewRequired":true,"conflict":false,'
+      '"decision":"REVIEW_REQUIRED"}}',
+    );
+
+    expect(session.draft.carbohydrate, isNull);
+    expect(session.fieldDecisions['CARBOHYDRATE']?['value'], 23.9);
+    expect(session.fieldDecisions['CARBOHYDRATE']?['unit'], isNull);
+    expect(
+      session.fieldDecisions['CARBOHYDRATE']?['decision'],
+      'REVIEW_REQUIRED',
+    );
+  });
+
   testWidgets(
     'Food Entry exposes live barcode scan and applies only its result',
     (tester) async {

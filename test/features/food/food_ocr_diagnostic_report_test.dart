@@ -101,6 +101,8 @@ void main() {
     expect(text, contains('TOKEN RECOVERY'));
     expect(text, contains('LABEL RECOVERY'));
     expect(text, contains('NUMERIC RECOVERY'));
+    expect(text, contains('preResizeSize:'));
+    expect(text, contains('SHARED OCR ARTIFACT'));
     expect(text, contains('GEOMETRY MAPPING'));
     expect(text, contains('MULTI-PASS CONSENSUS'));
     expect(text, contains('CONFIDENCE DECISION'));
@@ -128,7 +130,16 @@ Map<String, dynamic> _branch(String mode) => {
   'cropApplied': true,
   'cropRect': {'x': 48, 'y': 80, 'width': 1104, 'height': 640},
   'resizeApplied': false,
+  'resizeMethod': 'none',
+  'resizeScale': 1,
+  'preResizeDimensions': {'width': 1104, 'height': 640},
   'ocrDimensions': {'width': 1104, 'height': 640},
+  'sharedOcrArtifact': {
+    'artifactId': 'nutrition-test',
+    'generatedOnce': true,
+    'consumerModes': ['STANDARD', 'NUTRITION'],
+    'passCount': 3,
+  },
   'rotationCorrection': 'NOT REQUIRED',
   'perspectiveCorrection': 'NOT APPLIED',
   'inputPreviewDataUrl': 'data:image/png;base64,AA==',

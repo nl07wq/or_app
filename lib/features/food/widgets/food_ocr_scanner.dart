@@ -482,7 +482,8 @@ Future<_NutritionReviewAction> _reviewNutrition(
                 _value(
                   '${entry.key} OCR',
                   '${entry.value['confidence'] ?? 'NONE'} / '
-                      '${entry.value['decision'] ?? 'NOT_AVAILABLE'}',
+                      '${entry.value['decision'] ?? 'NOT_AVAILABLE'}'
+                      '${_reviewEvidence(entry.value)}',
                 ),
             ],
           ),
@@ -523,6 +524,13 @@ Widget _value(String label, String? value) => Padding(
 
 String? _amount(double? value, String suffix) =>
     value == null ? null : '${FoodNutritionFormatter.amount(value)} $suffix';
+
+String _reviewEvidence(Map<String, dynamic> decision) {
+  final value = decision['value'];
+  if (value is! num) return '';
+  final unit = decision['unit'];
+  return ' / candidate: $value (${unit is String ? unit : 'UNIT NOT AVAILABLE'})';
+}
 
 String? _quantity(double? value, FoodQuantityUnit? unit) {
   if (value == null || unit == null) return null;
