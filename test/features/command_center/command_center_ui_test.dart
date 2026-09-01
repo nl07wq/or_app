@@ -232,6 +232,40 @@ void main() {
     );
   });
 
+  test('every cycle state has lifecycle-grounded help copy', () {
+    for (final state in DailyCommandCycleState.values) {
+      expect(cycleStateHelp(state), isNotEmpty);
+    }
+    expect(
+      cycleStateHelp(DailyCommandCycleState.awaitingDebrief),
+      contains('DAILY DEBRIEF'),
+    );
+    expect(cycleStateHelp(DailyCommandCycleState.active), contains('日次項目'));
+  });
+
+  testWidgets('Cycle State opens and dismisses semantic help', (tester) async {
+    await _pump(tester, width: 390);
+
+    await tester.tap(
+      find.byKey(const ValueKey('current-operation-cycle-value')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('semantic-help-popover-cycle-standby')),
+      findsOneWidget,
+    );
+    expect(
+      find.text(cycleStateHelp(DailyCommandCycleState.standby)),
+      findsOneWidget,
+    );
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('semantic-help-popover-cycle-standby')),
+      findsNothing,
+    );
+  });
+
   testWidgets('keeps assessment while retiring operation hub sections', (
     tester,
   ) async {

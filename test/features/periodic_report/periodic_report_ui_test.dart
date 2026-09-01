@@ -11,6 +11,7 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/periodic_report/models/periodic_report.dart';
 import 'package:or_app/features/periodic_report/pages/periodic_report_page.dart';
 import 'package:or_app/features/periodic_report/services/periodic_report_presentation_formatter.dart';
+import 'package:or_app/features/periodic_report/services/periodic_report_fact_service.dart';
 import 'package:or_app/features/periodic_report/widgets/periodic_report_chart.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/training/services/exercise_name_localization.dart';
@@ -31,6 +32,29 @@ void main() {
     ]);
   });
 
+  test('FINALIZE candidates skip existing stable report identities', () async {
+    final pending = await pendingPeriodicReportTypesForFinalizedDate(
+      DateTime(2028, 12, 31),
+      (periodId) async => periodId.startsWith('weekly:'),
+    );
+
+    expect(pending, [PeriodicReportType.monthly, PeriodicReportType.yearly]);
+  });
+
+  test('FINALIZE workflow chains only after successful imports', () async {
+    final opened = <PeriodicReportType>[];
+    await runPeriodicReportWorkflowForFinalizedDate(
+      finalizedDate: DateTime(2028, 12, 31),
+      reportExists: (_) async => false,
+      openReport: (type) async {
+        opened.add(type);
+        return type != PeriodicReportType.monthly;
+      },
+    );
+
+    expect(opened, [PeriodicReportType.weekly, PeriodicReportType.monthly]);
+  });
+
   test('presentation formatter preserves numeric meaning', () {
     expect(periodicReportDecimal(30485.04), '30,485.0');
     expect(periodicReportDecimal(-30485.04), '-30,485.0');
@@ -46,6 +70,19 @@ void main() {
     expect(
       periodicReportErrorMessage(const FormatException('other failure')),
       contains('other failure'),
+    );
+  });
+
+  test('incomplete periods map only the expected domain failure', () {
+    final error = IncompletePeriodicReportException(
+      reportType: PeriodicReportType.monthly,
+      periodEnd: DateTime(2026, 8, 31),
+      currentOperationDate: DateTime(2026, 8, 31),
+    );
+    expect(periodicReportErrorMessage(error), contains('日次FINALIZE'));
+    expect(
+      periodicReportErrorMessage(StateError('unexpected')),
+      contains('unexpected'),
     );
   });
 
@@ -144,6 +181,21 @@ void main() {
           const ValueKey('periodic-report-header-card'),
         );
         expect(header, findsOneWidget);
+        final headerContainer = tester.widget<Container>(header);
+        final headerDecoration = headerContainer.decoration! as BoxDecoration;
+        expect(
+          headerDecoration.color,
+          Theme.of(tester.element(header)).colorScheme.surfaceContainerHighest,
+        );
+        expect(
+          find.descendant(
+            of: header,
+            matching: find.byKey(
+              const ValueKey('periodic-report-identity-icon'),
+            ),
+          ),
+          findsOneWidget,
+        );
         expect(
           find.descendant(of: header, matching: find.text(entry.$3)),
           findsOneWidget,

@@ -94,7 +94,7 @@ void main() {
         anchor: DateTime(2026, 8, 1),
         currentOperationDate: DateTime(2026, 8, 31),
       ),
-      throwsStateError,
+      throwsA(isA<IncompletePeriodicReportException>()),
     );
   });
 

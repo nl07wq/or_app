@@ -1066,6 +1066,7 @@ class _ProgressRow extends StatelessWidget {
       DynamicTargetState.yellowHigh => AppColors.warning,
       DynamicTargetState.redLow ||
       DynamicTargetState.redHigh => AppColors.danger,
+      DynamicTargetState.neutral => colorScheme.outline,
       _ => null,
     };
     final content = Column(

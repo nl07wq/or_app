@@ -4,6 +4,16 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../models/daily_assessment.dart';
 import 'daily_assessment_label_mapper.dart';
+import 'semantic_help_popover.dart';
+
+@visibleForTesting
+String dailyAssessmentLevelHelp(DailyAssessmentLevel level) => switch (level) {
+  DailyAssessmentLevel.support => '今日の運用を積極的に支える要因です。運用上の修正は必要ありません。',
+  DailyAssessmentLevel.stable => '通常運用が可能な範囲です。現在の運用を継続します。',
+  DailyAssessmentLevel.watch => '監視する段階です。直ちに変更する段階ではありませんが、推移を確認します。',
+  DailyAssessmentLevel.adjust => '負荷や運用内容の具体的な調整が必要な段階です。',
+  DailyAssessmentLevel.limit => '明確な制約がある段階です。判定内容に従って運用を制限します。',
+};
 
 class DailyAssessmentView extends StatelessWidget {
   const DailyAssessmentView({super.key, required this.assessment});
@@ -320,19 +330,24 @@ class _LevelBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = dailyAssessmentLevelColor(level);
-    return Container(
-      key: ValueKey('daily-assessment-level-${level.name}'),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        level.label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
+    return SemanticHelpPopover(
+      id: 'assessment-${level.name}',
+      title: level.label,
+      description: dailyAssessmentLevelHelp(level),
+      child: Container(
+        key: ValueKey('daily-assessment-level-${level.name}'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.16),
+          border: Border.all(color: color),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          level.label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }

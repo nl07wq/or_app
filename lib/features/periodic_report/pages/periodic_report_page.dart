@@ -15,6 +15,7 @@ import '../../report_sync/services/report_human_presentation.dart';
 import '../../training/services/exercise_name_localization.dart';
 import '../models/periodic_report.dart';
 import '../services/periodic_report_presentation_formatter.dart';
+import '../services/periodic_report_fact_service.dart';
 import '../services/periodic_report_service.dart';
 import '../widgets/periodic_report_chart.dart';
 
@@ -347,6 +348,9 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
 
 @visibleForTesting
 String periodicReportErrorMessage(Object error) {
+  if (error is IncompletePeriodicReportException) {
+    return 'この期間のデータはまだ確定していません。期間最終日の日次FINALIZE完了後に作成できます。';
+  }
   if (error is FormatException &&
       error.message.toString().contains('completedAt precedes startedAt')) {
     return 'REPORT TIME INVALID';
@@ -376,67 +380,98 @@ class _ReportHeaderCard extends StatelessWidget {
   final VoidCallback onCreate;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
-    key: const ValueKey('periodic-report-header-card'),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(
-          icon: Symbols.calendar_month,
-          title: '${_label(reportType)} REPORT',
-        ),
-        if (report != null) ...[
-          AppSpacing.gapSM,
-          Text(
-            periodicReportPresentationIdentity(
-              reportType,
-              report!.periodStart,
-              report!.revision,
-            ),
-            key: const ValueKey('periodic-report-presentation-id'),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
-        AppSpacing.gapMD,
-        Row(
-          children: [
-            IconButton(
-              tooltip: 'PREVIOUS PERIOD',
-              onPressed: busy ? null : onPrevious,
-              icon: const Icon(Icons.chevron_left),
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  Text(
-                    _targetPeriodLabel(reportType, period),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      key: const ValueKey('periodic-report-header-card'),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Symbols.calendar_month,
+                key: const ValueKey('periodic-report-identity-icon'),
+                color: theme.colorScheme.primary,
+                size: 28,
               ),
-            ),
-            IconButton(
-              tooltip: 'NEXT PERIOD',
-              onPressed: busy || !canMoveNext ? null : onNext,
-              icon: const Icon(Icons.chevron_right),
+              AppSpacing.gapSM,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_label(reportType)} REPORT',
+                      key: const ValueKey('periodic-report-identity-title'),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    if (report != null) ...[
+                      AppSpacing.gapXS,
+                      Text(
+                        periodicReportPresentationIdentity(
+                          reportType,
+                          report!.periodStart,
+                          report!.revision,
+                        ),
+                        key: const ValueKey('periodic-report-presentation-id'),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.gapMD,
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'PREVIOUS PERIOD',
+                onPressed: busy ? null : onPrevious,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      _targetPeriodLabel(reportType, period),
+                      textAlign: TextAlign.center,
+                      key: const ValueKey('periodic-report-navigator-label'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'NEXT PERIOD',
+                onPressed: busy || !canMoveNext ? null : onNext,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          if (report == null) ...[
+            AppSpacing.gapLG,
+            OperationButton(
+              text: 'CREATE REPORT',
+              icon: Symbols.auto_awesome,
+              onPressed: busy ? null : onCreate,
             ),
           ],
-        ),
-        if (report == null) ...[
-          AppSpacing.gapLG,
-          OperationButton(
-            text: 'CREATE REPORT',
-            icon: Symbols.auto_awesome,
-            onPressed: busy ? null : onCreate,
-          ),
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _PreviewCard extends StatelessWidget {

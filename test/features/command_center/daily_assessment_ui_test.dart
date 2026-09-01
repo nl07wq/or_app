@@ -6,6 +6,59 @@ import 'package:or_app/features/command_center/widgets/daily_assessment_card.dar
 import 'package:or_app/features/command_center/widgets/daily_assessment_label_mapper.dart';
 
 void main() {
+  test('every assessment level has grounded help copy', () {
+    for (final level in DailyAssessmentLevel.values) {
+      expect(dailyAssessmentLevelHelp(level), isNotEmpty);
+      expect(dailyAssessmentLevelHelp(level), isNot(level.meaning));
+    }
+  });
+
+  testWidgets('level badge opens, switches, and dismisses semantic help', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: DailyAssessmentView(assessment: _assessment()),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('daily-assessment-level-support')).first,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('semantic-help-popover-assessment-support')),
+      findsOneWidget,
+    );
+    expect(
+      find.text(dailyAssessmentLevelHelp(DailyAssessmentLevel.support)),
+      findsOneWidget,
+    );
+
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('semantic-help-popover-assessment-support')),
+      findsNothing,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('daily-assessment-level-watch')).first,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(dailyAssessmentLevelHelp(DailyAssessmentLevel.watch)),
+      findsOneWidget,
+    );
+  });
+
   test(
     'maps canonical assessment labels without changing canonical values',
     () {

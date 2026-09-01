@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -24,6 +25,7 @@ import '../services/daily_command_read_model_builder.dart';
 import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
+import '../widgets/semantic_help_popover.dart';
 import '../../report_sync/models/morning_brief_state.dart';
 import '../../periodic_report/models/periodic_report.dart';
 import '../../periodic_report/pages/periodic_report_page.dart';
@@ -36,6 +38,53 @@ List<PeriodicReportType> periodicReportTypesForFinalizedDate(DateTime date) => [
   if (date.month == DateTime.december && date.day == 31)
     PeriodicReportType.yearly,
 ];
+
+@visibleForTesting
+Future<List<PeriodicReportType>> pendingPeriodicReportTypesForFinalizedDate(
+  DateTime date,
+  Future<bool> Function(String periodId) reportExists,
+) async {
+  final pending = <PeriodicReportType>[];
+  for (final type in periodicReportTypesForFinalizedDate(date)) {
+    final period = switch (type) {
+      PeriodicReportType.weekly => OperationCalendarPeriod.week(date),
+      PeriodicReportType.monthly => OperationCalendarPeriod.month(date),
+      PeriodicReportType.yearly => OperationCalendarPeriod.year(date),
+    };
+    if (!await reportExists(period.id)) pending.add(type);
+  }
+  return pending;
+}
+
+@visibleForTesting
+Future<void> runPeriodicReportWorkflowForFinalizedDate({
+  required DateTime finalizedDate,
+  required Future<bool> Function(String periodId) reportExists,
+  required Future<bool> Function(PeriodicReportType type) openReport,
+}) async {
+  final pending = await pendingPeriodicReportTypesForFinalizedDate(
+    finalizedDate,
+    reportExists,
+  );
+  for (final type in pending) {
+    if (!await openReport(type)) return;
+  }
+}
+
+@visibleForTesting
+String cycleStateHelp(DailyCommandCycleState state) => switch (state) {
+  DailyCommandCycleState.standby =>
+    '有効なSTATUSがまだありません。STATUSが確定すると当日の運用を開始します。',
+  DailyCommandCycleState.active => '当日の記録を進めています。必要な日次項目が揃うとFINALIZE準備へ進みます。',
+  DailyCommandCycleState.reviewReady =>
+    '必要な日次項目が揃いました。DAILY DEBRIEFを作成して日次確定へ進めます。',
+  DailyCommandCycleState.awaitingDebrief =>
+    '日次集計の準備が完了し、DAILY DEBRIEFの確定を待っています。確定後にFINALIZEできます。',
+  DailyCommandCycleState.finalizing =>
+    '日次確認とDAILY AGGREGATEを作成・保存しています。完了するとDAILY DEBRIEF待ちへ進みます。',
+  DailyCommandCycleState.recoveryRequired =>
+    '日次確定のバックアップまたは日付更新の復旧が必要です。復旧完了後に通常運用へ戻ります。',
+};
 
 class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({super.key, this.initialPage = 2});
@@ -250,37 +299,25 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
 
   Future<void> _offerPeriodicReports(OperationLocalDate finalizedDate) async {
     final date = DateTime.parse(finalizedDate.value);
-    final candidates = periodicReportTypesForFinalizedDate(date);
-    for (final type in candidates) {
-      if (!mounted) return;
-      final create = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('CREATE ${type.stableId.toUpperCase()} REPORT?'),
-          content: Text(
-            'Completed ${type.stableId.toUpperCase()} formal facts are ready.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('NO'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('YES'),
-            ),
-          ],
-        ),
-      );
-      if (create == true && mounted) {
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) =>
-                PeriodicReportPage(initialType: type, initialAnchor: date),
-          ),
-        );
-      }
-    }
+    final container = AppRepositoryRegistry.container;
+    await runPeriodicReportWorkflowForFinalizedDate(
+      finalizedDate: date,
+      reportExists: (periodId) async =>
+          await container.periodicReports.read(periodId) != null,
+      openReport: (type) async {
+        if (!mounted) return false;
+        return await Navigator.of(context).push<bool>(
+              MaterialPageRoute(
+                builder: (routeContext) => PeriodicReportPage(
+                  initialType: type,
+                  initialAnchor: date,
+                  onImported: () => Navigator.pop(routeContext, true),
+                ),
+              ),
+            ) ==
+            true;
+      },
+    );
   }
 
   void _handleOperationDateDisplayed(OperationLocalDate date) {
@@ -417,42 +454,50 @@ class _CurrentOperationCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               AppSpacing.gapSM,
-              Semantics(
-                label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
-                child: SizedBox(
-                  key: const ValueKey('current-operation-cycle-value'),
-                  width: double.infinity,
-                  height: OperationDateFlipCalendar.defaultTileHeight,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                cycleStateIconFor(cycleState),
-                                key: const ValueKey(
-                                  'current-operation-cycle-icon',
+              SemanticHelpPopover(
+                id: 'cycle-${cycleState.name}',
+                title: cycleStateShortLabelFor(cycleState),
+                description: cycleStateHelp(cycleState),
+                child: Semantics(
+                  button: true,
+                  label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
+                  child: SizedBox(
+                    key: const ValueKey('current-operation-cycle-value'),
+                    width: double.infinity,
+                    height: OperationDateFlipCalendar.defaultTileHeight,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  cycleStateIconFor(cycleState),
+                                  key: const ValueKey(
+                                    'current-operation-cycle-icon',
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Text(
-                                cycleStateShortLabelFor(cycleState),
-                                key: const ValueKey(
-                                  'current-operation-cycle-label',
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  cycleStateShortLabelFor(cycleState),
+                                  key: const ValueKey(
+                                    'current-operation-cycle-label',
+                                  ),
+                                  maxLines: 1,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
-                                maxLines: 1,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -818,6 +818,16 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
       expect(_progress(tester, 'WATER'), closeTo(2699 / 2700, 1e-12));
+      final neutralWaterProgress = tester.widget<LinearProgressIndicator>(
+        find.descendant(
+          of: _tile('WATER'),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+      );
+      expect(
+        neutralWaterProgress.color,
+        Theme.of(tester.element(_tile('WATER'))).colorScheme.outline,
+      );
       expect(
         tester
             .widgetList<Material>(

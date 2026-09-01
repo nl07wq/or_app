@@ -5,6 +5,21 @@ import '../../training/repository/training_session_repository.dart';
 import '../models/periodic_report.dart';
 import '../repository/periodic_report_repository.dart';
 
+class IncompletePeriodicReportException implements Exception {
+  const IncompletePeriodicReportException({
+    required this.reportType,
+    required this.periodEnd,
+    required this.currentOperationDate,
+  });
+
+  final PeriodicReportType reportType;
+  final DateTime periodEnd;
+  final DateTime currentOperationDate;
+
+  @override
+  String toString() => 'Periodic report period has not completed.';
+}
+
 class PeriodicReportFactService {
   const PeriodicReportFactService({
     required this.dailyAggregates,
@@ -25,7 +40,11 @@ class PeriodicReportFactService {
   }) async {
     final period = _period(reportType, anchor);
     if (!period.isCompleteAt(currentOperationDate)) {
-      throw StateError('Partial periodic reports are not allowed.');
+      throw IncompletePeriodicReportException(
+        reportType: reportType,
+        periodEnd: period.end,
+        currentOperationDate: currentOperationDate,
+      );
     }
     final current = await _generate(period);
     final previous = await _generate(period.previous());
