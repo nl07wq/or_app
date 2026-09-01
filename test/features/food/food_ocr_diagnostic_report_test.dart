@@ -101,6 +101,9 @@ void main() {
     expect(text, contains('TOKEN RECOVERY'));
     expect(text, contains('LABEL RECOVERY'));
     expect(text, contains('NUMERIC RECOVERY'));
+    expect(text, contains('SEMANTIC DUPLICATE COLLAPSE'));
+    expect(text, contains('PRE-MAPPING EVIDENCE'));
+    expect(text, contains('UNIT TIE BREAK'));
     expect(text, contains('preResizeSize:'));
     expect(text, contains('SHARED OCR ARTIFACT'));
     expect(text, contains('GEOMETRY MAPPING'));

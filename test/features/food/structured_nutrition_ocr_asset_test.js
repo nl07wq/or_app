@@ -286,6 +286,130 @@ async function main() {
     188,
   );
 
+  const exactUnitTieBreak = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 36, '188'),
+    word(1, 3, 338, 10, 54, 'kcal'),
+  ]);
+  const exactUnitTieBreakText = await diagnose(exactUnitTieBreak);
+  assert.match(exactUnitTieBreakText, /エネルギー 188kcal/);
+  const tieBreakDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  const tieBreakMapping = tieBreakDiagnostics.structuredCandidates
+    .find((item) => item.field === 'energy');
+  assert.equal(tieBreakMapping.selectedCandidate.unit, 'kcal');
+  assert.equal(tieBreakMapping.selectedCandidate.unitStatus, 'EXACT');
+  assert.match(tieBreakMapping.selectionReason, /exact-compatible-unit-preferred/);
+  assert.equal(
+    tieBreakDiagnostics.semanticDuplicateCollapse
+      .find((item) => item.value === 188).rawCandidateCount,
+    2,
+  );
+
+  const energyPassGarbled = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 70, '19@kcal'),
+  ]);
+  const energyPassExact = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 36, '188'),
+    word(1, 3, 338, 10, 54, 'kcal'),
+  ]);
+  await window.orAppFoodInput.diagnoseStructuredNutritionPassesForTesting([
+    energyPassGarbled,
+    energyPassExact,
+    energyPassExact,
+  ]);
+  const energyConsensus =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics
+      .confidenceDecisions.find((item) => item.field === 'energy');
+  assert.equal(energyConsensus.value, 188);
+  assert.equal(energyConsensus.unit, 'kcal');
+  assert.deepEqual(energyConsensus.supportingPasses, [
+    'grayscale',
+    'moderate-contrast',
+  ]);
+
+  const fatConfusion = tsv([
+    word(1, 1, 10, 10, 24, '肥'),
+    word(1, 2, 36, 10, 24, '質'),
+    word(1, 3, 220, 10, 48, '8g'),
+  ]);
+  const fatConfusionText = await diagnose(fatConfusion);
+  assert.match(fatConfusionText, /脂質 8g/);
+  const fatDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  assert.ok(fatDiagnostics.labelRecovery.some((item) =>
+    item.field === 'fat' &&
+    item.method === 'nutrition-label-confusion' &&
+    item.status === 'RECOVERED_MEDIUM',
+  ));
+  const fatDecision = fatDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'fat');
+  assert.equal(fatDecision.value, 8);
+  assert.equal(fatDecision.unit, 'g');
+  assert.equal(fatDecision.confidence, 'MEDIUM');
+  assert.equal(fatDecision.decision, 'REVIEW_REQUIRED');
+
+  const proteinLabelOnly = tsv([
+    word(1, 1, 10, 10, 150, 'たんばぱく質'),
+    word(2, 1, 10, 50, 140, 'たんぱく算'),
+  ]);
+  await diagnose(proteinLabelOnly);
+  const proteinDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  assert.ok(proteinDiagnostics.labelRecovery.some((item) =>
+    item.field === 'protein' && item.rawText === 'たんばぱく質',
+  ));
+  assert.ok(proteinDiagnostics.labelRecovery.some((item) =>
+    item.field === 'protein' && item.rawText === 'たんぱく算',
+  ));
+  const proteinDecision = proteinDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'protein');
+  assert.equal(proteinDecision.value, null);
+  assert.equal(proteinDecision.decision, 'NOT_AVAILABLE');
+
+  const carbohydratePass1 = tsv([
+    word(1, 1, 10, 10, 110, '炭水化物'),
+    word(1, 2, 300, 10, 24, '5'),
+  ]);
+  const carbohydratePass2 = tsv([
+    word(1, 1, 10, 10, 110, '大水化物'),
+    word(1, 2, 300, 10, 56, '23.5'),
+  ]);
+  const carbohydratePass3 = tsv([
+    word(1, 1, 10, 10, 110, '大水化物'),
+    word(1, 2, 300, 10, 64, '2@3.5'),
+  ]);
+  const carbohydrateText = await window.orAppFoodInput
+    .diagnoseStructuredNutritionPassesForTesting([
+      carbohydratePass1,
+      carbohydratePass2,
+      carbohydratePass3,
+    ]);
+  assert.doesNotMatch(carbohydrateText, /炭水化物 5/);
+  const carbohydrateDiagnostics =
+    window.orAppFoodInput.assetState().lastStructuredDiagnostics;
+  const carbohydrateClusterDecision = carbohydrateDiagnostics.confidenceDecisions
+    .find((item) => item.field === 'carbohydrate');
+  assert.equal(carbohydrateClusterDecision.value, 23.5);
+  assert.equal(carbohydrateClusterDecision.unit, null);
+  assert.equal(carbohydrateClusterDecision.conflict, true);
+  assert.equal(carbohydrateClusterDecision.decision, 'REVIEW_REQUIRED');
+  assert.equal(carbohydrateClusterDecision.reviewRequired, true);
+  assert.ok(carbohydrateClusterDecision.rawTokens.includes('23.5'));
+  assert.ok(
+    carbohydrateDiagnostics.numericCandidates.some((item) =>
+      item.rawToken === '2@3.5' && item.numericValue === null &&
+      /multiple-plausible/.test(item.ambiguity),
+    ),
+  );
+  assert.ok(carbohydrateDiagnostics.conflicts
+    .find((item) => item.field === 'carbohydrate')
+    .conflictingCandidates.some((item) =>
+      item.value === 5 && item.status === 'DOWNRANKED_SINGLE_PASS_OUTLIER',
+    ));
+
   const consistentPass = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
     word(1, 2, 300, 10, 70, '188kcal'),

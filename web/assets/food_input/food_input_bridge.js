@@ -1388,6 +1388,27 @@
     return best && best.status !== 'REJECTED' ? best : null;
   }
 
+  function nutritionLabelConfusionRecovery(rawText, selected, group) {
+    const normalized = normalizeOcrToken(rawText);
+    if (normalized !== '肥質') return null;
+    const selectedBox = boxForWords(selected);
+    const hasSameRowGramEvidence = group.words.some((word) => {
+      if (word.left < selectedBox.right - 2) return false;
+      const numeric = recoverNumericToken(word.text);
+      return numeric?.unit === 'g' && !numeric.ambiguity;
+    });
+    if (!hasSameRowGramEvidence) return null;
+    return {
+      field: 'fat',
+      alias: '脂質',
+      status: 'RECOVERED_MEDIUM',
+      recoveryMethod: 'nutrition-label-confusion',
+      recoveryConfidence: 0.68,
+      ambiguity: null,
+      contextEvidence: ['same-row-g-value', 'nutrition-layout'],
+    };
+  }
+
   function nutritionAnchors(groups) {
     const anchors = [];
     for (const group of groups) {
@@ -1432,7 +1453,8 @@
           const selected = group.words.slice(index, index + count);
           if (selected.length !== count) continue;
           const rawText = selected.map((word) => word.text).join('');
-          const recovered = labelRecovery(rawText, averageConfidence(selected));
+          const recovered = labelRecovery(rawText, averageConfidence(selected)) ||
+            nutritionLabelConfusionRecovery(rawText, selected, group);
           if (!recovered || anchors.some((anchor) =>
             anchor.field === recovered.field && anchor.lineKey === group.lineKey,
           )) continue;
@@ -1487,6 +1509,65 @@
         candidate.ambiguity === value.ambiguity,
       ) === index,
     );
+  }
+
+  function unitEvidenceRank(value) {
+    return value.unitStatus === 'EXACT' ? 4 :
+      value.unitStatus === 'RECOVERED_HIGH' ? 3 :
+        value.unitStatus === 'RECOVERED_MEDIUM' ? 2 :
+          value.unitStatus === 'MISSING' ? 1 : 0;
+  }
+
+  function sameSemanticObservation(left, right) {
+    if (left.lineKey !== right.lineKey || left.value !== right.value) return false;
+    const leftRight = left.left + left.width;
+    const rightRight = right.left + right.width;
+    const overlaps = Math.min(leftRight, rightRight) >= Math.max(left.left, right.left);
+    return overlaps || Math.abs(left.left - right.left) <= 3 ||
+      Math.abs(leftRight - rightRight) <= 3;
+  }
+
+  function collapseSemanticObservations(values) {
+    const observations = [];
+    for (const value of values) {
+      const existing = observations.find((observation) =>
+        sameSemanticObservation(observation.representative, value),
+      );
+      if (existing) {
+        existing.rawCandidates.push(value);
+        if (unitEvidenceRank(value) > unitEvidenceRank(existing.representative) ||
+            (unitEvidenceRank(value) === unitEvidenceRank(existing.representative) &&
+              value.recoveryConfidence > existing.representative.recoveryConfidence)) {
+          existing.representative = value;
+        }
+        continue;
+      }
+      observations.push({ representative: value, rawCandidates: [value] });
+    }
+    return observations.map((observation) => {
+      const representative = observation.representative;
+      const suppressed = observation.rawCandidates.filter((candidate) =>
+        candidate !== representative,
+      );
+      return {
+        ...representative,
+        semanticObservation: true,
+        supportingRawTokens: observation.rawCandidates.map((candidate) => candidate.rawToken),
+        rawCandidateCount: observation.rawCandidates.length,
+        duplicateCollapseReason: suppressed.length
+          ? unitEvidenceRank(representative) === 4
+            ? 'same-value-same-geometry; exact-compatible-unit-preferred'
+            : 'same-value-same-geometry; stronger-unit-evidence-preferred'
+          : null,
+        suppressedCandidates: suppressed.map((candidate) => ({
+          rawToken: candidate.rawToken,
+          value: candidate.value,
+          unit: candidate.unit,
+          unitStatus: candidate.unitStatus,
+          rejectedCandidateReason: 'duplicate-weaker-unit-evidence',
+        })),
+      };
+    });
   }
 
   const targetNutritionFields = ['energy', 'protein', 'fat', 'carbohydrate'];
@@ -1552,7 +1633,11 @@
             : Infinity,
         }))
         .filter((entry) => Number.isFinite(entry.score) && !used.has(entry.index))
-        .sort((a, b) => a.score - b.score);
+        .sort((a, b) =>
+          a.score - b.score ||
+          unitEvidenceRank(b.value) - unitEvidenceRank(a.value) ||
+          b.value.recoveryConfidence - a.value.recoveryConfidence,
+        );
       const best = ranked[0];
       if (!best) continue;
       const competingAnchors = anchors.filter((candidate) =>
@@ -1569,8 +1654,18 @@
       const geometryConfidence = sameLine && rightOfLabel
         ? 'HIGH'
         : best.score < 1000 ? 'MEDIUM' : 'LOW';
+      const sameGeometryAlternative = ranked.find((entry) =>
+        entry !== best && entry.score === best.score &&
+        entry.value.value === best.value.value,
+      );
       mapped.set(anchor.field, {
         ...best.value,
+        mappingStatus: 'MAPPED',
+        selectionReason: best.value.duplicateCollapseReason ||
+          (sameGeometryAlternative &&
+            unitEvidenceRank(best.value) > unitEvidenceRank(sameGeometryAlternative.value)
+            ? 'same-value-same-geometry; exact-compatible-unit-preferred'
+            : 'lowest-compatible-relationship-score'),
         geometry: {
           sameLine,
           rightOfLabel,
@@ -1641,6 +1736,7 @@
         matchingRule: anchor.recoveryMethod || 'exact-label',
         recoveryConfidence: anchor.recoveryConfidence ?? 1,
         ambiguity: anchor.ambiguity || null,
+        contextEvidence: anchor.contextEvidence || [],
         confidence: anchor.confidence ?? null,
         boundingBox: {
           left: anchor.left,
@@ -1752,12 +1848,14 @@
               value: selected.value,
               unit: selected.unit,
               rawToken: selected.rawToken,
+              unitStatus: selected.unitStatus,
               label: selected.labelEvidence,
               geometry: selected.geometry,
+              supportingRawTokens: selected.supportingRawTokens || [selected.rawToken],
             }
           : null,
-        selectionReason: selected ? 'lowest-compatible-relationship-score' : null,
-        rejectedCandidates: candidates.slice(selected ? 1 : 0),
+        selectionReason: selected?.selectionReason || null,
+        rejectedCandidates: selected?.suppressedCandidates || candidates.slice(selected ? 1 : 0),
         confidenceRule: 'row-alignment, right-of-label, distance, unit, and recovery evidence',
       };
     });
@@ -1797,36 +1895,137 @@
       ...value,
       sourcePass,
     }));
-    const mapped = mapAnchorValues(anchors, values);
-    return { sourcePass, groups, anchors, values, mapped };
+    const semanticValues = collapseSemanticObservations(values);
+    const mapped = mapAnchorValues(anchors, semanticValues);
+    return { sourcePass, groups, anchors, values, semanticValues, mapped };
+  }
+
+  function evidenceForField(analysis, field) {
+    const anchor = analysis.anchors.find((item) => item.field === field);
+    if (!anchor) return [];
+    const headerAnchors = analysis.anchors.filter((candidate) =>
+      targetNutritionFields.includes(candidate.field) &&
+      analysis.anchors.filter((item) => item.lineKey === candidate.lineKey).length >= 3,
+    );
+    const mapped = analysis.mapped.get(field);
+    const retained = analysis.semanticValues.map((value) => {
+      if (!compatibleValue(field, value)) return null;
+      const score = relationshipScore(anchor, value, headerAnchors);
+      if (!Number.isFinite(score)) return null;
+      const strongerOtherField = analysis.anchors.some((candidate) =>
+        candidate.field !== field && targetNutritionFields.includes(candidate.field) &&
+        compatibleValue(candidate.field, value) &&
+        relationshipScore(candidate, value, headerAnchors) < score,
+      );
+      if (strongerOtherField) return null;
+      const sameLine = anchor.lineKey === value.lineKey;
+      const rightOfLabel = value.left >= anchor.right - 6;
+      const anchorMiddle = (anchor.top + anchor.bottom) / 2;
+      const valueMiddle = (value.top + value.bottom) / 2;
+      const geometryConfidence = sameLine && rightOfLabel
+        ? 'HIGH'
+        : score < 1000 ? 'MEDIUM' : 'LOW';
+      const isMapped = mapped?.rawToken === value.rawToken &&
+        mapped?.left === value.left;
+      return {
+        ...value,
+        mappingStatus: isMapped ? 'MAPPED' : 'UNMAPPED_RETAINED',
+        geometry: {
+          sameLine,
+          rightOfLabel,
+          verticalDistance: Math.round(Math.abs(valueMiddle - anchorMiddle) * 100) / 100,
+          horizontalDistance: Math.round((value.left - anchor.right) * 100) / 100,
+          relationScore: Math.round(score * 100) / 100,
+          unitCompatibility: value.unit ? true : 'MISSING',
+          geometryConfidence,
+        },
+        labelEvidence: {
+          rawText: anchor.rawText || anchor.alias,
+          candidate: anchor.alias,
+          status: anchor.status || 'EXACT',
+          recoveryMethod: anchor.recoveryMethod || 'exact-label',
+          recoveryConfidence: anchor.recoveryConfidence ?? 1,
+          contextEvidence: anchor.contextEvidence || [],
+        },
+      };
+    }).filter(Boolean);
+    if (mapped && !retained.some((item) =>
+      item.rawToken === mapped.rawToken && item.left === mapped.left,
+    )) {
+      retained.push({ ...mapped, mappingStatus: 'MAPPED' });
+    }
+    return retained;
+  }
+
+  function ambiguousEvidenceForField(analysis, field) {
+    const anchor = analysis.anchors.find((item) => item.field === field);
+    if (!anchor) return [];
+    return analysis.values.filter((item) =>
+      item.ambiguity && item.lineKey === anchor.lineKey &&
+      item.left >= anchor.right - 6,
+    );
+  }
+
+  function ambiguousEvidenceRelatesTo(candidate, ambiguous) {
+    const normalized = String(ambiguous.normalizedToken || ambiguous.rawToken || '');
+    if (!normalized.includes('@')) return false;
+    const suffix = normalized.split('@').pop().replace(/[^\d.]/g, '');
+    const candidateText = String(candidate.value);
+    return suffix.length >= 2 && candidateText.endsWith(suffix);
+  }
+
+  function chooseRepresentative(items) {
+    return [...items].sort((left, right) =>
+      (right.mappingStatus === 'MAPPED' ? 1 : 0) -
+        (left.mappingStatus === 'MAPPED' ? 1 : 0) ||
+      unitEvidenceRank(right) - unitEvidenceRank(left) ||
+      right.recoveryConfidence - left.recoveryConfidence,
+    )[0];
   }
 
   function consensusForAnalyses(analyses) {
     const fields = {};
     for (const field of targetNutritionFields) {
-      const evidence = analyses.flatMap((analysis) => {
-        const mapped = analysis.mapped.get(field);
-        return mapped ? [mapped] : [];
-      });
-      const ambiguousEvidence = analyses.flatMap((analysis) => {
-        const anchor = analysis.anchors.find((item) => item.field === field);
-        if (!anchor) return [];
-        return analysis.values.filter((item) =>
-          item.ambiguity && item.lineKey === anchor.lineKey &&
-          item.left >= anchor.right - 6,
-        );
-      });
-      const groups = new Map();
+      const evidence = analyses.flatMap((analysis) => evidenceForField(analysis, field));
+      const ambiguousEvidence = analyses.flatMap((analysis) =>
+        ambiguousEvidenceForField(analysis, field),
+      );
+      const byValue = new Map();
       for (const item of evidence) {
         const key = `${item.value}|${item.unit}`;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(item);
+        if (!byValue.has(key)) byValue.set(key, new Map());
+        const perPass = byValue.get(key);
+        const existing = perPass.get(item.sourcePass);
+        if (!existing || chooseRepresentative([existing, item]) === item) {
+          perPass.set(item.sourcePass, item);
+        }
       }
-      const grouped = [...groups.values()].sort((a, b) => b.length - a.length);
-      const conflict = grouped.length > 1;
-      const selectedGroup = conflict ? null : grouped[0] || null;
-      const selected = selectedGroup?.[0] || null;
-      const supportCount = selectedGroup?.length || 0;
+      const clusters = [...byValue.values()].map((perPass) => {
+        const observations = [...perPass.values()];
+        const representative = chooseRepresentative(observations);
+        const relatedAmbiguousPasses = [...new Set(ambiguousEvidence
+          .filter((item) => ambiguousEvidenceRelatesTo(representative, item))
+          .map((item) => item.sourcePass))];
+        return {
+          value: representative.value,
+          unit: representative.unit,
+          observations,
+          representative,
+          supportingPasses: observations.map((item) => item.sourcePass),
+          relatedAmbiguousPasses,
+          score: observations.length * 10 +
+            observations.filter((item) => item.mappingStatus === 'MAPPED').length * 2 +
+            relatedAmbiguousPasses.length * 4 + unitEvidenceRank(representative),
+        };
+      }).sort((left, right) => right.score - left.score);
+      const conflict = clusters.length > 1;
+      const selectedCluster = !conflict
+        ? clusters[0] || null
+        : clusters.length >= 2 && clusters[0].score > clusters[1].score
+          ? clusters[0]
+          : null;
+      const selected = selectedCluster?.representative || null;
+      const supportCount = selectedCluster?.supportingPasses.length || 0;
       const exactEvidence = Boolean(selected) &&
         selected.labelEvidence?.status === 'EXACT' &&
         selected.unitStatus === 'EXACT' &&
@@ -1836,42 +2035,69 @@
         (selected.labelEvidence?.recoveryConfidence ?? 0) >= 0.7 &&
         (selected.recoveryConfidence ?? 0) >= 0.6 &&
         (!Number.isFinite(selected.ocrConfidence) || selected.ocrConfidence >= 50);
-      const missingUnitEvidence = selected?.candidateType ===
-        'NUMERIC_WITHOUT_UNIT';
-      const finalConfidence = conflict
-        ? 'MEDIUM'
-        : !selected
-          ? ambiguousEvidence.length ? 'LOW' : 'NONE'
-          : !missingUnitEvidence && highGeometry && reliableRecovery &&
-              (supportCount >= 2 || exactEvidence)
+      const missingUnitEvidence = selected?.candidateType === 'NUMERIC_WITHOUT_UNIT';
+      const outlierClusters = selectedCluster
+        ? clusters.filter((cluster) => cluster !== selectedCluster &&
+          cluster.score < selectedCluster.score)
+        : [];
+      let conflictingPassCount = 0;
+      for (const cluster of clusters) {
+        if (cluster !== selectedCluster) {
+          conflictingPassCount += cluster.supportingPasses.length;
+        }
+      }
+      const finalConfidence = !selected
+        ? ambiguousEvidence.length ? 'LOW' : 'NONE'
+        : conflict || missingUnitEvidence || selected.mappingStatus !== 'MAPPED'
+          ? 'MEDIUM'
+          : highGeometry && reliableRecovery && (supportCount >= 2 || exactEvidence)
             ? 'HIGH'
             : 'MEDIUM';
       fields[field] = {
         field,
         value: selected?.value ?? null,
         unit: selected?.unit ?? null,
+        unitStatus: selected?.unitStatus ?? null,
         confidence: finalConfidence,
         source: selected && (!exactEvidence || missingUnitEvidence) ? 'RECOVERED_OCR' :
           selected ? 'EXACT_OCR' : null,
-        reviewRequired: finalConfidence !== 'HIGH',
-        supportingPasses: selectedGroup?.map((item) => item.sourcePass) || [],
+        reviewRequired: finalConfidence !== 'HIGH' || conflict,
+        supportingPasses: selectedCluster?.supportingPasses || [],
+        supportingPassCount: supportCount,
+        conflictingPassCount,
+        ambiguousRelatedPassCount: selectedCluster?.relatedAmbiguousPasses.length || 0,
         agreement: `${supportCount}/${analyses.length}`,
         conflict,
-        conflictingCandidates: conflict
-          ? grouped.map((items) => ({
-              value: items[0].value,
-              unit: items[0].unit,
-              passes: items.map((item) => item.sourcePass),
-            }))
-          : [],
-        decision: finalConfidence === 'HIGH'
+        consensusStatus: conflict
+          ? selected ? 'CONFLICT_REVIEW_CANDIDATE' : 'CONFLICT'
+          : selected?.mappingStatus === 'MAPPED' ? 'AGREED_MAPPED' : 'PRE_MAPPING_RETAINED',
+        conflictingCandidates: clusters.map((cluster) => ({
+          value: cluster.value,
+          unit: cluster.unit,
+          passes: cluster.supportingPasses,
+          relatedAmbiguousPasses: cluster.relatedAmbiguousPasses,
+          mappingStatuses: cluster.observations.map((item) => item.mappingStatus),
+          status: cluster === selectedCluster
+            ? 'SELECTED_REVIEW_CANDIDATE'
+            : outlierClusters.includes(cluster)
+              ? 'DOWNRANKED_SINGLE_PASS_OUTLIER'
+              : 'CONFLICTING_CANDIDATE',
+        })),
+        decision: finalConfidence === 'HIGH' && !conflict
           ? 'AUTO_FILL_ALLOWED'
-          : finalConfidence === 'MEDIUM'
+          : selected || conflict
             ? 'REVIEW_REQUIRED'
             : finalConfidence === 'LOW'
               ? 'CANDIDATE_ONLY'
               : 'NOT_AVAILABLE',
+        decisionReason: selected?.selectionReason ||
+          (conflict ? 'cross-pass-conflict; review-required' :
+            ambiguousEvidence.length ? 'ambiguous-numeric-evidence-only' :
+              'no-compatible-observed-evidence'),
         selectedEvidence: selected || ambiguousEvidence[0] || null,
+        rawTokens: selectedCluster?.observations
+          .flatMap((item) => item.supportingRawTokens || [item.rawToken]) ||
+          ambiguousEvidence.map((item) => item.rawToken),
       };
     }
     return fields;
@@ -2004,10 +2230,10 @@
 
   async function structuredNutritionWords(canvas, words, engineId, sourcePass = 'original') {
     const analysis = analyzeNutritionWords(words, sourcePass);
-    const { groups, anchors, values, mapped } = analysis;
+    const { groups, anchors, values, semanticValues, mapped } = analysis;
     const mappingBeforeFallback = structuredMappingDiagnostics(
       anchors,
-      values,
+      semanticValues,
       mapped,
     );
     let roiCount = 0;
@@ -2083,18 +2309,52 @@
         confidence: anchor.recoveryConfidence,
         status: anchor.status,
         ambiguity: anchor.ambiguity,
+        contextEvidence: anchor.contextEvidence || [],
       })),
       numericRecovery: values.map((value) => numericDiagnostic(value, anchors)),
       numericCandidates: values.map((value) => numericDiagnostic(value, anchors)),
+      semanticDuplicateCollapse: semanticValues
+        .filter((value) => value.rawCandidateCount > 1)
+        .map((value) => ({
+          sourcePass: value.sourcePass,
+          value: value.value,
+          unit: value.unit,
+          unitStatus: value.unitStatus,
+          supportingRawTokens: value.supportingRawTokens,
+          rawCandidateCount: value.rawCandidateCount,
+          representativeRawToken: value.rawToken,
+          reason: value.duplicateCollapseReason,
+          suppressedCandidates: value.suppressedCandidates,
+        })),
+      preMappingEvidence: targetNutritionFields.flatMap((field) =>
+        evidenceForField(analysis, field).map((item) => ({
+          field,
+          value: item.value,
+          unit: item.unit,
+          unitStatus: item.unitStatus,
+          rawTokens: item.supportingRawTokens || [item.rawToken],
+          sourcePass: item.sourcePass,
+          mappingStatus: item.mappingStatus,
+          geometry: item.geometry,
+        })),
+      ),
       structuredCandidates: mappingBeforeFallback,
       geometryMapping: mappingBeforeFallback,
+      unitTieBreak: mappingBeforeFallback.filter((item) =>
+        item.selectionReason?.includes('unit-preferred'),
+      ),
       multiPassConsensus: Object.values(consensus).map((decision) => ({
         field: decision.field,
         value: decision.value,
         unit: decision.unit,
+        unitStatus: decision.unitStatus,
         agreement: decision.agreement,
         supportingPasses: decision.supportingPasses,
+        supportingPassCount: decision.supportingPassCount,
+        conflictingPassCount: decision.conflictingPassCount,
+        ambiguousRelatedPassCount: decision.ambiguousRelatedPassCount,
         conflict: decision.conflict,
+        consensusStatus: decision.consensusStatus,
         conflictingCandidates: decision.conflictingCandidates,
       })),
       conflicts: Object.values(consensus)
@@ -2104,12 +2364,17 @@
         field: decision.field,
         value: decision.value,
         unit: decision.unit,
+        unitStatus: decision.unitStatus,
         confidence: decision.confidence,
         source: decision.source,
         reviewRequired: decision.reviewRequired,
         conflict: decision.conflict,
         consistencySupport: decision.consistencySupport,
         decision: decision.decision,
+        decisionReason: decision.decisionReason,
+        supportingPasses: decision.supportingPasses,
+        rawTokens: decision.rawTokens,
+        consensusStatus: decision.consensusStatus,
       })),
       selectedMappings: Object.fromEntries(
         Object.entries(consensus)
@@ -2155,12 +2420,17 @@
             {
               value: decision.value,
               unit: decision.unit,
+              unitStatus: decision.unitStatus,
               confidence: decision.confidence,
               source: decision.source,
               reviewRequired: decision.reviewRequired,
               conflict: decision.conflict,
               consistencySupport: decision.consistencySupport,
               decision: decision.decision,
+              decisionReason: decision.decisionReason,
+              supportingPasses: decision.supportingPasses,
+              rawTokens: decision.rawTokens,
+              consensusStatus: decision.consensusStatus,
             },
           ])),
         )
@@ -2231,11 +2501,12 @@
     const consistency = nutritionConsistency(consensus);
     applyNutritionConsistency(consensus, consistency);
     const allValues = analyses.flatMap((analysis) => analysis.values);
+    const allSemanticValues = analyses.flatMap((analysis) => analysis.semanticValues);
     const allAnchors = analyses.flatMap((analysis) => analysis.anchors);
     const mappings = analyses.flatMap((analysis) =>
       structuredMappingDiagnostics(
         analysis.anchors,
-        analysis.values,
+        analysis.semanticValues,
         analysis.mapped,
       ).map((mapping) => ({ ...mapping, sourcePass: analysis.sourcePass })),
     );
@@ -2282,18 +2553,53 @@
         confidence: anchor.recoveryConfidence,
         status: anchor.status,
         ambiguity: anchor.ambiguity,
+        contextEvidence: anchor.contextEvidence || [],
       })),
       numericRecovery: allValues.map((value) => numericDiagnostic(value, allAnchors)),
       numericCandidates: allValues.map((value) => numericDiagnostic(value, allAnchors)),
+      semanticDuplicateCollapse: allSemanticValues
+        .filter((value) => value.rawCandidateCount > 1)
+        .map((value) => ({
+          sourcePass: value.sourcePass,
+          value: value.value,
+          unit: value.unit,
+          unitStatus: value.unitStatus,
+          supportingRawTokens: value.supportingRawTokens,
+          rawCandidateCount: value.rawCandidateCount,
+          representativeRawToken: value.rawToken,
+          reason: value.duplicateCollapseReason,
+          suppressedCandidates: value.suppressedCandidates,
+        })),
+      preMappingEvidence: analyses.flatMap((analysis) =>
+        targetNutritionFields.flatMap((field) =>
+          evidenceForField(analysis, field).map((item) => ({
+            field,
+            value: item.value,
+            unit: item.unit,
+            unitStatus: item.unitStatus,
+            rawTokens: item.supportingRawTokens || [item.rawToken],
+            sourcePass: item.sourcePass,
+            mappingStatus: item.mappingStatus,
+            geometry: item.geometry,
+          })),
+        )),
       structuredCandidates: mappings,
       geometryMapping: mappings,
+      unitTieBreak: mappings.filter((item) =>
+        item.selectionReason?.includes('unit-preferred'),
+      ),
       multiPassConsensus: Object.values(consensus).map((decision) => ({
         field: decision.field,
         value: decision.value,
         unit: decision.unit,
+        unitStatus: decision.unitStatus,
         agreement: decision.agreement,
         supportingPasses: decision.supportingPasses,
+        supportingPassCount: decision.supportingPassCount,
+        conflictingPassCount: decision.conflictingPassCount,
+        ambiguousRelatedPassCount: decision.ambiguousRelatedPassCount,
         conflict: decision.conflict,
+        consensusStatus: decision.consensusStatus,
         conflictingCandidates: decision.conflictingCandidates,
       })),
       conflicts: Object.values(consensus).filter((decision) => decision.conflict),
@@ -2302,12 +2608,17 @@
         field: decision.field,
         value: decision.value,
         unit: decision.unit,
+        unitStatus: decision.unitStatus,
         confidence: decision.confidence,
         source: decision.source,
         reviewRequired: decision.reviewRequired,
         conflict: decision.conflict,
         consistencySupport: decision.consistencySupport,
         decision: decision.decision,
+        decisionReason: decision.decisionReason,
+        supportingPasses: decision.supportingPasses,
+        rawTokens: decision.rawTokens,
+        consensusStatus: decision.consensusStatus,
       })),
       selectedMappings,
       fieldSources: Object.fromEntries(
@@ -2346,12 +2657,17 @@
             {
               value: decision.value,
               unit: decision.unit,
+              unitStatus: decision.unitStatus,
               confidence: decision.confidence,
               source: decision.source,
               reviewRequired: decision.reviewRequired,
               conflict: decision.conflict,
               consistencySupport: decision.consistencySupport,
               decision: decision.decision,
+              decisionReason: decision.decisionReason,
+              supportingPasses: decision.supportingPasses,
+              rawTokens: decision.rawTokens,
+              consensusStatus: decision.consensusStatus,
             },
           ])),
         )
@@ -3521,7 +3837,10 @@
         ? structured.numericRecovery
         : passNumericRecovery.length ? passNumericRecovery : rawStage.numericRecovery || [],
       numericCandidates: structured.numericCandidates || rawStage.numericCandidates || [],
+      semanticDuplicateCollapse: structured.semanticDuplicateCollapse || [],
+      preMappingEvidence: structured.preMappingEvidence || [],
       structuredCandidates: structured.structuredCandidates || [],
+      unitTieBreak: structured.unitTieBreak || [],
       geometryMapping: structured.geometryMapping || [],
       multiPassConsensus: structured.multiPassConsensus || [],
       conflicts: structured.conflicts || [],
