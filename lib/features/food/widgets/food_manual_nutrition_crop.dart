@@ -67,10 +67,19 @@ class _ManualNutritionCropPage extends StatefulWidget {
 
 class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
+  late final ImageProvider<Object> _sourceImageProvider;
   double _scale = 1;
   Offset _pan = Offset.zero;
   double _startScale = 1;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keep one provider for the full crop session. Gesture frames must move a
+    // decoded image layer, never recreate a web image resource.
+    _sourceImageProvider = NetworkImage(widget.image.dataUrl);
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -141,12 +150,24 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                     children: [
                       ColoredBox(color: Theme.of(context).colorScheme.surface),
                       ClipRect(
-                        child: Transform.translate(
-                          offset: imageOffset,
-                          child: SizedBox(
-                            width: widget.dimensions.width * actualScale,
-                            height: widget.dimensions.height * actualScale,
-                            child: _image(widget.image.dataUrl),
+                        child: RepaintBoundary(
+                          key: const ValueKey('manual-nutrition-crop-image-layer'),
+                          child: Transform.translate(
+                            offset: imageOffset,
+                            child: SizedBox(
+                              width: widget.dimensions.width * actualScale,
+                              height: widget.dimensions.height * actualScale,
+                              child: Image(
+                                key: const ValueKey('manual-nutrition-crop-source-image'),
+                                image: _sourceImageProvider,
+                                fit: BoxFit.fill,
+                                gaplessPlayback: true,
+                                filterQuality: FilterQuality.high,
+                                errorBuilder: (_, _, _) => const ColoredBox(
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -247,18 +268,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     }
   }
 
-  Widget _image(String dataUrl) {
-    return Image.network(
-      dataUrl,
-      key: const ValueKey('manual-nutrition-crop-source-image'),
-      fit: BoxFit.fill,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) => ColoredBox(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const Center(child: Text('IMAGE UNAVAILABLE')),
-      ),
-    );
-  }
 }
 
 class _CropMask extends StatelessWidget {
