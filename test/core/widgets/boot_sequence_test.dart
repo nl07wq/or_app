@@ -6,6 +6,9 @@ import 'package:or_app/core/widgets/boot_sequence.dart';
 import 'package:or_app/core/widgets/startup_gate.dart';
 
 const _timing = BootSequenceTiming(
+  logoIntro: Duration(milliseconds: 10),
+  typingCharacter: Duration(milliseconds: 10),
+  systemBootTransition: Duration(milliseconds: 10),
   header: Duration(milliseconds: 10),
   row: Duration(milliseconds: 10),
   readyDelay: Duration(milliseconds: 10),
@@ -19,12 +22,18 @@ void main() {
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller));
 
-    expect(find.text('OPERATION REBOOT'), findsOneWidget);
-    expect(find.text('SYSTEM BOOT'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
+    expect(find.text('SYSTEM BOOT'), findsNothing);
     expect(find.text('CORE SYSTEM'), findsNothing);
     expect(find.text('SYSTEM READY'), findsNothing);
 
-    await tester.pump(_timing.header);
+    await tester.pump(_timing.logoIntro);
+    await tester.pump(_timing.typingCharacter);
+    expect(find.text('O'), findsOneWidget);
+    expect(find.text('O.R.L.O.'), findsNothing);
+    await tester.pump(_timing.typingCharacter * 7);
+    await tester.pump(_timing.systemBootTransition);
+    expect(find.text('O.R.L.O.'), findsOneWidget);
     expect(find.text('CORE SYSTEM'), findsOneWidget);
     expect(find.text('INITIALIZING'), findsOneWidget);
     expect(find.text('DATA INITIALIZATION'), findsNothing);
@@ -151,6 +160,9 @@ Widget _gate(
 }
 
 Future<void> _advanceRows(WidgetTester tester) async {
+  await tester.pump(_timing.logoIntro);
+  await tester.pump(_timing.typingCharacter * 7);
+  await tester.pump(_timing.systemBootTransition);
   await tester.pump(_timing.header);
   await tester.pump(_timing.row);
   await tester.pump(_timing.row);

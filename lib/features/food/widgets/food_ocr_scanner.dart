@@ -41,103 +41,52 @@ Future<FoodOcrResult?> showNutritionLabelScanner({
   required BuildContext context,
   required FoodInputCaptureGateway gateway,
 }) async {
-  final choice = await _chooseScanMode(
+  final capture = await _captureNutrition(gateway: gateway);
+  if (capture == null || !context.mounted) return null;
+  final parsed = capture.draft?.isEmpty == false
+      ? (
+          draft: capture.draft!,
+          conflicts: capture.conflicts,
+          decisions: capture.decisions,
+        )
+      : _nutritionDraft(capture.rawText);
+  final reviewed = await _reviewNutrition(
     context,
-    diagnosticsAvailable: gateway is FoodOcrDiagnosticGateway,
+    draft: parsed.draft,
+    conflicts: parsed.conflicts,
+    decisions: parsed.decisions,
+    image: capture.image,
   );
-  if (choice == null || !context.mounted) return null;
-  if (choice == _NutritionScanChoice.diagnostics) {
-    await _showNutritionOcrDiagnostics(context, gateway);
-    return null;
-  }
-  final scanMode = switch (choice) {
-    _NutritionScanChoice.standard => FoodOcrScanMode.standard,
-    _NutritionScanChoice.reader => FoodOcrScanMode.nutritionLabelReader,
-    _NutritionScanChoice.diagnostics => throw StateError(
-      'Diagnostics is not a scan mode.',
-    ),
-  };
-
-  while (context.mounted) {
-    if (!context.mounted) return null;
-    final capture = await _captureNutrition(
-      context: context,
-      gateway: gateway,
-      scanMode: scanMode,
-    );
-    if (capture == null || !context.mounted) return null;
-    final parsed = capture.draft?.isEmpty == false
-        ? (
-            draft: capture.draft!,
-            conflicts: capture.conflicts,
-            decisions: capture.decisions,
-          )
-        : _nutritionDraft(capture.rawText);
-    if (parsed.draft.isEmpty) return null;
-    final action = await _reviewNutrition(
-      context,
-      parsed.draft,
-      parsed.conflicts,
-      parsed.decisions,
-      scanMode,
-    );
-    if (action == _NutritionReviewAction.rescan) continue;
-    if (action != _NutritionReviewAction.apply) return null;
-    return FoodNutritionOcrResult(
-      capture.rawText,
-      parsed.draft,
-      scanMode: scanMode,
-    );
-  }
-  return null;
+  if (reviewed == null) return null;
+  return FoodNutritionOcrResult(
+    capture.rawText,
+    reviewed,
+    scanMode: FoodOcrScanMode.nutritionLabelReader,
+  );
 }
 
 Future<
   ({
     String rawText,
+    FoodCapturedImage image,
     NutritionOcrDraft? draft,
     Set<String> conflicts,
     Map<String, Map<String, dynamic>> decisions,
   })?
 >
-_captureNutrition({
-  required BuildContext context,
-  required FoodInputCaptureGateway gateway,
-  required FoodOcrScanMode scanMode,
-}) async {
-  if (gateway case final FoodLiveCaptureGateway liveGateway) {
-    final session = FoodNutritionCandidateSession();
-    final rawText = await liveGateway.recognizeTextLive(
-      title: 'NUTRITION LABEL SCAN',
-      instruction: '栄養成分表示を枠内に入れてください',
-      describeCandidate: session.describe,
-      engine: FoodOcrEngine.tesseract,
-      scanMode: scanMode,
-    );
-    if (rawText == null) return null;
-    for (final pass in _ocrPasses(rawText)) {
-      session.describe(pass);
-    }
-    return (
-      rawText: rawText,
-      draft: session.draft,
-      conflicts: session.conflicts,
-      decisions: session.fieldDecisions,
-    );
-  }
-
-  final source = await _chooseStillImageSource(context);
-  if (source == null) return null;
-  final image = await gateway.selectImage(source);
+_captureNutrition({required FoodInputCaptureGateway gateway}) async {
+  // No capture hint: the native file picker owns Camera, Photos, and Files.
+  final image = await gateway.selectImage(FoodImageSource.gallery);
   if (image == null) return null;
   final rawText = await gateway.recognizeJapaneseText(
     image,
     mode: FoodTextOcrMode.nutrition,
     engine: FoodOcrEngine.tesseract,
-    scanMode: scanMode,
+    scanMode: FoodOcrScanMode.nutritionLabelReader,
   );
   return (
     rawText: rawText,
+    image: image,
     draft: null,
     conflicts: const <String>{},
     decisions: const <String, Map<String, dynamic>>{},
@@ -227,56 +176,9 @@ PackageOcrDraft _packageDraft(String rawText) {
   return session.draft;
 }
 
-enum _NutritionScanChoice { standard, reader, diagnostics }
-
-Future<_NutritionScanChoice?> _chooseScanMode(
-  BuildContext context, {
-  required bool diagnosticsAvailable,
-}) => showModalBottomSheet<_NutritionScanChoice>(
-  context: context,
-  builder: (context) => SafeArea(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.md,
-            AppSpacing.md,
-            AppSpacing.xs,
-          ),
-          child: Text('SELECT SCAN MODE'),
-        ),
-        ListTile(
-          key: const ValueKey('nutrition-mode-standard'),
-          leading: const Icon(Icons.document_scanner_outlined),
-          title: const Text('STANDARD OCR'),
-          subtitle: const Text('従来方式'),
-          onTap: () => Navigator.pop(context, _NutritionScanChoice.standard),
-        ),
-        ListTile(
-          key: const ValueKey('nutrition-mode-reader'),
-          leading: const Icon(Icons.document_scanner_outlined),
-          title: const Text('NUTRITION LABEL READER'),
-          subtitle: const Text('栄養表示専用'),
-          onTap: () => Navigator.pop(context, _NutritionScanChoice.reader),
-        ),
-        if (diagnosticsAvailable)
-          ListTile(
-            key: const ValueKey('nutrition-ocr-diagnostics'),
-            leading: const Icon(Icons.bug_report_outlined),
-            title: const Text('OCR DIAGNOSTICS'),
-            subtitle: const Text('一時監査：同一画像で両モードを比較'),
-            onTap: () =>
-                Navigator.pop(context, _NutritionScanChoice.diagnostics),
-          ),
-      ],
-    ),
-  ),
-);
-
-Future<void> _showNutritionOcrDiagnostics(
+/// Explicit developer-only entry. Normal Food scan always uses the Nutrition
+/// Label Reader and never exposes engine selection.
+Future<void> showNutritionOcrDiagnostics(
   BuildContext context,
   FoodInputCaptureGateway gateway,
 ) async {
@@ -285,8 +187,7 @@ Future<void> _showNutritionOcrDiagnostics(
       ? gateway as FoodOcrDiagnosticGateway
       : null;
   if (diagnosticGateway == null) return;
-  final source = await _chooseStillImageSource(context);
-  if (source == null || !context.mounted) return;
+  final source = FoodImageSource.gallery;
   final image = await gateway.selectImage(source);
   if (image == null || !context.mounted) return;
 
@@ -397,28 +298,6 @@ Widget _diagnosticImage(String dataUrl) {
   return Image.memory(base64Decode(dataUrl.substring(separator + 1)));
 }
 
-Future<FoodImageSource?> _chooseStillImageSource(BuildContext context) =>
-    showModalBottomSheet<FoodImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text('CAMERA'),
-              onTap: () => Navigator.pop(context, FoodImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('PHOTO LIBRARY'),
-              onTap: () => Navigator.pop(context, FoodImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-
 Future<FoodNutritionCaptureMode?> _chooseCaptureMode(BuildContext context) =>
     showModalBottomSheet<FoodNutritionCaptureMode>(
       context: context,
@@ -449,65 +328,237 @@ Future<FoodNutritionCaptureMode?> _chooseCaptureMode(BuildContext context) =>
       ),
     );
 
-enum _NutritionReviewAction { cancel, rescan, apply }
+Future<NutritionOcrDraft?> _reviewNutrition(
+  BuildContext context, {
+  required NutritionOcrDraft draft,
+  required Set<String> conflicts,
+  required Map<String, Map<String, dynamic>> decisions,
+  required FoodCapturedImage image,
+}) => showDialog<NutritionOcrDraft>(
+  context: context,
+  builder: (_) => _NutritionPreviewDialog(
+    draft: _previewDraft(draft, conflicts, decisions),
+    reviewFields: _previewReviewFields(conflicts, decisions),
+    image: image,
+  ),
+);
 
-Future<_NutritionReviewAction> _reviewNutrition(
-  BuildContext context,
+NutritionOcrDraft _previewDraft(
   NutritionOcrDraft draft,
   Set<String> conflicts,
   Map<String, Map<String, dynamic>> decisions,
-  FoodOcrScanMode scanMode,
-) async =>
-    await showDialog<_NutritionReviewAction>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('REVIEW NUTRITION'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _value('SCAN MODE', scanMode.label),
-              _value(
-                'NUTRITION BASIS',
-                _quantity(draft.basisQuantity, draft.basisUnit),
-              ),
-              _value('CALORIES', _amount(draft.calories, 'kcal')),
-              _value('PROTEIN', _amount(draft.protein, 'g')),
-              _value('FAT', _amount(draft.fat, 'g')),
-              _value('CARBOHYDRATE', _amount(draft.carbohydrate, 'g')),
-              if (conflicts.isNotEmpty)
-                _value('REVIEW CONFLICT', conflicts.join(', ')),
-              for (final entry in decisions.entries)
-                _value(
-                  '${entry.key} OCR',
-                  '${entry.value['confidence'] ?? 'NONE'} / '
-                      '${entry.value['decision'] ?? 'NOT_AVAILABLE'}'
-                      '${_reviewEvidence(entry.value)}',
+) => NutritionOcrDraft(
+  basisQuantity: draft.basisQuantity,
+  basisUnit: draft.basisUnit,
+  calories: _previewValue('ENERGY', draft.calories, conflicts, decisions),
+  protein: _previewValue('PROTEIN', draft.protein, conflicts, decisions),
+  fat: _previewValue('FAT', draft.fat, conflicts, decisions),
+  carbohydrate: _previewValue(
+    'CARBOHYDRATE',
+    draft.carbohydrate,
+    conflicts,
+    decisions,
+  ),
+  packageQuantity: draft.packageQuantity,
+  packageUnit: draft.packageUnit,
+);
+
+double? _previewValue(
+  String field,
+  double? accepted,
+  Set<String> conflicts,
+  Map<String, Map<String, dynamic>> decisions,
+) {
+  if (conflicts.contains(field)) return null;
+  if (accepted != null) return accepted;
+  final decision = decisions[field];
+  final value = decision?['value'];
+  final expectedUnit = field == 'ENERGY' ? 'kcal' : 'g';
+  if (decision?['conflict'] == true ||
+      decision?['unit'] != expectedUnit ||
+      value is! num ||
+      !value.isFinite) {
+    return null;
+  }
+  // This is a retained, field-owned OCR review candidate, never a guess.
+  return value.toDouble();
+}
+
+Set<String> _previewReviewFields(
+  Set<String> conflicts,
+  Map<String, Map<String, dynamic>> decisions,
+) => {
+  ...conflicts,
+  for (final entry in decisions.entries)
+    if (entry.value['reviewRequired'] == true ||
+        entry.value['conflict'] == true)
+      entry.key,
+};
+
+class _NutritionPreviewDialog extends StatefulWidget {
+  const _NutritionPreviewDialog({
+    required this.draft,
+    required this.reviewFields,
+    required this.image,
+  });
+
+  final NutritionOcrDraft draft;
+  final Set<String> reviewFields;
+  final FoodCapturedImage image;
+
+  @override
+  State<_NutritionPreviewDialog> createState() =>
+      _NutritionPreviewDialogState();
+}
+
+class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
+  late final TextEditingController _calories;
+  late final TextEditingController _protein;
+  late final TextEditingController _fat;
+  late final TextEditingController _carbohydrate;
+
+  @override
+  void initState() {
+    super.initState();
+    _calories = _numberController(widget.draft.calories);
+    _protein = _numberController(widget.draft.protein);
+    _fat = _numberController(widget.draft.fat);
+    _carbohydrate = _numberController(widget.draft.carbohydrate);
+  }
+
+  @override
+  void dispose() {
+    _calories.dispose();
+    _protein.dispose();
+    _fat.dispose();
+    _carbohydrate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog.fullscreen(
+    child: SafeArea(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('OCR PREVIEW')),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: AppSpacing.cardPadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 4 / 3,
+                      child: DecoratedBox(
+                        key: const ValueKey('nutrition-preview-source-image'),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                        child: InteractiveViewer(
+                          child: _previewImage(widget.image.dataUrl),
+                        ),
+                      ),
+                    ),
+                    AppSpacing.gapMD,
+                    _field('KCAL', 'ENERGY', _calories, 'kcal'),
+                    AppSpacing.gapSM,
+                    _field('P', 'PROTEIN', _protein, 'g'),
+                    AppSpacing.gapSM,
+                    _field('F', 'FAT', _fat, 'g'),
+                    AppSpacing.gapSM,
+                    _field('C', 'CARBOHYDRATE', _carbohydrate, 'g'),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+            Padding(
+              padding: AppSpacing.cardPadding,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('CANCEL'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(context, _result()),
+                      child: const Text('APPLY'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(context, _NutritionReviewAction.cancel),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(context, _NutritionReviewAction.rescan),
-            child: const Text('RESCAN'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, _NutritionReviewAction.apply),
-            child: const Text('APPLY TO FORM'),
-          ),
-        ],
       ),
-    ) ??
-    _NutritionReviewAction.cancel;
+    ),
+  );
+
+  Widget _field(
+    String label,
+    String field,
+    TextEditingController controller,
+    String unit,
+  ) => Row(
+    children: [
+      SizedBox(width: 56, child: Text(label)),
+      Expanded(
+        child: TextField(
+          key: ValueKey('nutrition-preview-$field'),
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(suffixText: unit),
+        ),
+      ),
+      if (widget.reviewFields.contains(field))
+        const Padding(
+          padding: EdgeInsets.only(left: AppSpacing.sm),
+          child: Text('CHECK'),
+        ),
+    ],
+  );
+
+  NutritionOcrDraft _result() => NutritionOcrDraft(
+    basisQuantity: widget.draft.basisQuantity,
+    basisUnit: widget.draft.basisUnit,
+    calories: _numberValue(_calories.text),
+    protein: _numberValue(_protein.text),
+    fat: _numberValue(_fat.text),
+    carbohydrate: _numberValue(_carbohydrate.text),
+    packageQuantity: widget.draft.packageQuantity,
+    packageUnit: widget.draft.packageUnit,
+  );
+}
+
+TextEditingController _numberController(double? value) => TextEditingController(
+  text: value == null ? '' : FoodNutritionFormatter.amount(value),
+);
+
+double? _numberValue(String value) {
+  final parsed = double.tryParse(value.trim());
+  return parsed != null && parsed.isFinite ? parsed : null;
+}
+
+Widget _previewImage(String dataUrl) {
+  final separator = dataUrl.indexOf(',');
+  if (separator < 0) return const Center(child: Text('IMAGE UNAVAILABLE'));
+  try {
+    return Image.memory(
+      base64Decode(dataUrl.substring(separator + 1)),
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => const Center(child: Text('IMAGE UNAVAILABLE')),
+    );
+  } on FormatException {
+    return const Center(child: Text('IMAGE UNAVAILABLE'));
+  }
+}
 
 Future<PackageOcrDraft?> _reviewPackage(
   BuildContext context,
@@ -521,16 +572,6 @@ Widget _value(String label, String? value) => Padding(
   padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
   child: Text('$label  ${value ?? 'NEEDS REVIEW'}'),
 );
-
-String? _amount(double? value, String suffix) =>
-    value == null ? null : '${FoodNutritionFormatter.amount(value)} $suffix';
-
-String _reviewEvidence(Map<String, dynamic> decision) {
-  final value = decision['value'];
-  if (value is! num) return '';
-  final unit = decision['unit'];
-  return ' / candidate: $value (${unit is String ? unit : 'UNIT NOT AVAILABLE'})';
-}
 
 String? _quantity(double? value, FoodQuantityUnit? unit) {
   if (value == null || unit == null) return null;

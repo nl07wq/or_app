@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
 import 'package:or_app/features/food/services/food_live_capture_presenter.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
+import 'package:or_app/features/food/widgets/food_ocr_scanner.dart';
 
 void main() {
   test('live presenter distinguishes no detection, partial, and complete', () {
@@ -158,23 +159,27 @@ void main() {
     );
   });
 
-  test('structured fat conflict suppresses a legacy parser candidate per field', () {
-    final session = FoodNutritionCandidateSession();
-    session.describe('脂質 04g');
-    session.describe(
-      '[[OR_STRUCTURED_NUTRITION]]\n'
-      '[[OR_OCR_DECISIONS]]\n'
-      '{"fat":{"value":0.4,"unit":"g","confidence":"MEDIUM",'
-      '"reviewRequired":true,"conflict":true,'
-      '"decision":"REVIEW_REQUIRED"}}',
-    );
+  test(
+    'structured fat conflict suppresses a legacy parser candidate per field',
+    () {
+      final session = FoodNutritionCandidateSession();
+      session.describe('脂質 04g');
+      session.describe(
+        '[[OR_STRUCTURED_NUTRITION]]\n'
+        '[[OR_OCR_DECISIONS]]\n'
+        '{"fat":{"value":0.4,"unit":"g","confidence":"MEDIUM",'
+        '"reviewRequired":true,"conflict":true,'
+        '"decision":"REVIEW_REQUIRED"}}',
+      );
 
-    expect(session.draft.fat, isNull);
-    final safety = session.fieldDecisions['FAT']?['legacyFallbackSafety'] as Map;
-    expect(safety['legacyCandidateValue'], 4);
-    expect(safety['fallbackSuppressed'], isTrue);
-    expect(safety['suppressionReason'], 'structured-conflict');
-  });
+      expect(session.draft.fat, isNull);
+      final safety =
+          session.fieldDecisions['FAT']?['legacyFallbackSafety'] as Map;
+      expect(safety['legacyCandidateValue'], 4);
+      expect(safety['fallbackSuppressed'], isTrue);
+      expect(safety['suppressionReason'], 'structured-conflict');
+    },
+  );
 
   test('unit-less structured evidence remains review-only', () {
     final session = FoodNutritionCandidateSession();
@@ -261,54 +266,58 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text, '4901234567894');
   });
 
-  testWidgets('live nutrition result reuses preview and apply boundary', (
-    tester,
-  ) async {
-    var saveCalls = 0;
-    final gateway = _LiveGateway(
-      nutritionRawText:
-          '100g当たり\n熱量 154kcal\nたんぱく質 1.9g\n'
-          '脂質 5.5g\n炭水化物 24.2g',
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: FoodInputForm(
-              captureGateway: gateway,
-              onSave: (_) async {
-                saveCalls += 1;
-                return true;
-              },
+  testWidgets(
+    'normal nutrition scan opens editable preview and applies only on confirmation',
+    (tester) async {
+      var saveCalls = 0;
+      final gateway = _LiveGateway(
+        nutritionRawText:
+            '100g当たり\n熱量 154kcal\nたんぱく質 1.9g\n'
+            '脂質 5.5g\n炭水化物 24.2g',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: gateway,
+                onSave: (_) async {
+                  saveCalls += 1;
+                  return true;
+                },
+              ),
             ),
           ),
         ),
-      ),
-    );
-    final action = find.byKey(const ValueKey('food-entry-ocr'));
-    await tester.ensureVisible(action);
-    expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
-    await tester.tap(action);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('STANDARD OCR'));
-    await tester.pumpAndSettle();
+      );
+      final action = find.byKey(const ValueKey('food-entry-ocr'));
+      await tester.ensureVisible(action);
+      expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
 
-    expect(gateway.liveNutritionCalls, 1);
-    expect(gateway.lastScanMode, FoodOcrScanMode.standard);
-    expect(gateway.lastDescription?.state, 'detected');
-    expect(find.text('REVIEW NUTRITION'), findsOneWidget);
-    expect(find.text('SCAN MODE  STANDARD OCR'), findsOneWidget);
-    expect(saveCalls, 0);
-    await tester.tap(find.text('APPLY TO FORM'));
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<TextField>(_field('CALORIES')).controller!.text,
-      '154',
-    );
-    expect(saveCalls, 0);
-  });
+      expect(gateway.liveNutritionCalls, 0);
+      expect(gateway.selectedSources, [FoodImageSource.gallery]);
+      expect(gateway.lastScanMode, FoodOcrScanMode.nutritionLabelReader);
+      expect(find.text('OCR PREVIEW'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('nutrition-preview-source-image')),
+        findsOneWidget,
+      );
+      expect(saveCalls, 0);
+      await tester.tap(find.text('APPLY'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(_field('CALORIES')).controller!.text,
+        '154',
+      );
+      expect(saveCalls, 0);
+    },
+  );
 
-  testWidgets('RESCAN retains the selected scan mode', (tester) async {
+  testWidgets('preview edits override OCR candidates without saving', (
+    tester,
+  ) async {
     final gateway = _LiveGateway(
       nutritionRawText:
           '100g当たり\n熱量 154kcal\nたんぱく質 1.9g\n'
@@ -330,16 +339,16 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
     await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('NUTRITION LABEL READER'));
+    await tester.enterText(
+      find.byKey(const ValueKey('nutrition-preview-PROTEIN')),
+      '2.8',
+    );
+    await tester.tap(find.text('APPLY'));
     await tester.pumpAndSettle();
-    expect(find.text('SCAN MODE  NUTRITION LABEL READER'), findsOneWidget);
 
-    await tester.tap(find.text('RESCAN'));
-    await tester.pumpAndSettle();
-
-    expect(gateway.liveNutritionCalls, 2);
+    expect(gateway.liveNutritionCalls, 0);
     expect(gateway.lastScanMode, FoodOcrScanMode.nutritionLabelReader);
-    expect(find.text('SCAN MODE  NUTRITION LABEL READER'), findsOneWidget);
+    expect(tester.widget<TextField>(_field('PROTEIN')).controller!.text, '2.8');
   });
 
   testWidgets('multi-pass nutrition fields merge without averaging', (
@@ -367,15 +376,16 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('STANDARD OCR'));
-    await tester.pumpAndSettle();
-
-    expect(gateway.lastScanMode, FoodOcrScanMode.standard);
-    expect(find.text('NUTRITION BASIS  1 piece'), findsOneWidget);
-    expect(find.text('CALORIES  201 kcal'), findsOneWidget);
-    expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
-    expect(find.text('FAT  10.6 g'), findsOneWidget);
-    expect(find.text('CARBOHYDRATE  21.5 g'), findsOneWidget);
+    expect(gateway.lastScanMode, FoodOcrScanMode.nutritionLabelReader);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('nutrition-preview-ENERGY')),
+          )
+          .controller!
+          .text,
+      '201',
+    );
   });
 
   testWidgets('photo review exposes structured OCR conflicts', (tester) async {
@@ -401,11 +411,9 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('STANDARD OCR'));
-    await tester.pumpAndSettle();
 
-    expect(find.text('FAT  10.6 g'), findsOneWidget);
-    expect(find.text('REVIEW CONFLICT  FAT'), findsOneWidget);
+    expect(find.text('OCR PREVIEW'), findsOneWidget);
+    expect(find.byKey(const ValueKey('nutrition-preview-FAT')), findsOneWidget);
   });
 
   testWidgets('Food Entry hides package OCR and opens nutrition directly', (
@@ -439,78 +447,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PACKAGE'), findsNothing);
     expect(find.text('NUTRITION'), findsNothing);
-    expect(find.text('SELECT SCAN MODE'), findsOneWidget);
-    expect(find.text('STANDARD OCR'), findsOneWidget);
-    expect(find.text('NUTRITION LABEL READER'), findsOneWidget);
+    expect(find.text('SELECT SCAN MODE'), findsNothing);
+    expect(find.text('STANDARD OCR'), findsNothing);
+    expect(find.text('NUTRITION LABEL READER'), findsNothing);
     expect(find.text('PADDLE PoC'), findsNothing);
     expect(find.text('LIVE SCAN'), findsNothing);
     expect(tester.widget<TextField>(_field('NAME')).controller!.text, isEmpty);
     expect(saveCalls, 0);
   });
 
-  for (final scanMode in [
-    ('STANDARD OCR', FoodOcrScanMode.standard),
-    ('NUTRITION LABEL READER', FoodOcrScanMode.nutritionLabelReader),
-  ]) {
-    testWidgets('${scanMode.$1} uses the same nutrition scanner contract', (
-      tester,
-    ) async {
-      var saveCalls = 0;
-      final gateway = _LiveGateway(nutritionRawText: _realLabelRawText);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: FoodInputForm(
-                captureGateway: gateway,
-                onSave: (_) async {
-                  saveCalls += 1;
-                  return true;
-                },
-              ),
+  testWidgets('normal scanner always uses Nutrition Label Reader', (
+    tester,
+  ) async {
+    var saveCalls = 0;
+    final gateway = _LiveGateway(nutritionRawText: _realLabelRawText);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async {
+                saveCalls += 1;
+                return true;
+              },
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      final action = find.byKey(const ValueKey('food-entry-ocr'));
-      await tester.ensureVisible(action);
-      await tester.tap(action);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(scanMode.$1));
-      await tester.pumpAndSettle();
+    final action = find.byKey(const ValueKey('food-entry-ocr'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
 
-      expect(gateway.lastScanMode, scanMode.$2);
-      expect(find.text('SCAN MODE  ${scanMode.$1}'), findsOneWidget);
-      expect(find.text('NUTRITION BASIS  38 g'), findsOneWidget);
-      expect(find.text('CALORIES  201 kcal'), findsOneWidget);
-      expect(find.text('PROTEIN  2.3 g'), findsOneWidget);
-      expect(find.text('FAT  12.4 g'), findsOneWidget);
-      expect(find.text('CARBOHYDRATE  21.5 g'), findsOneWidget);
-      expect(saveCalls, 0);
+    expect(gateway.lastScanMode, FoodOcrScanMode.nutritionLabelReader);
+    expect(
+      find.byKey(const ValueKey('nutrition-preview-ENERGY')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('nutrition-preview-PROTEIN')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('nutrition-preview-FAT')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('nutrition-preview-CARBOHYDRATE')),
+      findsOneWidget,
+    );
+    expect(saveCalls, 0);
 
-      await tester.tap(find.text('APPLY TO FORM'));
-      await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
-        '38',
-      );
-      expect(
-        tester.widget<TextField>(_field('CALORIES')).controller!.text,
-        '201',
-      );
-      expect(
-        tester.widget<TextField>(_field('PROTEIN')).controller!.text,
-        '2.3',
-      );
-      expect(tester.widget<TextField>(_field('FAT')).controller!.text, '12.4');
-      expect(
-        tester.widget<TextField>(_field('CARBOHYDRATE')).controller!.text,
-        '21.5',
-      );
-      expect(saveCalls, 0);
-    });
-  }
+    await tester.tap(find.text('APPLY'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
+      '38',
+    );
+    expect(
+      tester.widget<TextField>(_field('CALORIES')).controller!.text,
+      '201',
+    );
+    expect(tester.widget<TextField>(_field('PROTEIN')).controller!.text, '2.3');
+    expect(tester.widget<TextField>(_field('FAT')).controller!.text, '12.4');
+    expect(
+      tester.widget<TextField>(_field('CARBOHYDRATE')).controller!.text,
+      '21.5',
+    );
+    expect(saveCalls, 0);
+  });
 
   testWidgets('nutrition review never exposes package master fields', (
     tester,
@@ -539,10 +544,7 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('STANDARD OCR'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('REVIEW NUTRITION'), findsOneWidget);
+    expect(find.text('OCR PREVIEW'), findsOneWidget);
     expect(find.textContaining('NAME CANDIDATES'), findsNothing);
     expect(find.textContaining('BRAND CANDIDATES'), findsNothing);
     expect(find.text('PACKAGE'), findsNothing);
@@ -602,14 +604,12 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
-      expect(find.text('SELECT SCAN MODE'), findsOneWidget);
-      expect(find.text('STANDARD OCR'), findsOneWidget);
-      expect(find.text('NUTRITION LABEL READER'), findsOneWidget);
+      expect(find.text('SELECT SCAN MODE'), findsNothing);
+      expect(find.text('STANDARD OCR'), findsNothing);
+      expect(find.text('NUTRITION LABEL READER'), findsNothing);
       expect(find.text('PADDLE PoC'), findsNothing);
       expect(tester.takeException(), isNull, reason: 'scanner width $width');
-      await tester.tap(find.text('STANDARD OCR'));
-      await tester.pumpAndSettle();
-      expect(find.text('REVIEW NUTRITION'), findsOneWidget);
+      expect(find.text('OCR PREVIEW'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'nutrition width $width');
       await tester.tap(find.text('CANCEL'));
       await tester.pumpAndSettle();
@@ -642,89 +642,72 @@ void main() {
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('STANDARD OCR'));
-      await tester.pumpAndSettle();
-      expect(find.text('REVIEW CONFLICT  FAT'), findsOneWidget);
+      expect(find.text('OCR PREVIEW'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'conflict width $width');
       await tester.tap(find.text('CANCEL'));
       await tester.pumpAndSettle();
     }
   });
 
-  testWidgets(
-    'temporary OCR diagnostics compares one still image responsively',
-    (tester) async {
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      for (final width in [320.0, 390.0, 900.0, 1280.0]) {
-        tester.view.physicalSize = Size(width, 900);
-        tester.view.devicePixelRatio = 1;
-        var saveCalls = 0;
-        final gateway = _DiagnosticGateway();
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: FoodInputForm(
-                  captureGateway: gateway,
-                  onSave: (_) async {
-                    saveCalls += 1;
-                    return true;
-                  },
-                ),
+  testWidgets('developer diagnostics remains explicitly callable', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      var saveCalls = 0;
+      final gateway = _DiagnosticGateway();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: gateway,
+                onSave: (_) async {
+                  saveCalls += 1;
+                  return true;
+                },
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        await tester.ensureVisible(
-          find.byKey(const ValueKey('food-entry-ocr')),
-        );
-        await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
-        await tester.pumpAndSettle();
-        expect(
-          find.byKey(const ValueKey('nutrition-ocr-diagnostics')),
-          findsOne,
-        );
-        await tester.tap(
-          find.byKey(const ValueKey('nutrition-ocr-diagnostics')),
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('PHOTO LIBRARY'));
-        await tester.pumpAndSettle();
+      final diagnostics = showNutritionOcrDiagnostics(
+        tester.element(find.byType(FoodInputForm)),
+        gateway,
+      );
+      await tester.pumpAndSettle();
 
-        expect(gateway.diagnosticCalls, 1);
-        expect(gateway.selectedSources, [FoodImageSource.gallery]);
-        expect(find.textContaining('OCR PIPELINE DIAGNOSTICS'), findsOneWidget);
-        expect(find.byKey(const ValueKey('view-standard-ocr-input')), findsOne);
-        expect(
-          find.byKey(const ValueKey('view-nutrition-ocr-input')),
-          findsOne,
-        );
-        expect(find.byKey(const ValueKey('copy-ocr-diagnostics')), findsOne);
-        expect(saveCalls, 0);
-        expect(
-          tester.takeException(),
-          isNull,
-          reason: 'diagnostics width $width',
-        );
-        await tester.tap(find.byKey(const ValueKey('view-standard-ocr-input')));
-        await tester.pumpAndSettle();
-        expect(find.text('STANDARD OCR INPUT'), findsOneWidget);
-        await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const ValueKey('view-nutrition-ocr-input')),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('NUTRITION OCR INPUT'), findsOneWidget);
-        await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(FilledButton, 'CLOSE'));
-        await tester.pumpAndSettle();
-      }
-    },
-  );
+      expect(gateway.diagnosticCalls, 1);
+      expect(gateway.selectedSources, [FoodImageSource.gallery]);
+      expect(find.textContaining('OCR PIPELINE DIAGNOSTICS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('view-standard-ocr-input')), findsOne);
+      expect(find.byKey(const ValueKey('view-nutrition-ocr-input')), findsOne);
+      expect(find.byKey(const ValueKey('copy-ocr-diagnostics')), findsOne);
+      expect(saveCalls, 0);
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'diagnostics width $width',
+      );
+      await tester.tap(find.byKey(const ValueKey('view-standard-ocr-input')));
+      await tester.pumpAndSettle();
+      expect(find.text('STANDARD OCR INPUT'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('view-nutrition-ocr-input')));
+      await tester.pumpAndSettle();
+      expect(find.text('NUTRITION OCR INPUT'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'CLOSE'));
+      await tester.pumpAndSettle();
+      await diagnostics;
+    }
+  });
 
   testWidgets('Food Entry keeps aligned master fields before daily amount', (
     tester,

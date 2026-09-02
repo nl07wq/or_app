@@ -19,21 +19,29 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
+  final Duration logoIntro;
+  final Duration typingCharacter;
+  final Duration systemBootTransition;
   final Duration header;
   final Duration row;
   final Duration readyDelay;
   final Duration readyHold;
 
   const BootSequenceTiming({
+    this.logoIntro = const Duration(milliseconds: 360),
+    this.typingCharacter = const Duration(milliseconds: 90),
+    this.systemBootTransition = const Duration(milliseconds: 180),
     this.header = const Duration(milliseconds: 180),
-    this.row = const Duration(milliseconds: 220),
+    this.row = const Duration(milliseconds: 320),
     this.readyDelay = const Duration(milliseconds: 180),
-    this.readyHold = const Duration(milliseconds: 360),
+    this.readyHold = const Duration(milliseconds: 500),
   });
 }
 
 enum _BootVisualPhase {
-  header,
+  logo,
+  identityTyping,
+  systemBoot,
   coreInitializing,
   dataInitializing,
   operationInitializing,
@@ -43,8 +51,9 @@ enum _BootVisualPhase {
 
 class _BootSequenceVisual extends StatefulWidget {
   final _BootVisualPhase phase;
+  final int typedLength;
 
-  const _BootSequenceVisual({required this.phase});
+  const _BootSequenceVisual({required this.phase, required this.typedLength});
 
   @override
   State<_BootSequenceVisual> createState() => _BootSequenceVisualState();
@@ -74,7 +83,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     final colorScheme = Theme.of(context).colorScheme;
     final phase = widget.phase;
     final rows = <Widget>[
-      if (phase != _BootVisualPhase.header)
+      if (phase.index >= _BootVisualPhase.coreInitializing.index)
         _BootStatusLine(
           key: const ValueKey('boot-row-core'),
           label: 'CORE SYSTEM',
@@ -114,16 +123,39 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'OPERATION REBOOT',
-                      style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                        color: colorScheme.primary,
-                        fontFamily: 'monospace',
-                        letterSpacing: 1.2,
-                      ),
+                    Image.asset(
+                      'assets/icons/orlo_icon.png',
+                      key: const ValueKey('boot-brand-logo'),
+                      height: 72,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const SizedBox(height: 72),
                     ),
-                    const SizedBox(height: 8),
-                    const Text('SYSTEM BOOT'),
+                    if (phase.index >=
+                        _BootVisualPhase.identityTyping.index) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'O.R.L.O.'.substring(0, widget.typedLength),
+                        key: const ValueKey('boot-brand-identity'),
+                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                          color: colorScheme.primary,
+                          fontFamily: 'monospace',
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                    if (phase == _BootVisualPhase.identityTyping)
+                      FadeTransition(
+                        opacity: _cursorController,
+                        child: Text(
+                          '▌',
+                          key: const ValueKey('boot-typing-cursor'),
+                          style: TextStyle(color: colorScheme.primary),
+                        ),
+                      ),
+                    if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
+                      const SizedBox(height: 8),
+                      const Text('SYSTEM BOOT'),
+                    ],
                     if (rows.isNotEmpty) const SizedBox(height: 28),
                     ...rows,
                     if (hasActiveRow) const SizedBox(height: 8),
@@ -212,7 +244,8 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
   bool _systemInitialized = false;
   bool _readyDelayElapsed = false;
   bool _completed = false;
-  _BootVisualPhase _phase = _BootVisualPhase.header;
+  int _typedLength = 0;
+  _BootVisualPhase _phase = _BootVisualPhase.logo;
 
   @override
   void initState() {
@@ -220,7 +253,7 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
     _emit(BootSequenceEventType.bootStart);
     widget.initialization.addListener(_onInitializationChanged);
     _onInitializationChanged();
-    _schedule(widget.timing.header, _showCore);
+    _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
 
   @override
@@ -236,6 +269,24 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
       if (mounted) {
         action();
       }
+    });
+  }
+
+  void _startIdentityTyping() {
+    setState(() => _phase = _BootVisualPhase.identityTyping);
+    _typeNextCharacter();
+  }
+
+  void _typeNextCharacter() {
+    const identity = 'O.R.L.O.';
+    if (_typedLength >= identity.length) {
+      setState(() => _phase = _BootVisualPhase.systemBoot);
+      _schedule(widget.timing.systemBootTransition, _showCore);
+      return;
+    }
+    _schedule(widget.timing.typingCharacter, () {
+      setState(() => _typedLength += 1);
+      _typeNextCharacter();
     });
   }
 
@@ -309,6 +360,6 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
       return widget.fallbackBuilder(state);
     }
     if (_completed) return widget.child;
-    return _BootSequenceVisual(phase: _phase);
+    return _BootSequenceVisual(phase: _phase, typedLength: _typedLength);
   }
 }
