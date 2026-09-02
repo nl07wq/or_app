@@ -416,6 +416,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
   late final TextEditingController _protein;
   late final TextEditingController _fat;
   late final TextEditingController _carbohydrate;
+  late final Set<String> _observedFields;
 
   @override
   void initState() {
@@ -424,6 +425,12 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     _protein = _numberController(widget.draft.protein);
     _fat = _numberController(widget.draft.fat);
     _carbohydrate = _numberController(widget.draft.carbohydrate);
+    _observedFields = {
+      if (widget.draft.calories != null) 'ENERGY',
+      if (widget.draft.protein != null) 'PROTEIN',
+      if (widget.draft.fat != null) 'FAT',
+      if (widget.draft.carbohydrate != null) 'CARBOHYDRATE',
+    };
   }
 
   @override
@@ -464,13 +471,40 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                       ),
                     ),
                     AppSpacing.gapMD,
-                    _field('KCAL', 'ENERGY', _calories, 'kcal'),
-                    AppSpacing.gapSM,
-                    _field('P', 'PROTEIN', _protein, 'g'),
-                    AppSpacing.gapSM,
-                    _field('F', 'FAT', _fat, 'g'),
-                    AppSpacing.gapSM,
-                    _field('C', 'CARBOHYDRATE', _carbohydrate, 'g'),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Text('OBSERVED NUTRITION'),
+                    ),
+                    LayoutBuilder(
+                      builder: (context, constraints) => Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          _metricCard(
+                            'KCAL',
+                            'ENERGY',
+                            _calories,
+                            'kcal',
+                            constraints,
+                          ),
+                          _metricCard(
+                            'P',
+                            'PROTEIN',
+                            _protein,
+                            'g',
+                            constraints,
+                          ),
+                          _metricCard('F', 'FAT', _fat, 'g', constraints),
+                          _metricCard(
+                            'C',
+                            'CARBOHYDRATE',
+                            _carbohydrate,
+                            'g',
+                            constraints,
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -501,29 +535,63 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     ),
   );
 
-  Widget _field(
+  Widget _metricCard(
     String label,
     String field,
     TextEditingController controller,
     String unit,
-  ) => Row(
-    children: [
-      SizedBox(width: 56, child: Text(label)),
-      Expanded(
-        child: TextField(
-          key: ValueKey('nutrition-preview-$field'),
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(suffixText: unit),
+    BoxConstraints constraints,
+  ) {
+    final status = _previewStatus(field);
+    final width = constraints.maxWidth >= 520
+        ? (constraints.maxWidth - AppSpacing.sm) / 2
+        : constraints.maxWidth;
+    return SizedBox(
+      width: width,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(label)),
+                  _OcrStatusChip(status: status),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                key: ValueKey('nutrition-preview-$field'),
+                controller: controller,
+                onChanged: (_) => setState(() {}),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                style: Theme.of(context).textTheme.headlineSmall,
+                decoration: InputDecoration(
+                  isDense: true,
+                  suffixText: unit,
+                  border: InputBorder.none,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      if (widget.reviewFields.contains(field))
-        const Padding(
-          padding: EdgeInsets.only(left: AppSpacing.sm),
-          child: Text('CHECK'),
-        ),
-    ],
-  );
+    );
+  }
+
+  _OcrPreviewStatus _previewStatus(String field) {
+    if (widget.reviewFields.contains(field)) return _OcrPreviewStatus.check;
+    if (!_observedFields.contains(field)) return _OcrPreviewStatus.manual;
+    return _OcrPreviewStatus.verified;
+  }
 
   NutritionOcrDraft _result() => NutritionOcrDraft(
     basisQuantity: widget.draft.basisQuantity,
@@ -535,6 +603,36 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     packageQuantity: widget.draft.packageQuantity,
     packageUnit: widget.draft.packageUnit,
   );
+}
+
+enum _OcrPreviewStatus { verified, check, manual }
+
+class _OcrStatusChip extends StatelessWidget {
+  const _OcrStatusChip({required this.status});
+  final _OcrPreviewStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final (label, color) = switch (status) {
+      _OcrPreviewStatus.verified => ('VERIFIED', colors.primary),
+      _OcrPreviewStatus.check => ('CHECK', colors.tertiary),
+      _OcrPreviewStatus.manual => ('MANUAL', colors.outline),
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+        ),
+      ),
+    );
+  }
 }
 
 TextEditingController _numberController(double? value) => TextEditingController(

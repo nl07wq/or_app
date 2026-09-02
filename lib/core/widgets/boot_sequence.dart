@@ -126,7 +126,8 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                     Image.asset(
                       'assets/icons/orlo_icon.png',
                       key: const ValueKey('boot-brand-logo'),
-                      height: 72,
+                      height: 128,
+                      width: 220,
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const SizedBox(height: 72),
                     ),

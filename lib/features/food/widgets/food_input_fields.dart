@@ -94,14 +94,15 @@ class FoodInputFields extends StatelessWidget {
 
     return Column(
       children: [
-        OperationButton(
-          key: const ValueKey('food-entry-ocr'),
-          icon: Icons.document_scanner,
-          text: nutritionCaptureInProgress
-              ? 'PROCESSING IMAGE'
-              : 'SCAN NUTRITION LABEL',
-          onPressed: onReadNutrition,
-        ),
+        if (nutritionCaptureInProgress)
+          const _NutritionOcrProcessing()
+        else
+          OperationButton(
+            key: const ValueKey('food-entry-ocr'),
+            icon: Icons.document_scanner,
+            text: 'SCAN NUTRITION LABEL',
+            onPressed: onReadNutrition,
+          ),
 
         AppSpacing.gapMD,
 
@@ -425,6 +426,23 @@ class FoodInputFields extends StatelessWidget {
     );
     onChanged(value);
   }
+}
+
+class _NutritionOcrProcessing extends StatelessWidget {
+  const _NutritionOcrProcessing();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 72,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.radar_outlined, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: AppSpacing.sm),
+        const Text('ANALYZING IMAGE'),
+      ],
+    ),
+  );
 }
 
 class _AmountStepButton extends StatelessWidget {
