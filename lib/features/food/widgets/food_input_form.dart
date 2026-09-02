@@ -20,6 +20,7 @@ import '../models/recipe_models_v2.dart';
 import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
 import '../services/food_input_capture_gateway.dart';
+import '../services/food_nutrition_recalculation.dart';
 import '../services/food_recipe_nutrition.dart';
 import '../services/food_meal_master_expander.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
@@ -296,38 +297,46 @@ class _FoodInputFormState extends State<FoodInputForm> {
         return;
       }
 
-      final previousBaseAmount = _lastValidBaseAmount;
-      if (previousBaseAmount != null &&
-          previousBaseAmount.isFinite &&
-          previousBaseAmount > 0 &&
-          previousBaseAmount != nextBaseAmount) {
-        final multiplier = nextBaseAmount / previousBaseAmount;
-        _rawCalories = _rescaleNutrition(
-          controller: calorieController,
-          rawValue: _rawCalories,
-          multiplier: multiplier,
-          formatter: FoodNutritionFormatter.calories,
-        );
-        _rawProtein = _rescaleNutrition(
-          controller: proteinController,
-          rawValue: _rawProtein,
-          multiplier: multiplier,
-          formatter: FoodNutritionFormatter.macro,
-        );
-        _rawFat = _rescaleNutrition(
-          controller: fatController,
-          rawValue: _rawFat,
-          multiplier: multiplier,
-          formatter: FoodNutritionFormatter.macro,
-        );
-        _rawCarbohydrate = _rescaleNutrition(
-          controller: carbohydrateController,
-          rawValue: _rawCarbohydrate,
-          multiplier: multiplier,
-          formatter: FoodNutritionFormatter.macro,
-        );
-      }
       _lastValidBaseAmount = nextBaseAmount;
+    });
+  }
+
+  void _recalculateNutrition() {
+    final nutrition = NutritionSnapshot(
+      calories: _rawCalories ?? double.tryParse(calorieController.text.trim()),
+      protein: _rawProtein ?? double.tryParse(proteinController.text.trim()),
+      fat: _rawFat ?? double.tryParse(fatController.text.trim()),
+      carbohydrate:
+          _rawCarbohydrate ?? double.tryParse(carbohydrateController.text.trim()),
+    );
+    final reason = FoodNutritionRecalculation.blockedReason(
+      packageQuantity: double.tryParse(packageQuantityController.text.trim()),
+      packageUnit: packageUnit,
+      basisQuantity: double.tryParse(baseAmountController.text.trim()),
+      basisUnit: baseUnit,
+      nutrition: nutrition,
+    );
+    if (reason != null) {
+      setState(() => inputError = reason);
+      return;
+    }
+    final result = FoodNutritionRecalculation.preview(
+      packageQuantity: double.tryParse(packageQuantityController.text.trim()),
+      packageUnit: packageUnit,
+      basisQuantity: double.tryParse(baseAmountController.text.trim()),
+      basisUnit: baseUnit,
+      nutrition: nutrition,
+    ).recalculated;
+    setState(() {
+      _rawCalories = result.calories;
+      _rawProtein = result.protein;
+      _rawFat = result.fat;
+      _rawCarbohydrate = result.carbohydrate;
+      calorieController.text = result.calories == null ? '' : FoodNutritionFormatter.calories(result.calories!);
+      proteinController.text = result.protein == null ? '' : FoodNutritionFormatter.macro(result.protein!);
+      fatController.text = result.fat == null ? '' : FoodNutritionFormatter.macro(result.fat!);
+      carbohydrateController.text = result.carbohydrate == null ? '' : FoodNutritionFormatter.macro(result.carbohydrate!);
+      inputError = null;
     });
   }
 
@@ -1054,6 +1063,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   ? null
                   : _scanOcr,
               nutritionCaptureInProgress: _capturingNutrition,
+              onRecalculateNutrition: _recalculateNutrition,
               onChanged: (_) {
                 setState(() {
                   inputError = null;

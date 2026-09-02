@@ -53,6 +53,10 @@ void main() {
     await tester.tap(find.text('OPEN'));
     await tester.pumpAndSettle();
     expect(find.text('CROP NUTRITION LABEL'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
+      findsOneWidget,
+    );
     expect(gateway.cropCalls, 0);
     await tester.tap(
       find.byKey(const ValueKey('manual-nutrition-crop-cancel')),

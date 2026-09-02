@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -250,17 +248,16 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   }
 
   Widget _image(String dataUrl) {
-    final separator = dataUrl.indexOf(',');
-    if (separator < 0) return const ColoredBox(color: Colors.black);
-    try {
-      return Image.memory(
-        base64Decode(dataUrl.substring(separator + 1)),
-        fit: BoxFit.fill,
-        errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black),
-      );
-    } on FormatException {
-      return const ColoredBox(color: Colors.black);
-    }
+    return Image.network(
+      dataUrl,
+      key: const ValueKey('manual-nutrition-crop-source-image'),
+      fit: BoxFit.fill,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => ColoredBox(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: const Center(child: Text('IMAGE UNAVAILABLE')),
+      ),
+    );
   }
 }
 

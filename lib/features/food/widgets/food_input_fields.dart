@@ -43,6 +43,7 @@ class FoodInputFields extends StatelessWidget {
   final bool barcodeScanInProgress;
   final VoidCallback? onReadNutrition;
   final bool nutritionCaptureInProgress;
+  final VoidCallback? onRecalculateNutrition;
 
   const FoodInputFields({
     super.key,
@@ -76,6 +77,7 @@ class FoodInputFields extends StatelessWidget {
     this.barcodeScanInProgress = false,
     this.onReadNutrition,
     this.nutritionCaptureInProgress = false,
+    this.onRecalculateNutrition,
   });
 
   @override
@@ -250,6 +252,18 @@ class FoodInputFields extends StatelessWidget {
               );
             },
           ),
+
+        AppSpacing.gapMD,
+
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OperationButton(
+            key: const ValueKey('food-entry-recalculate-nutrition'),
+            icon: Icons.calculate_outlined,
+            text: 'RECALCULATE NUTRITION',
+            onPressed: onRecalculateNutrition,
+          ),
+        ),
 
         AppSpacing.gapMD,
 

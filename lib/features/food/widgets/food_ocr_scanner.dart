@@ -477,27 +477,30 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Padding(
+              padding: AppSpacing.cardPadding,
+              child: SizedBox(
+                height: MediaQuery.viewInsetsOf(context).bottom > 0 ? 132 : 220,
+                child: DecoratedBox(
+                  key: const ValueKey('nutrition-preview-source-image'),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                  ),
+                  child: InteractiveViewer(child: _previewImage(widget.image.dataUrl)),
+                ),
+              ),
+            ),
             Expanded(
               child: SingleChildScrollView(
-                padding: AppSpacing.cardPadding,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  0,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: DecoratedBox(
-                        key: const ValueKey('nutrition-preview-source-image'),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: InteractiveViewer(
-                          child: _previewImage(widget.image.dataUrl),
-                        ),
-                      ),
-                    ),
-                    AppSpacing.gapMD,
                     const Padding(
                       padding: EdgeInsets.only(bottom: AppSpacing.sm),
                       child: Text('OBSERVED NUTRITION'),
