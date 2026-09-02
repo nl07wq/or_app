@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Food OCR real-image regression harness</title>
+<base href="/">
+<pre id="result">RUNNING</pre>
+<script src="/assets/food_input/food_input_bridge.js"></script>
+<script>
+  (async () => {
+    const fixture = new URLSearchParams(location.search).get('fixture');
+    if (!fixture) throw new Error('fixture query parameter is required');
+    const response = await fetch(`/fixtures/food_ocr/images/${fixture}`);
+    const blob = await response.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const report = await window.orAppFoodInput.diagnoseNutritionPhoto(dataUrl);
+    document.getElementById('result').textContent = report;
+    document.title = 'COMPLETE';
+  })().catch((error) => {
+    document.getElementById('result').textContent = `ERROR: ${error.stack || error}`;
+    document.title = 'FAILED';
+  });
+</script>

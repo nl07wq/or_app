@@ -158,6 +158,24 @@ void main() {
     );
   });
 
+  test('structured fat conflict suppresses a legacy parser candidate per field', () {
+    final session = FoodNutritionCandidateSession();
+    session.describe('脂質 04g');
+    session.describe(
+      '[[OR_STRUCTURED_NUTRITION]]\n'
+      '[[OR_OCR_DECISIONS]]\n'
+      '{"fat":{"value":0.4,"unit":"g","confidence":"MEDIUM",'
+      '"reviewRequired":true,"conflict":true,'
+      '"decision":"REVIEW_REQUIRED"}}',
+    );
+
+    expect(session.draft.fat, isNull);
+    final safety = session.fieldDecisions['FAT']?['legacyFallbackSafety'] as Map;
+    expect(safety['legacyCandidateValue'], 4);
+    expect(safety['fallbackSuppressed'], isTrue);
+    expect(safety['suppressionReason'], 'structured-conflict');
+  });
+
   test('unit-less structured evidence remains review-only', () {
     final session = FoodNutritionCandidateSession();
     session.describe(

@@ -844,13 +844,19 @@
   function recognizePass(dataUrl, {
     outputs,
     whitelist,
+    pageSegmentationMode,
   } = {}) {
     const recognize = async () => {
       const worker = await ocrWorker();
       let timeout;
       try {
-        if (whitelist) {
-          await worker.setParameters({ tessedit_char_whitelist: whitelist });
+        if (whitelist || pageSegmentationMode) {
+          await worker.setParameters({
+            ...(whitelist ? { tessedit_char_whitelist: whitelist } : {}),
+            ...(pageSegmentationMode ? {
+              tessedit_pageseg_mode: String(pageSegmentationMode),
+            } : {}),
+          });
         }
         const result = await Promise.race([
           worker.recognize(dataUrl, {}, outputs),
@@ -867,8 +873,11 @@
         throw error;
       } finally {
         clearTimeout(timeout);
-        if (whitelist && workerInstance === worker) {
-          await worker.setParameters({ tessedit_char_whitelist: '' });
+        if ((whitelist || pageSegmentationMode) && workerInstance === worker) {
+          await worker.setParameters({
+            ...(whitelist ? { tessedit_char_whitelist: '' } : {}),
+            ...(pageSegmentationMode ? { tessedit_pageseg_mode: '3' } : {}),
+          });
         }
       }
     };
@@ -1036,6 +1045,24 @@
         image.data[index + 1] * 0.587 +
         image.data[index + 2] * 0.114;
       const value = Math.max(0, Math.min(255, (luminance - 128) * contrast + 128));
+      image.data[index] = value;
+      image.data[index + 1] = value;
+      image.data[index + 2] = value;
+    }
+    context.putImageData(image, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  function thresholdVariant(source, threshold = 170) {
+    const canvas = document.createElement('canvas');
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.drawImage(source, 0, 0);
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    for (let index = 0; index < image.data.length; index += 4) {
+      const luminance = image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114;
+      const value = luminance < threshold ? 0 : 255;
       image.data[index] = value;
       image.data[index + 1] = value;
       image.data[index + 2] = value;
@@ -1391,13 +1418,27 @@
 
   function nutritionLabelConfusionRecovery(rawText, selected, group) {
     const normalized = normalizeOcrToken(rawText);
-    if (normalized === 'たんばぱく質' || normalized === 'たんぱく算') {
+    if (normalized === 'エネルキー' || normalized === 'エネルキギー') {
+      return {
+        field: 'energy',
+        alias: 'エネルギー',
+        status: 'RECOVERED_MEDIUM',
+        recoveryMethod: 'nutrition-energy-label-confusion',
+        recoveryConfidence: normalized === 'エネルキー' ? 0.7 : 0.65,
+        ambiguity: null,
+        contextEvidence: ['nutrition-label-reader', 'bounded-energy-label-confusion'],
+      };
+    }
+    if (normalized === 'たんばぱく質' || normalized === 'たんぱく算' ||
+        normalized === 'たんばく質') {
       return {
         field: 'protein',
         alias: 'たんぱく質',
-        status: normalized === 'たんばぱく質' ? 'RECOVERED_HIGH' : 'RECOVERED_MEDIUM',
+        status: normalized === 'たんばぱく質' || normalized === 'たんばく質'
+          ? 'RECOVERED_HIGH' : 'RECOVERED_MEDIUM',
         recoveryMethod: 'nutrition-protein-label-confusion',
-        recoveryConfidence: normalized === 'たんばぱく質' ? 0.78 : 0.62,
+        recoveryConfidence: normalized === 'たんばぱく質' ? 0.78 :
+          normalized === 'たんばく質' ? 0.74 : 0.62,
         ambiguity: null,
         contextEvidence: ['nutrition-label-reader', 'japanese-nutrition-label'],
       };
@@ -1420,7 +1461,7 @@
         contextEvidence: ['same-row-nutrition-value', 'nutrition-layout'],
       };
     }
-    if (normalized !== '肥質') return null;
+    if (normalized !== '肥質' && normalized !== '脂賞') return null;
     const selectedBox = boxForWords(selected);
     const hasSameRowGramEvidence = group.words.some((word) => {
       if (word.left < selectedBox.right - 2) return false;
@@ -1479,7 +1520,7 @@
         }
       }
       for (let index = 0; index < group.words.length; index += 1) {
-        for (const count of [1, 2]) {
+        for (const count of [1, 2, 3, 4, 5]) {
           const selected = group.words.slice(index, index + count);
           if (selected.length !== count) continue;
           const rawText = selected.map((word) => word.text).join('');
@@ -1509,6 +1550,13 @@
           const selected = group.words.slice(index, index + count);
           if (selected.length !== count) continue;
           if (count === 2 && labelRecovery(selected[0].text, selected[0].confidence)) {
+            continue;
+          }
+          // Do not let a trailing fragment of a Japanese label absorb the
+          // adjacent value into one synthetic numeric token. The value token
+          // remains independently observable and keeps its real geometry.
+          if (count === 2 && /[\u3040-\u30ff\u3400-\u9fff]/.test(selected[0].text) &&
+              !recoverNumericToken(selected[0].text)) {
             continue;
           }
           const rawToken = selected.map((word) => word.text).join('');
@@ -1687,9 +1735,16 @@
       const valueMiddle = (best.value.top + best.value.bottom) / 2;
       const verticalDistance = Math.abs(valueMiddle - anchorMiddle);
       const horizontalDistance = best.value.left - anchor.right;
+      // A value directly below one of several detected header columns is a
+      // bounded table relationship, not a distant nearest-label guess.
+      const headerColumnMapping = headerAnchors.includes(anchor) &&
+        best.score >= 1000 && best.score < 2000;
       const geometryConfidence = sameLine && rightOfLabel
         ? 'HIGH'
-        : best.score < 1000 ? 'MEDIUM' : 'LOW';
+        : best.score < 1000 || headerColumnMapping ? 'MEDIUM' : 'LOW';
+      // A distant value can remain diagnostic/review evidence, but it cannot
+      // become a mapped field merely because it is the least distant token.
+      if (geometryConfidence === 'LOW') continue;
       const sameGeometryAlternative = ranked.find((entry) =>
         entry !== best && entry.score === best.score &&
         entry.value.value === best.value.value,
@@ -1934,7 +1989,16 @@
     }));
     const semanticValues = collapseSemanticObservations(values);
     const mapped = mapAnchorValues(anchors, semanticValues);
-    return { sourcePass, groups, anchors, values, semanticValues, mapped };
+    return {
+      sourcePass,
+      groups,
+      anchors,
+      values,
+      semanticValues,
+      mapped,
+      localEvidence: [],
+      localRefinement: [],
+    };
   }
 
   function matchesMappedValue(mapped, value) {
@@ -2062,7 +2126,7 @@
   }
 
   function evidenceForField(analysis, field) {
-    return analysis.semanticValues.map((value) => {
+    const fullEvidence = analysis.semanticValues.map((value) => {
       const ownership = ownershipForValue(analysis, value);
       if (ownership.candidateField !== field) return null;
       const anchor = ownership.anchor;
@@ -2098,6 +2162,10 @@
         },
       };
     }).filter(Boolean);
+    const localEvidence = (analysis.localEvidence || []).filter((item) =>
+      item.targetField === field,
+    );
+    return [...fullEvidence, ...localEvidence];
   }
 
   function ambiguousEvidenceForField(analysis, field) {
@@ -2202,8 +2270,9 @@
         unit: selected?.unit ?? null,
         unitStatus: selected?.unitStatus ?? null,
         confidence: finalConfidence,
-        source: selected && (!exactEvidence || missingUnitEvidence) ? 'RECOVERED_OCR' :
-          selected ? 'EXACT_OCR' : null,
+        source: selected?.source === 'LOCAL_REFINEMENT' ? 'LOCAL_REFINEMENT' :
+          selected && (!exactEvidence || missingUnitEvidence) ? 'RECOVERED_OCR' :
+            selected ? 'EXACT_OCR' : null,
         reviewRequired: finalConfidence !== 'HIGH' || conflict,
         supportingPasses: selectedCluster?.supportingPasses || [],
         supportingPassCount: supportCount,
@@ -2369,38 +2438,625 @@
     return canvas;
   }
 
-  async function valueFromRoi(canvas, anchor, field) {
-    const regions = [
-      {
-        left: anchor.right,
-        top: anchor.top - anchor.height * 0.5,
-        right: canvas.width,
-        bottom: anchor.bottom + anchor.height * 0.5,
-      },
-      {
-        left: anchor.left - anchor.width * 0.4,
+  function refinementRegions(canvas, analysis, field, triggerReason) {
+    const anchor = refinementAnchor(analysis, field);
+    if (!anchor) return [];
+    const regions = [{
+      regionType: 'LABEL_RIGHT_VALUE',
+      triggerReason,
+      left: anchor.right,
+      top: anchor.top - anchor.height * 0.5,
+      right: canvas.width,
+      bottom: anchor.bottom + anchor.height * 0.5,
+    }, {
+      regionType: 'VERTICAL_ROW_REGION',
+      triggerReason,
+      left: Math.max(0, anchor.left - anchor.width * 0.25),
+      top: anchor.top - anchor.height * 0.45,
+      right: canvas.width,
+      bottom: anchor.bottom + anchor.height * 0.6,
+    }];
+    const headers = analysis.anchors.filter((candidate) =>
+      targetNutritionFields.includes(candidate.field) && candidate.lineKey === anchor.lineKey,
+    ).sort((left, right) => left.left - right.left);
+    if (headers.length >= 3) {
+      const index = headers.indexOf(anchor);
+      const left = index === 0 ? Math.max(0, anchor.left - anchor.width * 0.15) :
+        (headers[index - 1].right + anchor.left) / 2;
+      const right = index === headers.length - 1 ? Math.min(canvas.width,
+        anchor.right + anchor.width * 1.25) : (anchor.right + headers[index + 1].left) / 2;
+      regions.push({
+        regionType: 'HORIZONTAL_HEADER_COLUMN',
+        triggerReason,
+        left,
         top: anchor.bottom,
-        right: anchor.right + Math.max(anchor.width * 2.5, 320),
-        bottom: anchor.bottom + anchor.height * 2.6,
-      },
-    ];
+        right,
+        bottom: anchor.bottom + Math.max(anchor.height * 2.8, 80),
+      });
+    }
+    return regions;
+  }
+
+  function refinementAnchor(analysis, field) {
+    const direct = analysis.anchors.find((candidate) => candidate.field === field);
+    if (direct) return direct;
+    const index = targetNutritionFields.indexOf(field);
+    const before = [...analysis.anchors].filter((anchor) =>
+      targetNutritionFields.indexOf(anchor.field) < index,
+    ).sort((left, right) => right.top - left.top)[0];
+    const after = [...analysis.anchors].filter((anchor) =>
+      targetNutritionFields.indexOf(anchor.field) > index,
+    ).sort((left, right) => left.top - right.top)[0];
+    if (!before || !after || after.top <= before.top) return null;
+    const beforeIndex = targetNutritionFields.indexOf(before.field);
+    const afterIndex = targetNutritionFields.indexOf(after.field);
+    const ratio = (index - beforeIndex) / (afterIndex - beforeIndex);
+    const height = Math.max(before.height, after.height);
+    const top = before.top + (after.top - before.top) * ratio;
+    const canonical = {
+      energy: 'エネルギー', protein: 'たんぱく質', fat: '脂質', carbohydrate: '炭水化物',
+    }[field];
+    return {
+      field,
+      alias: canonical,
+      rawText: null,
+      status: 'RECOVERED_MEDIUM',
+      recoveryMethod: 'nutrition-table-row-structure',
+      recoveryConfidence: 0.6,
+      contextEvidence: ['bounded-between-neighbor-nutrition-rows'],
+      lineKey: `inferred-row:${field}`,
+      left: Math.min(before.left, after.left),
+      right: Math.max(before.right, after.right),
+      top,
+      bottom: top + height,
+      width: Math.max(before.width, after.width),
+      height,
+    };
+  }
+
+  function localNumericCandidate(rawText, field) {
     const pattern = field === 'energy'
       ? /(\d+(?:[.,]\d+)?)\s*kcal/i
       : /(\d+(?:[.,]\d+)?)\s*g/i;
-    for (const region of regions) {
+    const matches = [...String(rawText || '').matchAll(new RegExp(pattern, 'gi'))];
+    const values = [...new Set(matches.map((match) =>
+      `${Number(match[1].replace(',', '.'))}|${field === 'energy' ? 'kcal' : 'g'}`,
+    ))];
+    if (values.length === 1) {
+      const [numericText, unit] = values[0].split('|');
+      const value = Number(numericText);
+      return Number.isFinite(value) && value >= 0 ? { value, unit, unitStatus: 'EXACT' } : null;
+    }
+
+    // A bounded, field-derived local crop may contain a plainly observed
+    // numeric value while its unit falls outside the crop. Keep that evidence
+    // for review, but never infer a unit or make it auto-fill eligible.
+    const text = String(rawText || '');
+    if (/@/.test(text)) return null;
+    const bare = [...text.matchAll(/\d+(?:[.,]\d+)?/g)]
+      .map((match) => Number(match[0].replace(',', '.')))
+      .filter((value) => Number.isFinite(value) && value >= 0);
+    const distinct = [...new Set(bare)];
+    return distinct.length === 1
+      ? { value: distinct[0], unit: null, unitStatus: 'MISSING' }
+      : null;
+  }
+
+  async function localRefinementFromRegions(canvas, analysis, field, triggerReason) {
+    const attempts = [];
+    for (const region of refinementRegions(canvas, analysis, field, triggerReason)) {
       const roi = roiCanvas(canvas, region);
       if (!roi || roi.width < 8 || roi.height < 8) continue;
       const data = await recognizePass(roi.toDataURL('image/png'), {
+        outputs: { text: true, tsv: true },
         whitelist: '0123456789.,kcalg',
       });
-      const matches = [...String(data.text || '').matchAll(new RegExp(pattern, 'gi'))];
-      if (matches.length !== 1) continue;
-      const value = Number(matches[0][1].replace(',', '.'));
-      if (Number.isFinite(value) && value >= 0) {
-        return { value, unit: field === 'energy' ? 'kcal' : 'g' };
+      const candidate = localNumericCandidate(data.text, field);
+      const cropRect = {
+        x: Math.max(0, Math.round(region.left)),
+        y: Math.max(0, Math.round(region.top)),
+        width: roi.width,
+        height: roi.height,
+      };
+      attempts.push({
+        source: 'LOCAL_REFINEMENT',
+        sourcePass: analysis.sourcePass,
+        refinementPass: `${analysis.sourcePass}:${region.regionType}`,
+        targetField: field,
+        regionType: region.regionType,
+        triggerReason: region.triggerReason,
+        cropRect,
+        sourceImageDimensions: { width: canvas.width, height: canvas.height },
+        ocrInputDimensions: { width: roi.width, height: roi.height },
+        preprocessing: { whitelist: '0123456789.,kcalg', pageSegmentationMode: 3 },
+        cropPreviewDataUrl: roi.toDataURL('image/jpeg', 0.9),
+        rawOcrText: String(data.text || ''),
+        rawTokens: tsvWords(data.tsv || '').map((word) => word.text),
+        numericValue: candidate?.value ?? null,
+        unit: candidate?.unit ?? null,
+        unitStatus: candidate?.unitStatus ?? null,
+        ocrConfidence: null,
+        resultStatus: candidate ? 'OBSERVED_NUMERIC' : 'NO_UNIQUE_COMPATIBLE_VALUE',
+      });
+    }
+    return attempts;
+  }
+
+  function tableValueRegion(canvas, analysis) {
+    const header = analysis.groups.find((group) =>
+      normalizeOcrToken(group.words.map((word) => word.text).join(''))
+        .includes('栄養成分表示'),
+    );
+    if (!header) return null;
+    const box = boxForWords(header.words);
+    return {
+      regionType: 'TABLE_VALUE_ROW_REGION',
+      triggerReason: 'nutrition-table-header-without-structured-values',
+      left: Math.max(0, box.left - box.width * 0.15),
+      top: Math.max(0, box.top - box.height * 0.35),
+      right: Math.min(canvas.width, Math.max(box.right + box.width * 1.5, canvas.width * 0.92)),
+      bottom: Math.min(canvas.height, box.bottom + Math.max(box.height * 6.5, canvas.height * 0.42)),
+    };
+  }
+
+  function horizontalHeaderColumnMappings(anchors, values) {
+    const compatibleUnit = (field, unit) =>
+      (field === 'energy' && unit === 'kcal') ||
+      (field !== 'energy' && unit === 'g');
+    const mapped = new Map();
+    for (const value of values) {
+      if (!value.unit || value.ambiguity) continue;
+      const compatible = anchors.filter((anchor) =>
+        compatibleUnit(anchor.field, value.unit) &&
+        value.top >= anchor.bottom - Math.max(12, anchor.height * 0.2) &&
+        value.top - anchor.bottom <= Math.max(260, anchor.height * 4.5),
+      );
+      if (!compatible.length) continue;
+      const center = value.left + value.width / 2;
+      const ranked = compatible.map((anchor) => ({
+        anchor,
+        horizontalDistance: Math.abs(center - (anchor.left + anchor.width / 2)),
+      })).filter((item) => item.horizontalDistance <= Math.max(220, item.anchor.width * 1.8))
+        .sort((a, b) => a.horizontalDistance - b.horizontalDistance);
+      if (ranked.length !== 1 || mapped.has(ranked[0].anchor.field)) continue;
+      const { anchor, horizontalDistance } = ranked[0];
+      mapped.set(anchor.field, {
+        ...value,
+        field: anchor.field,
+        mappingRule: 'local-horizontal-header-column',
+        mappingReason: 'value-below-single-compatible-header-column',
+        geometry: {
+          sameLine: false, rightOfLabel: null,
+          verticalDistance: value.top - anchor.bottom,
+          horizontalDistance, relationScore: horizontalDistance,
+          unitCompatibility: true, geometryConfidence: 'MEDIUM',
+        },
+        labelEvidence: {
+          rawText: anchor.rawText, candidate: anchor.alias, status: anchor.status,
+          recoveryMethod: anchor.recoveryMethod, recoveryConfidence: anchor.recoveryConfidence,
+        },
+      });
+    }
+    return mapped;
+  }
+
+  async function refineTableValueRegion(canvas, analysis) {
+    const region = tableValueRegion(canvas, analysis);
+    if (!region) return [];
+    const roi = roiCanvas(canvas, region);
+    if (!roi || roi.width < 8 || roi.height < 8) return [];
+    const input = roi.toDataURL('image/png');
+    const data = await recognizePass(input, {
+      outputs: { text: true, tsv: true },
+      pageSegmentationMode: 6,
+    });
+    const cropRect = {
+      x: Math.max(0, Math.round(region.left)), y: Math.max(0, Math.round(region.top)),
+      width: roi.width, height: roi.height,
+    };
+    const words = tsvWords(data.tsv || '').map((word) => ({
+      ...word, left: word.left + cropRect.x, top: word.top + cropRect.y,
+    }));
+    const local = analyzeNutritionWords(words, analysis.sourcePass);
+    const attempts = [{
+      source: 'LOCAL_REFINEMENT', sourcePass: analysis.sourcePass,
+      refinementPass: `${analysis.sourcePass}:${region.regionType}`,
+      targetField: 'nutrition-table', regionType: region.regionType,
+      triggerReason: region.triggerReason, cropRect,
+      sourceImageDimensions: { width: canvas.width, height: canvas.height },
+      ocrInputDimensions: { width: roi.width, height: roi.height },
+      preprocessing: { pageSegmentationMode: 6 },
+      cropPreviewDataUrl: roi.toDataURL('image/jpeg', 0.9),
+      rawOcrText: String(data.text || ''), rawTokens: words.map((word) => word.text),
+      numericValue: null, unit: null, unitStatus: null, ocrConfidence: null,
+      resultStatus: local.mapped.size ? 'OBSERVED_TABLE_VALUES' : 'NO_MAPPABLE_TABLE_VALUES',
+    }];
+
+    // Table borders are often stronger than the small value glyphs. A second,
+    // related observation uses a numeric/unit whitelist on the *same bounded
+    // table ROI*. It is recorded separately and cannot count as another full
+    // OCR pass or overwrite the Japanese/layout observation above.
+    const numericData = await recognizePass(input, {
+      outputs: { text: true, tsv: true },
+      whitelist: '0123456789.,kcalgm',
+      pageSegmentationMode: 6,
+    });
+    const numericWords = tsvWords(numericData.tsv || '').map((word) => ({
+      ...word, left: word.left + cropRect.x, top: word.top + cropRect.y,
+    }));
+    attempts.push({
+      source: 'LOCAL_REFINEMENT', sourcePass: analysis.sourcePass,
+      refinementPass: `${analysis.sourcePass}:${region.regionType}:numeric`,
+      targetField: 'nutrition-table', regionType: region.regionType,
+      triggerReason: region.triggerReason, cropRect,
+      sourceImageDimensions: { width: canvas.width, height: canvas.height },
+      ocrInputDimensions: { width: roi.width, height: roi.height },
+      preprocessing: {
+        whitelist: '0123456789.,kcalgm', pageSegmentationMode: 6,
+        relatedObservation: attempts[0].refinementPass,
+      },
+      cropPreviewDataUrl: roi.toDataURL('image/jpeg', 0.9),
+      rawOcrText: String(numericData.text || ''), rawTokens: numericWords.map((word) => word.text),
+      numericValue: null, unit: null, unitStatus: null, ocrConfidence: null,
+      resultStatus: numericWords.length ? 'OBSERVED_TABLE_NUMERIC_TOKENS' : 'NO_TABLE_NUMERIC_TOKENS',
+    });
+
+    // The detected table heading supplies a stable vertical origin. Limit a
+    // second crop to the header/value bands directly below it so that table
+    // rules and unrelated package copy do not dominate PSM 6.
+    const heading = analysis.groups.find((group) =>
+      normalizeOcrToken(group.words.map((word) => word.text).join(''))
+        .includes('栄養成分表示'),
+    );
+    const headingBox = heading ? boxForWords(heading.words) : null;
+    if (headingBox) {
+      const rowRegion = {
+        left: cropRect.x,
+        top: Math.max(0, headingBox.bottom + headingBox.height * 0.1),
+        right: cropRect.x + cropRect.width,
+        bottom: Math.min(canvas.height, headingBox.bottom + headingBox.height * 4.1),
+      };
+      const rowRoi = roiCanvas(canvas, rowRegion);
+      if (rowRoi && rowRoi.width >= 8 && rowRoi.height >= 8) {
+        const rowInput = processedVariant(rowRoi, 1.35);
+        const rowData = await recognizePass(rowInput, {
+          outputs: { text: true, tsv: true }, pageSegmentationMode: 6,
+        });
+        const rowCropRect = {
+          x: Math.round(rowRegion.left), y: Math.round(rowRegion.top),
+          width: rowRoi.width, height: rowRoi.height,
+        };
+        const rowWords = tsvWords(rowData.tsv || '').map((word) => ({
+          ...word, left: word.left + rowCropRect.x, top: word.top + rowCropRect.y,
+        }));
+        const rowLocal = analyzeNutritionWords(rowWords, analysis.sourcePass);
+        const rowNumericData = await recognizePass(rowInput, {
+          outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 6,
+        });
+        const rowNumericWords = tsvWords(rowNumericData.tsv || '').map((word) => ({
+          ...word, left: word.left + rowCropRect.x, top: word.top + rowCropRect.y,
+        }));
+        const rowNumericValues = numericValues(lineGroups(rowNumericWords)).map((value) => ({
+          ...value, sourcePass: analysis.sourcePass,
+        }));
+        const columnMapped = horizontalHeaderColumnMappings(rowLocal.anchors, rowNumericValues);
+        const rowAttempt = {
+          source: 'LOCAL_REFINEMENT', sourcePass: analysis.sourcePass,
+          refinementPass: `${analysis.sourcePass}:HORIZONTAL_HEADER_COLUMN_REGION`,
+          targetField: 'nutrition-table', regionType: 'HORIZONTAL_HEADER_COLUMN_REGION',
+          triggerReason: 'bounded-header-and-value-row-below-nutrition-table-heading',
+          cropRect: rowCropRect,
+          sourceImageDimensions: { width: canvas.width, height: canvas.height },
+          ocrInputDimensions: { width: rowRoi.width, height: rowRoi.height },
+          preprocessing: { grayscale: true, contrast: 1.35, pageSegmentationMode: 6,
+            numericWhitelist: '0123456789.,kcalgm' },
+          cropPreviewDataUrl: rowRoi.toDataURL('image/jpeg', 0.9),
+          rawOcrText: String(rowData.text || ''), rawTokens: rowWords.map((word) => word.text),
+          numericRawOcrText: String(rowNumericData.text || ''),
+          numericRawTokens: rowNumericWords.map((word) => word.text),
+          numericValue: null, unit: null, unitStatus: null, ocrConfidence: null,
+          resultStatus: rowLocal.mapped.size || columnMapped.size
+            ? 'OBSERVED_HEADER_COLUMN_VALUES' : 'NO_MAPPABLE_HEADER_COLUMN_VALUES',
+        };
+        attempts.push(rowAttempt);
+        for (const [field, value] of new Map([...rowLocal.mapped, ...columnMapped]).entries()) {
+          analysis.localEvidence.push({
+            ...value, targetField: field, source: 'LOCAL_REFINEMENT',
+            sourcePass: analysis.sourcePass, refinementPass: rowAttempt.refinementPass,
+            rawToken: value.rawToken,
+            supportingRawTokens: value.supportingRawTokens || [value.rawToken],
+            mappingStatus: 'MAPPED', ownershipStatus: 'MAPPED',
+            ownershipReason: 'local-horizontal-header-column-geometry', conflictEligible: true,
+          });
+        }
+
+        // A horizontal nutrition table often has strong cell borders. Refine
+        // each bounded header/value cell separately rather than asking one
+        // page-segmentation pass to interpret all four columns and rules.
+        const columnWidth = rowRoi.width / 4;
+        for (let column = 0; column < 4; column += 1) {
+          const cellRegion = {
+            left: rowRegion.left + column * columnWidth,
+            top: rowRegion.top,
+            right: rowRegion.left + (column + 1) * columnWidth,
+            bottom: rowRegion.bottom,
+          };
+          const cellRoi = roiCanvas(canvas, cellRegion);
+          if (!cellRoi || cellRoi.width < 8 || cellRoi.height < 8) continue;
+          const cellInput = processedVariant(cellRoi, 1.35);
+          const cellData = await recognizePass(cellInput, {
+            outputs: { text: true, tsv: true }, pageSegmentationMode: 6,
+          });
+          const cellNumericData = await recognizePass(cellInput, {
+            outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 6,
+          });
+          // Glare can be amplified by contrast conversion in the leftmost
+          // energy cell. Capture one related original-pixel numeric reading;
+          // it is still the same bounded crop and remains review evidence.
+          const cellOriginalNumericData = column === 0
+            ? await recognizePass(cellRoi.toDataURL('image/png'), {
+              outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 6,
+            })
+            : null;
+          const cellSparseNumericData = (column === 0 || column === 2)
+            ? await recognizePass(cellInput, {
+              outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 11,
+            })
+            : null;
+          const cellCropRect = {
+            x: Math.round(cellRegion.left), y: Math.round(cellRegion.top),
+            width: cellRoi.width, height: cellRoi.height,
+          };
+          const cellWords = tsvWords(cellData.tsv || '').map((word) => ({
+            ...word, left: word.left + cellCropRect.x, top: word.top + cellCropRect.y,
+          }));
+          const cellNumericWords = tsvWords(cellNumericData.tsv || '').map((word) => ({
+            ...word, left: word.left + cellCropRect.x, top: word.top + cellCropRect.y,
+          }));
+          const cellOriginalNumericWords = tsvWords(cellOriginalNumericData?.tsv || '').map((word) => ({
+            ...word, left: word.left + cellCropRect.x, top: word.top + cellCropRect.y,
+          }));
+          const cellSparseNumericWords = tsvWords(cellSparseNumericData?.tsv || '').map((word) => ({
+            ...word, left: word.left + cellCropRect.x, top: word.top + cellCropRect.y,
+          }));
+          const cellLocal = analyzeNutritionWords(cellWords, analysis.sourcePass);
+          const cellValues = numericValues(lineGroups([...cellNumericWords, ...cellSparseNumericWords])).map((value) => ({
+            ...value, sourcePass: analysis.sourcePass,
+          }));
+          // Cell-local recovery is allowed only after a bounded nutrition
+          // table cell produced a compatible gram value below the damaged
+          // label. It does not apply to general OCR text.
+          if (!cellLocal.anchors.some((anchor) => anchor.field === 'fat') &&
+              cellWords.map((word) => normalizeOcrToken(word.text)).join('').includes('脂賞') &&
+              cellValues.some((value) => value.unit === 'g' && !value.ambiguity)) {
+            const labelWords = cellWords.filter((word) => normalizeOcrToken(word.text).includes('脂'));
+            cellLocal.anchors.push({
+              field: 'fat', alias: '脂質', rawText: labelWords.map((word) => word.text).join(''),
+              status: 'RECOVERED_MEDIUM', recoveryMethod: 'local-nutrition-label-confusion',
+              recoveryConfidence: 0.62, ambiguity: null, lineKey: `local-cell-${column + 1}`,
+              confidence: averageConfidence(labelWords), ...boxForWords(labelWords), sourcePass: analysis.sourcePass,
+            });
+          }
+          const cellMapped = horizontalHeaderColumnMappings(cellLocal.anchors, cellValues);
+          // kcal is uniquely compatible with energy among the supported
+          // nutrition fields. In a bounded nutrition-table cell it provides
+          // medium, review-only ownership even when glare hides its label.
+          if (!cellMapped.has('energy')) {
+            const kcalValues = cellValues.filter((value) => value.unit === 'kcal' && !value.ambiguity);
+            if (kcalValues.length === 1) {
+              cellMapped.set('energy', {
+                ...kcalValues[0], field: 'energy', mappingRule: 'local-kcal-table-cell',
+                mappingReason: 'unique-kcal-value-in-bounded-nutrition-table-cell',
+                geometry: { sameLine: null, rightOfLabel: null, verticalDistance: null,
+                  horizontalDistance: null, relationScore: null, unitCompatibility: true,
+                  geometryConfidence: 'MEDIUM' },
+                labelEvidence: { rawText: '栄養成分表示', candidate: 'nutrition-table',
+                  status: 'RECOVERED_MEDIUM', recoveryMethod: 'bounded-table-context', recoveryConfidence: 0.6 },
+              });
+            }
+          }
+          const cellAttempt = {
+            source: 'LOCAL_REFINEMENT', sourcePass: analysis.sourcePass,
+            refinementPass: `${analysis.sourcePass}:HORIZONTAL_HEADER_COLUMN_REGION:cell-${column + 1}`,
+            targetField: 'nutrition-table', regionType: 'HORIZONTAL_HEADER_COLUMN_REGION',
+            triggerReason: 'bounded-horizontal-nutrition-header-value-cell', cropRect: cellCropRect,
+            sourceImageDimensions: { width: canvas.width, height: canvas.height },
+            ocrInputDimensions: { width: cellRoi.width, height: cellRoi.height },
+            preprocessing: { grayscale: true, contrast: 1.35, pageSegmentationMode: 6,
+              numericWhitelist: '0123456789.,kcalgm', tableColumn: column + 1 },
+            cropPreviewDataUrl: cellRoi.toDataURL('image/jpeg', 0.9),
+            rawOcrText: String(cellData.text || ''), rawTokens: cellWords.map((word) => word.text),
+            numericRawOcrText: String(cellNumericData.text || ''),
+            numericRawTokens: cellNumericWords.map((word) => word.text),
+            originalNumericRawOcrText: String(cellOriginalNumericData?.text || ''),
+            originalNumericRawTokens: cellOriginalNumericWords.map((word) => word.text),
+            sparseNumericRawOcrText: String(cellSparseNumericData?.text || ''),
+            sparseNumericRawTokens: cellSparseNumericWords.map((word) => word.text),
+            numericValue: null, unit: null, unitStatus: null, ocrConfidence: null,
+            resultStatus: cellLocal.mapped.size || cellMapped.size
+              ? 'OBSERVED_HEADER_COLUMN_VALUES' : 'NO_MAPPABLE_HEADER_COLUMN_VALUES',
+          };
+          attempts.push(cellAttempt);
+          for (const [field, value] of new Map([...cellLocal.mapped, ...cellMapped]).entries()) {
+            analysis.localEvidence.push({
+              ...value, targetField: field, source: 'LOCAL_REFINEMENT',
+              sourcePass: analysis.sourcePass, refinementPass: cellAttempt.refinementPass,
+              rawToken: value.rawToken,
+              supportingRawTokens: value.supportingRawTokens || [value.rawToken],
+              mappingStatus: 'MAPPED', ownershipStatus: 'MAPPED',
+              ownershipReason: 'local-horizontal-header-cell-geometry', conflictEligible: true,
+            });
+          }
+
+          // The first data row can be obscured by the lower salt/calcium
+          // table. Re-read only the upper portion of the first column, using
+          // the heading height as the bound rather than image coordinates.
+          if (column === 0) {
+            const upperRegion = {
+              ...cellRegion,
+              bottom: Math.min(cellRegion.bottom, headingBox.bottom + headingBox.height * 2.85),
+            };
+            const upperRoi = roiCanvas(canvas, upperRegion);
+            if (upperRoi && upperRoi.width >= 8 && upperRoi.height >= 8) {
+              const upperScaled = document.createElement('canvas');
+              upperScaled.width = upperRoi.width * 2;
+              upperScaled.height = upperRoi.height * 2;
+              const upperScaledContext = upperScaled.getContext('2d', { alpha: false });
+              upperScaledContext.imageSmoothingEnabled = true;
+              upperScaledContext.imageSmoothingQuality = 'high';
+              upperScaledContext.drawImage(upperRoi, 0, 0, upperScaled.width, upperScaled.height);
+              const upperData = await recognizePass(processedVariant(upperScaled, 1), {
+                outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 11,
+              });
+              const upperLineData = await recognizePass(processedVariant(upperScaled, 1), {
+                outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 7,
+              });
+              const upperThresholdData = await recognizePass(thresholdVariant(upperScaled), {
+                outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 11,
+              });
+              const upperCropRect = {
+                x: Math.round(upperRegion.left), y: Math.round(upperRegion.top),
+                width: upperRoi.width, height: upperRoi.height,
+              };
+              const upperWords = tsvWords(upperData.tsv || '').map((word) => ({
+                ...word, left: word.left / 2 + upperCropRect.x, top: word.top / 2 + upperCropRect.y,
+              }));
+              const upperLineWords = tsvWords(upperLineData.tsv || '').map((word) => ({
+                ...word, left: word.left / 2 + upperCropRect.x, top: word.top / 2 + upperCropRect.y,
+              }));
+              const upperThresholdWords = tsvWords(upperThresholdData.tsv || '').map((word) => ({
+                ...word, left: word.left / 2 + upperCropRect.x, top: word.top / 2 + upperCropRect.y,
+              }));
+              const upperValues = numericValues(lineGroups([
+                ...upperWords, ...upperLineWords, ...upperThresholdWords,
+              ]));
+              const kcalValues = upperValues.filter((value) => value.unit === 'kcal' && !value.ambiguity);
+              const upperAttempt = {
+                source: 'LOCAL_REFINEMENT', sourcePass: analysis.sourcePass,
+                refinementPass: `${analysis.sourcePass}:HORIZONTAL_HEADER_COLUMN_REGION:cell-1-upper-value-row`,
+                targetField: 'energy', regionType: 'HORIZONTAL_HEADER_COLUMN_REGION',
+                triggerReason: 'first-table-value-row-separated-from-lower-nutrition-table', cropRect: upperCropRect,
+                sourceImageDimensions: { width: canvas.width, height: canvas.height },
+                ocrInputDimensions: { width: upperScaled.width, height: upperScaled.height },
+                preprocessing: { grayscale: true, contrast: 1, pageSegmentationMode: 11,
+                  numericWhitelist: '0123456789.,kcalgm', upperValueRowOnly: true, upscale: 2, threshold: 170 },
+                cropPreviewDataUrl: upperRoi.toDataURL('image/jpeg', 0.9),
+                rawOcrText: String(upperData.text || ''), rawTokens: upperWords.map((word) => word.text),
+                lineRawOcrText: String(upperLineData.text || ''), lineRawTokens: upperLineWords.map((word) => word.text),
+                thresholdRawOcrText: String(upperThresholdData.text || ''),
+                thresholdRawTokens: upperThresholdWords.map((word) => word.text),
+                numericValue: kcalValues.length === 1 ? kcalValues[0].value : null,
+                unit: kcalValues.length === 1 ? 'kcal' : null,
+                unitStatus: kcalValues.length === 1 ? 'EXACT' : null, ocrConfidence: null,
+                resultStatus: kcalValues.length === 1 ? 'OBSERVED_ENERGY_VALUE' : 'NO_UNIQUE_ENERGY_VALUE',
+              };
+              attempts.push(upperAttempt);
+              if (upperAttempt.numericValue != null) {
+                analysis.localEvidence.push({
+                  ...kcalValues[0], targetField: 'energy', source: 'LOCAL_REFINEMENT',
+                  sourcePass: analysis.sourcePass, refinementPass: upperAttempt.refinementPass,
+                  rawToken: kcalValues[0].rawToken,
+                  supportingRawTokens: [kcalValues[0].rawToken], mappingStatus: 'MAPPED',
+                  ownershipStatus: 'MAPPED', ownershipReason: 'local-upper-horizontal-energy-cell',
+                  conflictEligible: true,
+                  geometry: { sameLine: null, rightOfLabel: null, verticalDistance: null,
+                    horizontalDistance: null, relationScore: null, unitCompatibility: true,
+                    geometryConfidence: 'MEDIUM' },
+                  labelEvidence: { rawText: '栄養成分表示', candidate: 'nutrition-table',
+                    status: 'RECOVERED_MEDIUM', recoveryMethod: 'bounded-table-context', recoveryConfidence: 0.6 },
+                });
+              }
+            }
+          }
+        }
       }
     }
-    return null;
+    analysis.localRefinement = [...(analysis.localRefinement || []), ...attempts];
+    for (const [field, value] of local.mapped.entries()) {
+      analysis.localEvidence.push({
+        ...value,
+        targetField: field,
+        source: 'LOCAL_REFINEMENT',
+        sourcePass: analysis.sourcePass,
+        refinementPass: attempts[0].refinementPass,
+        rawToken: value.rawToken,
+        supportingRawTokens: value.supportingRawTokens || [value.rawToken],
+        mappingStatus: 'MAPPED', ownershipStatus: 'MAPPED',
+        ownershipReason: 'local-table-region-geometry-mapping', conflictEligible: true,
+      });
+    }
+    return attempts;
+  }
+
+  function addLocalRefinementEvidence(analysis, attempts) {
+    analysis.localRefinement = [...(analysis.localRefinement || []), ...attempts];
+    for (const attempt of attempts) {
+      if (attempt.numericValue == null) continue;
+      const anchor = refinementAnchor(analysis, attempt.targetField);
+      if (!anchor) continue;
+      analysis.localEvidence.push({
+        targetField: attempt.targetField,
+        value: attempt.numericValue,
+        unit: attempt.unit,
+        rawToken: attempt.rawOcrText,
+        supportingRawTokens: attempt.rawTokens.length ? attempt.rawTokens : [attempt.rawOcrText],
+        normalizedToken: `${attempt.numericValue}${attempt.unit || ''}`,
+        normalizationCandidates: [],
+        candidateType: attempt.unit ? 'NUMERIC_WITH_UNIT' : 'NUMERIC_WITHOUT_UNIT',
+        unitStatus: attempt.unitStatus || (attempt.unit ? 'EXACT' : 'MISSING'),
+        recoveryMethod: 'local-ocr-refinement',
+        recoveryConfidence: 0.75,
+        ambiguity: null,
+        source: 'LOCAL_REFINEMENT',
+        sourcePass: analysis.sourcePass,
+        refinementPass: attempt.refinementPass,
+        lineKey: `local:${attempt.refinementPass}`,
+        left: attempt.cropRect.x,
+        top: attempt.cropRect.y,
+        width: attempt.cropRect.width,
+        height: attempt.cropRect.height,
+        ocrConfidence: null,
+        mappingStatus: 'MAPPED',
+        ownershipStatus: 'MAPPED',
+        ownershipReason: 'local-refinement-region-derived-from-pass-local-nutrition-geometry',
+        conflictEligible: true,
+        geometry: {
+          sameLine: null,
+          rightOfLabel: null,
+          verticalDistance: null,
+          horizontalDistance: null,
+          relationScore: null,
+          unitCompatibility: Boolean(attempt.unit),
+          geometryConfidence: 'MEDIUM',
+        },
+        labelEvidence: {
+          rawText: anchor.rawText || anchor.alias,
+          candidate: anchor.alias,
+          status: anchor.status || 'EXACT',
+          recoveryMethod: anchor.recoveryMethod || 'exact-label',
+          recoveryConfidence: anchor.recoveryConfidence ?? 1,
+        },
+      });
+    }
+  }
+
+  // Compatibility wrapper for the single-pass structured path. Multi-pass
+  // processing below keeps the complete refinement trace on its analysis.
+  async function valueFromRoi(canvas, anchor, field) {
+    const analysis = {
+      sourcePass: anchor.sourcePass || 'original',
+      anchors: [anchor],
+      localEvidence: [],
+      localRefinement: [],
+    };
+    const attempts = await localRefinementFromRegions(
+      canvas,
+      analysis,
+      field,
+      'label-detected-without-compatible-value',
+    );
+    const attempt = attempts.find((item) => item.numericValue != null);
+    return attempt ? { value: attempt.numericValue, unit: attempt.unit } : null;
   }
 
   async function structuredNutritionWords(canvas, words, engineId, sourcePass = 'original') {
@@ -2659,42 +3315,36 @@
     const original = analyses.find((analysis) => analysis.sourcePass === 'original') ||
       analyses[0];
     const roiFields = [];
-    if (allowRoiFallback) {
+    if (allowRoiFallback && canvas.width > 0 && canvas.height > 0 &&
+        typeof document?.createElement === 'function') {
+      if (targetNutritionFields.every((field) => consensus[field]?.value == null)) {
+        const tableAnalysis = analyses.find((analysis) => tableValueRegion(canvas, analysis));
+        if (tableAnalysis) {
+          const attempts = await refineTableValueRegion(canvas, tableAnalysis);
+          if (attempts.length) roiFields.push('nutrition-table');
+          consensus = consensusForAnalyses(analyses);
+        }
+      }
       for (const field of targetNutritionFields) {
-        if (consensus[field]?.value != null || consensus[field]?.conflict) continue;
-        const anchor = original.anchors.find((candidate) => candidate.field === field);
-        if (!anchor) continue;
-        const value = await valueFromRoi(canvas, anchor, field);
-        if (!value) continue;
-        original.mapped.set(field, {
-        ...value,
-        rawToken: `${value.value}${value.unit}`,
-        normalizedToken: `${value.value}${value.unit}`,
-        normalizationCandidates: [],
-        candidateType: 'NUMERIC_WITH_UNIT',
-        unitStatus: 'EXACT',
-        recoveryMethod: 'numeric-roi-fallback',
-        recoveryConfidence: 0.7,
-        ambiguity: null,
-        sourcePass: original.sourcePass,
-        geometry: {
-          sameLine: null,
-          rightOfLabel: null,
-          verticalDistance: null,
-          horizontalDistance: null,
-          relationScore: null,
-          unitCompatibility: true,
-          geometryConfidence: 'MEDIUM',
-        },
-        labelEvidence: {
-          rawText: anchor.rawText || anchor.alias,
-          candidate: anchor.alias,
-          status: anchor.status || 'EXACT',
-          recoveryMethod: anchor.recoveryMethod || 'exact-label',
-          recoveryConfidence: anchor.recoveryConfidence ?? 1,
-        },
-        });
-        roiFields.push(field);
+        const decision = consensus[field];
+        const triggerReason = decision?.conflict
+          ? 'cross-pass-conflict'
+          : decision?.value == null
+            ? 'label-or-table-context-without-compatible-value'
+            : null;
+        if (!triggerReason) continue;
+        const candidateAnalysis = analyses.find((analysis) =>
+          refinementAnchor(analysis, field) != null,
+        );
+        if (!candidateAnalysis) continue;
+        const attempts = await localRefinementFromRegions(
+          canvas,
+          candidateAnalysis,
+          field,
+          triggerReason,
+        );
+        addLocalRefinementEvidence(candidateAnalysis, attempts);
+        if (attempts.length) roiFields.push(field);
       }
     }
     consensus = consensusForAnalyses(analyses);
@@ -2707,6 +3357,7 @@
       carbohydrate: '炭水化物',
     };
     const allValues = analyses.flatMap((analysis) => analysis.values);
+    const localRefinement = analyses.flatMap((analysis) => analysis.localRefinement || []);
     const passLocalNumericDiagnostics = analyses.flatMap((analysis) =>
       analysis.values.map((value) => numericDiagnostic(value, analysis.anchors)),
     );
@@ -2745,6 +3396,17 @@
       })),
       valueRoiCount: roiFields.length,
       roiFields,
+      localRefinementAttempts: localRefinement,
+      localRefinementSummary: {
+        attempts: localRefinement.length,
+        evidenceCount: localRefinement.filter((item) => item.numericValue != null).length,
+        resolvedFields: [...new Set(localRefinement
+          .filter((item) => item.numericValue != null)
+          .map((item) => item.targetField))],
+        stillReviewRequiredFields: Object.values(consensus)
+          .filter((decision) => decision.reviewRequired)
+          .map((decision) => decision.field),
+      },
       engineId: 'tesseract',
       detectedLabels: analyses.flatMap((analysis) =>
         labelDiagnostics(analysis.groups, analysis.anchors).map((label) => ({
@@ -3057,7 +3719,9 @@
       const structured = await structuredNutritionPasses(
         artifact.canvas,
         artifact.passes.filter((pass) => pass.tsv),
-        { allowRoiFallback: false },
+        // The three full-image passes stay shared. Refinement is separately
+        // traced, bounded evidence derived from that same decoded image.
+        { allowRoiFallback: true },
       );
       if (lastPhotoDiagnostics) {
         lastPhotoDiagnostics.structuredDurationMs = Math.round(performance.now() - startedAt);
@@ -4067,6 +4731,14 @@
       numericCandidates: structured.numericCandidates || rawStage.numericCandidates || [],
       semanticDuplicateCollapse: structured.semanticDuplicateCollapse || [],
       preMappingEvidence: structured.preMappingEvidence || [],
+      fieldOwnership: structured.fieldOwnership || [],
+      localRefinementAttempts: structured.localRefinementAttempts || [],
+      localRefinementSummary: structured.localRefinementSummary || {
+        attempts: 0,
+        evidenceCount: 0,
+        resolvedFields: [],
+        stillReviewRequiredFields: [],
+      },
       structuredCandidates: structured.structuredCandidates || [],
       unitTieBreak: structured.unitTieBreak || [],
       geometryMapping: structured.geometryMapping || [],
@@ -4215,6 +4887,24 @@
           tsv,
         })),
       ),
+    localRefinementRegionsForTesting: (tsv, field, width = 1200, height = 800) => {
+      const analysis = analyzeNutritionWords(tsvWords(tsv), 'original');
+      return refinementRegions(
+        { width, height },
+        analysis,
+        field,
+        'test-incomplete-structured-evidence',
+      ).map((region) => ({
+        regionType: region.regionType,
+        triggerReason: region.triggerReason,
+        cropRect: {
+          x: Math.round(region.left),
+          y: Math.round(region.top),
+          width: Math.round(region.right - region.left),
+          height: Math.round(region.bottom - region.top),
+        },
+      }));
+    },
     collectSharedOcrPassesForTesting: async (passNames) => {
       let invocationCount = 0;
       const passes = await collectSharedOcrPasses(

@@ -151,6 +151,7 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
             'decisionReason': entry.value['decisionReason'],
             'selectedEvidence': entry.value['selectedEvidence'],
             'ownershipEvidence': entry.value['ownershipEvidence'],
+            'legacyFallbackSafety': entry.value['legacyFallbackSafety'],
             'reviewBridgeStatus':
                 entry.value['bridgeStatus'] ?? 'RETAINED_FOR_REVIEW',
           },
@@ -326,6 +327,9 @@ void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
     ..writeln(_items(branch['preMappingEvidence']))
     ..writeln('\nFIELD OWNERSHIP')
     ..writeln(_items(branch['fieldOwnership']))
+    ..writeln('\nLOCAL OCR REFINEMENT')
+    ..writeln(_items(branch['localRefinementAttempts']))
+    ..writeln('summary: ${_lines(_map(branch['localRefinementSummary']))}')
     ..writeln('\nMAPPING')
     ..writeln(_items(branch['structuredCandidates']))
     ..writeln('\nUNIT TIE BREAK')
@@ -349,6 +353,9 @@ void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
     ..writeln(_items(branch['parserDiagnostics']))
     ..writeln('\nREVIEW BRIDGE')
     ..writeln(_items(branch['reviewCandidates']))
+    ..writeln('\nLEGACY FALLBACK SAFETY')
+    ..writeln(_items(_list(branch['reviewCandidates']).map((item) =>
+        _map(item)['legacyFallbackSafety']).whereType<Map>().toList()))
     ..writeln('\nFINAL OCR RESULT')
     ..writeln(_lines(_map(branch['finalResult'])))
     ..writeln('\nFORM BINDING')

@@ -87,6 +87,22 @@ class FoodNutritionCandidateSession {
     for (final entry in _fieldDecisions.entries) {
       if (!_isAutoFillDecision(entry.key, entry.value)) {
         excludedFields.add(entry.key);
+        final legacyCandidate = switch (entry.key) {
+          'ENERGY' => _draft.calories,
+          'PROTEIN' => _draft.protein,
+          'FAT' => _draft.fat,
+          'CARBOHYDRATE' => _draft.carbohydrate,
+          _ => null,
+        };
+        if (legacyCandidate != null) {
+          entry.value['legacyFallbackSafety'] = <String, dynamic>{
+            'legacyCandidateValue': legacyCandidate,
+            'fallbackSuppressed': true,
+            'suppressionReason': entry.value['conflict'] == true
+                ? 'structured-conflict'
+                : 'structured-review-required',
+          };
+        }
         _sources.remove(entry.key);
         _candidateSources.remove(entry.key);
       }

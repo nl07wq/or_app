@@ -75,6 +75,9 @@ async function main() {
   assert.equal(recoverLabel('ィネルギー', 95).field, 'energy');
   assert.match(recoverLabel('ィネルギー', 95).status, /RECOVERED/);
   assert.equal(recoverLabel('たんばぱく質', 95).field, 'protein');
+  assert.equal(recoverLabel('エネルキー', 95).field, 'energy');
+  assert.equal(recoverLabel('エネルキギー', 95).field, 'energy');
+  assert.equal(recoverLabel('たんばく質', 95).field, 'protein');
   assert.equal(recoverBasis('栄養成分表示'), null);
   assert.equal(recoverBasis('栄養成分表示（製品1個あたり）').basis, '製品1個あたり');
 
@@ -128,6 +131,18 @@ async function main() {
     window.orAppFoodInput.assetState().lastStructuredDiagnostics.layoutPattern,
     'header-value-row',
   );
+  const horizontalRefinement = window.orAppFoodInput
+    .localRefinementRegionsForTesting(headerValues, 'protein');
+  assert.ok(horizontalRefinement.some((item) =>
+    item.regionType === 'HORIZONTAL_HEADER_COLUMN' &&
+    item.cropRect.width > 0 && item.cropRect.height > 0,
+  ));
+  const verticalRefinement = window.orAppFoodInput
+    .localRefinementRegionsForTesting(vertical, 'fat');
+  assert.ok(verticalRefinement.some((item) =>
+    item.regionType === 'VERTICAL_ROW_REGION' &&
+    item.cropRect.width > 0 && item.cropRect.height > 0,
+  ));
 
   const exclusions = tsv([
     word(1, 1, 10, 10, 110, '炭水化物'),
