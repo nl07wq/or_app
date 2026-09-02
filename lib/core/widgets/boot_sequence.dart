@@ -317,17 +317,17 @@ class _BootProgressBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: constraints.maxWidth * value.clamp(0, 1),
+                child: DecoratedBox(
                   key: const ValueKey('boot-progress-fill'),
-                  width: constraints.maxWidth * value.clamp(0, 1),
-                  child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: .95),
                       borderRadius: BorderRadius.circular(2),
                     ),
-                  ),
                 ),
               ),
             ],
