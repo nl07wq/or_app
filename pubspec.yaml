@@ -62,6 +62,7 @@ flutter:
 
   assets:
     - assets/icons/orlo_icon.png
+    - assets/icons/orlo_logo_1024_transparent.png
     - assets/animations/sandbox/boot_sequence/phase_01/background/base_camp_background.png
     - assets/animations/sandbox/boot_sequence/phase_01/jeep/jeep_body.png
     - assets/animations/sandbox/boot_sequence/phase_01/jeep/wheel.png
