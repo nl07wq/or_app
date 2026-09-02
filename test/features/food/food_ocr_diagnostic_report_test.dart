@@ -100,6 +100,8 @@ void main() {
     expect(text, contains('PASS RAW OCR'));
     expect(text, contains('RAW OCR:'));
     expect(text, contains('artifactId: nutrition-test'));
+    expect(text, contains('AUTO NUTRITION CROP'));
+    expect(text, contains('status=APPLIED'));
     expect(text, contains('FORM BINDING'));
     expect(text, contains('NOT EXECUTED'));
     expect(text, contains('COMPARISON SUMMARY'));
@@ -298,6 +300,11 @@ Map<String, dynamic> _branch(String mode) => {
   'orientation': {'exif': 1, 'appliedByDecoder': true},
   'cropApplied': true,
   'cropRect': {'x': 48, 'y': 80, 'width': 1104, 'height': 640},
+  'autoNutritionCrop': {
+    'status': 'APPLIED',
+    'rect': {'x': 96, 'y': 120, 'width': 800, 'height': 420},
+    'reason': 'nutrition-header+row-cluster',
+  },
   'resizeApplied': false,
   'resizeMethod': 'none',
   'resizeScale': 1,

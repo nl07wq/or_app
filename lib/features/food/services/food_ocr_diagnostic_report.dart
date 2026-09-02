@@ -327,6 +327,12 @@ void _writeCompactMode(
     ..writeln(
       'perspectiveCorrection: ${_text(branch['perspectiveCorrection'])}',
     );
+  final autoCrop = _map(branch['autoNutritionCrop']);
+  out
+    ..writeln('AUTO NUTRITION CROP')
+    ..writeln('status=${_text(autoCrop['status'])}')
+    ..writeln('rect=${_lines(_map(autoCrop['rect']))}')
+    ..writeln('reason=${_text(autoCrop['reason'])}');
   final artifact = _map(branch['sharedOcrArtifact']);
   out
     ..writeln('artifactId: ${_text(artifact['artifactId'])}')

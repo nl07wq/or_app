@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/models/food_item.dart';
@@ -428,21 +430,93 @@ class FoodInputFields extends StatelessWidget {
   }
 }
 
-class _NutritionOcrProcessing extends StatelessWidget {
+class _NutritionOcrProcessing extends StatefulWidget {
   const _NutritionOcrProcessing();
 
   @override
+  State<_NutritionOcrProcessing> createState() =>
+      _NutritionOcrProcessingState();
+}
+
+class _NutritionOcrProcessingState extends State<_NutritionOcrProcessing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => SizedBox(
-    height: 72,
+    height: 76,
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.radar_outlined, color: Theme.of(context).colorScheme.primary),
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (_, _) => CustomPaint(
+            size: const Size.square(42),
+            painter: _NutritionAnalysisPainter(
+              progress: _controller.value,
+              color: Theme.of(context).colorScheme.primary,
+              mutedColor: Theme.of(context).colorScheme.outline,
+            ),
+          ),
+        ),
         const SizedBox(width: AppSpacing.sm),
-        const Text('ANALYZING IMAGE'),
+        const Text('ANALYZING NUTRITION LABEL'),
       ],
     ),
   );
+}
+
+class _NutritionAnalysisPainter extends CustomPainter {
+  const _NutritionAnalysisPainter({
+    required this.progress,
+    required this.color,
+    required this.mutedColor,
+  });
+
+  final double progress;
+  final Color color;
+  final Color mutedColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final outer = size.shortestSide * .42;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    paint.color = mutedColor.withValues(alpha: .5);
+    canvas.drawCircle(center, outer, paint);
+    canvas.drawCircle(center, outer * .48, paint);
+    paint.color = color;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: outer),
+      progress * math.pi * 2,
+      math.pi * .72,
+      false,
+      paint..strokeWidth = 2.6,
+    );
+    final sweep = Offset(
+      center.dx + math.cos(progress * math.pi * 2) * outer * .78,
+      center.dy + math.sin(progress * math.pi * 2) * outer * .78,
+    );
+    canvas.drawLine(center, sweep, paint..strokeWidth = 1.2);
+    canvas.drawCircle(center, outer * .16, paint..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(covariant _NutritionAnalysisPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color ||
+      oldDelegate.mutedColor != mutedColor;
 }
 
 class _AmountStepButton extends StatelessWidget {

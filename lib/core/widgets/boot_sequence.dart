@@ -124,7 +124,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Image.asset(
-                      'assets/icons/orlo_icon.png',
+                      'assets/icons/orlo_logo_1024_transparent.png',
                       key: const ValueKey('boot-brand-logo'),
                       height: 128,
                       width: 220,

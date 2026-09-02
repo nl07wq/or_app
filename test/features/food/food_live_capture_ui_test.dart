@@ -496,6 +496,24 @@ void main() {
       find.byKey(const ValueKey('nutrition-preview-CARBOHYDRATE')),
       findsOneWidget,
     );
+    final preview = find.byType(Dialog);
+    expect(
+      find.descendant(of: preview, matching: find.text('ENERGY')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: preview, matching: find.text('PROTEIN')),
+      findsOneWidget,
+    );
+    expect(find.descendant(of: preview, matching: find.text('FAT')), findsOneWidget);
+    expect(
+      find.descendant(of: preview, matching: find.text('CARBOHYDRATE')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: preview, matching: find.text('VERIFIED')),
+      findsNWidgets(4),
+    );
     expect(saveCalls, 0);
 
     await tester.tap(find.text('APPLY'));

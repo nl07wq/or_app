@@ -97,6 +97,11 @@ function assertFixtureOutcome({ fixture, result }) {
     // `04g` must never make an unsafe 4g form value. A genuine 0.4g
     // consensus or a retained review state are both safe outcomes.
     assert.notEqual(final.fat?.value, 4);
+    assert.equal(
+      nutrition.autoNutritionCrop?.status,
+      'APPLIED',
+      'Fixture C must exercise nutrition-region discovery before full OCR',
+    );
   }
 }
 
@@ -122,6 +127,7 @@ async function main() {
         confidence: decision.confidence, conflict: decision.conflict,
         reviewRequired: decision.reviewRequired, decision: decision.decision,
       })),
+      autoNutritionCrop: nutrition.autoNutritionCrop,
       localRefinement: nutrition.localRefinementAttempts.map((attempt) => ({
         targetField: attempt.targetField, regionType: attempt.regionType,
         triggerReason: attempt.triggerReason || null,

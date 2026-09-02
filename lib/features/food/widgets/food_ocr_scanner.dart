@@ -40,8 +40,10 @@ class FoodNutritionOcrResult extends FoodOcrResult {
 Future<FoodOcrResult?> showNutritionLabelScanner({
   required BuildContext context,
   required FoodInputCaptureGateway gateway,
+  VoidCallback? onProcessingComplete,
 }) async {
   final capture = await _captureNutrition(gateway: gateway);
+  onProcessingComplete?.call();
   if (capture == null || !context.mounted) return null;
   final parsed = capture.draft?.isEmpty == false
       ? (
@@ -481,22 +483,22 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                         runSpacing: AppSpacing.sm,
                         children: [
                           _metricCard(
-                            'KCAL',
+                            'ENERGY',
                             'ENERGY',
                             _calories,
                             'kcal',
                             constraints,
                           ),
                           _metricCard(
-                            'P',
+                            'PROTEIN',
                             'PROTEIN',
                             _protein,
                             'g',
                             constraints,
                           ),
-                          _metricCard('F', 'FAT', _fat, 'g', constraints),
+                          _metricCard('FAT', 'FAT', _fat, 'g', constraints),
                           _metricCard(
-                            'C',
+                            'CARBOHYDRATE',
                             'CARBOHYDRATE',
                             _carbohydrate,
                             'g',
@@ -543,7 +545,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     BoxConstraints constraints,
   ) {
     final status = _previewStatus(field);
-    final width = constraints.maxWidth >= 520
+    final width = constraints.maxWidth >= 320
         ? (constraints.maxWidth - AppSpacing.sm) / 2
         : constraints.maxWidth;
     return SizedBox(
@@ -555,7 +557,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.sm),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -565,7 +567,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                   _OcrStatusChip(status: status),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.xs),
               TextField(
                 key: ValueKey('nutrition-preview-$field'),
                 controller: controller,
@@ -573,7 +575,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: Theme.of(context).textTheme.titleMedium,
                 decoration: InputDecoration(
                   isDense: true,
                   suffixText: unit,

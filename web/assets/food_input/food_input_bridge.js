@@ -984,6 +984,24 @@
           image.naturalHeight,
           guide,
         );
+        // Keep one unscaled canvas for nutrition discovery. A detected table
+        // is subsequently cropped from these decoded pixels, never from an
+        // already compressed OCR variant.
+        const sourceCanvas = document.createElement('canvas');
+        sourceCanvas.width = geometry.sourceWidth;
+        sourceCanvas.height = geometry.sourceHeight;
+        const sourceContext = sourceCanvas.getContext('2d', { alpha: false });
+        sourceContext.drawImage(
+          image,
+          geometry.sourceX,
+          geometry.sourceY,
+          geometry.sourceWidth,
+          geometry.sourceHeight,
+          0,
+          0,
+          sourceCanvas.width,
+          sourceCanvas.height,
+        );
         const canvas = document.createElement('canvas');
         canvas.width = geometry.inputWidth;
         canvas.height = geometry.inputHeight;
@@ -992,6 +1010,9 @@
         if ('imageSmoothingQuality' in context) {
           context.imageSmoothingQuality = 'high';
         }
+        // Preserve the original single resample for the normal fallback path.
+        // `sourceCanvas` above exists only so an accepted discovery crop can
+        // be taken from decoded pixels without a repeated JPEG/canvas chain.
         context.drawImage(
           image,
           geometry.sourceX,
@@ -1003,6 +1024,8 @@
           canvas.width,
           canvas.height,
         );
+        canvas.__orNutritionSourceCanvas = sourceCanvas;
+        canvas.__orNutritionGuideGeometry = geometry;
         lastPhotoDiagnostics = {
           mode,
           originalWidth: metadata.width,
@@ -1027,12 +1050,185 @@
           resizeMethod: geometry.resizeMethod,
           passCount: 0,
           passDurationsMs: [],
+          autoNutritionCrop: {
+            status: 'FALLBACK_ORIGINAL',
+            rect: null,
+            reason: mode === 'nutrition'
+              ? 'nutrition-discovery-not-run'
+              : 'not-nutrition-mode',
+          },
         };
         resolve(canvas);
       };
       image.onerror = reject;
       image.src = dataUrl;
     });
+  }
+
+  function resizedOcrCanvas(source) {
+    const sourceLongEdge = Math.max(source.width, source.height);
+    const scale = sourceLongEdge > 2560
+      ? 2560 / sourceLongEdge
+      : sourceLongEdge < 2048
+        ? Math.min(2, 2048 / sourceLongEdge)
+        : 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    const context = canvas.getContext('2d', { alpha: false });
+    context.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in context) context.imageSmoothingQuality = 'high';
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  function nutritionHeadingWord(word) {
+    const normalized = normalizeOcrToken(word.text);
+    return normalized.includes('栄養成分表示') || normalized.includes('栄養成分') ||
+      normalized.includes('栄養表示');
+  }
+
+  function clampNutritionRect(rect, width, height) {
+    const left = Math.max(0, Math.floor(rect.left));
+    const top = Math.max(0, Math.floor(rect.top));
+    const right = Math.min(width, Math.ceil(rect.right));
+    const bottom = Math.min(height, Math.ceil(rect.bottom));
+    if (right - left < 32 || bottom - top < 32) return null;
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  // This is deliberately only a geometry discovery stage. It accepts no
+  // nutrition values and does not alter later ownership/consensus decisions.
+  function nutritionRegionFromDiscovery(canvas, tsv) {
+    const words = tsvWords(tsv);
+    const groups = lineGroups(words);
+    const anchors = nutritionAnchors(groups);
+    const values = numericValues(groups).filter((value) =>
+      value.unit === 'g' || value.unit === 'mg' || value.unit === 'kcal',
+    );
+    const fields = new Set(anchors.map((anchor) => anchor.field));
+    const headings = words.filter(nutritionHeadingWord);
+    if (fields.size < 2 || values.length < 2) {
+      return { status: 'FALLBACK_ORIGINAL', rect: null, reason: 'insufficient-nutrition-row-cluster' };
+    }
+    const evidence = [...anchors, ...values];
+    const evidenceBox = boxForWords(evidence);
+    const rowHeight = Math.max(
+      12,
+      ...evidence.map((item) => Number(item.height) || 0),
+    );
+    const nearbyHeadings = headings.filter((heading) =>
+      heading.top + heading.height >= evidenceBox.top - rowHeight * 3 &&
+      heading.top <= evidenceBox.bottom + rowHeight,
+    );
+    const included = [...evidence, ...nearbyHeadings];
+    const box = boxForWords(included);
+    const paddingX = Math.max(rowHeight * 1.6, box.width * 0.08);
+    const paddingY = Math.max(rowHeight * 1.25, box.height * 0.08);
+    const rect = clampNutritionRect({
+      left: box.left - paddingX,
+      top: box.top - paddingY,
+      right: box.right + paddingX,
+      bottom: box.bottom + paddingY,
+    }, canvas.width, canvas.height);
+    if (!rect || rect.width * rect.height >= canvas.width * canvas.height * 0.985) {
+      return { status: 'FALLBACK_ORIGINAL', rect: null, reason: 'region-not-smaller-than-source' };
+    }
+    return {
+      status: 'APPLIED',
+      rect,
+      reason: nearbyHeadings.length
+        ? 'nutrition-header+row-cluster'
+        : 'nutrition-label+value-row-cluster',
+    };
+  }
+
+  function cropNutritionCanvas(canvas, region) {
+    const source = canvas.__orNutritionSourceCanvas || canvas;
+    const guide = canvas.__orNutritionGuideGeometry || {
+      sourceX: 0, sourceY: 0, sourceWidth: source.width, sourceHeight: source.height,
+    };
+    const scaleX = source.width / canvas.width;
+    const scaleY = source.height / canvas.height;
+    const sourceRect = clampNutritionRect({
+      left: region.left * scaleX,
+      top: region.top * scaleY,
+      right: region.right * scaleX,
+      bottom: region.bottom * scaleY,
+    }, source.width, source.height);
+    if (!sourceRect) return null;
+    const croppedSource = document.createElement('canvas');
+    croppedSource.width = sourceRect.width;
+    croppedSource.height = sourceRect.height;
+    croppedSource.getContext('2d', { alpha: false }).drawImage(
+      source,
+      sourceRect.left,
+      sourceRect.top,
+      sourceRect.width,
+      sourceRect.height,
+      0,
+      0,
+      croppedSource.width,
+      croppedSource.height,
+    );
+    const cropped = resizedOcrCanvas(croppedSource);
+    cropped.__orNutritionSourceCanvas = croppedSource;
+    cropped.__orNutritionGuideGeometry = {
+      sourceX: guide.sourceX + sourceRect.left,
+      sourceY: guide.sourceY + sourceRect.top,
+      sourceWidth: sourceRect.width,
+      sourceHeight: sourceRect.height,
+    };
+    return { canvas: cropped, sourceRect, guide: cropped.__orNutritionGuideGeometry };
+  }
+
+  async function prepareNutritionCanvasForOcr(canvas) {
+    try {
+      const discovery = await recognizeLayoutPass(canvas.toDataURL('image/jpeg', 0.9));
+      const candidate = nutritionRegionFromDiscovery(canvas, discovery.tsv || '');
+      if (candidate.status !== 'APPLIED') {
+        if (lastPhotoDiagnostics) lastPhotoDiagnostics.autoNutritionCrop = candidate;
+        return canvas;
+      }
+      const cropped = cropNutritionCanvas(canvas, candidate.rect);
+      if (!cropped) {
+        if (lastPhotoDiagnostics) {
+          lastPhotoDiagnostics.autoNutritionCrop = {
+            status: 'FALLBACK_ORIGINAL', rect: null, reason: 'invalid-crop-geometry',
+          };
+        }
+        return canvas;
+      }
+      if (lastPhotoDiagnostics) {
+        lastPhotoDiagnostics.autoNutritionCrop = {
+          status: 'APPLIED',
+          rect: {
+            x: cropped.guide.sourceX, y: cropped.guide.sourceY,
+            width: cropped.guide.sourceWidth, height: cropped.guide.sourceHeight,
+          },
+          reason: candidate.reason,
+        };
+        lastPhotoDiagnostics.cropX = cropped.guide.sourceX;
+        lastPhotoDiagnostics.cropY = cropped.guide.sourceY;
+        lastPhotoDiagnostics.cropWidth = cropped.guide.sourceWidth;
+        lastPhotoDiagnostics.cropHeight = cropped.guide.sourceHeight;
+        lastPhotoDiagnostics.preResizeWidth = cropped.guide.sourceWidth;
+        lastPhotoDiagnostics.preResizeHeight = cropped.guide.sourceHeight;
+        lastPhotoDiagnostics.inputWidth = cropped.canvas.width;
+        lastPhotoDiagnostics.inputHeight = cropped.canvas.height;
+        lastPhotoDiagnostics.resizeScale = cropped.canvas.width /
+          Math.max(1, cropped.guide.sourceWidth);
+        lastPhotoDiagnostics.resizeMethod = 'nutrition-discovery-crop+canvas-resize';
+      }
+      return cropped.canvas;
+    } catch (_) {
+      if (lastPhotoDiagnostics) {
+        lastPhotoDiagnostics.autoNutritionCrop = {
+          status: 'FALLBACK_ORIGINAL', rect: null, reason: 'discovery-ocr-unavailable',
+        };
+      }
+      return canvas;
+    }
   }
 
   function processedVariant(source, contrast) {
@@ -4112,7 +4308,8 @@
   }
 
   async function createSharedNutritionOcrArtifact(dataUrl) {
-    const canvas = await canvasFromImage(dataUrl, 'nutrition');
+    let canvas = await canvasFromImage(dataUrl, 'nutrition');
+    canvas = await prepareNutritionCanvasForOcr(canvas);
     const passes = await collectSharedOcrPasses(
       ocrVariants(canvas, 'nutrition'),
     );
@@ -4224,6 +4421,9 @@
         failPaddleDiagnostics(error, 'P15');
       }
       throw error;
+    }
+    if (mode === 'nutrition' && engineId === 'tesseract') {
+      canvas = await prepareNutritionCanvasForOcr(canvas);
     }
     if (mode === 'nutrition' && engineId === 'paddle') {
       recordPaddleStage('P16', 'success', {
@@ -5154,6 +5354,9 @@
         height: input.cropHeight,
       },
       cropApplied: cropApplied,
+      autoNutritionCrop: input.autoNutritionCrop || {
+        status: 'FALLBACK_ORIGINAL', rect: null, reason: 'not-observable',
+      },
       cropDimensions: { width: input.cropWidth, height: input.cropHeight },
       preResizeDimensions: {
         width: input.preResizeWidth ?? input.cropWidth,
@@ -5483,6 +5686,8 @@
     },
     ocrGeometryForDiagnostics: (width, height, mode = 'nutrition') =>
       ocrGeometry(width, height, mode === 'nutrition' ? ocrGuide : packageGuide),
+    nutritionRegionFromTsvForTesting: (tsv, width = 1200, height = 800) =>
+      nutritionRegionFromDiscovery({ width, height }, tsv),
     recoverNumericTokenForDiagnostics: recoverNumericToken,
     recoverLabelForDiagnostics: labelRecovery,
     recoverBasisForDiagnostics: recoverNutritionBasis,

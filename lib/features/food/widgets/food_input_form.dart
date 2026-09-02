@@ -507,6 +507,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final result = await showNutritionLabelScanner(
         context: context,
         gateway: _captureGateway,
+        onProcessingComplete: () {
+          if (mounted) setState(() => _capturingNutrition = false);
+        },
       );
       if (!mounted || result == null) return;
       switch (result) {

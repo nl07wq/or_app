@@ -100,6 +100,28 @@ async function main() {
     'vertical-list',
   );
 
+  const nutritionRegion = window.orAppFoodInput
+    .nutritionRegionFromTsvForTesting(vertical, 1200, 800);
+  assert.equal(nutritionRegion.status, 'APPLIED');
+  assert.match(nutritionRegion.reason, /nutrition/);
+  assert.ok(nutritionRegion.rect.left >= 0);
+  assert.ok(nutritionRegion.rect.top >= 0);
+  assert.ok(nutritionRegion.rect.right <= 1200);
+  assert.ok(nutritionRegion.rect.bottom <= 800);
+  assert.ok(nutritionRegion.rect.top <= 0);
+  assert.ok(nutritionRegion.rect.bottom >= 184);
+  const noNutritionRegion = window.orAppFoodInput
+    .nutritionRegionFromTsvForTesting(tsv([
+      word(1, 1, 10, 20, 180, '商品説明'),
+      word(2, 1, 10, 70, 90, '内容量'),
+      word(2, 2, 150, 70, 60, '70g'),
+    ]), 1200, 800);
+  assert.deepEqual(noNutritionRegion, {
+    status: 'FALLBACK_ORIGINAL',
+    rect: null,
+    reason: 'insufficient-nutrition-row-cluster',
+  });
+
   const twoColumn = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
     word(1, 2, 300, 10, 70, '201kcal'),
@@ -115,6 +137,10 @@ async function main() {
     window.orAppFoodInput.assetState().lastStructuredDiagnostics.layoutPattern,
     'two-column-table',
   );
+  const twoColumnRegion = window.orAppFoodInput
+    .nutritionRegionFromTsvForTesting(twoColumn, 1200, 800);
+  assert.equal(twoColumnRegion.status, 'APPLIED');
+  assert.ok(twoColumnRegion.rect.right >= 360);
 
   const headerValues = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
