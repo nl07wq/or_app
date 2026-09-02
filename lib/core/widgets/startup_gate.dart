@@ -2,36 +2,60 @@ import 'package:flutter/material.dart';
 
 import '../services/startup_initialization_service.dart';
 import '../state/app_initialization_state.dart';
+import 'boot_sequence.dart';
 import 'operation_button.dart';
 
 class StartupGate extends StatelessWidget {
   final StartupInitializationService service;
   final Widget child;
+  final bool showBootSequence;
+  final BootSequenceEventListener? onBootEvent;
+  final Duration bootMinimumDisplayDuration;
 
-  const StartupGate({super.key, required this.service, required this.child});
+  const StartupGate({
+    super.key,
+    required this.service,
+    required this.child,
+    this.showBootSequence = false,
+    this.onBootEvent,
+    this.bootMinimumDisplayDuration = const Duration(milliseconds: 950),
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (showBootSequence) {
+      return BootSequenceGate(
+        initialization: service.controller,
+        fallbackBuilder: (state) => _stateChild(context, state),
+        onEvent: onBootEvent,
+        minimumDisplayDuration: bootMinimumDisplayDuration,
+        child: ValueListenableBuilder<AppInitializationState>(
+          valueListenable: service.controller,
+          builder: (context, state, _) => _stateChild(context, state),
+        ),
+      );
+    }
     return ValueListenableBuilder<AppInitializationState>(
       valueListenable: service.controller,
-      builder: (context, state, _) {
-        return switch (state.mode) {
-          PersistenceMode.initializing => _InitializingView(state: state),
-          PersistenceMode.failed => _FailedView(
-            state: state,
-            onRetry: service.retry,
-            onReadOnly: service.openReadOnly,
-          ),
-          PersistenceMode.legacyReadOnly => _ReadOnlyShell(
-            state: state,
-            child: child,
-          ),
-          PersistenceMode.maintenance => _MaintenanceView(child: child),
-          PersistenceMode.indexedDbReadWrite => child,
-        };
-      },
+      builder: (context, state, _) => _stateChild(context, state),
     );
   }
+
+  Widget _stateChild(BuildContext context, AppInitializationState state) =>
+      switch (state.mode) {
+        PersistenceMode.initializing => _InitializingView(state: state),
+        PersistenceMode.failed => _FailedView(
+          state: state,
+          onRetry: service.retry,
+          onReadOnly: service.openReadOnly,
+        ),
+        PersistenceMode.legacyReadOnly => _ReadOnlyShell(
+          state: state,
+          child: child,
+        ),
+        PersistenceMode.maintenance => _MaintenanceView(child: child),
+        PersistenceMode.indexedDbReadWrite => child,
+      };
 }
 
 class _MaintenanceView extends StatelessWidget {

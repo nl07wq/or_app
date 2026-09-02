@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core/navigation/app_routes.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/boot_sequence.dart';
 import 'core/widgets/startup_gate.dart';
 
 import 'features/dashboard/dashboard_page.dart';
@@ -31,8 +32,13 @@ import 'features/system/pages/system_monitoring_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
+  final BootSequenceEventListener? onBootEvent;
 
-  const OperationRebootApp({super.key, this.initializationService});
+  const OperationRebootApp({
+    super.key,
+    this.initializationService,
+    this.onBootEvent,
+  });
 
   @override
   State<OperationRebootApp> createState() => _OperationRebootAppState();
@@ -58,6 +64,8 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
       initialRoute: AppRoutes.dashboard,
       builder: (context, child) => StartupGate(
         service: _initializationService,
+        showBootSequence: true,
+        onBootEvent: widget.onBootEvent,
         child: child ?? const SizedBox.shrink(),
       ),
 
