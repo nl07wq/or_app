@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
@@ -914,6 +915,66 @@ void main() {
       );
       expect(find.text('NUTRITION PER 1pack'), findsOneWidget);
     });
+
+    testWidgets(
+      'entry recalculation matches database unit-mismatch validation',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FoodInputForm(onSave: (_) async => true),
+              ),
+            ),
+          ),
+        );
+
+        await tester.enterText(_field('PACKAGE QUANTITY'), '240');
+        final packageDropdown = find.byType(
+          DropdownButtonFormField<FoodQuantityUnit?>,
+        );
+        await tester.ensureVisible(packageDropdown);
+        await tester.tap(packageDropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('g').last);
+        await tester.pump();
+
+        final basisDropdown = find.byKey(
+          const ValueKey('food-entry-base-unit-gram'),
+        );
+        await tester.ensureVisible(basisDropdown);
+        await tester.tap(basisDropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('mL').last);
+        await tester.pump();
+
+        final action = find.byKey(
+          const ValueKey('food-entry-recalculate-nutrition'),
+        );
+        expect(tester.widget<OperationButton>(action).onPressed, isNull);
+      expect(
+        find.text('PACKAGE AND NUTRITION BASIS UNITS MUST MATCH'),
+        findsOneWidget,
+      );
+
+      final mismatchedCalories = _controllerText(tester, 'Calories');
+      final mismatchedBasis = _controllerText(tester, 'NUTRITION BASIS');
+      final correctedBasisDropdown = find.byKey(
+        const ValueKey('food-entry-base-unit-milliliter'),
+      );
+      await tester.tap(correctedBasisDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('g').last);
+      await tester.pump();
+      await tester.enterText(_field('Calories'), '240');
+      await tester.pump();
+
+      expect(_controllerText(tester, 'Calories'), '240');
+      expect(_controllerText(tester, 'NUTRITION BASIS'), mismatchedBasis);
+      expect(mismatchedCalories, isEmpty);
+      expect(tester.widget<OperationButton>(action).onPressed, isNotNull);
+      },
+    );
 
     testWidgets('amount stepper shares direct-input recalculation path', (
       tester,

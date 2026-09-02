@@ -44,6 +44,7 @@ class FoodInputFields extends StatelessWidget {
   final VoidCallback? onReadNutrition;
   final bool nutritionCaptureInProgress;
   final VoidCallback? onRecalculateNutrition;
+  final String? recalculationBlockReason;
 
   const FoodInputFields({
     super.key,
@@ -78,6 +79,7 @@ class FoodInputFields extends StatelessWidget {
     this.onReadNutrition,
     this.nutritionCaptureInProgress = false,
     this.onRecalculateNutrition,
+    this.recalculationBlockReason,
   });
 
   @override
@@ -261,9 +263,23 @@ class FoodInputFields extends StatelessWidget {
             key: const ValueKey('food-entry-recalculate-nutrition'),
             icon: Icons.calculate_outlined,
             text: 'RECALCULATE NUTRITION',
-            onPressed: onRecalculateNutrition,
+            onPressed: recalculationBlockReason == null
+                ? onRecalculateNutrition
+                : null,
           ),
         ),
+
+        if (recalculationBlockReason case final reason?) ...[
+          AppSpacing.gapXS,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              reason,
+              key: const ValueKey('food-entry-recalculation-reason'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
 
         AppSpacing.gapMD,
 

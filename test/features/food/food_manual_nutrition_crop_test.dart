@@ -148,6 +148,35 @@ void main() {
     );
   });
 
+  test('elastic pan limits remain finite on all four crop edges', () {
+    const crop = Rect.fromLTWH(100, 100, 200, 160);
+    const image = Size(500, 460);
+    final limited = FoodManualCropInteraction.limitWithElasticity(
+      viewport: crop,
+      imageSize: image,
+      candidate: const Offset(999, -999),
+      overscroll: 40,
+    );
+
+    expect(limited.dx, 140);
+    expect(limited.dy, -240);
+    final normalized = FoodManualCropInteraction.clampToCoverage(
+      viewport: crop,
+      imageSize: image,
+      candidate: limited,
+    );
+    final imageRect = Rect.fromLTWH(
+      normalized.dx,
+      normalized.dy,
+      image.width,
+      image.height,
+    );
+    expect(imageRect.left, lessThanOrEqualTo(crop.left));
+    expect(imageRect.top, lessThanOrEqualTo(crop.top));
+    expect(imageRect.right, greaterThanOrEqualTo(crop.right));
+    expect(imageRect.bottom, greaterThanOrEqualTo(crop.bottom));
+  });
+
   testWidgets('manual crop requires confirmation before creating OCR input', (
     tester,
   ) async {
@@ -256,6 +285,59 @@ void main() {
     expect(during.x - before.x, closeTo(40, 1));
     expect(during.y - before.y, closeTo(25, 1));
     await gesture.up();
+  });
+
+  testWidgets('pinch changes the rendered image transform scale', (
+    tester,
+  ) async {
+    final gateway = _CropGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showManualNutritionCrop(
+              context: context,
+              gateway: gateway,
+              image: const FoodCapturedImage('data:image/png;base64,AA=='),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN'));
+    await tester.pumpAndSettle();
+    final transform = find.byKey(
+      const ValueKey('manual-nutrition-crop-image-transform'),
+    );
+    final before = tester
+        .widget<Transform>(transform)
+        .transform
+        .getMaxScaleOnAxis();
+    final center = tester.getCenter(
+      find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
+    );
+    final first = await tester.startGesture(center - const Offset(24, 0));
+    final second = await tester.startGesture(
+      center + const Offset(24, 0),
+      pointer: 2,
+    );
+    await tester.pump();
+    await first.moveBy(const Offset(-36, 0));
+    await second.moveBy(const Offset(36, 0));
+    await tester.pump();
+
+    final after = tester
+        .widget<Transform>(transform)
+        .transform
+        .getMaxScaleOnAxis();
+    expect(after, greaterThan(before));
+    expect(
+      find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
+      findsOneWidget,
+    );
+    await second.up();
+    await first.up();
   });
 }
 

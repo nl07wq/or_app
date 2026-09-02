@@ -302,20 +302,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _recalculateNutrition() {
-    final nutrition = NutritionSnapshot(
-      calories: _rawCalories ?? double.tryParse(calorieController.text.trim()),
-      protein: _rawProtein ?? double.tryParse(proteinController.text.trim()),
-      fat: _rawFat ?? double.tryParse(fatController.text.trim()),
-      carbohydrate:
-          _rawCarbohydrate ?? double.tryParse(carbohydrateController.text.trim()),
-    );
-    final reason = FoodNutritionRecalculation.blockedReason(
-      packageQuantity: double.tryParse(packageQuantityController.text.trim()),
-      packageUnit: packageUnit,
-      basisQuantity: double.tryParse(baseAmountController.text.trim()),
-      basisUnit: baseUnit,
-      nutrition: nutrition,
-    );
+    final nutrition = _editableNutrition();
+    final reason = _recalculationBlockReason;
     if (reason != null) {
       setState(() => inputError = reason);
       return;
@@ -332,12 +320,50 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _rawProtein = result.protein;
       _rawFat = result.fat;
       _rawCarbohydrate = result.carbohydrate;
-      calorieController.text = result.calories == null ? '' : FoodNutritionFormatter.calories(result.calories!);
-      proteinController.text = result.protein == null ? '' : FoodNutritionFormatter.macro(result.protein!);
-      fatController.text = result.fat == null ? '' : FoodNutritionFormatter.macro(result.fat!);
-      carbohydrateController.text = result.carbohydrate == null ? '' : FoodNutritionFormatter.macro(result.carbohydrate!);
+      calorieController.text = result.calories == null
+          ? ''
+          : FoodNutritionFormatter.calories(result.calories!);
+      proteinController.text = result.protein == null
+          ? ''
+          : FoodNutritionFormatter.macro(result.protein!);
+      fatController.text = result.fat == null
+          ? ''
+          : FoodNutritionFormatter.macro(result.fat!);
+      carbohydrateController.text = result.carbohydrate == null
+          ? ''
+          : FoodNutritionFormatter.macro(result.carbohydrate!);
       inputError = null;
     });
+  }
+
+  NutritionSnapshot _editableNutrition() => NutritionSnapshot(
+    calories: _rawCalories ?? double.tryParse(calorieController.text.trim()),
+    protein: _rawProtein ?? double.tryParse(proteinController.text.trim()),
+    fat: _rawFat ?? double.tryParse(fatController.text.trim()),
+    carbohydrate:
+        _rawCarbohydrate ?? double.tryParse(carbohydrateController.text.trim()),
+  );
+
+  String? get _recalculationBlockReason {
+    final nutrition = _editableNutrition();
+    final values = [
+      nutrition.calories,
+      nutrition.protein,
+      nutrition.fat,
+      nutrition.carbohydrate,
+    ];
+    if (values.any(
+      (value) => value != null && (!value.isFinite || value < 0),
+    )) {
+      return 'NUTRITION VALUES MUST BE ZERO OR GREATER.';
+    }
+    return FoodNutritionRecalculation.blockedReason(
+      packageQuantity: double.tryParse(packageQuantityController.text.trim()),
+      packageUnit: packageUnit,
+      basisQuantity: double.tryParse(baseAmountController.text.trim()),
+      basisUnit: baseUnit,
+      nutrition: nutrition,
+    );
   }
 
   void _onPackageQuantityChanged(String source) {
@@ -1064,6 +1090,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   : _scanOcr,
               nutritionCaptureInProgress: _capturingNutrition,
               onRecalculateNutrition: _recalculateNutrition,
+              recalculationBlockReason: _recalculationBlockReason,
               onChanged: (_) {
                 setState(() {
                   inputError = null;

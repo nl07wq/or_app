@@ -18,7 +18,7 @@ class BootSequenceEvent {
 typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
-const _bootStaticDuration = Duration(milliseconds: 70);
+const _bootStaticDuration = Duration(milliseconds: 90);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -387,16 +387,19 @@ class _BootStaticPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final grain = Paint();
-    final frameSeed = (frame * 29).floor();
-    for (var y = 0; y < size.height; y += 9) {
-      for (var x = (y ~/ 3) % 11; x < size.width; x += 13) {
-        final sample = (x * 17 + y * 31 + frameSeed * 47) % 97;
-        if (sample > 34) continue;
-        final shade = 42 + sample * 2;
-        grain.color = Color.fromARGB(72, shade, shade, shade);
-        canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 2, 1), grain);
+    final frameSeed = (frame * 37).floor();
+    for (var y = 0; y < size.height; y += 7) {
+      for (var x = (y * 5 + frameSeed * 11) % 17; x < size.width; x += 11) {
+        final sample = (x * 29 + y * 19 + frameSeed * 53) % 101;
+        if (sample > 43) continue;
+        final shade = 74 + sample;
+        grain.color = Color.fromARGB(124, shade, shade, shade);
+        canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 2, 2), grain);
       }
     }
+    final tearY = ((frameSeed * 23) % (size.height.ceil() + 1)).toDouble();
+    grain.color = const Color.fromARGB(68, 184, 184, 184);
+    canvas.drawRect(Rect.fromLTWH(0, tearY, size.width * .46, 1), grain);
   }
 
   @override
@@ -585,7 +588,27 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       }
       return;
     }
-    if (state.mode == PersistenceMode.initializing || _systemInitialized) {
+    if (state.mode == PersistenceMode.initializing) {
+      // Static is only the immediate successful boot-to-main handoff. A later
+      // initialization cycle must return to StartupGate's normal loading UI.
+      if (_systemInitialized && (_showStatic || !_completed)) {
+        _timelineTimer?.cancel();
+        if (mounted) {
+          setState(() {
+            _showStatic = false;
+            _completed = true;
+          });
+        } else {
+          _showStatic = false;
+          _completed = true;
+        }
+      }
+      return;
+    }
+    if (_systemInitialized) {
+      if (mounted && _completed) {
+        setState(() {});
+      }
       return;
     }
     _systemInitialized = true;
@@ -623,6 +646,9 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   Widget build(BuildContext context) {
     final state = widget.initialization.value;
     if (state.mode == PersistenceMode.failed) {
+      return widget.fallbackBuilder(state);
+    }
+    if (state.mode == PersistenceMode.initializing && _systemInitialized) {
       return widget.fallbackBuilder(state);
     }
     if (_completed) return widget.child;

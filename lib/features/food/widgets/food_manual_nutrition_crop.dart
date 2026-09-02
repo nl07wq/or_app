@@ -67,14 +67,28 @@ class FoodManualCropInteraction {
     required Rect viewport,
     required Size imageSize,
     required Offset candidate,
-  }) => Offset(
-    candidate.dx
-        .clamp(viewport.right - imageSize.width, viewport.left)
-        .toDouble(),
-    candidate.dy
-        .clamp(viewport.bottom - imageSize.height, viewport.top)
-        .toDouble(),
-  );
+  }) {
+    final image = Rect.fromLTWH(
+      candidate.dx,
+      candidate.dy,
+      imageSize.width,
+      imageSize.height,
+    );
+    var correction = Offset.zero;
+    if (image.left > viewport.left) {
+      correction += Offset(viewport.left - image.left, 0);
+    }
+    if (image.right < viewport.right) {
+      correction += Offset(viewport.right - image.right, 0);
+    }
+    if (image.top > viewport.top) {
+      correction += Offset(0, viewport.top - image.top);
+    }
+    if (image.bottom < viewport.bottom) {
+      correction += Offset(0, viewport.bottom - image.bottom);
+    }
+    return candidate + correction;
+  }
 
   static Offset limitWithElasticity({
     required Rect viewport,
@@ -86,19 +100,12 @@ class FoodManualCropInteraction {
     final maxX = viewport.left;
     final minY = viewport.bottom - imageSize.height;
     final maxY = viewport.top;
+    // The relative gesture scale never goes below cover scale, so each valid
+    // range is finite. Keep a small, symmetric elastic range while fingers
+    // are down; strict four-edge coverage is restored on release.
     return Offset(
-      candidate.dx
-          .clamp(
-            (minX < maxX ? minX : maxX) - overscroll,
-            (minX > maxX ? minX : maxX) + overscroll,
-          )
-          .toDouble(),
-      candidate.dy
-          .clamp(
-            (minY < maxY ? minY : maxY) - overscroll,
-            (minY > maxY ? minY : maxY) + overscroll,
-          )
-          .toDouble(),
+      candidate.dx.clamp(minX - overscroll, maxX + overscroll).toDouble(),
+      candidate.dy.clamp(minY - overscroll, maxY + overscroll).toDouble(),
     );
   }
 }
@@ -214,7 +221,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
                   },
                   onScaleUpdate: (details) {
                     final next = (_startScale * details.scale)
-                        .clamp(.85, 5.0)
+                        .clamp(1.0, 5.0)
                         .toDouble();
                     final nextActualScale = baseScale * next;
                     // Map the source point under the gesture's initial focal
@@ -259,11 +266,26 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
                           key: const ValueKey(
                             'manual-nutrition-crop-image-layer',
                           ),
-                          child: Transform.translate(
-                            offset: imageOffset,
+                          child: Transform(
+                            key: const ValueKey(
+                              'manual-nutrition-crop-image-transform',
+                            ),
+                            transform: Matrix4.identity()
+                              ..translateByDouble(
+                                imageOffset.dx,
+                                imageOffset.dy,
+                                0,
+                                1,
+                              )
+                              ..scaleByDouble(_scale, _scale, 1, 1),
                             child: SizedBox(
-                              width: widget.dimensions.width * actualScale,
-                              height: widget.dimensions.height * actualScale,
+                              // Keep one stable decoded image at base cover
+                              // size. The current relative scale is applied by
+                              // the same paint transform used for gestures and
+                              // four-edge bounds, so a pinch changes rendered
+                              // pixels immediately instead of only state.
+                              width: widget.dimensions.width * baseScale,
+                              height: widget.dimensions.height * baseScale,
                               child: Image(
                                 key: const ValueKey(
                                   'manual-nutrition-crop-source-image',

@@ -214,7 +214,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('MAIN UI'), findsNothing);
-    await _elapse(tester, const Duration(milliseconds: 70));
+    await _elapse(tester, const Duration(milliseconds: 90));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
@@ -281,7 +281,7 @@ void main() {
       find.byKey(const ValueKey('boot-static-transition')),
       findsOneWidget,
     );
-    await _elapse(tester, const Duration(milliseconds: 70));
+    await _elapse(tester, const Duration(milliseconds: 90));
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -309,7 +309,7 @@ void main() {
       find.byKey(const ValueKey('boot-static-transition')),
       findsOneWidget,
     );
-    await _elapse(tester, const Duration(milliseconds: 70));
+    await _elapse(tester, const Duration(milliseconds: 90));
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -344,6 +344,36 @@ void main() {
     );
     expect(audio.playCalls, 1);
   });
+
+  testWidgets(
+    'a reinitialization replaces an active static handoff with loading',
+    (tester) async {
+      final controller = AppInitializationController()..markReady();
+      await tester.pumpWidget(_gate(controller));
+      await _advanceRows(tester);
+      await _elapse(
+        tester,
+        _timing.readyDelay + const Duration(milliseconds: 1),
+      );
+      await _elapse(tester, _timing.readyHold);
+      expect(
+        find.byKey(const ValueKey('boot-static-transition')),
+        findsOneWidget,
+      );
+
+      controller.updateStage(InitializationStage.openingDatabase);
+      await tester.pump();
+      expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('boot-static-transition')),
+        findsNothing,
+      );
+
+      controller.markReady();
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+    },
+  );
 
   testWidgets('boot audio failure is fail-open', (tester) async {
     final controller = AppInitializationController();
