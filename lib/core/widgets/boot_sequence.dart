@@ -16,11 +16,14 @@ class BootSequenceEvent {
 
 typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
+const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
+
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
   final Duration logoIntro;
   final Duration typingCharacter;
+  final Duration fullNameCharacter;
   final Duration identityHold;
   final Duration systemBootTransition;
   final Duration header;
@@ -31,11 +34,12 @@ class BootSequenceTiming {
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 360),
     this.typingCharacter = const Duration(milliseconds: 130),
+    this.fullNameCharacter = const Duration(milliseconds: 40),
     this.identityHold = const Duration(milliseconds: 320),
     this.systemBootTransition = const Duration(milliseconds: 240),
     this.header = const Duration(milliseconds: 180),
-    this.row = const Duration(milliseconds: 320),
-    this.readyDelay = const Duration(milliseconds: 180),
+    this.row = const Duration(milliseconds: 360),
+    this.readyDelay = const Duration(milliseconds: 300),
     this.readyHold = const Duration(milliseconds: 500),
   });
 }
@@ -56,11 +60,13 @@ enum _BootVisualPhase {
 class _BootSequenceVisual extends StatefulWidget {
   final _BootVisualPhase phase;
   final int typedLength;
+  final int typedNameLength;
   final double progress;
 
   const _BootSequenceVisual({
     required this.phase,
     required this.typedLength,
+    required this.typedNameLength,
     required this.progress,
   });
 
@@ -188,7 +194,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                           alignment: Alignment.centerLeft,
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            'Operation Reasoning Lifesystem Orchestrator',
+                            _fullName.substring(0, widget.typedNameLength),
                             key: const ValueKey('boot-brand-full-name'),
                             style: Theme.of(context).textTheme.labelSmall!
                                 .copyWith(
@@ -300,16 +306,31 @@ class _BootProgressBar extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: .45)),
           borderRadius: BorderRadius.circular(3),
         ),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: value.clamp(0, 1),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(2),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            fit: StackFit.expand,
+            children: [
+              DecoratedBox(
+                key: const ValueKey('boot-progress-track'),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  key: const ValueKey('boot-progress-fill'),
+                  width: constraints.maxWidth * value.clamp(0, 1),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: .95),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -348,6 +369,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   bool _readyDelayElapsed = false;
   bool _completed = false;
   int _typedLength = 0;
+  int _typedNameLength = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
 
   @override
@@ -379,10 +401,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _startIdentityTyping() {
     setState(() => _phase = _BootVisualPhase.identityTyping);
-    _animateProgressTo(
-      .2,
-      widget.timing.typingCharacter * 8 + widget.timing.identityHold,
-    );
+    _animateProgressTo(.2, const Duration(milliseconds: 1500));
     _typeNextCharacter();
   }
 
@@ -390,12 +409,45 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     const identity = 'O.R.L.O.';
     if (_typedLength >= identity.length) {
       setState(() => _phase = _BootVisualPhase.identityName);
+      _typeNextNameCharacter();
+      return;
+    }
+    _schedule(_identityCharacterDelay(_typedLength), () {
+      setState(() => _typedLength += 1);
+      _typeNextCharacter();
+    });
+  }
+
+  Duration _identityCharacterDelay(int index) {
+    // Compact injected timings keep controlled widget tests fast.
+    if (widget.timing.typingCharacter <= const Duration(milliseconds: 100)) {
+      return widget.timing.typingCharacter;
+    }
+    return const [
+      Duration(milliseconds: 260),
+      Duration(milliseconds: 230),
+      Duration(milliseconds: 210),
+      Duration(milliseconds: 190),
+      Duration(milliseconds: 170),
+      Duration(milliseconds: 150),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 130),
+    ][index.clamp(0, 7)];
+  }
+
+  void _typeNextNameCharacter() {
+    if (widget.timing.fullNameCharacter < const Duration(milliseconds: 20)) {
+      setState(() => _typedNameLength = _fullName.length);
       _schedule(widget.timing.identityHold, _showSystemBoot);
       return;
     }
-    _schedule(widget.timing.typingCharacter, () {
-      setState(() => _typedLength += 1);
-      _typeNextCharacter();
+    if (_typedNameLength >= _fullName.length) {
+      _schedule(widget.timing.identityHold, _showSystemBoot);
+      return;
+    }
+    _schedule(widget.timing.fullNameCharacter, () {
+      setState(() => _typedNameLength += 1);
+      _typeNextNameCharacter();
     });
   }
 
@@ -407,8 +459,9 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _showCore() {
     setState(() => _phase = _BootVisualPhase.coreInitializing);
-    _animateProgressTo(.45, widget.timing.row);
-    _schedule(widget.timing.row, _showData);
+    final coreDuration = widget.timing.row * 2;
+    _animateProgressTo(.45, coreDuration);
+    _schedule(coreDuration, _showData);
   }
 
   void _showData() {
@@ -419,7 +472,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _showOperation() {
     setState(() => _phase = _BootVisualPhase.operationInitializing);
-    _animateProgressTo(.9, widget.timing.row);
+    _animateProgressTo(.95, widget.timing.row);
     _schedule(widget.timing.row, _finishRows);
   }
 
@@ -499,6 +552,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       builder: (context, _) => _BootSequenceVisual(
         phase: _phase,
         typedLength: _typedLength,
+        typedNameLength: _typedNameLength,
         progress: _progressController.value,
       ),
     );

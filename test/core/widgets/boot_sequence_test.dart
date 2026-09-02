@@ -8,6 +8,7 @@ import 'package:or_app/core/widgets/startup_gate.dart';
 const _timing = BootSequenceTiming(
   logoIntro: Duration(milliseconds: 10),
   typingCharacter: Duration(milliseconds: 10),
+  fullNameCharacter: Duration(milliseconds: 10),
   identityHold: Duration(milliseconds: 10),
   systemBootTransition: Duration(milliseconds: 10),
   header: Duration(milliseconds: 10),
@@ -43,7 +44,7 @@ void main() {
     expect(find.text('INITIALIZING /'), findsOneWidget);
     expect(find.text('DATA INITIALIZATION'), findsNothing);
 
-    await _elapse(tester, _timing.row);
+    await _elapse(tester, _timing.row * 2);
     expect(find.text('CORE SYSTEM'), findsOneWidget);
     expect(find.text('DATA INITIALIZATION'), findsOneWidget);
     expect(find.text('OPERATION DATA'), findsNothing);
@@ -67,6 +68,7 @@ void main() {
     const continuousTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 20),
       typingCharacter: Duration(milliseconds: 100),
+      fullNameCharacter: Duration(milliseconds: 10),
       identityHold: Duration(milliseconds: 100),
       systemBootTransition: Duration(milliseconds: 1200),
       row: Duration(milliseconds: 600),
@@ -81,6 +83,7 @@ void main() {
     await _advanceTyping(tester, continuousTiming);
     await _elapse(tester, continuousTiming.identityHold);
     final p0 = _progressValue(tester);
+    final w0 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
     expect(
       tester.getSize(find.byKey(const ValueKey('boot-progress-bar'))).height,
       10,
@@ -88,15 +91,22 @@ void main() {
 
     await _elapse(tester, const Duration(milliseconds: 300));
     final p1 = _progressValue(tester);
+    final w1 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
     await _elapse(tester, const Duration(milliseconds: 300));
     final p2 = _progressValue(tester);
+    final w2 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
     await _elapse(tester, const Duration(milliseconds: 300));
     final p3 = _progressValue(tester);
+    final w3 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
 
     expect(p0, lessThan(p1));
     expect(p1, lessThan(p2));
     expect(p2, lessThan(p3));
     expect(p3, lessThan(90));
+    expect(w0, lessThan(w1));
+    expect(w1, lessThan(w2));
+    expect(w2, lessThan(w3));
+    expect(w3, greaterThan(1));
     expect(find.text('SYSTEM READY'), findsNothing);
     semantics.dispose();
   });
@@ -117,7 +127,7 @@ void main() {
       tester
           .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
           .value,
-      '90%',
+      '95%',
     );
     expect(events, [BootSequenceEventType.bootStart]);
 
@@ -128,7 +138,7 @@ void main() {
       tester
           .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
           .value,
-      '90%',
+      '95%',
     );
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     expect(
@@ -175,6 +185,7 @@ void main() {
     const spinnerTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 10),
       typingCharacter: Duration(milliseconds: 10),
+      fullNameCharacter: Duration(milliseconds: 10),
       identityHold: Duration(milliseconds: 10),
       systemBootTransition: Duration(milliseconds: 10),
       row: Duration(milliseconds: 800),
@@ -262,7 +273,7 @@ Future<void> _advanceRows(WidgetTester tester) async {
   await _advanceTyping(tester, _timing);
   await _elapse(tester, _timing.identityHold);
   await _elapse(tester, _timing.systemBootTransition);
-  await _elapse(tester, _timing.row);
+  await _elapse(tester, _timing.row * 2);
   await _elapse(tester, _timing.row);
   await _elapse(tester, _timing.row);
 }
