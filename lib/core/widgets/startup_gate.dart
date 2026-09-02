@@ -10,7 +10,7 @@ class StartupGate extends StatelessWidget {
   final Widget child;
   final bool showBootSequence;
   final BootSequenceEventListener? onBootEvent;
-  final Duration bootMinimumDisplayDuration;
+  final BootSequenceTiming bootSequenceTiming;
 
   const StartupGate({
     super.key,
@@ -18,7 +18,7 @@ class StartupGate extends StatelessWidget {
     required this.child,
     this.showBootSequence = false,
     this.onBootEvent,
-    this.bootMinimumDisplayDuration = const Duration(milliseconds: 950),
+    this.bootSequenceTiming = const BootSequenceTiming(),
   });
 
   @override
@@ -28,7 +28,7 @@ class StartupGate extends StatelessWidget {
         initialization: service.controller,
         fallbackBuilder: (state) => _stateChild(context, state),
         onEvent: onBootEvent,
-        minimumDisplayDuration: bootMinimumDisplayDuration,
+        timing: bootSequenceTiming,
         child: ValueListenableBuilder<AppInitializationState>(
           valueListenable: service.controller,
           builder: (context, state, _) => _stateChild(context, state),
