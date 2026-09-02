@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../state/app_initialization_state.dart';
+import '../services/boot_audio.dart';
 
 enum BootSequenceEventType { bootStart, systemInitialized, bootComplete }
 
@@ -34,7 +35,7 @@ class BootSequenceTiming {
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 360),
     this.typingCharacter = const Duration(milliseconds: 130),
-    this.fullNameCharacter = const Duration(milliseconds: 40),
+    this.fullNameCharacter = const Duration(milliseconds: 28),
     this.identityHold = const Duration(milliseconds: 320),
     this.systemBootTransition = const Duration(milliseconds: 240),
     this.header = const Duration(milliseconds: 180),
@@ -324,10 +325,10 @@ class _BootProgressBar extends StatelessWidget {
                 width: constraints.maxWidth * value.clamp(0, 1),
                 child: DecoratedBox(
                   key: const ValueKey('boot-progress-fill'),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: .95),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .95),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
             ],
@@ -338,6 +339,65 @@ class _BootProgressBar extends StatelessWidget {
   }
 }
 
+class _BootStaticTransition extends StatefulWidget {
+  const _BootStaticTransition();
+
+  @override
+  State<_BootStaticTransition> createState() => _BootStaticTransitionState();
+}
+
+class _BootStaticTransitionState extends State<_BootStaticTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 140),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    key: const ValueKey('boot-static-transition'),
+    color: Colors.black,
+    child: AnimatedBuilder(
+      animation: _controller,
+      builder: (_, _) => CustomPaint(
+        painter: _BootStaticPainter(_controller.value),
+        child: const SizedBox.expand(),
+      ),
+    ),
+  );
+}
+
+class _BootStaticPainter extends CustomPainter {
+  const _BootStaticPainter(this.frame);
+  final double frame;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    for (var y = 0; y < size.height; y += 3) {
+      final shade = ((y * 37 + frame * 1000) % 120 + 80).round();
+      paint.color = Color.fromARGB(255, shade, shade, shade);
+      canvas.drawRect(Rect.fromLTWH(0, y.toDouble(), size.width, 1), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BootStaticPainter oldDelegate) =>
+      oldDelegate.frame != frame;
+}
+
 /// Coordinates the visual without owning initialization or persistence.
 class BootSequenceGate extends StatefulWidget {
   final ValueListenable<AppInitializationState> initialization;
@@ -345,6 +405,7 @@ class BootSequenceGate extends StatefulWidget {
   final Widget Function(AppInitializationState state) fallbackBuilder;
   final BootSequenceTiming timing;
   final BootSequenceEventListener? onEvent;
+  final BootAudio? bootAudio;
 
   const BootSequenceGate({
     super.key,
@@ -353,6 +414,7 @@ class BootSequenceGate extends StatefulWidget {
     required this.fallbackBuilder,
     this.timing = const BootSequenceTiming(),
     this.onEvent,
+    this.bootAudio,
   });
 
   @override
@@ -363,11 +425,13 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     with SingleTickerProviderStateMixin {
   Timer? _timelineTimer;
   late final AnimationController _progressController;
+  late final BootAudio _bootAudio;
   bool _systemInitialized = false;
   bool _visualRowsComplete = false;
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _completed = false;
+  bool _showStatic = false;
   int _typedLength = 0;
   int _typedNameLength = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
@@ -376,6 +440,12 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   void initState() {
     super.initState();
     _progressController = AnimationController(vsync: this);
+    _bootAudio = widget.bootAudio ?? createBootAudio();
+    try {
+      _bootAudio.playOnce();
+    } catch (_) {
+      // Audio is optional presentation and must not block startup.
+    }
     _emit(BootSequenceEventType.bootStart);
     widget.initialization.addListener(_onInitializationChanged);
     _onInitializationChanged();
@@ -525,8 +595,11 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     }
     setState(() => _phase = _BootVisualPhase.systemReady);
     _schedule(widget.timing.readyHold, () {
-      setState(() => _completed = true);
-      _emit(BootSequenceEventType.bootComplete);
+      setState(() => _showStatic = true);
+      _schedule(const Duration(milliseconds: 140), () {
+        setState(() => _completed = true);
+        _emit(BootSequenceEventType.bootComplete);
+      });
     });
   }
 
@@ -547,6 +620,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       return widget.fallbackBuilder(state);
     }
     if (_completed) return widget.child;
+    if (_showStatic) return const _BootStaticTransition();
     return AnimatedBuilder(
       animation: _progressController,
       builder: (context, _) => _BootSequenceVisual(

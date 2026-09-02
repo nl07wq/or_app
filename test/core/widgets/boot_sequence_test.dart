@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/boot_audio.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/boot_sequence.dart';
@@ -62,6 +65,45 @@ void main() {
     expect(find.text('MAIN UI'), findsNothing);
   });
 
+  testWidgets('full name types before system boot at the configured rate', (
+    tester,
+  ) async {
+    const typedName = 'Operation Reasoning Lifesystem Orchestrator';
+    const typingTiming = BootSequenceTiming(
+      logoIntro: Duration(milliseconds: 1),
+      typingCharacter: Duration(milliseconds: 1),
+      fullNameCharacter: Duration(milliseconds: 28),
+      identityHold: Duration(milliseconds: 1),
+      systemBootTransition: Duration(milliseconds: 1),
+      row: Duration(milliseconds: 1),
+      readyDelay: Duration(milliseconds: 1),
+      readyHold: Duration(milliseconds: 1),
+    );
+    final controller = AppInitializationController();
+    await tester.pumpWidget(_gate(controller, timing: typingTiming));
+
+    await _elapse(tester, typingTiming.logoIntro);
+    await _advanceTyping(tester, typingTiming);
+    expect(find.text('O.R.L.O.'), findsOneWidget);
+    expect(find.text('SYSTEM BOOT'), findsNothing);
+
+    await _elapse(tester, typingTiming.fullNameCharacter * 2);
+    final partial = tester.widget<Text>(
+      find.byKey(const ValueKey('boot-brand-full-name')),
+    );
+    expect(partial.data, typedName.substring(0, 2));
+    expect(find.text('SYSTEM BOOT'), findsNothing);
+
+    await _elapse(
+      tester,
+      typingTiming.fullNameCharacter * (typedName.length - 2),
+    );
+    expect(find.text(typedName), findsOneWidget);
+    expect(find.text('SYSTEM BOOT'), findsNothing);
+    await _elapse(tester, typingTiming.identityHold);
+    expect(find.text('SYSTEM BOOT'), findsOneWidget);
+  });
+
   testWidgets('boot progress continuously advances through visual phases', (
     tester,
   ) async {
@@ -83,7 +125,9 @@ void main() {
     await _advanceTyping(tester, continuousTiming);
     await _elapse(tester, continuousTiming.identityHold);
     final p0 = _progressValue(tester);
-    final w0 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
+    final w0 = tester
+        .getSize(find.byKey(const ValueKey('boot-progress-fill')))
+        .width;
     expect(
       tester.getSize(find.byKey(const ValueKey('boot-progress-bar'))).height,
       10,
@@ -91,13 +135,19 @@ void main() {
 
     await _elapse(tester, const Duration(milliseconds: 300));
     final p1 = _progressValue(tester);
-    final w1 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
+    final w1 = tester
+        .getSize(find.byKey(const ValueKey('boot-progress-fill')))
+        .width;
     await _elapse(tester, const Duration(milliseconds: 300));
     final p2 = _progressValue(tester);
-    final w2 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
+    final w2 = tester
+        .getSize(find.byKey(const ValueKey('boot-progress-fill')))
+        .width;
     await _elapse(tester, const Duration(milliseconds: 300));
     final p3 = _progressValue(tester);
-    final w3 = tester.getSize(find.byKey(const ValueKey('boot-progress-fill'))).width;
+    final w3 = tester
+        .getSize(find.byKey(const ValueKey('boot-progress-fill')))
+        .width;
 
     expect(p0, lessThan(p1));
     expect(p1, lessThan(p2));
@@ -155,6 +205,12 @@ void main() {
     ]);
 
     await _elapse(tester, _timing.readyHold);
+    expect(
+      find.byKey(const ValueKey('boot-static-transition')),
+      findsOneWidget,
+    );
+    expect(find.text('MAIN UI'), findsNothing);
+    await _elapse(tester, const Duration(milliseconds: 140));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
@@ -217,6 +273,11 @@ void main() {
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
+    expect(
+      find.byKey(const ValueKey('boot-static-transition')),
+      findsOneWidget,
+    );
+    await _elapse(tester, const Duration(milliseconds: 140));
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -240,10 +301,77 @@ void main() {
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
+    expect(
+      find.byKey(const ValueKey('boot-static-transition')),
+      findsOneWidget,
+    );
+    await _elapse(tester, const Duration(milliseconds: 140));
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('boot audio is requested once and does not replay on rebuild', (
+    tester,
+  ) async {
+    final controller = AppInitializationController();
+    final audio = _RecordingBootAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BootSequenceGate(
+          initialization: controller,
+          fallbackBuilder: (_) => const SizedBox(),
+          bootAudio: audio,
+          child: const Text('MAIN UI'),
+        ),
+      ),
+    );
+    expect(audio.playCalls, 1);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BootSequenceGate(
+          initialization: controller,
+          fallbackBuilder: (_) => const SizedBox(),
+          bootAudio: audio,
+          child: const Text('MAIN UI'),
+        ),
+      ),
+    );
+    expect(audio.playCalls, 1);
+  });
+
+  testWidgets('boot audio failure is fail-open', (tester) async {
+    final controller = AppInitializationController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BootSequenceGate(
+          initialization: controller,
+          fallbackBuilder: (_) => const SizedBox(),
+          bootAudio: _ThrowingBootAudio(),
+          child: const Text('MAIN UI'),
+        ),
+      ),
+    );
+    expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('official boot audio asset is present', () {
+    expect(File('assets/audio/boot/ORLO_Boot_v17.wav').existsSync(), isTrue);
+  });
+}
+
+class _RecordingBootAudio implements BootAudio {
+  int playCalls = 0;
+
+  @override
+  void playOnce() => playCalls += 1;
+}
+
+class _ThrowingBootAudio implements BootAudio {
+  @override
+  void playOnce() => throw StateError('autoplay blocked');
 }
 
 Widget _gate(

@@ -61,6 +61,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/audio/boot/ORLO_Boot_v17.wav
     - assets/icons/orlo_icon.png
     - assets/icons/orlo_logo_1024_transparent.png
     - assets/animations/sandbox/boot_sequence/phase_01/background/base_camp_background.png
