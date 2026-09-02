@@ -2438,6 +2438,47 @@
     return canvas;
   }
 
+  function scaledRoiCanvas(source, scale) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    const context = canvas.getContext('2d', { alpha: false });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  // The full-pass numeric boxes are used only to find the value *column* of
+  // an already identified nutrition table. They never become field evidence
+  // here: the bounded crop is still re-read from pixels and must pass the
+  // target-row ownership check below.
+  function valueSideBounds(canvas, analysis, anchor) {
+    const labelRights = analysis.anchors
+      .filter((candidate) => targetNutritionFields.includes(candidate.field))
+      .map((candidate) => candidate.right)
+      .filter(Number.isFinite);
+    const labelEdge = labelRights.length ? Math.min(...labelRights) : anchor.right;
+    const valueBoxes = (analysis.values || []).filter((value) =>
+      Number.isFinite(value.left) && Number.isFinite(value.width) &&
+      value.left >= labelEdge - Math.max(8, anchor.width * 0.08),
+    );
+    const edgePadding = Math.max(8, anchor.width * 0.06);
+    if (valueBoxes.length) {
+      const left = Math.max(anchor.right + edgePadding,
+        Math.min(...valueBoxes.map((value) => value.left)) - edgePadding);
+      const right = Math.min(canvas.width,
+        Math.max(...valueBoxes.map((value) => value.left + value.width)) + edgePadding * 2);
+      if (right - left >= 16) return { left, right, method: 'observed-value-column' };
+    }
+    return {
+      left: Math.min(canvas.width - 1, anchor.right + edgePadding),
+      right: Math.max(anchor.right + edgePadding + 1,
+        canvas.width - Math.max(4, canvas.width * 0.015)),
+      method: 'label-right-conservative',
+    };
+  }
+
   function refinementRegions(canvas, analysis, field, triggerReason) {
     const anchor = refinementAnchor(analysis, field);
     if (!anchor) return [];
@@ -2449,14 +2490,16 @@
       rowBand.top,
       anchor.top - anchor.height * 0.18,
     ));
+    const valueSide = valueSideBounds(canvas, analysis, anchor);
     const regions = [{
       regionType: 'LABEL_RIGHT_VALUE',
       triggerReason,
-      left: anchor.right,
+      left: valueSide.left,
       top: valueTop,
-      right: canvas.width,
+      right: valueSide.right,
       bottom: rowBand.bottom,
       rowBand,
+      valueSideMethod: valueSide.method,
     }, {
       regionType: 'VERTICAL_ROW_REGION',
       triggerReason,
@@ -2623,6 +2666,51 @@
     };
   }
 
+  function localRecognitionVariants(roi, regionType) {
+    const numericWhitelist = '0123456789.,kcalg';
+    // A small, deterministic ensemble for a bounded value-side row. Its
+    // observations are correlated: agreement improves recognition metadata,
+    // not cross-pass consensus support.
+    if (regionType === 'LABEL_RIGHT_VALUE') {
+      const enlarged = scaledRoiCanvas(roi, 2);
+      return [{
+        id: 'ORIGINAL_PSM3', dataUrl: roi.toDataURL('image/png'), scale: 1,
+        pageSegmentationMode: 3, preprocessing: 'original',
+      }, {
+        id: 'GRAYSCALE_2X_PSM6', dataUrl: processedVariant(enlarged, 1.35), scale: 2,
+        pageSegmentationMode: 6, preprocessing: 'grayscale-contrast-1.35',
+      }, {
+        id: 'THRESHOLD_2X_PSM7', dataUrl: thresholdVariant(enlarged), scale: 2,
+        pageSegmentationMode: 7, preprocessing: 'threshold-170',
+      }].map((variant) => ({ ...variant, whitelist: numericWhitelist }));
+    }
+    return [{
+      id: 'ORIGINAL_PSM3', dataUrl: roi.toDataURL('image/png'), scale: 1,
+      pageSegmentationMode: 3, preprocessing: 'original', whitelist: numericWhitelist,
+    }];
+  }
+
+  function selectLocalVariantCandidate(observations) {
+    const candidates = observations.filter((item) => item.local.candidate).map((item) => ({
+      ...item.local.candidate,
+      variant: item.variant.id,
+      variantOrder: item.variantOrder,
+    }));
+    const keys = [...new Set(candidates.map((candidate) =>
+      `${candidate.value}|${candidate.unit || ''}`,
+    ))];
+    if (keys.length !== 1) return { candidate: null, agreement: 0, winningVariant: null };
+    const [candidate] = candidates.sort((left, right) => {
+      const unitScore = (item) => item.unit ? 0 : 1;
+      return unitScore(left) - unitScore(right) || left.variantOrder - right.variantOrder;
+    });
+    return {
+      candidate,
+      agreement: candidates.length,
+      winningVariant: candidate.variant,
+    };
+  }
+
   function refinementAnchor(analysis, field) {
     const direct = analysis.anchors.find((candidate) => candidate.field === field);
     if (direct) return direct;
@@ -2665,27 +2753,43 @@
     for (const region of refinementRegions(canvas, analysis, field, triggerReason)) {
       const roi = roiCanvas(canvas, region);
       if (!roi || roi.width < 8 || roi.height < 8) continue;
-      const data = await recognizePass(roi.toDataURL('image/png'), {
-        outputs: { text: true, tsv: true },
-        whitelist: '0123456789.,kcalg',
-        pageSegmentationMode: 3,
-      });
       const cropRect = {
         x: Math.max(0, Math.round(region.left)),
         y: Math.max(0, Math.round(region.top)),
         width: roi.width,
         height: roi.height,
       };
-      const words = tsvWords(data.tsv || '').map((word) => ({
-        ...word,
-        left: word.left + cropRect.x,
-        top: word.top + cropRect.y,
-      }));
-      const local = localCandidateFromWords(words, field, region.rowBand);
+      const observations = [];
+      for (const [variantOrder, variant] of localRecognitionVariants(roi, region.regionType).entries()) {
+        const data = await recognizePass(variant.dataUrl, {
+          outputs: { text: true, tsv: true },
+          whitelist: variant.whitelist,
+          pageSegmentationMode: variant.pageSegmentationMode,
+        });
+        const words = tsvWords(data.tsv || '').map((word) => ({
+          ...word,
+          left: word.left / variant.scale + cropRect.x,
+          top: word.top / variant.scale + cropRect.y,
+          width: word.width / variant.scale,
+          height: word.height / variant.scale,
+        }));
+        observations.push({
+          variant,
+          variantOrder,
+          data,
+          words,
+          local: localCandidateFromWords(words, field, region.rowBand),
+        });
+      }
       // TSV geometry is required for a field-owned local value. Raw text can
       // still be retained for diagnostics, but never promoted without a row
       // ownership decision.
-      const candidate = local.candidate;
+      const selected = selectLocalVariantCandidate(observations);
+      const candidate = selected.candidate;
+      const primary = observations[0];
+      const allValues = observations.flatMap((item) => item.local.values.map((value) => ({
+        ...value, variant: item.variant.id,
+      })));
       attempts.push({
         source: 'LOCAL_REFINEMENT',
         sourcePass: analysis.sourcePass,
@@ -2698,11 +2802,21 @@
         ocrInputDimensions: { width: roi.width, height: roi.height },
         preprocessing: {
           whitelist: '0123456789.,kcalg',
-          pageSegmentationMode: 3,
+          variant: selected.winningVariant || primary.variant.id,
+          variantCount: observations.length,
+          valueSideMethod: region.valueSideMethod || null,
         },
         cropPreviewDataUrl: roi.toDataURL('image/jpeg', 0.9),
-        rawOcrText: String(data.text || ''),
-        rawTokens: words.map((word) => word.text),
+        rawOcrText: String(primary.data.text || ''),
+        rawTokens: primary.words.map((word) => word.text),
+        variantObservations: observations.map((item) => ({
+          variant: item.variant.id,
+          scale: item.variant.scale,
+          pageSegmentationMode: item.variant.pageSegmentationMode,
+          preprocessing: item.variant.preprocessing,
+          rawOcrText: String(item.data.text || ''),
+          rawTokens: item.words.map((word) => word.text),
+        })),
         numericValue: candidate?.value ?? null,
         unit: candidate?.unit ?? null,
         unitStatus: candidate?.unitStatus ?? null,
@@ -2713,14 +2827,16 @@
           height: candidate.height,
         } : null,
         rowOwnership: candidate?.rowOwnership ||
-          (local.values.length === 1 ? local.values[0].rowOwnership : 'AMBIGUOUS_ROW'),
+          (allValues.length === 1 ? allValues[0].rowOwnership : 'AMBIGUOUS_ROW'),
         rowBand: region.rowBand || null,
-        retainedCandidates: local.values.map((value) => ({
+        retainedCandidates: allValues.map((value) => ({
           value: value.value,
           unit: value.unit,
           rawToken: value.rawToken,
           rowOwnership: value.rowOwnership,
+          variant: value.variant,
         })),
+        variantAgreement: selected.agreement,
         ocrConfidence: null,
         resultStatus: candidate ? 'OBSERVED_SAME_TARGET_ROW_NUMERIC' :
           'NO_UNIQUE_SAME_TARGET_ROW_VALUE',
@@ -2921,12 +3037,24 @@
         // each bounded header/value cell separately rather than asking one
         // page-segmentation pass to interpret all four columns and rules.
         const columnWidth = rowRoi.width / 4;
+        // Keep the first header/value pair inside the heading-derived table
+        // band. The broader row region can otherwise include the next
+        // salt/mineral table and let its border join a trailing unit glyph.
+        const firstValueRowBottom = Math.min(
+          rowRegion.bottom,
+          headingBox.bottom + headingBox.height * 3.6,
+        );
         for (let column = 0; column < 4; column += 1) {
+          const rawLeft = rowRegion.left + column * columnWidth;
+          const rawRight = rowRegion.left + (column + 1) * columnWidth;
+          // Exclude only the cell-rule edge. It is a common source of a
+          // spurious trailing digit while keeping the bounded table column.
+          const cellInset = Math.max(3, Math.min(14, columnWidth * 0.025));
           const cellRegion = {
-            left: rowRegion.left + column * columnWidth,
+            left: rawLeft + cellInset,
             top: rowRegion.top,
-            right: rowRegion.left + (column + 1) * columnWidth,
-            bottom: rowRegion.bottom,
+            right: rawRight - cellInset,
+            bottom: firstValueRowBottom,
           };
           const cellRoi = roiCanvas(canvas, cellRegion);
           if (!cellRoi || cellRoi.width < 8 || cellRoi.height < 8) continue;
@@ -2950,6 +3078,16 @@
               outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 11,
             })
             : null;
+          // One related, character-scale-normalised observation helps small
+          // numeric cells where the unit glyph can otherwise be mistaken for
+          // a digit. It remains the same cell/source, never another pass.
+          const cellLineScaled = scaledRoiCanvas(cellRoi, 2);
+          const cellLineNumericData = await recognizePass(processedVariant(cellLineScaled, 1), {
+            outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 7,
+          });
+          const cellThresholdNumericData = await recognizePass(thresholdVariant(cellLineScaled, 185), {
+            outputs: { text: true, tsv: true }, whitelist: '0123456789.,kcalgm', pageSegmentationMode: 11,
+          });
           const cellCropRect = {
             x: Math.round(cellRegion.left), y: Math.round(cellRegion.top),
             width: cellRoi.width, height: cellRoi.height,
@@ -2966,22 +3104,127 @@
           const cellSparseNumericWords = tsvWords(cellSparseNumericData?.tsv || '').map((word) => ({
             ...word, left: word.left + cellCropRect.x, top: word.top + cellCropRect.y,
           }));
+          const cellLineNumericWords = tsvWords(cellLineNumericData.tsv || '').map((word) => ({
+            ...word, left: word.left / 2 + cellCropRect.x, top: word.top / 2 + cellCropRect.y,
+            width: word.width / 2, height: word.height / 2,
+          }));
+          const cellThresholdNumericWords = tsvWords(cellThresholdNumericData.tsv || '').map((word) => ({
+            ...word, left: word.left / 2 + cellCropRect.x, top: word.top / 2 + cellCropRect.y,
+            width: word.width / 2, height: word.height / 2,
+          }));
           const cellLocal = analyzeNutritionWords(cellWords, analysis.sourcePass);
-          const cellValues = numericValues(lineGroups([...cellNumericWords, ...cellSparseNumericWords])).map((value) => ({
+          const baseCellValues = numericValues(lineGroups([
+            ...cellNumericWords, ...cellSparseNumericWords, ...cellLineNumericWords,
+          ])).map((value) => ({
             ...value, sourcePass: analysis.sourcePass,
           }));
+          // A cell border can merge a trailing unit glyph into the numeric
+          // token (for example, rendering a visible `g` as a digit). Re-read
+          // only the detected token's numeric and unit-side glyph areas. A
+          // composite is permitted solely when both pieces are independently
+          // observed from that same bounded cell; no character is rewritten.
+          let splitCellEvidence = null;
+          let splitNumberRawOcrText = '';
+          let splitUnitRawOcrText = '';
+          if (!baseCellValues.some((value) => value.unit && !value.ambiguity)) {
+            const sourceWord = cellNumericWords.find((word) =>
+              /^[0-9.,]+$/.test(String(word.text || '')) && word.width >= 8,
+            );
+            if (sourceWord) {
+              const localLeft = sourceWord.left - cellCropRect.x;
+              const numberRegion = {
+                left: Math.max(0, localLeft - 3), top: Math.max(0, sourceWord.top - cellCropRect.y - 3),
+                right: Math.min(cellRoi.width, localLeft + sourceWord.width * 0.78),
+                bottom: Math.min(cellRoi.height, sourceWord.top - cellCropRect.y + sourceWord.height + 3),
+              };
+              const unitRegion = {
+                left: Math.max(0, localLeft + sourceWord.width * 0.72),
+                top: numberRegion.top,
+                right: Math.min(cellRoi.width, localLeft + sourceWord.width + 4),
+                bottom: numberRegion.bottom,
+              };
+              const numberRoi = roiCanvas(cellRoi, numberRegion);
+              const unitRoi = roiCanvas(cellRoi, unitRegion);
+              if (numberRoi && unitRoi && numberRoi.width >= 8 && unitRoi.width >= 8) {
+                const numberScaled = scaledRoiCanvas(numberRoi, 3);
+                const unitScaled = scaledRoiCanvas(unitRoi, 3);
+                const splitNumberData = await recognizePass(processedVariant(numberScaled, 1), {
+                  outputs: { text: true, tsv: true }, whitelist: '0123456789.,', pageSegmentationMode: 7,
+                });
+                const splitUnitData = await recognizePass(processedVariant(unitScaled, 1), {
+                  outputs: { text: true, tsv: true }, whitelist: 'g', pageSegmentationMode: 10,
+                });
+                const splitUnitSparseData = await recognizePass(unitScaled.toDataURL('image/png'), {
+                  outputs: { text: true, tsv: true }, whitelist: 'g', pageSegmentationMode: 13,
+                });
+                splitNumberRawOcrText = String(splitNumberData.text || '');
+                splitUnitRawOcrText = [splitUnitData.text, splitUnitSparseData.text]
+                  .map((value) => String(value || '').trim()).filter(Boolean).join(' | ');
+                const splitNumberWords = tsvWords(splitNumberData.tsv || '').map((word) => ({
+                  ...word,
+                  left: word.left / 3 + numberRegion.left + cellCropRect.x,
+                  top: word.top / 3 + numberRegion.top + cellCropRect.y,
+                  width: word.width / 3, height: word.height / 3,
+                }));
+                const splitNumbers = numericValues(lineGroups(splitNumberWords)).filter((value) =>
+                  value.unit === null && !value.ambiguity,
+                );
+                const splitRawNumber = recoverNumericToken(splitNumberRawOcrText.trim());
+                if (!splitNumbers.length && splitRawNumber.numericValue != null &&
+                    splitRawNumber.candidateType === 'NUMERIC_WITHOUT_UNIT') {
+                  splitNumbers.push({
+                    value: splitRawNumber.numericValue, unit: null,
+                    unitStatus: 'MISSING', rawToken: splitRawNumber.rawToken,
+                    normalizedToken: splitRawNumber.normalizedToken,
+                    candidateType: 'NUMERIC_WITHOUT_UNIT',
+                    recoveryMethod: splitRawNumber.recoveryMethod,
+                    recoveryConfidence: splitRawNumber.recoveryConfidence,
+                    ambiguity: null,
+                    left: sourceWord.left, top: sourceWord.top,
+                    width: sourceWord.width * 0.78, height: sourceWord.height,
+                    lineKey: sourceWord.lineKey,
+                  });
+                }
+                const observedUnit = splitUnitRawOcrText.split('|').some((value) => /^g$/i.test(value.trim()));
+                if (splitNumbers.length === 1 && observedUnit) {
+                  splitCellEvidence = {
+                    ...splitNumbers[0], unit: 'g', unitStatus: 'EXACT', sourcePass: analysis.sourcePass,
+                    rawToken: `${splitNumbers[0].rawToken}+g`,
+                    recoveryMethod: 'local-cell-number-unit-pixel-observation',
+                    recoveryConfidence: 0.72,
+                  };
+                }
+              }
+            }
+          }
+          // Preprocessing variants share the same pixels. If the base cell
+          // already produced a complete numeric/unit observation, retain it
+          // rather than letting a threshold artefact change its value.
+          const cellValues = baseCellValues.some((value) => value.unit && !value.ambiguity)
+            ? baseCellValues
+            : [...baseCellValues, ...numericValues(lineGroups(cellThresholdNumericWords)).map((value) => ({
+              ...value, sourcePass: analysis.sourcePass,
+            })), ...(splitCellEvidence ? [splitCellEvidence] : [])];
           // Cell-local recovery is allowed only after a bounded nutrition
           // table cell produced a compatible gram value below the damaged
           // label. It does not apply to general OCR text.
+          const localFatRawText = String(cellData.text || '').match(/脂[質賞匠]/)?.[0] || null;
           if (!cellLocal.anchors.some((anchor) => anchor.field === 'fat') &&
-              cellWords.map((word) => normalizeOcrToken(word.text)).join('').includes('脂賞') &&
+              (cellWords.some((word) => /脂[質賞匠]/.test(String(word.text || ''))) || localFatRawText) &&
               cellValues.some((value) => value.unit === 'g' && !value.ambiguity)) {
             const labelWords = cellWords.filter((word) => normalizeOcrToken(word.text).includes('脂'));
+            const labelBox = labelWords.length ? boxForWords(labelWords) : {
+              left: cellCropRect.x,
+              top: cellCropRect.y,
+              width: cellRoi.width,
+              height: cellRoi.height * 0.48,
+            };
             cellLocal.anchors.push({
-              field: 'fat', alias: '脂質', rawText: labelWords.map((word) => word.text).join(''),
+              field: 'fat', alias: '脂質', rawText: labelWords.map((word) => word.text).join('') || localFatRawText,
               status: 'RECOVERED_MEDIUM', recoveryMethod: 'local-nutrition-label-confusion',
               recoveryConfidence: 0.62, ambiguity: null, lineKey: `local-cell-${column + 1}`,
-              confidence: averageConfidence(labelWords), ...boxForWords(labelWords), sourcePass: analysis.sourcePass,
+              confidence: labelWords.length ? averageConfidence(labelWords) : null,
+              ...labelBox, sourcePass: analysis.sourcePass,
             });
           }
           const cellMapped = horizontalHeaderColumnMappings(cellLocal.anchors, cellValues);
@@ -3019,6 +3262,15 @@
             originalNumericRawTokens: cellOriginalNumericWords.map((word) => word.text),
             sparseNumericRawOcrText: String(cellSparseNumericData?.text || ''),
             sparseNumericRawTokens: cellSparseNumericWords.map((word) => word.text),
+            lineNumericRawOcrText: String(cellLineNumericData.text || ''),
+            lineNumericRawTokens: cellLineNumericWords.map((word) => word.text),
+            thresholdNumericRawOcrText: String(cellThresholdNumericData.text || ''),
+            thresholdNumericRawTokens: cellThresholdNumericWords.map((word) => word.text),
+            splitNumberRawOcrText, splitUnitRawOcrText,
+            splitCellEvidence: splitCellEvidence ? {
+              value: splitCellEvidence.value, unit: splitCellEvidence.unit,
+              rawToken: splitCellEvidence.rawToken,
+            } : null,
             numericValue: null, unit: null, unitStatus: null, ocrConfidence: null,
             resultStatus: cellLocal.mapped.size || cellMapped.size
               ? 'OBSERVED_HEADER_COLUMN_VALUES' : 'NO_MAPPABLE_HEADER_COLUMN_VALUES',

@@ -143,6 +143,13 @@ async function main() {
     item.regionType === 'VERTICAL_ROW_REGION' &&
     item.cropRect.width > 0 && item.cropRect.height > 0,
   ));
+  const verticalValueMicroRegion = verticalRefinement.find((item) =>
+    item.regionType === 'LABEL_RIGHT_VALUE',
+  );
+  assert.ok(verticalValueMicroRegion);
+  // Full-pass numeric geometry may narrow a local read to the observed value
+  // column, but it must remain a pixel re-read rather than mapped evidence.
+  assert.ok(verticalValueMicroRegion.cropRect.x > 70);
 
   const contaminatedRows = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
