@@ -21,6 +21,7 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 class BootSequenceTiming {
   final Duration logoIntro;
   final Duration typingCharacter;
+  final Duration identityHold;
   final Duration systemBootTransition;
   final Duration header;
   final Duration row;
@@ -29,8 +30,9 @@ class BootSequenceTiming {
 
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 360),
-    this.typingCharacter = const Duration(milliseconds: 90),
-    this.systemBootTransition = const Duration(milliseconds: 180),
+    this.typingCharacter = const Duration(milliseconds: 130),
+    this.identityHold = const Duration(milliseconds: 320),
+    this.systemBootTransition = const Duration(milliseconds: 240),
     this.header = const Duration(milliseconds: 180),
     this.row = const Duration(milliseconds: 320),
     this.readyDelay = const Duration(milliseconds: 180),
@@ -41,27 +43,35 @@ class BootSequenceTiming {
 enum _BootVisualPhase {
   logo,
   identityTyping,
+  identityName,
   systemBoot,
   coreInitializing,
   dataInitializing,
   operationInitializing,
   waitingForInitialization,
+  finalizing,
   systemReady,
 }
 
 class _BootSequenceVisual extends StatefulWidget {
   final _BootVisualPhase phase;
   final int typedLength;
+  final double progress;
 
-  const _BootSequenceVisual({required this.phase, required this.typedLength});
+  const _BootSequenceVisual({
+    required this.phase,
+    required this.typedLength,
+    required this.progress,
+  });
 
   @override
   State<_BootSequenceVisual> createState() => _BootSequenceVisualState();
 }
 
 class _BootSequenceVisualState extends State<_BootSequenceVisual>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _cursorController;
+  late final AnimationController _spinnerController;
 
   @override
   void initState() {
@@ -70,16 +80,40 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+    _spinnerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _BootSequenceVisual oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasActive = _isInitializing(oldWidget.phase);
+    final isActive = _isInitializing(widget.phase);
+    if (isActive && oldWidget.phase != widget.phase) {
+      _spinnerController
+        ..reset()
+        ..repeat();
+    } else if (wasActive && !isActive) {
+      _spinnerController.stop();
+    }
   }
 
   @override
   void dispose() {
     _cursorController.dispose();
+    _spinnerController.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _spinnerController,
+    builder: (context, _) => _buildContent(context),
+  );
+
+  Widget _buildContent(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final phase = widget.phase;
     final rows = <Widget>[
@@ -88,18 +122,21 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
           key: const ValueKey('boot-row-core'),
           label: 'CORE SYSTEM',
           initializing: phase == _BootVisualPhase.coreInitializing,
+          spinner: _spinnerCharacter,
         ),
       if (phase.index >= _BootVisualPhase.dataInitializing.index)
         _BootStatusLine(
           key: const ValueKey('boot-row-data'),
           label: 'DATA INITIALIZATION',
           initializing: phase == _BootVisualPhase.dataInitializing,
+          spinner: _spinnerCharacter,
         ),
       if (phase.index >= _BootVisualPhase.operationInitializing.index)
         _BootStatusLine(
           key: const ValueKey('boot-row-operation'),
           label: 'OPERATION DATA',
           initializing: phase == _BootVisualPhase.operationInitializing,
+          spinner: _spinnerCharacter,
         ),
     ];
     final hasActiveRow =
@@ -144,6 +181,24 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                         ),
                       ),
                     ],
+                    if (phase.index >= _BootVisualPhase.identityName.index)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: FittedBox(
+                          alignment: Alignment.centerLeft,
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Operation Reasoning Lifesystem Orchestrator',
+                            key: const ValueKey('boot-brand-full-name'),
+                            style: Theme.of(context).textTheme.labelSmall!
+                                .copyWith(
+                                  color: colorScheme.primary.withValues(
+                                    alpha: .7,
+                                  ),
+                                ),
+                          ),
+                        ),
+                      ),
                     if (phase == _BootVisualPhase.identityTyping)
                       FadeTransition(
                         opacity: _cursorController,
@@ -154,21 +209,14 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                         ),
                       ),
                     if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       const Text('SYSTEM BOOT'),
+                      const SizedBox(height: 8),
+                      _BootProgressBar(value: widget.progress),
                     ],
                     if (rows.isNotEmpty) const SizedBox(height: 28),
                     ...rows,
                     if (hasActiveRow) const SizedBox(height: 8),
-                    if (hasActiveRow)
-                      FadeTransition(
-                        opacity: _cursorController,
-                        child: Text(
-                          '▌',
-                          key: const ValueKey('boot-active-cursor'),
-                          style: TextStyle(color: colorScheme.primary),
-                        ),
-                      ),
                     if (phase == _BootVisualPhase.systemReady) ...[
                       const SizedBox(height: 28),
                       Text(
@@ -190,16 +238,32 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       ),
     );
   }
+
+  String get _spinnerCharacter {
+    return switch ((_spinnerController.value * 4).floor().clamp(0, 3)) {
+      0 => '/',
+      1 => '|',
+      2 => '\\',
+      _ => '-',
+    };
+  }
+
+  bool _isInitializing(_BootVisualPhase phase) =>
+      phase == _BootVisualPhase.coreInitializing ||
+      phase == _BootVisualPhase.dataInitializing ||
+      phase == _BootVisualPhase.operationInitializing;
 }
 
 class _BootStatusLine extends StatelessWidget {
   final String label;
   final bool initializing;
+  final String spinner;
 
   const _BootStatusLine({
     super.key,
     required this.label,
     required this.initializing,
+    required this.spinner,
   });
 
   @override
@@ -207,7 +271,7 @@ class _BootStatusLine extends StatelessWidget {
     children: [
       Expanded(child: Text(label)),
       Text(
-        initializing ? 'INITIALIZING' : 'OK',
+        initializing ? 'INITIALIZING $spinner' : 'OK',
         style: TextStyle(
           color: initializing
               ? Colors.white
@@ -217,6 +281,44 @@ class _BootStatusLine extends StatelessWidget {
       ),
     ],
   );
+}
+
+class _BootProgressBar extends StatelessWidget {
+  const _BootProgressBar({required this.value});
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Semantics(
+      label: 'Boot progress',
+      value: '${(value * 100).round()}%',
+      child: Container(
+        key: const ValueKey('boot-progress-bar'),
+        height: 5,
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withValues(alpha: .45)),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: TweenAnimationBuilder<double>(
+          duration: const Duration(milliseconds: 180),
+          tween: Tween<double>(end: value.clamp(0, 1)),
+          builder: (context, progress, _) => Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: progress,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Coordinates the visual without owning initialization or persistence.
@@ -243,9 +345,12 @@ class BootSequenceGate extends StatefulWidget {
 class _BootSequenceGateState extends State<BootSequenceGate> {
   Timer? _timelineTimer;
   bool _systemInitialized = false;
+  bool _visualRowsComplete = false;
+  bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _completed = false;
   int _typedLength = 0;
+  double _progress = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
 
   @override
@@ -281,8 +386,8 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
   void _typeNextCharacter() {
     const identity = 'O.R.L.O.';
     if (_typedLength >= identity.length) {
-      setState(() => _phase = _BootVisualPhase.systemBoot);
-      _schedule(widget.timing.systemBootTransition, _showCore);
+      setState(() => _phase = _BootVisualPhase.identityName);
+      _schedule(widget.timing.identityHold, _showSystemBoot);
       return;
     }
     _schedule(widget.timing.typingCharacter, () {
@@ -291,23 +396,56 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
     });
   }
 
+  void _showSystemBoot() {
+    setState(() {
+      _phase = _BootVisualPhase.systemBoot;
+      _progress = .1;
+    });
+    _schedule(widget.timing.systemBootTransition, _showCore);
+  }
+
   void _showCore() {
-    setState(() => _phase = _BootVisualPhase.coreInitializing);
+    setState(() {
+      _phase = _BootVisualPhase.coreInitializing;
+      _progress = .3;
+    });
     _schedule(widget.timing.row, _showData);
   }
 
   void _showData() {
-    setState(() => _phase = _BootVisualPhase.dataInitializing);
+    setState(() {
+      _phase = _BootVisualPhase.dataInitializing;
+      _progress = .55;
+    });
     _schedule(widget.timing.row, _showOperation);
   }
 
   void _showOperation() {
-    setState(() => _phase = _BootVisualPhase.operationInitializing);
+    setState(() {
+      _phase = _BootVisualPhase.operationInitializing;
+      _progress = .85;
+    });
     _schedule(widget.timing.row, _finishRows);
   }
 
   void _finishRows() {
-    setState(() => _phase = _BootVisualPhase.waitingForInitialization);
+    setState(() {
+      _phase = _BootVisualPhase.waitingForInitialization;
+      _progress = .9;
+    });
+    _visualRowsComplete = true;
+    _tryStartFinalProgress();
+  }
+
+  void _tryStartFinalProgress() {
+    if (!_visualRowsComplete || !_systemInitialized || _finalProgressStarted) {
+      return;
+    }
+    _finalProgressStarted = true;
+    setState(() {
+      _phase = _BootVisualPhase.finalizing;
+      _progress = 1;
+    });
     _schedule(widget.timing.readyDelay, () {
       _readyDelayElapsed = true;
       _tryShowSystemReady();
@@ -328,13 +466,13 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
     }
     _systemInitialized = true;
     _emit(BootSequenceEventType.systemInitialized);
-    _tryShowSystemReady();
+    _tryStartFinalProgress();
   }
 
   void _tryShowSystemReady() {
     if (!_systemInitialized ||
         !_readyDelayElapsed ||
-        _phase != _BootVisualPhase.waitingForInitialization) {
+        _phase != _BootVisualPhase.finalizing) {
       return;
     }
     setState(() => _phase = _BootVisualPhase.systemReady);
@@ -361,6 +499,10 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
       return widget.fallbackBuilder(state);
     }
     if (_completed) return widget.child;
-    return _BootSequenceVisual(phase: _phase, typedLength: _typedLength);
+    return _BootSequenceVisual(
+      phase: _phase,
+      typedLength: _typedLength,
+      progress: _progress,
+    );
   }
 }

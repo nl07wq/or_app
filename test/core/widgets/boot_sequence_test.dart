@@ -8,6 +8,7 @@ import 'package:or_app/core/widgets/startup_gate.dart';
 const _timing = BootSequenceTiming(
   logoIntro: Duration(milliseconds: 10),
   typingCharacter: Duration(milliseconds: 10),
+  identityHold: Duration(milliseconds: 10),
   systemBootTransition: Duration(milliseconds: 10),
   header: Duration(milliseconds: 10),
   row: Duration(milliseconds: 10),
@@ -27,30 +28,34 @@ void main() {
     expect(find.text('CORE SYSTEM'), findsNothing);
     expect(find.text('SYSTEM READY'), findsNothing);
 
-    await tester.pump(_timing.logoIntro);
-    await tester.pump(_timing.typingCharacter);
+    await _elapse(tester, _timing.logoIntro);
+    await _elapse(tester, _timing.typingCharacter);
     expect(find.text('O'), findsOneWidget);
     expect(find.text('O.R.L.O.'), findsNothing);
-    await tester.pump(_timing.typingCharacter * 7);
-    await tester.pump(_timing.systemBootTransition);
+    await _advanceTyping(tester, _timing, count: 7);
+    expect(find.byKey(const ValueKey('boot-brand-full-name')), findsOneWidget);
+    expect(find.text('SYSTEM BOOT'), findsNothing);
+    await _elapse(tester, _timing.identityHold);
+    expect(find.byKey(const ValueKey('boot-progress-bar')), findsOneWidget);
+    await _elapse(tester, _timing.systemBootTransition);
     expect(find.text('O.R.L.O.'), findsOneWidget);
     expect(find.text('CORE SYSTEM'), findsOneWidget);
-    expect(find.text('INITIALIZING'), findsOneWidget);
+    expect(find.text('INITIALIZING /'), findsOneWidget);
     expect(find.text('DATA INITIALIZATION'), findsNothing);
 
-    await tester.pump(_timing.row);
+    await _elapse(tester, _timing.row);
     expect(find.text('CORE SYSTEM'), findsOneWidget);
     expect(find.text('DATA INITIALIZATION'), findsOneWidget);
     expect(find.text('OPERATION DATA'), findsNothing);
-    expect(find.text('INITIALIZING'), findsOneWidget);
+    expect(find.textContaining('INITIALIZING'), findsOneWidget);
     expect(find.text('OK'), findsOneWidget);
 
-    await tester.pump(_timing.row);
+    await _elapse(tester, _timing.row);
     expect(find.text('OPERATION DATA'), findsOneWidget);
-    expect(find.text('INITIALIZING'), findsOneWidget);
+    expect(find.textContaining('INITIALIZING'), findsOneWidget);
     expect(find.text('OK'), findsNWidgets(2));
 
-    await tester.pump(_timing.row + _timing.readyDelay);
+    await _elapse(tester, _timing.row);
     expect(find.text('OK'), findsNWidgets(3));
     expect(find.text('SYSTEM READY'), findsNothing);
     expect(find.text('MAIN UI'), findsNothing);
@@ -59,6 +64,7 @@ void main() {
   testWidgets('system ready and main UI wait for real initialization', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final controller = AppInitializationController();
     final events = <BootSequenceEventType>[];
     await tester.pumpWidget(
@@ -67,10 +73,24 @@ void main() {
 
     await _advanceRows(tester);
     expect(find.text('SYSTEM READY'), findsNothing);
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
+          .value,
+      '90%',
+    );
     expect(events, [BootSequenceEventType.bootStart]);
 
     controller.markReady();
     await tester.pump();
+    expect(find.text('SYSTEM READY'), findsNothing);
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
+          .value,
+      '100%',
+    );
+    await _elapse(tester, _timing.readyDelay);
     expect(find.text('SYSTEM READY'), findsOneWidget);
     expect(find.text('MAIN UI'), findsNothing);
     expect(events, [
@@ -78,13 +98,14 @@ void main() {
       BootSequenceEventType.systemInitialized,
     ]);
 
-    await tester.pump(_timing.readyHold);
+    await _elapse(tester, _timing.readyHold);
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
       BootSequenceEventType.systemInitialized,
       BootSequenceEventType.bootComplete,
     ]);
+    semantics.dispose();
   });
 
   testWidgets('initialization failure never shows ready or main UI', (
@@ -102,6 +123,34 @@ void main() {
     expect(find.text('MAIN UI'), findsNothing);
   });
 
+  testWidgets('active boot row uses the terminal spinner sequence', (
+    tester,
+  ) async {
+    const spinnerTiming = BootSequenceTiming(
+      logoIntro: Duration(milliseconds: 10),
+      typingCharacter: Duration(milliseconds: 10),
+      identityHold: Duration(milliseconds: 10),
+      systemBootTransition: Duration(milliseconds: 10),
+      row: Duration(milliseconds: 800),
+      readyDelay: Duration(milliseconds: 10),
+      readyHold: Duration(milliseconds: 10),
+    );
+    final controller = AppInitializationController();
+    await tester.pumpWidget(_gate(controller, timing: spinnerTiming));
+
+    await _elapse(tester, spinnerTiming.logoIntro);
+    await _advanceTyping(tester, spinnerTiming);
+    await _elapse(tester, spinnerTiming.identityHold);
+    await _elapse(tester, spinnerTiming.systemBootTransition);
+    expect(find.text('INITIALIZING /'), findsOneWidget);
+    await _elapse(tester, const Duration(milliseconds: 120));
+    expect(find.text('INITIALIZING |'), findsOneWidget);
+    await _elapse(tester, const Duration(milliseconds: 120));
+    expect(find.text('INITIALIZING \\'), findsOneWidget);
+    await _elapse(tester, const Duration(milliseconds: 120));
+    expect(find.text('INITIALIZING -'), findsOneWidget);
+  });
+
   testWidgets('a rebuild does not replay boot events', (tester) async {
     final controller = AppInitializationController()..markReady();
     final events = <BootSequenceEventType>[];
@@ -109,7 +158,8 @@ void main() {
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
     await _advanceRows(tester);
-    await tester.pump(_timing.readyHold);
+    await _elapse(tester, _timing.readyDelay);
+    await _elapse(tester, _timing.readyHold);
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -131,7 +181,8 @@ void main() {
       _gate(controller, onEvent: (_) => throw StateError('audio unavailable')),
     );
     await _advanceRows(tester);
-    await tester.pump(_timing.readyHold);
+    await _elapse(tester, _timing.readyDelay);
+    await _elapse(tester, _timing.readyHold);
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -141,6 +192,7 @@ void main() {
 Widget _gate(
   AppInitializationController controller, {
   BootSequenceEventListener? onEvent,
+  BootSequenceTiming timing = _timing,
 }) {
   final service = StartupInitializationService(
     controller: controller,
@@ -152,7 +204,7 @@ Widget _gate(
       key: const ValueKey('startup-gate'),
       service: service,
       showBootSequence: true,
-      bootSequenceTiming: _timing,
+      bootSequenceTiming: timing,
       onBootEvent: onEvent,
       child: const Text('MAIN UI'),
     ),
@@ -160,11 +212,26 @@ Widget _gate(
 }
 
 Future<void> _advanceRows(WidgetTester tester) async {
-  await tester.pump(_timing.logoIntro);
-  await tester.pump(_timing.typingCharacter * 7);
-  await tester.pump(_timing.systemBootTransition);
-  await tester.pump(_timing.header);
-  await tester.pump(_timing.row);
-  await tester.pump(_timing.row);
-  await tester.pump(_timing.row + _timing.readyDelay);
+  await _elapse(tester, _timing.logoIntro);
+  await _advanceTyping(tester, _timing);
+  await _elapse(tester, _timing.identityHold);
+  await _elapse(tester, _timing.systemBootTransition);
+  await _elapse(tester, _timing.row);
+  await _elapse(tester, _timing.row);
+  await _elapse(tester, _timing.row);
+}
+
+Future<void> _advanceTyping(
+  WidgetTester tester,
+  BootSequenceTiming timing, {
+  int count = 8,
+}) async {
+  for (var index = 0; index < count; index += 1) {
+    await _elapse(tester, timing.typingCharacter);
+  }
+}
+
+Future<void> _elapse(WidgetTester tester, Duration duration) async {
+  await tester.pump(duration);
+  await tester.pump();
 }
