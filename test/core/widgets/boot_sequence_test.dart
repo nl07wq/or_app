@@ -72,7 +72,7 @@ void main() {
     const typingTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 1),
       typingCharacter: Duration(milliseconds: 1),
-      fullNameCharacter: Duration(milliseconds: 28),
+      fullNameCharacter: Duration(milliseconds: 20),
       identityHold: Duration(milliseconds: 1),
       systemBootTransition: Duration(milliseconds: 1),
       row: Duration(milliseconds: 1),
@@ -87,6 +87,10 @@ void main() {
     expect(find.text('O.R.L.O.'), findsOneWidget);
     expect(find.text('SYSTEM BOOT'), findsNothing);
 
+    expect(
+      const BootSequenceTiming().fullNameCharacter,
+      const Duration(milliseconds: 20),
+    );
     await _elapse(tester, typingTiming.fullNameCharacter * 2);
     final partial = tester.widget<Text>(
       find.byKey(const ValueKey('boot-brand-full-name')),
@@ -210,7 +214,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('MAIN UI'), findsNothing);
-    await _elapse(tester, const Duration(milliseconds: 140));
+    await _elapse(tester, const Duration(milliseconds: 70));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
@@ -277,7 +281,7 @@ void main() {
       find.byKey(const ValueKey('boot-static-transition')),
       findsOneWidget,
     );
-    await _elapse(tester, const Duration(milliseconds: 140));
+    await _elapse(tester, const Duration(milliseconds: 70));
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -305,7 +309,7 @@ void main() {
       find.byKey(const ValueKey('boot-static-transition')),
       findsOneWidget,
     );
-    await _elapse(tester, const Duration(milliseconds: 140));
+    await _elapse(tester, const Duration(milliseconds: 70));
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -359,6 +363,7 @@ void main() {
 
   test('official boot audio asset is present', () {
     expect(File('assets/audio/boot/ORLO_Boot_v17.wav').existsSync(), isTrue);
+    expect(bootAudioAssetUrl, 'assets/assets/audio/boot/ORLO_Boot_v17.wav');
   });
 }
 

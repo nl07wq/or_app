@@ -14,10 +14,20 @@ class _WebBootAudio implements BootAudio {
   void playOnce() {
     if (_requested) return;
     _requested = true;
-    final audio = AudioElement(
-      Uri.base.resolve('assets/assets/audio/boot/ORLO_Boot_v17.wav').toString(),
-    )..preload = 'auto';
+    final assetUrl = Uri.base.resolve(bootAudioAssetUrl).toString();
+    final audio = AudioElement(assetUrl)
+      ..preload = 'auto'
+      ..muted = false
+      ..volume = 1;
     _audio = audio;
+    _log(
+      'BOOT AUDIO request=ATTEMPTED asset=$assetUrl '
+      'muted=${audio.muted} volume=${audio.volume}',
+    );
+    audio.onCanPlay.first.then((_) => _log('BOOT AUDIO decode=SUCCESS'));
+    audio.onError.first.then(
+      (_) => _log('BOOT AUDIO fetch/decode=FAILED code=${audio.error?.code}'),
+    );
     // iOS autoplay can reject this promise; audio is strictly presentation.
     _requestPlayback();
   }
@@ -25,6 +35,14 @@ class _WebBootAudio implements BootAudio {
   void _requestPlayback() {
     final audio = _audio;
     if (audio == null) return;
-    audio.play().catchError((_) {});
+    audio.play().then(
+      (_) => _log('BOOT AUDIO play=SUCCESS'),
+      onError: (Object error, StackTrace stackTrace) => _log(
+        'BOOT AUDIO play=REJECTED '
+        'errorName=${error.runtimeType} errorMessage=$error',
+      ),
+    );
   }
+
+  void _log(String message) => window.console.info(message);
 }

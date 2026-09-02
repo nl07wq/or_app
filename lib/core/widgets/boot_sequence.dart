@@ -18,6 +18,7 @@ class BootSequenceEvent {
 typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
+const _bootStaticDuration = Duration(milliseconds: 70);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -35,7 +36,7 @@ class BootSequenceTiming {
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 360),
     this.typingCharacter = const Duration(milliseconds: 130),
-    this.fullNameCharacter = const Duration(milliseconds: 28),
+    this.fullNameCharacter = const Duration(milliseconds: 20),
     this.identityHold = const Duration(milliseconds: 320),
     this.systemBootTransition = const Duration(milliseconds: 240),
     this.header = const Duration(milliseconds: 180),
@@ -355,7 +356,7 @@ class _BootStaticTransitionState extends State<_BootStaticTransition>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 140),
+      duration: _bootStaticDuration,
     )..repeat();
   }
 
@@ -385,11 +386,16 @@ class _BootStaticPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    for (var y = 0; y < size.height; y += 3) {
-      final shade = ((y * 37 + frame * 1000) % 120 + 80).round();
-      paint.color = Color.fromARGB(255, shade, shade, shade);
-      canvas.drawRect(Rect.fromLTWH(0, y.toDouble(), size.width, 1), paint);
+    final grain = Paint();
+    final frameSeed = (frame * 29).floor();
+    for (var y = 0; y < size.height; y += 9) {
+      for (var x = (y ~/ 3) % 11; x < size.width; x += 13) {
+        final sample = (x * 17 + y * 31 + frameSeed * 47) % 97;
+        if (sample > 34) continue;
+        final shade = 42 + sample * 2;
+        grain.color = Color.fromARGB(72, shade, shade, shade);
+        canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 2, 1), grain);
+      }
     }
   }
 
@@ -596,7 +602,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     setState(() => _phase = _BootVisualPhase.systemReady);
     _schedule(widget.timing.readyHold, () {
       setState(() => _showStatic = true);
-      _schedule(const Duration(milliseconds: 140), () {
+      _schedule(_bootStaticDuration, () {
         setState(() => _completed = true);
         _emit(BootSequenceEventType.bootComplete);
       });
