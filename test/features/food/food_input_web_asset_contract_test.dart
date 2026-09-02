@@ -47,6 +47,23 @@ void main() {
     expect(bridge, isNot(contains('https://')));
   });
 
+  test('photo library selection stays on the non-capture web input path', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+    final gateway = File(
+      'lib/features/food/services/food_input_capture_gateway_web.dart',
+    ).readAsStringSync();
+
+    expect(bridge, contains("input.accept = 'image/*'"));
+    expect(bridge, contains("if (preferCamera) input.setAttribute('capture', 'environment')"));
+    expect(
+      bridge,
+      contains('gallery path intentionally leaves `capture` unset'),
+    );
+    expect(gateway, contains('(source == FoodImageSource.camera).toJS'));
+  });
+
   test('visible scan-mode selector keeps hidden engine compatibility', () {
     final bridge = File(
       'web/assets/food_input/food_input_bridge.js',
@@ -246,7 +263,13 @@ void main() {
     expect(bridge, isNot(contains('文字を検出しました。読み取り対象を大きく映してください')));
     expect(bridge, isNot(contains('もっと大きく映してください')));
     expect(bridge, isNot(contains('大きく映すか写真を使用してください')));
-    expect(bridge, isNot(contains('.reduce(')));
+    // Nutrition row-band estimation legitimately uses Array.reduce outside
+    // the camera UI. Keep this regression focused on the capture surface.
+    final cameraSurface = bridge.substring(
+      bridge.indexOf('function cameraSurface('),
+      bridge.indexOf('async function openCamera('),
+    );
+    expect(cameraSurface, isNot(contains('.reduce(')));
     expect(bridge, isNot(contains('navigator.sendBeacon')));
   });
 

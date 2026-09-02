@@ -780,6 +780,9 @@
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
+      // The gallery path intentionally leaves `capture` unset. iOS/Safari
+      // owns any extra choices in its native file-source sheet; the app never
+      // routes a PHOTO LIBRARY selection through camera capture itself.
       if (preferCamera) input.setAttribute('capture', 'environment');
       input.style.display = 'none';
       document.body.appendChild(input);
@@ -2479,8 +2482,8 @@
     };
   }
 
-  function refinementRegions(canvas, analysis, field, triggerReason) {
-    const anchor = refinementAnchor(analysis, field);
+  function refinementRegions(canvas, analysis, field, triggerReason, anchorOverride = null) {
+    const anchor = anchorOverride || refinementAnchor(analysis, field);
     if (!anchor) return [];
     const rowBand = nutritionRowBand(canvas, analysis, anchor, field);
     // OCR label boxes can be taller than their visual baseline. Keep the
@@ -2748,9 +2751,21 @@
     };
   }
 
-  async function localRefinementFromRegions(canvas, analysis, field, triggerReason) {
+  async function localRefinementFromRegions(
+    canvas,
+    analysis,
+    field,
+    triggerReason,
+    anchorOverride = null,
+  ) {
     const attempts = [];
-    for (const region of refinementRegions(canvas, analysis, field, triggerReason)) {
+    for (const region of refinementRegions(
+      canvas,
+      analysis,
+      field,
+      triggerReason,
+      anchorOverride,
+    )) {
       const roi = roiCanvas(canvas, region);
       if (!roi || roi.width < 8 || roi.height < 8) continue;
       const cropRect = {
@@ -2795,6 +2810,7 @@
         sourcePass: analysis.sourcePass,
         refinementPass: `${analysis.sourcePass}:${region.regionType}`,
         targetField: field,
+        refinementAnchor: anchorOverride || refinementAnchor(analysis, field),
         regionType: region.regionType,
         triggerReason: region.triggerReason,
         cropRect,
@@ -2859,6 +2875,32 @@
       top: Math.max(0, box.top - box.height * 0.35),
       right: Math.min(canvas.width, Math.max(box.right + box.width * 1.5, canvas.width * 0.92)),
       bottom: Math.min(canvas.height, box.bottom + Math.max(box.height * 6.5, canvas.height * 0.42)),
+    };
+  }
+
+  // A missing field is eligible for another bounded pixel read only when the
+  // *same OCR pass* already establishes a nutrition-table structure. This is
+  // deliberately a trigger aid, not label recovery or value ownership: every
+  // value still has to pass SAME_TARGET_ROW and the normal decision gates.
+  function missingFieldRefinementCandidate(canvas, analysis, field) {
+    const majorAnchors = analysis.anchors.filter((anchor) =>
+      targetNutritionFields.includes(anchor.field),
+    );
+    const heading = analysis.groups.some((group) =>
+      normalizeOcrToken(group.words.map((word) => word.text).join(''))
+        .includes('栄養成分表示'),
+    );
+    const anchor = refinementAnchor(analysis, field);
+    if (!anchor) return null;
+    const hasNeighboringRows = majorAnchors.length >= 2 &&
+      anchor.rawText == null;
+    const hasTableContext = heading || hasNeighboringRows;
+    if (!hasTableContext) return null;
+    return {
+      anchor,
+      triggerReason: hasNeighboringRows
+        ? 'field-not-available-with-neighboring-nutrition-rows'
+        : 'field-not-available-with-table-context',
     };
   }
 
@@ -3392,7 +3434,8 @@
     for (const attempt of attempts) {
       if (attempt.numericValue == null ||
           attempt.rowOwnership !== 'SAME_TARGET_ROW') continue;
-      const anchor = refinementAnchor(analysis, attempt.targetField);
+      const anchor = attempt.refinementAnchor ||
+        refinementAnchor(analysis, attempt.targetField);
       if (!anchor) continue;
       analysis.localEvidence.push({
         targetField: attempt.targetField,
@@ -3717,7 +3760,10 @@
     const roiFields = [];
     if (allowRoiFallback && canvas.width > 0 && canvas.height > 0 &&
         typeof document?.createElement === 'function') {
-      if (targetNutritionFields.every((field) => consensus[field]?.value == null)) {
+      // A detected table header is enough to re-read its bounded value row
+      // when *any* major field is missing. This does not make a missing field
+      // acceptable; it only adds observable local pixel evidence.
+      if (targetNutritionFields.some((field) => consensus[field]?.value == null)) {
         const tableAnalysis = analyses.find((analysis) => tableValueRegion(canvas, analysis));
         if (tableAnalysis) {
           const attempts = await refineTableValueRegion(canvas, tableAnalysis);
@@ -3727,21 +3773,43 @@
       }
       for (const field of targetNutritionFields) {
         const decision = consensus[field];
-        const triggerReason = decision?.conflict
+        let triggerReason = decision?.conflict
           ? 'cross-pass-conflict'
           : decision?.value == null
             ? 'label-or-table-context-without-compatible-value'
             : null;
         if (!triggerReason) continue;
-        const candidateAnalysis = analyses.find((analysis) =>
-          refinementAnchor(analysis, field) != null,
-        );
+        let candidateAnalysis = null;
+        let anchorOverride = null;
+        for (const analysis of analyses) {
+          const anchor = refinementAnchor(analysis, field);
+          if (!anchor) continue;
+          // Existing direct/recovered label behaviour stays available for
+          // conflicts and incomplete mapped fields. Missing labels require
+          // explicit pass-local table/row context before a structural anchor
+          // can schedule a bounded re-read.
+          if (anchor.rawText != null || decision?.conflict) {
+            candidateAnalysis = analysis;
+            anchorOverride = anchor;
+            break;
+          }
+          if (decision?.value == null) {
+            const missing = missingFieldRefinementCandidate(canvas, analysis, field);
+            if (missing) {
+              candidateAnalysis = analysis;
+              anchorOverride = missing.anchor;
+              triggerReason = missing.triggerReason;
+              break;
+            }
+          }
+        }
         if (!candidateAnalysis) continue;
         const attempts = await localRefinementFromRegions(
           canvas,
           candidateAnalysis,
           field,
           triggerReason,
+          anchorOverride,
         );
         addLocalRefinementEvidence(candidateAnalysis, attempts);
         if (attempts.length) roiFields.push(field);
@@ -5304,6 +5372,35 @@
           height: Math.round(region.bottom - region.top),
         },
       }));
+    },
+    missingFieldRefinementTriggerForTesting: (tsv, field, width = 1200, height = 800) => {
+      const canvas = { width, height };
+      const analysis = analyzeNutritionWords(tsvWords(tsv), 'original');
+      const candidate = missingFieldRefinementCandidate(canvas, analysis, field);
+      if (!candidate) return null;
+      return {
+        triggerReason: candidate.triggerReason,
+        anchor: {
+          field: candidate.anchor.field,
+          rawText: candidate.anchor.rawText,
+          recoveryMethod: candidate.anchor.recoveryMethod,
+        },
+        regions: refinementRegions(
+          canvas,
+          analysis,
+          field,
+          candidate.triggerReason,
+          candidate.anchor,
+        ).map((region) => ({
+          regionType: region.regionType,
+          triggerReason: region.triggerReason,
+          cropRect: {
+            x: Math.round(region.left), y: Math.round(region.top),
+            width: Math.round(region.right - region.left),
+            height: Math.round(region.bottom - region.top),
+          },
+        })),
+      };
     },
     localRowOwnershipForTesting: (tsv, field, width = 1200, height = 800) => {
       const analysis = analyzeNutritionWords(tsvWords(tsv), 'original');

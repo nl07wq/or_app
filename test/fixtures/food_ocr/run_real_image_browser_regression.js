@@ -124,6 +124,7 @@ async function main() {
       })),
       localRefinement: nutrition.localRefinementAttempts.map((attempt) => ({
         targetField: attempt.targetField, regionType: attempt.regionType,
+        triggerReason: attempt.triggerReason || null,
         resultStatus: attempt.resultStatus, numericValue: attempt.numericValue,
         unit: attempt.unit, rowOwnership: attempt.rowOwnership,
         variant: attempt.preprocessing?.variant || null,

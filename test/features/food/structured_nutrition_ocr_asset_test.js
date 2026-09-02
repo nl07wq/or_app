@@ -151,6 +151,30 @@ async function main() {
   // column, but it must remain a pixel re-read rather than mapped evidence.
   assert.ok(verticalValueMicroRegion.cropRect.x > 70);
 
+  // Missing fields are allowed to schedule a bounded pixel re-read from
+  // pass-local nutrition-table structure. This is only a trigger: no value
+  // or unit is inferred, and ownership remains enforced inside the ROI.
+  const missingRows = tsv([
+    word(1, 1, 10, 0, 300, '栄養成分表示'),
+    word(2, 1, 10, 40, 120, 'エネルギー'),
+    word(2, 2, 300, 40, 70, '188kcal'),
+    word(3, 1, 10, 160, 110, '炭水化物'),
+    word(3, 2, 300, 160, 60, '23.8g'),
+  ]);
+  for (const field of ['protein', 'fat']) {
+    const trigger = window.orAppFoodInput
+      .missingFieldRefinementTriggerForTesting(missingRows, field);
+    assert.ok(trigger, `${field} should have a table-context recovery trigger`);
+    assert.equal(
+      trigger.triggerReason,
+      'field-not-available-with-neighboring-nutrition-rows',
+    );
+    assert.equal(trigger.anchor.rawText, null);
+    assert.ok(trigger.regions.some((region) =>
+      region.regionType === 'LABEL_RIGHT_VALUE' && region.cropRect.height > 0,
+    ));
+  }
+
   const contaminatedRows = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
     word(1, 2, 300, 10, 70, '188kcal'),
