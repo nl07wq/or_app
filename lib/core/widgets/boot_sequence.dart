@@ -295,23 +295,19 @@ class _BootProgressBar extends StatelessWidget {
       value: '${(value * 100).round()}%',
       child: Container(
         key: const ValueKey('boot-progress-bar'),
-        height: 5,
+        height: 10,
         decoration: BoxDecoration(
           border: Border.all(color: color.withValues(alpha: .45)),
           borderRadius: BorderRadius.circular(3),
         ),
-        child: TweenAnimationBuilder<double>(
-          duration: const Duration(milliseconds: 180),
-          tween: Tween<double>(end: value.clamp(0, 1)),
-          builder: (context, progress, _) => Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: progress,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FractionallySizedBox(
+            widthFactor: value.clamp(0, 1),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
@@ -342,20 +338,22 @@ class BootSequenceGate extends StatefulWidget {
   State<BootSequenceGate> createState() => _BootSequenceGateState();
 }
 
-class _BootSequenceGateState extends State<BootSequenceGate> {
+class _BootSequenceGateState extends State<BootSequenceGate>
+    with SingleTickerProviderStateMixin {
   Timer? _timelineTimer;
+  late final AnimationController _progressController;
   bool _systemInitialized = false;
   bool _visualRowsComplete = false;
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _completed = false;
   int _typedLength = 0;
-  double _progress = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
 
   @override
   void initState() {
     super.initState();
+    _progressController = AnimationController(vsync: this);
     _emit(BootSequenceEventType.bootStart);
     widget.initialization.addListener(_onInitializationChanged);
     _onInitializationChanged();
@@ -366,6 +364,7 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
   void dispose() {
     widget.initialization.removeListener(_onInitializationChanged);
     _timelineTimer?.cancel();
+    _progressController.dispose();
     super.dispose();
   }
 
@@ -380,6 +379,10 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
 
   void _startIdentityTyping() {
     setState(() => _phase = _BootVisualPhase.identityTyping);
+    _animateProgressTo(
+      .2,
+      widget.timing.typingCharacter * 8 + widget.timing.identityHold,
+    );
     _typeNextCharacter();
   }
 
@@ -397,42 +400,31 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
   }
 
   void _showSystemBoot() {
-    setState(() {
-      _phase = _BootVisualPhase.systemBoot;
-      _progress = .1;
-    });
+    setState(() => _phase = _BootVisualPhase.systemBoot);
+    _animateProgressTo(.25, widget.timing.systemBootTransition);
     _schedule(widget.timing.systemBootTransition, _showCore);
   }
 
   void _showCore() {
-    setState(() {
-      _phase = _BootVisualPhase.coreInitializing;
-      _progress = .3;
-    });
+    setState(() => _phase = _BootVisualPhase.coreInitializing);
+    _animateProgressTo(.45, widget.timing.row);
     _schedule(widget.timing.row, _showData);
   }
 
   void _showData() {
-    setState(() {
-      _phase = _BootVisualPhase.dataInitializing;
-      _progress = .55;
-    });
+    setState(() => _phase = _BootVisualPhase.dataInitializing);
+    _animateProgressTo(.65, widget.timing.row);
     _schedule(widget.timing.row, _showOperation);
   }
 
   void _showOperation() {
-    setState(() {
-      _phase = _BootVisualPhase.operationInitializing;
-      _progress = .85;
-    });
+    setState(() => _phase = _BootVisualPhase.operationInitializing);
+    _animateProgressTo(.9, widget.timing.row);
     _schedule(widget.timing.row, _finishRows);
   }
 
   void _finishRows() {
-    setState(() {
-      _phase = _BootVisualPhase.waitingForInitialization;
-      _progress = .9;
-    });
+    setState(() => _phase = _BootVisualPhase.waitingForInitialization);
     _visualRowsComplete = true;
     _tryStartFinalProgress();
   }
@@ -442,20 +434,23 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
       return;
     }
     _finalProgressStarted = true;
-    setState(() {
-      _phase = _BootVisualPhase.finalizing;
-      _progress = 1;
-    });
-    _schedule(widget.timing.readyDelay, () {
+    setState(() => _phase = _BootVisualPhase.finalizing);
+    _animateProgressTo(1, widget.timing.readyDelay);
+    _schedule(widget.timing.readyDelay + const Duration(milliseconds: 1), () {
       _readyDelayElapsed = true;
       _tryShowSystemReady();
     });
+  }
+
+  void _animateProgressTo(double target, Duration duration) {
+    _progressController.animateTo(target, duration: duration);
   }
 
   void _onInitializationChanged() {
     final state = widget.initialization.value;
     if (state.mode == PersistenceMode.failed) {
       _timelineTimer?.cancel();
+      _progressController.stop();
       if (mounted) {
         setState(() {});
       }
@@ -499,10 +494,13 @@ class _BootSequenceGateState extends State<BootSequenceGate> {
       return widget.fallbackBuilder(state);
     }
     if (_completed) return widget.child;
-    return _BootSequenceVisual(
-      phase: _phase,
-      typedLength: _typedLength,
-      progress: _progress,
+    return AnimatedBuilder(
+      animation: _progressController,
+      builder: (context, _) => _BootSequenceVisual(
+        phase: _phase,
+        typedLength: _typedLength,
+        progress: _progressController.value,
+      ),
     );
   }
 }

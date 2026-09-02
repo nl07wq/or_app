@@ -61,6 +61,46 @@ void main() {
     expect(find.text('MAIN UI'), findsNothing);
   });
 
+  testWidgets('boot progress continuously advances through visual phases', (
+    tester,
+  ) async {
+    const continuousTiming = BootSequenceTiming(
+      logoIntro: Duration(milliseconds: 20),
+      typingCharacter: Duration(milliseconds: 100),
+      identityHold: Duration(milliseconds: 100),
+      systemBootTransition: Duration(milliseconds: 1200),
+      row: Duration(milliseconds: 600),
+      readyDelay: Duration(milliseconds: 200),
+      readyHold: Duration(milliseconds: 10),
+    );
+    final semantics = tester.ensureSemantics();
+    final controller = AppInitializationController();
+    await tester.pumpWidget(_gate(controller, timing: continuousTiming));
+
+    await _elapse(tester, continuousTiming.logoIntro);
+    await _advanceTyping(tester, continuousTiming);
+    await _elapse(tester, continuousTiming.identityHold);
+    final p0 = _progressValue(tester);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('boot-progress-bar'))).height,
+      10,
+    );
+
+    await _elapse(tester, const Duration(milliseconds: 300));
+    final p1 = _progressValue(tester);
+    await _elapse(tester, const Duration(milliseconds: 300));
+    final p2 = _progressValue(tester);
+    await _elapse(tester, const Duration(milliseconds: 300));
+    final p3 = _progressValue(tester);
+
+    expect(p0, lessThan(p1));
+    expect(p1, lessThan(p2));
+    expect(p2, lessThan(p3));
+    expect(p3, lessThan(90));
+    expect(find.text('SYSTEM READY'), findsNothing);
+    semantics.dispose();
+  });
+
   testWidgets('system ready and main UI wait for real initialization', (
     tester,
   ) async {
@@ -88,9 +128,15 @@ void main() {
       tester
           .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
           .value,
+      '90%',
+    );
+    await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
+          .value,
       '100%',
     );
-    await _elapse(tester, _timing.readyDelay);
     expect(find.text('SYSTEM READY'), findsOneWidget);
     expect(find.text('MAIN UI'), findsNothing);
     expect(events, [
@@ -158,7 +204,7 @@ void main() {
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
     await _advanceRows(tester);
-    await _elapse(tester, _timing.readyDelay);
+    await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
@@ -181,7 +227,7 @@ void main() {
       _gate(controller, onEvent: (_) => throw StateError('audio unavailable')),
     );
     await _advanceRows(tester);
-    await _elapse(tester, _timing.readyDelay);
+    await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
 
     expect(find.text('MAIN UI'), findsOneWidget);
@@ -234,4 +280,11 @@ Future<void> _advanceTyping(
 Future<void> _elapse(WidgetTester tester, Duration duration) async {
   await tester.pump(duration);
   await tester.pump();
+}
+
+int _progressValue(WidgetTester tester) {
+  final value = tester
+      .getSemantics(find.byKey(const ValueKey('boot-progress-bar')))
+      .value;
+  return int.parse(value.replaceAll('%', ''));
 }
