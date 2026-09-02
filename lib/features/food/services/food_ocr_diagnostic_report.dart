@@ -426,6 +426,7 @@ void _writeCompactRefinement(StringBuffer out, Map<String, dynamic> branch) {
       ..writeln('  rawOCR=${_quoted(attempt['rawOcrText'])}')
       ..writeln(
         '  candidate=${_compactCandidate(attempt)}, '
+        'ownership=${_text(attempt['rowOwnership'])}, '
         'result=${_text(attempt['resultStatus'] ?? attempt['status'])}, '
         'reason=${_text(attempt['rejectionReason'] ?? attempt['reason'])}',
       );

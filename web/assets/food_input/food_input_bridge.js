@@ -2441,20 +2441,30 @@
   function refinementRegions(canvas, analysis, field, triggerReason) {
     const anchor = refinementAnchor(analysis, field);
     if (!anchor) return [];
+    const rowBand = nutritionRowBand(canvas, analysis, anchor, field);
+    // OCR label boxes can be taller than their visual baseline. Keep the
+    // bounded lower-row edge, but include a small amount above that box so
+    // the top of the target value glyph is not clipped.
+    const valueTop = Math.max(0, Math.min(
+      rowBand.top,
+      anchor.top - anchor.height * 0.18,
+    ));
     const regions = [{
       regionType: 'LABEL_RIGHT_VALUE',
       triggerReason,
       left: anchor.right,
-      top: anchor.top - anchor.height * 0.5,
+      top: valueTop,
       right: canvas.width,
-      bottom: anchor.bottom + anchor.height * 0.5,
+      bottom: rowBand.bottom,
+      rowBand,
     }, {
       regionType: 'VERTICAL_ROW_REGION',
       triggerReason,
       left: Math.max(0, anchor.left - anchor.width * 0.25),
-      top: anchor.top - anchor.height * 0.45,
+      top: valueTop,
       right: canvas.width,
-      bottom: anchor.bottom + anchor.height * 0.6,
+      bottom: rowBand.bottom,
+      rowBand,
     }];
     const headers = analysis.anchors.filter((candidate) =>
       targetNutritionFields.includes(candidate.field) && candidate.lineKey === anchor.lineKey,
@@ -2475,6 +2485,142 @@
       });
     }
     return regions;
+  }
+
+  // Nutrition rows are defined from pass-local label centres. A local OCR
+  // crop is only useful if it cannot silently borrow the value from a
+  // neighbouring row. Horizontal header tables deliberately fall back to a
+  // conservative label-height band; their value cells are handled by the
+  // dedicated header-column refinement below.
+  function nutritionRowBand(canvas, analysis, anchor, field) {
+    const sameLineHeaders = analysis.anchors.filter((candidate) =>
+      targetNutritionFields.includes(candidate.field) &&
+      candidate.lineKey === anchor.lineKey,
+    );
+    if (sameLineHeaders.length >= 3) {
+      const margin = Math.max(3, anchor.height * 0.18);
+      return {
+        top: Math.max(0, anchor.top - margin),
+        bottom: Math.min(canvas.height, anchor.bottom + margin),
+        method: 'conservative-label-height',
+      };
+    }
+    const rows = orderedNutritionRows(analysis, anchor, field);
+    const targetIndex = rows.findIndex((candidate) => candidate.field === field);
+    if (targetIndex < 0 || rows.length < 2) {
+      const margin = Math.max(3, anchor.height * 0.18);
+      return {
+        top: Math.max(0, anchor.top - margin),
+        bottom: Math.min(canvas.height, anchor.bottom + margin),
+        method: 'conservative-label-height',
+      };
+    }
+    const target = rows[targetIndex];
+    const center = target.center;
+    const above = rows[targetIndex - 1];
+    const below = rows[targetIndex + 1];
+    if (!above || !below) {
+      const margin = Math.max(3, anchor.height * 0.22);
+      return {
+        top: Math.max(0, anchor.top - margin),
+        bottom: Math.min(canvas.height, anchor.bottom + margin),
+        method: 'conservative-edge-label-height',
+      };
+    }
+    const spacing = [
+      center - above.center,
+      below.center - center,
+    ].filter((value) => value > 2);
+    const typicalSpacing = spacing.length
+      ? spacing.reduce((sum, value) => sum + value, 0) / spacing.length
+      : Math.max(anchor.height * 1.4, 16);
+    const margin = Math.max(2, Math.min(anchor.height * 0.2, typicalSpacing * 0.12));
+    const top = above
+      ? (above.center + center) / 2 + margin
+      : center - typicalSpacing / 2 + margin;
+    const bottom = below
+      ? (center + below.center) / 2 - margin
+      : center + typicalSpacing / 2 - margin;
+    return {
+      top: Math.max(0, Math.min(top, anchor.top)),
+      bottom: Math.min(canvas.height, Math.max(bottom, anchor.bottom)),
+      method: 'neighbor-label-midpoints',
+    };
+  }
+
+  function orderedNutritionRows(analysis, anchor, targetField) {
+    const direct = new Map();
+    for (const candidate of analysis.anchors) {
+      if (!targetNutritionFields.includes(candidate.field) || direct.has(candidate.field)) continue;
+      direct.set(candidate.field, {
+        ...candidate,
+        center: candidate.top + candidate.height / 2,
+      });
+    }
+    direct.set(targetField, {
+      ...anchor,
+      center: anchor.top + anchor.height / 2,
+    });
+    // Missing labels between two recognised nutrient rows have a known row
+    // position, but not a value. Their virtual centres are used only as crop
+    // boundaries so an adjacent row cannot leak into a local value read.
+    for (let index = 0; index < targetNutritionFields.length; index += 1) {
+      const field = targetNutritionFields[index];
+      if (direct.has(field)) continue;
+      const before = targetNutritionFields.slice(0, index).reverse()
+        .map((candidate) => ({ field: candidate, anchor: direct.get(candidate) }))
+        .find((candidate) => candidate.anchor);
+      const after = targetNutritionFields.slice(index + 1)
+        .map((candidate) => ({ field: candidate, anchor: direct.get(candidate) }))
+        .find((candidate) => candidate.anchor);
+      if (!before || !after || after.anchor.center <= before.anchor.center) continue;
+      const beforeIndex = targetNutritionFields.indexOf(before.field);
+      const afterIndex = targetNutritionFields.indexOf(after.field);
+      const ratio = (index - beforeIndex) / (afterIndex - beforeIndex);
+      direct.set(field, {
+        field,
+        center: before.anchor.center + (after.anchor.center - before.anchor.center) * ratio,
+        height: Math.max(before.anchor.height, after.anchor.height),
+        virtual: true,
+      });
+    }
+    return [...direct.values()].sort((left, right) => left.center - right.center);
+  }
+
+  function localRowOwnership(value, rowBand) {
+    if (!rowBand || !Number.isFinite(value.top) || !Number.isFinite(value.height)) {
+      return 'AMBIGUOUS_ROW';
+    }
+    const top = value.top;
+    const bottom = value.top + value.height;
+    const center = top + value.height / 2;
+    if (center >= rowBand.top && center <= rowBand.bottom &&
+        top >= rowBand.top - 1 && bottom <= rowBand.bottom + 1) {
+      return 'SAME_TARGET_ROW';
+    }
+    if (bottom >= rowBand.top && top <= rowBand.bottom) return 'AMBIGUOUS_ROW';
+    const distance = center < rowBand.top ? rowBand.top - center : center - rowBand.bottom;
+    return distance <= Math.max(value.height * 1.5, 18)
+      ? 'ADJACENT_ROW' : 'OUTSIDE_TARGET_ROW';
+  }
+
+  function localCandidateFromWords(words, field, rowBand) {
+    const compatibleUnit = field === 'energy' ? 'kcal' : 'g';
+    const values = numericValues(lineGroups(words)).map((value) => ({
+      ...value,
+      rowOwnership: localRowOwnership(value, rowBand),
+    }));
+    const sameRow = values.filter((value) =>
+      value.rowOwnership === 'SAME_TARGET_ROW' && !value.ambiguity &&
+      (value.unit === compatibleUnit || value.unit === null),
+    );
+    const distinct = sameRow.filter((value, index, all) => all.findIndex((other) =>
+      other.value === value.value && other.unit === value.unit,
+    ) === index);
+    return {
+      candidate: distinct.length === 1 ? distinct[0] : null,
+      values,
+    };
   }
 
   function refinementAnchor(analysis, field) {
@@ -2514,34 +2660,6 @@
     };
   }
 
-  function localNumericCandidate(rawText, field) {
-    const pattern = field === 'energy'
-      ? /(\d+(?:[.,]\d+)?)\s*kcal/i
-      : /(\d+(?:[.,]\d+)?)\s*g/i;
-    const matches = [...String(rawText || '').matchAll(new RegExp(pattern, 'gi'))];
-    const values = [...new Set(matches.map((match) =>
-      `${Number(match[1].replace(',', '.'))}|${field === 'energy' ? 'kcal' : 'g'}`,
-    ))];
-    if (values.length === 1) {
-      const [numericText, unit] = values[0].split('|');
-      const value = Number(numericText);
-      return Number.isFinite(value) && value >= 0 ? { value, unit, unitStatus: 'EXACT' } : null;
-    }
-
-    // A bounded, field-derived local crop may contain a plainly observed
-    // numeric value while its unit falls outside the crop. Keep that evidence
-    // for review, but never infer a unit or make it auto-fill eligible.
-    const text = String(rawText || '');
-    if (/@/.test(text)) return null;
-    const bare = [...text.matchAll(/\d+(?:[.,]\d+)?/g)]
-      .map((match) => Number(match[0].replace(',', '.')))
-      .filter((value) => Number.isFinite(value) && value >= 0);
-    const distinct = [...new Set(bare)];
-    return distinct.length === 1
-      ? { value: distinct[0], unit: null, unitStatus: 'MISSING' }
-      : null;
-  }
-
   async function localRefinementFromRegions(canvas, analysis, field, triggerReason) {
     const attempts = [];
     for (const region of refinementRegions(canvas, analysis, field, triggerReason)) {
@@ -2550,14 +2668,24 @@
       const data = await recognizePass(roi.toDataURL('image/png'), {
         outputs: { text: true, tsv: true },
         whitelist: '0123456789.,kcalg',
+        pageSegmentationMode: 3,
       });
-      const candidate = localNumericCandidate(data.text, field);
       const cropRect = {
         x: Math.max(0, Math.round(region.left)),
         y: Math.max(0, Math.round(region.top)),
         width: roi.width,
         height: roi.height,
       };
+      const words = tsvWords(data.tsv || '').map((word) => ({
+        ...word,
+        left: word.left + cropRect.x,
+        top: word.top + cropRect.y,
+      }));
+      const local = localCandidateFromWords(words, field, region.rowBand);
+      // TSV geometry is required for a field-owned local value. Raw text can
+      // still be retained for diagnostics, but never promoted without a row
+      // ownership decision.
+      const candidate = local.candidate;
       attempts.push({
         source: 'LOCAL_REFINEMENT',
         sourcePass: analysis.sourcePass,
@@ -2568,15 +2696,34 @@
         cropRect,
         sourceImageDimensions: { width: canvas.width, height: canvas.height },
         ocrInputDimensions: { width: roi.width, height: roi.height },
-        preprocessing: { whitelist: '0123456789.,kcalg', pageSegmentationMode: 3 },
+        preprocessing: {
+          whitelist: '0123456789.,kcalg',
+          pageSegmentationMode: 3,
+        },
         cropPreviewDataUrl: roi.toDataURL('image/jpeg', 0.9),
         rawOcrText: String(data.text || ''),
-        rawTokens: tsvWords(data.tsv || '').map((word) => word.text),
+        rawTokens: words.map((word) => word.text),
         numericValue: candidate?.value ?? null,
         unit: candidate?.unit ?? null,
         unitStatus: candidate?.unitStatus ?? null,
+        candidateGeometry: candidate ? {
+          left: candidate.left,
+          top: candidate.top,
+          width: candidate.width,
+          height: candidate.height,
+        } : null,
+        rowOwnership: candidate?.rowOwnership ||
+          (local.values.length === 1 ? local.values[0].rowOwnership : 'AMBIGUOUS_ROW'),
+        rowBand: region.rowBand || null,
+        retainedCandidates: local.values.map((value) => ({
+          value: value.value,
+          unit: value.unit,
+          rawToken: value.rawToken,
+          rowOwnership: value.rowOwnership,
+        })),
         ocrConfidence: null,
-        resultStatus: candidate ? 'OBSERVED_NUMERIC' : 'NO_UNIQUE_COMPATIBLE_VALUE',
+        resultStatus: candidate ? 'OBSERVED_SAME_TARGET_ROW_NUMERIC' :
+          'NO_UNIQUE_SAME_TARGET_ROW_VALUE',
       });
     }
     return attempts;
@@ -2991,7 +3138,8 @@
   function addLocalRefinementEvidence(analysis, attempts) {
     analysis.localRefinement = [...(analysis.localRefinement || []), ...attempts];
     for (const attempt of attempts) {
-      if (attempt.numericValue == null) continue;
+      if (attempt.numericValue == null ||
+          attempt.rowOwnership !== 'SAME_TARGET_ROW') continue;
       const anchor = refinementAnchor(analysis, attempt.targetField);
       if (!anchor) continue;
       analysis.localEvidence.push({
@@ -3011,14 +3159,14 @@
         sourcePass: analysis.sourcePass,
         refinementPass: attempt.refinementPass,
         lineKey: `local:${attempt.refinementPass}`,
-        left: attempt.cropRect.x,
-        top: attempt.cropRect.y,
-        width: attempt.cropRect.width,
-        height: attempt.cropRect.height,
+        left: attempt.candidateGeometry?.left ?? attempt.cropRect.x,
+        top: attempt.candidateGeometry?.top ?? attempt.cropRect.y,
+        width: attempt.candidateGeometry?.width ?? attempt.cropRect.width,
+        height: attempt.candidateGeometry?.height ?? attempt.cropRect.height,
         ocrConfidence: null,
         mappingStatus: 'MAPPED',
         ownershipStatus: 'MAPPED',
-        ownershipReason: 'local-refinement-region-derived-from-pass-local-nutrition-geometry',
+        ownershipReason: 'local-refinement-same-target-row-geometry',
         conflictEligible: true,
         geometry: {
           sameLine: null,
@@ -4904,6 +5052,21 @@
           height: Math.round(region.bottom - region.top),
         },
       }));
+    },
+    localRowOwnershipForTesting: (tsv, field, width = 1200, height = 800) => {
+      const analysis = analyzeNutritionWords(tsvWords(tsv), 'original');
+      const anchor = refinementAnchor(analysis, field);
+      if (!anchor) return null;
+      const rowBand = nutritionRowBand({ width, height }, analysis, anchor, field);
+      return {
+        rowBand,
+        values: numericValues(lineGroups(tsvWords(tsv))).map((value) => ({
+          value: value.value,
+          unit: value.unit,
+          rawToken: value.rawToken,
+          rowOwnership: localRowOwnership(value, rowBand),
+        })),
+      };
     },
     collectSharedOcrPassesForTesting: async (passNames) => {
       let invocationCount = 0;

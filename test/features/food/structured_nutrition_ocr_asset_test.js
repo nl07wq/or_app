@@ -144,6 +144,44 @@ async function main() {
     item.cropRect.width > 0 && item.cropRect.height > 0,
   ));
 
+  const contaminatedRows = tsv([
+    word(1, 1, 10, 10, 120, 'エネルギー'),
+    word(1, 2, 300, 10, 70, '188kcal'),
+    word(2, 1, 10, 50, 140, 'たんぱく質'),
+    word(2, 2, 300, 50, 50, '28'),
+    word(3, 1, 10, 90, 60, '脂質'),
+    word(3, 2, 300, 90, 60, '5.2g'),
+    word(3, 3, 380, 90, 60, '9.2g'),
+    word(4, 1, 10, 130, 110, '炭水化物'),
+    word(4, 2, 300, 130, 60, '23.8g'),
+  ]);
+  const proteinOwnership = window.orAppFoodInput
+    .localRowOwnershipForTesting(contaminatedRows, 'protein');
+  assert.equal(
+    proteinOwnership.values.find((item) => item.rawToken === '5.2g').rowOwnership,
+    'ADJACENT_ROW',
+  );
+  assert.equal(
+    proteinOwnership.values.find((item) => item.rawToken === '28').rowOwnership,
+    'SAME_TARGET_ROW',
+  );
+  const fatOwnership = window.orAppFoodInput
+    .localRowOwnershipForTesting(contaminatedRows, 'fat');
+  assert.equal(
+    fatOwnership.values.find((item) => item.rawToken === '9.2g').rowOwnership,
+    'SAME_TARGET_ROW',
+  );
+  assert.equal(
+    fatOwnership.values.find((item) => item.rawToken === '23.8g').rowOwnership,
+    'ADJACENT_ROW',
+  );
+  const carbohydrateOwnership = window.orAppFoodInput
+    .localRowOwnershipForTesting(contaminatedRows, 'carbohydrate');
+  assert.equal(
+    carbohydrateOwnership.values.find((item) => item.rawToken === '23.8g').rowOwnership,
+    'SAME_TARGET_ROW',
+  );
+
   const exclusions = tsv([
     word(1, 1, 10, 10, 110, '炭水化物'),
     word(1, 2, 300, 10, 60, '21.5g'),

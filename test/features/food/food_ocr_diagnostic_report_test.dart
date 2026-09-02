@@ -171,6 +171,7 @@ void main() {
         'numericValue': 4,
         'unit': 'g',
         'unitStatus': 'EXACT',
+        'rowOwnership': 'SAME_TARGET_ROW',
         'status': 'REVIEW_ONLY',
         'reason': 'cross-pass-conflict',
       },
@@ -189,6 +190,7 @@ void main() {
     expect(text, contains('FIELD: FAT'));
     expect(text, contains('LOCAL OCR REFINEMENT'));
     expect(text, contains('rawOCR="04g"'));
+    expect(text, contains('ownership=SAME_TARGET_ROW'));
     expect(text, contains('LEGACY FALLBACK'));
     expect(text, contains('status=SUPPRESSED'));
     expect(text, isNot(contains('ownershipEvidence')));
