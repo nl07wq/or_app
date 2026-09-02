@@ -87,7 +87,7 @@ void main() {
     );
   });
 
-  test('enriches and formats same-image branches without image bytes', () {
+  test('formats compact copy diagnostics without image bytes', () {
     final report = enrichFoodOcrDiagnosticReport(
       _fixtureReport(),
       source: FoodImageSource.gallery,
@@ -97,22 +97,20 @@ void main() {
     expect(report['sourceType'], 'photoLibrary');
     expect(text, contains('STANDARD OCR'));
     expect(text, contains('NUTRITION LABEL READER'));
+    expect(text, contains('PASS RAW OCR'));
     expect(text, contains('RAW OCR:'));
-    expect(text, contains('TOKEN RECOVERY'));
-    expect(text, contains('LABEL RECOVERY'));
-    expect(text, contains('NUMERIC RECOVERY'));
-    expect(text, contains('SEMANTIC DUPLICATE COLLAPSE'));
-    expect(text, contains('PRE-MAPPING EVIDENCE'));
-    expect(text, contains('UNIT TIE BREAK'));
-    expect(text, contains('preResizeSize:'));
-    expect(text, contains('SHARED OCR ARTIFACT'));
-    expect(text, contains('GEOMETRY MAPPING'));
-    expect(text, contains('MULTI-PASS CONSENSUS'));
-    expect(text, contains('CONFIDENCE DECISION'));
+    expect(text, contains('artifactId: nutrition-test'));
     expect(text, contains('FORM BINDING'));
     expect(text, contains('NOT EXECUTED'));
     expect(text, contains('COMPARISON SUMMARY'));
+    expect(text, isNot(contains('TOKEN RECOVERY')));
+    expect(text, isNot(contains('RAW TOKENS')));
     expect(text, isNot(contains('data:image/png;base64')));
+
+    final full = formatFullFoodOcrDiagnosticReport(report);
+    expect(full, contains('TOKEN RECOVERY'));
+    expect(full, contains('NUMERIC RECOVERY'));
+    expect(full, contains('GEOMETRY MAPPING'));
   });
 
   test(
@@ -153,6 +151,74 @@ void main() {
       expect(carbohydrate['reviewBridgeStatus'], 'RETAINED_FOR_REVIEW');
     },
   );
+
+  test('keeps compact field, refinement and fallback safety evidence', () {
+    final report = enrichFoodOcrDiagnosticReport(
+      _fixtureReportWithDecisions(),
+      source: FoodImageSource.gallery,
+    );
+    final nutrition = (report['nutritionLabelReader'] as Map)
+        .cast<String, dynamic>();
+    nutrition['localRefinementAttempts'] = [
+      {
+        'targetField': 'fat',
+        'regionType': 'LABEL_RIGHT_VALUE',
+        'triggerReason': 'cross-pass-conflict',
+        'cropRect': {'x': 12, 'y': 24, 'width': 56, 'height': 30},
+        'ocrInputDimensions': {'width': 224, 'height': 120},
+        'preprocessing': {'grayscale': true, 'pageSegmentationMode': 7},
+        'rawOcrText': '04g',
+        'numericValue': 4,
+        'unit': 'g',
+        'unitStatus': 'EXACT',
+        'status': 'REVIEW_ONLY',
+        'reason': 'cross-pass-conflict',
+      },
+    ];
+    final review = (nutrition['reviewCandidates'] as List).cast<Map>();
+    review.firstWhere(
+      (item) => item['field'] == 'FAT',
+    )['legacyFallbackSafety'] = {
+      'field': 'fat',
+      'legacyCandidateValue': 4,
+      'fallbackStatus': 'SUPPRESSED',
+      'suppressionReason': 'structured-field-review-required',
+    };
+
+    final text = formatFoodOcrDiagnosticReport(report);
+    expect(text, contains('FIELD: FAT'));
+    expect(text, contains('LOCAL OCR REFINEMENT'));
+    expect(text, contains('rawOCR="04g"'));
+    expect(text, contains('LEGACY FALLBACK'));
+    expect(text, contains('status=SUPPRESSED'));
+    expect(text, isNot(contains('ownershipEvidence')));
+  });
+
+  test('compact copy excludes repeated token-level debug payloads', () {
+    final report = enrichFoodOcrDiagnosticReport(
+      _fixtureReport(),
+      source: FoodImageSource.gallery,
+    );
+    for (final key in ['standard', 'nutritionLabelReader']) {
+      final branch = (report[key] as Map).cast<String, dynamic>();
+      branch['words'] = List.generate(
+        200,
+        (index) => {
+          'text': 'token-$index',
+          'left': index * 10,
+          'top': index * 5,
+          'lineKey': 'line-$index',
+          'confidence': 95,
+        },
+      );
+    }
+
+    final compact = formatFoodOcrDiagnosticReport(report);
+    final full = formatFullFoodOcrDiagnosticReport(report);
+    expect(compact.length, lessThan(full.length * 0.3));
+    expect(compact, isNot(contains('token-199')));
+    expect(full, contains('token-199'));
+  });
 }
 
 Map<String, dynamic> _fixtureReport() => {

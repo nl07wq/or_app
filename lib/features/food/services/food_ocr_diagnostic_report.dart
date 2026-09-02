@@ -247,7 +247,45 @@ Map<String, dynamic> enrichFoodOcrDiagnosticReport(
   return report;
 }
 
+/// Produces the compact, copy-friendly diagnostic used by the scanner UI.
+///
+/// The complete evidence remains in [report] and can be rendered with
+/// [formatFullFoodOcrDiagnosticReport] when a developer needs token-level
+/// debugging. Keeping the default output field-centred avoids repeating the
+/// same token, geometry and ownership objects in several sections.
 String formatFoodOcrDiagnosticReport(Map<String, dynamic> report) {
+  final out = StringBuffer()
+    ..writeln('OCR PIPELINE DIAGNOSTICS')
+    ..writeln('diagnosticVersion: ${_text(report['diagnosticVersion'])}')
+    ..writeln('generatedAt: ${_text(report['generatedAt'])}')
+    ..writeln('sourceType: ${_text(report['sourceType'])}')
+    ..writeln('persistence: ${_text(report['persistence'])}');
+  final comparison = _map(report['comparison']);
+  _writeCompactMode(out, 'STANDARD OCR', _map(report['standard']));
+  _writeCompactMode(
+    out,
+    'NUTRITION LABEL READER',
+    _map(report['nutritionLabelReader']),
+    includePassRaw: comparison['sameRawOcr'] != true,
+  );
+  out
+    ..writeln('\n==============================')
+    ..writeln('COMPARISON SUMMARY')
+    ..writeln('==============================')
+    ..writeln('sameRawOcr: ${_text(comparison['sameRawOcr'])}')
+    ..writeln('sameInput: ${_text(comparison['sameInput'])}')
+    ..writeln('sharedArtifact: ${_text(comparison['sharedArtifact'])}')
+    ..writeln('standard: ${_compactComparison(_map(report['standard']))}')
+    ..writeln(
+      'nutrition: ${_compactComparison(_map(report['nutritionLabelReader']))}',
+    )
+    ..writeln('bottleneck: ${_lines(_map(report['rootCauseClassification']))}');
+  return out.toString().trimRight();
+}
+
+/// Full developer-only rendering. This intentionally retains the detailed
+/// token, geometry and parser objects for an on-demand debugging surface.
+String formatFullFoodOcrDiagnosticReport(Map<String, dynamic> report) {
   final out = StringBuffer()
     ..writeln('OCR PIPELINE DIAGNOSTICS')
     ..writeln('diagnosticVersion: ${_text(report['diagnosticVersion'])}')
@@ -267,6 +305,211 @@ String formatFoodOcrDiagnosticReport(Map<String, dynamic> report) {
     ..writeln(_lines(_map(report['comparison'])))
     ..writeln('bottleneck: ${_lines(_map(report['rootCauseClassification']))}');
   return out.toString().trimRight();
+}
+
+void _writeCompactMode(
+  StringBuffer out,
+  String title,
+  Map<String, dynamic> branch, {
+  bool includePassRaw = true,
+}) {
+  out
+    ..writeln('\n==============================')
+    ..writeln(title)
+    ..writeln('==============================')
+    ..writeln('scanMode: ${_text(branch['scanMode'])}')
+    ..writeln('engine: ${_text(branch['engineId'])}')
+    ..writeln('sourceDimensions: ${_lines(_map(branch['sourceDimensions']))}')
+    ..writeln('processedSize: ${_lines(_map(branch['ocrDimensions']))}')
+    ..writeln('cropApplied: ${_text(branch['cropApplied'])}')
+    ..writeln('cropRect: ${_lines(_map(branch['cropRect']))}')
+    ..writeln('rotationCorrection: ${_text(branch['rotationCorrection'])}')
+    ..writeln(
+      'perspectiveCorrection: ${_text(branch['perspectiveCorrection'])}',
+    );
+  final artifact = _map(branch['sharedOcrArtifact']);
+  out
+    ..writeln('artifactId: ${_text(artifact['artifactId'])}')
+    ..writeln('sharedArtifact: ${_text(artifact['generatedOnce'])}')
+    ..writeln('passCount: ${_text(artifact['passCount'])}')
+    ..writeln('\nPASS RAW OCR');
+  final passes = _list(branch['passes']);
+  if (!includePassRaw) {
+    out.writeln('SHARED ARTIFACT (listed under STANDARD OCR)');
+  } else if (passes.isEmpty) {
+    out.writeln('NOT AVAILABLE');
+  } else {
+    for (var index = 0; index < passes.length; index += 1) {
+      final pass = _map(passes[index]);
+      out
+        ..writeln('PASS ${index + 1}: ${_text(pass['preprocessVariant'])}')
+        ..writeln('RAW OCR:')
+        ..writeln((pass['rawText'] as String?)?.trimRight() ?? '');
+    }
+  }
+  _writeCompactFields(out, branch);
+  _writeCompactRefinement(out, branch);
+  _writeCompactLegacyFallback(out, branch);
+  final finalResult = _map(branch['finalResult']);
+  out
+    ..writeln('\nFINAL OCR RESULT')
+    ..writeln('basis=${_compactValue(finalResult['basis'])}')
+    ..writeln('calories=${_text(finalResult['calories'])}')
+    ..writeln('protein=${_text(finalResult['protein'])}')
+    ..writeln('fat=${_text(finalResult['fat'])}')
+    ..writeln('carbohydrate=${_text(finalResult['carbohydrate'])}')
+    ..writeln('fieldSources=${_lines(_map(finalResult['fieldSources']))}')
+    ..writeln('needsReviewFields=${_text(finalResult['needsReviewFields'])}')
+    ..writeln('\nFORM BINDING')
+    ..writeln('status=${_text(_map(branch['formBinding'])['status'])}')
+    ..writeln('reason=${_text(_map(branch['formBinding'])['reason'])}')
+    ..writeln('\nSUMMARY')
+    ..writeln(_lines(_map(branch['summary'])))
+    ..writeln(
+      'localRefinementRuns=${_list(branch['localRefinementAttempts']).length}',
+    )
+    ..writeln('autoFillFields=${_compactAutoFillFields(branch)}')
+    ..writeln('reviewRequiredFields=${_compactReviewFields(branch)}')
+    ..writeln(
+      'firstLossClassification=${_text(branch['bottleneckClassification'])}',
+    );
+}
+
+void _writeCompactFields(StringBuffer out, Map<String, dynamic> branch) {
+  final decisions = _list(branch['confidenceDecisions'])
+      .map(_map)
+      .where((decision) => decision['field'] != null)
+      .toList(growable: false);
+  if (decisions.isEmpty) return;
+  out.writeln('\nSTRUCTURED EVIDENCE SUMMARY');
+  for (final decision in decisions) {
+    final field = _text(decision['field']).toUpperCase();
+    final label = _map(decision['labelEvidence']);
+    final selected = _map(decision['selectedEvidence']);
+    final rawTokens = _list(decision['rawTokens']);
+    out
+      ..writeln('\nFIELD: $field')
+      ..writeln('LABEL: ${_compactLabel(label, decision['labelStatus'])}')
+      ..writeln(
+        'VALUE: ${_compactDecisionValue(decision, selected, rawTokens)}',
+      )
+      ..writeln(
+        'CONSENSUS: status=${_text(decision['consensusStatus'])}, '
+        'supportingPasses=${_text(decision['supportingPasses'])}, '
+        'conflict=${_text(decision['conflict'])}',
+      )
+      ..writeln(
+        'FINAL DECISION: status=${_text(decision['decision'])}, '
+        'confidence=${_text(decision['confidence'])}, '
+        'reviewRequired=${_text(decision['reviewRequired'])}, '
+        'reason=${_text(decision['decisionReason'])}',
+      );
+  }
+}
+
+void _writeCompactRefinement(StringBuffer out, Map<String, dynamic> branch) {
+  final attempts = _list(branch['localRefinementAttempts']).map(_map).toList();
+  if (attempts.isEmpty) return;
+  out.writeln('\nLOCAL OCR REFINEMENT');
+  for (final attempt in attempts) {
+    out
+      ..writeln(
+        '- targetField=${_text(attempt['targetField'])}, '
+        'regionType=${_text(attempt['regionType'])}, '
+        'triggerReason=${_text(attempt['triggerReason'])}',
+      )
+      ..writeln(
+        '  cropRect=${_lines(_map(attempt['cropRect']))}, '
+        'processedDimensions=${_lines(_map(attempt['ocrInputDimensions']))}, '
+        'preprocessing=${_lines(_map(attempt['preprocessing']))}',
+      )
+      ..writeln('  rawOCR=${_quoted(attempt['rawOcrText'])}')
+      ..writeln(
+        '  candidate=${_compactCandidate(attempt)}, '
+        'result=${_text(attempt['resultStatus'] ?? attempt['status'])}, '
+        'reason=${_text(attempt['rejectionReason'] ?? attempt['reason'])}',
+      );
+  }
+}
+
+void _writeCompactLegacyFallback(
+  StringBuffer out,
+  Map<String, dynamic> branch,
+) {
+  final review = _list(branch['reviewCandidates']).map(_map);
+  final safety = review
+      .map((candidate) => _map(candidate['legacyFallbackSafety']))
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+  if (safety.isEmpty) return;
+  out.writeln('\nLEGACY FALLBACK');
+  for (final item in safety) {
+    out.writeln(
+      'field=${_text(item['field'])}, candidate=${_text(item['legacyCandidateValue'])}, '
+      'status=${_text(item['fallbackStatus'] ?? item['status'])}, '
+      'reason=${_text(item['suppressionReason'] ?? item['reason'])}',
+    );
+  }
+}
+
+String _compactDecisionValue(
+  Map<String, dynamic> decision,
+  Map<String, dynamic> selected,
+  List<dynamic> rawTokens,
+) {
+  final value = decision['value'] ?? selected['value'];
+  final unit = decision['unit'] ?? selected['unit'];
+  final source = selected['sourcePass'] ?? decision['source'];
+  final raw = rawTokens.isEmpty ? selected['rawToken'] : rawTokens.join(' | ');
+  return 'value=${_text(value)}, unit=${_text(unit)}, '
+      'unitStatus=${_text(decision['unitStatus'] ?? selected['unitStatus'])}, '
+      'source=${_text(source)}, raw=${_quoted(raw)}';
+}
+
+String _compactLabel(Map<String, dynamic> label, Object? fallbackStatus) {
+  if (label.isEmpty) return 'NOT AVAILABLE';
+  return 'raw=${_quoted(label['rawText'] ?? label['matchedRawText'])}, '
+      'candidate=${_text(label['candidate'] ?? label['field'])}, '
+      'status=${_text(label['status'] ?? fallbackStatus)}, '
+      'method=${_text(label['recoveryMethod'])}';
+}
+
+String _compactCandidate(Map<String, dynamic> attempt) =>
+    'value=${_text(attempt['numericValue'])}, unit=${_text(attempt['unit'])}, '
+    'unitStatus=${_text(attempt['unitStatus'])}';
+
+String _compactValue(Object? value) {
+  final map = _map(value);
+  return map.isEmpty
+      ? _text(value)
+      : '${_text(map['value'])} ${_text(map['unit'])}';
+}
+
+String _compactAutoFillFields(Map<String, dynamic> branch) =>
+    _list(branch['confidenceDecisions'])
+        .map(_map)
+        .where((item) => item['decision'] == 'AUTO_FILL_ALLOWED')
+        .map((item) => _text(item['field']))
+        .join(', ')
+        .letOrNone();
+
+String _compactReviewFields(Map<String, dynamic> branch) => _list(
+  branch['reviewCandidates'],
+).map(_map).map((item) => _text(item['field'])).join(', ').letOrNone();
+
+String _compactComparison(Map<String, dynamic> branch) {
+  final summary = _map(branch['summary']);
+  return 'labelsDetected=${_text(summary['labelsDetected'])}, '
+      'numericEvidence=${_text(summary['numericValuesDetected'])}, '
+      'mappedFields=${_text(summary['mappedFields'])}, '
+      'parsedFields=${_text(summary['parsedFields'])}, '
+      'localRefinementRuns=${_list(branch['localRefinementAttempts']).length}';
+}
+
+String _quoted(Object? value) => '"${_text(value)}"';
+
+extension on String {
+  String letOrNone() => isEmpty ? 'NONE' : this;
 }
 
 void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
@@ -354,8 +597,14 @@ void _writeMode(StringBuffer out, String title, Map<String, dynamic> branch) {
     ..writeln('\nREVIEW BRIDGE')
     ..writeln(_items(branch['reviewCandidates']))
     ..writeln('\nLEGACY FALLBACK SAFETY')
-    ..writeln(_items(_list(branch['reviewCandidates']).map((item) =>
-        _map(item)['legacyFallbackSafety']).whereType<Map>().toList()))
+    ..writeln(
+      _items(
+        _list(branch['reviewCandidates'])
+            .map((item) => _map(item)['legacyFallbackSafety'])
+            .whereType<Map>()
+            .toList(),
+      ),
+    )
     ..writeln('\nFINAL OCR RESULT')
     ..writeln(_lines(_map(branch['finalResult'])))
     ..writeln('\nFORM BINDING')
