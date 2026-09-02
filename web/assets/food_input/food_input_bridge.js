@@ -969,7 +969,7 @@
     };
   }
 
-  function canvasFromImage(dataUrl, mode) {
+  function canvasFromImage(dataUrl, mode, guideOverride = null) {
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = async () => {
@@ -978,7 +978,7 @@
           height: null,
           orientation: 1,
         }));
-        const guide = mode === 'nutrition' ? ocrGuide : packageGuide;
+        const guide = guideOverride || (mode === 'nutrition' ? ocrGuide : packageGuide);
         const geometry = ocrGeometry(
           image.naturalWidth,
           image.naturalHeight,
@@ -4360,7 +4360,10 @@
     return passes;
   }
 
-  async function createSharedNutritionOcrArtifact(dataUrl) {
+  async function createSharedNutritionOcrArtifact(dataUrl, { manualCrop = false } = {}) {
+    // A confirmed manual crop is the user's selected maximum region. Keep the
+    // established, bounded OCR guide inside that region (it removes only the
+    // crop's edge noise) but never let discovery jump outside it.
     const originalCanvas = await canvasFromImage(dataUrl, 'nutrition');
     const originalInput = { ...lastPhotoDiagnostics };
     // Original image OCR remains the baseline. Auto Crop is an optional view
@@ -4368,26 +4371,44 @@
     const originalPasses = await collectSharedOcrPasses(
       ocrVariants(originalCanvas, 'nutrition'),
     );
-    const discovery = await discoverNutritionCrop(originalCanvas);
+    const discovery = manualCrop
+      ? { cropped: null, candidate: null, reason: 'USER_MANUAL_CROP' }
+      : await discoverNutritionCrop(originalCanvas);
     let cropPasses = null;
     if (discovery.cropped) {
       cropPasses = await collectSharedOcrPasses(
         ocrVariants(discovery.cropped.canvas, 'nutrition'),
       );
     }
-    const viewSelection = selectNutritionOcrView(originalPasses, cropPasses);
+    const viewSelection = manualCrop
+      ? {
+          selectedOcrSource: 'USER_MANUAL_CROP',
+          original: nutritionViewQuality(originalPasses),
+          autoCrop: null,
+        }
+      : selectNutritionOcrView(originalPasses, cropPasses);
     // The two views are correlated observations. This score merely chooses
     // which input remains useful; it never contributes consensus support.
     const selectedOcrSource = viewSelection.selectedOcrSource;
     const useCrop = selectedOcrSource === 'AUTO_CROP';
     const canvas = useCrop ? discovery.cropped.canvas : originalCanvas;
     const passes = useCrop ? cropPasses : originalPasses;
-    const input = cropInputDiagnostics(
-      originalInput,
-      discovery.cropped,
-      discovery.candidate,
-      selectedOcrSource,
-    );
+    const input = manualCrop
+      ? {
+          ...originalInput,
+          autoNutritionCrop: {
+            status: 'SKIPPED_USER_MANUAL_CROP',
+            rect: null,
+            reason: 'USER_MANUAL_CROP',
+            selectedOcrSource,
+          },
+        }
+      : cropInputDiagnostics(
+          originalInput,
+          discovery.cropped,
+          discovery.candidate,
+          selectedOcrSource,
+        );
     lastPhotoDiagnostics = {
       ...input,
       passCount: passes.length,
@@ -4490,11 +4511,14 @@
     engineOverride = null,
     scanStrategy = 'nutritionReader',
     collectDiagnostics = false,
+    imageOrigin = 'originalImage',
   ) {
     const engineId = selectedOcrEngine(mode, engineOverride);
     if (mode === 'nutrition' && engineId === 'tesseract' &&
         scanStrategy === 'nutritionReader') {
-      const artifact = await createSharedNutritionOcrArtifact(dataUrl);
+      const artifact = await createSharedNutritionOcrArtifact(dataUrl, {
+        manualCrop: imageOrigin === 'userManualCrop',
+      });
       return consumeSharedNutritionOcrArtifact(artifact, scanStrategy);
     }
     if (mode === 'nutrition' && engineId === 'paddle') {
@@ -4663,6 +4687,22 @@
         : null;
     }
     return texts.join(ocrPassSeparator);
+  }
+
+  function recognizeManualNutritionText(
+    dataUrl,
+    mode = 'nutrition',
+    engineOverride = null,
+    scanStrategy = 'nutritionReader',
+  ) {
+    return recognizeJapaneseText(
+      dataUrl,
+      mode,
+      engineOverride,
+      scanStrategy,
+      false,
+      'userManualCrop',
+    );
   }
 
   function barcodeFormat(value) {
@@ -5532,14 +5572,14 @@
     };
   }
 
-  async function diagnoseNutritionPhoto(dataUrl) {
+  async function diagnoseNutritionPhoto(dataUrl, { manualCrop = false } = {}) {
     const report = {
       diagnosticVersion: 1,
       generatedAt: new Date().toISOString(),
       engine: 'tesseract',
       persistence: 'none',
     };
-    const artifact = await createSharedNutritionOcrArtifact(dataUrl);
+    const artifact = await createSharedNutritionOcrArtifact(dataUrl, { manualCrop });
     for (const [key, strategy] of [
       ['standard', 'standard'],
       ['nutritionLabelReader', 'nutritionReader'],
@@ -5615,15 +5655,61 @@
     return JSON.stringify(report);
   }
 
+  function diagnoseManualNutritionPhoto(dataUrl) {
+    return diagnoseNutritionPhoto(dataUrl, { manualCrop: true });
+  }
+
+  function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Unable to decode selected image.'));
+      image.src = dataUrl;
+    });
+  }
+
+  async function nutritionImageDimensions(dataUrl) {
+    const image = await loadImage(dataUrl);
+    return JSON.stringify({ width: image.naturalWidth, height: image.naturalHeight });
+  }
+
+  async function cropNutritionImage(dataUrl, sourceRectJson) {
+    const image = await loadImage(dataUrl);
+    const requested = typeof sourceRectJson === 'string'
+      ? JSON.parse(sourceRectJson)
+      : sourceRectJson;
+    const x = Math.max(0, Math.min(image.naturalWidth - 1, Math.round(requested.x)));
+    const y = Math.max(0, Math.min(image.naturalHeight - 1, Math.round(requested.y)));
+    const width = Math.max(1, Math.min(image.naturalWidth - x, Math.round(requested.width)));
+    const height = Math.max(1, Math.min(image.naturalHeight - y, Math.round(requested.height)));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in context) context.imageSmoothingQuality = 'high';
+    context.drawImage(image, x, y, width, height, 0, 0, width, height);
+    return JSON.stringify({
+      dataUrl: canvas.toDataURL('image/jpeg', 0.96),
+      width,
+      height,
+      sourceRect: { x, y, width, height },
+    });
+  }
+
   window.orAppFoodInput = {
     selectImage,
+    nutritionImageDimensions,
+    cropNutritionImage,
     recognizeJapaneseText,
+    recognizeManualNutritionText,
     scanBarcode,
     scanBarcodeLive,
     recognizeTextLive,
     diagnosePaddleResult,
     benchmarkNutritionEngines,
     diagnoseNutritionPhoto,
+    diagnoseManualNutritionPhoto,
     recognizePaddleCanvasForDiagnostics: recognizePaddleNutrition,
     runPaddleSmallFixtureDiagnostic,
     getPaddleDiagnostics: paddleDiagnosticsSnapshot,

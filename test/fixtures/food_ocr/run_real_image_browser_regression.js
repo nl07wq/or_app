@@ -8,7 +8,9 @@ const assert = require('node:assert/strict');
 const debugPort = Number(process.env.OR_APP_OCR_CDP_PORT || 9229);
 const fixturePort = Number(process.env.OR_APP_OCR_FIXTURE_PORT || 43127);
 const summaryOnly = process.argv.includes('--summary');
-const fixtureNames = process.argv.slice(2).filter((argument) => argument !== '--summary');
+const manualCrop = process.argv.includes('--manual-crop');
+const fixtureNames = process.argv.slice(2).filter((argument) =>
+  argument !== '--summary' && argument !== '--manual-crop');
 const fixtures = fixtureNames.length ? fixtureNames : [
   'fixture_a_vertical_nutrition.jpg',
   'fixture_b_horizontal_table.jpg',
@@ -60,7 +62,7 @@ async function createPage(url) {
 
 async function resultForFixture(fixture) {
   const page = await createPage(
-    `http://127.0.0.1:${fixturePort}/real_image_harness.html?fixture=${encodeURIComponent(fixture)}`,
+    `http://127.0.0.1:${fixturePort}/real_image_harness.html?fixture=${encodeURIComponent(fixture)}&manualCrop=${manualCrop}`,
   );
   const deadline = Date.now() + 240000;
   while (Date.now() < deadline) {
@@ -77,6 +79,24 @@ async function resultForFixture(fixture) {
 function assertFixtureOutcome({ fixture, result }) {
   const nutrition = JSON.parse(result).nutritionLabelReader;
   const final = nutrition.finalResult;
+  if (manualCrop) {
+    assert.equal(nutrition.autoNutritionCrop?.status, 'SKIPPED_USER_MANUAL_CROP');
+    if (fixture === 'fixture_a_vertical_nutrition.jpg') {
+      assert.equal(final.calories?.value, 188);
+    }
+    if (fixture === 'fixture_b_horizontal_table.jpg') {
+      assert.equal(final.protein?.value, 0.65);
+      assert.equal(final.fat?.value, 0.51);
+      assert.equal(final.carbohydrate?.value, 0.54);
+    }
+    if (fixture === 'fixture_c_decimal_conflict.jpg') {
+      assert.equal(final.calories?.value, 167);
+      assert.equal(final.protein?.value, 4.4);
+      assert.equal(final.fat?.value, 0.4);
+      assert.equal(final.carbohydrate?.value, 36.5);
+    }
+    return;
+  }
   if (fixture === 'fixture_a_vertical_nutrition.jpg') {
     // Row isolation must never let a neighbouring value become Protein/Fat.
     assert.notEqual(final.protein?.value, 5.2);
@@ -97,11 +117,15 @@ function assertFixtureOutcome({ fixture, result }) {
     // `04g` must never make an unsafe 4g form value. A genuine 0.4g
     // consensus or a retained review state are both safe outcomes.
     assert.notEqual(final.fat?.value, 4);
-    assert.equal(
-      nutrition.autoNutritionCrop?.status,
-      'APPLIED',
-      'Fixture C must exercise nutrition-region discovery before full OCR',
-    );
+    if (manualCrop) {
+      assert.equal(nutrition.autoNutritionCrop?.status, 'SKIPPED_USER_MANUAL_CROP');
+    } else {
+      assert.equal(
+        nutrition.autoNutritionCrop?.status,
+        'APPLIED',
+        'Fixture C must exercise nutrition-region discovery before full OCR',
+      );
+    }
   }
 }
 

@@ -7,6 +7,7 @@
 <script>
   (async () => {
     const fixture = new URLSearchParams(location.search).get('fixture');
+    const manualCrop = new URLSearchParams(location.search).get('manualCrop') === 'true';
     if (!fixture) throw new Error('fixture query parameter is required');
     const response = await fetch(`/fixtures/food_ocr/images/${fixture}`);
     const blob = await response.blob();
@@ -16,7 +17,12 @@
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-    const report = await window.orAppFoodInput.diagnoseNutritionPhoto(dataUrl);
+    // The harness uses the full decoded fixture as an explicit user crop. The
+    // production crop API is exercised separately by Dart transform tests;
+    // this verifies that the manual-origin OCR path bypasses hidden auto crop.
+    const report = manualCrop
+      ? await window.orAppFoodInput.diagnoseManualNutritionPhoto(dataUrl)
+      : await window.orAppFoodInput.diagnoseNutritionPhoto(dataUrl);
     document.getElementById('result').textContent = report;
     document.title = 'COMPLETE';
   })().catch((error) => {

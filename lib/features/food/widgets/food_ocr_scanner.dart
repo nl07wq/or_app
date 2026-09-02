@@ -11,6 +11,7 @@ import '../services/food_ocr_diagnostic_report.dart';
 import '../services/food_live_capture_presenter.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
+import 'food_manual_nutrition_crop.dart';
 
 sealed class FoodOcrResult {
   const FoodOcrResult(this.rawText);
@@ -44,8 +45,9 @@ Future<FoodOcrResult?> showNutritionLabelScanner({
   VoidCallback? onProcessingComplete,
 }) async {
   final capture = await _captureNutrition(
+    context: context,
     gateway: gateway,
-    onImageSelected: onProcessingStart,
+    onProcessingStart: onProcessingStart,
   ).whenComplete(() => onProcessingComplete?.call());
   if (capture == null || !context.mounted) return null;
   final parsed = capture.draft?.isEmpty == false
@@ -80,22 +82,38 @@ Future<
   })?
 >
 _captureNutrition({
+  required BuildContext context,
   required FoodInputCaptureGateway gateway,
-  VoidCallback? onImageSelected,
+  VoidCallback? onProcessingStart,
 }) async {
   // No capture hint: the native file picker owns Camera, Photos, and Files.
   final image = await gateway.selectImage(FoodImageSource.gallery);
   if (image == null) return null;
-  onImageSelected?.call();
+  if (!context.mounted) return null;
+  final FoodCapturedImage? ocrImage;
+  if (gateway is FoodManualNutritionCropGateway) {
+    final cropGateway = gateway as FoodManualNutritionCropGateway;
+    ocrImage = await showManualNutritionCrop(
+      context: context,
+      gateway: cropGateway,
+      image: image,
+    );
+    if (ocrImage == null || !context.mounted) return null;
+  } else {
+    // Non-web gateways retain their existing safe behavior. The production web
+    // path always uses the original-resolution manual crop above.
+    ocrImage = image;
+  }
+  onProcessingStart?.call();
   final rawText = await gateway.recognizeJapaneseText(
-    image,
+    ocrImage,
     mode: FoodTextOcrMode.nutrition,
     engine: FoodOcrEngine.tesseract,
     scanMode: FoodOcrScanMode.nutritionLabelReader,
   );
   return (
     rawText: rawText,
-    image: image,
+    image: ocrImage,
     draft: null,
     conflicts: const <String>{},
     decisions: const <String, Map<String, dynamic>>{},
@@ -533,6 +551,9 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     String unit,
   ) {
     final status = _previewStatus(field);
+    const labelWidth = 116.0;
+    const statusWidth = 82.0;
+    const unitWidth = 34.0;
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: Theme.of(context).dividerColor),
@@ -547,33 +568,54 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
         child: Row(
           children: [
             SizedBox(
-              width: 112,
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                style: Theme.of(context).textTheme.labelSmall,
+              width: labelWidth,
+              child: Align(
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.xs),
             Expanded(
-              child: TextField(
-                key: ValueKey('nutrition-preview-$field'),
-                controller: controller,
-                onChanged: (_) => setState(() {}),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                style: Theme.of(context).textTheme.titleSmall,
-                decoration: InputDecoration(
-                  isDense: true,
-                  suffixText: unit,
-                  border: InputBorder.none,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: ValueKey('nutrition-preview-$field'),
+                      controller: controller,
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleSmall,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: unitWidth,
+                    child: Text(
+                      unit,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: AppSpacing.xs),
-            _OcrStatusChip(status: status),
+            SizedBox(
+              width: statusWidth,
+              child: Center(child: _OcrStatusChip(status: status)),
+            ),
           ],
         ),
       ),

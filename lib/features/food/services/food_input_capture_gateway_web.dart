@@ -14,7 +14,10 @@ FoodInputCaptureGateway createPlatformFoodInputCaptureGateway() =>
 external JSObject get _window;
 
 class WebFoodInputCaptureGateway
-    implements FoodLiveCaptureGateway, FoodOcrDiagnosticGateway {
+    implements
+        FoodLiveCaptureGateway,
+        FoodOcrDiagnosticGateway,
+        FoodManualNutritionCropGateway {
   JSObject get _bridge {
     if (!_window.has('orAppFoodInput')) {
       throw StateError('Food input browser bridge is unavailable.');
@@ -40,9 +43,12 @@ class WebFoodInputCaptureGateway
     FoodOcrEngine engine = FoodOcrEngine.tesseract,
     FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
   }) async {
+    final method = image.origin == FoodOcrImageOrigin.userManualCrop
+        ? 'recognizeManualNutritionText'
+        : 'recognizeJapaneseText';
     final result = await _bridge
         .callMethod<JSPromise<JSString>>(
-          'recognizeJapaneseText'.toJS,
+          method.toJS,
           image.dataUrl.toJS,
           mode.name.toJS,
           engine.bridgeValue.toJS,
@@ -50,6 +56,46 @@ class WebFoodInputCaptureGateway
         )
         .toDart;
     return result.toDart;
+  }
+
+  @override
+  Future<FoodImageDimensions> nutritionImageDimensions(
+    FoodCapturedImage image,
+  ) async {
+    final result = await _bridge
+        .callMethod<JSPromise<JSString>>(
+          'nutritionImageDimensions'.toJS,
+          image.dataUrl.toJS,
+        )
+        .toDart;
+    final payload = jsonDecode(result.toDart) as Map<String, dynamic>;
+    return FoodImageDimensions(
+      width: payload['width'] as int,
+      height: payload['height'] as int,
+    );
+  }
+
+  @override
+  Future<FoodCapturedImage> cropNutritionImage(
+    FoodCapturedImage image,
+    FoodImageCropRect sourceRect,
+  ) async {
+    final result = await _bridge
+        .callMethod<JSPromise<JSString>>(
+          'cropNutritionImage'.toJS,
+          image.dataUrl.toJS,
+          jsonEncode({
+            'x': sourceRect.x,
+            'y': sourceRect.y,
+            'width': sourceRect.width,
+            'height': sourceRect.height,
+          }).toJS,
+        )
+        .toDart;
+    return FoodCapturedImage(
+      (jsonDecode(result.toDart) as Map<String, dynamic>)['dataUrl'] as String,
+      origin: FoodOcrImageOrigin.userManualCrop,
+    );
   }
 
   @override

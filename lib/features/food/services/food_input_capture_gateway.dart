@@ -11,6 +11,31 @@ enum FoodOcrEngine { tesseract, paddle }
 
 enum FoodOcrScanMode { standard, nutritionLabelReader }
 
+/// Identifies the pixels given to the OCR pipeline without conflating a
+/// user-confirmed crop with an automatic OCR optimization.
+enum FoodOcrImageOrigin { originalImage, userManualCrop, autoCrop }
+
+class FoodImageDimensions {
+  const FoodImageDimensions({required this.width, required this.height});
+
+  final int width;
+  final int height;
+}
+
+class FoodImageCropRect {
+  const FoodImageCropRect({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 extension FoodOcrScanModePresentation on FoodOcrScanMode {
   String get bridgeValue => switch (this) {
     FoodOcrScanMode.standard => 'standard',
@@ -33,9 +58,13 @@ extension FoodOcrEnginePresentation on FoodOcrEngine {
 }
 
 class FoodCapturedImage {
-  const FoodCapturedImage(this.dataUrl);
+  const FoodCapturedImage(
+    this.dataUrl, {
+    this.origin = FoodOcrImageOrigin.originalImage,
+  });
 
   final String dataUrl;
+  final FoodOcrImageOrigin origin;
 }
 
 class FoodBarcodeCandidate {
@@ -65,6 +94,17 @@ abstract interface class FoodInputCaptureGateway {
   });
 
   Future<String?> scanBarcode(FoodCapturedImage image);
+}
+
+/// Web-capable image operations used by the fixed-viewport nutrition crop.
+/// The crop is always calculated in decoded source-image coordinates.
+abstract interface class FoodManualNutritionCropGateway {
+  Future<FoodImageDimensions> nutritionImageDimensions(FoodCapturedImage image);
+
+  Future<FoodCapturedImage> cropNutritionImage(
+    FoodCapturedImage image,
+    FoodImageCropRect sourceRect,
+  );
 }
 
 abstract interface class FoodLiveCaptureGateway
