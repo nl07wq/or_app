@@ -1182,53 +1182,106 @@
     return { canvas: cropped, sourceRect, guide: cropped.__orNutritionGuideGeometry };
   }
 
-  async function prepareNutritionCanvasForOcr(canvas) {
+  async function discoverNutritionCrop(canvas) {
     try {
       const discovery = await recognizeLayoutPass(canvas.toDataURL('image/jpeg', 0.9));
       const candidate = nutritionRegionFromDiscovery(canvas, discovery.tsv || '');
       if (candidate.status !== 'APPLIED') {
-        if (lastPhotoDiagnostics) lastPhotoDiagnostics.autoNutritionCrop = candidate;
-        return canvas;
+        return { candidate, cropped: null };
       }
       const cropped = cropNutritionCanvas(canvas, candidate.rect);
       if (!cropped) {
-        if (lastPhotoDiagnostics) {
-          lastPhotoDiagnostics.autoNutritionCrop = {
+        return {
+          candidate: {
             status: 'FALLBACK_ORIGINAL', rect: null, reason: 'invalid-crop-geometry',
-          };
-        }
-        return canvas;
-      }
-      if (lastPhotoDiagnostics) {
-        lastPhotoDiagnostics.autoNutritionCrop = {
-          status: 'APPLIED',
-          rect: {
-            x: cropped.guide.sourceX, y: cropped.guide.sourceY,
-            width: cropped.guide.sourceWidth, height: cropped.guide.sourceHeight,
           },
-          reason: candidate.reason,
+          cropped: null,
         };
-        lastPhotoDiagnostics.cropX = cropped.guide.sourceX;
-        lastPhotoDiagnostics.cropY = cropped.guide.sourceY;
-        lastPhotoDiagnostics.cropWidth = cropped.guide.sourceWidth;
-        lastPhotoDiagnostics.cropHeight = cropped.guide.sourceHeight;
-        lastPhotoDiagnostics.preResizeWidth = cropped.guide.sourceWidth;
-        lastPhotoDiagnostics.preResizeHeight = cropped.guide.sourceHeight;
-        lastPhotoDiagnostics.inputWidth = cropped.canvas.width;
-        lastPhotoDiagnostics.inputHeight = cropped.canvas.height;
-        lastPhotoDiagnostics.resizeScale = cropped.canvas.width /
-          Math.max(1, cropped.guide.sourceWidth);
-        lastPhotoDiagnostics.resizeMethod = 'nutrition-discovery-crop+canvas-resize';
       }
-      return cropped.canvas;
+      return { candidate, cropped };
     } catch (_) {
-      if (lastPhotoDiagnostics) {
-        lastPhotoDiagnostics.autoNutritionCrop = {
+      return {
+        candidate: {
           status: 'FALLBACK_ORIGINAL', rect: null, reason: 'discovery-ocr-unavailable',
-        };
-      }
-      return canvas;
+        },
+        cropped: null,
+      };
     }
+  }
+
+  function nutritionViewQuality(passes) {
+    const labels = new Set();
+    const values = new Set();
+    let headings = 0;
+    for (const pass of passes || []) {
+      const words = tsvWords(pass.tsv || '');
+      const groups = lineGroups(words);
+      for (const anchor of nutritionAnchors(groups)) labels.add(anchor.field);
+      for (const value of numericValues(groups)) {
+        if (!['kcal', 'g', 'mg'].includes(value.unit)) continue;
+        values.add(`${value.lineKey}:${value.left}:${value.value}:${value.unit}`);
+      }
+      if (words.some(nutritionHeadingWord)) headings += 1;
+    }
+    return {
+      labels: labels.size,
+      compatibleValues: values.size,
+      headings,
+      score: labels.size * 4 + values.size * 2 + Math.min(2, headings),
+    };
+  }
+
+  function selectNutritionOcrView(originalPasses, cropPasses) {
+    const original = nutritionViewQuality(originalPasses);
+    const autoCrop = cropPasses ? nutritionViewQuality(cropPasses) : null;
+    const selectedOcrSource = autoCrop &&
+      autoCrop.score > original.score + 2 &&
+      autoCrop.labels >= original.labels &&
+      autoCrop.compatibleValues >= original.compatibleValues
+      ? 'AUTO_CROP'
+      : 'ORIGINAL_IMAGE';
+    return { selectedOcrSource, original, autoCrop };
+  }
+
+  function cropInputDiagnostics(input, cropped, candidate, selectedOcrSource) {
+    if (!cropped || selectedOcrSource !== 'AUTO_CROP') {
+      const guide = cropped?.guide;
+      return {
+        ...input,
+        autoNutritionCrop: {
+          status: cropped ? 'APPLIED' : 'FALLBACK_ORIGINAL',
+          rect: guide ? {
+            x: guide.sourceX, y: guide.sourceY,
+            width: guide.sourceWidth, height: guide.sourceHeight,
+          } : null,
+          reason: candidate.reason,
+          selectedOcrSource: 'ORIGINAL_IMAGE',
+        },
+      };
+    }
+    const guide = cropped.guide;
+    return {
+      ...input,
+      cropX: guide.sourceX,
+      cropY: guide.sourceY,
+      cropWidth: guide.sourceWidth,
+      cropHeight: guide.sourceHeight,
+      preResizeWidth: guide.sourceWidth,
+      preResizeHeight: guide.sourceHeight,
+      inputWidth: cropped.canvas.width,
+      inputHeight: cropped.canvas.height,
+      resizeScale: cropped.canvas.width / Math.max(1, guide.sourceWidth),
+      resizeMethod: 'nutrition-discovery-crop+canvas-resize',
+      autoNutritionCrop: {
+        status: 'APPLIED',
+        rect: {
+          x: guide.sourceX, y: guide.sourceY,
+          width: guide.sourceWidth, height: guide.sourceHeight,
+        },
+        reason: candidate.reason,
+        selectedOcrSource,
+      },
+    };
   }
 
   function processedVariant(source, contrast) {
@@ -4308,24 +4361,52 @@
   }
 
   async function createSharedNutritionOcrArtifact(dataUrl) {
-    let canvas = await canvasFromImage(dataUrl, 'nutrition');
-    canvas = await prepareNutritionCanvasForOcr(canvas);
-    const passes = await collectSharedOcrPasses(
-      ocrVariants(canvas, 'nutrition'),
+    const originalCanvas = await canvasFromImage(dataUrl, 'nutrition');
+    const originalInput = { ...lastPhotoDiagnostics };
+    // Original image OCR remains the baseline. Auto Crop is an optional view
+    // of the same pixels and is never allowed to replace a stronger baseline.
+    const originalPasses = await collectSharedOcrPasses(
+      ocrVariants(originalCanvas, 'nutrition'),
     );
-    if (lastPhotoDiagnostics) {
-      lastPhotoDiagnostics.passCount = passes.length;
-      lastPhotoDiagnostics.passDurationsMs = passes.map((pass) => pass.durationMs);
-      lastPhotoDiagnostics.structuredDurationMs = null;
-      lastPhotoDiagnostics.engineId = 'tesseract';
+    const discovery = await discoverNutritionCrop(originalCanvas);
+    let cropPasses = null;
+    if (discovery.cropped) {
+      cropPasses = await collectSharedOcrPasses(
+        ocrVariants(discovery.cropped.canvas, 'nutrition'),
+      );
     }
+    const viewSelection = selectNutritionOcrView(originalPasses, cropPasses);
+    // The two views are correlated observations. This score merely chooses
+    // which input remains useful; it never contributes consensus support.
+    const selectedOcrSource = viewSelection.selectedOcrSource;
+    const useCrop = selectedOcrSource === 'AUTO_CROP';
+    const canvas = useCrop ? discovery.cropped.canvas : originalCanvas;
+    const passes = useCrop ? cropPasses : originalPasses;
+    const input = cropInputDiagnostics(
+      originalInput,
+      discovery.cropped,
+      discovery.candidate,
+      selectedOcrSource,
+    );
+    lastPhotoDiagnostics = {
+      ...input,
+      passCount: passes.length,
+      passDurationsMs: passes.map((pass) => pass.durationMs),
+      structuredDurationMs: null,
+      engineId: 'tesseract',
+    };
     return {
       artifactId: `nutrition-${Date.now()}-${++sharedOcrArtifactSequence}`,
       generatedOnce: true,
       consumerModes: ['STANDARD', 'NUTRITION'],
       canvas,
-      input: { ...lastPhotoDiagnostics },
+      input,
       passes,
+      ocrViews: {
+        selectedOcrSource,
+        original: viewSelection.original,
+        autoCrop: viewSelection.autoCrop,
+      },
     };
   }
 
@@ -4358,7 +4439,9 @@
         generatedOnce: artifact.generatedOnce,
         consumerModes: artifact.consumerModes,
         passCount: artifact.passes.length,
+        selectedOcrSource: artifact.ocrViews?.selectedOcrSource || 'ORIGINAL_IMAGE',
       },
+      ocrViews: artifact.ocrViews || null,
       rawStage: {
         detectedLabels: labelDiagnostics(originalGroups, originalAnchors),
         tokenRecovery: originalValues.map((value) => numericDiagnostic(value, originalAnchors)),
@@ -4409,6 +4492,11 @@
     collectDiagnostics = false,
   ) {
     const engineId = selectedOcrEngine(mode, engineOverride);
+    if (mode === 'nutrition' && engineId === 'tesseract' &&
+        scanStrategy === 'nutritionReader') {
+      const artifact = await createSharedNutritionOcrArtifact(dataUrl);
+      return consumeSharedNutritionOcrArtifact(artifact, scanStrategy);
+    }
     if (mode === 'nutrition' && engineId === 'paddle') {
       startPaddleDiagnostics('photo', {}, engineId);
       recordPaddleStage('P15', 'started');
@@ -4421,9 +4509,6 @@
         failPaddleDiagnostics(error, 'P15');
       }
       throw error;
-    }
-    if (mode === 'nutrition' && engineId === 'tesseract') {
-      canvas = await prepareNutritionCanvasForOcr(canvas);
     }
     if (mode === 'nutrition' && engineId === 'paddle') {
       recordPaddleStage('P16', 'success', {
@@ -5357,6 +5442,7 @@
       autoNutritionCrop: input.autoNutritionCrop || {
         status: 'FALLBACK_ORIGINAL', rect: null, reason: 'not-observable',
       },
+      selectedOcrSource: input.autoNutritionCrop?.selectedOcrSource || 'ORIGINAL_IMAGE',
       cropDimensions: { width: input.cropWidth, height: input.cropHeight },
       preResizeDimensions: {
         width: input.preResizeWidth ?? input.cropWidth,
@@ -5384,6 +5470,7 @@
       })),
       inputPreviewDataUrl: pipeline.inputPreviewDataUrl,
       sharedOcrArtifact: pipeline.sharedOcrArtifact || null,
+      ocrViews: pipeline.ocrViews || null,
       rawText: pipeline.rawText || '',
       lines: (pipeline.passes || []).flatMap((pass) => pass.lines || []),
       words,
@@ -5688,6 +5775,15 @@
       ocrGeometry(width, height, mode === 'nutrition' ? ocrGuide : packageGuide),
     nutritionRegionFromTsvForTesting: (tsv, width = 1200, height = 800) =>
       nutritionRegionFromDiscovery({ width, height }, tsv),
+    selectNutritionOcrViewForTesting: (originalTsvs, cropTsvs) =>
+      selectNutritionOcrView(
+        (originalTsvs || []).map((tsv, index) => ({
+          name: `original-${index}`, tsv,
+        })),
+        cropTsvs ? cropTsvs.map((tsv, index) => ({
+          name: `crop-${index}`, tsv,
+        })) : null,
+      ),
     recoverNumericTokenForDiagnostics: recoverNumericToken,
     recoverLabelForDiagnostics: labelRecovery,
     recoverBasisForDiagnostics: recoverNutritionBasis,

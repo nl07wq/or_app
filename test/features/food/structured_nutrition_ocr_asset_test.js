@@ -122,6 +122,26 @@ async function main() {
     reason: 'insufficient-nutrition-row-cluster',
   });
 
+  const weakCrop = tsv([
+    word(1, 1, 10, 20, 120, 'エネルギー'),
+    word(1, 2, 180, 20, 70, '201kcal'),
+  ]);
+  const originalWins = window.orAppFoodInput.selectNutritionOcrViewForTesting(
+    [vertical],
+    [weakCrop],
+  );
+  assert.equal(originalWins.selectedOcrSource, 'ORIGINAL_IMAGE');
+  const cropWins = window.orAppFoodInput.selectNutritionOcrViewForTesting(
+    [weakCrop],
+    [vertical],
+  );
+  assert.equal(cropWins.selectedOcrSource, 'AUTO_CROP');
+  const noCrop = window.orAppFoodInput.selectNutritionOcrViewForTesting(
+    [vertical],
+    null,
+  );
+  assert.equal(noCrop.selectedOcrSource, 'ORIGINAL_IMAGE');
+
   const twoColumn = tsv([
     word(1, 1, 10, 10, 120, 'エネルギー'),
     word(1, 2, 300, 10, 70, '201kcal'),

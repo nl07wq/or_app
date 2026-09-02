@@ -128,6 +128,7 @@ async function main() {
         reviewRequired: decision.reviewRequired, decision: decision.decision,
       })),
       autoNutritionCrop: nutrition.autoNutritionCrop,
+      ocrViews: nutrition.ocrViews,
       localRefinement: nutrition.localRefinementAttempts.map((attempt) => ({
         targetField: attempt.targetField, regionType: attempt.regionType,
         triggerReason: attempt.triggerReason || null,

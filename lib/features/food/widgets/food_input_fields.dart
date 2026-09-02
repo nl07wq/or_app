@@ -492,30 +492,24 @@ class _NutritionAnalysisPainter extends CustomPainter {
     final outer = size.shortestSide * .42;
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
+      ..strokeWidth = 3.2
       ..strokeCap = StrokeCap.round;
-    paint.color = mutedColor.withValues(alpha: .5);
+    paint.color = mutedColor.withValues(alpha: .35);
     canvas.drawCircle(center, outer, paint);
-    canvas.drawCircle(center, outer * .48, paint);
     paint.color = color;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: outer),
       progress * math.pi * 2,
-      math.pi * .72,
+      math.pi * .62,
       false,
-      paint..strokeWidth = 2.6,
+      paint,
     );
-    final sweep = Offset(
-      center.dx + math.cos(progress * math.pi * 2) * outer * .78,
-      center.dy + math.sin(progress * math.pi * 2) * outer * .78,
-    );
-    canvas.drawLine(center, sweep, paint..strokeWidth = 1.2);
-    canvas.drawCircle(center, outer * .16, paint..style = PaintingStyle.fill);
   }
 
   @override
   bool shouldRepaint(covariant _NutritionAnalysisPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.color != color ||
+      oldDelegate.progress != progress ||
+      oldDelegate.color != color ||
       oldDelegate.mutedColor != mutedColor;
 }
 

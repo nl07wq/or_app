@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
@@ -315,6 +317,69 @@ void main() {
     },
   );
 
+  testWidgets(
+    'nutrition analysis indicator follows image processing, not picker wait',
+    (tester) async {
+      final gateway = _DeferredNutritionGateway();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: gateway,
+                onSave: (_) async => true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
+      await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
+      await tester.pump();
+      expect(find.text('ANALYZING NUTRITION LABEL'), findsNothing);
+
+      gateway.selection.complete(
+        const FoodCapturedImage('data:image/png;base64,AA=='),
+      );
+      await tester.pump();
+      expect(find.text('ANALYZING NUTRITION LABEL'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      gateway.ocr.complete('100g当たり\n熱量 154kcal\nたんぱく質 1.9g');
+      await tester.pumpAndSettle();
+      expect(find.text('OCR PREVIEW'), findsOneWidget);
+      expect(find.text('ANALYZING NUTRITION LABEL'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'nutrition picker cancellation never leaves an analysis indicator',
+    (tester) async {
+      final gateway = _DeferredNutritionGateway();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                captureGateway: gateway,
+                onSave: (_) async => true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
+      await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
+      await tester.pump();
+      gateway.selection.complete(null);
+      await tester.pumpAndSettle();
+      expect(find.text('ANALYZING NUTRITION LABEL'), findsNothing);
+      expect(find.text('OCR PREVIEW'), findsNothing);
+    },
+  );
+
   testWidgets('preview edits override OCR candidates without saving', (
     tester,
   ) async {
@@ -505,7 +570,10 @@ void main() {
       find.descendant(of: preview, matching: find.text('PROTEIN')),
       findsOneWidget,
     );
-    expect(find.descendant(of: preview, matching: find.text('FAT')), findsOneWidget);
+    expect(
+      find.descendant(of: preview, matching: find.text('FAT')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(of: preview, matching: find.text('CARBOHYDRATE')),
       findsOneWidget,
@@ -628,6 +696,13 @@ void main() {
       expect(find.text('PADDLE PoC'), findsNothing);
       expect(tester.takeException(), isNull, reason: 'scanner width $width');
       expect(find.text('OCR PREVIEW'), findsOneWidget);
+      final carbohydrateLabel = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text('CARBOHYDRATE'),
+        ),
+      );
+      expect(carbohydrateLabel.maxLines, 1);
       expect(tester.takeException(), isNull, reason: 'nutrition width $width');
       await tester.tap(find.text('CANCEL'));
       await tester.pumpAndSettle();
@@ -836,6 +911,29 @@ class _LiveGateway implements FoodLiveCaptureGateway {
   Future<FoodCapturedImage?> selectImage(FoodImageSource source) async {
     selectedSources.add(source);
     return const FoodCapturedImage('data:image/png;base64,AA==');
+  }
+}
+
+class _DeferredNutritionGateway extends _LiveGateway {
+  final selection = Completer<FoodCapturedImage?>();
+  final ocr = Completer<String>();
+
+  @override
+  Future<FoodCapturedImage?> selectImage(FoodImageSource source) {
+    selectedSources.add(source);
+    return selection.future;
+  }
+
+  @override
+  Future<String> recognizeJapaneseText(
+    FoodCapturedImage image, {
+    FoodTextOcrMode mode = FoodTextOcrMode.package,
+    FoodOcrEngine engine = FoodOcrEngine.tesseract,
+    FoodOcrScanMode scanMode = FoodOcrScanMode.nutritionLabelReader,
+  }) {
+    lastOcrMode = mode;
+    lastScanMode = scanMode;
+    return ocr.future;
   }
 }
 

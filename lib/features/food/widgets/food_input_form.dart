@@ -500,13 +500,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Future<void> _scanOcr() async {
     setState(() {
-      _capturingNutrition = true;
       inputError = null;
     });
     try {
       final result = await showNutritionLabelScanner(
         context: context,
         gateway: _captureGateway,
+        onProcessingStart: () {
+          if (mounted) setState(() => _capturingNutrition = true);
+        },
         onProcessingComplete: () {
           if (mounted) setState(() => _capturingNutrition = false);
         },

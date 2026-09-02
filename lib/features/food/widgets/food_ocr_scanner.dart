@@ -40,10 +40,13 @@ class FoodNutritionOcrResult extends FoodOcrResult {
 Future<FoodOcrResult?> showNutritionLabelScanner({
   required BuildContext context,
   required FoodInputCaptureGateway gateway,
+  VoidCallback? onProcessingStart,
   VoidCallback? onProcessingComplete,
 }) async {
-  final capture = await _captureNutrition(gateway: gateway);
-  onProcessingComplete?.call();
+  final capture = await _captureNutrition(
+    gateway: gateway,
+    onImageSelected: onProcessingStart,
+  ).whenComplete(() => onProcessingComplete?.call());
   if (capture == null || !context.mounted) return null;
   final parsed = capture.draft?.isEmpty == false
       ? (
@@ -76,10 +79,14 @@ Future<
     Map<String, Map<String, dynamic>> decisions,
   })?
 >
-_captureNutrition({required FoodInputCaptureGateway gateway}) async {
+_captureNutrition({
+  required FoodInputCaptureGateway gateway,
+  VoidCallback? onImageSelected,
+}) async {
   // No capture hint: the native file picker owns Camera, Photos, and Files.
   final image = await gateway.selectImage(FoodImageSource.gallery);
   if (image == null) return null;
+  onImageSelected?.call();
   final rawText = await gateway.recognizeJapaneseText(
     image,
     mode: FoodTextOcrMode.nutrition,
@@ -477,35 +484,17 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                       padding: EdgeInsets.only(bottom: AppSpacing.sm),
                       child: Text('OBSERVED NUTRITION'),
                     ),
-                    LayoutBuilder(
-                      builder: (context, constraints) => Wrap(
-                        spacing: AppSpacing.sm,
-                        runSpacing: AppSpacing.sm,
-                        children: [
-                          _metricCard(
-                            'ENERGY',
-                            'ENERGY',
-                            _calories,
-                            'kcal',
-                            constraints,
-                          ),
-                          _metricCard(
-                            'PROTEIN',
-                            'PROTEIN',
-                            _protein,
-                            'g',
-                            constraints,
-                          ),
-                          _metricCard('FAT', 'FAT', _fat, 'g', constraints),
-                          _metricCard(
-                            'CARBOHYDRATE',
-                            'CARBOHYDRATE',
-                            _carbohydrate,
-                            'g',
-                            constraints,
-                          ),
-                        ],
-                      ),
+                    _metricRow('ENERGY', 'ENERGY', _calories, 'kcal'),
+                    const SizedBox(height: AppSpacing.xs),
+                    _metricRow('PROTEIN', 'PROTEIN', _protein, 'g'),
+                    const SizedBox(height: AppSpacing.xs),
+                    _metricRow('FAT', 'FAT', _fat, 'g'),
+                    const SizedBox(height: AppSpacing.xs),
+                    _metricRow(
+                      'CARBOHYDRATE',
+                      'CARBOHYDRATE',
+                      _carbohydrate,
+                      'g',
                     ),
                   ],
                 ),
@@ -537,53 +526,55 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     ),
   );
 
-  Widget _metricCard(
+  Widget _metricRow(
     String label,
     String field,
     TextEditingController controller,
     String unit,
-    BoxConstraints constraints,
   ) {
     final status = _previewStatus(field);
-    final width = constraints.maxWidth >= 320
-        ? (constraints.maxWidth - AppSpacing.sm) / 2
-        : constraints.maxWidth;
-    return SizedBox(
-      width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: BorderRadius.circular(12),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(label)),
-                  _OcrStatusChip(status: status),
-                ],
+        child: Row(
+          children: [
+            SizedBox(
+              width: 112,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: Theme.of(context).textTheme.labelSmall,
               ),
-              const SizedBox(height: AppSpacing.xs),
-              TextField(
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: TextField(
                 key: ValueKey('nutrition-preview-$field'),
                 controller: controller,
                 onChanged: (_) => setState(() {}),
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleSmall,
                 decoration: InputDecoration(
                   isDense: true,
                   suffixText: unit,
                   border: InputBorder.none,
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            _OcrStatusChip(status: status),
+          ],
         ),
       ),
     );
