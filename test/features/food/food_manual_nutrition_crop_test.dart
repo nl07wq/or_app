@@ -32,6 +32,122 @@ void main() {
     expect(rect.bottom, lessThanOrEqualTo(source.height.toDouble()));
   });
 
+  test('pan follows the finger directly during an active gesture', () {
+    final offset = FoodManualCropInteraction.offsetForGesture(
+      startImageOffset: const Offset(-20, -40),
+      startFocalPoint: const Offset(200, 160),
+      currentFocalPoint: const Offset(240, 185),
+      startScale: .5,
+      currentScale: .5,
+    );
+
+    expect(offset, const Offset(20, -15));
+  });
+
+  test('pinch preserves the source point beneath its focal point', () {
+    const focal = Offset(180, 140);
+    const startOffset = Offset(-80, -60);
+    const startScale = .5;
+    const nextScale = .9;
+    final sourcePoint = (focal - startOffset) / startScale;
+    final offset = FoodManualCropInteraction.offsetForGesture(
+      startImageOffset: startOffset,
+      startFocalPoint: focal,
+      currentFocalPoint: focal,
+      startScale: startScale,
+      currentScale: nextScale,
+    );
+
+    final remapped = (focal - offset) / nextScale;
+    expect(remapped.dx, closeTo(sourcePoint.dx, .001));
+    expect(remapped.dy, closeTo(sourcePoint.dy, .001));
+  });
+
+  test('one-finger pan to pinch and back keeps the current transform', () {
+    const start = Offset(-40, -30);
+    const firstFocal = Offset(160, 130);
+    final afterPan = FoodManualCropInteraction.offsetForGesture(
+      startImageOffset: start,
+      startFocalPoint: firstFocal,
+      currentFocalPoint: const Offset(190, 145),
+      startScale: .6,
+      currentScale: .6,
+    );
+    const pinchFocal = Offset(190, 145);
+    final afterPinch = FoodManualCropInteraction.offsetForGesture(
+      startImageOffset: afterPan,
+      startFocalPoint: pinchFocal,
+      currentFocalPoint: pinchFocal,
+      startScale: .6,
+      currentScale: .9,
+    );
+    final afterSecondPan = FoodManualCropInteraction.offsetForGesture(
+      startImageOffset: afterPinch,
+      startFocalPoint: pinchFocal,
+      currentFocalPoint: const Offset(205, 155),
+      startScale: .9,
+      currentScale: .9,
+    );
+
+    expect(afterPan, const Offset(-10, -15));
+    expect(afterSecondPan - afterPinch, const Offset(15, 10));
+  });
+
+  test('end correction clamps only the exposed edge to coverage', () {
+    const crop = Rect.fromLTWH(100, 100, 200, 160);
+    final corrected = FoodManualCropInteraction.clampToCoverage(
+      viewport: crop,
+      imageSize: const Size(300, 300),
+      candidate: const Offset(140, -20),
+    );
+
+    expect(corrected.dx, 100);
+    expect(corrected.dy, -20);
+  });
+
+  test(
+    'active interaction permits bounded elasticity before end correction',
+    () {
+      const crop = Rect.fromLTWH(100, 100, 200, 160);
+      final active = FoodManualCropInteraction.limitWithElasticity(
+        viewport: crop,
+        imageSize: const Size(300, 260),
+        candidate: const Offset(30, -20),
+        overscroll: 40,
+      );
+
+      expect(active.dx, 30);
+      expect(active.dy, -20);
+    },
+  );
+
+  test('relative scale normalizes to the valid crop range at gesture end', () {
+    expect(FoodManualCropInteraction.normalizedRelativeScale(.85), 1);
+    expect(FoodManualCropInteraction.normalizedRelativeScale(2.4), 2.4);
+    expect(FoodManualCropInteraction.normalizedRelativeScale(8), 5);
+  });
+
+  test('coverage clamping supports every crop boundary', () {
+    const crop = Rect.fromLTWH(100, 100, 200, 160);
+    const image = Size(500, 460);
+    expect(
+      FoodManualCropInteraction.clampToCoverage(
+        viewport: crop,
+        imageSize: image,
+        candidate: const Offset(500, 500),
+      ),
+      const Offset(100, 100),
+    );
+    expect(
+      FoodManualCropInteraction.clampToCoverage(
+        viewport: crop,
+        imageSize: image,
+        candidate: const Offset(-500, -500),
+      ),
+      const Offset(-200, -200),
+    );
+  });
+
   testWidgets('manual crop requires confirmation before creating OCR input', (
     tester,
   ) async {
@@ -91,6 +207,55 @@ void main() {
     expect(gateway.lastRect, isNotNull);
     expect(gateway.lastRect!.width, greaterThan(1));
     expect(gateway.lastRect!.height, greaterThan(1));
+  });
+
+  testWidgets('source image stays visible and pans during active touch', (
+    tester,
+  ) async {
+    final gateway = _CropGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showManualNutritionCrop(
+              context: context,
+              gateway: gateway,
+              image: const FoodCapturedImage('data:image/png;base64,AA=='),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN'));
+    await tester.pumpAndSettle();
+    final transformFinder = find.descendant(
+      of: find.byKey(const ValueKey('manual-nutrition-crop-image-layer')),
+      matching: find.byType(Transform),
+    );
+    final before = tester
+        .widget<Transform>(transformFinder)
+        .transform
+        .getTranslation();
+    final gesture = await tester.startGesture(
+      tester.getCenter(
+        find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
+      ),
+    );
+    await gesture.moveBy(const Offset(40, 25));
+    await tester.pump();
+    final during = tester
+        .widget<Transform>(transformFinder)
+        .transform
+        .getTranslation();
+
+    expect(
+      find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
+      findsOneWidget,
+    );
+    expect(during.x - before.x, closeTo(40, 1));
+    expect(during.y - before.y, closeTo(25, 1));
+    await gesture.up();
   });
 }
 

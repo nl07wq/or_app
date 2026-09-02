@@ -30,6 +30,79 @@ class FoodManualCropTransform {
       );
 }
 
+/// Pure display-space interaction math for the fixed crop viewport.
+///
+/// The image offset is its displayed top-left corner. Keeping this separate
+/// from original-pixel extraction makes direct pan and focal-point zoom
+/// deterministic and testable.
+class FoodManualCropInteraction {
+  const FoodManualCropInteraction._();
+
+  static double normalizedRelativeScale(double value) =>
+      value.clamp(1.0, 5.0).toDouble();
+
+  static Offset offsetForGesture({
+    required Offset startImageOffset,
+    required Offset startFocalPoint,
+    required Offset currentFocalPoint,
+    required double startScale,
+    required double currentScale,
+  }) {
+    final scaleRatio = currentScale / startScale;
+    return currentFocalPoint -
+        (startFocalPoint - startImageOffset) * scaleRatio;
+  }
+
+  static Offset offsetForScaleAtFocalPoint({
+    required Offset imageOffset,
+    required Offset focalPoint,
+    required double currentScale,
+    required double nextScale,
+  }) {
+    final scaleRatio = nextScale / currentScale;
+    return focalPoint - (focalPoint - imageOffset) * scaleRatio;
+  }
+
+  static Offset clampToCoverage({
+    required Rect viewport,
+    required Size imageSize,
+    required Offset candidate,
+  }) => Offset(
+    candidate.dx
+        .clamp(viewport.right - imageSize.width, viewport.left)
+        .toDouble(),
+    candidate.dy
+        .clamp(viewport.bottom - imageSize.height, viewport.top)
+        .toDouble(),
+  );
+
+  static Offset limitWithElasticity({
+    required Rect viewport,
+    required Size imageSize,
+    required Offset candidate,
+    required double overscroll,
+  }) {
+    final minX = viewport.right - imageSize.width;
+    final maxX = viewport.left;
+    final minY = viewport.bottom - imageSize.height;
+    final maxY = viewport.top;
+    return Offset(
+      candidate.dx
+          .clamp(
+            (minX < maxX ? minX : maxX) - overscroll,
+            (minX > maxX ? minX : maxX) + overscroll,
+          )
+          .toDouble(),
+      candidate.dy
+          .clamp(
+            (minY < maxY ? minY : maxY) - overscroll,
+            (minY > maxY ? minY : maxY) + overscroll,
+          )
+          .toDouble(),
+    );
+  }
+}
+
 Future<FoodCapturedImage?> showManualNutritionCrop({
   required BuildContext context,
   required FoodManualNutritionCropGateway gateway,
@@ -65,12 +138,20 @@ class _ManualNutritionCropPage extends StatefulWidget {
       _ManualNutritionCropPageState();
 }
 
-class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
+class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
+    with SingleTickerProviderStateMixin {
   final GlobalKey _cropCanvasKey = GlobalKey();
   late final ImageProvider<Object> _sourceImageProvider;
+  late final AnimationController _snapController;
   double _scale = 1;
   Offset _pan = Offset.zero;
   double _startScale = 1;
+  Offset _startImageOffset = Offset.zero;
+  Offset _startFocalPoint = Offset.zero;
+  double _snapStartScale = 1;
+  double _snapEndScale = 1;
+  Offset _snapStartPan = Offset.zero;
+  Offset _snapEndPan = Offset.zero;
   bool _submitting = false;
 
   @override
@@ -79,6 +160,18 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     // Keep one provider for the full crop session. Gesture frames must move a
     // decoded image layer, never recreate a web image resource.
     _sourceImageProvider = NetworkImage(widget.image.dataUrl);
+    _snapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    )..addListener(_applySnapFrame);
+  }
+
+  @override
+  void dispose() {
+    _snapController
+      ..removeListener(_applySnapFrame)
+      ..dispose();
+    super.dispose();
   }
 
   @override
@@ -109,26 +202,32 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                 );
                 final baseScale = _baseScale(viewport);
                 final actualScale = baseScale * _scale;
-                final imageOffset = _clampedImageOffset(
-                  viewport,
-                  actualScale,
-                  _initialImageOffset(canvas, actualScale) + _pan,
-                );
+                final imageOffset =
+                    _initialImageOffset(canvas, actualScale) + _pan;
                 return GestureDetector(
                   key: const ValueKey('manual-nutrition-crop-gesture-area'),
                   onScaleStart: (details) {
+                    _snapController.stop();
                     _startScale = _scale;
+                    _startImageOffset = imageOffset;
+                    _startFocalPoint = details.localFocalPoint;
                   },
                   onScaleUpdate: (details) {
-                    final next = (_startScale * details.scale).clamp(1.0, 5.0);
-                    final scaleRatio = next / _scale;
-                    final currentOffset = imageOffset;
+                    final next = (_startScale * details.scale)
+                        .clamp(.85, 5.0)
+                        .toDouble();
                     final nextActualScale = baseScale * next;
-                    // Keep the source point below the focal point stable during
-                    // pinch, then clamp so crop viewport never exposes blanks.
-                    final focal = details.localFocalPoint;
+                    // Map the source point under the gesture's initial focal
+                    // point to its current focal point. With one finger this
+                    // reduces exactly to direct pan by the finger delta.
                     final nextOffset =
-                        focal - (focal - currentOffset) * scaleRatio;
+                        FoodManualCropInteraction.offsetForGesture(
+                          startImageOffset: _startImageOffset,
+                          startFocalPoint: _startFocalPoint,
+                          currentFocalPoint: details.localFocalPoint,
+                          startScale: baseScale * _startScale,
+                          currentScale: nextActualScale,
+                        );
                     final initial = _initialImageOffset(
                       canvas,
                       nextActualScale,
@@ -136,14 +235,20 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                     setState(() {
                       _scale = next;
                       _pan =
-                          _clampedImageOffset(
-                            viewport,
-                            nextActualScale,
-                            nextOffset,
+                          FoodManualCropInteraction.limitWithElasticity(
+                            viewport: viewport,
+                            imageSize: _imageSize(nextActualScale),
+                            candidate: nextOffset,
+                            overscroll: _overscroll(viewport),
                           ) -
                           initial;
                     });
                   },
+                  onScaleEnd: (_) => _normalizeAfterInteraction(
+                    canvas: canvas,
+                    viewport: viewport,
+                    baseScale: baseScale,
+                  ),
                   child: Stack(
                     key: _cropCanvasKey,
                     fit: StackFit.expand,
@@ -151,21 +256,24 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                       ColoredBox(color: Theme.of(context).colorScheme.surface),
                       ClipRect(
                         child: RepaintBoundary(
-                          key: const ValueKey('manual-nutrition-crop-image-layer'),
+                          key: const ValueKey(
+                            'manual-nutrition-crop-image-layer',
+                          ),
                           child: Transform.translate(
                             offset: imageOffset,
                             child: SizedBox(
                               width: widget.dimensions.width * actualScale,
                               height: widget.dimensions.height * actualScale,
                               child: Image(
-                                key: const ValueKey('manual-nutrition-crop-source-image'),
+                                key: const ValueKey(
+                                  'manual-nutrition-crop-source-image',
+                                ),
                                 image: _sourceImageProvider,
                                 fit: BoxFit.fill,
                                 gaplessPlayback: true,
                                 filterQuality: FilterQuality.high,
-                                errorBuilder: (_, _, _) => const ColoredBox(
-                                  color: Colors.transparent,
-                                ),
+                                errorBuilder: (_, _, _) =>
+                                    const ColoredBox(color: Colors.transparent),
                               ),
                             ),
                           ),
@@ -221,13 +329,55 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     canvas.center.dy - widget.dimensions.height * scale / 2,
   );
 
-  Offset _clampedImageOffset(Rect viewport, double scale, Offset candidate) {
-    final imageWidth = widget.dimensions.width * scale;
-    final imageHeight = widget.dimensions.height * scale;
-    return Offset(
-      candidate.dx.clamp(viewport.right - imageWidth, viewport.left),
-      candidate.dy.clamp(viewport.bottom - imageHeight, viewport.top),
+  Size _imageSize(double scale) =>
+      Size(widget.dimensions.width * scale, widget.dimensions.height * scale);
+
+  double _overscroll(Rect viewport) =>
+      (Size(viewport.width, viewport.height).shortestSide * .08)
+          .clamp(48.0, 72.0)
+          .toDouble();
+
+  void _normalizeAfterInteraction({
+    required Rect canvas,
+    required Rect viewport,
+    required double baseScale,
+  }) {
+    final currentScale = baseScale * _scale;
+    final normalizedScale = FoodManualCropInteraction.normalizedRelativeScale(
+      _scale,
     );
+    final targetScale = baseScale * normalizedScale;
+    final currentOffset = _initialImageOffset(canvas, currentScale) + _pan;
+    final scaledOffset = FoodManualCropInteraction.offsetForScaleAtFocalPoint(
+      imageOffset: currentOffset,
+      focalPoint: viewport.center,
+      currentScale: currentScale,
+      nextScale: targetScale,
+    );
+    final targetOffset = FoodManualCropInteraction.clampToCoverage(
+      viewport: viewport,
+      imageSize: _imageSize(targetScale),
+      candidate: scaledOffset,
+    );
+    final targetPan = targetOffset - _initialImageOffset(canvas, targetScale);
+    if ((_scale - normalizedScale).abs() < .0001 &&
+        (_pan - targetPan).distance < .1) {
+      return;
+    }
+    _snapStartScale = _scale;
+    _snapEndScale = normalizedScale;
+    _snapStartPan = _pan;
+    _snapEndPan = targetPan;
+    _snapController.forward(from: 0);
+  }
+
+  void _applySnapFrame() {
+    if (!mounted) return;
+    final t = Curves.easeOut.transform(_snapController.value);
+    setState(() {
+      _scale = _snapStartScale + (_snapEndScale - _snapStartScale) * t;
+      _pan = Offset.lerp(_snapStartPan, _snapEndPan, t)!;
+    });
   }
 
   Future<void> _confirmCrop() async {
@@ -238,11 +388,22 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       width: canvas.width * .88,
       height: canvas.height * .60,
     );
-    final actualScale = _baseScale(viewport) * _scale;
-    final offset = _clampedImageOffset(
-      viewport,
-      actualScale,
-      _initialImageOffset(canvas, actualScale) + _pan,
+    final baseScale = _baseScale(viewport);
+    final currentScale = baseScale * _scale;
+    final normalizedScale = FoodManualCropInteraction.normalizedRelativeScale(
+      _scale,
+    );
+    final actualScale = baseScale * normalizedScale;
+    final currentOffset = _initialImageOffset(canvas, currentScale) + _pan;
+    final offset = FoodManualCropInteraction.clampToCoverage(
+      viewport: viewport,
+      imageSize: _imageSize(actualScale),
+      candidate: FoodManualCropInteraction.offsetForScaleAtFocalPoint(
+        imageOffset: currentOffset,
+        focalPoint: viewport.center,
+        currentScale: currentScale,
+        nextScale: actualScale,
+      ),
     );
     final sourceRect = FoodManualCropTransform(
       source: widget.dimensions,
@@ -267,7 +428,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       if (mounted) setState(() => _submitting = false);
     }
   }
-
 }
 
 class _CropMask extends StatelessWidget {
