@@ -39,6 +39,7 @@
     (function () {
       const storageKey = 'or_app.startup_diagnostic.v1';
       const bootClaimKey = 'or_app.initial_boot_presentation_claimed.v1';
+      const reentryMarkerKey = 'or_app.startup_reentry_marker.v1';
       const maxEvents = 200;
       const documentRunId = 'doc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
       try {
@@ -87,12 +88,28 @@
         }
       }
 
+      function markPageHide(event) {
+        try {
+          localStorage.setItem(reentryMarkerKey, JSON.stringify({
+            markerVersion: 1,
+            pageHideAtMs: Date.now(),
+            documentRunId: documentRunId,
+            persisted: !!event.persisted
+          }));
+        } catch (_) {
+          // Reentry classification fails open when persistent storage is unavailable.
+        }
+      }
+
       record('DOCUMENT_SCRIPT_START');
       record('FLUTTER_BOOTSTRAP_REQUESTED');
       document.addEventListener('DOMContentLoaded', function () { record('DOM_CONTENT_LOADED'); });
       window.addEventListener('load', function () { record('WINDOW_LOAD'); });
       window.addEventListener('pageshow', function (event) { record('PAGESHOW', { persisted: !!event.persisted }); });
-      window.addEventListener('pagehide', function (event) { record('PAGEHIDE', { persisted: !!event.persisted }); });
+      window.addEventListener('pagehide', function (event) {
+        markPageHide(event);
+        record('PAGEHIDE', { persisted: !!event.persisted });
+      });
       document.addEventListener('visibilitychange', function () { record('VISIBILITY_CHANGE'); });
     })();
   </script>

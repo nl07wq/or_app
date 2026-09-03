@@ -112,6 +112,8 @@ class AppInitializationController
   bool claimInitialBootPresentation() =>
       _bootPresentationSession.claimInitialBootPresentation();
 
+  String get initialBootClaimReason => _bootPresentationSession.lastClaimReason;
+
   void updateStage(InitializationStage stage) {
     value = AppInitializationState.initializing(currentStage: stage);
   }

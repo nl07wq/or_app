@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/boot_audio.dart';
 import 'package:or_app/core/services/boot_presentation_session.dart';
+import 'package:or_app/core/services/startup_entry_classifier.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/boot_sequence.dart';
@@ -585,6 +586,37 @@ void main() {
       );
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
       expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'recent document reentry suppresses Boot even when session storage is absent',
+    (tester) async {
+      final now = DateTime(2026, 9, 4, 12);
+      final classifier = StartupEntryClassifier(
+        now: () => now,
+        documentRunId: 'document-b',
+      );
+      classifier.recordPageHideForTesting(
+        occurredAt: now.subtract(const Duration(milliseconds: 2500)),
+        previousDocumentRunId: 'document-a',
+      );
+      classifier.classifyAtDocumentStart();
+      final controller = AppInitializationController(
+        bootPresentationSession: BootPresentationSession(
+          startupEntryClassifier: classifier,
+        ),
+      );
+
+      await tester.pumpWidget(_gate(controller));
+
+      expect(
+        find.byKey(const ValueKey('startup-initializing-view')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('boot-brand-logo')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
     },
   );
 

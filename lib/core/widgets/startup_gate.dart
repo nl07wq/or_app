@@ -57,7 +57,17 @@ class _StartupGateState extends State<StartupGate> {
       presentation: _bootPresentationMounted ? 'BOOT' : 'INITIALIZING',
       fields: {
         'initialBootClaimed': _isInitialBootPresentation,
+        'reason': widget.service.controller.initialBootClaimReason,
         'bootSessionClaim': diagnostic.bootSessionClaim(),
+      },
+    );
+    diagnostic.record(
+      'STARTUP_GATE',
+      'INITIAL_BOOT_CLAIM_DECISION',
+      presentation: _bootPresentationMounted ? 'BOOT' : 'INITIALIZING',
+      fields: {
+        'allowed': _isInitialBootPresentation,
+        'reason': widget.service.controller.initialBootClaimReason,
       },
     );
   }
