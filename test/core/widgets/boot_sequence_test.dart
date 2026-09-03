@@ -497,10 +497,51 @@ void main() {
 
     expect(laterFrame, greaterThan(startFrame));
     expect(laterFrame, lessThanOrEqualTo(1));
-    expect(bootSignalCoreColor, const Color(0xFFF1F8FA));
-    expect((bootSignalHaloColor.a * 255).round(), greaterThan(0x55));
-    expect((bootSignalFragmentColor.a * 255).round(), greaterThan(0x99));
+    expect(bootSignalCoreColor, const Color(0xFFF4FAFC));
+    expect((bootSignalHaloColor.a * 255).round(), greaterThan(0x66));
+    expect((bootSignalFragmentColor.a * 255).round(), greaterThan(0xB0));
   });
+
+  testWidgets(
+    'completed and skipped boot presentations are disposed before same-session loading',
+    (tester) async {
+      final completedController = AppInitializationController()..markReady();
+      await tester.pumpWidget(_gate(completedController));
+      await _advanceRows(tester);
+      await _elapse(
+        tester,
+        _timing.readyDelay + const Duration(milliseconds: 1),
+      );
+      await _elapse(tester, _timing.readyHold);
+      await _elapse(tester, const Duration(milliseconds: 120));
+      expect(find.text('MAIN UI'), findsOneWidget);
+
+      completedController.updateStage(InitializationStage.openingDatabase);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('startup-initializing-view')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-brand-logo')), findsNothing);
+
+      final skippedController = AppInitializationController()..markReady();
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpWidget(_gate(skippedController));
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+
+      skippedController.updateStage(InitializationStage.openingDatabase);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('startup-initializing-view')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('boot-brand-logo')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+    },
+  );
 
   testWidgets('a genuinely new controller receives the normal initial boot', (
     tester,

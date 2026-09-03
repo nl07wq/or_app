@@ -1276,6 +1276,53 @@ void main() {
     },
   );
 
+  testWidgets(
+    'post-finalize Backup prompt survives disposal of its local route subtree',
+    (tester) async {
+      final gateway = _RecordingBackupGateway();
+      final rootNavigatorKey = GlobalKey<NavigatorState>();
+      var showLocalFinalizeSource = true;
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: rootNavigatorKey,
+          home: StatefulBuilder(
+            builder: (context, setState) => Scaffold(
+              body: showLocalFinalizeSource
+                  ? Builder(
+                      builder: (localContext) => ElevatedButton(
+                        onPressed: () async {
+                          final navigator = Navigator.of(
+                            localContext,
+                            rootNavigator: true,
+                          );
+                          setState(() => showLocalFinalizeSource = false);
+                          await presentDailyFinalizeBackupPrompt(
+                            context: localContext,
+                            navigator: navigator,
+                            exportService: _backupService(gateway),
+                          );
+                        },
+                        child: const Text('FINALIZE'),
+                      ),
+                    )
+                  : const SizedBox(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('FINALIZE'));
+      await tester.pumpAndSettle();
+
+      expect(rootNavigatorKey.currentState, isNotNull);
+      expect(find.text('BACKUP'), findsOneWidget);
+      expect(find.text('FINALIZE'), findsNothing);
+      await tester.tap(find.text('NOT NOW'));
+      await tester.pumpAndSettle();
+      expect(find.text('BACKUP'), findsNothing);
+    },
+  );
+
   obsoleteTestWidgets(
     'Daily Review shows the finalization explanation and subtitle',
     (tester) async {

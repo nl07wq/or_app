@@ -32,9 +32,14 @@ typedef DailyLogFinalizeCompleted = Future<void> Function();
 Future<void> presentDailyFinalizeBackupPrompt({
   required BuildContext context,
   required BackupFileExportService exportService,
+  NavigatorState? navigator,
 }) {
+  final targetNavigator =
+      navigator ?? Navigator.of(context, rootNavigator: true);
+  if (!targetNavigator.mounted) return Future.value();
   return showDialog<void>(
-    context: context,
+    context: targetNavigator.context,
+    useRootNavigator: false,
     barrierDismissible: true,
     builder: (_) => BackupPromptDialog(exportService: exportService),
   );
@@ -166,6 +171,10 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       ),
     );
     if (approved != true || !mounted) return;
+    // Command Center refreshes its DailyLogSection as finalize updates its
+    // read model. Capture the app navigator before that await so a completed
+    // formal finalize cannot silently lose its post-finalize Backup prompt.
+    final promptNavigator = Navigator.of(context, rootNavigator: true);
     setState(() => _isFinalizing = true);
     try {
       final state = await AppRepositoryRegistry.container.operationState
@@ -180,11 +189,11 @@ class _DailyLogSectionState extends State<DailyLogSection> {
         },
         previousOperationDate: previousDate,
         afterFinalize: () async {
-          if (!mounted) return;
           await presentDailyFinalizeBackupPrompt(
             context: context,
             exportService:
                 widget.backupExportService ?? BackupFileExportService(),
+            navigator: promptNavigator,
           );
         },
         onReviewCompleted: onReviewCompleted,

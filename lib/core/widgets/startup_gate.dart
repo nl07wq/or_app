@@ -29,6 +29,7 @@ class StartupGate extends StatefulWidget {
 
 class _StartupGateState extends State<StartupGate> {
   late final bool _isInitialBootPresentation;
+  late bool _bootPresentationMounted;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _StartupGateState extends State<StartupGate> {
     _isInitialBootPresentation =
         widget.showBootSequence &&
         widget.service.controller.claimInitialBootPresentation();
+    _bootPresentationMounted = _isInitialBootPresentation;
   }
 
   @override
@@ -49,11 +51,15 @@ class _StartupGateState extends State<StartupGate> {
       );
       return true;
     }());
-    if (widget.showBootSequence) {
+    // Startup owns the functional presentation.  Boot is an explicitly
+    // temporary presentation child: once it releases, it is disposed rather
+    // than being retained as a possible loading fallback.
+    if (_bootPresentationMounted) {
       return BootSequenceGate(
         initialization: widget.service.controller,
         isInitialBootPresentation: _isInitialBootPresentation,
         fallbackBuilder: (state) => _stateChild(context, state),
+        onPresentationReleased: _releaseBootPresentation,
         onEvent: widget.onBootEvent,
         onTrace: widget.onBootTrace,
         timing: widget.bootSequenceTiming,
@@ -63,11 +69,19 @@ class _StartupGateState extends State<StartupGate> {
         ),
       );
     }
-    return ValueListenableBuilder<AppInitializationState>(
-      valueListenable: widget.service.controller,
-      builder: (context, state, _) => _stateChild(context, state),
-    );
+    return _canonicalStartupPresentation();
   }
+
+  void _releaseBootPresentation() {
+    if (!mounted || !_bootPresentationMounted) return;
+    setState(() => _bootPresentationMounted = false);
+  }
+
+  Widget _canonicalStartupPresentation() =>
+      ValueListenableBuilder<AppInitializationState>(
+        valueListenable: widget.service.controller,
+        builder: (context, state, _) => _stateChild(context, state),
+      );
 
   Widget _stateChild(BuildContext context, AppInitializationState state) =>
       switch (state.mode) {

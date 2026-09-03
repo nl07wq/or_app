@@ -19,9 +19,9 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
 const _bootSignalHandoffDuration = Duration(milliseconds: 120);
-const bootSignalCoreColor = Color(0xFFF1F8FA);
-const bootSignalHaloColor = Color(0x667FADBA);
-const bootSignalFragmentColor = Color(0xB0A4C4CE);
+const bootSignalCoreColor = Color(0xFFF4FAFC);
+const bootSignalHaloColor = Color(0x707FADBA);
+const bootSignalFragmentColor = Color(0xB8A4C4CE);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -494,6 +494,7 @@ class BootSequenceGate extends StatefulWidget {
   final BootSequenceEventListener? onEvent;
   final bool isInitialBootPresentation;
   final BootStartupTraceListener? onTrace;
+  final VoidCallback? onPresentationReleased;
 
   /// Reserved for a future explicit audio experience. Boot currently does not
   /// invoke audio playback.
@@ -508,6 +509,7 @@ class BootSequenceGate extends StatefulWidget {
     this.onEvent,
     this.isInitialBootPresentation = true,
     this.onTrace,
+    this.onPresentationReleased,
     this.bootAudio,
   });
 
@@ -525,6 +527,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _skipRequested = false;
+  bool _presentationReleased = false;
   BootPresentationState _presentation =
       BootPresentationState.initialBootPresentation;
   int _typedLength = 0;
@@ -709,6 +712,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       if (mounted) {
         setState(() {});
       }
+      _releasePresentation('failure_presentation_released');
       return;
     }
     if (state.mode == PersistenceMode.initializing) {
@@ -721,6 +725,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
           'initialization_returned_to_loading',
         );
         if (mounted) setState(() {});
+        _releasePresentation('reinitialization_presentation_released');
       }
       return;
     }
@@ -761,6 +766,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         _transition(BootPresentationState.mainUi, 'signal_handoff_finished');
         setState(() {});
         _emit(BootSequenceEventType.bootComplete);
+        _releasePresentation('normal_boot_presentation_released');
       });
     });
   }
@@ -783,6 +789,14 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       );
     }
     if (mounted) setState(() {});
+    _releasePresentation('skip_presentation_released');
+  }
+
+  void _releasePresentation(String event) {
+    if (_presentationReleased) return;
+    _presentationReleased = true;
+    _trace(event);
+    widget.onPresentationReleased?.call();
   }
 
   void _transition(BootPresentationState next, String event) {
