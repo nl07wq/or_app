@@ -31,9 +31,7 @@ void main() {
     expect(find.text('SYSTEM BOOT'), findsNothing);
     expect(find.text('CORE SYSTEM'), findsNothing);
     expect(find.text('SYSTEM READY'), findsNothing);
-    expect(find.text('TAP TO START'), findsOneWidget);
-
-    await _tapToStart(tester);
+    expect(find.text('TAP TO START'), findsNothing);
 
     await _elapse(tester, _timing.logoIntro);
     await _elapse(tester, _timing.typingCharacter);
@@ -75,7 +73,7 @@ void main() {
     const typingTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 1),
       typingCharacter: Duration(milliseconds: 1),
-      fullNameCharacter: Duration(milliseconds: 20),
+      fullNameCharacter: Duration(milliseconds: 17),
       identityHold: Duration(milliseconds: 1),
       systemBootTransition: Duration(milliseconds: 1),
       row: Duration(milliseconds: 1),
@@ -84,7 +82,6 @@ void main() {
     );
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: typingTiming));
-    await _tapToStart(tester);
 
     await _elapse(tester, typingTiming.logoIntro);
     await _advanceTyping(tester, typingTiming);
@@ -93,7 +90,7 @@ void main() {
 
     expect(
       const BootSequenceTiming().fullNameCharacter,
-      const Duration(milliseconds: 20),
+      const Duration(milliseconds: 17),
     );
     await _elapse(tester, typingTiming.fullNameCharacter * 2);
     final partial = tester.widget<Text>(
@@ -128,8 +125,6 @@ void main() {
     final semantics = tester.ensureSemantics();
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: continuousTiming));
-    await _tapToStart(tester);
-
     await _elapse(tester, continuousTiming.logoIntro);
     await _advanceTyping(tester, continuousTiming);
     await _elapse(tester, continuousTiming.identityHold);
@@ -179,8 +174,6 @@ void main() {
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
-    await _tapToStart(tester);
-
     await _advanceRows(tester);
     expect(find.text('SYSTEM READY'), findsNothing);
     expect(
@@ -217,7 +210,7 @@ void main() {
     await _elapse(tester, _timing.readyHold);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     expect(find.text('MAIN UI'), findsNothing);
-    await _elapse(tester, const Duration(milliseconds: 100));
+    await _elapse(tester, const Duration(milliseconds: 110));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
@@ -258,8 +251,6 @@ void main() {
     );
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: spinnerTiming));
-    await _tapToStart(tester);
-
     await _elapse(tester, spinnerTiming.logoIntro);
     await _advanceTyping(tester, spinnerTiming);
     await _elapse(tester, spinnerTiming.identityHold);
@@ -279,12 +270,11 @@ void main() {
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
-    await _tapToStart(tester);
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
-    await _elapse(tester, const Duration(milliseconds: 100));
+    await _elapse(tester, const Duration(milliseconds: 110));
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -305,18 +295,17 @@ void main() {
     await tester.pumpWidget(
       _gate(controller, onEvent: (_) => throw StateError('audio unavailable')),
     );
-    await _tapToStart(tester);
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
-    await _elapse(tester, const Duration(milliseconds: 100));
+    await _elapse(tester, const Duration(milliseconds: 110));
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('boot audio is requested once and does not replay on rebuild', (
+  testWidgets('normal boot leaves the official audio service idle', (
     tester,
   ) async {
     final controller = AppInitializationController();
@@ -331,10 +320,8 @@ void main() {
         ),
       ),
     );
+    await _elapse(tester, _timing.logoIntro);
     expect(audio.playCalls, 0);
-    await tester.tap(find.byKey(const ValueKey('boot-tap-to-start')));
-    await tester.pump();
-    expect(audio.playCalls, 1);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -346,7 +333,7 @@ void main() {
         ),
       ),
     );
-    expect(audio.playCalls, 1);
+    expect(audio.playCalls, 0);
   });
 
   testWidgets(
@@ -354,7 +341,6 @@ void main() {
     (tester) async {
       final controller = AppInitializationController()..markReady();
       await tester.pumpWidget(_gate(controller));
-      await _tapToStart(tester);
       await _advanceRows(tester);
       await _elapse(
         tester,
@@ -375,7 +361,9 @@ void main() {
     },
   );
 
-  testWidgets('boot audio failure is fail-open', (tester) async {
+  testWidgets('an unused boot audio service cannot affect automatic boot', (
+    tester,
+  ) async {
     final controller = AppInitializationController();
     await tester.pumpWidget(
       MaterialApp(
@@ -387,7 +375,7 @@ void main() {
         ),
       ),
     );
-    await _tapToStart(tester);
+    await _elapse(tester, _timing.logoIntro);
     expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -440,11 +428,6 @@ Future<void> _advanceRows(WidgetTester tester) async {
   await _elapse(tester, _timing.row * 2);
   await _elapse(tester, _timing.row);
   await _elapse(tester, _timing.row);
-}
-
-Future<void> _tapToStart(WidgetTester tester) async {
-  await tester.tap(find.byKey(const ValueKey('boot-tap-to-start')));
-  await tester.pump();
 }
 
 Future<void> _advanceTyping(

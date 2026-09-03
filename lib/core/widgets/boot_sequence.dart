@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../state/app_initialization_state.dart';
 import '../services/boot_audio.dart';
+import '../state/app_initialization_state.dart';
 
 enum BootSequenceEventType { bootStart, systemInitialized, bootComplete }
 
@@ -18,7 +18,7 @@ class BootSequenceEvent {
 typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
-const _bootSignalHandoffDuration = Duration(milliseconds: 100);
+const _bootSignalHandoffDuration = Duration(milliseconds: 110);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -36,7 +36,7 @@ class BootSequenceTiming {
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 360),
     this.typingCharacter = const Duration(milliseconds: 130),
-    this.fullNameCharacter = const Duration(milliseconds: 20),
+    this.fullNameCharacter = const Duration(milliseconds: 17),
     this.identityHold = const Duration(milliseconds: 320),
     this.systemBootTransition = const Duration(milliseconds: 240),
     this.header = const Duration(milliseconds: 180),
@@ -388,18 +388,18 @@ class _BootSignalHandoffPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final signal = Paint();
     final frameSeed = (frame * 47).floor();
-    final lineCount = 1 + frameSeed % 4;
+    final lineCount = 2 + frameSeed % 4;
     for (var index = 0; index < lineCount; index += 1) {
       final y = ((frameSeed * 31 + index * 97) % size.height.ceil()).toDouble();
       final start = ((frameSeed * 17 + index * 131) % (size.width * .4).ceil())
           .toDouble();
       final width = size.width * (.26 + ((frameSeed + index * 13) % 35) / 100);
-      final alpha = 118 + (index * 21 % 48);
-      signal.color = Color.fromARGB(alpha, 194, 204, 211);
-      canvas.drawRect(Rect.fromLTWH(start, y, width, 1), signal);
-      signal.color = Color.fromARGB(alpha ~/ 2, 138, 150, 158);
+      final alpha = 162 + (index * 19 % 58);
+      signal.color = Color.fromARGB(alpha, 210, 218, 224);
+      canvas.drawRect(Rect.fromLTWH(start, y, width, 2), signal);
+      signal.color = Color.fromARGB(alpha ~/ 2, 152, 165, 174);
       canvas.drawRect(
-        Rect.fromLTWH(start + width * .18, y + 2, width * .22, 1),
+        Rect.fromLTWH(start + width * .18 + index * 6, y + 3, width * .22, 1),
         signal,
       );
     }
@@ -410,65 +410,6 @@ class _BootSignalHandoffPainter extends CustomPainter {
       oldDelegate.frame != frame;
 }
 
-class _BootStartPrompt extends StatelessWidget {
-  const _BootStartPrompt({required this.onStart});
-  final VoidCallback onStart;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: const Color(0xFF101010),
-      child: SafeArea(
-        child: Center(
-          child: Semantics(
-            button: true,
-            label: 'TAP TO START',
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                key: const ValueKey('boot-tap-to-start'),
-                onTap: onStart,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 56,
-                    vertical: 44,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Image.asset(
-                        'assets/icons/orlo_logo_1024_transparent.png',
-                        key: const ValueKey('boot-brand-logo'),
-                        height: 128,
-                        width: 220,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox(height: 72),
-                      ),
-                      const SizedBox(height: 28),
-                      Text(
-                        'TAP TO START',
-                        key: const ValueKey('boot-tap-to-start-label'),
-                        style: Theme.of(context).textTheme.titleMedium!
-                            .copyWith(
-                              color: colorScheme.primary,
-                              fontFamily: 'monospace',
-                              letterSpacing: 1.4,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Coordinates the visual without owning initialization or persistence.
 class BootSequenceGate extends StatefulWidget {
   final ValueListenable<AppInitializationState> initialization;
@@ -476,6 +417,9 @@ class BootSequenceGate extends StatefulWidget {
   final Widget Function(AppInitializationState state) fallbackBuilder;
   final BootSequenceTiming timing;
   final BootSequenceEventListener? onEvent;
+
+  /// Reserved for a future explicit audio experience. Boot currently does not
+  /// invoke audio playback.
   final BootAudio? bootAudio;
 
   const BootSequenceGate({
@@ -496,15 +440,12 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     with SingleTickerProviderStateMixin {
   Timer? _timelineTimer;
   late final AnimationController _progressController;
-  late final BootAudio _bootAudio;
   bool _systemInitialized = false;
   bool _visualRowsComplete = false;
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _completed = false;
   bool _showSignalHandoff = false;
-  bool _bootStarted = false;
-  bool _systemInitializedEventEmitted = false;
   int _typedLength = 0;
   int _typedNameLength = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
@@ -513,9 +454,10 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   void initState() {
     super.initState();
     _progressController = AnimationController(vsync: this);
-    _bootAudio = widget.bootAudio ?? createBootAudio();
+    _emit(BootSequenceEventType.bootStart);
     widget.initialization.addListener(_onInitializationChanged);
     _onInitializationChanged();
+    _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
 
   @override
@@ -533,24 +475,6 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         action();
       }
     });
-  }
-
-  void _startFromUserActivation() {
-    if (_bootStarted || _completed) return;
-    // Keep the audio request in the tap handler so mobile browsers can retain
-    // the legitimate user-activation privilege for HTMLAudioElement.play().
-    _bootStarted = true;
-    try {
-      _bootAudio.playOnce();
-    } catch (_) {
-      // Audio is optional presentation and must not block startup.
-    }
-    _emit(BootSequenceEventType.bootStart);
-    if (_systemInitialized) {
-      _emitSystemInitialized();
-    }
-    setState(() {});
-    _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
 
   void _startIdentityTyping() {
@@ -590,7 +514,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   }
 
   void _typeNextNameCharacter() {
-    if (widget.timing.fullNameCharacter < const Duration(milliseconds: 20)) {
+    if (widget.timing.fullNameCharacter <= const Duration(milliseconds: 10)) {
       setState(() => _typedNameLength = _fullName.length);
       _schedule(widget.timing.identityHold, _showSystemBoot);
       return;
@@ -687,16 +611,8 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       return;
     }
     _systemInitialized = true;
-    if (_bootStarted) {
-      _emitSystemInitialized();
-    }
-    _tryStartFinalProgress();
-  }
-
-  void _emitSystemInitialized() {
-    if (_systemInitializedEventEmitted) return;
-    _systemInitializedEventEmitted = true;
     _emit(BootSequenceEventType.systemInitialized);
+    _tryStartFinalProgress();
   }
 
   void _tryShowSystemReady() {
@@ -736,9 +652,6 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     }
     if (_completed) return widget.child;
     if (_showSignalHandoff) return const _BootSignalHandoff();
-    if (!_bootStarted) {
-      return _BootStartPrompt(onStart: _startFromUserActivation);
-    }
     return AnimatedBuilder(
       animation: _progressController,
       builder: (context, _) => _BootSequenceVisual(
