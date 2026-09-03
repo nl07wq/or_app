@@ -63,7 +63,7 @@ class _StartupGateState extends State<StartupGate> {
     );
     diagnostic.record(
       'STARTUP_GATE',
-      'INITIAL_BOOT_CLAIM_DECISION',
+      'BOOT_PRESENTATION_DECISION',
       presentation: _bootPresentationMounted ? 'BOOT' : 'INITIALIZING',
       fields: {
         'allowed': _isInitialBootPresentation,

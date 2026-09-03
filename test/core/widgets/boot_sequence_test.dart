@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/active_session_heartbeat.dart';
 import 'package:or_app/core/services/boot_audio.dart';
 import 'package:or_app/core/services/boot_presentation_session.dart';
-import 'package:or_app/core/services/startup_entry_classifier.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/boot_sequence.dart';
@@ -590,21 +590,21 @@ void main() {
   );
 
   testWidgets(
-    'recent document reentry suppresses Boot even when session storage is absent',
+    'recent active-session heartbeat suppresses Boot when session storage is absent',
     (tester) async {
       final now = DateTime(2026, 9, 4, 12);
-      final classifier = StartupEntryClassifier(
+      final storage = InMemoryActiveSessionStorage({
+        ActiveSessionHeartbeat.storageKey:
+            '{"version":1,"lastAliveAtMs":${now.subtract(const Duration(seconds: 5)).millisecondsSinceEpoch}}',
+      });
+      final heartbeat = ActiveSessionHeartbeat(
         now: () => now,
-        documentRunId: 'document-b',
+        storage: storage,
       );
-      classifier.recordPageHideForTesting(
-        occurredAt: now.subtract(const Duration(milliseconds: 2500)),
-        previousDocumentRunId: 'document-a',
-      );
-      classifier.classifyAtDocumentStart();
+      heartbeat.classifyAtStartup();
       final controller = AppInitializationController(
         bootPresentationSession: BootPresentationSession(
-          startupEntryClassifier: classifier,
+          activeSessionHeartbeat: heartbeat,
         ),
       );
 
@@ -617,6 +617,53 @@ void main() {
       expect(find.byKey(const ValueKey('boot-brand-logo')), findsNothing);
       expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsNothing);
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'full Boot followed by active-session document recreation shows initializing',
+    (tester) async {
+      final completedController = AppInitializationController()..markReady();
+      await tester.pumpWidget(_gate(completedController));
+      await _advanceRows(tester);
+      await _elapse(
+        tester,
+        _timing.readyDelay + const Duration(milliseconds: 1),
+      );
+      await _elapse(tester, _timing.readyHold);
+      await _elapse(tester, const Duration(milliseconds: 120));
+      expect(find.text('MAIN UI'), findsOneWidget);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpWidget(_gate(_activeSessionReentryController()));
+
+      expect(
+        find.byKey(const ValueKey('startup-initializing-view')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('boot-brand-logo')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'skipped Boot followed by active-session document recreation shows initializing',
+    (tester) async {
+      final skippedController = AppInitializationController()..markReady();
+      await tester.pumpWidget(_gate(skippedController));
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpWidget(_gate(_activeSessionReentryController()));
+
+      expect(
+        find.byKey(const ValueKey('startup-initializing-view')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('boot-brand-logo')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsNothing);
     },
   );
 
@@ -658,6 +705,22 @@ Widget _gate(
       onBootEvent: onEvent,
       onBootTrace: onTrace,
       child: const Text('MAIN UI'),
+    ),
+  );
+}
+
+AppInitializationController _activeSessionReentryController() {
+  final now = DateTime(2026, 9, 4, 12);
+  final heartbeat = ActiveSessionHeartbeat(
+    now: () => now,
+    storage: InMemoryActiveSessionStorage({
+      ActiveSessionHeartbeat.storageKey:
+          '{"version":1,"lastAliveAtMs":${now.subtract(const Duration(seconds: 5)).millisecondsSinceEpoch}}',
+    }),
+  )..classifyAtStartup();
+  return AppInitializationController(
+    bootPresentationSession: BootPresentationSession(
+      activeSessionHeartbeat: heartbeat,
     ),
   );
 }

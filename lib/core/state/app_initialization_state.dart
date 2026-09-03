@@ -103,10 +103,10 @@ class AppInitializationController
            bootPresentationSession ?? BootPresentationSession(),
        super(const AppInitializationState.initializing());
 
-  // The initial boot presentation belongs to an application/browser session,
-  // not to any particular StartupGate or controller instance. Web
-  // sessionStorage preserves that distinction across reload-like root
-  // recreation while a genuinely new app session receives the normal boot.
+  // The initial Boot presentation belongs to an OR-APP user session, not to
+  // any particular StartupGate or controller instance. The heartbeat policy
+  // bridges document recreation; sessionStorage remains only a same-document
+  // safeguard against a duplicate Boot claim.
   final BootPresentationSession _bootPresentationSession;
 
   bool claimInitialBootPresentation() =>

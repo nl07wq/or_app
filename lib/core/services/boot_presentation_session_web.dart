@@ -2,24 +2,24 @@
 
 import 'dart:html' as html;
 
-import 'startup_entry_classifier.dart';
+import 'active_session_heartbeat.dart';
 
 class BootPresentationSession {
-  BootPresentationSession({StartupEntryClassifier? startupEntryClassifier})
-    : _startupEntryClassifier =
-          startupEntryClassifier ?? StartupEntryClassifier.instance;
+  BootPresentationSession({ActiveSessionHeartbeat? activeSessionHeartbeat})
+    : _activeSessionHeartbeat =
+          activeSessionHeartbeat ?? ActiveSessionHeartbeat.instance;
 
   static const _storageKey = 'or_app.initial_boot_presentation_claimed.v1';
   static bool _memoryClaimed = false;
-  final StartupEntryClassifier _startupEntryClassifier;
+  final ActiveSessionHeartbeat _activeSessionHeartbeat;
   String _lastClaimReason = 'not_claimed';
 
   String get lastClaimReason => _lastClaimReason;
 
   bool claimInitialBootPresentation() {
-    if (_startupEntryClassifier.result.classification ==
-        StartupEntryClassification.shortReentry) {
-      _lastClaimReason = 'shortReentry';
+    if (_activeSessionHeartbeat.result.classification ==
+        ActiveSessionClassification.activeSessionReentry) {
+      _lastClaimReason = 'activeSessionReentry';
       return false;
     }
     if (_memoryClaimed) {
