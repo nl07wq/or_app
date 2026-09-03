@@ -180,6 +180,55 @@ abstract final class BackupSections {
 
 enum BackupImportMode { merge, replaceAll }
 
+/// The final integrity outcome of one Restore execution.
+///
+/// This deliberately contains operation metadata only.  Backup payloads and
+/// record bodies remain local and are never copied into an audit result.
+enum BackupImportAuditStatus { success, failed, rolledBack }
+
+enum BackupRollbackStatus { notRequired, succeeded, failed }
+
+class BackupImportAudit {
+  const BackupImportAudit({
+    required this.mode,
+    required this.schemaVersion,
+    required this.sectionsPlanned,
+    required this.sectionsCompleted,
+    required this.importedRecords,
+    required this.added,
+    required this.skipped,
+    required this.conflicts,
+    required this.failed,
+    required this.status,
+    required this.rollback,
+    this.failureSection,
+    this.failureReason,
+    this.conflictIdentities = const [],
+  });
+
+  final BackupImportMode mode;
+  final int schemaVersion;
+  final int sectionsPlanned;
+  final int sectionsCompleted;
+  final int importedRecords;
+  final int added;
+  final int skipped;
+  final int conflicts;
+  final int failed;
+  final BackupImportAuditStatus status;
+  final BackupRollbackStatus rollback;
+  final String? failureSection;
+  final String? failureReason;
+  final List<String> conflictIdentities;
+
+  /// A compact status line suitable for an operation log or a user-visible
+  /// restore result.  It intentionally never includes record payloads.
+  String get summary =>
+      '${mode.name}: sections $sectionsCompleted/$sectionsPlanned, '
+      'add $added, skip $skipped, conflict $conflicts, failed $failed, '
+      'rollback ${rollback.name}';
+}
+
 class BackupSectionPlan {
   final int existing;
   final int add;
@@ -223,10 +272,12 @@ class BackupImportResult {
   final String? message;
   final bool operationStateRestored;
   final bool recoveryRequired;
+  final BackupImportAudit? audit;
 
   const BackupImportResult.success({
     this.operationStateRestored = false,
     this.recoveryRequired = false,
+    this.audit,
   }) : success = true,
        errorCode = null,
        message = null;
@@ -234,6 +285,7 @@ class BackupImportResult {
   const BackupImportResult.failure({
     required this.errorCode,
     required this.message,
+    this.audit,
   }) : success = false,
        operationStateRestored = false,
        recoveryRequired = false;

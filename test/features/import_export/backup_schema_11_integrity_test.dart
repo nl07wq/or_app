@@ -266,6 +266,9 @@ void main() {
     final result = await service.execute(plan);
 
     expect(result.success, isFalse);
+    expect(result.audit?.status, BackupImportAuditStatus.rolledBack);
+    expect(result.audit?.rollback, BackupRollbackStatus.succeeded);
+    expect(result.audit?.failureReason, contains('post-commit restore failed'));
     expect(restoreCalls, 2);
     expect(restoreModes, [
       PersistenceMode.initializing,

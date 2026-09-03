@@ -232,9 +232,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     if (!mounted) return;
     setState(() {
       _busy = false;
+      final audit = result.audit?.summary;
       _message = result.success
-          ? 'BACKUP RESTORED'
-          : '${result.errorCode}: ${result.message}';
+          ? 'BACKUP RESTORED${audit == null ? '' : '\n$audit'}'
+          : '${result.errorCode}: ${result.message}'
+                '${audit == null ? '' : '\n$audit'}';
       if (result.success) {
         _selectedPackage = null;
         _selectedNormalPackage = null;

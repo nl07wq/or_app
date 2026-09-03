@@ -55,6 +55,8 @@ class BackupImportService {
     }
     _executing = true;
     var committed = false;
+    var sectionsCompleted = 0;
+    String? activeSection;
     final controllerBefore = _controller.value;
     Map<String, List<Map<String, Object?>>>? preRestoreState;
     _controller.markMaintenance();
@@ -105,10 +107,12 @@ class BackupImportService {
         action: (transaction) async {
           if (approvedPlan.mode == BackupImportMode.replaceAll) {
             for (final section in replaceAllSections) {
+              activeSection = section;
               await transaction.clear(BackupStoreRegistry.stores[section]!);
             }
           }
           for (final section in sections) {
+            activeSection = section;
             final store = BackupStoreRegistry.stores[section]!;
             final sectionPlan = approvedPlan.sections[section]!;
             for (final record in approvedPlan.package.data[section]!) {
@@ -149,6 +153,7 @@ class BackupImportService {
             }
           }
           for (final section in sections) {
+            activeSection = section;
             await _verifySection(
               approvedPlan,
               section,
@@ -160,6 +165,7 @@ class BackupImportService {
               (section) =>
                   !approvedPlan.package.includedSections.contains(section),
             )) {
+              activeSection = section;
               final records = await transaction.findAll(
                 BackupStoreRegistry.stores[section]!,
               );
@@ -174,6 +180,9 @@ class BackupImportService {
         },
       );
       committed = true;
+      // MERGE deliberately preserves operation state, but that planned no-op
+      // is still a completed section decision for audit purposes.
+      sectionsCompleted = approvedPlan.sections.length;
       await _verifyApplied(approvedPlan);
       _controller.updateStage(InitializationStage.restoringDailyState);
       await _restore();
@@ -199,8 +208,15 @@ class BackupImportService {
       return BackupImportResult.success(
         operationStateRestored: restoresOperationState,
         recoveryRequired: recoveryRequired,
+        audit: _auditFor(
+          approvedPlan,
+          status: BackupImportAuditStatus.success,
+          rollback: BackupRollbackStatus.notRequired,
+          sectionsCompleted: sectionsCompleted,
+        ),
       );
     } catch (error) {
+      var rollback = BackupRollbackStatus.notRequired;
       if (committed && preRestoreState != null) {
         try {
           _controller.markMaintenance();
@@ -215,31 +231,50 @@ class BackupImportService {
             );
           }
           _controller.value = controllerBefore;
+          rollback = BackupRollbackStatus.succeeded;
         } catch (rollbackError) {
+          rollback = BackupRollbackStatus.failed;
           _controller.markFailed(
-            errorCode: 'import_failed',
+            errorCode: 'rollback_failed',
             errorMessage:
                 'CRITICAL RESTORE FAILURE: ${rollbackError.toString()}',
           );
           return BackupImportResult.failure(
-            errorCode: 'import_failed',
+            errorCode: 'rollback_failed',
             message: 'CRITICAL RESTORE FAILURE: ${rollbackError.toString()}',
+            audit: _auditFor(
+              approvedPlan,
+              status: BackupImportAuditStatus.failed,
+              rollback: rollback,
+              sectionsCompleted: sectionsCompleted,
+              failureSection: activeSection,
+              failureReason: rollbackError.toString(),
+            ),
           );
         }
       }
       final healthy = await _validateCurrentDatabase();
       final backupError = error is BackupException ? error : null;
+      final errorCode = backupError?.code ?? 'transaction_failed';
+      final message = backupError?.message ?? error.toString();
       if (healthy) {
         _controller.value = controllerBefore;
       } else {
-        _controller.markFailed(
-          errorCode: backupError?.code ?? 'import_failed',
-          errorMessage: backupError?.message ?? error.toString(),
-        );
+        _controller.markFailed(errorCode: errorCode, errorMessage: message);
       }
       return BackupImportResult.failure(
-        errorCode: backupError?.code ?? 'import_failed',
-        message: backupError?.message ?? error.toString(),
+        errorCode: errorCode,
+        message: message,
+        audit: _auditFor(
+          approvedPlan,
+          status: rollback == BackupRollbackStatus.succeeded
+              ? BackupImportAuditStatus.rolledBack
+              : BackupImportAuditStatus.failed,
+          rollback: rollback,
+          sectionsCompleted: sectionsCompleted,
+          failureSection: activeSection,
+          failureReason: message,
+        ),
       );
     } finally {
       _executing = false;
@@ -411,6 +446,44 @@ class BackupImportService {
       }
     }
     return true;
+  }
+
+  static BackupImportAudit _auditFor(
+    BackupImportPlan plan, {
+    required BackupImportAuditStatus status,
+    required BackupRollbackStatus rollback,
+    required int sectionsCompleted,
+    String? failureSection,
+    String? failureReason,
+  }) {
+    final sections = plan.sections.values;
+    return BackupImportAudit(
+      mode: plan.mode,
+      schemaVersion: plan.package.schemaVersion,
+      sectionsPlanned: plan.sections.length,
+      sectionsCompleted: sectionsCompleted,
+      importedRecords: plan.package.includedSections.fold<int>(
+        0,
+        (total, section) => total + (plan.package.data[section]?.length ?? 0),
+      ),
+      added: sections.fold<int>(
+        0,
+        (total, section) => total + section.add + section.replace,
+      ),
+      skipped: sections.fold<int>(0, (total, section) => total + section.skip),
+      conflicts: sections.fold<int>(
+        0,
+        (total, section) => total + section.conflicts.length,
+      ),
+      failed: status == BackupImportAuditStatus.success ? 0 : 1,
+      status: status,
+      rollback: rollback,
+      failureSection: failureSection,
+      failureReason: failureReason,
+      conflictIdentities: [
+        for (final section in plan.sections.values) ...section.conflicts,
+      ],
+    );
   }
 
   static bool _recordListsEqual(

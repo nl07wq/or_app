@@ -25,6 +25,21 @@ typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
 typedef DailyLogFinalizeCompleted = Future<void> Function();
 
+/// The single post-finalize Backup presentation used by both Dashboard and
+/// Command Center.  Command Center embeds [DailyLogSection], so it must never
+/// grow a route-specific Backup path of its own.
+@visibleForTesting
+Future<void> presentDailyFinalizeBackupPrompt({
+  required BuildContext context,
+  required BackupFileExportService exportService,
+}) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => BackupPromptDialog(exportService: exportService),
+  );
+}
+
 @visibleForTesting
 Future<void> executeDailyLogFinalize({
   required Future<void> Function() finalize,
@@ -166,13 +181,10 @@ class _DailyLogSectionState extends State<DailyLogSection> {
         previousOperationDate: previousDate,
         afterFinalize: () async {
           if (!mounted) return;
-          await showDialog<void>(
+          await presentDailyFinalizeBackupPrompt(
             context: context,
-            barrierDismissible: true,
-            builder: (_) => BackupPromptDialog(
-              exportService:
-                  widget.backupExportService ?? BackupFileExportService(),
-            ),
+            exportService:
+                widget.backupExportService ?? BackupFileExportService(),
           );
         },
         onReviewCompleted: onReviewCompleted,

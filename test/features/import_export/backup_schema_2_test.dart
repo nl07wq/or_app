@@ -878,7 +878,16 @@ void main() {
       plan.sections[BackupSections.customExercises]!.conflictingRecordIds,
       {id},
     );
-    expect((await service.execute(plan)).success, isTrue);
+    final result = await service.execute(plan);
+    expect(result.success, isTrue);
+    expect(result.audit?.added, 1);
+    expect(result.audit?.skipped, 0);
+    expect(result.audit?.conflicts, 1);
+    expect(result.audit?.failed, 0);
+    expect(
+      result.audit?.conflictIdentities,
+      contains('${BackupSections.customExercises}:$id'),
+    );
     expect(
       await database.findById(IndexedDbStoreNames.customTrainingExercises, id),
       existing,
@@ -1046,6 +1055,9 @@ void main() {
       final result = await service.execute(plan);
 
       expect(result.success, isFalse);
+      expect(result.errorCode, 'transaction_failed');
+      expect(result.audit?.status, BackupImportAuditStatus.failed);
+      expect(result.audit?.rollback, BackupRollbackStatus.notRequired);
       expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
       expect(
         await database.findAll(IndexedDbStoreNames.customTrainingExercises),
