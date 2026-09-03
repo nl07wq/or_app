@@ -18,7 +18,7 @@ class BootSequenceEvent {
 typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
-const _bootStaticDuration = Duration(milliseconds: 90);
+const _bootSignalHandoffDuration = Duration(milliseconds: 100);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -340,14 +340,14 @@ class _BootProgressBar extends StatelessWidget {
   }
 }
 
-class _BootStaticTransition extends StatefulWidget {
-  const _BootStaticTransition();
+class _BootSignalHandoff extends StatefulWidget {
+  const _BootSignalHandoff();
 
   @override
-  State<_BootStaticTransition> createState() => _BootStaticTransitionState();
+  State<_BootSignalHandoff> createState() => _BootSignalHandoffState();
 }
 
-class _BootStaticTransitionState extends State<_BootStaticTransition>
+class _BootSignalHandoffState extends State<_BootSignalHandoff>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -356,7 +356,7 @@ class _BootStaticTransitionState extends State<_BootStaticTransition>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: _bootStaticDuration,
+      duration: _bootSignalHandoffDuration,
     )..repeat();
   }
 
@@ -368,43 +368,105 @@ class _BootStaticTransitionState extends State<_BootStaticTransition>
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    key: const ValueKey('boot-static-transition'),
+    key: const ValueKey('boot-signal-handoff'),
     color: Colors.black,
     child: AnimatedBuilder(
       animation: _controller,
       builder: (_, _) => CustomPaint(
-        painter: _BootStaticPainter(_controller.value),
+        painter: _BootSignalHandoffPainter(_controller.value),
         child: const SizedBox.expand(),
       ),
     ),
   );
 }
 
-class _BootStaticPainter extends CustomPainter {
-  const _BootStaticPainter(this.frame);
+class _BootSignalHandoffPainter extends CustomPainter {
+  const _BootSignalHandoffPainter(this.frame);
   final double frame;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final grain = Paint();
-    final frameSeed = (frame * 37).floor();
-    for (var y = 0; y < size.height; y += 7) {
-      for (var x = (y * 5 + frameSeed * 11) % 17; x < size.width; x += 11) {
-        final sample = (x * 29 + y * 19 + frameSeed * 53) % 101;
-        if (sample > 43) continue;
-        final shade = 74 + sample;
-        grain.color = Color.fromARGB(124, shade, shade, shade);
-        canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 2, 2), grain);
-      }
+    final signal = Paint();
+    final frameSeed = (frame * 47).floor();
+    final lineCount = 1 + frameSeed % 4;
+    for (var index = 0; index < lineCount; index += 1) {
+      final y = ((frameSeed * 31 + index * 97) % size.height.ceil()).toDouble();
+      final start = ((frameSeed * 17 + index * 131) % (size.width * .4).ceil())
+          .toDouble();
+      final width = size.width * (.26 + ((frameSeed + index * 13) % 35) / 100);
+      final alpha = 118 + (index * 21 % 48);
+      signal.color = Color.fromARGB(alpha, 194, 204, 211);
+      canvas.drawRect(Rect.fromLTWH(start, y, width, 1), signal);
+      signal.color = Color.fromARGB(alpha ~/ 2, 138, 150, 158);
+      canvas.drawRect(
+        Rect.fromLTWH(start + width * .18, y + 2, width * .22, 1),
+        signal,
+      );
     }
-    final tearY = ((frameSeed * 23) % (size.height.ceil() + 1)).toDouble();
-    grain.color = const Color.fromARGB(68, 184, 184, 184);
-    canvas.drawRect(Rect.fromLTWH(0, tearY, size.width * .46, 1), grain);
   }
 
   @override
-  bool shouldRepaint(_BootStaticPainter oldDelegate) =>
+  bool shouldRepaint(_BootSignalHandoffPainter oldDelegate) =>
       oldDelegate.frame != frame;
+}
+
+class _BootStartPrompt extends StatelessWidget {
+  const _BootStartPrompt({required this.onStart});
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: const Color(0xFF101010),
+      child: SafeArea(
+        child: Center(
+          child: Semantics(
+            button: true,
+            label: 'TAP TO START',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: const ValueKey('boot-tap-to-start'),
+                onTap: onStart,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 56,
+                    vertical: 44,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/icons/orlo_logo_1024_transparent.png',
+                        key: const ValueKey('boot-brand-logo'),
+                        height: 128,
+                        width: 220,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox(height: 72),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        'TAP TO START',
+                        key: const ValueKey('boot-tap-to-start-label'),
+                        style: Theme.of(context).textTheme.titleMedium!
+                            .copyWith(
+                              color: colorScheme.primary,
+                              fontFamily: 'monospace',
+                              letterSpacing: 1.4,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Coordinates the visual without owning initialization or persistence.
@@ -440,7 +502,9 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _completed = false;
-  bool _showStatic = false;
+  bool _showSignalHandoff = false;
+  bool _bootStarted = false;
+  bool _systemInitializedEventEmitted = false;
   int _typedLength = 0;
   int _typedNameLength = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
@@ -450,15 +514,8 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     super.initState();
     _progressController = AnimationController(vsync: this);
     _bootAudio = widget.bootAudio ?? createBootAudio();
-    try {
-      _bootAudio.playOnce();
-    } catch (_) {
-      // Audio is optional presentation and must not block startup.
-    }
-    _emit(BootSequenceEventType.bootStart);
     widget.initialization.addListener(_onInitializationChanged);
     _onInitializationChanged();
-    _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
 
   @override
@@ -476,6 +533,24 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         action();
       }
     });
+  }
+
+  void _startFromUserActivation() {
+    if (_bootStarted || _completed) return;
+    // Keep the audio request in the tap handler so mobile browsers can retain
+    // the legitimate user-activation privilege for HTMLAudioElement.play().
+    _bootStarted = true;
+    try {
+      _bootAudio.playOnce();
+    } catch (_) {
+      // Audio is optional presentation and must not block startup.
+    }
+    _emit(BootSequenceEventType.bootStart);
+    if (_systemInitialized) {
+      _emitSystemInitialized();
+    }
+    setState(() {});
+    _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
 
   void _startIdentityTyping() {
@@ -589,17 +664,17 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       return;
     }
     if (state.mode == PersistenceMode.initializing) {
-      // Static is only the immediate successful boot-to-main handoff. A later
+      // The signal handoff is only for successful initial boot. A later
       // initialization cycle must return to StartupGate's normal loading UI.
-      if (_systemInitialized && (_showStatic || !_completed)) {
+      if (_systemInitialized && (_showSignalHandoff || !_completed)) {
         _timelineTimer?.cancel();
         if (mounted) {
           setState(() {
-            _showStatic = false;
+            _showSignalHandoff = false;
             _completed = true;
           });
         } else {
-          _showStatic = false;
+          _showSignalHandoff = false;
           _completed = true;
         }
       }
@@ -612,8 +687,16 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       return;
     }
     _systemInitialized = true;
-    _emit(BootSequenceEventType.systemInitialized);
+    if (_bootStarted) {
+      _emitSystemInitialized();
+    }
     _tryStartFinalProgress();
+  }
+
+  void _emitSystemInitialized() {
+    if (_systemInitializedEventEmitted) return;
+    _systemInitializedEventEmitted = true;
+    _emit(BootSequenceEventType.systemInitialized);
   }
 
   void _tryShowSystemReady() {
@@ -624,8 +707,8 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     }
     setState(() => _phase = _BootVisualPhase.systemReady);
     _schedule(widget.timing.readyHold, () {
-      setState(() => _showStatic = true);
-      _schedule(_bootStaticDuration, () {
+      setState(() => _showSignalHandoff = true);
+      _schedule(_bootSignalHandoffDuration, () {
         setState(() => _completed = true);
         _emit(BootSequenceEventType.bootComplete);
       });
@@ -652,7 +735,10 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       return widget.fallbackBuilder(state);
     }
     if (_completed) return widget.child;
-    if (_showStatic) return const _BootStaticTransition();
+    if (_showSignalHandoff) return const _BootSignalHandoff();
+    if (!_bootStarted) {
+      return _BootStartPrompt(onStart: _startFromUserActivation);
+    }
     return AnimatedBuilder(
       animation: _progressController,
       builder: (context, _) => _BootSequenceVisual(

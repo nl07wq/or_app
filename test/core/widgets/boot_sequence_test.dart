@@ -31,6 +31,9 @@ void main() {
     expect(find.text('SYSTEM BOOT'), findsNothing);
     expect(find.text('CORE SYSTEM'), findsNothing);
     expect(find.text('SYSTEM READY'), findsNothing);
+    expect(find.text('TAP TO START'), findsOneWidget);
+
+    await _tapToStart(tester);
 
     await _elapse(tester, _timing.logoIntro);
     await _elapse(tester, _timing.typingCharacter);
@@ -81,6 +84,7 @@ void main() {
     );
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: typingTiming));
+    await _tapToStart(tester);
 
     await _elapse(tester, typingTiming.logoIntro);
     await _advanceTyping(tester, typingTiming);
@@ -124,6 +128,7 @@ void main() {
     final semantics = tester.ensureSemantics();
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: continuousTiming));
+    await _tapToStart(tester);
 
     await _elapse(tester, continuousTiming.logoIntro);
     await _advanceTyping(tester, continuousTiming);
@@ -174,6 +179,7 @@ void main() {
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
+    await _tapToStart(tester);
 
     await _advanceRows(tester);
     expect(find.text('SYSTEM READY'), findsNothing);
@@ -209,12 +215,9 @@ void main() {
     ]);
 
     await _elapse(tester, _timing.readyHold);
-    expect(
-      find.byKey(const ValueKey('boot-static-transition')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     expect(find.text('MAIN UI'), findsNothing);
-    await _elapse(tester, const Duration(milliseconds: 90));
+    await _elapse(tester, const Duration(milliseconds: 100));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
@@ -235,6 +238,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('DATA INITIALIZATION FAILED'), findsOneWidget);
+    expect(find.text('TAP TO START'), findsNothing);
     expect(find.text('SYSTEM READY'), findsNothing);
     expect(find.text('MAIN UI'), findsNothing);
   });
@@ -254,6 +258,7 @@ void main() {
     );
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: spinnerTiming));
+    await _tapToStart(tester);
 
     await _elapse(tester, spinnerTiming.logoIntro);
     await _advanceTyping(tester, spinnerTiming);
@@ -274,14 +279,12 @@ void main() {
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
+    await _tapToStart(tester);
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
-    expect(
-      find.byKey(const ValueKey('boot-static-transition')),
-      findsOneWidget,
-    );
-    await _elapse(tester, const Duration(milliseconds: 90));
+    expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
+    await _elapse(tester, const Duration(milliseconds: 100));
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -302,14 +305,12 @@ void main() {
     await tester.pumpWidget(
       _gate(controller, onEvent: (_) => throw StateError('audio unavailable')),
     );
+    await _tapToStart(tester);
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
-    expect(
-      find.byKey(const ValueKey('boot-static-transition')),
-      findsOneWidget,
-    );
-    await _elapse(tester, const Duration(milliseconds: 90));
+    expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
+    await _elapse(tester, const Duration(milliseconds: 100));
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -330,6 +331,9 @@ void main() {
         ),
       ),
     );
+    expect(audio.playCalls, 0);
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-start')));
+    await tester.pump();
     expect(audio.playCalls, 1);
 
     await tester.pumpWidget(
@@ -346,28 +350,24 @@ void main() {
   });
 
   testWidgets(
-    'a reinitialization replaces an active static handoff with loading',
+    'a reinitialization replaces an active signal handoff with loading',
     (tester) async {
       final controller = AppInitializationController()..markReady();
       await tester.pumpWidget(_gate(controller));
+      await _tapToStart(tester);
       await _advanceRows(tester);
       await _elapse(
         tester,
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
       await _elapse(tester, _timing.readyHold);
-      expect(
-        find.byKey(const ValueKey('boot-static-transition')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
 
       controller.updateStage(InitializationStage.openingDatabase);
       await tester.pump();
       expect(find.text('INITIALIZING'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('boot-static-transition')),
-        findsNothing,
-      );
+      expect(find.text('TAP TO START'), findsNothing);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
 
       controller.markReady();
       await tester.pump();
@@ -387,6 +387,7 @@ void main() {
         ),
       ),
     );
+    await _tapToStart(tester);
     expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -439,6 +440,11 @@ Future<void> _advanceRows(WidgetTester tester) async {
   await _elapse(tester, _timing.row * 2);
   await _elapse(tester, _timing.row);
   await _elapse(tester, _timing.row);
+}
+
+Future<void> _tapToStart(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('boot-tap-to-start')));
+  await tester.pump();
 }
 
 Future<void> _advanceTyping(
