@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/startup_initialization_service.dart';
+import '../services/startup_diagnostic.dart';
 import '../state/app_initialization_state.dart';
 import 'boot_sequence.dart';
 import 'operation_button.dart';
@@ -30,18 +31,50 @@ class StartupGate extends StatefulWidget {
 class _StartupGateState extends State<StartupGate> {
   late final bool _isInitialBootPresentation;
   late bool _bootPresentationMounted;
+  String? _lastDiagnosticPresentation;
 
   @override
   void initState() {
     super.initState();
+    final diagnostic = StartupDiagnostic.instance;
+    diagnostic.record(
+      'FLUTTER',
+      'STARTUP_GATE_INIT',
+      state: widget.service.controller.value.mode.name,
+      fields: {
+        'startupGate': identityHashCode(this),
+        'controller': identityHashCode(widget.service.controller),
+        'bootSessionClaim': diagnostic.bootSessionClaim(),
+      },
+    );
     _isInitialBootPresentation =
         widget.showBootSequence &&
         widget.service.controller.claimInitialBootPresentation();
     _bootPresentationMounted = _isInitialBootPresentation;
+    diagnostic.record(
+      'STARTUP_GATE',
+      'STARTUP_GATE_INITIAL_CLAIM',
+      presentation: _bootPresentationMounted ? 'BOOT' : 'INITIALIZING',
+      fields: {
+        'initialBootClaimed': _isInitialBootPresentation,
+        'bootSessionClaim': diagnostic.bootSessionClaim(),
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    StartupDiagnostic.instance.record('FLUTTER', 'STARTUP_GATE_DISPOSE');
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    _recordPresentation(
+      _bootPresentationMounted
+          ? 'BOOT'
+          : _presentationFor(widget.service.controller.value),
+    );
     assert(() {
       debugPrint(
         'STARTUP_TRACE event=startup_gate_build '
@@ -74,7 +107,46 @@ class _StartupGateState extends State<StartupGate> {
 
   void _releaseBootPresentation() {
     if (!mounted || !_bootPresentationMounted) return;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'STARTUP_GATE_BOOT_RELEASED',
+      presentation: _presentationFor(widget.service.controller.value),
+    );
     setState(() => _bootPresentationMounted = false);
+  }
+
+  String _presentationFor(AppInitializationState state) => switch (state.mode) {
+    PersistenceMode.initializing => 'INITIALIZING',
+    PersistenceMode.failed => 'FAILURE',
+    PersistenceMode.maintenance => 'MAINTENANCE',
+    PersistenceMode.legacyReadOnly => 'READ_ONLY',
+    PersistenceMode.indexedDbReadWrite => 'MAIN_UI',
+  };
+
+  void _recordPresentation(String presentation) {
+    if (_lastDiagnosticPresentation == presentation) return;
+    _lastDiagnosticPresentation = presentation;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'STARTUP_GATE_PRESENTATION_SELECTED',
+      state: widget.service.controller.value.mode.name,
+      presentation: presentation,
+    );
+    if (presentation == 'INITIALIZING') {
+      StartupDiagnostic.instance.record(
+        'FLUTTER',
+        'INITIALIZING_BUILD',
+        presentation: presentation,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _lastDiagnosticPresentation != 'INITIALIZING') return;
+        StartupDiagnostic.instance.record(
+          'FLUTTER',
+          'INITIALIZING_POST_FRAME',
+          presentation: 'INITIALIZING',
+        );
+      });
+    }
   }
 
   Widget _canonicalStartupPresentation() =>
@@ -83,21 +155,23 @@ class _StartupGateState extends State<StartupGate> {
         builder: (context, state, _) => _stateChild(context, state),
       );
 
-  Widget _stateChild(BuildContext context, AppInitializationState state) =>
-      switch (state.mode) {
-        PersistenceMode.initializing => _InitializingView(state: state),
-        PersistenceMode.failed => _FailedView(
-          state: state,
-          onRetry: widget.service.retry,
-          onReadOnly: widget.service.openReadOnly,
-        ),
-        PersistenceMode.legacyReadOnly => _ReadOnlyShell(
-          state: state,
-          child: widget.child,
-        ),
-        PersistenceMode.maintenance => _MaintenanceView(child: widget.child),
-        PersistenceMode.indexedDbReadWrite => widget.child,
-      };
+  Widget _stateChild(BuildContext context, AppInitializationState state) {
+    _recordPresentation(_presentationFor(state));
+    return switch (state.mode) {
+      PersistenceMode.initializing => _InitializingView(state: state),
+      PersistenceMode.failed => _FailedView(
+        state: state,
+        onRetry: widget.service.retry,
+        onReadOnly: widget.service.openReadOnly,
+      ),
+      PersistenceMode.legacyReadOnly => _ReadOnlyShell(
+        state: state,
+        child: widget.child,
+      ),
+      PersistenceMode.maintenance => _MaintenanceView(child: widget.child),
+      PersistenceMode.indexedDbReadWrite => widget.child,
+    };
+  }
 }
 
 class _MaintenanceView extends StatelessWidget {

@@ -49,6 +49,8 @@ class AppRoutes {
 
   static const systemMonitoring = '/system/device-transfer/monitoring';
 
+  static const startupDiagnostic = '/system/startup-diagnostic';
+
   static const operationSync = '/operation-sync';
 
   static const historicalTrainingImport = '/operation-sync/historical-training';

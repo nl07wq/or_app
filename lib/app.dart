@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/navigation/app_routes.dart';
+import 'core/services/startup_diagnostic.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/boot_sequence.dart';
@@ -29,6 +30,7 @@ import 'features/system/pages/profile_page.dart';
 import 'features/system/pages/system_page.dart';
 import 'features/system/pages/device_transfer_page.dart';
 import 'features/system/pages/system_monitoring_page.dart';
+import 'features/system/pages/startup_diagnostic_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -46,17 +48,63 @@ class OperationRebootApp extends StatefulWidget {
 
 class _OperationRebootAppState extends State<OperationRebootApp> {
   late final StartupInitializationService _initializationService;
+  String? _lastInitializationMode;
+  bool _appBuildRecorded = false;
 
   @override
   void initState() {
     super.initState();
     _initializationService =
         widget.initializationService ?? StartupInitializationService();
+    _initializationService.controller.addListener(_recordInitializationState);
+    _recordInitializationState();
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'APP_ROOT_INIT_STATE',
+      fields: {
+        'controller': identityHashCode(_initializationService.controller),
+      },
+    );
+    StartupDiagnostic.instance.record('FLUTTER', 'INITIALIZATION_REQUESTED');
     unawaited(_initializationService.initialize());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final diagnostic = StartupDiagnostic.instance;
+      diagnostic.record(
+        'FLUTTER',
+        'FIRST_FLUTTER_FRAME',
+        presentation: diagnostic.currentPresentation,
+      );
+    });
+  }
+
+  void _recordInitializationState() {
+    final state = _initializationService.controller.value;
+    if (_lastInitializationMode == state.mode.name) return;
+    _lastInitializationMode = state.mode.name;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'INITIALIZATION_STATE_CHANGED',
+      state: state.mode.name,
+      fields: {'stage': state.currentStage.name},
+    );
+  }
+
+  @override
+  void dispose() {
+    StartupDiagnostic.instance.record('FLUTTER', 'APP_ROOT_DISPOSE');
+    _initializationService.controller.removeListener(
+      _recordInitializationState,
+    );
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_appBuildRecorded) {
+      _appBuildRecorded = true;
+      StartupDiagnostic.instance.record('FLUTTER', 'APP_ROOT_BUILD');
+    }
     return MaterialApp(
       title: 'Operation Reboot',
       debugShowCheckedModeBanner: false,
@@ -114,6 +162,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
             const BootSequenceCalibrationPage(),
         AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
         AppRoutes.systemMonitoring: (_) => const SystemMonitoringPage(),
+        AppRoutes.startupDiagnostic: (_) => const StartupDiagnosticPage(),
         AppRoutes.operationSync: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
           return OperationSyncPage(

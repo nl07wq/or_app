@@ -221,6 +221,15 @@ class _SystemPageState extends State<SystemPage> {
         ),
         AppSpacing.gapXL,
         _SystemSection(
+          icon: Icons.bug_report_outlined,
+          title: 'STARTUP DIAGNOSTIC',
+          description: 'iOS/PWA起動表示の一時的な診断トレースを確認します。',
+          buttonText: 'OPEN STARTUP DIAGNOSTIC',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.startupDiagnostic),
+        ),
+        AppSpacing.gapXL,
+        _SystemSection(
           icon: Icons.animation_outlined,
           title: 'ANIMATIONS SANDBOX',
           description: 'アニメーション演出を本番導入前に確認します。',

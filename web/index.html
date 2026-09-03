@@ -33,6 +33,69 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Temporary startup-lifecycle diagnostic. It deliberately records only
+    // document/presentation metadata and is bounded so it remains harmless.
+    (function () {
+      const storageKey = 'or_app.startup_diagnostic.v1';
+      const bootClaimKey = 'or_app.initial_boot_presentation_claimed.v1';
+      const maxEvents = 200;
+      const documentRunId = 'doc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      try {
+        sessionStorage.setItem('or_app.startup_diagnostic.document_run_id', documentRunId);
+      } catch (_) {}
+
+      function navigationType() {
+        try {
+          const entry = performance.getEntriesByType('navigation')[0];
+          return entry && entry.type ? entry.type : 'unknown';
+        } catch (_) {
+          return 'unknown';
+        }
+      }
+
+      function bootClaim() {
+        try {
+          return sessionStorage.getItem(bootClaimKey) === 'true' ? 'present:true' : 'absent';
+        } catch (_) {
+          return 'unavailable';
+        }
+      }
+
+      function record(event, fields) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(storageKey) || '{"sequence":0,"events":[]}');
+          const events = Array.isArray(parsed.events) ? parsed.events : [];
+          const sequence = Number(parsed.sequence || 0) + 1;
+          events.push({
+            sequence: sequence,
+            timestamp: new Date().toISOString(),
+            documentRunId: documentRunId,
+            startupRunId: null,
+            layer: 'JS',
+            event: event,
+            fields: Object.assign({
+              visibility: document.visibilityState,
+              navigationType: navigationType(),
+              bootSessionClaim: bootClaim()
+            }, fields || {})
+          });
+          if (events.length > maxEvents) events.splice(0, events.length - maxEvents);
+          localStorage.setItem(storageKey, JSON.stringify({ sequence: sequence, events: events }));
+        } catch (_) {
+          // The diagnostic never changes page startup behavior.
+        }
+      }
+
+      record('DOCUMENT_SCRIPT_START');
+      record('FLUTTER_BOOTSTRAP_REQUESTED');
+      document.addEventListener('DOMContentLoaded', function () { record('DOM_CONTENT_LOADED'); });
+      window.addEventListener('load', function () { record('WINDOW_LOAD'); });
+      window.addEventListener('pageshow', function (event) { record('PAGESHOW', { persisted: !!event.persisted }); });
+      window.addEventListener('pagehide', function (event) { record('PAGEHIDE', { persisted: !!event.persisted }); });
+      document.addEventListener('visibilitychange', function () { record('VISIBILITY_CHANGE'); });
+    })();
+  </script>
   <script src="assets/food_input/food_input_bridge.js"></script>
   <!--
     You can customize the "flutter_bootstrap.js" script.

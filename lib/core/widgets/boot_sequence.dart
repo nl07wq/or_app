@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/boot_audio.dart';
+import '../services/startup_diagnostic.dart';
 import '../state/app_initialization_state.dart';
 
 enum BootSequenceEventType { bootStart, systemInitialized, bootComplete }
@@ -528,6 +529,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   bool _readyDelayElapsed = false;
   bool _skipRequested = false;
   bool _presentationReleased = false;
+  String? _lastDiagnosticPresentation;
   BootPresentationState _presentation =
       BootPresentationState.initialBootPresentation;
   int _typedLength = 0;
@@ -537,6 +539,15 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   @override
   void initState() {
     super.initState();
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_GATE_INIT',
+      presentation: widget.isInitialBootPresentation ? 'BOOT' : 'INITIALIZING',
+      fields: {
+        'bootGate': identityHashCode(this),
+        'initialBootPresentation': widget.isInitialBootPresentation,
+      },
+    );
     _progressController = AnimationController(vsync: this);
     widget.initialization.addListener(_onInitializationChanged);
     if (!widget.isInitialBootPresentation) {
@@ -554,6 +565,12 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   @override
   void dispose() {
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_GATE_DISPOSE',
+      presentation: _diagnosticPresentation,
+      fields: {'presentationReleased': _presentationReleased},
+    );
     widget.initialization.removeListener(_onInitializationChanged);
     _invalidateSession('gate_disposed');
     _progressController.dispose();
@@ -593,6 +610,11 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _startIdentityTyping() {
     if (!_isPresentationActive) return;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_TYPING',
+      presentation: 'BOOT',
+    );
     setState(() => _phase = _BootVisualPhase.identityTyping);
     _animateProgressTo(.2, const Duration(milliseconds: 1500));
     _typeNextCharacter();
@@ -648,6 +670,11 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _showSystemBoot() {
     if (!_isPresentationActive) return;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_PROGRESS',
+      presentation: 'BOOT',
+    );
     setState(() => _phase = _BootVisualPhase.systemBoot);
     _animateProgressTo(.25, widget.timing.systemBootTransition);
     _schedule(widget.timing.systemBootTransition, _showCore);
@@ -753,6 +780,11 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       return;
     }
     setState(() => _phase = _BootVisualPhase.systemReady);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_SYSTEM_READY',
+      presentation: 'BOOT',
+    );
     _transition(BootPresentationState.systemReadyPresentation, 'system_ready');
     _schedule(widget.timing.readyHold, () {
       if (!_isPresentationActive || _skipRequested) return;
@@ -760,10 +792,20 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         BootPresentationState.bootHandoffSignal,
         'signal_handoff_started',
       );
+      StartupDiagnostic.instance.record(
+        'FLUTTER',
+        'BOOT_PHASE_HANDOFF',
+        presentation: 'BOOT',
+      );
       setState(() {});
       _schedule(_bootSignalHandoffDuration, () {
         if (_presentation != BootPresentationState.bootHandoffSignal) return;
         _transition(BootPresentationState.mainUi, 'signal_handoff_finished');
+        StartupDiagnostic.instance.record(
+          'FLUTTER',
+          'BOOT_PHASE_MAIN_UI',
+          presentation: 'MAIN_UI',
+        );
         setState(() {});
         _emit(BootSequenceEventType.bootComplete);
         _releasePresentation('normal_boot_presentation_released');
@@ -773,16 +815,36 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _requestSkip() {
     if (!_isPresentationActive || _skipRequested) return;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_SKIP_TAPPED',
+      presentation: 'BOOT',
+    );
     _skipRequested = true;
     _invalidateSession('boot_skip_requested');
     if (widget.initialization.value.mode == PersistenceMode.failed) {
+      StartupDiagnostic.instance.record(
+        'FLUTTER',
+        'BOOT_SKIP_TARGET_FAILURE',
+        presentation: 'FAILURE',
+      );
       _transition(BootPresentationState.failure, 'skip_after_failure');
     } else if (_isInitializationReady) {
+      StartupDiagnostic.instance.record(
+        'FLUTTER',
+        'BOOT_SKIP_TARGET_MAIN',
+        presentation: 'MAIN_UI',
+      );
       _transition(
         BootPresentationState.mainUi,
         'skip_with_initialization_ready',
       );
     } else {
+      StartupDiagnostic.instance.record(
+        'FLUTTER',
+        'BOOT_SKIP_TARGET_INITIALIZING',
+        presentation: 'INITIALIZING',
+      );
       _transition(
         BootPresentationState.reinitializationLoading,
         'skip_waiting_for_initialization',
@@ -795,6 +857,12 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   void _releasePresentation(String event) {
     if (_presentationReleased) return;
     _presentationReleased = true;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_GATE_RELEASE_REQUEST',
+      presentation: _diagnosticPresentation,
+      fields: {'reason': event},
+    );
     _trace(event);
     widget.onPresentationReleased?.call();
   }
@@ -834,6 +902,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   @override
   Widget build(BuildContext context) {
+    _recordDiagnosticBuild();
     final state = widget.initialization.value;
     if (state.mode == PersistenceMode.failed) {
       return widget.fallbackBuilder(state);
@@ -861,6 +930,29 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         progress: _progressController.value,
         onSkip: _requestSkip,
       ),
+    );
+  }
+
+  String get _diagnosticPresentation => switch (_presentation) {
+    BootPresentationState.reinitializationLoading => 'INITIALIZING',
+    BootPresentationState.mainUi => 'MAIN_UI',
+    BootPresentationState.failure => 'FAILURE',
+    _ => 'BOOT',
+  };
+
+  void _recordDiagnosticBuild() {
+    final presentation = _diagnosticPresentation;
+    if (_lastDiagnosticPresentation == presentation) return;
+    _lastDiagnosticPresentation = presentation;
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_GATE_BUILD',
+      state: widget.initialization.value.mode.name,
+      presentation: presentation,
+      fields: {
+        'bootPresentationState': _presentation.name,
+        'phase': _phase.name,
+      },
     );
   }
 }
