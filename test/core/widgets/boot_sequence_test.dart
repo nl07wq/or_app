@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/boot_audio.dart';
+import 'package:or_app/core/services/boot_presentation_session.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/boot_sequence.dart';
@@ -352,6 +353,10 @@ void main() {
       controller.updateStage(InitializationStage.openingDatabase);
       await tester.pump();
       expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('startup-initializing-view'))),
+        isNot(Size.zero),
+      );
       expect(find.text('TAP TO START'), findsNothing);
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
 
@@ -408,9 +413,17 @@ void main() {
       await tester.pump();
 
       expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('startup-initializing-view'))),
+        isNot(Size.zero),
+      );
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
       await _elapse(tester, const Duration(seconds: 2));
       expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('startup-initializing-view'))),
+        isNot(Size.zero),
+      );
       expect(find.text('SYSTEM READY'), findsNothing);
 
       controller.markReady();
@@ -484,7 +497,55 @@ void main() {
 
     expect(laterFrame, greaterThan(startFrame));
     expect(laterFrame, lessThanOrEqualTo(1));
+    expect(bootSignalCoreColor, const Color(0xFFF1F8FA));
+    expect((bootSignalHaloColor.a * 255).round(), greaterThan(0x55));
+    expect((bootSignalFragmentColor.a * 255).round(), greaterThan(0x99));
   });
+
+  testWidgets('a genuinely new controller receives the normal initial boot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_gate(AppInitializationController()));
+
+    expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('startup-initializing-view')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'a recreated web-session controller renders canonical initializing',
+    (tester) async {
+      final session = BootPresentationSession();
+      final initialController = AppInitializationController(
+        bootPresentationSession: session,
+      )..markReady();
+      await tester.pumpWidget(_gate(initialController));
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      final reloadedController = AppInitializationController(
+        bootPresentationSession: session,
+      );
+      await tester.pumpWidget(_gate(reloadedController));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('startup-initializing-view')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('startup-initializing-text')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsNothing);
+    },
+  );
 
   test('official boot audio asset is present', () {
     expect(File('assets/audio/boot/ORLO_Boot_v17.wav').existsSync(), isTrue);

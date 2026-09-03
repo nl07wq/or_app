@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../services/boot_presentation_session.dart';
+
 enum PersistenceMode {
   initializing,
   indexedDbReadWrite,
@@ -95,20 +97,20 @@ class AppInitializationState {
 
 class AppInitializationController
     extends ValueNotifier<AppInitializationState> {
-  AppInitializationController()
-    : super(const AppInitializationState.initializing());
+  AppInitializationController({
+    BootPresentationSession? bootPresentationSession,
+  }) : _bootPresentationSession =
+           bootPresentationSession ?? BootPresentationSession(),
+       super(const AppInitializationState.initializing());
 
-  // The initial boot presentation belongs to an application initialization
-  // session, not to any particular StartupGate widget instance. A root can be
-  // rebuilt while the same controller is reinitializing; that must never turn
-  // the rebuild into another visual boot sequence.
-  bool _initialBootPresentationClaimed = false;
+  // The initial boot presentation belongs to an application/browser session,
+  // not to any particular StartupGate or controller instance. Web
+  // sessionStorage preserves that distinction across reload-like root
+  // recreation while a genuinely new app session receives the normal boot.
+  final BootPresentationSession _bootPresentationSession;
 
-  bool claimInitialBootPresentation() {
-    if (_initialBootPresentationClaimed) return false;
-    _initialBootPresentationClaimed = true;
-    return true;
-  }
+  bool claimInitialBootPresentation() =>
+      _bootPresentationSession.claimInitialBootPresentation();
 
   void updateStage(InitializationStage stage) {
     value = AppInitializationState.initializing(currentStage: stage);

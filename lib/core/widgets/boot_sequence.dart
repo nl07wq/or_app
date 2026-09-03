@@ -19,6 +19,9 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
 const _bootSignalHandoffDuration = Duration(milliseconds: 120);
+const bootSignalCoreColor = Color(0xFFF1F8FA);
+const bootSignalHaloColor = Color(0x667FADBA);
+const bootSignalFragmentColor = Color(0xB0A4C4CE);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -458,14 +461,14 @@ class BootSignalHandoffPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final y = size.height * frame;
-    final core = Paint()..color = const Color(0xFFDCE9ED);
-    final halo = Paint()..color = const Color(0x556F9EAA);
+    final core = Paint()..color = bootSignalCoreColor;
+    final halo = Paint()..color = bootSignalHaloColor;
     canvas.drawRect(Rect.fromLTWH(0, y - 2, size.width, 5), halo);
     canvas.drawRect(Rect.fromLTWH(0, y, size.width, 1.5), core);
 
     // A few short fragments immediately trail the sync line. They establish
     // motion without turning the entire frame into static or placeholder bars.
-    final fragments = Paint()..color = const Color(0x998CA8B1);
+    final fragments = Paint()..color = bootSignalFragmentColor;
     for (var index = 0; index < 3; index += 1) {
       final start =
           (size.width * (.12 + index * .27) + frame * 43) % size.width;

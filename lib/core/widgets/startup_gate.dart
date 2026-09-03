@@ -40,6 +40,15 @@ class _StartupGateState extends State<StartupGate> {
 
   @override
   Widget build(BuildContext context) {
+    assert(() {
+      debugPrint(
+        'STARTUP_TRACE event=startup_gate_build '
+        'controller=${identityHashCode(widget.service.controller)} '
+        'initialBoot=$_isInitialBootPresentation '
+        'state=${widget.service.controller.value.mode.name}',
+      );
+      return true;
+    }());
     if (widget.showBootSequence) {
       return BootSequenceGate(
         initialization: widget.service.controller,
@@ -121,32 +130,52 @@ class _InitializingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 24),
-              Text(
-                'INITIALIZING',
-                style: Theme.of(context).textTheme.titleLarge,
+    final primary = Theme.of(context).colorScheme.primary;
+    return ColoredBox(
+      key: const ValueKey('startup-initializing-view'),
+      color: const Color(0xFF101010),
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: DefaultTextStyle(
+              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                color: Colors.white70,
+                fontFamily: 'monospace',
               ),
-              const SizedBox(height: 8),
-              const Text('Operation Rebootのデータを準備しています。'),
-              const SizedBox(height: 16),
-              Text(
-                state.currentStage.name
-                    .replaceAllMapped(
-                      RegExp(r'([A-Z])'),
-                      (match) => ' ${match.group(1)}',
-                    )
-                    .trim()
-                    .toUpperCase(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(color: primary),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'INITIALIZING',
+                    key: const ValueKey('startup-initializing-text'),
+                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                      color: primary,
+                      fontFamily: 'monospace',
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Operation Rebootのデータを準備しています。'),
+                  const SizedBox(height: 16),
+                  Text(
+                    state.currentStage.name
+                        .replaceAllMapped(
+                          RegExp(r'([A-Z])'),
+                          (match) => ' ${match.group(1)}',
+                        )
+                        .trim()
+                        .toUpperCase(),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
