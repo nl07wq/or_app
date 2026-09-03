@@ -210,7 +210,7 @@ void main() {
     await _elapse(tester, _timing.readyHold);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     expect(find.text('MAIN UI'), findsNothing);
-    await _elapse(tester, const Duration(milliseconds: 110));
+    await _elapse(tester, const Duration(milliseconds: 120));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(events, [
       BootSequenceEventType.bootStart,
@@ -274,7 +274,7 @@ void main() {
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
-    await _elapse(tester, const Duration(milliseconds: 110));
+    await _elapse(tester, const Duration(milliseconds: 120));
     await tester.pumpWidget(
       _gate(controller, onEvent: (event) => events.add(event.type)),
     );
@@ -299,7 +299,7 @@ void main() {
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
-    await _elapse(tester, const Duration(milliseconds: 110));
+    await _elapse(tester, const Duration(milliseconds: 120));
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -380,6 +380,112 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('skip goes directly to main when initialization is ready', (
+    tester,
+  ) async {
+    final controller = AppInitializationController()..markReady();
+    await tester.pumpWidget(_gate(controller));
+
+    expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+    await tester.pump();
+
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+    await _elapse(tester, const Duration(seconds: 2));
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.text('SYSTEM READY'), findsNothing);
+  });
+
+  testWidgets(
+    'skip waits visibly for initialization and ignores old callbacks',
+    (tester) async {
+      final controller = AppInitializationController();
+      await tester.pumpWidget(_gate(controller));
+
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.pump();
+
+      expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+      await _elapse(tester, const Duration(seconds: 2));
+      expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(find.text('SYSTEM READY'), findsNothing);
+
+      controller.markReady();
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'failure after skip remains failure and never shows the handoff',
+    (tester) async {
+      final controller = AppInitializationController();
+      await tester.pumpWidget(_gate(controller));
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.pump();
+      controller.markFailed(errorCode: 'test', errorMessage: 'failure');
+      await tester.pump();
+
+      expect(find.text('DATA INITIALIZATION FAILED'), findsOneWidget);
+      expect(find.text('MAIN UI'), findsNothing);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a rebuilt startup gate uses loading, never a second boot handoff',
+    (tester) async {
+      final controller = AppInitializationController()..markReady();
+      final trace = <BootStartupTraceEvent>[];
+      await tester.pumpWidget(_gate(controller, onTrace: trace.add));
+      await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      controller.updateStage(InitializationStage.openingDatabase);
+      await tester.pumpWidget(_gate(controller, onTrace: trace.add));
+      await tester.pump();
+
+      expect(find.text('INITIALIZING'), findsOneWidget);
+      expect(find.byKey(const ValueKey('boot-tap-to-skip')), findsNothing);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+      expect(
+        trace.where(
+          (event) => event.nextState == BootPresentationState.bootHandoffSignal,
+        ),
+        isEmpty,
+      );
+      controller.markReady();
+      await tester.pump();
+      expect(find.text('MAIN UI'), findsOneWidget);
+    },
+  );
+
+  testWidgets('normal handoff uses a moving sync sweep', (tester) async {
+    final controller = AppInitializationController()..markReady();
+    await tester.pumpWidget(_gate(controller));
+    await _advanceRows(tester);
+    await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
+    await _elapse(tester, _timing.readyHold);
+
+    final start = tester.widget<CustomPaint>(
+      find.byKey(const ValueKey('boot-signal-sync-sweep')),
+    );
+    final startFrame = (start.painter! as BootSignalHandoffPainter).frame;
+    await _elapse(tester, const Duration(milliseconds: 40));
+    final later = tester.widget<CustomPaint>(
+      find.byKey(const ValueKey('boot-signal-sync-sweep')),
+    );
+    final laterFrame = (later.painter! as BootSignalHandoffPainter).frame;
+
+    expect(laterFrame, greaterThan(startFrame));
+    expect(laterFrame, lessThanOrEqualTo(1));
+  });
+
   test('official boot audio asset is present', () {
     expect(File('assets/audio/boot/ORLO_Boot_v17.wav').existsSync(), isTrue);
     expect(bootAudioAssetUrl, 'assets/assets/audio/boot/ORLO_Boot_v17.wav');
@@ -401,6 +507,7 @@ class _ThrowingBootAudio implements BootAudio {
 Widget _gate(
   AppInitializationController controller, {
   BootSequenceEventListener? onEvent,
+  BootStartupTraceListener? onTrace,
   BootSequenceTiming timing = _timing,
 }) {
   final service = StartupInitializationService(
@@ -415,6 +522,7 @@ Widget _gate(
       showBootSequence: true,
       bootSequenceTiming: timing,
       onBootEvent: onEvent,
+      onBootTrace: onTrace,
       child: const Text('MAIN UI'),
     ),
   );

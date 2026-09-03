@@ -98,6 +98,18 @@ class AppInitializationController
   AppInitializationController()
     : super(const AppInitializationState.initializing());
 
+  // The initial boot presentation belongs to an application initialization
+  // session, not to any particular StartupGate widget instance. A root can be
+  // rebuilt while the same controller is reinitializing; that must never turn
+  // the rebuild into another visual boot sequence.
+  bool _initialBootPresentationClaimed = false;
+
+  bool claimInitialBootPresentation() {
+    if (_initialBootPresentationClaimed) return false;
+    _initialBootPresentationClaimed = true;
+    return true;
+  }
+
   void updateStage(InitializationStage stage) {
     value = AppInitializationState.initializing(currentStage: stage);
   }

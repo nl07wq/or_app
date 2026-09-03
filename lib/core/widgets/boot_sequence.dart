@@ -18,7 +18,7 @@ class BootSequenceEvent {
 typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
-const _bootSignalHandoffDuration = Duration(milliseconds: 110);
+const _bootSignalHandoffDuration = Duration(milliseconds: 120);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -59,17 +59,57 @@ enum _BootVisualPhase {
   systemReady,
 }
 
+enum BootPresentationState {
+  initialBootPresentation,
+  systemReadyPresentation,
+  bootHandoffSignal,
+  skipped,
+  reinitializationLoading,
+  mainUi,
+  failure,
+}
+
+class BootStartupTraceEvent {
+  final DateTime occurredAt;
+  final String event;
+  final BootPresentationState previousState;
+  final BootPresentationState nextState;
+  final PersistenceMode initializationMode;
+  final String visualPhase;
+  final int session;
+
+  const BootStartupTraceEvent({
+    required this.occurredAt,
+    required this.event,
+    required this.previousState,
+    required this.nextState,
+    required this.initializationMode,
+    required this.visualPhase,
+    required this.session,
+  });
+
+  @override
+  String toString() =>
+      'STARTUP_TRACE t=$occurredAt event=$event session=$session '
+      'startup=${initializationMode.name} boot=${nextState.name} '
+      'visual=$visualPhase';
+}
+
+typedef BootStartupTraceListener = void Function(BootStartupTraceEvent event);
+
 class _BootSequenceVisual extends StatefulWidget {
   final _BootVisualPhase phase;
   final int typedLength;
   final int typedNameLength;
   final double progress;
+  final VoidCallback onSkip;
 
   const _BootSequenceVisual({
     required this.phase,
     required this.typedLength,
     required this.typedNameLength,
     required this.progress,
+    required this.onSkip,
   });
 
   @override
@@ -154,94 +194,124 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     return ColoredBox(
       color: const Color(0xFF101010),
       child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: DefaultTextStyle(
-                style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                  color: Colors.white70,
-                  fontFamily: 'monospace',
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Image.asset(
-                      'assets/icons/orlo_logo_1024_transparent.png',
-                      key: const ValueKey('boot-brand-logo'),
-                      height: 128,
-                      width: 220,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox(height: 72),
+        child: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: DefaultTextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                      color: Colors.white70,
+                      fontFamily: 'monospace',
                     ),
-                    if (phase.index >=
-                        _BootVisualPhase.identityTyping.index) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        'O.R.L.O.'.substring(0, widget.typedLength),
-                        key: const ValueKey('boot-brand-identity'),
-                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                          color: colorScheme.primary,
-                          fontFamily: 'monospace',
-                          letterSpacing: 2,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Image.asset(
+                          'assets/icons/orlo_logo_1024_transparent.png',
+                          key: const ValueKey('boot-brand-logo'),
+                          height: 128,
+                          width: 220,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox(height: 72),
                         ),
-                      ),
-                    ],
-                    if (phase.index >= _BootVisualPhase.identityName.index)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: FittedBox(
-                          alignment: Alignment.centerLeft,
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            _fullName.substring(0, widget.typedNameLength),
-                            key: const ValueKey('boot-brand-full-name'),
-                            style: Theme.of(context).textTheme.labelSmall!
+                        if (phase.index >=
+                            _BootVisualPhase.identityTyping.index) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'O.R.L.O.'.substring(0, widget.typedLength),
+                            key: const ValueKey('boot-brand-identity'),
+                            style: Theme.of(context).textTheme.titleLarge!
                                 .copyWith(
-                                  color: colorScheme.primary.withValues(
-                                    alpha: .7,
-                                  ),
+                                  color: colorScheme.primary,
+                                  fontFamily: 'monospace',
+                                  letterSpacing: 2,
                                 ),
                           ),
-                        ),
-                      ),
-                    if (phase == _BootVisualPhase.identityTyping)
-                      FadeTransition(
-                        opacity: _cursorController,
-                        child: Text(
-                          '▌',
-                          key: const ValueKey('boot-typing-cursor'),
-                          style: TextStyle(color: colorScheme.primary),
-                        ),
-                      ),
-                    if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
-                      const SizedBox(height: 16),
-                      const Text('SYSTEM BOOT'),
-                      const SizedBox(height: 8),
-                      _BootProgressBar(value: widget.progress),
-                    ],
-                    if (rows.isNotEmpty) const SizedBox(height: 28),
-                    ...rows,
-                    if (hasActiveRow) const SizedBox(height: 8),
-                    if (phase == _BootVisualPhase.systemReady) ...[
-                      const SizedBox(height: 28),
-                      Text(
-                        'SYSTEM READY',
-                        key: const ValueKey('boot-system-ready'),
-                        style: TextStyle(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ],
+                        ],
+                        if (phase.index >= _BootVisualPhase.identityName.index)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: FittedBox(
+                              alignment: Alignment.centerLeft,
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _fullName.substring(0, widget.typedNameLength),
+                                key: const ValueKey('boot-brand-full-name'),
+                                style: Theme.of(context).textTheme.labelSmall!
+                                    .copyWith(
+                                      color: colorScheme.primary.withValues(
+                                        alpha: .7,
+                                      ),
+                                    ),
+                              ),
+                            ),
+                          ),
+                        if (phase == _BootVisualPhase.identityTyping)
+                          FadeTransition(
+                            opacity: _cursorController,
+                            child: Text(
+                              '▌',
+                              key: const ValueKey('boot-typing-cursor'),
+                              style: TextStyle(color: colorScheme.primary),
+                            ),
+                          ),
+                        if (phase.index >=
+                            _BootVisualPhase.systemBoot.index) ...[
+                          const SizedBox(height: 16),
+                          const Text('SYSTEM BOOT'),
+                          const SizedBox(height: 8),
+                          _BootProgressBar(value: widget.progress),
+                        ],
+                        if (rows.isNotEmpty) const SizedBox(height: 28),
+                        ...rows,
+                        if (hasActiveRow) const SizedBox(height: 8),
+                        if (phase == _BootVisualPhase.systemReady) ...[
+                          const SizedBox(height: 28),
+                          Text(
+                            'SYSTEM READY',
+                            key: const ValueKey('boot-system-ready'),
+                            style: TextStyle(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: 12,
+              child: Semantics(
+                button: true,
+                label: 'TAP TO SKIP',
+                child: SizedBox(
+                  height: 48,
+                  child: TextButton(
+                    key: const ValueKey('boot-tap-to-skip'),
+                    onPressed: widget.onSkip,
+                    child: Text(
+                      'TAP TO SKIP',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colorScheme.primary.withValues(alpha: .72),
+                        fontFamily: 'monospace',
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -357,7 +427,7 @@ class _BootSignalHandoffState extends State<_BootSignalHandoff>
     _controller = AnimationController(
       vsync: this,
       duration: _bootSignalHandoffDuration,
-    )..repeat();
+    )..forward();
   }
 
   @override
@@ -373,40 +443,42 @@ class _BootSignalHandoffState extends State<_BootSignalHandoff>
     child: AnimatedBuilder(
       animation: _controller,
       builder: (_, _) => CustomPaint(
-        painter: _BootSignalHandoffPainter(_controller.value),
+        key: const ValueKey('boot-signal-sync-sweep'),
+        painter: BootSignalHandoffPainter(_controller.value),
         child: const SizedBox.expand(),
       ),
     ),
   );
 }
 
-class _BootSignalHandoffPainter extends CustomPainter {
-  const _BootSignalHandoffPainter(this.frame);
+class BootSignalHandoffPainter extends CustomPainter {
+  const BootSignalHandoffPainter(this.frame);
   final double frame;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final signal = Paint();
-    final frameSeed = (frame * 47).floor();
-    final lineCount = 2 + frameSeed % 4;
-    for (var index = 0; index < lineCount; index += 1) {
-      final y = ((frameSeed * 31 + index * 97) % size.height.ceil()).toDouble();
-      final start = ((frameSeed * 17 + index * 131) % (size.width * .4).ceil())
-          .toDouble();
-      final width = size.width * (.26 + ((frameSeed + index * 13) % 35) / 100);
-      final alpha = 162 + (index * 19 % 58);
-      signal.color = Color.fromARGB(alpha, 210, 218, 224);
-      canvas.drawRect(Rect.fromLTWH(start, y, width, 2), signal);
-      signal.color = Color.fromARGB(alpha ~/ 2, 152, 165, 174);
+    final y = size.height * frame;
+    final core = Paint()..color = const Color(0xFFDCE9ED);
+    final halo = Paint()..color = const Color(0x556F9EAA);
+    canvas.drawRect(Rect.fromLTWH(0, y - 2, size.width, 5), halo);
+    canvas.drawRect(Rect.fromLTWH(0, y, size.width, 1.5), core);
+
+    // A few short fragments immediately trail the sync line. They establish
+    // motion without turning the entire frame into static or placeholder bars.
+    final fragments = Paint()..color = const Color(0x998CA8B1);
+    for (var index = 0; index < 3; index += 1) {
+      final start =
+          (size.width * (.12 + index * .27) + frame * 43) % size.width;
+      final width = size.width * (.08 + index * .025);
       canvas.drawRect(
-        Rect.fromLTWH(start + width * .18 + index * 6, y + 3, width * .22, 1),
-        signal,
+        Rect.fromLTWH(start, y + 4 + index * 2, width, 1),
+        fragments,
       );
     }
   }
 
   @override
-  bool shouldRepaint(_BootSignalHandoffPainter oldDelegate) =>
+  bool shouldRepaint(BootSignalHandoffPainter oldDelegate) =>
       oldDelegate.frame != frame;
 }
 
@@ -417,6 +489,8 @@ class BootSequenceGate extends StatefulWidget {
   final Widget Function(AppInitializationState state) fallbackBuilder;
   final BootSequenceTiming timing;
   final BootSequenceEventListener? onEvent;
+  final bool isInitialBootPresentation;
+  final BootStartupTraceListener? onTrace;
 
   /// Reserved for a future explicit audio experience. Boot currently does not
   /// invoke audio playback.
@@ -429,6 +503,8 @@ class BootSequenceGate extends StatefulWidget {
     required this.fallbackBuilder,
     this.timing = const BootSequenceTiming(),
     this.onEvent,
+    this.isInitialBootPresentation = true,
+    this.onTrace,
     this.bootAudio,
   });
 
@@ -440,12 +516,14 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     with SingleTickerProviderStateMixin {
   Timer? _timelineTimer;
   late final AnimationController _progressController;
+  int _session = 0;
   bool _systemInitialized = false;
   bool _visualRowsComplete = false;
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
-  bool _completed = false;
-  bool _showSignalHandoff = false;
+  bool _skipRequested = false;
+  BootPresentationState _presentation =
+      BootPresentationState.initialBootPresentation;
   int _typedLength = 0;
   int _typedNameLength = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
@@ -454,8 +532,16 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   void initState() {
     super.initState();
     _progressController = AnimationController(vsync: this);
-    _emit(BootSequenceEventType.bootStart);
     widget.initialization.addListener(_onInitializationChanged);
+    if (!widget.isInitialBootPresentation) {
+      _transition(
+        BootPresentationState.reinitializationLoading,
+        'gate_created_after_initial_boot_claim',
+      );
+      return;
+    }
+    _emit(BootSequenceEventType.bootStart);
+    _trace('boot_gate_created');
     _onInitializationChanged();
     _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
@@ -463,27 +549,51 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   @override
   void dispose() {
     widget.initialization.removeListener(_onInitializationChanged);
-    _timelineTimer?.cancel();
+    _invalidateSession('gate_disposed');
     _progressController.dispose();
     super.dispose();
   }
 
   void _schedule(Duration duration, VoidCallback action) {
     _timelineTimer?.cancel();
+    final scheduledSession = _session;
     _timelineTimer = Timer(duration, () {
-      if (mounted) {
-        action();
+      if (!mounted || scheduledSession != _session) {
+        _trace('obsolete_callback_ignored');
+        return;
       }
+      action();
     });
   }
 
+  void _invalidateSession(String event) {
+    _timelineTimer?.cancel();
+    _timelineTimer = null;
+    _progressController.stop();
+    _session += 1;
+    _trace(event);
+  }
+
+  bool get _isPresentationActive =>
+      widget.isInitialBootPresentation &&
+      (_presentation == BootPresentationState.initialBootPresentation ||
+          _presentation == BootPresentationState.systemReadyPresentation);
+
+  bool get _isInitializationReady {
+    final mode = widget.initialization.value.mode;
+    return mode != PersistenceMode.initializing &&
+        mode != PersistenceMode.failed;
+  }
+
   void _startIdentityTyping() {
+    if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.identityTyping);
     _animateProgressTo(.2, const Duration(milliseconds: 1500));
     _typeNextCharacter();
   }
 
   void _typeNextCharacter() {
+    if (!_isPresentationActive) return;
     const identity = 'O.R.L.O.';
     if (_typedLength >= identity.length) {
       setState(() => _phase = _BootVisualPhase.identityName);
@@ -514,6 +624,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   }
 
   void _typeNextNameCharacter() {
+    if (!_isPresentationActive) return;
     if (widget.timing.fullNameCharacter <= const Duration(milliseconds: 10)) {
       setState(() => _typedNameLength = _fullName.length);
       _schedule(widget.timing.identityHold, _showSystemBoot);
@@ -530,12 +641,14 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   }
 
   void _showSystemBoot() {
+    if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.systemBoot);
     _animateProgressTo(.25, widget.timing.systemBootTransition);
     _schedule(widget.timing.systemBootTransition, _showCore);
   }
 
   void _showCore() {
+    if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.coreInitializing);
     final coreDuration = widget.timing.row * 2;
     _animateProgressTo(.45, coreDuration);
@@ -543,25 +656,31 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   }
 
   void _showData() {
+    if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.dataInitializing);
     _animateProgressTo(.65, widget.timing.row);
     _schedule(widget.timing.row, _showOperation);
   }
 
   void _showOperation() {
+    if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.operationInitializing);
     _animateProgressTo(.95, widget.timing.row);
     _schedule(widget.timing.row, _finishRows);
   }
 
   void _finishRows() {
+    if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.waitingForInitialization);
     _visualRowsComplete = true;
     _tryStartFinalProgress();
   }
 
   void _tryStartFinalProgress() {
-    if (!_visualRowsComplete || !_systemInitialized || _finalProgressStarted) {
+    if (!_isPresentationActive ||
+        !_visualRowsComplete ||
+        !_systemInitialized ||
+        _finalProgressStarted) {
       return;
     }
     _finalProgressStarted = true;
@@ -579,33 +698,36 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _onInitializationChanged() {
     final state = widget.initialization.value;
+    _trace('initialization_changed');
+    if (!widget.isInitialBootPresentation) return;
     if (state.mode == PersistenceMode.failed) {
-      _timelineTimer?.cancel();
-      _progressController.stop();
+      _invalidateSession('initialization_failed');
+      _transition(BootPresentationState.failure, 'initialization_failed');
       if (mounted) {
         setState(() {});
       }
       return;
     }
     if (state.mode == PersistenceMode.initializing) {
-      // The signal handoff is only for successful initial boot. A later
-      // initialization cycle must return to StartupGate's normal loading UI.
-      if (_systemInitialized && (_showSignalHandoff || !_completed)) {
-        _timelineTimer?.cancel();
-        if (mounted) {
-          setState(() {
-            _showSignalHandoff = false;
-            _completed = true;
-          });
-        } else {
-          _showSignalHandoff = false;
-          _completed = true;
-        }
+      if (_systemInitialized ||
+          _presentation == BootPresentationState.bootHandoffSignal ||
+          _presentation == BootPresentationState.mainUi) {
+        _invalidateSession('reinitialization_begins');
+        _transition(
+          BootPresentationState.reinitializationLoading,
+          'initialization_returned_to_loading',
+        );
+        if (mounted) setState(() {});
       }
       return;
     }
+    if (_presentation == BootPresentationState.reinitializationLoading) {
+      _transition(BootPresentationState.mainUi, 'reinitialization_ready');
+      if (mounted) setState(() {});
+      return;
+    }
     if (_systemInitialized) {
-      if (mounted && _completed) {
+      if (mounted && _presentation == BootPresentationState.mainUi) {
         setState(() {});
       }
       return;
@@ -616,19 +738,71 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   }
 
   void _tryShowSystemReady() {
-    if (!_systemInitialized ||
+    if (!_isPresentationActive ||
+        !_systemInitialized ||
         !_readyDelayElapsed ||
         _phase != _BootVisualPhase.finalizing) {
       return;
     }
     setState(() => _phase = _BootVisualPhase.systemReady);
+    _transition(BootPresentationState.systemReadyPresentation, 'system_ready');
     _schedule(widget.timing.readyHold, () {
-      setState(() => _showSignalHandoff = true);
+      if (!_isPresentationActive || _skipRequested) return;
+      _transition(
+        BootPresentationState.bootHandoffSignal,
+        'signal_handoff_started',
+      );
+      setState(() {});
       _schedule(_bootSignalHandoffDuration, () {
-        setState(() => _completed = true);
+        if (_presentation != BootPresentationState.bootHandoffSignal) return;
+        _transition(BootPresentationState.mainUi, 'signal_handoff_finished');
+        setState(() {});
         _emit(BootSequenceEventType.bootComplete);
       });
     });
+  }
+
+  void _requestSkip() {
+    if (!_isPresentationActive || _skipRequested) return;
+    _skipRequested = true;
+    _invalidateSession('boot_skip_requested');
+    if (widget.initialization.value.mode == PersistenceMode.failed) {
+      _transition(BootPresentationState.failure, 'skip_after_failure');
+    } else if (_isInitializationReady) {
+      _transition(
+        BootPresentationState.mainUi,
+        'skip_with_initialization_ready',
+      );
+    } else {
+      _transition(
+        BootPresentationState.reinitializationLoading,
+        'skip_waiting_for_initialization',
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _transition(BootPresentationState next, String event) {
+    final previous = _presentation;
+    _presentation = next;
+    _trace(event, previous: previous);
+  }
+
+  void _trace(String event, {BootPresentationState? previous}) {
+    final trace = BootStartupTraceEvent(
+      occurredAt: DateTime.now(),
+      event: event,
+      previousState: previous ?? _presentation,
+      nextState: _presentation,
+      initializationMode: widget.initialization.value.mode,
+      visualPhase: _phase.name,
+      session: _session,
+    );
+    widget.onTrace?.call(trace);
+    assert(() {
+      debugPrint(trace.toString());
+      return true;
+    }());
   }
 
   void _emit(BootSequenceEventType type) {
@@ -647,11 +821,20 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     if (state.mode == PersistenceMode.failed) {
       return widget.fallbackBuilder(state);
     }
-    if (state.mode == PersistenceMode.initializing && _systemInitialized) {
+    if (!widget.isInitialBootPresentation) {
+      return ValueListenableBuilder<AppInitializationState>(
+        valueListenable: widget.initialization,
+        builder: (context, loadingState, _) =>
+            widget.fallbackBuilder(loadingState),
+      );
+    }
+    if (_presentation == BootPresentationState.reinitializationLoading) {
       return widget.fallbackBuilder(state);
     }
-    if (_completed) return widget.child;
-    if (_showSignalHandoff) return const _BootSignalHandoff();
+    if (_presentation == BootPresentationState.mainUi) return widget.child;
+    if (_presentation == BootPresentationState.bootHandoffSignal) {
+      return const _BootSignalHandoff();
+    }
     return AnimatedBuilder(
       animation: _progressController,
       builder: (context, _) => _BootSequenceVisual(
@@ -659,6 +842,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         typedLength: _typedLength,
         typedNameLength: _typedNameLength,
         progress: _progressController.value,
+        onSkip: _requestSkip,
       ),
     );
   }

@@ -5,11 +5,12 @@ import '../state/app_initialization_state.dart';
 import 'boot_sequence.dart';
 import 'operation_button.dart';
 
-class StartupGate extends StatelessWidget {
+class StartupGate extends StatefulWidget {
   final StartupInitializationService service;
   final Widget child;
   final bool showBootSequence;
   final BootSequenceEventListener? onBootEvent;
+  final BootStartupTraceListener? onBootTrace;
   final BootSequenceTiming bootSequenceTiming;
 
   const StartupGate({
@@ -18,25 +19,43 @@ class StartupGate extends StatelessWidget {
     required this.child,
     this.showBootSequence = false,
     this.onBootEvent,
+    this.onBootTrace,
     this.bootSequenceTiming = const BootSequenceTiming(),
   });
 
   @override
+  State<StartupGate> createState() => _StartupGateState();
+}
+
+class _StartupGateState extends State<StartupGate> {
+  late final bool _isInitialBootPresentation;
+
+  @override
+  void initState() {
+    super.initState();
+    _isInitialBootPresentation =
+        widget.showBootSequence &&
+        widget.service.controller.claimInitialBootPresentation();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (showBootSequence) {
+    if (widget.showBootSequence) {
       return BootSequenceGate(
-        initialization: service.controller,
+        initialization: widget.service.controller,
+        isInitialBootPresentation: _isInitialBootPresentation,
         fallbackBuilder: (state) => _stateChild(context, state),
-        onEvent: onBootEvent,
-        timing: bootSequenceTiming,
+        onEvent: widget.onBootEvent,
+        onTrace: widget.onBootTrace,
+        timing: widget.bootSequenceTiming,
         child: ValueListenableBuilder<AppInitializationState>(
-          valueListenable: service.controller,
+          valueListenable: widget.service.controller,
           builder: (context, state, _) => _stateChild(context, state),
         ),
       );
     }
     return ValueListenableBuilder<AppInitializationState>(
-      valueListenable: service.controller,
+      valueListenable: widget.service.controller,
       builder: (context, state, _) => _stateChild(context, state),
     );
   }
@@ -46,15 +65,15 @@ class StartupGate extends StatelessWidget {
         PersistenceMode.initializing => _InitializingView(state: state),
         PersistenceMode.failed => _FailedView(
           state: state,
-          onRetry: service.retry,
-          onReadOnly: service.openReadOnly,
+          onRetry: widget.service.retry,
+          onReadOnly: widget.service.openReadOnly,
         ),
         PersistenceMode.legacyReadOnly => _ReadOnlyShell(
           state: state,
-          child: child,
+          child: widget.child,
         ),
-        PersistenceMode.maintenance => _MaintenanceView(child: child),
-        PersistenceMode.indexedDbReadWrite => child,
+        PersistenceMode.maintenance => _MaintenanceView(child: widget.child),
+        PersistenceMode.indexedDbReadWrite => widget.child,
       };
 }
 
