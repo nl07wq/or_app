@@ -109,14 +109,8 @@ void main() {
     expect(form.exercises.single.sets.last.plannedWeightKg, 70);
     expect(form.exercises.single.sets.last.targetMinReps, 8);
     expect(form.exercises.single.sets.last.targetMaxReps, 10);
-    expect(
-      form.exercises.single.planSlots.map((slot) => slot.index),
-      [0, 1],
-    );
-    expect(
-      form.exercises.single.sets.map((set) => set.planSlotIndex),
-      [0, 1],
-    );
+    expect(form.exercises.single.planSlots.map((slot) => slot.index), [0, 1]);
+    expect(form.exercises.single.sets.map((set) => set.planSlotIndex), [0, 1]);
     expect(form.exercises.single.sets.first.weight.text, '20');
     expect(form.exercises.single.sets.first.reps.text, '8');
     expect(form.exercises.single.sets.last.weight.text, '70');
@@ -150,6 +144,37 @@ void main() {
     expect(preparation.prompt, contains('"latestStrengthReference"'));
     expect(preparation.prompt, contains('2026-08-26'));
     expect(preparation.prompt, contains('2026-08-24'));
+  });
+
+  test(
+    'AUTO source facts validate unchanged after Prompt generation',
+    () async {
+      final fixture = await _fixture(latestCardioDays: const [25, 26]);
+      final preparation = await fixture.service.prepare();
+
+      final preview = await fixture.service.preview(
+        fixture.container.reportSyncCodec.encode(
+          _response(
+            fixture,
+            sourceDigest: preparation.sourceDigest,
+            identity: fixture.identity,
+          ),
+        ),
+      );
+
+      expect(preview.sourceDigest, preparation.sourceDigest);
+      expect(preview.referenceOperationDate, '2026-08-24');
+    },
+  );
+
+  test('unchanged AUTO facts produce a deterministic source digest', () async {
+    final fixture = await _fixture(latestCardioDays: const [25]);
+
+    final first = await fixture.service.prepare();
+    final second = await fixture.service.prepare();
+
+    expect(first.reference?.recordId, second.reference?.recordId);
+    expect(first.sourceDigest, second.sourceDigest);
   });
 
   test('manual reference uses exact eligible Formal record identity', () async {

@@ -92,7 +92,7 @@ class TrainingPlanService {
         .where((record) => record.strengthTrainingPerformed)
         .map(_referenceCandidate)
         .toList(growable: false);
-    final sourceDigest = ReportSyncCanonicalService.digest(package);
+    final sourceDigest = _sourceDigest(package);
     final timestamp = _clock().toUtc();
     final requestId =
         'training-plan-request:${timestamp.microsecondsSinceEpoch}-'
@@ -155,7 +155,7 @@ class TrainingPlanService {
         'Training Plan source identity changed.',
       );
     }
-    final currentDigest = ReportSyncCanonicalService.digest(currentFacts);
+    final currentDigest = _sourceDigest(currentFacts);
     if (response.payload['sourceDigest'] != currentDigest) {
       throw const ReportSyncException(
         ReportSyncIssueCode.integrityFailure,
@@ -228,8 +228,7 @@ class TrainingPlanService {
     final sourceRecordId =
         preview.response.payload['sourceRecordId'] as String?;
     final currentFacts = await _factPackage(targetRecordId: sourceRecordId);
-    if (ReportSyncCanonicalService.digest(currentFacts) !=
-        preview.sourceDigest) {
+    if (_sourceDigest(currentFacts) != preview.sourceDigest) {
       throw const ReportSyncException(
         ReportSyncIssueCode.integrityFailure,
         'Training facts changed after validation.',
@@ -321,6 +320,17 @@ class TrainingPlanService {
           },
       ],
     };
+  }
+
+  /// `referenceMode` describes the page selection, not a Formal Training fact.
+  /// The response carries the resolved source record identity; it cannot
+  /// distinguish AUTO from an explicit selection of that same record. Keeping
+  /// this transient UI mode out of the source digest makes both paths compare
+  /// the identical Formal fact package without weakening stale-fact checks.
+  String _sourceDigest(Map<String, Object?> package) {
+    final integrityFacts = Map<String, Object?>.from(package)
+      ..remove('referenceMode');
+    return ReportSyncCanonicalService.digest(integrityFacts);
   }
 
   Future<Map<String, _AllowedExercise>> _allowedExercises(
