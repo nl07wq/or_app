@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/services/startup_diagnostic.dart';
+import '../../../core/services/active_session_heartbeat.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -32,6 +33,22 @@ class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
   void _clear() {
     StartupDiagnostic.instance.clear();
     _refresh();
+  }
+
+  void _resetBootHeartbeat() {
+    final reset = ActiveSessionHeartbeat.instance.resetHeartbeat();
+    StartupDiagnostic.instance.record(
+      'SYSTEM',
+      reset ? 'BOOT_HEARTBEAT_RESET' : 'BOOT_HEARTBEAT_RESET_FAILED',
+    );
+    _refresh();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          reset ? 'BOOT HEARTBEAT RESET' : 'BOOT HEARTBEAT RESET FAILED',
+        ),
+      ),
+    );
   }
 
   @override
@@ -65,6 +82,13 @@ class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
           ),
         ),
         AppSpacing.gapMD,
+        OperationButton(
+          key: const ValueKey('startup-diagnostic-reset-boot-heartbeat'),
+          text: 'RESET BOOT HEARTBEAT',
+          icon: Icons.restart_alt,
+          onPressed: _resetBootHeartbeat,
+        ),
+        AppSpacing.gapSM,
         OperationButton(
           text: 'REFRESH TRACE',
           icon: Icons.refresh,

@@ -133,6 +133,34 @@ void main() {
     heartbeat.dispose();
   });
 
+  test(
+    'reset removes the actual heartbeat and restores ordinary boot eligibility',
+    () {
+      final storage = InMemoryActiveSessionStorage({
+        ActiveSessionHeartbeat.storageKey: jsonEncode({
+          'version': 1,
+          'lastAliveAtMs': now.millisecondsSinceEpoch,
+        }),
+        'unrelated': 'preserved',
+      });
+      final heartbeat = ActiveSessionHeartbeat(
+        now: () => now,
+        storage: storage,
+      );
+      expect(
+        heartbeat.classifyAtStartup().classification,
+        ActiveSessionClassification.activeSessionReentry,
+      );
+      expect(heartbeat.resetHeartbeat(), isTrue);
+      expect(storage.read(ActiveSessionHeartbeat.storageKey), isNull);
+      expect(storage.read('unrelated'), 'preserved');
+      expect(
+        heartbeat.classifyAtStartup().classification,
+        ActiveSessionClassification.newSession,
+      );
+    },
+  );
+
   test('heartbeat stops while hidden and resumes when visible', () {
     var current = now;
     final storage = InMemoryActiveSessionStorage();

@@ -12,8 +12,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('uses the bundled same-origin holiday asset', () {
+    expect(
+      JapaneseHolidayReferenceService.distributedAssetKey,
+      'assets/data/japanese_holidays.json',
+    );
+  });
+
   test(
-    'loads the distributed snapshot and stores the reference cache',
+    'loads a valid bundled snapshot without pretending it is a local update',
     () async {
       final service = JapaneseHolidayReferenceService(
         assetLoader: () async => _asset(),
@@ -23,8 +30,9 @@ void main() {
       final status = await service.load();
 
       expect(status.isAvailable, isTrue);
-      expect(status.updateSucceeded, isTrue);
-      expect(status.localUpdatedAt, DateTime.utc(2026, 8, 16, 12));
+      expect(status.updateSucceeded, isFalse);
+      expect(status.usingBundled, isTrue);
+      expect(status.localUpdatedAt, isNull);
       expect(
         status.snapshot!.classify('2026-08-11'),
         JapaneseHolidayMatch.holiday,
@@ -40,7 +48,7 @@ void main() {
       final preferences = await SharedPreferences.getInstance();
       expect(
         preferences.getString(JapaneseHolidayReferenceService.cacheKey),
-        isNotNull,
+        isNull,
       );
     },
   );
@@ -49,7 +57,7 @@ void main() {
     final initial = JapaneseHolidayReferenceService(
       assetLoader: () async => _asset(),
     );
-    await initial.load();
+    await initial.update();
     var assetLoads = 0;
     final cached = JapaneseHolidayReferenceService(
       assetLoader: () async {
@@ -68,7 +76,7 @@ void main() {
     final initial = JapaneseHolidayReferenceService(
       assetLoader: () async => _asset(),
     );
-    final before = await initial.load();
+    final before = await initial.update();
     final failing = JapaneseHolidayReferenceService(
       assetLoader: () async => throw StateError('offline'),
     );
@@ -90,6 +98,57 @@ void main() {
     expect(status.updateSucceeded, isFalse);
     expect(status.isAvailable, isFalse);
   });
+
+  test('bundled fallback covers known 2026 and 2027 holiday dates', () async {
+    final service = JapaneseHolidayReferenceService(
+      assetLoader: () async => _assetWith2026And2027(),
+    );
+
+    final status = await service.load();
+
+    expect(status.usingBundled, isTrue);
+    expect(
+      status.snapshot!.classify('2026-08-11'),
+      JapaneseHolidayMatch.holiday,
+    );
+    expect(
+      status.snapshot!.classify('2027-01-11'),
+      JapaneseHolidayMatch.holiday,
+    );
+    expect(
+      status.snapshot!.classify('2027-01-12'),
+      JapaneseHolidayMatch.notHoliday,
+    );
+  });
+
+  test(
+    'invalid distributed data never overwrites a valid local cache',
+    () async {
+      final seeded = JapaneseHolidayReferenceService(
+        assetLoader: () async => _asset(),
+      );
+      await seeded.update();
+      final invalid = JapaneseHolidayReferenceService(
+        assetLoader: () async => jsonEncode({
+          'schemaVersion': 1,
+          'source': 'cabinet_office_japan',
+          'dataUpdatedAt': '2026-08-16T00:00:00Z',
+          'coverageFrom': '2026-01-01',
+          'coverageTo': '2026-12-31',
+          'holidays': <String>[],
+        }),
+      );
+
+      final status = await invalid.update();
+
+      expect(status.updateSucceeded, isFalse);
+      expect(status.isAvailable, isTrue);
+      expect(
+        status.snapshot!.classify('2026-08-11'),
+        JapaneseHolidayMatch.holiday,
+      );
+    },
+  );
 
   test('weekday color prioritizes holiday and keeps weekend fallback', () {
     expect(
@@ -177,4 +236,14 @@ String _asset() => jsonEncode({
   'coverageFrom': '2026-01-01',
   'coverageTo': '2027-12-31',
   'holidays': ['2026-08-11'],
+});
+
+String _assetWith2026And2027() => jsonEncode({
+  'schemaVersion': 1,
+  'source': 'cabinet_office_japan',
+  'sourceUrl': 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv',
+  'dataUpdatedAt': '2026-08-16T00:00:00Z',
+  'coverageFrom': '2026-01-01',
+  'coverageTo': '2027-12-31',
+  'holidays': ['2026-08-11', '2027-01-11'],
 });

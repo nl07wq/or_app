@@ -4,24 +4,35 @@ import 'package:or_app/core/services/startup_diagnostic.dart';
 import 'package:or_app/features/system/pages/startup_diagnostic_page.dart';
 
 void main() {
-  testWidgets('viewer refreshes and clears the temporary startup trace', (
+  testWidgets('shows heartbeat reset and no rejected force boot control', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: StartupDiagnosticPage()));
+    expect(find.text('REFRESH TRACE'), findsOneWidget);
+    expect(find.text('COPY TRACE'), findsOneWidget);
+    expect(find.text('CLEAR TRACE'), findsOneWidget);
+    expect(find.text('RESET BOOT HEARTBEAT'), findsOneWidget);
+    expect(find.text('FORCE NEXT BOOT'), findsNothing);
+  });
+
+  testWidgets('reset reports success and records the heartbeat reset event', (
     tester,
   ) async {
     StartupDiagnostic.instance.clear();
-    StartupDiagnostic.instance.beginRun();
-    StartupDiagnostic.instance.record('DART', 'DART_MAIN_ENTER');
-
+    addTearDown(StartupDiagnostic.instance.clear);
     await tester.pumpWidget(const MaterialApp(home: StartupDiagnosticPage()));
 
-    expect(
-      find.byKey(const ValueKey('startup-diagnostic-trace')),
-      findsOneWidget,
+    await tester.tap(
+      find.byKey(const ValueKey('startup-diagnostic-reset-boot-heartbeat')),
     );
-    expect(find.text('COPY TRACE'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -400));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('startup-diagnostic-clear')));
-    await tester.pump();
-    expect(StartupDiagnostic.instance.events, isEmpty);
+
+    expect(find.text('BOOT HEARTBEAT RESET'), findsOneWidget);
+    expect(
+      StartupDiagnostic.instance.events.any(
+        (event) => event['event'] == 'BOOT_HEARTBEAT_RESET',
+      ),
+      isTrue,
+    );
   });
 }

@@ -79,7 +79,7 @@ void main() {
     expect(find.text('DATA UPDATED'), findsOneWidget);
     expect(find.text('LOCAL UPDATED'), findsOneWidget);
     expect(find.text('STATUS'), findsOneWidget);
-    expect(find.text('CURRENT'), findsOneWidget);
+    expect(find.text('AVAILABLE — BUNDLED'), findsOneWidget);
     expect(find.byKey(const ValueKey('update-holiday-data')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

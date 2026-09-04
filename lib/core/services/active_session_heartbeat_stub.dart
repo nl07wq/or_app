@@ -67,6 +67,15 @@ class ActiveSessionHeartbeat {
 
   ActiveSessionResult get result => _result;
 
+  bool resetHeartbeat() {
+    try {
+      _storage.remove(storageKey);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   ActiveSessionResult classifyAtStartup() {
     try {
       // The former PAGEHIDE-age marker is intentionally retired. It must not

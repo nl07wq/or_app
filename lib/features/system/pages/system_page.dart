@@ -449,9 +449,13 @@ class _HolidayDataSection extends StatelessWidget {
                 const Divider(),
                 _StorageValue(
                   label: 'STATUS',
-                  value: status?.isAvailable == true
-                      ? 'CURRENT'
-                      : 'NOT AVAILABLE',
+                  value: status?.isAvailable != true
+                      ? 'NOT AVAILABLE'
+                      : status!.usingBundled
+                      ? 'AVAILABLE — BUNDLED'
+                      : status.updateSucceeded
+                      ? 'AVAILABLE — LOCAL'
+                      : 'UPDATE FAILED — USING LOCAL',
                 ),
                 AppSpacing.gapMD,
                 SizedBox(

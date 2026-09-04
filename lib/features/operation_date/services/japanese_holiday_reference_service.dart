@@ -92,11 +92,13 @@ class JapaneseHolidayDataStatus {
     required this.snapshot,
     required this.localUpdatedAt,
     required this.updateSucceeded,
+    this.usingBundled = false,
   });
 
   final JapaneseHolidaySnapshot? snapshot;
   final DateTime? localUpdatedAt;
   final bool updateSucceeded;
+  final bool usingBundled;
 
   bool get isAvailable => snapshot != null;
 }
@@ -111,6 +113,7 @@ class JapaneseHolidayReferenceService {
        _clock = clock ?? DateTime.now;
 
   static const cacheKey = 'presentation_japanese_holiday_cache_v1';
+  static const distributedAssetKey = 'assets/data/japanese_holidays.json';
   static final cacheRevision = ValueNotifier<int>(0);
   static final instance = JapaneseHolidayReferenceService();
 
@@ -134,7 +137,24 @@ class JapaneseHolidayReferenceService {
     } catch (_) {
       // The distributed asset remains the only fallback when cache is absent.
     }
-    return update();
+    try {
+      final decoded = jsonDecode(await _assetLoader());
+      if (decoded is! Map<String, Object?>) throw const FormatException();
+      final snapshot = JapaneseHolidaySnapshot.fromJson(decoded);
+      _currentSnapshot = snapshot;
+      return JapaneseHolidayDataStatus(
+        snapshot: snapshot,
+        localUpdatedAt: null,
+        updateSucceeded: false,
+        usingBundled: true,
+      );
+    } catch (_) {
+      return const JapaneseHolidayDataStatus(
+        snapshot: null,
+        localUpdatedAt: null,
+        updateSucceeded: false,
+      );
+    }
   }
 
   Future<JapaneseHolidayDataStatus> update() async {
@@ -164,6 +184,20 @@ class JapaneseHolidayReferenceService {
         updateSucceeded: true,
       );
     } catch (_) {
+      if (existing == null) {
+        try {
+          final decoded = jsonDecode(await _assetLoader());
+          if (decoded is! Map<String, Object?>) throw const FormatException();
+          final snapshot = JapaneseHolidaySnapshot.fromJson(decoded);
+          _currentSnapshot = snapshot;
+          return JapaneseHolidayDataStatus(
+            snapshot: snapshot,
+            localUpdatedAt: null,
+            updateSucceeded: false,
+            usingBundled: true,
+          );
+        } catch (_) {}
+      }
       _currentSnapshot = existing?.snapshot;
       return JapaneseHolidayDataStatus(
         snapshot: existing?.snapshot,
@@ -200,5 +234,5 @@ class JapaneseHolidayReferenceService {
   }
 
   static Future<String> _loadDistributedAsset() =>
-      NetworkAssetBundle(Uri.base).loadString('data/japanese_holidays.json');
+      rootBundle.loadString(distributedAssetKey);
 }

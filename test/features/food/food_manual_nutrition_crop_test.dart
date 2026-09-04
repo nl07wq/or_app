@@ -213,6 +213,35 @@ void main() {
     expect(imageRect.bottom, greaterThanOrEqualTo(crop.bottom));
   });
 
+  test(
+    'portrait active drag permits additional positive X and Y before release',
+    () {
+      const crop = Rect.fromLTWH(48, 92, 286, 414);
+      const image = Size(508, 902);
+      final bounds = FoodManualCropInteraction.translationBounds(
+        viewport: crop,
+        imageSize: image,
+      );
+      final active = FoodManualCropInteraction.limitWithElasticity(
+        viewport: crop,
+        imageSize: image,
+        candidate: Offset(bounds.maxX + 132, bounds.maxY + 132),
+        overscroll: 160,
+      );
+
+      expect(active.dx, bounds.maxX + 132);
+      expect(active.dy, bounds.maxY + 132);
+      expect(
+        FoodManualCropInteraction.clampToCoverage(
+          viewport: crop,
+          imageSize: image,
+          candidate: active,
+        ),
+        Offset(bounds.maxX, bounds.maxY),
+      );
+    },
+  );
+
   testWidgets('manual crop requires confirmation before creating OCR input', (
     tester,
   ) async {

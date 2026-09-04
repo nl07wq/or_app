@@ -385,8 +385,8 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
       Size(widget.dimensions.width * scale, widget.dimensions.height * scale);
 
   double _overscroll(Rect viewport) =>
-      (Size(viewport.width, viewport.height).shortestSide * .08)
-          .clamp(48.0, 72.0)
+      (Size(viewport.width, viewport.height).shortestSide * .35)
+          .clamp(96.0, 180.0)
           .toDouble();
 
   void _normalizeAfterInteraction({

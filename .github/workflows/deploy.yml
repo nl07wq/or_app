@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: read
@@ -30,7 +33,7 @@ jobs:
       - name: Generate Japanese holiday data
         run: >-
           python3 tool/generate_japanese_holiday_asset.py
-          --output web/data/japanese_holidays.json
+          --output assets/data/japanese_holidays.json
 
       - name: Generate release metadata
         id: release_metadata
