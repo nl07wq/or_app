@@ -69,6 +69,7 @@ class ActiveSessionHeartbeat {
   final ActiveSessionStorage _storage;
   final String documentRunId;
   bool _visible;
+  bool _writesSuppressed = false;
   Timer? _timer;
   StreamSubscription<html.Event>? _visibilitySubscription;
   ActiveSessionResult _result = const ActiveSessionResult(
@@ -81,6 +82,9 @@ class ActiveSessionHeartbeat {
   bool resetHeartbeat() {
     try {
       _storage.remove(storageKey);
+      _writesSuppressed = true;
+      _timer?.cancel();
+      _timer = null;
       return true;
     } catch (_) {
       return false;
@@ -115,13 +119,19 @@ class ActiveSessionHeartbeat {
   }
 
   void start() {
-    if (!_visible) return;
+    if (!_visible || _writesSuppressed) return;
     heartbeatNow();
     _timer ??= Timer.periodic(heartbeatInterval, (_) => heartbeatNow());
   }
 
   void handleVisibilityChange(bool visible) {
     if (_visible == visible) return;
+    if (_writesSuppressed) {
+      _visible = visible;
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
     if (visible) {
       _visible = true;
       start();
@@ -134,7 +144,7 @@ class ActiveSessionHeartbeat {
   }
 
   void heartbeatNow() {
-    if (!_visible) return;
+    if (!_visible || _writesSuppressed) return;
     try {
       _storage.write(
         storageKey,

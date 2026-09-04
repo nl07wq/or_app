@@ -9,8 +9,8 @@ void main() {
   ) async {
     await tester.pumpWidget(const MaterialApp(home: StartupDiagnosticPage()));
     expect(find.text('REFRESH TRACE'), findsOneWidget);
-    expect(find.text('COPY TRACE'), findsOneWidget);
-    expect(find.text('CLEAR TRACE'), findsOneWidget);
+    expect(find.text('COPY TRACE', skipOffstage: false), findsOneWidget);
+    expect(find.text('CLEAR TRACE', skipOffstage: false), findsOneWidget);
     expect(find.text('RESET BOOT HEARTBEAT'), findsOneWidget);
     expect(find.text('FORCE NEXT BOOT'), findsNothing);
   });
@@ -34,5 +34,34 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  testWidgets('keeps a long trace inside a bounded, independently scrollable viewer', (
+    tester,
+  ) async {
+    StartupDiagnostic.instance.clear();
+    addTearDown(StartupDiagnostic.instance.clear);
+    for (var index = 0; index < 200; index++) {
+      StartupDiagnostic.instance.record(
+        'TEST',
+        'LONG_TRACE_EVENT',
+        fields: {'index': index, 'detail': 'x' * 40},
+      );
+    }
+    await tester.pumpWidget(const MaterialApp(home: StartupDiagnosticPage()));
+
+    final viewer = find.byKey(
+      const ValueKey('startup-diagnostic-trace-viewer'),
+    );
+    expect(tester.getSize(viewer).height, 280);
+    expect(find.descendant(of: viewer, matching: find.text('RESET BOOT HEARTBEAT')), findsNothing);
+    expect(find.byKey(const ValueKey('startup-diagnostic-reset-boot-heartbeat')), findsOneWidget);
+    expect(find.text('REFRESH TRACE', skipOffstage: false), findsOneWidget);
+    expect(find.text('COPY TRACE', skipOffstage: false), findsOneWidget);
+    expect(find.text('CLEAR TRACE', skipOffstage: false), findsOneWidget);
+
+    await tester.drag(viewer, const Offset(0, -180));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 }

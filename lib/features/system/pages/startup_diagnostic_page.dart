@@ -17,6 +17,7 @@ class StartupDiagnosticPage extends StatefulWidget {
 }
 
 class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
+  static const _traceViewerHeight = 280.0;
   String _trace = StartupDiagnostic.instance.copyText();
 
   void _refresh() =>
@@ -73,10 +74,22 @@ class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
             children: [
               Text('${StartupDiagnostic.instance.events.length} EVENTS'),
               AppSpacing.gapSM,
-              SelectableText(
-                _trace,
-                key: const ValueKey('startup-diagnostic-trace'),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              SizedBox(
+                height: _traceViewerHeight,
+                child: Scrollbar(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('startup-diagnostic-trace-viewer'),
+                    padding: const EdgeInsets.only(right: 8),
+                    child: SelectableText(
+                      _trace,
+                      key: const ValueKey('startup-diagnostic-trace'),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

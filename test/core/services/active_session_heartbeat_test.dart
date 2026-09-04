@@ -161,6 +161,39 @@ void main() {
     },
   );
 
+  test('reset keeps the current document heartbeat-silent until it exits', () {
+    var current = now;
+    final storage = InMemoryActiveSessionStorage();
+    final heartbeat = ActiveSessionHeartbeat(
+      now: () => current,
+      storage: storage,
+    );
+    heartbeat.start();
+    expect(storage.read(ActiveSessionHeartbeat.storageKey), isNotNull);
+
+    expect(heartbeat.resetHeartbeat(), isTrue);
+    expect(storage.read(ActiveSessionHeartbeat.storageKey), isNull);
+    current = current.add(const Duration(seconds: 1));
+    heartbeat.heartbeatNow();
+    heartbeat.handleVisibilityChange(false);
+    heartbeat.handleVisibilityChange(true);
+    heartbeat.start();
+    expect(storage.read(ActiveSessionHeartbeat.storageKey), isNull);
+    heartbeat.dispose();
+
+    final nextDocument = ActiveSessionHeartbeat(
+      now: () => current,
+      storage: storage,
+    );
+    expect(
+      nextDocument.classifyAtStartup().classification,
+      ActiveSessionClassification.newSession,
+    );
+    nextDocument.start();
+    expect(storage.read(ActiveSessionHeartbeat.storageKey), isNotNull);
+    nextDocument.dispose();
+  });
+
   test('heartbeat stops while hidden and resumes when visible', () {
     var current = now;
     final storage = InMemoryActiveSessionStorage();
