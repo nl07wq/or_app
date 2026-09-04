@@ -124,9 +124,6 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     with TickerProviderStateMixin {
   late final AnimationController _cursorController;
   late final AnimationController _spinnerController;
-  ImageStream? _logoStream;
-  ImageStreamListener? _logoListener;
-  bool _logoLoadObserved = false;
 
   @override
   void initState() {
@@ -139,26 +136,6 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       vsync: this,
       duration: const Duration(milliseconds: 480),
     );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_logoLoadObserved) return;
-    _logoLoadObserved = true;
-    StartupDiagnostic.instance.record('FLUTTER', 'BOOT_LOGO_LOAD_START');
-    _logoStream = const AssetImage(
-      'assets/icons/orlo_logo_1024_transparent.png',
-    ).resolve(createLocalImageConfiguration(context));
-    _logoListener = ImageStreamListener(
-      (_, _) {
-        StartupDiagnostic.instance.record('FLUTTER', 'BOOT_LOGO_FRAME_READY');
-      },
-      onError: (_, _) {
-        StartupDiagnostic.instance.record('FLUTTER', 'BOOT_LOGO_LOAD_FAILED');
-      },
-    );
-    _logoStream!.addListener(_logoListener!);
   }
 
   @override
@@ -177,9 +154,6 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
 
   @override
   void dispose() {
-    if (_logoStream != null && _logoListener != null) {
-      _logoStream!.removeListener(_logoListener!);
-    }
     _cursorController.dispose();
     _spinnerController.dispose();
     super.dispose();
