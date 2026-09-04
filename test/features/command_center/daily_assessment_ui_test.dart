@@ -64,7 +64,7 @@ void main() {
     () {
       const cases = <(DailyAssessmentMetric, String, String)>[
         (DailyAssessmentMetric.weightTrend, 'RAPID LOSS', '減量ペースがやや速くなっています。'),
-        (DailyAssessmentMetric.sleepTime, 'SUFFICIENT', '十分な睡眠時間を確保できています。'),
+        (DailyAssessmentMetric.sleepTime, 'OPTIMAL', '睡眠時間は適正範囲内です。'),
         (DailyAssessmentMetric.sleepScore, 'GOOD', '睡眠の質は良好です。'),
         (
           DailyAssessmentMetric.plantarFasciitis,
@@ -184,7 +184,7 @@ void main() {
       expect(find.text('AVAILABLE RESOURCE'), findsOneWidget);
       expect(find.text('十分な回復状態を確保できています。'), findsOneWidget);
       expect(find.text('減量ペースは目標範囲で推移しています。'), findsOneWidget);
-      expect(find.text('睡眠時間は概ね確保できています。'), findsOneWidget);
+      expect(find.text('睡眠時間は適正範囲をやや下回っています。'), findsOneWidget);
       expect(find.text('足底症状は中程度です。'), findsOneWidget);
       expect(find.text('長時間勤務による負荷が見込まれます。'), findsOneWidget);
       expect(find.text('本日のカロリー赤字が過大です。'), findsOneWidget);
@@ -298,7 +298,7 @@ DailyAssessment _assessment({
       module: DailyAssessmentModule.recovery,
       metric: DailyAssessmentMetric.sleepTime,
       rawValue: 390,
-      specificAssessment: 'ADEQUATE',
+      specificAssessment: 'BELOW OPTIMAL',
       level: DailyAssessmentLevel.stable,
     ),
     const DailyAssessmentItem(

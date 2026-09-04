@@ -1025,6 +1025,30 @@ void main() {
     await tester.tap(find.text('GENERATE STATUS SOURCE'));
     await tester.pumpAndSettle();
     expect(find.text('STATUS SOURCE PREVIEW'), findsOneWidget);
+    final status = find.byKey(const ValueKey('status-source-preview-status'));
+    final body = find.byKey(const ValueKey('status-source-preview-body'));
+    final recovery = find.byKey(
+      const ValueKey('status-source-preview-recovery'),
+    );
+    final condition = find.byKey(
+      const ValueKey('status-source-preview-condition'),
+    );
+    final work = find.byKey(const ValueKey('status-source-preview-work'));
+    final carryover = find.byKey(
+      const ValueKey('status-source-preview-carryover'),
+    );
+    expect(tester.getTopLeft(status).dy, tester.getTopLeft(body).dy);
+    expect(tester.getTopLeft(recovery).dy, tester.getTopLeft(condition).dy);
+    expect(tester.getTopLeft(work).dy, tester.getTopLeft(carryover).dy);
+    expect(tester.getTopLeft(status).dx, lessThan(tester.getTopLeft(body).dx));
+    expect(
+      tester.getTopLeft(recovery).dy,
+      greaterThan(tester.getTopLeft(status).dy),
+    );
+    expect(
+      tester.getTopLeft(work).dy,
+      greaterThan(tester.getTopLeft(recovery).dy),
+    );
     expect(find.text(source.plainText), findsNothing);
     expect(find.text('OPERATION DATE  2026-08-02'), findsOneWidget);
     expect(find.text('WEIGHT  80.0 kg'), findsOneWidget);

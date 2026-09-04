@@ -13,11 +13,13 @@ String dailyAssessmentSpecificLabel(DailyAssessmentItem item) {
       'UNCHANGED FROM PREVIOUS': '前回計測値から変化はありません。',
     },
     DailyAssessmentMetric.sleepTime => const {
-      'SUFFICIENT': '十分な睡眠時間を確保できています。',
-      'ADEQUATE': '睡眠時間は概ね確保できています。',
+      'OPTIMAL': '睡眠時間は適正範囲内です。',
+      'BELOW OPTIMAL': '睡眠時間は適正範囲をやや下回っています。',
       'SHORT': '睡眠時間がやや不足しています。',
       'LOW': '睡眠時間が不足しています。',
       'SEVERELY SHORT': '睡眠時間が大幅に不足しています。',
+      'LONG': '睡眠時間は適正範囲を上回っています。',
+      'EXCESSIVELY LONG': '睡眠時間が適正範囲を大きく上回っています。長時間であること自体は強い回復を示しません。',
     },
     DailyAssessmentMetric.sleepScore => const {
       'GOOD': '睡眠の質は良好です。',

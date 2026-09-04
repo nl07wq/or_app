@@ -1223,6 +1223,7 @@ List<Widget> _analysisPreviewPanels(DailyDebriefAnalysis analysis) {
 
 class _ReportPreviewPanel extends StatelessWidget {
   const _ReportPreviewPanel({
+    super.key,
     required this.icon,
     required this.title,
     required this.lines,
@@ -1275,71 +1276,89 @@ class _StatusSourcePreview extends StatelessWidget {
       key: const ValueKey('status-source-preview-text'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ReportPreviewPanel(
-          icon: Icons.calendar_today_outlined,
-          title: 'STATUS',
-          lines: ['OPERATION DATE  ${source.operationDate}'],
+        _previewRow(
+          _ReportPreviewPanel(
+            key: const ValueKey('status-source-preview-status'),
+            icon: Icons.calendar_today_outlined,
+            title: 'STATUS',
+            lines: ['OPERATION DATE  ${source.operationDate}'],
+          ),
+          _ReportPreviewPanel(
+            key: const ValueKey('status-source-preview-body'),
+            icon: Icons.monitor_weight_outlined,
+            title: 'BODY',
+            lines: [
+              'WEIGHT  ${_value(source.body.weightKg, 'kg')}',
+              'BODY FAT  ${_value(source.body.bodyFatPercent, '%')}',
+            ],
+          ),
         ),
         AppSpacing.gapSM,
-        _ReportPreviewPanel(
-          icon: Icons.monitor_weight_outlined,
-          title: 'BODY',
-          lines: [
-            'WEIGHT  ${_value(source.body.weightKg, 'kg')}',
-            'BODY FAT  ${_value(source.body.bodyFatPercent, '%')}',
-          ],
+        _previewRow(
+          _ReportPreviewPanel(
+            key: const ValueKey('status-source-preview-recovery'),
+            icon: Icons.bedtime_outlined,
+            title: 'RECOVERY',
+            lines: [
+              'SLEEP  ${_duration(source.recovery.sleepDurationMinutes)}',
+              'SLEEP SCORE  ${source.recovery.sleepScore ?? 'NOT RECORDED'}',
+            ],
+          ),
+          _ReportPreviewPanel(
+            key: const ValueKey('status-source-preview-condition'),
+            icon: Icons.health_and_safety_outlined,
+            title: 'CONDITION',
+            lines: [
+              'FOOT CONDITION  ${source.condition.footPainLevel}',
+              if (source.condition.condition != null)
+                'CONDITION  ${source.condition.condition}',
+              if (source.condition.notes != null)
+                'NOTES  ${source.condition.notes}',
+            ],
+          ),
         ),
         AppSpacing.gapSM,
-        _ReportPreviewPanel(
-          icon: Icons.bedtime_outlined,
-          title: 'RECOVERY',
-          lines: [
-            'SLEEP  ${_duration(source.recovery.sleepDurationMinutes)}',
-            'SLEEP SCORE  ${source.recovery.sleepScore ?? 'NOT RECORDED'}',
-          ],
-        ),
-        AppSpacing.gapSM,
-        _ReportPreviewPanel(
-          icon: Icons.health_and_safety_outlined,
-          title: 'CONDITION',
-          lines: [
-            'FOOT CONDITION  ${source.condition.footPainLevel}',
-            if (source.condition.condition != null)
-              'CONDITION  ${source.condition.condition}',
-            if (source.condition.notes != null)
-              'NOTES  ${source.condition.notes}',
-          ],
-        ),
-        AppSpacing.gapSM,
-        _ReportPreviewPanel(
-          icon: Icons.work_outline,
-          title: 'WORK',
-          lines: isHoliday
-              ? const ['公休日']
-              : [
-                  'WORK TYPE  ${work.workType}',
-                  if (work.startTime != null && work.endTime != null)
-                    'TIME  ${work.startTime} - ${work.endTime}',
-                  if (work.breakDurationMinutes != null)
-                    'BREAK  ${_duration(work.breakDurationMinutes)}',
-                  'WORK HOURS  ${_value(work.workHours, 'h')}',
-                ],
-        ),
-        AppSpacing.gapSM,
-        _ReportPreviewPanel(
-          icon: Icons.history_outlined,
-          title: 'CARRYOVER',
-          lines: [
-            source.previousCarryoverConfirmed == null
-                ? 'NOT RECORDED'
-                : source.previousCarryoverConfirmed!
-                ? 'CONFIRMED'
-                : 'NONE',
-          ],
+        _previewRow(
+          _ReportPreviewPanel(
+            key: const ValueKey('status-source-preview-work'),
+            icon: Icons.work_outline,
+            title: 'WORK',
+            lines: isHoliday
+                ? const ['公休日']
+                : [
+                    'WORK TYPE  ${work.workType}',
+                    if (work.startTime != null && work.endTime != null)
+                      'TIME  ${work.startTime} - ${work.endTime}',
+                    if (work.breakDurationMinutes != null)
+                      'BREAK  ${_duration(work.breakDurationMinutes)}',
+                    'WORK HOURS  ${_value(work.workHours, 'h')}',
+                  ],
+          ),
+          _ReportPreviewPanel(
+            key: const ValueKey('status-source-preview-carryover'),
+            icon: Icons.history_outlined,
+            title: 'CARRYOVER',
+            lines: [
+              source.previousCarryoverConfirmed == null
+                  ? 'NOT RECORDED'
+                  : source.previousCarryoverConfirmed!
+                  ? 'CONFIRMED'
+                  : 'NONE',
+            ],
+          ),
         ),
       ],
     );
   }
+
+  Widget _previewRow(Widget left, Widget right) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: left),
+      AppSpacing.gapSM,
+      Expanded(child: right),
+    ],
+  );
 
   static String _value(num? value, String unit) =>
       value == null ? 'NOT RECORDED' : '${value.toString()} $unit';

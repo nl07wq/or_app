@@ -24,6 +24,9 @@ class FoodItemList extends StatelessWidget {
   final IconData actionIcon;
   final String actionText;
   final VoidCallback onAction;
+  final IconData? secondaryActionIcon;
+  final String? secondaryActionText;
+  final VoidCallback? onSecondaryAction;
 
   const FoodItemList({
     super.key,
@@ -38,9 +41,16 @@ class FoodItemList extends StatelessWidget {
     required this.actionIcon,
     required this.actionText,
     required this.onAction,
+    this.secondaryActionIcon,
+    this.secondaryActionText,
+    this.onSecondaryAction,
   }) : assert(catalogSources.length == items.length),
        assert(recipeSources.length == items.length),
-       assert(quantityUnits.length == items.length);
+       assert(quantityUnits.length == items.length),
+       assert(
+         (secondaryActionIcon == null && secondaryActionText == null) ||
+             (secondaryActionIcon != null && secondaryActionText != null),
+       );
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +63,17 @@ class FoodItemList extends StatelessWidget {
             title: 'Meal Items (${items.length})',
           ),
           AppSpacing.gapMD,
+          if (secondaryActionText != null) ...[
+            OperationButton(
+              key: const ValueKey('food-catalog-select'),
+              icon: secondaryActionIcon!,
+              text: secondaryActionText!,
+              onPressed: onSecondaryAction,
+            ),
+            AppSpacing.gapSM,
+          ],
           OperationButton(
+            key: const ValueKey('food-meal-item-action'),
             icon: actionIcon,
             text: actionText,
             onPressed: onAction,

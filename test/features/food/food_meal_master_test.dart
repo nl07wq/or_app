@@ -175,7 +175,9 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('SELECT FROM FOOD DATABASE'));
+    final catalogSelect = find.byKey(const ValueKey('food-catalog-select'));
+    await tester.ensureVisible(catalogSelect.last);
+    await tester.tap(catalogSelect.last);
     await tester.pumpAndSettle();
     expect(find.text('FOOD'), findsWidgets);
     expect(find.text('RECIPE'), findsOneWidget);

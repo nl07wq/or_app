@@ -148,6 +148,42 @@ void main() {
     );
   });
 
+  test('translation bounds expose every usable source edge symmetrically', () {
+    const crop = Rect.fromLTWH(100, 100, 200, 160);
+    const image = Size(500, 460);
+    final bounds = FoodManualCropInteraction.translationBounds(
+      viewport: crop,
+      imageSize: image,
+    );
+
+    expect(bounds.minX, -200);
+    expect(bounds.maxX, 100);
+    expect(bounds.minY, -200);
+    expect(bounds.maxY, 100);
+    expect(bounds.clamp(const Offset(100, 100)), const Offset(100, 100));
+    expect(bounds.clamp(const Offset(-200, -200)), const Offset(-200, -200));
+  });
+
+  test('downward image translation reaches the lower coverage edge', () {
+    const crop = Rect.fromLTWH(60, 120, 300, 220);
+    const image = Size(700, 640);
+    final normalized = FoodManualCropInteraction.clampToCoverage(
+      viewport: crop,
+      imageSize: image,
+      candidate: const Offset(-40, 999),
+    );
+
+    expect(normalized.dy, crop.top);
+    final visible = Rect.fromLTWH(
+      normalized.dx,
+      normalized.dy,
+      image.width,
+      image.height,
+    );
+    expect(visible.top, crop.top);
+    expect(visible.bottom, greaterThanOrEqualTo(crop.bottom));
+  });
+
   test('elastic pan limits remain finite on all four crop edges', () {
     const crop = Rect.fromLTWH(100, 100, 200, 160);
     const image = Size(500, 460);

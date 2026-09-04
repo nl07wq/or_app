@@ -824,6 +824,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
+  /// A catalog source carries the persisted FOOD master identity.  Do not use
+  /// draft nutrition or text fields as an identity proxy: an active source is
+  /// already a reusable database record, while an archived source is not.
+  bool get _hasActiveCatalogReference {
+    final source = _currentCatalogSource;
+    return source != null && source.foodId.isNotEmpty && !source.isArchived;
+  }
+
   Future<void> saveMeal() async {
     if (_isSaving) return;
     final waterMl = double.tryParse(waterVolumeController.text.trim());
@@ -1037,15 +1045,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onPressed: _isSaving ? null : saveMeal,
             ),
           ] else ...[
-            OperationButton(
-              key: const ValueKey('food-catalog-select'),
-              icon: Icons.storage_outlined,
-              text: 'SELECT FROM FOOD DATABASE',
-              onPressed: _isSaving ? null : _selectCatalogFood,
-            ),
-
-            AppSpacing.gapXL,
-
             const SectionHeader(
               icon: Icons.restaurant_menu,
               title: 'Add Food Item',
@@ -1133,12 +1132,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
             AppSpacing.gapMD,
 
-            OperationButton(
-              key: const ValueKey('food-save-to-catalog'),
-              icon: Icons.add_business,
-              text: 'SAVE TO FOOD DATABASE',
-              onPressed: _isSaving ? null : _saveCurrentToCatalog,
-            ),
+            if (!_hasActiveCatalogReference)
+              OperationButton(
+                key: const ValueKey('food-save-to-catalog'),
+                icon: Icons.add_business,
+                text: 'SAVE TO FOOD DATABASE',
+                onPressed: _isSaving ? null : _saveCurrentToCatalog,
+              ),
 
             if (inputError != null) ...[
               AppSpacing.gapMD,
@@ -1148,39 +1148,40 @@ class _FoodInputFormState extends State<FoodInputForm> {
               ),
             ],
 
-            AppSpacing.gapLG,
+            AppSpacing.gapXL,
+
+            FoodItemList(
+              items: preview,
+              catalogSources: previewCatalogSources,
+              recipeSources: previewRecipeSources,
+              quantityUnits: [
+                ..._quantityUnits,
+                if (editingIndex == null && _currentFoodItem() != null)
+                  baseUnit,
+              ],
+              onDelete: (index) {
+                if (index < items.length) {
+                  removeFood(index);
+                }
+              },
+              onTap: (index) {
+                if (index < items.length) {
+                  editFood(index);
+                }
+              },
+              onQuantityChanged: updateQuantity,
+              editableItemCount: items.length,
+              actionIcon: editingIndex == null
+                  ? Icons.add_circle_outline
+                  : Icons.edit_outlined,
+              actionText: editingIndex == null ? 'ADD FOOD' : 'Update Food',
+              onAction: editingIndex == null ? addFood : updateFood,
+              secondaryActionIcon: Icons.storage_outlined,
+              secondaryActionText: 'SELECT FROM FOOD DATABASE',
+              onSecondaryAction: _isSaving ? null : _selectCatalogFood,
+            ),
 
             if (preview.isNotEmpty) ...[
-              AppSpacing.gapXL,
-
-              FoodItemList(
-                items: preview,
-                catalogSources: previewCatalogSources,
-                recipeSources: previewRecipeSources,
-                quantityUnits: [
-                  ..._quantityUnits,
-                  if (editingIndex == null && _currentFoodItem() != null)
-                    baseUnit,
-                ],
-                onDelete: (index) {
-                  if (index < items.length) {
-                    removeFood(index);
-                  }
-                },
-                onTap: (index) {
-                  if (index < items.length) {
-                    editFood(index);
-                  }
-                },
-                onQuantityChanged: updateQuantity,
-                editableItemCount: items.length,
-                actionIcon: editingIndex == null
-                    ? Icons.add_circle_outline
-                    : Icons.edit_outlined,
-                actionText: editingIndex == null ? 'ADD FOOD' : 'Update Food',
-                onAction: editingIndex == null ? addFood : updateFood,
-              ),
-
               AppSpacing.gapXL,
 
               FoodTotalCard(items: preview),

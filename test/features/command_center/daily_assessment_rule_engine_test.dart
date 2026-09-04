@@ -12,22 +12,26 @@ void main() {
     'applies formal threshold boundaries and preserves null versus zero',
     () {
       for (final value in [
-        (239, DailyAssessmentLevel.limit),
-        (240, DailyAssessmentLevel.adjust),
-        (299, DailyAssessmentLevel.adjust),
-        (300, DailyAssessmentLevel.watch),
-        (359, DailyAssessmentLevel.watch),
-        (360, DailyAssessmentLevel.stable),
-        (419, DailyAssessmentLevel.stable),
-        (420, DailyAssessmentLevel.support),
+        (239, 'SEVERELY SHORT', DailyAssessmentLevel.limit),
+        (240, 'LOW', DailyAssessmentLevel.adjust),
+        (299, 'LOW', DailyAssessmentLevel.adjust),
+        (300, 'SHORT', DailyAssessmentLevel.watch),
+        (359, 'SHORT', DailyAssessmentLevel.watch),
+        (360, 'BELOW OPTIMAL', DailyAssessmentLevel.stable),
+        (419, 'BELOW OPTIMAL', DailyAssessmentLevel.stable),
+        (420, 'OPTIMAL', DailyAssessmentLevel.support),
+        (480, 'OPTIMAL', DailyAssessmentLevel.support),
+        (540, 'OPTIMAL', DailyAssessmentLevel.support),
+        (541, 'LONG', DailyAssessmentLevel.watch),
+        (630, 'EXCESSIVELY LONG', DailyAssessmentLevel.adjust),
+        (697, 'EXCESSIVELY LONG', DailyAssessmentLevel.adjust),
       ]) {
-        expect(
-          _item(
-            engine,
-            status: _status(sleepHours: value.$1 / 60),
-          ).call(DailyAssessmentMetric.sleepTime).level,
-          value.$2,
-        );
+        final sleepTime = _item(
+          engine,
+          status: _status(sleepHours: value.$1 / 60),
+        ).call(DailyAssessmentMetric.sleepTime);
+        expect(sleepTime.specificAssessment, value.$2);
+        expect(sleepTime.level, value.$3);
       }
       for (final value in [
         (49, DailyAssessmentLevel.limit),

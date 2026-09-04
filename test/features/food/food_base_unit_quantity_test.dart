@@ -477,7 +477,9 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.byKey(const ValueKey('food-catalog-select')));
+      final catalogSelect = find.byKey(const ValueKey('food-catalog-select'));
+      await tester.ensureVisible(catalogSelect.last);
+      await tester.tap(catalogSelect.last);
       await tester.pumpAndSettle();
       await tester.tap(find.text(entry.name));
       await tester.pumpAndSettle();
@@ -491,21 +493,7 @@ void main() {
       expect(_controllerText(tester, 'Protein'), '1.9');
       expect(_controllerText(tester, 'MEMO'), entry.memo);
 
-      await tester.enterText(_field('BRAND'), 'UPDATED BRAND');
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('food-save-to-catalog')),
-      );
-      await tester.tap(find.byKey(const ValueKey('food-save-to-catalog')));
-      await tester.pumpAndSettle();
-      expect(find.text('EDIT FOOD'), findsOneWidget);
-      expect(_controllerText(tester, 'BRAND'), 'UPDATED BRAND');
-      await tester.ensureVisible(find.text('SAVE'));
-      await tester.tap(find.text('SAVE'));
-      await tester.pumpAndSettle();
-
-      final updated = await AppRepositoryRegistry.container.foodCatalog
-          .readById(entry.foodId);
-      expect(updated!.brand, 'UPDATED BRAND');
+      expect(find.byKey(const ValueKey('food-save-to-catalog')), findsNothing);
       expect(dailySaveCount, 0);
     });
 
@@ -952,27 +940,27 @@ void main() {
           const ValueKey('food-entry-recalculate-nutrition'),
         );
         expect(tester.widget<OperationButton>(action).onPressed, isNull);
-      expect(
-        find.text('PACKAGE AND NUTRITION BASIS UNITS MUST MATCH'),
-        findsOneWidget,
-      );
+        expect(
+          find.text('PACKAGE AND NUTRITION BASIS UNITS MUST MATCH'),
+          findsOneWidget,
+        );
 
-      final mismatchedCalories = _controllerText(tester, 'Calories');
-      final mismatchedBasis = _controllerText(tester, 'NUTRITION BASIS');
-      final correctedBasisDropdown = find.byKey(
-        const ValueKey('food-entry-base-unit-milliliter'),
-      );
-      await tester.tap(correctedBasisDropdown);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('g').last);
-      await tester.pump();
-      await tester.enterText(_field('Calories'), '240');
-      await tester.pump();
+        final mismatchedCalories = _controllerText(tester, 'Calories');
+        final mismatchedBasis = _controllerText(tester, 'NUTRITION BASIS');
+        final correctedBasisDropdown = find.byKey(
+          const ValueKey('food-entry-base-unit-milliliter'),
+        );
+        await tester.tap(correctedBasisDropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('g').last);
+        await tester.pump();
+        await tester.enterText(_field('Calories'), '240');
+        await tester.pump();
 
-      expect(_controllerText(tester, 'Calories'), '240');
-      expect(_controllerText(tester, 'NUTRITION BASIS'), mismatchedBasis);
-      expect(mismatchedCalories, isEmpty);
-      expect(tester.widget<OperationButton>(action).onPressed, isNotNull);
+        expect(_controllerText(tester, 'Calories'), '240');
+        expect(_controllerText(tester, 'NUTRITION BASIS'), mismatchedBasis);
+        expect(mismatchedCalories, isEmpty);
+        expect(tester.widget<OperationButton>(action).onPressed, isNotNull);
       },
     );
 

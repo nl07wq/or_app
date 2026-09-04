@@ -68,27 +68,22 @@ class FoodManualCropInteraction {
     required Size imageSize,
     required Offset candidate,
   }) {
-    final image = Rect.fromLTWH(
-      candidate.dx,
-      candidate.dy,
-      imageSize.width,
-      imageSize.height,
-    );
-    var correction = Offset.zero;
-    if (image.left > viewport.left) {
-      correction += Offset(viewport.left - image.left, 0);
-    }
-    if (image.right < viewport.right) {
-      correction += Offset(viewport.right - image.right, 0);
-    }
-    if (image.top > viewport.top) {
-      correction += Offset(0, viewport.top - image.top);
-    }
-    if (image.bottom < viewport.bottom) {
-      correction += Offset(0, viewport.bottom - image.bottom);
-    }
-    return candidate + correction;
+    return translationBounds(
+      viewport: viewport,
+      imageSize: imageSize,
+    ).clamp(candidate);
   }
+
+  /// The displayed image's top-left translation interval that covers the
+  /// fixed viewport. Both axes use the same image-vs-viewport geometry; this
+  /// prevents a directional offset from limiting one usable source edge.
+  static FoodManualCropTranslationBounds translationBounds({
+    required Rect viewport,
+    required Size imageSize,
+  }) => FoodManualCropTranslationBounds.forCoverage(
+    viewport: viewport,
+    imageSize: imageSize,
+  );
 
   static Offset limitWithElasticity({
     required Rect viewport,
@@ -96,18 +91,53 @@ class FoodManualCropInteraction {
     required Offset candidate,
     required double overscroll,
   }) {
-    final minX = viewport.right - imageSize.width;
-    final maxX = viewport.left;
-    final minY = viewport.bottom - imageSize.height;
-    final maxY = viewport.top;
+    final bounds = translationBounds(viewport: viewport, imageSize: imageSize);
     // The relative gesture scale never goes below cover scale, so each valid
     // range is finite. Keep a small, symmetric elastic range while fingers
     // are down; strict four-edge coverage is restored on release.
     return Offset(
-      candidate.dx.clamp(minX - overscroll, maxX + overscroll).toDouble(),
-      candidate.dy.clamp(minY - overscroll, maxY + overscroll).toDouble(),
+      candidate.dx
+          .clamp(bounds.minX - overscroll, bounds.maxX + overscroll)
+          .toDouble(),
+      candidate.dy
+          .clamp(bounds.minY - overscroll, bounds.maxY + overscroll)
+          .toDouble(),
     );
   }
+}
+
+class FoodManualCropTranslationBounds {
+  const FoodManualCropTranslationBounds({
+    required this.minX,
+    required this.maxX,
+    required this.minY,
+    required this.maxY,
+  });
+
+  factory FoodManualCropTranslationBounds.forCoverage({
+    required Rect viewport,
+    required Size imageSize,
+  }) {
+    double axisMinimum(double viewportEnd, double imageExtent) =>
+        viewportEnd - imageExtent;
+    double axisMaximum(double viewportStart) => viewportStart;
+    return FoodManualCropTranslationBounds(
+      minX: axisMinimum(viewport.right, imageSize.width),
+      maxX: axisMaximum(viewport.left),
+      minY: axisMinimum(viewport.bottom, imageSize.height),
+      maxY: axisMaximum(viewport.top),
+    );
+  }
+
+  final double minX;
+  final double maxX;
+  final double minY;
+  final double maxY;
+
+  Offset clamp(Offset candidate) => Offset(
+    candidate.dx.clamp(minX, maxX).toDouble(),
+    candidate.dy.clamp(minY, maxY).toDouble(),
+  );
 }
 
 Future<FoodCapturedImage?> showManualNutritionCrop({

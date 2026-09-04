@@ -2,6 +2,19 @@ import '../../../core/models/work_type.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../models/daily_assessment.dart';
 
+/// Central sleep-duration bands for the Recovery assessment.  The optimal
+/// band is deliberately independent of a user's recent average: behaviour
+/// history is context, not an ideal recovery target.
+class RecoverySleepDurationRules {
+  const RecoverySleepDurationRules._();
+
+  static const int optimalMinimumMinutes = 7 * 60;
+  static const int optimalMaximumMinutes = 9 * 60;
+  static const int shortMinimumMinutes = 5 * 60;
+  static const int lowMinimumMinutes = 4 * 60;
+  static const int longMaximumMinutes = 10 * 60;
+}
+
 class DailyAssessmentRuleEngine {
   const DailyAssessmentRuleEngine();
 
@@ -145,34 +158,16 @@ class DailyAssessmentRuleEngine {
       );
     }
     final minutes = (hours * 60).round();
-    if (minutes >= 420) {
+    if (minutes < RecoverySleepDurationRules.lowMinimumMinutes) {
       return _item(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepTime,
         minutes,
-        'SUFFICIENT',
-        DailyAssessmentLevel.support,
+        'SEVERELY SHORT',
+        DailyAssessmentLevel.limit,
       );
     }
-    if (minutes >= 360) {
-      return _item(
-        DailyAssessmentModule.recovery,
-        DailyAssessmentMetric.sleepTime,
-        minutes,
-        'ADEQUATE',
-        DailyAssessmentLevel.stable,
-      );
-    }
-    if (minutes >= 300) {
-      return _item(
-        DailyAssessmentModule.recovery,
-        DailyAssessmentMetric.sleepTime,
-        minutes,
-        'SHORT',
-        DailyAssessmentLevel.watch,
-      );
-    }
-    if (minutes >= 240) {
+    if (minutes < RecoverySleepDurationRules.shortMinimumMinutes) {
       return _item(
         DailyAssessmentModule.recovery,
         DailyAssessmentMetric.sleepTime,
@@ -181,12 +176,48 @@ class DailyAssessmentRuleEngine {
         DailyAssessmentLevel.adjust,
       );
     }
+    if (minutes < 360) {
+      return _item(
+        DailyAssessmentModule.recovery,
+        DailyAssessmentMetric.sleepTime,
+        minutes,
+        'SHORT',
+        DailyAssessmentLevel.watch,
+      );
+    }
+    if (minutes < RecoverySleepDurationRules.optimalMinimumMinutes) {
+      return _item(
+        DailyAssessmentModule.recovery,
+        DailyAssessmentMetric.sleepTime,
+        minutes,
+        'BELOW OPTIMAL',
+        DailyAssessmentLevel.stable,
+      );
+    }
+    if (minutes <= RecoverySleepDurationRules.optimalMaximumMinutes) {
+      return _item(
+        DailyAssessmentModule.recovery,
+        DailyAssessmentMetric.sleepTime,
+        minutes,
+        'OPTIMAL',
+        DailyAssessmentLevel.support,
+      );
+    }
+    if (minutes <= RecoverySleepDurationRules.longMaximumMinutes) {
+      return _item(
+        DailyAssessmentModule.recovery,
+        DailyAssessmentMetric.sleepTime,
+        minutes,
+        'LONG',
+        DailyAssessmentLevel.watch,
+      );
+    }
     return _item(
       DailyAssessmentModule.recovery,
       DailyAssessmentMetric.sleepTime,
       minutes,
-      'SEVERELY SHORT',
-      DailyAssessmentLevel.limit,
+      'EXCESSIVELY LONG',
+      DailyAssessmentLevel.adjust,
     );
   }
 
