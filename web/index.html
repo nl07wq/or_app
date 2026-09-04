@@ -40,6 +40,7 @@
       const storageKey = 'or_app.startup_diagnostic.v1';
       const bootClaimKey = 'or_app.initial_boot_presentation_claimed.v1';
       const maxEvents = 200;
+      let previousRecordCostMs = null;
       const documentRunId = 'doc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
       try {
         sessionStorage.setItem('or_app.startup_diagnostic.document_run_id', documentRunId);
@@ -64,6 +65,7 @@
 
       function record(event, fields) {
         try {
+          const recordStartedAt = performance.now();
           const parsed = JSON.parse(localStorage.getItem(storageKey) || '{"sequence":0,"events":[]}');
           const events = Array.isArray(parsed.events) ? parsed.events : [];
           const sequence = Number(parsed.sequence || 0) + 1;
@@ -77,15 +79,25 @@
             fields: Object.assign({
               visibility: document.visibilityState,
               navigationType: navigationType(),
-              bootSessionClaim: bootClaim()
+              bootSessionClaim: bootClaim(),
+              diagnosticPreviousRecordCostMs: previousRecordCostMs
             }, fields || {})
           });
           if (events.length > maxEvents) events.splice(0, events.length - maxEvents);
           localStorage.setItem(storageKey, JSON.stringify({ sequence: sequence, events: events }));
+          previousRecordCostMs = Math.round((performance.now() - recordStartedAt) * 10) / 10;
         } catch (_) {
           // The diagnostic never changes page startup behavior.
         }
       }
+
+      // Exposed only for the supported custom Flutter bootstrap. Its fields
+      // are compact timing metadata; no application data is inspected.
+      window.__orAppStartupRecord = function (event, fields) {
+        record(event, Object.assign({
+          documentElapsedMs: Math.round(performance.now())
+        }, fields || {}));
+      };
 
       record('DOCUMENT_SCRIPT_START');
       record('FLUTTER_BOOTSTRAP_REQUESTED');
@@ -98,7 +110,11 @@
       document.addEventListener('visibilitychange', function () { record('VISIBILITY_CHANGE'); });
     })();
   </script>
-  <script src="assets/food_input/food_input_bridge.js"></script>
+  <script>
+    window.__orAppStartupRecord && window.__orAppStartupRecord('FOOD_INPUT_BRIDGE_REQUESTED');
+  </script>
+  <script src="assets/food_input/food_input_bridge.js"
+    onload="window.__orAppStartupRecord && window.__orAppStartupRecord('FOOD_INPUT_BRIDGE_SCRIPT_LOADED')"></script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -107,6 +123,7 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="flutter_bootstrap.js" async
+    onload="window.__orAppStartupRecord && window.__orAppStartupRecord('FLUTTER_BOOTSTRAP_SCRIPT_LOADED')"></script>
 </body>
 </html>
