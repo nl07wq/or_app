@@ -40,6 +40,9 @@
       const storageKey = 'or_app.startup_diagnostic.v1';
       const bootClaimKey = 'or_app.initial_boot_presentation_claimed.v1';
       const maxEvents = 200;
+      // Controlled startup-performance A/B: preserve document identity, but
+      // avoid synchronous full-trace localStorage mutations before Dart main.
+      const persistPreDartTrace = false;
       const documentRunId = 'doc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
       try {
         sessionStorage.setItem('or_app.startup_diagnostic.document_run_id', documentRunId);
@@ -63,6 +66,7 @@
       }
 
       function record(event, fields) {
+        if (!persistPreDartTrace) return;
         try {
           const parsed = JSON.parse(localStorage.getItem(storageKey) || '{"sequence":0,"events":[]}');
           const events = Array.isArray(parsed.events) ? parsed.events : [];
