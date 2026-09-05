@@ -276,12 +276,17 @@ class _DailyMetric extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (target != null) ...[
-            NutritionStatusBadge(
-              status: remaining! > 1
-                  ? 'LOW'
-                  : remaining < -1
-                  ? 'OVER'
-                  : 'ON TRACK',
+            SizedBox(
+              width: 68,
+              child: Center(
+                child: NutritionStatusBadge(
+                  status: remaining! > 1
+                      ? 'LOW'
+                      : remaining < -1
+                      ? 'OVER'
+                      : 'ON TRACK',
+                ),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
