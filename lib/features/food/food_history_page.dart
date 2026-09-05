@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'food_nutrition_formatter.dart';
 import 'food_edit_page.dart';
+import 'meal_analysis_page.dart';
 import 'services/food_submit_service.dart';
 
 import '../../core/models/meal_data.dart';
@@ -117,153 +118,203 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     }
   }
 
-  Future<void> _deleteRecord(MealData data) async {
+  Future<bool> _deleteRecord(MealData data) async {
     final result = await showHistoryDeleteDialog(
       context,
       title: data.isWaterEntry ? 'Water Record' : 'Meal Record',
     );
 
-    if (!result) return;
+    if (!result) return false;
 
     try {
       await FoodSubmitService.delete(data);
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
-      return;
+      return false;
     }
 
     await _loadRecords();
+    return true;
   }
 
-  Future<void> _deleteV2Record(DailyMealV2 meal) async {
+  Future<bool> _deleteV2Record(DailyMealV2 meal) async {
     final confirmed = await showHistoryDeleteDialog(
       context,
       title: 'Meal Record',
     );
-    if (!confirmed) return;
+    if (!confirmed) return false;
     try {
       await FoodSubmitService.deleteV2(meal);
     } on ConfirmedDailyLogException catch (error) {
       if (mounted) showConfirmedLogMessage(context, error);
-      return;
+      return false;
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('MEAL DELETE FAILED')));
       }
-      return;
+      return false;
     }
     await _loadRecords();
+    return true;
+  }
+
+  FoodUnifiedReadModel? _analysisRecord(FoodRecordIdentity identity) {
+    for (final value in _historyOrder) {
+      if (value.identity == identity) return value;
+    }
+    return null;
+  }
+
+  Future<void> _openAnalysis({
+    required FoodUnifiedReadModel record,
+    required Future<bool> Function(BuildContext context) onEdit,
+    required Future<bool> Function(BuildContext context) onDelete,
+  }) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MealAnalysisPage(
+          record: record,
+          onEdit: onEdit,
+          onDelete: onDelete,
+        ),
+      ),
+    );
+    if (changed == true) await _loadRecords();
   }
 
   Widget _buildMealCard(BuildContext context, MealData meal) {
-    return OperationCard(
-      key: ValueKey('food-history-v1-${meal.id}'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  meal.date,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: appInitializationController.value.isReadOnly
-                    ? null
-                    : () async {
-                        final updated = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => FoodEditPage(meal: meal),
-                          ),
-                        );
-
-                        if (updated == true) {
-                          await _loadRecords();
-                        }
-                      },
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                onPressed: appInitializationController.value.isReadOnly
-                    ? null
-                    : () => _deleteRecord(meal),
-              ),
-            ],
-          ),
-          SectionHeader(
-            icon: meal.isWaterEntry
-                ? Icons.water_drop_outlined
-                : Icons.restaurant,
-            title: meal.isWaterEntry ? 'Water' : meal.mealType,
-          ),
-          AppSpacing.gapMD,
-          if (meal.isWaterEntry)
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.water_drop_outlined),
-              title: Text('${meal.waterMl!.toStringAsFixed(0)} ml'),
-            )
-          else
-            ...meal.items.map(
-              (item) => Column(
-                children: [
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const FoodThumbnail(visualKey: null),
-                    title: Text(
-                      item.hasMeasuredAmount
-                          ? item.amountMode == FoodAmountMode.baseMultiplier
-                                ? '${item.name}  AMOUNT '
-                                      '${FoodNutritionFormatter.amount(item.amount!)}'
-                                      ' (${FoodNutritionFormatter.amount(item.physicalAmount!)}'
-                                      '${item.baseUnit!.label})'
-                                : '${item.name}  '
-                                      '${FoodNutritionFormatter.amount(item.amount!)}'
-                                      '${item.baseUnit!.label}'
-                          : item.quantity > 1
-                          ? '${item.name} ×${item.quantity}'
-                          : item.name,
+    final record = _analysisRecord(
+      FoodRecordIdentity(FoodRecordKind.legacyV1, meal.id),
+    );
+    return InkWell(
+      key: ValueKey('open-meal-analysis-v1-${meal.id}'),
+      onTap: meal.isWaterEntry || record == null
+          ? null
+          : () => _openAnalysis(
+              record: record,
+              onEdit: (context) async =>
+                  (await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          FoodEditPage(meal: meal, returnAfterSave: true),
                     ),
-                    subtitle: Text(
-                      "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
-                      "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
-                      "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
-                      "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
-                    ),
+                  )) ==
+                  true,
+              onDelete: (context) => _deleteRecord(meal),
+            ),
+      child: OperationCard(
+        key: ValueKey('food-history-v1-${meal.id}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    meal.date,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  if (!appInitializationController.value.isReadOnly)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () => _addLegacyItemToCatalog(item),
-                        icon: const Icon(Icons.add_business),
-                        label: const Text('ADD TO FOOD DATABASE'),
+                ),
+                IconButton(
+                  key: ValueKey('edit-v1-meal-${meal.id}'),
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: appInitializationController.value.isReadOnly
+                      ? null
+                      : () async {
+                          final updated = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => FoodEditPage(meal: meal),
+                            ),
+                          );
+
+                          if (updated == true) {
+                            await _loadRecords();
+                          }
+                        },
+                ),
+                IconButton(
+                  key: ValueKey('delete-v1-meal-${meal.id}'),
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _deleteRecord(meal),
+                ),
+              ],
+            ),
+            SectionHeader(
+              icon: meal.isWaterEntry
+                  ? Icons.water_drop_outlined
+                  : Icons.restaurant,
+              title: meal.isWaterEntry ? 'Water' : meal.mealType,
+            ),
+            AppSpacing.gapMD,
+            if (meal.isWaterEntry)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.water_drop_outlined),
+                title: Text('${meal.waterMl!.toStringAsFixed(0)} ml'),
+              )
+            else
+              ...meal.items.map(
+                (item) => Column(
+                  children: [
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const FoodThumbnail(visualKey: null),
+                      title: Text(
+                        item.hasMeasuredAmount
+                            ? item.amountMode == FoodAmountMode.baseMultiplier
+                                  ? '${item.name}  AMOUNT '
+                                        '${FoodNutritionFormatter.amount(item.amount!)}'
+                                        ' (${FoodNutritionFormatter.amount(item.physicalAmount!)}'
+                                        '${item.baseUnit!.label})'
+                                  : '${item.name}  '
+                                        '${FoodNutritionFormatter.amount(item.amount!)}'
+                                        '${item.baseUnit!.label}'
+                            : item.quantity > 1
+                            ? '${item.name} ×${item.quantity}'
+                            : item.name,
+                      ),
+                      subtitle: Text(
+                        "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
+                        "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
+                        "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
+                        "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
                       ),
                     ),
-                ],
+                    if (!appInitializationController.value.isReadOnly)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => _addLegacyItemToCatalog(item),
+                          icon: const Icon(Icons.add_business),
+                          label: const Text('ADD TO FOOD DATABASE'),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          if (meal.memo.isNotEmpty) ...[
-            AppSpacing.gapMD,
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.note_outlined),
-              title: Text(meal.memo),
-            ),
+            if (meal.memo.isNotEmpty) ...[
+              AppSpacing.gapMD,
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.note_outlined),
+                title: Text(meal.memo),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -297,80 +348,117 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     );
   }
 
-  Widget _buildV2MealCard(DailyMealV2 meal) => OperationCard(
-    key: ValueKey('food-history-v2-${meal.mealId}'),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+  Widget _buildV2MealCard(DailyMealV2 meal) {
+    final record = _analysisRecord(
+      FoodRecordIdentity(FoodRecordKind.dailyMealV2, meal.mealId),
+    );
+    return InkWell(
+      key: ValueKey('open-meal-analysis-v2-${meal.mealId}'),
+      onTap: record == null
+          ? null
+          : () => _openAnalysis(
+              record: record,
+              onEdit: (context) async =>
+                  (await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DailyMealV2EditPage(meal: meal),
+                    ),
+                  )) ==
+                  true,
+              onDelete: (context) => _deleteV2Record(meal),
+            ),
+      child: OperationCard(
+        key: ValueKey('food-history-v2-${meal.mealId}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                meal.localDate,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            IconButton(
-              key: ValueKey('delete-v2-meal-${meal.mealId}'),
-              icon: Icon(
-                Icons.delete_outline,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: appInitializationController.value.isReadOnly
-                  ? null
-                  : () => _deleteV2Record(meal),
-            ),
-          ],
-        ),
-        AppSpacing.gapSM,
-        SectionHeader(
-          icon: Icons.restaurant,
-          title: meal.mealType.stableId.toUpperCase(),
-        ),
-        AppSpacing.gapSM,
-        for (final item in meal.items) ...[
-          ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: FoodThumbnail(
-              visualKey: item.foodReferenceId == null
-                  ? null
-                  : _catalogEntries[item.foodReferenceId!]?.visualKey,
-            ),
-            title: Text(item.nameSnapshot),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
               children: [
-                Text(
-                  [
-                    if (item.category != null)
-                      foodCatalogCategoryLabel(item.category!),
-                    FoodNutritionFormatter.compactQuantity(item.quantity),
-                  ].join('  '),
-                ),
-                Text(
-                  FoodNutritionFormatter.compactNutrition(
-                    item.nutritionConsumed,
+                Expanded(
+                  child: Text(
+                    meal.localDate,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
+                ),
+                IconButton(
+                  key: ValueKey('edit-v2-meal-${meal.mealId}'),
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: appInitializationController.value.isReadOnly
+                      ? null
+                      : () async {
+                          final updated = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DailyMealV2EditPage(meal: meal),
+                            ),
+                          );
+                          if (updated == true) await _loadRecords();
+                        },
+                ),
+                IconButton(
+                  key: ValueKey('delete-v2-meal-${meal.mealId}'),
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _deleteV2Record(meal),
                 ),
               ],
             ),
-            isThreeLine: true,
-          ),
-          if (!appInitializationController.value.isReadOnly &&
-              !_hasActiveMasterReference(item))
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => _addV2ItemToCatalog(item),
-                icon: const Icon(Icons.add_business),
-                label: const Text('ADD TO FOOD DATABASE'),
-              ),
+            AppSpacing.gapSM,
+            SectionHeader(
+              icon: Icons.restaurant,
+              title: meal.mealType.stableId.toUpperCase(),
             ),
-        ],
-      ],
-    ),
-  );
+            AppSpacing.gapSM,
+            for (final item in meal.items) ...[
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: FoodThumbnail(
+                  visualKey: item.foodReferenceId == null
+                      ? null
+                      : _catalogEntries[item.foodReferenceId!]?.visualKey,
+                ),
+                title: Text(item.nameSnapshot),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      [
+                        if (item.category != null)
+                          foodCatalogCategoryLabel(item.category!),
+                        FoodNutritionFormatter.compactQuantity(item.quantity),
+                      ].join('  '),
+                    ),
+                    Text(
+                      FoodNutritionFormatter.compactNutrition(
+                        item.nutritionConsumed,
+                      ),
+                    ),
+                  ],
+                ),
+                isThreeLine: true,
+              ),
+              if (!appInitializationController.value.isReadOnly &&
+                  !_hasActiveMasterReference(item))
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _addV2ItemToCatalog(item),
+                    icon: const Icon(Icons.add_business),
+                    label: const Text('ADD TO FOOD DATABASE'),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   bool _hasActiveMasterReference(DailyMealItemSnapshot item) {
     final foodReferenceId = item.foodReferenceId;

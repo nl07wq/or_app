@@ -13,7 +13,9 @@ import '../../../core/widgets/section_header.dart';
 import '../data/water_quick_presets.dart';
 import '../food_nutrition_formatter.dart';
 import '../models/food_catalog_models.dart';
+import '../models/food_entry_sources.dart';
 import '../models/food_meal_master_models.dart';
+import '../models/food_provenance_models.dart';
 import '../models/food_quantity_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/recipe_models_v2.dart';
@@ -39,14 +41,19 @@ class FoodInputForm extends StatefulWidget {
     List<FoodQuantityUnit> quantityUnits,
   )?
   onSaveWithCatalog;
+  final Future<bool> Function(MealData data, FoodEntrySources sources)?
+  onSaveWithSources;
   final MealData? initialMeal;
+  final FoodEntrySources? initialSources;
   final FoodInputCaptureGateway? captureGateway;
 
   const FoodInputForm({
     super.key,
     required this.onSave,
     this.onSaveWithCatalog,
+    this.onSaveWithSources,
     this.initialMeal,
+    this.initialSources,
     this.captureGateway,
   });
 
@@ -78,6 +85,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final List<FoodCatalogEntry?> _catalogSources = [];
   final List<FoodRecipeDefinition?> _recipeSources = [];
   final List<FoodQuantityUnit> _quantityUnits = [];
+  final List<String?> _foodReferenceIds = [];
+  final List<String?> _recipeReferenceIds = [];
+  final List<String?> _mealItemIds = [];
+  final List<FoodDataProvenance?> _provenanceSnapshots = [];
+  final List<NutritionStatus?> _nutritionStatuses = [];
+  final List<String?> _brandSnapshots = [];
+  final List<FoodCatalogCategory?> _categories = [];
+  final List<String?> _itemMemos = [];
   FoodCatalogEntry? _currentCatalogSource;
   FoodRecipeDefinition? _currentRecipeSource;
   FoodCatalogCategory category = FoodCatalogCategory.preparedFood;
@@ -129,15 +144,46 @@ class _FoodInputFormState extends State<FoodInputForm> {
     waterVolumeController.text = meal.waterMl?.toStringAsFixed(0) ?? '';
 
     items.addAll(meal.items);
-    _catalogSources.addAll(List.filled(meal.items.length, null));
-    _recipeSources.addAll(List.filled(meal.items.length, null));
-    _quantityUnits.addAll(
-      meal.items.map(
-        (item) => item.baseUnit == FoodBaseUnit.ml
-            ? FoodQuantityUnit.milliliter
-            : FoodQuantityUnit.gram,
-      ),
+    final sources = widget.initialSources;
+    if (sources != null && sources.quantityUnits.length != meal.items.length) {
+      throw ArgumentError('FOOD editor sources must match initial meal items.');
+    }
+    _catalogSources.addAll(
+      sources?.catalogSources ?? List.filled(meal.items.length, null),
     );
+    _recipeSources.addAll(
+      sources?.recipeSources ?? List.filled(meal.items.length, null),
+    );
+    _quantityUnits.addAll(
+      sources?.quantityUnits ??
+          meal.items.map(
+            (item) => item.baseUnit == FoodBaseUnit.ml
+                ? FoodQuantityUnit.milliliter
+                : FoodQuantityUnit.gram,
+          ),
+    );
+    _foodReferenceIds.addAll(
+      sources?.foodReferenceIds ?? List.filled(meal.items.length, null),
+    );
+    _recipeReferenceIds.addAll(
+      sources?.recipeReferenceIds ?? List.filled(meal.items.length, null),
+    );
+    _mealItemIds.addAll(
+      sources?.mealItemIds ?? List.filled(meal.items.length, null),
+    );
+    _provenanceSnapshots.addAll(
+      sources?.provenanceSnapshots ?? List.filled(meal.items.length, null),
+    );
+    _nutritionStatuses.addAll(
+      sources?.nutritionStatuses ?? List.filled(meal.items.length, null),
+    );
+    _brandSnapshots.addAll(
+      sources?.brandSnapshots ?? List.filled(meal.items.length, null),
+    );
+    _categories.addAll(
+      sources?.categories ?? List.filled(meal.items.length, null),
+    );
+    _itemMemos.addAll(sources?.memos ?? List.filled(meal.items.length, null));
   }
 
   @override
@@ -393,6 +439,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _catalogSources.clear();
       _recipeSources.clear();
       _quantityUnits.clear();
+      _foodReferenceIds.clear();
+      _recipeReferenceIds.clear();
+      _mealItemIds.clear();
+      _provenanceSnapshots.clear();
+      _nutritionStatuses.clear();
+      _brandSnapshots.clear();
+      _categories.clear();
+      _itemMemos.clear();
       mealType = MealType.breakfast;
       memoController.clear();
       waterVolumeController.clear();
@@ -430,6 +484,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _catalogSources.add(_currentCatalogSource);
       _recipeSources.add(_currentRecipeSource);
       _quantityUnits.add(baseUnit);
+      _foodReferenceIds.add(_currentCatalogSource?.foodId);
+      _recipeReferenceIds.add(_currentRecipeSource?.recipeId);
+      _mealItemIds.add(null);
+      _provenanceSnapshots.add(null);
+      _nutritionStatuses.add(null);
+      _brandSnapshots.add(_currentCatalogSource?.brand);
+      _categories.add(_currentCatalogSource?.category);
+      _itemMemos.add(null);
       inputError = null;
       _clearFoodInputs();
     });
@@ -441,6 +503,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _catalogSources.removeAt(index);
       _recipeSources.removeAt(index);
       _quantityUnits.removeAt(index);
+      _foodReferenceIds.removeAt(index);
+      _recipeReferenceIds.removeAt(index);
+      _mealItemIds.removeAt(index);
+      _provenanceSnapshots.removeAt(index);
+      _nutritionStatuses.removeAt(index);
+      _brandSnapshots.removeAt(index);
+      _categories.removeAt(index);
+      _itemMemos.removeAt(index);
 
       if (editingIndex == index) {
         editingIndex = null;
@@ -511,6 +581,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _catalogSources[editingIndex!] = _currentCatalogSource;
       _recipeSources[editingIndex!] = _currentRecipeSource;
       _quantityUnits[editingIndex!] = baseUnit;
+      if (_currentCatalogSource != null) {
+        _foodReferenceIds[editingIndex!] = _currentCatalogSource!.foodId;
+        _recipeReferenceIds[editingIndex!] = null;
+        _brandSnapshots[editingIndex!] = _currentCatalogSource!.brand;
+        _categories[editingIndex!] = _currentCatalogSource!.category;
+      } else if (_currentRecipeSource != null) {
+        _foodReferenceIds[editingIndex!] = null;
+        _recipeReferenceIds[editingIndex!] = _currentRecipeSource!.recipeId;
+      }
 
       editingIndex = null;
       inputError = null;
@@ -709,6 +788,24 @@ class _FoodInputFormState extends State<FoodInputForm> {
           _catalogSources.addAll(expansion.foodSources);
           _recipeSources.addAll(expansion.recipeSources);
           _quantityUnits.addAll(expansion.quantityUnits);
+          _foodReferenceIds.addAll(
+            expansion.foodSources.map((value) => value?.foodId),
+          );
+          _recipeReferenceIds.addAll(
+            expansion.recipeSources.map((value) => value?.recipeId),
+          );
+          _mealItemIds.addAll(List.filled(expansion.items.length, null));
+          _provenanceSnapshots.addAll(
+            List.filled(expansion.items.length, null),
+          );
+          _nutritionStatuses.addAll(List.filled(expansion.items.length, null));
+          _brandSnapshots.addAll(
+            expansion.foodSources.map((value) => value?.brand),
+          );
+          _categories.addAll(
+            expansion.foodSources.map((value) => value?.category),
+          );
+          _itemMemos.addAll(List.filled(expansion.items.length, null));
           inputError = null;
         });
       } on FoodMealMasterExpansionException catch (error) {
@@ -870,16 +967,48 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final sources = List<FoodCatalogEntry?>.from(_catalogSources);
     final recipeSources = List<FoodRecipeDefinition?>.from(_recipeSources);
     final quantityUnits = List<FoodQuantityUnit>.from(_quantityUnits);
+    final foodReferenceIds = List<String?>.from(_foodReferenceIds);
+    final recipeReferenceIds = List<String?>.from(_recipeReferenceIds);
+    final mealItemIds = List<String?>.from(_mealItemIds);
+    final provenanceSnapshots = List<FoodDataProvenance?>.from(
+      _provenanceSnapshots,
+    );
+    final nutritionStatuses = List<NutritionStatus?>.from(_nutritionStatuses);
+    final brandSnapshots = List<String?>.from(_brandSnapshots);
+    final categories = List<FoodCatalogCategory?>.from(_categories);
+    final itemMemos = List<String?>.from(_itemMemos);
     if (editingIndex == null && _currentFoodItem() != null) {
       sources.add(_currentCatalogSource);
       recipeSources.add(_currentRecipeSource);
       quantityUnits.add(baseUnit);
+      foodReferenceIds.add(_currentCatalogSource?.foodId);
+      recipeReferenceIds.add(_currentRecipeSource?.recipeId);
+      mealItemIds.add(null);
+      provenanceSnapshots.add(null);
+      nutritionStatuses.add(null);
+      brandSnapshots.add(_currentCatalogSource?.brand);
+      categories.add(_currentCatalogSource?.category);
+      itemMemos.add(null);
     }
-    final saved =
-        (sources.any((entry) => entry != null) ||
-                recipeSources.any((entry) => entry != null) ||
-                quantityUnits.any((unit) => !unit.isPhysical)) &&
-            widget.onSaveWithCatalog != null
+    final entrySources = FoodEntrySources(
+      catalogSources: sources,
+      recipeSources: recipeSources,
+      quantityUnits: quantityUnits,
+      foodReferenceIds: foodReferenceIds,
+      recipeReferenceIds: recipeReferenceIds,
+      mealItemIds: mealItemIds,
+      provenanceSnapshots: provenanceSnapshots,
+      nutritionStatuses: nutritionStatuses,
+      brandSnapshots: brandSnapshots,
+      categories: categories,
+      memos: itemMemos,
+    );
+    final saved = widget.onSaveWithSources != null
+        ? await widget.onSaveWithSources!(meal, entrySources)
+        : (sources.any((entry) => entry != null) ||
+                  recipeSources.any((entry) => entry != null) ||
+                  quantityUnits.any((unit) => !unit.isPhysical)) &&
+              widget.onSaveWithCatalog != null
         ? await widget.onSaveWithCatalog!(
             meal,
             sources,

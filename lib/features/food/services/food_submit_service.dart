@@ -63,6 +63,19 @@ class FoodSubmitService {
     await refreshFoodSummary(localDate: meal.localDate);
   }
 
+  static Future<void> updateV2(DailyMealV2 meal) async {
+    await DailyLogMutationGuard.assertDateMutable(
+      DateTime.parse(meal.localDate),
+    );
+    final repository = AppRepositoryRegistry.container.dailyMealsV2;
+    await repository.update(meal);
+    final readBack = await repository.readById(meal.mealId);
+    if (readBack == null || readBack.mealId != meal.mealId) {
+      throw StateError('Daily Meal v2 update verification failed.');
+    }
+    await refreshFoodSummary(localDate: meal.localDate);
+  }
+
   static MealData _withLocalDate(MealData data, String localDate) => MealData(
     date: localDate,
     mealType: data.mealType,
