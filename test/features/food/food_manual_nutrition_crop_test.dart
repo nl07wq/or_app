@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
@@ -242,6 +244,36 @@ void main() {
     },
   );
 
+  test('portrait cover scale can collapse the persistent horizontal range', () {
+    const crop = Rect.fromLTWH(24, 110, 343.2, 420);
+    const image = Size(343.2, 610);
+    final strict = FoodManualCropInteraction.translationBounds(
+      viewport: crop,
+      imageSize: image,
+    );
+    final active = FoodManualCropInteraction.activeTranslationBounds(
+      viewport: crop,
+      imageSize: image,
+      overscroll: 120,
+    );
+
+    expect(strict.minX, crop.left);
+    expect(strict.maxX, crop.left);
+    expect(active.minX, crop.left - 120);
+    expect(active.maxX, crop.left + 120);
+  });
+
+  test('crop geometry diagnostic has no persistent storage dependency', () {
+    final source = File(
+      'lib/features/food/widgets/food_manual_nutrition_crop.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('_CropGeometryDiagnosticPanel'));
+    expect(source, isNot(contains('SharedPreferences')));
+    expect(source, isNot(contains('localStorage')));
+    expect(source, isNot(contains('IndexedDB')));
+  });
+
   testWidgets('manual crop requires confirmation before creating OCR input', (
     tester,
   ) async {
@@ -323,6 +355,11 @@ void main() {
     );
     await tester.tap(find.text('OPEN'));
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('manual-nutrition-crop-geometry-diagnostic')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('CANVAS'), findsOneWidget);
     final transformFinder = find.descendant(
       of: find.byKey(const ValueKey('manual-nutrition-crop-image-layer')),
       matching: find.byType(Transform),
@@ -349,7 +386,13 @@ void main() {
     );
     expect(during.x - before.x, closeTo(40, 1));
     expect(during.y - before.y, closeTo(25, 1));
+    expect(find.textContaining('ACTIVE raw='), findsOneWidget);
+    expect(find.textContaining('candidate='), findsOneWidget);
+    expect(find.textContaining('bounds x:'), findsOneWidget);
+    expect(find.textContaining('post='), findsOneWidget);
     await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('RELEASE norm='), findsOneWidget);
   });
 
   testWidgets('pinch changes the rendered image transform scale', (
