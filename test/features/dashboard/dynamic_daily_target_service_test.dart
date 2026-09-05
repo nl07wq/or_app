@@ -59,6 +59,29 @@ void main() {
         expect(water.finalTargetMl, value.$1);
       }
     });
+
+    test(
+      'derives fat range and carbohydrate remainder from the same targets',
+      () {
+        final result = _evaluate(
+          history: _referenceHistory(),
+          calories: 1800,
+          protein: 110,
+        );
+        final calories = (result.calories.low! + result.calories.high!) / 2;
+        final protein = (result.protein.low! + result.protein.high!) / 2;
+        final fat = (result.fat.low! + result.fat.high!) / 2;
+        final carbs =
+            (result.carbohydrate.low! + result.carbohydrate.high!) / 2;
+
+        expect(result.fat.availability, DynamicTargetAvailability.available);
+        expect(
+          result.carbohydrate.availability,
+          DynamicTargetAvailability.available,
+        );
+        expect(protein * 4 + fat * 9 + carbs * 4, closeTo(calories, 0.001));
+      },
+    );
   });
 
   group('reference body', () {
@@ -327,6 +350,8 @@ DynamicDailyTargetResult _evaluate({
   List<MorningData> history = const [],
   double? calories,
   double? protein,
+  double? fat,
+  double? carbohydrates,
   double? water,
   int? steps,
   bool trainingRecorded = false,
@@ -342,6 +367,8 @@ DynamicDailyTargetResult _evaluate({
   ),
   currentCaloriesKcal: calories,
   currentProteinG: protein,
+  currentFatG: fat,
+  currentCarbohydrateG: carbohydrates,
   currentWaterMl: water,
   formalTrainingRecorded: trainingRecorded,
   formalCardioAtLeast30Minutes: cardioAtLeast30Minutes,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'food_nutrition_formatter.dart';
+import 'daily_nutrition_analysis_page.dart';
 import 'food_edit_page.dart';
 import 'meal_analysis_page.dart';
 import 'services/food_submit_service.dart';
@@ -186,6 +187,22 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       ),
     );
     if (changed == true) await _loadRecords();
+  }
+
+  Future<void> _openDailyNutritionAnalysis(String operationDate) async {
+    final records = _historyOrder
+        .where((record) => record.localDate == operationDate)
+        .toList(growable: false);
+    if (records.isEmpty) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DailyNutritionAnalysisPage(
+          operationDate: operationDate,
+          records: records,
+        ),
+      ),
+    );
   }
 
   Widget _buildMealCard(BuildContext context, MealData meal) {
@@ -576,7 +593,21 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           key: ValueKey('food-history-date-${group.key}'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SectionHeader(icon: Icons.calendar_today, title: group.key),
+            InkWell(
+              key: ValueKey('open-daily-nutrition-analysis-${group.key}'),
+              onTap: () => _openDailyNutritionAnalysis(group.key),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SectionHeader(
+                      icon: Icons.calendar_today,
+                      title: group.key,
+                    ),
+                  ),
+                  const Icon(Icons.insights_outlined),
+                ],
+              ),
+            ),
             AppSpacing.gapMD,
             for (var index = 0; index < group.value.length; index++) ...[
               group.value[index],

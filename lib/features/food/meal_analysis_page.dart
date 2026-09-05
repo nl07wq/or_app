@@ -76,10 +76,10 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
           onPressed: !widget.canEdit
               ? null
               : () async {
-            final updated = await widget.onEdit(context);
-            if (!context.mounted) return;
-            if (updated) Navigator.pop(context, true);
-          },
+                  final updated = await widget.onEdit(context);
+                  if (!context.mounted) return;
+                  if (updated) Navigator.pop(context, true);
+                },
         ),
         IconButton(
           key: const ValueKey('meal-analysis-delete'),
@@ -201,13 +201,18 @@ class _DailyContextCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final food = summary;
     final target = targets;
-    if (food == null || target == null) return _unavailable();
+    if (food == null || target == null || !target.nutritionTargetsAvailable) {
+      return _unavailable();
+    }
     final caloriesTarget = DynamicDailyTargetPresentation.caloriesTargetKcal(
       target.calories,
     );
     final proteinTarget = DynamicDailyTargetPresentation.proteinTargetG(
       target.protein,
     );
+    final fatTarget = DynamicDailyTargetPresentation.fatTargetG(target.fat);
+    final carbohydrateTarget =
+        DynamicDailyTargetPresentation.carbohydrateTargetG(target.carbohydrate);
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,8 +229,13 @@ class _DailyContextCard extends StatelessWidget {
             'kcal',
           ),
           _DailyMetric('Protein', food.protein, proteinTarget?.toDouble(), 'g'),
-          _DailyMetric('Fat', food.fat, null, 'g'),
-          _DailyMetric('Carbohydrate', food.carbohydrates, null, 'g'),
+          _DailyMetric('Fat', food.fat, fatTarget?.toDouble(), 'g'),
+          _DailyMetric(
+            'Carbohydrate',
+            food.carbohydrates,
+            carbohydrateTarget?.toDouble(),
+            'g',
+          ),
         ],
       ),
     );
@@ -367,18 +377,28 @@ class _AdjustmentHintCard extends StatelessWidget {
 }
 
 String _hint(FoodSummary? summary, DynamicDailyTargetResult? targets) {
-  if (summary == null || targets == null) return '目標データなし';
+  if (summary == null ||
+      targets == null ||
+      !targets.nutritionTargetsAvailable) {
+    return '目標データなし';
+  }
   final calories = DynamicDailyTargetPresentation.caloriesTargetKcal(
     targets.calories,
   );
   final protein = DynamicDailyTargetPresentation.proteinTargetG(
     targets.protein,
   );
+  final fat = DynamicDailyTargetPresentation.fatTargetMaxG(targets.fat);
+  final carbs = DynamicDailyTargetPresentation.carbohydrateTargetG(
+    targets.carbohydrate,
+  );
   if (calories != null && summary.calories > calories) return '次の食事は低カロリーを優先';
+  if (fat != null && summary.fat > fat) return '次の食事は低脂質を優先';
   if (protein != null && summary.protein >= protein) return 'たんぱく質は目標に到達しています';
   if (protein != null && summary.protein < protein) {
     return '次の食事は高たんぱくを優先';
   }
+  if (carbs != null && summary.carbohydrates < carbs) return '炭水化物はまだ余裕があります';
   return '次の食事も記録して、1日の推移を確認';
 }
 

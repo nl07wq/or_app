@@ -132,6 +132,21 @@ void main() {
     );
   });
 
+  testWidgets('date header opens daily nutrition analysis for that date', (
+    tester,
+  ) async {
+    _seed(database, _meal(id: 'meal', date: '2026-07-26'));
+
+    await _pumpPage(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('open-daily-nutrition-analysis-2026-07-26')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('DAILY NUTRITION ANALYSIS'), findsWidgets);
+    expect(find.text('DAILY SUMMARY'), findsOneWidget);
+  });
+
   testWidgets('measured food shows amount and calculated nutrition', (
     tester,
   ) async {

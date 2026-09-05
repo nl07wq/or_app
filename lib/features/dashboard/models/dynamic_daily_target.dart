@@ -103,6 +103,8 @@ class DynamicDailyTargetResult {
     required this.estimatedTotalBurnKcal,
     required this.calories,
     required this.protein,
+    required this.fat,
+    required this.carbohydrate,
     required this.water,
   });
 
@@ -112,7 +114,15 @@ class DynamicDailyTargetResult {
   final double? estimatedTotalBurnKcal;
   final DynamicRangeTarget calories;
   final DynamicRangeTarget protein;
+  final DynamicRangeTarget fat;
+  final DynamicRangeTarget carbohydrate;
   final DynamicWaterTarget water;
+
+  bool get nutritionTargetsAvailable =>
+      calories.availability == DynamicTargetAvailability.available &&
+      protein.availability == DynamicTargetAvailability.available &&
+      fat.availability == DynamicTargetAvailability.available &&
+      carbohydrate.availability == DynamicTargetAvailability.available;
 }
 
 abstract final class DynamicDailyTargetPresentation {
@@ -121,6 +131,18 @@ abstract final class DynamicDailyTargetPresentation {
 
   static int? proteinTargetG(DynamicRangeTarget? target) =>
       _roundedMidpoint(target, 5);
+
+  static int? fatTargetG(DynamicRangeTarget? target) =>
+      _roundedMidpoint(target, 1);
+
+  static int? fatTargetMinG(DynamicRangeTarget? target) =>
+      _roundTo(target?.low, 1);
+
+  static int? fatTargetMaxG(DynamicRangeTarget? target) =>
+      _roundTo(target?.high, 1);
+
+  static int? carbohydrateTargetG(DynamicRangeTarget? target) =>
+      _roundedMidpoint(target, 1);
 
   static int? waterTargetMl(DynamicWaterTarget? target) =>
       _roundTo(target?.finalTargetMl, 100);

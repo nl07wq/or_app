@@ -51,6 +51,10 @@ class DynamicDailyTargetService {
       currentProteinG: food == null || food.mealCount == 0
           ? null
           : food.protein,
+      currentFatG: food == null || food.mealCount == 0 ? null : food.fat,
+      currentCarbohydrateG: food == null || food.mealCount == 0
+          ? null
+          : food.carbohydrates,
       currentWaterMl: food?.waterRecorded == true ? food!.hydrationMl : null,
       formalTrainingRecorded: trainingRecords.isNotEmpty,
       formalCardioAtLeast30Minutes: trainingRecords.any(_hasThirtyMinuteCardio),
@@ -81,6 +85,8 @@ abstract final class DynamicDailyTargetEngine {
     required MorningFact? currentStatus,
     required double? currentCaloriesKcal,
     required double? currentProteinG,
+    required double? currentFatG,
+    required double? currentCarbohydrateG,
     required double? currentWaterMl,
     required bool formalTrainingRecorded,
     required bool formalCardioAtLeast30Minutes,
@@ -99,13 +105,23 @@ abstract final class DynamicDailyTargetEngine {
         ? null
         : estimatedBaseBurn + trainingEnergyKcal;
 
+    final calories = _calories(currentCaloriesKcal, estimatedBurn);
+    final protein = _protein(currentProteinG, referenceBody.leanMassKg);
+    final macroTargets = _macros(
+      calories: calories,
+      protein: protein,
+      currentFatG: currentFatG,
+      currentCarbohydrateG: currentCarbohydrateG,
+    );
     return DynamicDailyTargetResult(
       ruleVersion: DynamicDailyTargetResult.currentRuleVersion,
       referenceBody: referenceBody,
       estimatedBaseBurnKcal: estimatedBaseBurn,
       estimatedTotalBurnKcal: estimatedBurn,
-      calories: _calories(currentCaloriesKcal, estimatedBurn),
-      protein: _protein(currentProteinG, referenceBody.leanMassKg),
+      calories: calories,
+      protein: protein,
+      fat: macroTargets.fat,
+      carbohydrate: macroTargets.carbohydrate,
       water: _water(
         current: currentWaterMl,
         referenceWeightKg: weight,
@@ -258,6 +274,74 @@ abstract final class DynamicDailyTargetEngine {
     );
   }
 
+  /// Fat is a transparent 25–30% energy range. Carbohydrate receives the
+  /// remaining energy after the existing calorie and protein targets plus the
+  /// midpoint fat reference; this keeps the macro targets reconcilable.
+  static _MacroTargets _macros({
+    required DynamicRangeTarget calories,
+    required DynamicRangeTarget protein,
+    required double? currentFatG,
+    required double? currentCarbohydrateG,
+  }) {
+    final calorieLow = calories.low;
+    final calorieHigh = calories.high;
+    final proteinLow = protein.low;
+    final proteinHigh = protein.high;
+    if (calorieLow == null ||
+        calorieHigh == null ||
+        proteinLow == null ||
+        proteinHigh == null) {
+      return _MacroTargets.unavailable(
+        currentFatG: currentFatG,
+        currentCarbohydrateG: currentCarbohydrateG,
+      );
+    }
+    final calorieTarget = (calorieLow + calorieHigh) / 2;
+    final proteinTarget = (proteinLow + proteinHigh) / 2;
+    final fatLow = calorieTarget * .25 / 9;
+    final fatHigh = calorieTarget * .30 / 9;
+    final fatReference = (fatLow + fatHigh) / 2;
+    final carbohydrateTarget =
+        (calorieTarget - proteinTarget * 4 - fatReference * 9) / 4;
+    if (!carbohydrateTarget.isFinite || carbohydrateTarget < 0) {
+      return _MacroTargets.unavailable(
+        currentFatG: currentFatG,
+        currentCarbohydrateG: currentCarbohydrateG,
+      );
+    }
+    return _MacroTargets(
+      fat: DynamicRangeTarget(
+        current: currentFatG,
+        low: fatLow,
+        high: fatHigh,
+        availability: DynamicTargetAvailability.available,
+        state: _rangeState(currentFatG, fatLow, fatHigh),
+      ),
+      carbohydrate: DynamicRangeTarget(
+        current: currentCarbohydrateG,
+        low: carbohydrateTarget * .95,
+        high: carbohydrateTarget * 1.05,
+        availability: DynamicTargetAvailability.available,
+        state: _rangeState(
+          currentCarbohydrateG,
+          carbohydrateTarget * .95,
+          carbohydrateTarget * 1.05,
+        ),
+      ),
+    );
+  }
+
+  static DynamicTargetState _rangeState(
+    double? current,
+    double low,
+    double high,
+  ) {
+    if (current == null) return DynamicTargetState.neutral;
+    if (current < low) return DynamicTargetState.yellowLow;
+    if (current > high) return DynamicTargetState.yellowHigh;
+    return DynamicTargetState.green;
+  }
+
   static DynamicWaterTarget _water({
     required double? current,
     required double? referenceWeightKg,
@@ -315,4 +399,29 @@ abstract final class DynamicDailyTargetEngine {
 
   static DateTime _dateOnly(DateTime value) =>
       DateTime(value.year, value.month, value.day);
+}
+
+class _MacroTargets {
+  const _MacroTargets({required this.fat, required this.carbohydrate});
+  factory _MacroTargets.unavailable({
+    required double? currentFatG,
+    required double? currentCarbohydrateG,
+  }) => _MacroTargets(
+    fat: DynamicRangeTarget(
+      current: currentFatG,
+      low: null,
+      high: null,
+      availability: DynamicTargetAvailability.notAvailable,
+      state: DynamicTargetState.neutral,
+    ),
+    carbohydrate: DynamicRangeTarget(
+      current: currentCarbohydrateG,
+      low: null,
+      high: null,
+      availability: DynamicTargetAvailability.notAvailable,
+      state: DynamicTargetState.neutral,
+    ),
+  );
+  final DynamicRangeTarget fat;
+  final DynamicRangeTarget carbohydrate;
 }
