@@ -41,7 +41,11 @@ class FoodManualCropInteraction {
   /// Keeps a small valid source-pixel border around the fixed crop viewport
   /// even at the user's minimum relative zoom. This creates persistent pan
   /// travel on the axis that mathematical cover would otherwise lock.
-  static const minimumOverCoverageFactor = 1.05;
+  /// A centered image needs twice this amount as total over-coverage: five
+  /// percent of the viewport remains available from center toward each edge.
+  static const minimumPersistentTravelPerSideFraction = .05;
+  static const minimumOverCoverageFactor =
+      1 + minimumPersistentTravelPerSideFraction * 2;
 
   static double normalizedRelativeScale(double value) =>
       value.clamp(1.0, 5.0).toDouble();
