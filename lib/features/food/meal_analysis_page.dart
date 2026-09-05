@@ -15,6 +15,7 @@ import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'models/food_summary_state.dart';
 import 'widgets/food_pfc_balance_card.dart';
+import 'widgets/nutrition_analysis_visuals.dart';
 
 class MealAnalysisPage extends StatefulWidget {
   const MealAnalysisPage({
@@ -271,9 +272,24 @@ class _DailyMetric extends StatelessWidget {
       dense: true,
       contentPadding: EdgeInsets.zero,
       title: Text(label),
-      trailing: Text(
-        '${FoodNutritionFormatter.macro(current)} / ${target == null ? '—' : FoodNutritionFormatter.macro(target!)} $unit\n$suffix',
-        textAlign: TextAlign.end,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (target != null) ...[
+            NutritionStatusBadge(
+              status: remaining! > 1
+                  ? 'LOW'
+                  : remaining < -1
+                  ? 'OVER'
+                  : 'ON TRACK',
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Text(
+            '${FoodNutritionFormatter.macro(current)} / ${target == null ? '—' : FoodNutritionFormatter.macro(target!)} $unit\n$suffix',
+            textAlign: TextAlign.end,
+          ),
+        ],
       ),
     );
   }
@@ -292,8 +308,17 @@ class _ContributionCard extends StatelessWidget {
           title: 'FOOD CONTRIBUTION',
         ),
         AppSpacing.gapSM,
-        for (final metric in _metrics)
-          _ContributionMetric(metric: metric, items: items),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final metric in _metrics)
+              SizedBox(
+                width: 165,
+                child: _ContributionMetric(metric: metric, items: items),
+              ),
+          ],
+        ),
       ],
     ),
   );
@@ -312,43 +337,60 @@ class _ContributionMetric extends StatelessWidget {
                 .select(b.nutrition)!
                 .compareTo(metric.select(a.nutrition)!),
           );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            metric.label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          if (ranked.isEmpty)
-            const Text('—')
-          else
-            for (var index = 0; index < ranked.length; index++)
-              Text(
-                '${index + 1}. ${ranked[index].displayName} — ${FoodNutritionFormatter.macro(metric.select(ranked[index].nutrition)!)}${metric.unit}',
-              ),
-        ],
-      ),
+    final total = ranked.fold<double>(
+      0,
+      (sum, item) => sum + metric.select(item.nutrition)!,
+    );
+    final top = ranked.isEmpty ? null : ranked.first;
+    return NutritionContributorCard(
+      metric: metric.visualMetric,
+      foodName: top?.displayName ?? '—',
+      value: top == null ? null : metric.select(top.nutrition),
+      unit: metric.unit,
+      sharePercent: top == null
+          ? null
+          : (metric.select(top.nutrition)! / total * 100).round(),
     );
   }
 }
 
 class _ContributionMetricDefinition {
-  const _ContributionMetricDefinition(this.label, this.unit, this.select);
+  const _ContributionMetricDefinition(
+    this.label,
+    this.unit,
+    this.select,
+    this.visualMetric,
+  );
   final String label;
   final String unit;
   final double? Function(NutritionSnapshot) select;
+  final NutritionVisualMetric visualMetric;
 }
 
 const _metrics = [
-  _ContributionMetricDefinition('CALORIE CONTRIBUTORS', 'kcal', _calories),
-  _ContributionMetricDefinition('PROTEIN CONTRIBUTORS', 'g', _protein),
-  _ContributionMetricDefinition('FAT CONTRIBUTORS', 'g', _fat),
+  _ContributionMetricDefinition(
+    'TOP CALORIE',
+    'kcal',
+    _calories,
+    NutritionVisualMetric.calories,
+  ),
+  _ContributionMetricDefinition(
+    'TOP PROTEIN',
+    'g',
+    _protein,
+    NutritionVisualMetric.protein,
+  ),
+  _ContributionMetricDefinition(
+    'TOP FAT',
+    'g',
+    _fat,
+    NutritionVisualMetric.fat,
+  ),
   _ContributionMetricDefinition(
     'CARBOHYDRATE CONTRIBUTORS',
     'g',
     _carbohydrate,
+    NutritionVisualMetric.carbohydrate,
   ),
 ];
 double? _calories(NutritionSnapshot value) => value.calories;

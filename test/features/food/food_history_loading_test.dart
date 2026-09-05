@@ -145,6 +145,10 @@ void main() {
 
     expect(find.text('DAILY NUTRITION ANALYSIS'), findsWidgets);
     expect(find.text('DAILY SUMMARY'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.text('MEAL SHARE'), findsOneWidget);
+    expect(find.text('MEAL CONTRIBUTION'), findsOneWidget);
   });
 
   testWidgets('measured food shows amount and calculated nutrition', (

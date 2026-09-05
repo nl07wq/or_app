@@ -15,6 +15,7 @@ import 'models/food_summary_state.dart';
 import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'widgets/food_pfc_balance_card.dart';
+import 'widgets/nutrition_analysis_visuals.dart';
 
 class DailyNutritionAnalysisPage extends StatefulWidget {
   const DailyNutritionAnalysisPage({
@@ -92,6 +93,8 @@ class _DailyNutritionAnalysisPageState
                 ),
                 AppSpacing.gapMD,
               ],
+            _MealShareCard(meals: meals, nutrition: nutrition),
+            AppSpacing.gapMD,
             _MealContributionCard(meals: meals),
             AppSpacing.gapMD,
             _FoodContributionCard(meals: meals),
@@ -298,11 +301,9 @@ class _MealContributionCard extends StatelessWidget {
           const Text('—')
         else ...[
           for (final meal in meals)
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(meal.mealType.toUpperCase()),
-              subtitle: Text(_nutritionText(meal.nutritionAggregate)),
+            _MealVisualCard(
+              meal: meal,
+              dailyCalories: _mealCaloriesTotal(meals),
             ),
           AppSpacing.gapSM,
           for (final metric in _mealMetrics)
@@ -312,6 +313,123 @@ class _MealContributionCard extends StatelessWidget {
     ),
   );
 }
+
+class _MealShareCard extends StatelessWidget {
+  const _MealShareCard({required this.meals, required this.nutrition});
+  final List<FoodUnifiedReadModel> meals;
+  final FoodNutritionAggregate nutrition;
+  @override
+  Widget build(BuildContext context) {
+    final shares = <String, double>{};
+    for (final meal in meals) {
+      final kcal = _mealCalories(meal.nutritionAggregate);
+      if (kcal != null && kcal > 0) {
+        shares[meal.mealType] = (shares[meal.mealType] ?? 0) + kcal;
+      }
+    }
+    final total = shares.values.fold<double>(0, (sum, value) => sum + value);
+    if (total <= 0) return const OperationCard(child: Text('MEAL SHARE\n—'));
+    final entries = shares.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final colors = [
+      for (var i = 0; i < entries.length; i++)
+        Colors.primaries[i % Colors.primaries.length],
+    ];
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            icon: Icons.pie_chart_outline,
+            title: 'MEAL SHARE',
+          ),
+          AppSpacing.gapSM,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NutritionDonut(
+                values: entries.map((entry) => entry.value).toList(),
+                colors: colors,
+                centerTop: FoodNutritionFormatter.macro(total),
+                centerBottom: 'DAILY kcal',
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < entries.length; i++)
+                      Text(
+                        '${entries[i].key.toUpperCase()}  ${_percent(entries[i].value, total)}%  ${FoodNutritionFormatter.macro(entries[i].value)} kcal',
+                        style: TextStyle(color: colors[i]),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MealVisualCard extends StatelessWidget {
+  const _MealVisualCard({required this.meal, required this.dailyCalories});
+  final FoodUnifiedReadModel meal;
+  final double dailyCalories;
+  @override
+  Widget build(BuildContext context) {
+    final calories = _mealCalories(meal.nutritionAggregate);
+    final pfc = _pfc(meal.nutritionAggregate);
+    return OperationCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (pfc != null && FoodPfcBalanceCard.hasBalance(pfc))
+            NutritionDonut(
+              values: [pfc.protein! * 4, pfc.fat! * 9, pfc.carbohydrate! * 4],
+              colors: const [
+                foodDetailProteinColor,
+                foodDetailFatColor,
+                foodDetailCarbohydrateColor,
+              ],
+              centerTop: 'PFC',
+              centerBottom: '${_percent(calories ?? 0, dailyCalories)}% OF DAY',
+              size: 76,
+            ),
+          if (pfc != null && FoodPfcBalanceCard.hasBalance(pfc))
+            const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  meal.mealType.toUpperCase(),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                Text(
+                  calories == null
+                      ? '—'
+                      : '${FoodNutritionFormatter.macro(calories)} kcal  ${_percent(calories, dailyCalories)}% OF DAY',
+                ),
+                Text(_nutritionText(meal.nutritionAggregate)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+double _mealCaloriesTotal(Iterable<FoodUnifiedReadModel> meals) =>
+    meals.fold<double>(
+      0,
+      (sum, meal) => sum + (_mealCalories(meal.nutritionAggregate) ?? 0),
+    );
+int _percent(double numerator, double denominator) =>
+    denominator <= 0 ? 0 : (numerator / denominator * 100).round();
 
 class _HighestMeal extends StatelessWidget {
   const _HighestMeal({required this.metric, required this.meals});
@@ -344,7 +462,10 @@ class _FoodContributionCard extends StatelessWidget {
   final List<FoodUnifiedReadModel> meals;
   @override
   Widget build(BuildContext context) {
-    final items = meals.expand((meal) => meal.items).toList();
+    final items = [
+      for (final meal in meals)
+        for (final item in meal.items) (item: item, mealType: meal.mealType),
+    ];
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,8 +475,17 @@ class _FoodContributionCard extends StatelessWidget {
             title: 'TOP FOOD CONTRIBUTORS',
           ),
           AppSpacing.gapSM,
-          for (final metric in _metrics)
-            _RankedFoods(metric: metric, items: items),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final metric in _metrics)
+                SizedBox(
+                  width: 165,
+                  child: _RankedFoods(metric: metric, items: items),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -365,14 +495,17 @@ class _FoodContributionCard extends StatelessWidget {
 class _RankedFoods extends StatelessWidget {
   const _RankedFoods({required this.metric, required this.items});
   final _Metric metric;
-  final List<FoodUnifiedItemReadModel> items;
+  final List<({FoodUnifiedItemReadModel item, String mealType})> items;
   @override
   Widget build(BuildContext context) {
     final totals = <String, double>{};
-    for (final item in items) {
-      final value = metric.select(item.nutrition);
+    final sources = <String, String>{};
+    for (final entry in items) {
+      final value = metric.select(entry.item.nutrition);
       if (value != null) {
-        totals[item.displayName] = (totals[item.displayName] ?? 0) + value;
+        totals[entry.item.displayName] =
+            (totals[entry.item.displayName] ?? 0) + value;
+        sources.putIfAbsent(entry.item.displayName, () => entry.mealType);
       }
     }
     final ranked = totals.entries.toList()
@@ -381,24 +514,15 @@ class _RankedFoods extends StatelessWidget {
             ? a.key.compareTo(b.key)
             : b.value.compareTo(a.value),
       );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            metric.label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          if (ranked.isEmpty)
-            const Text('—')
-          else
-            for (var index = 0; index < ranked.length && index < 3; index++)
-              Text(
-                '${index + 1}. ${ranked[index].key} — ${FoodNutritionFormatter.macro(ranked[index].value)}${metric.unit}',
-              ),
-        ],
-      ),
+    final total = totals.values.fold<double>(0, (sum, value) => sum + value);
+    final top = ranked.isEmpty ? null : ranked.first;
+    return NutritionContributorCard(
+      metric: metric.visualMetric,
+      foodName: top?.key ?? '—',
+      value: top?.value,
+      unit: metric.unit,
+      sharePercent: top == null ? null : _percent(top.value, total),
+      mealType: top == null ? null : sources[top.key],
     );
   }
 }
@@ -421,15 +545,33 @@ class _AssessmentCard extends StatelessWidget {
             title: 'DAILY ASSESSMENT',
           ),
           AppSpacing.gapSM,
-          Text(
-            'Calories: ${_status(summary!.calories, DynamicDailyTargetPresentation.caloriesTargetKcal(targets!.calories)?.toDouble())}',
+          _AssessmentRow(
+            'CALORIES',
+            _status(
+              summary!.calories,
+              DynamicDailyTargetPresentation.caloriesTargetKcal(
+                targets!.calories,
+              )?.toDouble(),
+            ),
           ),
-          Text(
-            'Protein: ${_status(summary!.protein, DynamicDailyTargetPresentation.proteinTargetG(targets!.protein)?.toDouble())}',
+          _AssessmentRow(
+            'PROTEIN',
+            _status(
+              summary!.protein,
+              DynamicDailyTargetPresentation.proteinTargetG(
+                targets!.protein,
+              )?.toDouble(),
+            ),
           ),
-          Text('Fat: ${_rangeStatus(summary!.fat, targets!.fat)}'),
-          Text(
-            'Carbohydrate: ${_status(summary!.carbohydrates, DynamicDailyTargetPresentation.carbohydrateTargetG(targets!.carbohydrate)?.toDouble())}',
+          _AssessmentRow('FAT', _rangeStatus(summary!.fat, targets!.fat)),
+          _AssessmentRow(
+            'CARBOHYDRATE',
+            _status(
+              summary!.carbohydrates,
+              DynamicDailyTargetPresentation.carbohydrateTargetG(
+                targets!.carbohydrate,
+              )?.toDouble(),
+            ),
           ),
         ],
       ),
@@ -458,11 +600,28 @@ class _HintCard extends StatelessWidget {
   );
 }
 
+class _AssessmentRow extends StatelessWidget {
+  const _AssessmentRow(this.label, this.status);
+  final String label;
+  final String status;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        NutritionStatusBadge(status: status),
+      ],
+    ),
+  );
+}
+
 class _Metric {
-  const _Metric(this.label, this.unit, this.select);
+  const _Metric(this.label, this.unit, this.select, this.visualMetric);
   final String label;
   final String unit;
   final double? Function(NutritionSnapshot) select;
+  final NutritionVisualMetric visualMetric;
 }
 
 class _MealMetric {
@@ -490,10 +649,10 @@ double? _mealCarbohydrate(FoodNutritionAggregate value) =>
     _known(value.carbohydrate);
 
 const _metrics = [
-  _Metric('TOP CALORIE FOODS', 'kcal', _calories),
-  _Metric('TOP PROTEIN FOODS', 'g', _protein),
-  _Metric('TOP FAT FOODS', 'g', _fat),
-  _Metric('TOP CARB FOODS', 'g', _carb),
+  _Metric('TOP CALORIE', 'kcal', _calories, NutritionVisualMetric.calories),
+  _Metric('TOP PROTEIN', 'g', _protein, NutritionVisualMetric.protein),
+  _Metric('TOP FAT', 'g', _fat, NutritionVisualMetric.fat),
+  _Metric('TOP CARB', 'g', _carb, NutritionVisualMetric.carbohydrate),
 ];
 double? _calories(NutritionSnapshot value) => value.calories;
 double? _protein(NutritionSnapshot value) => value.protein;
