@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
+import '../../body_history/services/data_center_history_range_preference.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/nutrition_history_models.dart';
 import '../services/nutrition_history_chart_engine.dart';
@@ -15,8 +16,14 @@ import '../widgets/nutrition_history_chart.dart';
 class NutritionHistoryPage extends StatefulWidget {
   final NutritionHistorySourceResolver? resolver;
   final DateTime Function()? clock;
+  final DataCenterHistoryRangePreference? rangePreference;
 
-  const NutritionHistoryPage({super.key, this.resolver, this.clock});
+  const NutritionHistoryPage({
+    super.key,
+    this.resolver,
+    this.clock,
+    this.rangePreference,
+  });
 
   @override
   State<NutritionHistoryPage> createState() => _NutritionHistoryPageState();
@@ -25,7 +32,8 @@ class NutritionHistoryPage extends StatefulWidget {
 class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
   late final NutritionHistorySourceResolver _resolver;
   late final DateTime Function() _clock;
-  BodyHistoryPeriod _period = BodyHistoryPeriod.oneMonth;
+  late final DataCenterHistoryRangePreference _rangePreference;
+  BodyHistoryPeriod _period = BodyHistoryPeriod.oneWeek;
   DateTimeRange? _customRange;
   Future<_NutritionHistoryViewModel>? _model;
 
@@ -39,7 +47,16 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
               AppRepositoryRegistry.container.dailyAggregates,
         );
     _clock = widget.clock ?? DateTime.now;
-    _reload();
+    _rangePreference =
+        widget.rangePreference ?? DataCenterHistoryRangePreference();
+    _model = _restoreAndLoad();
+  }
+
+  Future<_NutritionHistoryViewModel> _restoreAndLoad() async {
+    final selection = await _rangePreference.load();
+    _period = selection.period;
+    _customRange = selection.customRange;
+    return _load();
   }
 
   void _reload() => _model = _load();
@@ -91,6 +108,7 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
       _period = period;
       _reload();
     });
+    await _rangePreference.save(period, customRange: _customRange);
   }
 
   @override

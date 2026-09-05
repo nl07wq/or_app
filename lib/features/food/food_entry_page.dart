@@ -80,9 +80,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       ),
     );
 
-    if (!data.isWaterEntry) {
-      Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
-    }
+    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
     return true;
   }
 

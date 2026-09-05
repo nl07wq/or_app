@@ -8,14 +8,21 @@ import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/body_history_models.dart';
 import '../services/body_history_chart_engine.dart';
+import '../services/data_center_history_range_preference.dart';
 import '../services/body_history_source_resolver.dart';
 import '../widgets/body_history_chart.dart';
 
 class BodyHistoryPage extends StatefulWidget {
   final BodyHistorySourceResolver? resolver;
   final DateTime Function()? clock;
+  final DataCenterHistoryRangePreference? rangePreference;
 
-  const BodyHistoryPage({super.key, this.resolver, this.clock});
+  const BodyHistoryPage({
+    super.key,
+    this.resolver,
+    this.clock,
+    this.rangePreference,
+  });
 
   @override
   State<BodyHistoryPage> createState() => _BodyHistoryPageState();
@@ -24,7 +31,8 @@ class BodyHistoryPage extends StatefulWidget {
 class _BodyHistoryPageState extends State<BodyHistoryPage> {
   late final BodyHistorySourceResolver _resolver;
   late final DateTime Function() _clock;
-  BodyHistoryPeriod _period = BodyHistoryPeriod.oneMonth;
+  late final DataCenterHistoryRangePreference _rangePreference;
+  BodyHistoryPeriod _period = BodyHistoryPeriod.oneWeek;
   DateTimeRange? _customRange;
   Future<_BodyHistoryViewModel>? _model;
 
@@ -39,7 +47,16 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
           dailyAggregateRepository: container.dailyAggregates,
         );
     _clock = widget.clock ?? DateTime.now;
-    _reload();
+    _rangePreference =
+        widget.rangePreference ?? DataCenterHistoryRangePreference();
+    _model = _restoreAndLoad();
+  }
+
+  Future<_BodyHistoryViewModel> _restoreAndLoad() async {
+    final selection = await _rangePreference.load();
+    _period = selection.period;
+    _customRange = selection.customRange;
+    return _load();
   }
 
   void _reload() => _model = _load();
@@ -91,6 +108,7 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
       _period = period;
       _reload();
     });
+    await _rangePreference.save(period, customRange: _customRange);
   }
 
   @override

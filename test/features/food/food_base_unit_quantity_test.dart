@@ -1246,6 +1246,67 @@ void main() {
       expect(observer.popCount, 1);
     });
 
+    testWidgets('SAVE WATER returns once to the FOOD module after success', (
+      tester,
+    ) async {
+      final observer = _CountingNavigatorObserver();
+      await _pumpFoodModule(tester, observer: observer);
+      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Water'));
+      await tester.pump();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Water Volume (ml)'),
+        '500',
+      );
+      await tester.ensureVisible(find.text('Save Water'));
+      await tester.tap(find.text('Save Water'));
+      await tester.pumpAndSettle();
+
+      _expectFoodModule();
+      expect(find.text('Water saved'), findsOneWidget);
+      expect(find.byType(FoodEntryPage), findsNothing);
+      expect(observer.popCount, 1);
+      final records = await AppRepositoryRegistry.container.food.findAll();
+      expect(records, hasLength(1));
+      expect(records.single.waterMl, 500);
+    });
+
+    testWidgets('failed Water save keeps the entry and amount', (tester) async {
+      await _pumpFoodModule(tester);
+      await tester.tap(find.text('FOOD ENTRY'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Water'));
+      await tester.pump();
+      final waterField = find.widgetWithText(TextField, 'Water Volume (ml)');
+      await tester.enterText(waterField, '500');
+
+      final state = database.rawRecord('operation_state', 'current')!;
+      final localDate = state['operationDate']! as String;
+      database.seed('operation_state', 'current', {
+        ...state,
+        'phase': OperationPhase.finalizing.name,
+        'activeAttempt': {
+          'idempotencyKey': 'water-save-lock-test',
+          'targetLocalDate': localDate,
+          'startedAt': DateTime.now().toUtc().toIso8601String(),
+          'confirmationId': null,
+          'confirmationDigest': null,
+          'backupPackageDigest': null,
+          'backupGeneratedAt': null,
+          'failureCode': null,
+        },
+      });
+      await tester.ensureVisible(find.text('Save Water'));
+      await tester.tap(find.text('Save Water'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FoodEntryPage), findsOneWidget);
+      expect(tester.widget<TextField>(waterField).controller?.text, '500');
+      expect(find.textContaining('この日のログは確定済みです'), findsOneWidget);
+    });
+
     testWidgets('UPDATE MEAL returns once to the FOOD module after success', (
       tester,
     ) async {
