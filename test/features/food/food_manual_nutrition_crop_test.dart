@@ -244,23 +244,102 @@ void main() {
     },
   );
 
-  test('portrait cover scale can collapse the persistent horizontal range', () {
-    const crop = Rect.fromLTWH(24, 110, 343.2, 420);
-    const image = Size(343.2, 610);
-    final strict = FoodManualCropInteraction.translationBounds(
-      viewport: crop,
-      imageSize: image,
-    );
-    final active = FoodManualCropInteraction.activeTranslationBounds(
-      viewport: crop,
-      imageSize: image,
-      overscroll: 120,
-    );
+  test(
+    'minimum over-coverage gives portrait geometry persistent pan range',
+    () {
+      const canvas = Size(402, 640);
+      final crop = Rect.fromCenter(
+        center: canvas.center(Offset.zero),
+        width: canvas.width * .88,
+        height: canvas.height * .60,
+      );
+      const source = FoodImageDimensions(width: 1206, height: 1595);
+      final scale = FoodManualCropInteraction.minimumBaseScale(
+        viewport: crop,
+        source: source,
+      );
+      final image = Size(source.width * scale, source.height * scale);
+      final bounds = FoodManualCropInteraction.translationBounds(
+        viewport: crop,
+        imageSize: image,
+      );
+      final center = canvas.center(Offset.zero);
+      final centered = Offset(
+        center.dx - image.width / 2,
+        center.dy - image.height / 2,
+      );
 
-    expect(strict.minX, crop.left);
-    expect(strict.maxX, crop.left);
-    expect(active.minX, crop.left - 120);
-    expect(active.maxX, crop.left + 120);
+      expect(image.width, greaterThan(crop.width));
+      expect(image.height, greaterThan(crop.height));
+      expect(bounds.maxX - bounds.minX, greaterThan(0));
+      expect(bounds.maxY - bounds.minY, greaterThan(0));
+      expect(centered.dx, closeTo((bounds.minX + bounds.maxX) / 2, .001));
+      expect(centered.dy, closeTo((bounds.minY + bounds.maxY) / 2, .001));
+    },
+  );
+
+  test('minimum over-coverage exceeds both axes for landscape and square', () {
+    const canvas = Size(402, 640);
+    final crop = Rect.fromCenter(
+      center: canvas.center(Offset.zero),
+      width: canvas.width * .88,
+      height: canvas.height * .60,
+    );
+    for (final source in const [
+      FoodImageDimensions(width: 1600, height: 900),
+      FoodImageDimensions(width: 1200, height: 1200),
+    ]) {
+      final scale = FoodManualCropInteraction.minimumBaseScale(
+        viewport: crop,
+        source: source,
+      );
+      final image = Size(source.width * scale, source.height * scale);
+      final bounds = FoodManualCropInteraction.translationBounds(
+        viewport: crop,
+        imageSize: image,
+      );
+
+      expect(image.width, greaterThan(crop.width));
+      expect(image.height, greaterThan(crop.height));
+      expect(bounds.maxX - bounds.minX, greaterThan(0));
+      expect(bounds.maxY - bounds.minY, greaterThan(0));
+    }
+  });
+
+  test('strict release keeps minimum-scale pan shifted on all four sides', () {
+    const canvas = Size(402, 640);
+    final crop = Rect.fromCenter(
+      center: canvas.center(Offset.zero),
+      width: canvas.width * .88,
+      height: canvas.height * .60,
+    );
+    const source = FoodImageDimensions(width: 1206, height: 1595);
+    final scale = FoodManualCropInteraction.minimumBaseScale(
+      viewport: crop,
+      source: source,
+    );
+    final image = Size(source.width * scale, source.height * scale);
+    final bounds = FoodManualCropInteraction.translationBounds(
+      viewport: crop,
+      imageSize: image,
+    );
+    final center = canvas.center(Offset.zero);
+    final centered = Offset(
+      center.dx - image.width / 2,
+      center.dy - image.height / 2,
+    );
+    final xStep = (bounds.maxX - bounds.minX) / 3;
+    final yStep = (bounds.maxY - bounds.minY) / 3;
+
+    final right = bounds.clamp(centered + Offset(xStep, 0));
+    final left = bounds.clamp(centered - Offset(xStep, 0));
+    final down = bounds.clamp(centered + Offset(0, yStep));
+    final up = bounds.clamp(centered - Offset(0, yStep));
+
+    expect(right.dx, greaterThan(centered.dx));
+    expect(left.dx, lessThan(centered.dx));
+    expect(down.dy, greaterThan(centered.dy));
+    expect(up.dy, lessThan(centered.dy));
   });
 
   test('crop geometry diagnostic has no persistent storage dependency', () {
@@ -395,6 +474,57 @@ void main() {
     expect(find.textContaining('RELEASE norm='), findsOneWidget);
   });
 
+  testWidgets(
+    'minimum scale retains a valid positive pan after release on portrait mobile geometry',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(402, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final gateway = _CropGateway(
+        dimensions: const FoodImageDimensions(width: 1206, height: 1595),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showManualNutritionCrop(
+                context: context,
+                gateway: gateway,
+                image: const FoodCapturedImage('data:image/png;base64,AA=='),
+              ),
+              child: const Text('OPEN'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('OPEN'));
+      await tester.pumpAndSettle();
+      final transform = find.byKey(
+        const ValueKey('manual-nutrition-crop-image-transform'),
+      );
+      final before = tester
+          .widget<Transform>(transform)
+          .transform
+          .getTranslation();
+      final gesture = await tester.startGesture(
+        tester.getCenter(
+          find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
+        ),
+      );
+      await gesture.moveBy(const Offset(6, 6));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final after = tester
+          .widget<Transform>(transform)
+          .transform
+          .getTranslation();
+
+      expect(after.x, greaterThan(before.x));
+      expect(after.y, greaterThan(before.y));
+      expect(find.textContaining('RELEASE norm='), findsOneWidget);
+    },
+  );
+
   testWidgets('pinch changes the rendered image transform scale', (
     tester,
   ) async {
@@ -450,8 +580,13 @@ void main() {
 }
 
 class _CropGateway implements FoodManualNutritionCropGateway {
+  _CropGateway({
+    this.dimensions = const FoodImageDimensions(width: 1200, height: 800),
+  });
+
   int cropCalls = 0;
   FoodImageCropRect? lastRect;
+  final FoodImageDimensions dimensions;
 
   @override
   Future<FoodCapturedImage> cropNutritionImage(
@@ -469,5 +604,5 @@ class _CropGateway implements FoodManualNutritionCropGateway {
   @override
   Future<FoodImageDimensions> nutritionImageDimensions(
     FoodCapturedImage image,
-  ) async => const FoodImageDimensions(width: 1200, height: 800);
+  ) async => dimensions;
 }

@@ -38,8 +38,23 @@ class FoodManualCropTransform {
 class FoodManualCropInteraction {
   const FoodManualCropInteraction._();
 
+  /// Keeps a small valid source-pixel border around the fixed crop viewport
+  /// even at the user's minimum relative zoom. This creates persistent pan
+  /// travel on the axis that mathematical cover would otherwise lock.
+  static const minimumOverCoverageFactor = 1.05;
+
   static double normalizedRelativeScale(double value) =>
       value.clamp(1.0, 5.0).toDouble();
+
+  static double minimumBaseScale({
+    required Rect viewport,
+    required FoodImageDimensions source,
+  }) =>
+      [
+        viewport.width / source.width,
+        viewport.height / source.height,
+      ].reduce((a, b) => a > b ? a : b) *
+      minimumOverCoverageFactor;
 
   static Offset offsetForGesture({
     required Offset startImageOffset,
@@ -422,10 +437,11 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
     ),
   );
 
-  double _baseScale(Rect viewport) => [
-    viewport.width / widget.dimensions.width,
-    viewport.height / widget.dimensions.height,
-  ].reduce((a, b) => a > b ? a : b);
+  double _baseScale(Rect viewport) =>
+      FoodManualCropInteraction.minimumBaseScale(
+        viewport: viewport,
+        source: widget.dimensions,
+      );
 
   Offset _initialImageOffset(Rect canvas, double scale) => Offset(
     canvas.center.dx - widget.dimensions.width * scale / 2,
