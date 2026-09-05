@@ -4,6 +4,7 @@ import 'food_nutrition_formatter.dart';
 import 'food_edit_page.dart';
 import 'meal_analysis_page.dart';
 import 'services/food_submit_service.dart';
+import 'services/daily_meal_v2_editor.dart';
 
 import '../../core/models/meal_data.dart';
 import '../../core/models/food_item.dart';
@@ -171,6 +172,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     required FoodUnifiedReadModel record,
     required Future<bool> Function(BuildContext context) onEdit,
     required Future<bool> Function(BuildContext context) onDelete,
+    bool canEdit = true,
   }) async {
     final changed = await Navigator.push<bool>(
       context,
@@ -179,6 +181,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           record: record,
           onEdit: onEdit,
           onDelete: onDelete,
+          canEdit: canEdit,
         ),
       ),
     );
@@ -352,6 +355,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     final record = _analysisRecord(
       FoodRecordIdentity(FoodRecordKind.dailyMealV2, meal.mealId),
     );
+    final canEdit = DailyMealV2Editor.canEdit(meal);
     return InkWell(
       key: ValueKey('open-meal-analysis-v2-${meal.mealId}'),
       onTap: record == null
@@ -367,6 +371,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                   )) ==
                   true,
               onDelete: (context) => _deleteV2Record(meal),
+              canEdit: canEdit,
             ),
       child: OperationCard(
         key: ValueKey('food-history-v2-${meal.mealId}'),
@@ -384,7 +389,8 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 IconButton(
                   key: ValueKey('edit-v2-meal-${meal.mealId}'),
                   icon: const Icon(Icons.edit_outlined),
-                  onPressed: appInitializationController.value.isReadOnly
+                  onPressed:
+                      appInitializationController.value.isReadOnly || !canEdit
                       ? null
                       : () async {
                           final updated = await Navigator.push<bool>(

@@ -14,6 +14,18 @@ import '../repository/food_meal_id_generator.dart';
 class DailyMealV2Editor {
   const DailyMealV2Editor._();
 
+  /// The existing Food Entry form requires an explicit value for each P/F/C
+  /// field. Never turn a formally unavailable snapshot into a numeric zero.
+  static bool canEdit(DailyMealV2 meal) =>
+      meal.mealType != DailyMealTypeV2.water &&
+      meal.items.every(
+        (item) =>
+            item.nutritionPerBase.calories != null &&
+            item.nutritionPerBase.protein != null &&
+            item.nutritionPerBase.fat != null &&
+            item.nutritionPerBase.carbohydrate != null,
+      );
+
   static MealData mealData(DailyMealV2 meal) => MealData(
     id: meal.mealId,
     date: meal.localDate,
@@ -117,16 +129,22 @@ class DailyMealV2Editor {
   }
 
   static FoodItem _foodItem(DailyMealItemSnapshot item) {
+    if (item.nutritionPerBase.calories == null ||
+        item.nutritionPerBase.protein == null ||
+        item.nutritionPerBase.fat == null ||
+        item.nutritionPerBase.carbohydrate == null) {
+      throw StateError('Incomplete FOOD nutrition snapshot is not editable.');
+    }
     final quantity = item.quantity;
     final baseUnit = quantity.unit == FoodQuantityUnit.milliliter
         ? FoodBaseUnit.ml
         : FoodBaseUnit.g;
     return FoodItem(
       name: item.nameSnapshot,
-      calories: item.nutritionPerBase.calories ?? 0,
-      protein: item.nutritionPerBase.protein ?? 0,
-      fat: item.nutritionPerBase.fat ?? 0,
-      carbohydrate: item.nutritionPerBase.carbohydrate ?? 0,
+      calories: item.nutritionPerBase.calories!,
+      protein: item.nutritionPerBase.protein!,
+      fat: item.nutritionPerBase.fat!,
+      carbohydrate: item.nutritionPerBase.carbohydrate!,
       amount: 1,
       baseAmount: quantity.value,
       baseUnit: baseUnit,

@@ -22,11 +22,13 @@ class MealAnalysisPage extends StatefulWidget {
     required this.record,
     required this.onEdit,
     required this.onDelete,
+    this.canEdit = true,
   });
 
   final FoodUnifiedReadModel record;
   final Future<bool> Function(BuildContext context) onEdit;
   final Future<bool> Function(BuildContext context) onDelete;
+  final bool canEdit;
 
   @override
   State<MealAnalysisPage> createState() => _MealAnalysisPageState();
@@ -71,7 +73,9 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
           key: const ValueKey('meal-analysis-edit'),
           tooltip: 'EDIT',
           icon: const Icon(Icons.edit_outlined),
-          onPressed: () async {
+          onPressed: !widget.canEdit
+              ? null
+              : () async {
             final updated = await widget.onEdit(context);
             if (!context.mounted) return;
             if (updated) Navigator.pop(context, true);

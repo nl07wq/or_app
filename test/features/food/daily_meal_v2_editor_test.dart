@@ -121,4 +121,30 @@ void main() {
     expect(updated.items.single.foodReferenceId, isNull);
     expect(updated.items.single.recipeReferenceId, isNull);
   });
+
+  test('incomplete formal nutrition stays unavailable to the numeric editor', () {
+    final incomplete = DailyMealV2(
+      mealId: '44444444-4444-4444-8444-444444444444',
+      localDate: original.localDate,
+      mealType: DailyMealTypeV2.lunch,
+      items: [
+        DailyMealItemSnapshot(
+          mealItemId: '55555555-5555-4555-8555-555555555555',
+          nameSnapshot: 'Unknown',
+          quantity: FoodQuantityDefinition(value: 1, unit: FoodQuantityUnit.serving),
+          nutritionPerBase: NutritionSnapshot(),
+          nutritionConsumed: NutritionSnapshot(),
+          provenanceSnapshot: FoodDataProvenance(
+            sourceType: FoodProvenanceSourceType.userInput,
+            capturedAt: timestamp,
+          ),
+          nutritionStatusSnapshot: NutritionStatus.unknown,
+          sortOrder: 0,
+        ),
+      ],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    expect(DailyMealV2Editor.canEdit(incomplete), isFalse);
+  });
 }
