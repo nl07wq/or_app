@@ -107,21 +107,16 @@ void main() {
     expect(corrected.dy, -20);
   });
 
-  test(
-    'active interaction permits bounded elasticity before end correction',
-    () {
-      const crop = Rect.fromLTWH(100, 100, 200, 160);
-      final active = FoodManualCropInteraction.limitWithElasticity(
-        viewport: crop,
-        imageSize: const Size(300, 260),
-        candidate: const Offset(30, -20),
-        overscroll: 40,
-      );
+  test('active interaction clamps directly to strict coverage bounds', () {
+    const crop = Rect.fromLTWH(100, 100, 200, 160);
+    final strict = FoodManualCropInteraction.clampToCoverage(
+      viewport: crop,
+      imageSize: const Size(300, 260),
+      candidate: const Offset(140, -20),
+    );
 
-      expect(active.dx, 30);
-      expect(active.dy, -20);
-    },
-  );
+    expect(strict, const Offset(100, 0));
+  });
 
   test('relative scale normalizes to the valid crop range at gesture end', () {
     expect(FoodManualCropInteraction.normalizedRelativeScale(.85), 1);
@@ -186,18 +181,17 @@ void main() {
     expect(visible.bottom, greaterThanOrEqualTo(crop.bottom));
   });
 
-  test('elastic pan limits remain finite on all four crop edges', () {
+  test('strict pan limits remain finite on all four crop edges', () {
     const crop = Rect.fromLTWH(100, 100, 200, 160);
     const image = Size(500, 460);
-    final limited = FoodManualCropInteraction.limitWithElasticity(
+    final limited = FoodManualCropInteraction.clampToCoverage(
       viewport: crop,
       imageSize: image,
       candidate: const Offset(999, -999),
-      overscroll: 40,
     );
 
-    expect(limited.dx, 140);
-    expect(limited.dy, -240);
+    expect(limited.dx, 100);
+    expect(limited.dy, -200);
     final normalized = FoodManualCropInteraction.clampToCoverage(
       viewport: crop,
       imageSize: image,
@@ -215,34 +209,36 @@ void main() {
     expect(imageRect.bottom, greaterThanOrEqualTo(crop.bottom));
   });
 
-  test(
-    'portrait active drag permits additional positive X and Y before release',
-    () {
-      const crop = Rect.fromLTWH(48, 92, 286, 414);
-      const image = Size(508, 902);
-      final bounds = FoodManualCropInteraction.translationBounds(
-        viewport: crop,
-        imageSize: image,
-      );
-      final active = FoodManualCropInteraction.limitWithElasticity(
-        viewport: crop,
-        imageSize: image,
-        candidate: Offset(bounds.maxX + 132, bounds.maxY + 132),
-        overscroll: 160,
-      );
+  test('portrait active drag stops at the strict positive X and Y edges', () {
+    const crop = Rect.fromLTWH(48, 92, 286, 414);
+    const image = Size(508, 902);
+    final bounds = FoodManualCropInteraction.translationBounds(
+      viewport: crop,
+      imageSize: image,
+    );
+    final active = FoodManualCropInteraction.clampToCoverage(
+      viewport: crop,
+      imageSize: image,
+      candidate: Offset(bounds.maxX + 132, bounds.maxY + 132),
+    );
 
-      expect(active.dx, bounds.maxX + 132);
-      expect(active.dy, bounds.maxY + 132);
-      expect(
-        FoodManualCropInteraction.clampToCoverage(
-          viewport: crop,
-          imageSize: image,
-          candidate: active,
-        ),
-        Offset(bounds.maxX, bounds.maxY),
-      );
-    },
-  );
+    expect(active, Offset(bounds.maxX, bounds.maxY));
+  });
+
+  test('strict edge reverses immediately without a pan dead zone', () {
+    const crop = Rect.fromLTWH(100, 100, 200, 160);
+    const image = Size(500, 460);
+    final bounds = FoodManualCropInteraction.translationBounds(
+      viewport: crop,
+      imageSize: image,
+    );
+    final atMax = bounds.clamp(const Offset(999, 999));
+    final reversed = bounds.clamp(atMax - const Offset(12, 12));
+
+    expect(atMax, Offset(bounds.maxX, bounds.maxY));
+    expect(reversed.dx, lessThan(atMax.dx));
+    expect(reversed.dy, lessThan(atMax.dy));
+  });
 
   test(
     'minimum over-coverage gives portrait geometry persistent pan range',
@@ -481,9 +477,11 @@ void main() {
       find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
       findsOneWidget,
     );
-    expect(during.x - before.x, closeTo(40, 1));
-    expect(during.y - before.y, closeTo(25, 1));
-    expect(find.textContaining('ACTIVE raw='), findsOneWidget);
+    expect(during.x - before.x, greaterThan(0));
+    expect(during.y - before.y, greaterThan(0));
+    expect(during.x - before.x, lessThanOrEqualTo(40));
+    expect(during.y - before.y, lessThanOrEqualTo(25));
+    expect(find.textContaining('STRICT raw='), findsOneWidget);
     expect(find.textContaining('candidate='), findsOneWidget);
     expect(find.textContaining('bounds x:'), findsOneWidget);
     expect(find.textContaining('post='), findsOneWidget);
@@ -493,7 +491,7 @@ void main() {
   });
 
   testWidgets(
-    'minimum scale retains a valid positive pan after release on portrait mobile geometry',
+    'minimum scale keeps a strict positive edge after release on portrait mobile geometry',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(402, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -528,8 +526,12 @@ void main() {
           find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
         ),
       );
-      await gesture.moveBy(const Offset(12, 12));
+      await gesture.moveBy(const Offset(300, 300));
       await tester.pump();
+      final atStrictEdge = tester
+          .widget<Transform>(transform)
+          .transform
+          .getTranslation();
       await gesture.up();
       await tester.pumpAndSettle();
       final after = tester
@@ -537,8 +539,10 @@ void main() {
           .transform
           .getTranslation();
 
-      expect(after.x - before.x, closeTo(12, 1));
-      expect(after.y - before.y, closeTo(12, 1));
+      expect(atStrictEdge.x, greaterThan(before.x));
+      expect(atStrictEdge.y, greaterThan(before.y));
+      expect(after.x, closeTo(atStrictEdge.x, .1));
+      expect(after.y, closeTo(atStrictEdge.y, .1));
       expect(find.textContaining('RELEASE norm='), findsOneWidget);
     },
   );

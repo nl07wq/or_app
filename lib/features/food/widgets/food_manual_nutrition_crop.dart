@@ -103,36 +103,6 @@ class FoodManualCropInteraction {
     viewport: viewport,
     imageSize: imageSize,
   );
-
-  static Offset limitWithElasticity({
-    required Rect viewport,
-    required Size imageSize,
-    required Offset candidate,
-    required double overscroll,
-  }) {
-    final bounds = activeTranslationBounds(
-      viewport: viewport,
-      imageSize: imageSize,
-      overscroll: overscroll,
-    );
-    // The relative gesture scale never goes below cover scale, so each valid
-    // range is finite. Keep a small, symmetric elastic range while fingers
-    // are down; strict four-edge coverage is restored on release.
-    return Offset(
-      candidate.dx.clamp(bounds.minX, bounds.maxX).toDouble(),
-      candidate.dy.clamp(bounds.minY, bounds.maxY).toDouble(),
-    );
-  }
-
-  /// The exact active-gesture interval used by [limitWithElasticity].
-  static FoodManualCropTranslationBounds activeTranslationBounds({
-    required Rect viewport,
-    required Size imageSize,
-    required double overscroll,
-  }) => translationBounds(
-    viewport: viewport,
-    imageSize: imageSize,
-  ).expandedBy(overscroll);
 }
 
 class FoodManualCropTranslationBounds {
@@ -167,14 +137,6 @@ class FoodManualCropTranslationBounds {
     candidate.dx.clamp(minX, maxX).toDouble(),
     candidate.dy.clamp(minY, maxY).toDouble(),
   );
-
-  FoodManualCropTranslationBounds expandedBy(double amount) =>
-      FoodManualCropTranslationBounds(
-        minX: minX - amount,
-        maxX: maxX + amount,
-        minY: minY - amount,
-        maxY: maxY + amount,
-      );
 }
 
 Future<FoodCapturedImage?> showManualNutritionCrop({
@@ -212,20 +174,14 @@ class _ManualNutritionCropPage extends StatefulWidget {
       _ManualNutritionCropPageState();
 }
 
-class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
-    with SingleTickerProviderStateMixin {
+class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
   late final ImageProvider<Object> _sourceImageProvider;
-  late final AnimationController _snapController;
   double _scale = 1;
   Offset _pan = Offset.zero;
   double _startScale = 1;
   Offset _startImageOffset = Offset.zero;
   Offset _startFocalPoint = Offset.zero;
-  double _snapStartScale = 1;
-  double _snapEndScale = 1;
-  Offset _snapStartPan = Offset.zero;
-  Offset _snapEndPan = Offset.zero;
   _CropActiveSnapshot? _lastActiveSnapshot;
   Offset? _lastReleaseNormalizedOffset;
   bool _submitting = false;
@@ -236,18 +192,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
     // Keep one provider for the full crop session. Gesture frames must move a
     // decoded image layer, never recreate a web image resource.
     _sourceImageProvider = NetworkImage(widget.image.dataUrl);
-    _snapController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 160),
-    )..addListener(_applySnapFrame);
-  }
-
-  @override
-  void dispose() {
-    _snapController
-      ..removeListener(_applySnapFrame)
-      ..dispose();
-    super.dispose();
   }
 
   @override
@@ -280,11 +224,9 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
                 final actualScale = baseScale * _scale;
                 final imageOffset =
                     _initialImageOffset(canvas, actualScale) + _pan;
-                final overscroll = _overscroll(viewport);
                 return GestureDetector(
                   key: const ValueKey('manual-nutrition-crop-gesture-area'),
                   onScaleStart: (details) {
-                    _snapController.stop();
                     _startScale = _scale;
                     _startImageOffset = imageOffset;
                     _startFocalPoint = details.localFocalPoint;
@@ -309,19 +251,12 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
                       canvas,
                       nextActualScale,
                     );
-                    final activeBounds =
-                        FoodManualCropInteraction.activeTranslationBounds(
+                    final strictBounds =
+                        FoodManualCropInteraction.translationBounds(
                           viewport: viewport,
                           imageSize: _imageSize(nextActualScale),
-                          overscroll: overscroll,
                         );
-                    final acceptedOffset =
-                        FoodManualCropInteraction.limitWithElasticity(
-                          viewport: viewport,
-                          imageSize: _imageSize(nextActualScale),
-                          candidate: nextOffset,
-                          overscroll: overscroll,
-                        );
+                    final acceptedOffset = strictBounds.clamp(nextOffset);
                     setState(() {
                       _scale = next;
                       _pan = acceptedOffset - initial;
@@ -329,7 +264,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
                         rawDelta: details.localFocalPoint - _startFocalPoint,
                         candidateOffset: nextOffset,
                         acceptedOffset: acceptedOffset,
-                        bounds: activeBounds,
+                        bounds: strictBounds,
                       );
                     });
                   },
@@ -455,11 +390,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
   Size _imageSize(double scale) =>
       Size(widget.dimensions.width * scale, widget.dimensions.height * scale);
 
-  double _overscroll(Rect viewport) =>
-      (Size(viewport.width, viewport.height).shortestSide * .35)
-          .clamp(96.0, 180.0)
-          .toDouble();
-
   void _normalizeAfterInteraction({
     required Rect canvas,
     required Rect viewport,
@@ -483,25 +413,10 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage>
       candidate: scaledOffset,
     );
     final targetPan = targetOffset - _initialImageOffset(canvas, targetScale);
-    if ((_scale - normalizedScale).abs() < .0001 &&
-        (_pan - targetPan).distance < .1) {
-      setState(() => _lastReleaseNormalizedOffset = targetOffset);
-      return;
-    }
-    _snapStartScale = _scale;
-    _snapEndScale = normalizedScale;
-    _snapStartPan = _pan;
-    _snapEndPan = targetPan;
-    _lastReleaseNormalizedOffset = targetOffset;
-    _snapController.forward(from: 0);
-  }
-
-  void _applySnapFrame() {
-    if (!mounted) return;
-    final t = Curves.easeOut.transform(_snapController.value);
     setState(() {
-      _scale = _snapStartScale + (_snapEndScale - _snapStartScale) * t;
-      _pan = Offset.lerp(_snapStartPan, _snapEndPan, t)!;
+      _scale = normalizedScale;
+      _pan = targetPan;
+      _lastReleaseNormalizedOffset = targetOffset;
     });
   }
 
@@ -609,7 +524,7 @@ class _CropGeometryDiagnosticPanel extends StatelessWidget {
       'SOURCE ${source.width}×${source.height}  BASE ${_number(baseWidth)}×${_number(baseHeight)}',
       'SCALE b:${_number(baseScale)} r:${_number(relativeScale)} a:${_number(actualScale)}',
       'CURRENT ${_pair(currentOffset)}',
-      'ACTIVE raw=${_pair(active?.rawDelta)} candidate=${_pair(active?.candidateOffset)}',
+      'STRICT raw=${_pair(active?.rawDelta)} candidate=${_pair(active?.candidateOffset)}',
       'bounds x:${_number(active?.bounds.minX)}..${_number(active?.bounds.maxX)}',
       'bounds y:${_number(active?.bounds.minY)}..${_number(active?.bounds.maxY)}',
       'post=${_pair(active?.acceptedOffset)}',
