@@ -36,9 +36,13 @@ void main() {
   tearDown(AppRepositoryRegistry.resetForTesting);
 
   test('normalizes imported meal labels for analysis display', () {
+    expect(analysisMealTypeLabel('朝食'), 'BREAKFAST');
     expect(analysisMealTypeLabel('夕食'), 'DINNER');
     expect(analysisMealTypeLabel('Dinner'), 'DINNER');
     expect(analysisMealTypeLabel('昼食'), 'LUNCH');
+    expect(analysisMealTypeLabel('間食'), 'SNACK');
+    expect(analysisMealTypeLabel('補食'), 'TRAINING');
+    expect(analysisMealTypeLabel('legacy meal'), 'LEGACY MEAL');
   });
 
   testWidgets('immutable empty result stops loading and shows empty state', (
@@ -56,7 +60,7 @@ void main() {
     await _pumpPage(tester);
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('Breakfast'), findsOneWidget);
+    expect(find.text('BREAKFAST'), findsOneWidget);
   });
 
   testWidgets('multiple records are displayed in descending date order', (
@@ -80,7 +84,7 @@ void main() {
 
     expect(find.text('Water'), findsOneWidget);
     expect(find.text('500 ml'), findsOneWidget);
-    expect(find.text('Breakfast'), findsOneWidget);
+    expect(find.text('BREAKFAST'), findsOneWidget);
     expect(find.text('Rice'), findsOneWidget);
   });
 
@@ -426,7 +430,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Unable to load food records.'), findsNothing);
-    expect(find.text('Breakfast'), findsOneWidget);
+    expect(find.text('BREAKFAST'), findsOneWidget);
   });
 
   testWidgets('disposing before read completion does not call setState', (
@@ -445,6 +449,49 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Food Record uses the canonical meal label without mutation', (
+    tester,
+  ) async {
+    final meal = _meal(
+      id: 'imported-dinner',
+      date: '2026-07-26',
+      mealType: '夕食',
+    );
+    _seed(database, meal);
+
+    await _pumpPage(tester);
+
+    expect(find.text('DINNER'), findsOneWidget);
+    expect(meal.mealType, '夕食');
+  });
+
+  testWidgets('contributor food names wrap to two lines with ellipsis', (
+    tester,
+  ) async {
+    const foodName = 'ほっともっと にんにく香る特製醤油だれ 牛キャベ丼（目玉焼き）ごはん並盛';
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 180,
+            child: NutritionContributorCard(
+              metric: NutritionVisualMetric.calories,
+              foodName: foodName,
+              value: 738,
+              unit: 'kcal',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final name = tester.widget<Text>(find.text(foodName));
+    expect(name.maxLines, 2);
+    expect(name.overflow, TextOverflow.ellipsis);
+    expect(name.style?.fontSize, 14);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _pumpPage(WidgetTester tester) async {
@@ -452,11 +499,16 @@ Future<void> _pumpPage(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-MealData _meal({required String id, required String date, double? waterMl}) {
+MealData _meal({
+  required String id,
+  required String date,
+  double? waterMl,
+  String? mealType,
+}) {
   return MealData(
     id: id,
     date: date,
-    mealType: waterMl == null ? 'Breakfast' : 'Water',
+    mealType: waterMl == null ? mealType ?? 'Breakfast' : 'Water',
     items: waterMl == null
         ? const [
             FoodItem(

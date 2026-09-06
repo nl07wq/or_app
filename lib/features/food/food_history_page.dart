@@ -29,6 +29,7 @@ import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'models/recipe_models_v2.dart';
 import 'widgets/food_thumbnail.dart';
+import 'widgets/nutrition_analysis_visuals.dart';
 
 class FoodHistoryPage extends StatefulWidget {
   const FoodHistoryPage({super.key});
@@ -273,7 +274,9 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
               icon: meal.isWaterEntry
                   ? Icons.water_drop_outlined
                   : Icons.restaurant,
-              title: meal.isWaterEntry ? 'Water' : meal.mealType,
+              title: meal.isWaterEntry
+                  ? 'Water'
+                  : analysisMealTypeLabel(meal.mealType),
             ),
             AppSpacing.gapMD,
             if (meal.isWaterEntry)
@@ -434,7 +437,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
             AppSpacing.gapSM,
             SectionHeader(
               icon: Icons.restaurant,
-              title: meal.mealType.stableId.toUpperCase(),
+              title: analysisMealTypeLabel(meal.mealType.stableId),
             ),
             AppSpacing.gapSM,
             for (final item in meal.items) ...[

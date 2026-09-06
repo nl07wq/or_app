@@ -13,7 +13,7 @@ String analysisMealTypeLabel(String value) => switch (value.trim().toLowerCase()
   'lunch' || '昼食' => 'LUNCH',
   'dinner' || '夕食' => 'DINNER',
   'snack' || '間食' => 'SNACK',
-  'training' || 'トレーニング' || 'training meal' => 'TRAINING',
+  'training' || 'トレーニング' || 'training meal' || '補食' => 'TRAINING',
   _ => value.trim().toUpperCase(),
 };
 
@@ -161,10 +161,18 @@ class NutritionContributorCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: NutritionVisualColors.forMetric(metric).withValues(alpha: .35)),
             ),
-            child: FittedBox(
+            child: Align(
               alignment: Alignment.centerLeft,
-              fit: BoxFit.scaleDown,
-              child: Text(foodName, maxLines: 2, softWrap: true, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              child: Text(
+                foodName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                softWrap: true,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
           Text(
