@@ -620,36 +620,67 @@ class _HighestMeal extends StatelessWidget {
           });
     if (ranked.isEmpty) return const SizedBox.shrink();
     final meal = ranked.first;
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: .35),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 64,
-            child: Text(
-              metric.label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final label = metric.label == 'CARB' && constraints.maxWidth >= 330
+            ? 'CARBOHYDRATE'
+            : metric.label;
+        return Container(
+          key: ValueKey('highest-meal-${metric.label.toLowerCase()}'),
+          margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          constraints: const BoxConstraints(minHeight: 36),
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: .35),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(width: AppSpacing.xs),
-          _MealTypeBadge(label: analysisMealTypeLabel(meal.mealType)),
-          const Spacer(),
-          Text(
-            '${FoodNutritionFormatter.macro(metric.select(meal.nutritionAggregate)!)} ${metric.unit}',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 15,
+                child: Center(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .2,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 16,
+                child: Center(
+                  child: _MealTypeBadge(
+                    label: analysisMealTypeLabel(meal.mealType),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 13,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${FoodNutritionFormatter.macro(metric.select(meal.nutritionAggregate)!)} ${metric.unit}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -660,14 +691,14 @@ class _MealTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(8),
     ),
     child: Text(
       label,
-      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
     ),
   );
 }

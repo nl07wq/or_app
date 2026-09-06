@@ -163,6 +163,11 @@ void main() {
     expect(find.text('MEAL CONTRIBUTION'), findsOneWidget);
     expect(find.text('HIGHEST MEAL'), findsOneWidget);
     expect(find.text('HIGHEST CALORIE MEAL'), findsNothing);
+    expect(find.byKey(const ValueKey('highest-meal-calorie')), findsOneWidget);
+    expect(find.byKey(const ValueKey('highest-meal-protein')), findsOneWidget);
+    expect(find.byKey(const ValueKey('highest-meal-fat')), findsOneWidget);
+    expect(find.byKey(const ValueKey('highest-meal-carb')), findsOneWidget);
+    expect(find.text('CARBOHYDRATE'), findsWidgets);
   });
 
   testWidgets('measured food shows amount and calculated nutrition', (
