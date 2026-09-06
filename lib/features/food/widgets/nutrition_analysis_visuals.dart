@@ -143,7 +143,17 @@ class NutritionContributorCard extends StatelessWidget {
             ),
           ),
           AppSpacing.gapSM,
-          Text(foodName, maxLines: 2, overflow: TextOverflow.ellipsis),
+          SizedBox(
+            height: 42,
+            child: Text(
+              foodName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
           Text(
             value == null
                 ? '—'
@@ -153,9 +163,19 @@ class NutritionContributorCard extends StatelessWidget {
           if (sharePercent != null)
             Text('$sharePercent% OF ${metric.name.toUpperCase()}'),
           if (mealType != null)
-            Text(
-              mealType!.toUpperCase(),
-              style: Theme.of(context).textTheme.bodySmall,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: NutritionVisualColors.forMetric(metric).withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  mealType!.toUpperCase(),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
         ],
       ),

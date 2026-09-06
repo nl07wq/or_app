@@ -275,25 +275,8 @@ class _DailyMetric extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (target != null) ...[
-            SizedBox(
-              width: 68,
-              child: Center(
-                child: NutritionStatusBadge(
-                  status: remaining! > 1
-                      ? 'LOW'
-                      : remaining < -1
-                      ? 'OVER'
-                      : 'ON TRACK',
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-          Text(
-            '${FoodNutritionFormatter.macro(current)} / ${target == null ? '—' : FoodNutritionFormatter.macro(target!)} $unit\n$suffix',
-            textAlign: TextAlign.end,
-          ),
+          SizedBox(width: 116, child: Text('${FoodNutritionFormatter.macro(current)} / ${target == null ? '—' : FoodNutritionFormatter.macro(target!)} $unit\n$suffix', textAlign: TextAlign.end)),
+          SizedBox(width: 68, child: Center(child: target == null ? null : NutritionStatusBadge(status: remaining! > 1 ? 'LOW' : remaining < -1 ? 'OVER' : 'ON TRACK'))),
         ],
       ),
     );

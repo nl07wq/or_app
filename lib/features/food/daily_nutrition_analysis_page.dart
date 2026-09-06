@@ -35,7 +35,6 @@ class DailyNutritionAnalysisPage extends StatefulWidget {
 class _DailyNutritionAnalysisPageState
     extends State<DailyNutritionAnalysisPage> {
   late final Future<_DailyContext> _context = _loadContext();
-  _MealContributionMode _contributionMode = _MealContributionMode.bars;
 
   Future<_DailyContext> _loadContext() async {
     final summary = await loadFoodSummary(localDate: widget.operationDate);
@@ -96,11 +95,7 @@ class _DailyNutritionAnalysisPageState
               ],
             _MealShareCard(meals: meals, nutrition: nutrition),
             AppSpacing.gapMD,
-            _MealContributionCard(
-              meals: meals,
-              mode: _contributionMode,
-              onModeChanged: (mode) => setState(() => _contributionMode = mode),
-            ),
+            _MealContributionCard(meals: meals),
             AppSpacing.gapMD,
             _FoodContributionCard(meals: meals),
             AppSpacing.gapMD,
@@ -320,6 +315,15 @@ class _ProgressRow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
+            width: 116,
+            child: Text(
+              target == null
+                  ? '目標なし'
+                  : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit\n${remaining! >= 0 ? '残り ${FoodNutritionFormatter.macro(remaining)}$unit' : 'OVER +${FoodNutritionFormatter.macro(-remaining)}$unit'}',
+              textAlign: TextAlign.end,
+            ),
+          ),
+          SizedBox(
             width: 68,
             child: Center(
               child: target == null
@@ -333,15 +337,6 @@ class _ProgressRow extends StatelessWidget {
                     ),
             ),
           ),
-          SizedBox(
-            width: 116,
-            child: Text(
-              target == null
-                  ? '目標なし'
-                  : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit\n${remaining! >= 0 ? '残り ${FoodNutritionFormatter.macro(remaining)}$unit' : 'OVER +${FoodNutritionFormatter.macro(-remaining)}$unit'}',
-              textAlign: TextAlign.end,
-            ),
-          ),
         ],
       ),
     );
@@ -349,14 +344,8 @@ class _ProgressRow extends StatelessWidget {
 }
 
 class _MealContributionCard extends StatelessWidget {
-  const _MealContributionCard({
-    required this.meals,
-    required this.mode,
-    required this.onModeChanged,
-  });
+  const _MealContributionCard({required this.meals});
   final List<FoodUnifiedReadModel> meals;
-  final _MealContributionMode mode;
-  final ValueChanged<_MealContributionMode> onModeChanged;
   @override
   Widget build(BuildContext context) => OperationCard(
     child: Column(
@@ -366,21 +355,6 @@ class _MealContributionCard extends StatelessWidget {
           icon: Icons.restaurant_menu,
           title: 'MEAL CONTRIBUTION',
         ),
-        Wrap(
-          spacing: AppSpacing.sm,
-          children: [
-            ChoiceChip(
-              label: const Text('A — BARS'),
-              selected: mode == _MealContributionMode.bars,
-              onSelected: (_) => onModeChanged(_MealContributionMode.bars),
-            ),
-            ChoiceChip(
-              label: const Text('C — CHIPS'),
-              selected: mode == _MealContributionMode.chips,
-              onSelected: (_) => onModeChanged(_MealContributionMode.chips),
-            ),
-          ],
-        ),
         AppSpacing.gapSM,
         if (meals.isEmpty)
           const Text('—')
@@ -389,7 +363,6 @@ class _MealContributionCard extends StatelessWidget {
             _MealVisualCard(
               meal: meal,
               dailyCalories: _mealCaloriesTotal(meals),
-              mode: mode,
             ),
           AppSpacing.gapSM,
           for (final metric in _mealMetrics)
@@ -418,11 +391,11 @@ class _MealShareCard extends StatelessWidget {
     final entries = shares.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     const colors = [
-      Color(0xFF8DA7A5),
-      Color(0xFFB39A7A),
-      Color(0xFF8898B2),
-      Color(0xFFAA8E9B),
-      Color(0xFF8CA77B),
+      Color(0xFF6386A6),
+      Color(0xFF5D9A86),
+      Color(0xFF8874A6),
+      Color(0xFFB18762),
+      Color(0xFF5D9CAA),
     ];
     return OperationCard(
       child: Column(
@@ -448,10 +421,7 @@ class _MealShareCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (var i = 0; i < entries.length; i++)
-                      Text(
-                        '${entries[i].key.toUpperCase()}  ${_percent(entries[i].value, total)}%  ${FoodNutritionFormatter.macro(entries[i].value)} kcal',
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                      Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)), const SizedBox(width: 6), Expanded(child: Text('${entries[i].key.toUpperCase()}  ${_percent(entries[i].value, total)}%', style: const TextStyle(fontSize: 12))), Text('${FoodNutritionFormatter.macro(entries[i].value)} kcal', style: const TextStyle(fontSize: 11))]),
                   ],
                 ),
               ),
@@ -467,11 +437,9 @@ class _MealVisualCard extends StatelessWidget {
   const _MealVisualCard({
     required this.meal,
     required this.dailyCalories,
-    required this.mode,
   });
   final FoodUnifiedReadModel meal;
   final double dailyCalories;
-  final _MealContributionMode mode;
   @override
   Widget build(BuildContext context) {
     final calories = _mealCalories(meal.nutritionAggregate);
@@ -491,20 +459,6 @@ class _MealVisualCard extends StatelessWidget {
           ),
           if (pfc == null || !FoodPfcBalanceCard.hasBalance(pfc))
             const Text('PFC —')
-          else if (mode == _MealContributionMode.chips)
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: [
-                _MacroChip('P', pfc.protein!, NutritionVisualColors.protein),
-                _MacroChip('F', pfc.fat!, NutritionVisualColors.fat),
-                _MacroChip(
-                  'C',
-                  pfc.carbohydrate!,
-                  NutritionVisualColors.carbohydrate,
-                ),
-              ],
-            )
           else
             _MacroBars(pfc: pfc),
           Text(_nutritionText(meal.nutritionAggregate)),
@@ -512,27 +466,6 @@ class _MealVisualCard extends StatelessWidget {
       ),
     );
   }
-}
-
-enum _MealContributionMode { bars, chips }
-
-class _MacroChip extends StatelessWidget {
-  const _MacroChip(this.label, this.value, this.color);
-  final String label;
-  final double value;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: .14),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Text(
-      '$label ${FoodNutritionFormatter.macro(value)}g',
-      style: TextStyle(color: color, fontSize: 12),
-    ),
-  );
 }
 
 class _MacroBars extends StatelessWidget {
