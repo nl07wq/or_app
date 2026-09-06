@@ -8,6 +8,15 @@ import '../food_nutrition_formatter.dart';
 
 enum NutritionVisualMetric { calories, protein, fat, carbohydrate }
 
+String analysisMealTypeLabel(String value) => switch (value.trim().toLowerCase()) {
+  'breakfast' || '朝食' => 'BREAKFAST',
+  'lunch' || '昼食' => 'LUNCH',
+  'dinner' || '夕食' => 'DINNER',
+  'snack' || '間食' => 'SNACK',
+  'training' || 'トレーニング' || 'training meal' => 'TRAINING',
+  _ => value.trim().toUpperCase(),
+};
+
 abstract final class NutritionVisualColors {
   static const calories = Color(0xFFF2C14E);
   static const protein = Color(0xFFE08AAA);
@@ -143,15 +152,19 @@ class NutritionContributorCard extends StatelessWidget {
             ),
           ),
           AppSpacing.gapSM,
-          SizedBox(
-            height: 42,
-            child: Text(
-              foodName,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          Container(
+            height: 50,
+            width: double.infinity,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: NutritionVisualColors.forMetric(metric).withValues(alpha: .35)),
+            ),
+            child: FittedBox(
+              alignment: Alignment.centerLeft,
+              fit: BoxFit.scaleDown,
+              child: Text(foodName, maxLines: 2, softWrap: true, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
             ),
           ),
           Text(
@@ -172,7 +185,7 @@ class NutritionContributorCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  mealType!.toUpperCase(),
+                  analysisMealTypeLabel(mealType!),
                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),

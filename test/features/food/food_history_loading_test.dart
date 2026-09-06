@@ -7,6 +7,7 @@ import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/food_history_page.dart';
+import 'package:or_app/features/food/widgets/nutrition_analysis_visuals.dart';
 import 'package:or_app/features/food/models/daily_meal_v2_models.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
@@ -33,6 +34,12 @@ void main() {
   });
 
   tearDown(AppRepositoryRegistry.resetForTesting);
+
+  test('normalizes imported meal labels for analysis display', () {
+    expect(analysisMealTypeLabel('夕食'), 'DINNER');
+    expect(analysisMealTypeLabel('Dinner'), 'DINNER');
+    expect(analysisMealTypeLabel('昼食'), 'LUNCH');
+  });
 
   testWidgets('immutable empty result stops loading and shows empty state', (
     tester,

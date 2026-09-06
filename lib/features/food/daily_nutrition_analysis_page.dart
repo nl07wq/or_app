@@ -421,7 +421,7 @@ class _MealShareCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (var i = 0; i < entries.length; i++)
-                      Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)), const SizedBox(width: 6), Expanded(child: Text('${entries[i].key.toUpperCase()}  ${_percent(entries[i].value, total)}%', style: const TextStyle(fontSize: 12))), Text('${FoodNutritionFormatter.macro(entries[i].value)} kcal', style: const TextStyle(fontSize: 11))]),
+                      Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)), const SizedBox(width: 6), Expanded(child: Text(analysisMealTypeLabel(entries[i].key), style: const TextStyle(fontSize: 12))), Text('${FoodNutritionFormatter.macro(entries[i].value)} kcal  ${_percent(entries[i].value, total)}%', style: const TextStyle(fontSize: 11))]),
                   ],
                 ),
               ),
@@ -449,7 +449,7 @@ class _MealVisualCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            meal.mealType.toUpperCase(),
+            analysisMealTypeLabel(meal.mealType),
             style: Theme.of(context).textTheme.titleSmall,
           ),
           Text(
@@ -536,7 +536,7 @@ class _HighestMeal extends StatelessWidget {
     if (ranked.isEmpty) return const SizedBox.shrink();
     final meal = ranked.first;
     return Text(
-      '${metric.label}: ${meal.mealType.toUpperCase()} — '
+      '${metric.label}: ${analysisMealTypeLabel(meal.mealType)} — '
       '${FoodNutritionFormatter.macro(metric.select(meal.nutritionAggregate)!)}${metric.unit}',
     );
   }

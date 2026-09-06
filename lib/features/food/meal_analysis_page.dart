@@ -149,7 +149,7 @@ class _Header extends StatelessWidget {
         AppSpacing.gapSM,
         SectionHeader(
           icon: Icons.restaurant,
-          title: record.mealType.toUpperCase(),
+          title: analysisMealTypeLabel(record.mealType),
         ),
         if (record.memo != null) ...[AppSpacing.gapSM, Text(record.memo!)],
       ],
