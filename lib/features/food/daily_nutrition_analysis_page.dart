@@ -12,6 +12,7 @@ import '../repositories/app_repository_container.dart';
 import 'food_nutrition_formatter.dart';
 import 'models/food_nutrition_aggregate.dart';
 import 'models/food_summary_state.dart';
+import 'models/daily_nutrition_target_assessment.dart';
 import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'widgets/food_pfc_balance_card.dart';
@@ -241,6 +242,12 @@ class _TargetProgressCard extends StatelessWidget {
               targets!.calories,
             )?.toDouble(),
             'kcal',
+            assessment: assessSingleNutritionTarget(
+              summary!.calories,
+              DynamicDailyTargetPresentation.caloriesTargetKcal(
+                targets!.calories,
+              )?.toDouble(),
+            ),
           ),
           _ProgressRow(
             'Protein',
@@ -249,6 +256,12 @@ class _TargetProgressCard extends StatelessWidget {
               targets!.protein,
             )?.toDouble(),
             'g',
+            assessment: assessSingleNutritionTarget(
+              summary!.protein,
+              DynamicDailyTargetPresentation.proteinTargetG(
+                targets!.protein,
+              )?.toDouble(),
+            ),
           ),
           _ProgressRow(
             'Fat',
@@ -259,6 +272,15 @@ class _TargetProgressCard extends StatelessWidget {
               DynamicDailyTargetPresentation.fatTargetMinG(targets!.fat),
               DynamicDailyTargetPresentation.fatTargetMaxG(targets!.fat),
             ),
+            assessment: assessRangedNutritionTarget(
+              summary!.fat,
+              DynamicDailyTargetPresentation.fatTargetMinG(
+                targets!.fat,
+              )?.toDouble(),
+              DynamicDailyTargetPresentation.fatTargetMaxG(
+                targets!.fat,
+              )?.toDouble(),
+            ),
           ),
           _ProgressRow(
             'Carbohydrate',
@@ -267,6 +289,12 @@ class _TargetProgressCard extends StatelessWidget {
               targets!.carbohydrate,
             )?.toDouble(),
             'g',
+            assessment: assessSingleNutritionTarget(
+              summary!.carbohydrates,
+              DynamicDailyTargetPresentation.carbohydrateTargetG(
+                targets!.carbohydrate,
+              )?.toDouble(),
+            ),
           ),
         ],
       ),
@@ -295,12 +323,14 @@ class _ProgressRow extends StatelessWidget {
     this.target,
     this.unit, {
     this.range,
+    required this.assessment,
   });
   final String label;
   final double current;
   final double? target;
   final String unit;
   final (int?, int?)? range;
+  final DailyNutritionTargetAssessment assessment;
   @override
   Widget build(BuildContext context) {
     final remaining = target == null ? null : target! - current;
@@ -329,13 +359,7 @@ class _ProgressRow extends StatelessWidget {
             child: Center(
               child: target == null
                   ? null
-                  : NutritionStatusBadge(
-                      status: remaining! > 1
-                          ? 'LOW'
-                          : remaining < -1
-                          ? 'OVER'
-                          : 'ON TRACK',
-                    ),
+                  : NutritionStatusBadge(status: assessment.badgeLabel),
             ),
           ),
         ],
@@ -422,28 +446,11 @@ class _MealShareCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (var i = 0; i < entries.length; i++)
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: colors[i],
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              analysisMealTypeLabel(entries[i].key),
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          Text(
-                            '${FoodNutritionFormatter.macro(entries[i].value)} kcal  ${_percent(entries[i].value, total)}%',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ],
+                      _MealShareLegendRow(
+                        color: colors[i],
+                        label: analysisMealTypeLabel(entries[i].key),
+                        calories: entries[i].value,
+                        percent: _percent(entries[i].value, total),
                       ),
                   ],
                 ),
@@ -454,6 +461,56 @@ class _MealShareCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MealShareLegendRow extends StatelessWidget {
+  const _MealShareLegendRow({
+    required this.color,
+    required this.label,
+    required this.calories,
+    required this.percent,
+  });
+
+  final Color color;
+  final String label;
+  final double calories;
+  final int percent;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+      SizedBox(
+        width: 66,
+        child: Text(
+          '${FoodNutritionFormatter.macro(calories)} kcal',
+          textAlign: TextAlign.end,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+      SizedBox(
+        width: 28,
+        child: Text(
+          '$percent%',
+          textAlign: TextAlign.end,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+    ],
+  );
 }
 
 class _MealVisualCard extends StatelessWidget {
@@ -652,7 +709,8 @@ class _AssessmentCard extends StatelessWidget {
           AppSpacing.gapSM,
           _AssessmentRow(
             'CALORIES',
-            _status(
+            summary!.calories,
+            assessSingleNutritionTarget(
               summary!.calories,
               DynamicDailyTargetPresentation.caloriesTargetKcal(
                 targets!.calories,
@@ -661,17 +719,31 @@ class _AssessmentCard extends StatelessWidget {
           ),
           _AssessmentRow(
             'PROTEIN',
-            _status(
+            summary!.protein,
+            assessSingleNutritionTarget(
               summary!.protein,
               DynamicDailyTargetPresentation.proteinTargetG(
                 targets!.protein,
               )?.toDouble(),
             ),
           ),
-          _AssessmentRow('FAT', _rangeStatus(summary!.fat, targets!.fat)),
+          _AssessmentRow(
+            'FAT',
+            summary!.fat,
+            assessRangedNutritionTarget(
+              summary!.fat,
+              DynamicDailyTargetPresentation.fatTargetMinG(
+                targets!.fat,
+              )?.toDouble(),
+              DynamicDailyTargetPresentation.fatTargetMaxG(
+                targets!.fat,
+              )?.toDouble(),
+            ),
+          ),
           _AssessmentRow(
             'CARBOHYDRATE',
-            _status(
+            summary!.carbohydrates,
+            assessSingleNutritionTarget(
               summary!.carbohydrates,
               DynamicDailyTargetPresentation.carbohydrateTargetG(
                 targets!.carbohydrate,
@@ -706,22 +778,37 @@ class _HintCard extends StatelessWidget {
 }
 
 class _AssessmentRow extends StatelessWidget {
-  const _AssessmentRow(this.label, this.status);
+  const _AssessmentRow(this.label, this.current, this.assessment);
   final String label;
-  final String status;
+  final double current;
+  final DailyNutritionTargetAssessment assessment;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-    child: Row(
-      children: [
-        SizedBox(width: 116, child: Text(label)),
-        SizedBox(
-          width: 92,
-          child: Center(child: NutritionStatusBadge(status: status)),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 300;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: Row(
+          children: [
+            SizedBox(width: compact ? 102 : 116, child: Text(label)),
+            SizedBox(
+              width: compact ? 80 : 92,
+              child: Center(
+                child: NutritionStatusBadge(status: assessment.badgeLabel),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                _assessmentComment(label, current, assessment),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
         ),
-        const Expanded(child: SizedBox()),
-      ],
-    ),
+      );
+    },
   );
 }
 
@@ -769,23 +856,38 @@ double? _fat(NutritionSnapshot value) => value.fat;
 double? _carb(NutritionSnapshot value) => value.carbohydrate;
 String _nutritionText(FoodNutritionAggregate value) =>
     '${FoodNutritionFormatter.macro(value.calories.knownTotal)} kcal / P ${FoodNutritionFormatter.macro(value.protein.knownTotal)} / F ${FoodNutritionFormatter.macro(value.fat.knownTotal)} / C ${FoodNutritionFormatter.macro(value.carbohydrate.knownTotal)}';
-String _status(double current, double? target) {
-  if (target == null) return '目標なし';
-  const tolerance = 1.0;
-  if (current > target + tolerance) return 'OVER';
-  if (current < target - tolerance) return 'LOW';
-  return 'ON TRACK';
-}
-
-String _rangeStatus(double current, DynamicRangeTarget target) {
-  final low = target.low;
-  final high = target.high;
-  if (low == null || high == null) return '目標なし';
-  const tolerance = 1.0;
-  if (current > high + tolerance) return 'OVER';
-  if (current < low - tolerance) return 'LOW';
-  return 'ON TRACK';
-}
+String _assessmentComment(
+  String label,
+  double current,
+  DailyNutritionTargetAssessment assessment,
+) => switch (label) {
+  'CALORIES' => switch (assessment.status) {
+    DailyNutritionTargetStatus.low => '摂取やや少なめ',
+    DailyNutritionTargetStatus.onTrack => '目標範囲内',
+    DailyNutritionTargetStatus.over => '摂取やや多め',
+    DailyNutritionTargetStatus.unavailable => '目標データなし',
+  },
+  'PROTEIN' => switch (assessment.status) {
+    DailyNutritionTargetStatus.low =>
+      'あと約${((assessment.lowerBound ?? current) - current).clamp(0, double.infinity).round()}g',
+    DailyNutritionTargetStatus.onTrack => '目標範囲内',
+    DailyNutritionTargetStatus.over => '十分に確保',
+    DailyNutritionTargetStatus.unavailable => '目標データなし',
+  },
+  'FAT' => switch (assessment.status) {
+    DailyNutritionTargetStatus.low => '脂質やや少なめ',
+    DailyNutritionTargetStatus.onTrack => '目標範囲内',
+    DailyNutritionTargetStatus.over => '脂質を控えめに',
+    DailyNutritionTargetStatus.unavailable => '目標データなし',
+  },
+  'CARBOHYDRATE' => switch (assessment.status) {
+    DailyNutritionTargetStatus.low => '炭水化物少なめ',
+    DailyNutritionTargetStatus.onTrack => '目標範囲内',
+    DailyNutritionTargetStatus.over => '炭水化物多め',
+    DailyNutritionTargetStatus.unavailable => '目標データなし',
+  },
+  _ => '目標データなし',
+};
 
 String _dailyHint(
   String date,
@@ -797,18 +899,41 @@ String _dailyHint(
       !targets.nutritionTargetsAvailable) {
     return '目標データなし';
   }
-  final fat = DynamicDailyTargetPresentation.fatTargetMaxG(targets.fat);
-  final protein = DynamicDailyTargetPresentation.proteinTargetG(
-    targets.protein,
+  final fat = assessRangedNutritionTarget(
+    summary.fat,
+    DynamicDailyTargetPresentation.fatTargetMinG(targets.fat)?.toDouble(),
+    DynamicDailyTargetPresentation.fatTargetMaxG(targets.fat)?.toDouble(),
+  );
+  final protein = assessSingleNutritionTarget(
+    summary.protein,
+    DynamicDailyTargetPresentation.proteinTargetG(targets.protein)?.toDouble(),
+  );
+  final calories = assessSingleNutritionTarget(
+    summary.calories,
+    DynamicDailyTargetPresentation.caloriesTargetKcal(
+      targets.calories,
+    )?.toDouble(),
+  );
+  final carbohydrate = assessSingleNutritionTarget(
+    summary.carbohydrates,
+    DynamicDailyTargetPresentation.carbohydrateTargetG(
+      targets.carbohydrate,
+    )?.toDouble(),
   );
   final historical = date != DateTime.now().toIso8601String().substring(0, 10);
-  if (fat != null && summary.fat > fat) {
+  if (fat.status == DailyNutritionTargetStatus.over) {
     return historical ? 'この日は脂質が高めでした。' : '脂質は十分なため、残りは低脂質を優先。';
   }
-  if (protein != null && summary.protein < protein) {
+  if (protein.status == DailyNutritionTargetStatus.low) {
     return historical
         ? 'この日はタンパク質が目標未達でした。'
-        : 'タンパク質をあと${FoodNutritionFormatter.macro(protein - summary.protein)}g程度確保。';
+        : 'タンパク質をあと${((protein.lowerBound ?? summary.protein) - summary.protein).clamp(0, double.infinity).round()}g程度確保。';
+  }
+  if (calories.status == DailyNutritionTargetStatus.over) {
+    return historical ? 'この日は総摂取量がやや多めでした。' : '総摂取量はやや多めです。';
+  }
+  if (carbohydrate.status == DailyNutritionTargetStatus.over) {
+    return historical ? 'この日は炭水化物が多めでした。' : '炭水化物はやや控えめに。';
   }
   return historical ? 'この日は目標内でバランスを維持できました。' : '総摂取量は目標内。次の食事ではバランス維持を優先。';
 }
