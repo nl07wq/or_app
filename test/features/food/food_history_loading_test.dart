@@ -481,6 +481,7 @@ void main() {
               foodName: foodName,
               value: 738,
               unit: 'kcal',
+              sharePercent: 25,
             ),
           ),
         ),
@@ -492,6 +493,7 @@ void main() {
     expect(name.overflow, TextOverflow.ellipsis);
     expect(name.style?.fontSize, 14);
     expect(name.style?.height, 1.25);
+    expect(find.text('25% OF CALORIES'), findsOneWidget);
     expect(
       tester
           .getSize(
@@ -574,6 +576,30 @@ void main() {
     expect(label.right, lessThanOrEqualTo(grams.left));
     expect(grams.right, lessThanOrEqualTo(percent.left));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('carbohydrate contributor shortens its share label to CARB', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 180,
+            child: NutritionContributorCard(
+              metric: NutritionVisualMetric.carbohydrate,
+              foodName: 'Rice',
+              value: 45,
+              unit: 'g',
+              sharePercent: 25,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('25% OF CARB'), findsOneWidget);
+    expect(find.text('25% OF CARBOHYDRATE'), findsNothing);
   });
 }
 

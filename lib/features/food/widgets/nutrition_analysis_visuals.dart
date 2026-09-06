@@ -191,7 +191,7 @@ class NutritionContributorCard extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (sharePercent != null)
-            Text('$sharePercent% OF ${metric.name.toUpperCase()}'),
+            Text('$sharePercent% OF ${_contributorMetricLabel(metric)}'),
           if (mealType != null)
             Align(
               alignment: Alignment.centerLeft,
@@ -217,6 +217,12 @@ class NutritionContributorCard extends StatelessWidget {
     ),
   );
 }
+
+String _contributorMetricLabel(NutritionVisualMetric metric) =>
+    switch (metric) {
+      NutritionVisualMetric.carbohydrate => 'CARB',
+      _ => metric.name.toUpperCase(),
+    };
 
 class _DonutPainter extends CustomPainter {
   const _DonutPainter(this.values, this.colors);
