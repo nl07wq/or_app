@@ -161,6 +161,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('MEAL SHARE'), findsOneWidget);
     expect(find.text('MEAL CONTRIBUTION'), findsOneWidget);
+    expect(find.text('HIGHEST MEAL'), findsOneWidget);
+    expect(find.text('HIGHEST CALORIE MEAL'), findsNothing);
   });
 
   testWidgets('measured food shows amount and calculated nutrition', (
@@ -540,7 +542,6 @@ void main() {
             width: 360,
             child: FoodPfcBalanceCard(
               keyPrefix: 'daily-analysis-pfc',
-              useMealShareLegendStyle: true,
               nutrition: NutritionSnapshot(
                 calories: 170,
                 protein: 10,

@@ -19,13 +19,11 @@ class FoodPfcBalanceCard extends StatelessWidget {
     required this.nutrition,
     this.title = 'PFC BALANCE',
     this.keyPrefix = 'food-detail-pfc',
-    this.useMealShareLegendStyle = false,
   });
 
   final NutritionSnapshot nutrition;
   final String title;
   final String keyPrefix;
-  final bool useMealShareLegendStyle;
 
   static bool hasBalance(NutritionSnapshot nutrition) =>
       nutrition.protein != null &&
@@ -113,7 +111,6 @@ class FoodPfcBalanceCard extends StatelessWidget {
                         grams: grams[index],
                         percent: (values[index] / total * 100).round(),
                         color: colors[index],
-                        useMealShareLegendStyle: useMealShareLegendStyle,
                         dotKey: ValueKey(
                           '$keyPrefix-${const ['PROTEIN', 'FAT', 'CARBOHYDRATE'][index]}-dot',
                         ),
@@ -138,7 +135,6 @@ class _PfcMetricRow extends StatelessWidget {
     required this.grams,
     required this.percent,
     required this.color,
-    required this.useMealShareLegendStyle,
     required this.dotKey,
   });
 
@@ -146,30 +142,25 @@ class _PfcMetricRow extends StatelessWidget {
   final double grams;
   final int percent;
   final Color color;
-  final bool useMealShareLegendStyle;
   final Key dotKey;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final style = TextStyle(
-        color: useMealShareLegendStyle
-            ? Theme.of(context).colorScheme.onSurface
-            : color,
+        color: Theme.of(context).colorScheme.onSurface,
         fontWeight: FontWeight.bold,
       );
       final compact = constraints.maxWidth < 190;
       return Row(
         children: [
-          if (useMealShareLegendStyle) ...[
-            Container(
-              key: dotKey,
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 6),
-          ],
+          Container(
+            key: dotKey,
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
           Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,

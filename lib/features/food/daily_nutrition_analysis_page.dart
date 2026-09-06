@@ -91,7 +91,6 @@ class _DailyNutritionAnalysisPageState
                 FoodPfcBalanceCard(
                   nutrition: pfc,
                   keyPrefix: 'daily-analysis-pfc',
-                  useMealShareLegendStyle: true,
                 ),
                 AppSpacing.gapMD,
               ],
@@ -334,14 +333,18 @@ class _ProgressRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = target == null ? null : target! - current;
-    final rangeLabel = range == null || range!.$1 == null
+    final rangeInfo = range == null || range!.$1 == null
         ? null
-        : 'TARGET ${range!.$1}–${range!.$2}$unit';
+        : '${range!.$1}–${range!.$2}$unit · ';
+    final progress = remaining == null
+        ? '目標なし'
+        : remaining >= 0
+        ? '残り ${FoodNutritionFormatter.macro(remaining)}$unit'
+        : 'OVER +${FoodNutritionFormatter.macro(-remaining)}$unit';
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       title: Text(label),
-      subtitle: rangeLabel == null ? null : Text(rangeLabel),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -350,7 +353,7 @@ class _ProgressRow extends StatelessWidget {
             child: Text(
               target == null
                   ? '目標なし'
-                  : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit\n${remaining! >= 0 ? '残り ${FoodNutritionFormatter.macro(remaining)}$unit' : 'OVER +${FoodNutritionFormatter.macro(-remaining)}$unit'}',
+                  : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit\n${rangeInfo ?? ''}$progress',
               textAlign: TextAlign.end,
             ),
           ),
@@ -389,6 +392,11 @@ class _MealContributionCard extends StatelessWidget {
               meal: meal,
               dailyCalories: _mealCaloriesTotal(meals),
             ),
+          AppSpacing.gapSM,
+          const SectionHeader(
+            icon: Icons.leaderboard_outlined,
+            title: 'HIGHEST MEAL',
+          ),
           AppSpacing.gapSM,
           for (final metric in _mealMetrics)
             _HighestMeal(metric: metric, meals: meals),
@@ -612,11 +620,56 @@ class _HighestMeal extends StatelessWidget {
           });
     if (ranked.isEmpty) return const SizedBox.shrink();
     final meal = ranked.first;
-    return Text(
-      '${metric.label}: ${analysisMealTypeLabel(meal.mealType)} — '
-      '${FoodNutritionFormatter.macro(metric.select(meal.nutritionAggregate)!)}${metric.unit}',
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: .35),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 64,
+            child: Text(
+              metric.label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          _MealTypeBadge(label: analysisMealTypeLabel(meal.mealType)),
+          const Spacer(),
+          Text(
+            '${FoodNutritionFormatter.macro(metric.select(meal.nutritionAggregate)!)} ${metric.unit}',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _MealTypeBadge extends StatelessWidget {
+  const _MealTypeBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+    ),
+  );
 }
 
 class _FoodContributionCard extends StatelessWidget {
@@ -828,10 +881,10 @@ class _MealMetric {
 }
 
 const _mealMetrics = [
-  _MealMetric('HIGHEST CALORIE MEAL', 'kcal', _mealCalories),
-  _MealMetric('HIGHEST PROTEIN MEAL', 'g', _mealProtein),
-  _MealMetric('HIGHEST FAT MEAL', 'g', _mealFat),
-  _MealMetric('HIGHEST CARB MEAL', 'g', _mealCarbohydrate),
+  _MealMetric('CALORIE', 'kcal', _mealCalories),
+  _MealMetric('PROTEIN', 'g', _mealProtein),
+  _MealMetric('FAT', 'g', _mealFat),
+  _MealMetric('CARB', 'g', _mealCarbohydrate),
 ];
 
 double? _known(FoodNutritionValueAggregate value) =>

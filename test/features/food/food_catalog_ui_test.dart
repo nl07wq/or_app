@@ -523,17 +523,42 @@ void main() {
     expect(find.text('23%'), findsOneWidget);
     expect(foodDetailPfcRingWidth, 12);
     expect(
-      tester.widget<Text>(find.text('PROTEIN')).style?.color,
+      (tester
+                  .widget<Container>(
+                    find.byKey(const ValueKey('food-detail-pfc-PROTEIN-dot')),
+                  )
+                  .decoration
+              as BoxDecoration)
+          .color,
       foodDetailProteinColor,
     );
     expect(
-      tester.widget<Text>(find.text('19.3 g')).style?.color,
+      (tester
+                  .widget<Container>(
+                    find.byKey(const ValueKey('food-detail-pfc-FAT-dot')),
+                  )
+                  .decoration
+              as BoxDecoration)
+          .color,
       foodDetailFatColor,
     );
     expect(
-      tester.widget<Text>(find.text('23%')).style?.color,
+      (tester
+                  .widget<Container>(
+                    find.byKey(
+                      const ValueKey('food-detail-pfc-CARBOHYDRATE-dot'),
+                    ),
+                  )
+                  .decoration
+              as BoxDecoration)
+          .color,
       foodDetailCarbohydrateColor,
     );
+    final proteinDot = tester.getRect(
+      find.byKey(const ValueKey('food-detail-pfc-PROTEIN-dot')),
+    );
+    final proteinLabel = tester.getRect(find.text('PROTEIN'));
+    expect(proteinDot.right, lessThanOrEqualTo(proteinLabel.left));
     final carbohydrate = tester.getRect(find.text('CARBOHYDRATE'));
     final carbohydrateGrams = tester.getRect(find.text('16.2 g'));
     final carbohydratePercent = tester.getRect(find.text('23%'));
