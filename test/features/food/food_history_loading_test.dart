@@ -7,6 +7,7 @@ import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/food_history_page.dart';
+import 'package:or_app/features/food/widgets/food_pfc_balance_card.dart';
 import 'package:or_app/features/food/widgets/nutrition_analysis_visuals.dart';
 import 'package:or_app/features/food/models/daily_meal_v2_models.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
@@ -471,8 +472,8 @@ void main() {
   ) async {
     const foodName = 'ほっともっと にんにく香る特製醤油だれ 牛キャベ丼（目玉焼き）ごはん並盛';
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      MaterialApp(
+        home: const Scaffold(
           body: SizedBox(
             width: 180,
             child: NutritionContributorCard(
@@ -490,6 +491,88 @@ void main() {
     expect(name.maxLines, 2);
     expect(name.overflow, TextOverflow.ellipsis);
     expect(name.style?.fontSize, 14);
+    expect(name.style?.height, 1.25);
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('nutrition-contributor-name-calories')),
+          )
+          .height,
+      58,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('contributor name box keeps short names naturally centered', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 180,
+            child: NutritionContributorCard(
+              metric: NutritionVisualMetric.protein,
+              foodName: 'ゆで卵（L）',
+              value: 12,
+              unit: 'g',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final name = tester.widget<Text>(find.text('ゆで卵（L）'));
+    expect(name.maxLines, 2);
+    expect(name.overflow, TextOverflow.ellipsis);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('daily PFC rows use dot label gram percent ordering', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: FoodPfcBalanceCard(
+              keyPrefix: 'daily-analysis-pfc',
+              useMealShareLegendStyle: true,
+              nutrition: NutritionSnapshot(
+                calories: 170,
+                protein: 10,
+                fat: 10,
+                carbohydrate: 10,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('daily-analysis-pfc-donut')),
+      findsOneWidget,
+    );
+    for (final label in ['PROTEIN', 'FAT', 'CARBOHYDRATE']) {
+      expect(
+        find.byKey(ValueKey('daily-analysis-pfc-$label-dot')),
+        findsOneWidget,
+      );
+    }
+    expect(find.text('10 g'), findsNWidgets(3));
+    expect(find.text('24%'), findsNWidgets(2));
+    expect(find.text('53%'), findsOneWidget);
+    final dot = tester.getRect(
+      find.byKey(const ValueKey('daily-analysis-pfc-PROTEIN-dot')),
+    );
+    final label = tester.getRect(find.text('PROTEIN'));
+    final grams = tester.getRect(find.text('10 g').first);
+    final percent = tester.getRect(find.text('24%').first);
+    expect(dot.right, lessThanOrEqualTo(label.left));
+    expect(label.right, lessThanOrEqualTo(grams.left));
+    expect(grams.right, lessThanOrEqualTo(percent.left));
     expect(tester.takeException(), isNull);
   });
 }

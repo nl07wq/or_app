@@ -19,11 +19,13 @@ class FoodPfcBalanceCard extends StatelessWidget {
     required this.nutrition,
     this.title = 'PFC BALANCE',
     this.keyPrefix = 'food-detail-pfc',
+    this.useMealShareLegendStyle = false,
   });
 
   final NutritionSnapshot nutrition;
   final String title;
   final String keyPrefix;
+  final bool useMealShareLegendStyle;
 
   static bool hasBalance(NutritionSnapshot nutrition) =>
       nutrition.protein != null &&
@@ -111,6 +113,10 @@ class FoodPfcBalanceCard extends StatelessWidget {
                         grams: grams[index],
                         percent: (values[index] / total * 100).round(),
                         color: colors[index],
+                        useMealShareLegendStyle: useMealShareLegendStyle,
+                        dotKey: ValueKey(
+                          '$keyPrefix-${const ['PROTEIN', 'FAT', 'CARBOHYDRATE'][index]}-dot',
+                        ),
                       ),
                       if (index < values.length - 1) AppSpacing.gapSM,
                     ],
@@ -132,20 +138,38 @@ class _PfcMetricRow extends StatelessWidget {
     required this.grams,
     required this.percent,
     required this.color,
+    required this.useMealShareLegendStyle,
+    required this.dotKey,
   });
 
   final String label;
   final double grams;
   final int percent;
   final Color color;
+  final bool useMealShareLegendStyle;
+  final Key dotKey;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final style = TextStyle(color: color, fontWeight: FontWeight.bold);
+      final style = TextStyle(
+        color: useMealShareLegendStyle
+            ? Theme.of(context).colorScheme.onSurface
+            : color,
+        fontWeight: FontWeight.bold,
+      );
       final compact = constraints.maxWidth < 190;
       return Row(
         children: [
+          if (useMealShareLegendStyle) ...[
+            Container(
+              key: dotKey,
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+          ],
           Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -154,7 +178,7 @@ class _PfcMetricRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: compact ? 50 : 72,
+            width: compact ? 50 : 58,
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(
@@ -165,7 +189,7 @@ class _PfcMetricRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: compact ? 36 : 48,
+            width: compact ? 36 : 36,
             child: Align(
               alignment: Alignment.centerRight,
               child: Text('$percent%', maxLines: 1, style: style),

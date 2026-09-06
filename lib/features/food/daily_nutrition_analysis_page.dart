@@ -90,6 +90,7 @@ class _DailyNutritionAnalysisPageState
                 FoodPfcBalanceCard(
                   nutrition: pfc,
                   keyPrefix: 'daily-analysis-pfc',
+                  useMealShareLegendStyle: true,
                 ),
                 AppSpacing.gapMD,
               ],
@@ -421,7 +422,29 @@ class _MealShareCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (var i = 0; i < entries.length; i++)
-                      Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)), const SizedBox(width: 6), Expanded(child: Text(analysisMealTypeLabel(entries[i].key), style: const TextStyle(fontSize: 12))), Text('${FoodNutritionFormatter.macro(entries[i].value)} kcal  ${_percent(entries[i].value, total)}%', style: const TextStyle(fontSize: 11))]),
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: colors[i],
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              analysisMealTypeLabel(entries[i].key),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          Text(
+                            '${FoodNutritionFormatter.macro(entries[i].value)} kcal  ${_percent(entries[i].value, total)}%',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -434,10 +457,7 @@ class _MealShareCard extends StatelessWidget {
 }
 
 class _MealVisualCard extends StatelessWidget {
-  const _MealVisualCard({
-    required this.meal,
-    required this.dailyCalories,
-  });
+  const _MealVisualCard({required this.meal, required this.dailyCalories});
   final FoodUnifiedReadModel meal;
   final double dailyCalories;
   @override

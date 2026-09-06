@@ -8,14 +8,15 @@ import '../food_nutrition_formatter.dart';
 
 enum NutritionVisualMetric { calories, protein, fat, carbohydrate }
 
-String analysisMealTypeLabel(String value) => switch (value.trim().toLowerCase()) {
-  'breakfast' || '朝食' => 'BREAKFAST',
-  'lunch' || '昼食' => 'LUNCH',
-  'dinner' || '夕食' => 'DINNER',
-  'snack' || '間食' => 'SNACK',
-  'training' || 'トレーニング' || 'training meal' || '補食' => 'TRAINING',
-  _ => value.trim().toUpperCase(),
-};
+String analysisMealTypeLabel(String value) =>
+    switch (value.trim().toLowerCase()) {
+      'breakfast' || '朝食' => 'BREAKFAST',
+      'lunch' || '昼食' => 'LUNCH',
+      'dinner' || '夕食' => 'DINNER',
+      'snack' || '間食' => 'SNACK',
+      'training' || 'トレーニング' || 'training meal' || '補食' => 'TRAINING',
+      _ => value.trim().toUpperCase(),
+    };
 
 abstract final class NutritionVisualColors {
   static const calories = Color(0xFFF2C14E);
@@ -153,13 +154,20 @@ class NutritionContributorCard extends StatelessWidget {
           ),
           AppSpacing.gapSM,
           Container(
-            height: 50,
+            key: ValueKey('nutrition-contributor-name-${metric.name}'),
+            height: 58,
             width: double.infinity,
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: NutritionVisualColors.forMetric(metric).withValues(alpha: .35)),
+              border: Border.all(
+                color: NutritionVisualColors.forMetric(
+                  metric,
+                ).withValues(alpha: .35),
+              ),
             ),
             child: Align(
               alignment: Alignment.centerLeft,
@@ -170,6 +178,7 @@ class NutritionContributorCard extends StatelessWidget {
                 softWrap: true,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontSize: 14,
+                  height: 1.25,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -189,12 +198,17 @@ class NutritionContributorCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: NutritionVisualColors.forMetric(metric).withValues(alpha: .12),
+                  color: NutritionVisualColors.forMetric(
+                    metric,
+                  ).withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   analysisMealTypeLabel(mealType!),
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
