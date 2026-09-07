@@ -338,43 +338,54 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                                         1,
                                       )
                                       ..scaleByDouble(_scale, _scale, 1, 1),
-                                    child: SizedBox(
-                                      // Keep one stable decoded image at base cover
-                                      // size. The current relative scale is applied by
-                                      // the same paint transform used for gestures and
-                                      // four-edge bounds, so a pinch changes rendered
-                                      // pixels immediately instead of only state.
-                                      width: _dimensions.width * baseScale,
-                                      height: _dimensions.height * baseScale,
-                                      child: KeyedSubtree(
-                                        key: const ValueKey(
-                                          'manual-nutrition-crop-source-image',
-                                        ),
-                                        child: Image(
-                                          key: _sourceImageRenderKey,
-                                          image: _previewImageProvider!,
-                                          fit: BoxFit.fill,
-                                          gaplessPlayback: true,
-                                          filterQuality: FilterQuality.high,
-                                          frameBuilder:
-                                              (
-                                                _,
-                                                child,
-                                                frame,
-                                                wasSynchronouslyLoaded,
-                                              ) {
-                                                if (frame != null ||
-                                                    wasSynchronouslyLoaded) {
-                                                  _markPreviewImageDrawable();
-                                                }
-                                                return child;
-                                              },
-                                          errorBuilder: (_, _, _) {
-                                            _markPreviewImageFailed();
-                                            return const ColoredBox(
-                                              color: Colors.transparent,
-                                            );
-                                          },
+                                    // Transform receives the canvas's tight
+                                    // constraints. Release them for the bitmap so
+                                    // its painted rect stays at the same base size
+                                    // used by strict bounds and source mapping.
+                                    child: OverflowBox(
+                                      alignment: Alignment.topLeft,
+                                      minWidth: 0,
+                                      maxWidth: double.infinity,
+                                      minHeight: 0,
+                                      maxHeight: double.infinity,
+                                      child: SizedBox(
+                                        // Keep one stable decoded image at base cover
+                                        // size. The current relative scale is applied by
+                                        // the same paint transform used for gestures and
+                                        // four-edge bounds, so a pinch changes rendered
+                                        // pixels immediately instead of only state.
+                                        width: _dimensions.width * baseScale,
+                                        height: _dimensions.height * baseScale,
+                                        child: KeyedSubtree(
+                                          key: const ValueKey(
+                                            'manual-nutrition-crop-source-image',
+                                          ),
+                                          child: Image(
+                                            key: _sourceImageRenderKey,
+                                            image: _previewImageProvider!,
+                                            fit: BoxFit.fill,
+                                            gaplessPlayback: true,
+                                            filterQuality: FilterQuality.high,
+                                            frameBuilder:
+                                                (
+                                                  _,
+                                                  child,
+                                                  frame,
+                                                  wasSynchronouslyLoaded,
+                                                ) {
+                                                  if (frame != null ||
+                                                      wasSynchronouslyLoaded) {
+                                                    _markPreviewImageDrawable();
+                                                  }
+                                                  return child;
+                                                },
+                                            errorBuilder: (_, _, _) {
+                                              _markPreviewImageFailed();
+                                              return const ColoredBox(
+                                                color: Colors.transparent,
+                                              );
+                                            },
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -471,6 +482,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       final imageBox = _sourceImageRenderKey.currentContext?.findRenderObject();
       if (canvasBox is! RenderBox || imageBox is! RenderBox) return;
       final next = _CropRenderGeometrySnapshot(
+        imageBoxSize: imageBox.size,
         imageTopLeft: imageBox.localToGlobal(Offset.zero),
         imageBottomRight: imageBox.localToGlobal(
           Offset(imageBox.size.width, imageBox.size.height),
@@ -603,12 +615,14 @@ class _CropImageLoadingState extends StatelessWidget {
 /// behavior can be compared with the model without changing crop state.
 class _CropRenderGeometrySnapshot {
   const _CropRenderGeometrySnapshot({
+    required this.imageBoxSize,
     required this.imageTopLeft,
     required this.imageBottomRight,
     required this.viewportTopLeft,
     required this.viewportBottomRight,
   });
 
+  final Size imageBoxSize;
   final Offset imageTopLeft;
   final Offset imageBottomRight;
   final Offset viewportTopLeft;
@@ -617,6 +631,7 @@ class _CropRenderGeometrySnapshot {
   @override
   bool operator ==(Object other) =>
       other is _CropRenderGeometrySnapshot &&
+      imageBoxSize == other.imageBoxSize &&
       imageTopLeft == other.imageTopLeft &&
       imageBottomRight == other.imageBottomRight &&
       viewportTopLeft == other.viewportTopLeft &&
@@ -628,6 +643,7 @@ class _CropRenderGeometrySnapshot {
     imageBottomRight,
     viewportTopLeft,
     viewportBottomRight,
+    imageBoxSize,
   );
 }
 
@@ -678,7 +694,8 @@ class _CropGeometryDiagnosticPanel extends StatelessWidget {
       'bounds y:${_number(active?.bounds.minY)}..${_number(active?.bounds.maxY)}',
       'post=${_pair(active?.acceptedOffset)}',
       'RELEASE norm=${_pair(lastReleaseNormalizedOffset)}',
-      'PAINT image ${_pair(renderGeometry?.imageTopLeft)}..${_pair(renderGeometry?.imageBottomRight)}',
+      'IMAGE box ${_number(renderGeometry?.imageBoxSize.width)}×${_number(renderGeometry?.imageBoxSize.height)}',
+      'PAINT bitmap ${_pair(renderGeometry?.imageTopLeft)}..${_pair(renderGeometry?.imageBottomRight)}',
       'PAINT view ${_pair(renderGeometry?.viewportTopLeft)}..${_pair(renderGeometry?.viewportBottomRight)}',
     ];
     return Semantics(

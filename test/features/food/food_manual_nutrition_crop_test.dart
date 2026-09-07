@@ -547,7 +547,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('CANVAS'), findsOneWidget);
-    expect(find.textContaining('PAINT image'), findsOneWidget);
+    expect(find.textContaining('IMAGE box'), findsOneWidget);
+    expect(find.textContaining('PAINT bitmap'), findsOneWidget);
     expect(find.textContaining('PAINT view'), findsOneWidget);
     final transformFinder = find.descendant(
       of: find.byKey(const ValueKey('manual-nutrition-crop-image-layer')),
@@ -580,6 +581,10 @@ void main() {
     final sourceBox = tester.renderObject<RenderBox>(
       find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
     );
+    final canvasBox = tester.renderObject<RenderBox>(
+      find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
+    );
+    expect(sourceBox.size, isNot(canvasBox.size));
     final canvasTopLeft = tester.getTopLeft(
       find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
     );
