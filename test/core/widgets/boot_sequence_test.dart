@@ -25,25 +25,25 @@ const _timing = BootSequenceTiming(
 );
 
 void main() {
-  test('post-logo visual phases use the shared 1.25 timing factor', () {
+  test('post-logo visual phases use the shared 1.5625 timing factor', () {
     const timing = BootSequenceTiming();
 
     expect(timing.logoIntro, const Duration(milliseconds: 600));
     expect(
       timing.postLogo(timing.typingCharacter),
-      const Duration(microseconds: 162500),
+      const Duration(microseconds: 203125),
     );
     expect(
       timing.postLogo(timing.systemBootTransition),
-      const Duration(milliseconds: 300),
+      const Duration(milliseconds: 375),
     );
     expect(
       timing.postLogo(timing.readyHold),
-      const Duration(milliseconds: 625),
+      const Duration(microseconds: 781250),
     );
     expect(
       timing.postLogo(const Duration(milliseconds: 120)),
-      const Duration(milliseconds: 150),
+      const Duration(microseconds: 187500),
     );
   });
 

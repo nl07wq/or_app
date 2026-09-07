@@ -44,6 +44,7 @@ jobs:
 
       - run: >-
           flutter build web --release --base-href /or_app/
+          --pwa-strategy=none
           --dart-define=OR_APP_RELEASE_COMMIT=${{ steps.release_metadata.outputs.commit }}
           --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}"
           --dart-define="OR_APP_RELEASE_TITLE=${{ steps.release_metadata.outputs.title }}"

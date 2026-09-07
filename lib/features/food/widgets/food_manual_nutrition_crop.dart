@@ -166,6 +166,7 @@ class _ManualNutritionCropPage extends StatefulWidget {
 class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
   final GlobalKey _imageLayerKey = GlobalKey();
+  final GlobalKey _sourceImageRenderKey = GlobalKey();
   ImageProvider<Object>? _previewImageProvider;
   FoodNutritionCropPreview? _preview;
   double _scale = 1;
@@ -343,33 +344,36 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                                       // pixels immediately instead of only state.
                                       width: _dimensions.width * baseScale,
                                       height: _dimensions.height * baseScale,
-                                      child: Image(
+                                      child: KeyedSubtree(
                                         key: const ValueKey(
                                           'manual-nutrition-crop-source-image',
                                         ),
-                                        image: _previewImageProvider!,
-                                        fit: BoxFit.fill,
-                                        gaplessPlayback: true,
-                                        filterQuality: FilterQuality.high,
-                                        frameBuilder:
-                                            (
-                                              _,
-                                              child,
-                                              frame,
-                                              wasSynchronouslyLoaded,
-                                            ) {
-                                              if (frame != null ||
-                                                  wasSynchronouslyLoaded) {
-                                                _markPreviewImageDrawable();
-                                              }
-                                              return child;
-                                            },
-                                        errorBuilder: (_, _, _) {
-                                          _markPreviewImageFailed();
-                                          return const ColoredBox(
-                                            color: Colors.transparent,
-                                          );
-                                        },
+                                        child: Image(
+                                          key: _sourceImageRenderKey,
+                                          image: _previewImageProvider!,
+                                          fit: BoxFit.fill,
+                                          gaplessPlayback: true,
+                                          filterQuality: FilterQuality.high,
+                                          frameBuilder:
+                                              (
+                                                _,
+                                                child,
+                                                frame,
+                                                wasSynchronouslyLoaded,
+                                              ) {
+                                                if (frame != null ||
+                                                    wasSynchronouslyLoaded) {
+                                                  _markPreviewImageDrawable();
+                                                }
+                                                return child;
+                                              },
+                                          errorBuilder: (_, _, _) {
+                                            _markPreviewImageFailed();
+                                            return const ColoredBox(
+                                              color: Colors.transparent,
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -462,7 +466,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       _renderGeometryQueued = false;
       if (!mounted) return;
       final canvasBox = _cropCanvasKey.currentContext?.findRenderObject();
-      final imageBox = _imageLayerKey.currentContext?.findRenderObject();
+      final imageBox = _sourceImageRenderKey.currentContext?.findRenderObject();
       if (canvasBox is! RenderBox || imageBox is! RenderBox) return;
       final next = _CropRenderGeometrySnapshot(
         imageTopLeft: imageBox.localToGlobal(Offset.zero),

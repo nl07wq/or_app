@@ -577,6 +577,15 @@ void main() {
     expect(during.y - before.y, greaterThan(0));
     expect(during.x - before.x, lessThanOrEqualTo(40));
     expect(during.y - before.y, lessThanOrEqualTo(25));
+    final sourceBox = tester.renderObject<RenderBox>(
+      find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
+    );
+    final canvasTopLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('manual-nutrition-crop-gesture-area')),
+    );
+    final paintedSourceTopLeft = sourceBox.localToGlobal(Offset.zero);
+    expect(paintedSourceTopLeft.dx, closeTo(canvasTopLeft.dx + during.x, .1));
+    expect(paintedSourceTopLeft.dy, closeTo(canvasTopLeft.dy + during.y, .1));
     expect(find.textContaining('STRICT raw='), findsOneWidget);
     expect(find.textContaining('candidate='), findsOneWidget);
     expect(find.textContaining('bounds x:'), findsOneWidget);

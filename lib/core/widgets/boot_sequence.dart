@@ -20,7 +20,10 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
 const _bootSignalHandoffDuration = Duration(milliseconds: 120);
-const postLogoBootTimingFactor = 1.25;
+
+/// Applied after the logo Fade only. This is the second 1.25x pacing pass,
+/// so default post-logo phases are 1.5625x their original baseline.
+const postLogoBootTimingFactor = 1.5625;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
