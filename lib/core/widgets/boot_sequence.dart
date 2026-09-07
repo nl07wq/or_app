@@ -20,6 +20,7 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
 const _bootSignalHandoffDuration = Duration(milliseconds: 120);
+const postLogoBootTimingFactor = 1.25;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
@@ -37,6 +38,7 @@ class BootSequenceTiming {
   final Duration row;
   final Duration readyDelay;
   final Duration readyHold;
+  final double postLogoTimingFactor;
 
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 600),
@@ -49,7 +51,12 @@ class BootSequenceTiming {
     this.row = const Duration(milliseconds: 360),
     this.readyDelay = const Duration(milliseconds: 300),
     this.readyHold = const Duration(milliseconds: 500),
+    this.postLogoTimingFactor = postLogoBootTimingFactor,
   });
+
+  Duration postLogo(Duration duration) => Duration(
+    microseconds: (duration.inMicroseconds * postLogoTimingFactor).round(),
+  );
 }
 
 enum _BootVisualPhase {
@@ -495,7 +502,9 @@ class _BootProgressBar extends StatelessWidget {
 }
 
 class _BootSignalHandoff extends StatefulWidget {
-  const _BootSignalHandoff();
+  const _BootSignalHandoff({required this.duration});
+
+  final Duration duration;
 
   @override
   State<_BootSignalHandoff> createState() => _BootSignalHandoffState();
@@ -508,10 +517,8 @@ class _BootSignalHandoffState extends State<_BootSignalHandoff>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _bootSignalHandoffDuration,
-    )..forward();
+    _controller = AnimationController(vsync: this, duration: widget.duration)
+      ..forward();
   }
 
   @override
@@ -696,7 +703,10 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     setState(() => _phase = _BootVisualPhase.identityTyping);
-    _animateProgressTo(.2, const Duration(milliseconds: 1500));
+    _animateProgressTo(
+      .2,
+      widget.timing.postLogo(const Duration(milliseconds: 1500)),
+    );
     _typeNextCharacter();
   }
 
@@ -722,33 +732,43 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   Duration _identityCharacterDelay(int index) {
     // Compact injected timings keep controlled widget tests fast.
-    if (widget.timing.typingCharacter <= const Duration(milliseconds: 100)) {
-      return widget.timing.typingCharacter;
+    final duration = widget.timing.postLogo(widget.timing.typingCharacter);
+    if (duration <= const Duration(milliseconds: 100)) {
+      return duration;
     }
-    return const [
-      Duration(milliseconds: 260),
-      Duration(milliseconds: 230),
-      Duration(milliseconds: 210),
-      Duration(milliseconds: 190),
-      Duration(milliseconds: 170),
-      Duration(milliseconds: 150),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 130),
-    ][index.clamp(0, 7)];
+    return widget.timing.postLogo(
+      const [
+        Duration(milliseconds: 260),
+        Duration(milliseconds: 230),
+        Duration(milliseconds: 210),
+        Duration(milliseconds: 190),
+        Duration(milliseconds: 170),
+        Duration(milliseconds: 150),
+        Duration(milliseconds: 140),
+        Duration(milliseconds: 130),
+      ][index.clamp(0, 7)],
+    );
   }
 
   void _typeNextNameCharacter() {
     if (!_isPresentationActive) return;
-    if (widget.timing.fullNameCharacter <= const Duration(milliseconds: 10)) {
+    final duration = widget.timing.postLogo(widget.timing.fullNameCharacter);
+    if (duration <= const Duration(milliseconds: 10)) {
       setState(() => _typedNameLength = _fullName.length);
-      _schedule(widget.timing.identityHold, _showSystemBoot);
+      _schedule(
+        widget.timing.postLogo(widget.timing.identityHold),
+        _showSystemBoot,
+      );
       return;
     }
     if (_typedNameLength >= _fullName.length) {
-      _schedule(widget.timing.identityHold, _showSystemBoot);
+      _schedule(
+        widget.timing.postLogo(widget.timing.identityHold),
+        _showSystemBoot,
+      );
       return;
     }
-    _schedule(widget.timing.fullNameCharacter, () {
+    _schedule(duration, () {
       setState(() => _typedNameLength += 1);
       _typeNextNameCharacter();
     });
@@ -762,14 +782,15 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     setState(() => _phase = _BootVisualPhase.systemBoot);
-    _animateProgressTo(.25, widget.timing.systemBootTransition);
-    _schedule(widget.timing.systemBootTransition, _showCore);
+    final duration = widget.timing.postLogo(widget.timing.systemBootTransition);
+    _animateProgressTo(.25, duration);
+    _schedule(duration, _showCore);
   }
 
   void _showCore() {
     if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.coreInitializing);
-    final coreDuration = widget.timing.row * 2;
+    final coreDuration = widget.timing.postLogo(widget.timing.row) * 2;
     _animateProgressTo(.45, coreDuration);
     _schedule(coreDuration, _showData);
   }
@@ -777,15 +798,17 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   void _showData() {
     if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.dataInitializing);
-    _animateProgressTo(.65, widget.timing.row);
-    _schedule(widget.timing.row, _showOperation);
+    final duration = widget.timing.postLogo(widget.timing.row);
+    _animateProgressTo(.65, duration);
+    _schedule(duration, _showOperation);
   }
 
   void _showOperation() {
     if (!_isPresentationActive) return;
     setState(() => _phase = _BootVisualPhase.operationInitializing);
-    _animateProgressTo(.95, widget.timing.row);
-    _schedule(widget.timing.row, _finishRows);
+    final duration = widget.timing.postLogo(widget.timing.row);
+    _animateProgressTo(.95, duration);
+    _schedule(duration, _finishRows);
   }
 
   void _finishRows() {
@@ -804,8 +827,9 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     }
     _finalProgressStarted = true;
     setState(() => _phase = _BootVisualPhase.finalizing);
-    _animateProgressTo(1, widget.timing.readyDelay);
-    _schedule(widget.timing.readyDelay + const Duration(milliseconds: 1), () {
+    final duration = widget.timing.postLogo(widget.timing.readyDelay);
+    _animateProgressTo(1, duration);
+    _schedule(duration + const Duration(milliseconds: 1), () {
       _readyDelayElapsed = true;
       _tryShowSystemReady();
     });
@@ -872,7 +896,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     _transition(BootPresentationState.systemReadyPresentation, 'system_ready');
-    _schedule(widget.timing.readyHold, () {
+    _schedule(widget.timing.postLogo(widget.timing.readyHold), () {
       if (!_isPresentationActive || _skipRequested) return;
       _transition(
         BootPresentationState.bootHandoffSignal,
@@ -884,7 +908,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         presentation: 'BOOT',
       );
       setState(() {});
-      _schedule(_bootSignalHandoffDuration, () {
+      _schedule(widget.timing.postLogo(_bootSignalHandoffDuration), () {
         if (_presentation != BootPresentationState.bootHandoffSignal) return;
         _transition(BootPresentationState.mainUi, 'signal_handoff_finished');
         StartupDiagnostic.instance.record(
@@ -1005,7 +1029,9 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     }
     if (_presentation == BootPresentationState.mainUi) return widget.child;
     if (_presentation == BootPresentationState.bootHandoffSignal) {
-      return const _BootSignalHandoff();
+      return _BootSignalHandoff(
+        duration: widget.timing.postLogo(_bootSignalHandoffDuration),
+      );
     }
     return AnimatedBuilder(
       animation: _progressController,

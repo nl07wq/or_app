@@ -13,6 +13,7 @@ import 'package:or_app/core/widgets/startup_gate.dart';
 const _timing = BootSequenceTiming(
   logoIntro: Duration(milliseconds: 10),
   waitForLogoDrawable: false,
+  postLogoTimingFactor: 1,
   typingCharacter: Duration(milliseconds: 10),
   fullNameCharacter: Duration(milliseconds: 10),
   identityHold: Duration(milliseconds: 10),
@@ -24,6 +25,28 @@ const _timing = BootSequenceTiming(
 );
 
 void main() {
+  test('post-logo visual phases use the shared 1.25 timing factor', () {
+    const timing = BootSequenceTiming();
+
+    expect(timing.logoIntro, const Duration(milliseconds: 600));
+    expect(
+      timing.postLogo(timing.typingCharacter),
+      const Duration(microseconds: 162500),
+    );
+    expect(
+      timing.postLogo(timing.systemBootTransition),
+      const Duration(milliseconds: 300),
+    );
+    expect(
+      timing.postLogo(timing.readyHold),
+      const Duration(milliseconds: 625),
+    );
+    expect(
+      timing.postLogo(const Duration(milliseconds: 120)),
+      const Duration(milliseconds: 150),
+    );
+  });
+
   testWidgets('boot rows are revealed and completed in sequence', (
     tester,
   ) async {
@@ -77,6 +100,7 @@ void main() {
     const typingTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 1),
       waitForLogoDrawable: false,
+      postLogoTimingFactor: 1,
       typingCharacter: Duration(milliseconds: 1),
       fullNameCharacter: Duration(milliseconds: 17),
       identityHold: Duration(milliseconds: 1),
@@ -120,6 +144,7 @@ void main() {
     const continuousTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 20),
       waitForLogoDrawable: false,
+      postLogoTimingFactor: 1,
       typingCharacter: Duration(milliseconds: 100),
       fullNameCharacter: Duration(milliseconds: 10),
       identityHold: Duration(milliseconds: 100),
@@ -248,6 +273,7 @@ void main() {
     const spinnerTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 10),
       waitForLogoDrawable: false,
+      postLogoTimingFactor: 1,
       typingCharacter: Duration(milliseconds: 10),
       fullNameCharacter: Duration(milliseconds: 10),
       identityHold: Duration(milliseconds: 10),

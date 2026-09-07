@@ -59,19 +59,23 @@ class WebFoodInputCaptureGateway
   }
 
   @override
-  Future<FoodImageDimensions> nutritionImageDimensions(
+  Future<FoodNutritionCropPreview> prepareNutritionCropPreview(
     FoodCapturedImage image,
   ) async {
     final result = await _bridge
         .callMethod<JSPromise<JSString>>(
-          'nutritionImageDimensions'.toJS,
+          'prepareNutritionCropPreview'.toJS,
           image.dataUrl.toJS,
+          2048.toJS,
         )
         .toDart;
     final payload = jsonDecode(result.toDart) as Map<String, dynamic>;
-    return FoodImageDimensions(
-      width: payload['width'] as int,
-      height: payload['height'] as int,
+    return FoodNutritionCropPreview(
+      previewDataUrl: payload['previewDataUrl'] as String,
+      originalDimensions: FoodImageDimensions(
+        width: payload['width'] as int,
+        height: payload['height'] as int,
+      ),
     );
   }
 

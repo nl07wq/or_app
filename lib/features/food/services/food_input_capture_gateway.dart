@@ -67,6 +67,20 @@ class FoodCapturedImage {
   final FoodOcrImageOrigin origin;
 }
 
+/// A display-sized representation of an original nutrition image.
+///
+/// Crop interactions render [previewDataUrl], while confirmation continues to
+/// map to [originalDimensions] and crop the untouched original image.
+class FoodNutritionCropPreview {
+  const FoodNutritionCropPreview({
+    required this.previewDataUrl,
+    required this.originalDimensions,
+  });
+
+  final String previewDataUrl;
+  final FoodImageDimensions originalDimensions;
+}
+
 class FoodBarcodeCandidate {
   const FoodBarcodeCandidate({required this.value, required this.format});
 
@@ -99,7 +113,9 @@ abstract interface class FoodInputCaptureGateway {
 /// Web-capable image operations used by the fixed-viewport nutrition crop.
 /// The crop is always calculated in decoded source-image coordinates.
 abstract interface class FoodManualNutritionCropGateway {
-  Future<FoodImageDimensions> nutritionImageDimensions(FoodCapturedImage image);
+  Future<FoodNutritionCropPreview> prepareNutritionCropPreview(
+    FoodCapturedImage image,
+  );
 
   Future<FoodCapturedImage> cropNutritionImage(
     FoodCapturedImage image,

@@ -5668,9 +5668,27 @@
     });
   }
 
-  async function nutritionImageDimensions(dataUrl) {
+  async function prepareNutritionCropPreview(dataUrl, maxEdge) {
     const image = await loadImage(dataUrl);
-    return JSON.stringify({ width: image.naturalWidth, height: image.naturalHeight });
+    // 2048px covers a 3x iPhone crop viewport with room for positioning while
+    // avoiding a second full-resolution Flutter Web decode for each gesture.
+    const limit = Math.max(1, Math.floor(Number(maxEdge) || 2048));
+    const longestEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    const scale = Math.min(1, limit / longestEdge);
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in context) context.imageSmoothingQuality = 'high';
+    context.drawImage(image, 0, 0, width, height);
+    return JSON.stringify({
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      previewDataUrl: canvas.toDataURL('image/jpeg', 0.92),
+    });
   }
 
   async function cropNutritionImage(dataUrl, sourceRectJson) {
@@ -5699,7 +5717,7 @@
 
   window.orAppFoodInput = {
     selectImage,
-    nutritionImageDimensions,
+    prepareNutritionCropPreview,
     cropNutritionImage,
     recognizeJapaneseText,
     recognizeManualNutritionText,

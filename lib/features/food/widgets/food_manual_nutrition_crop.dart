@@ -144,30 +144,19 @@ Future<FoodCapturedImage?> showManualNutritionCrop({
   required FoodManualNutritionCropGateway gateway,
   required FoodCapturedImage image,
 }) async {
-  final dimensions = await gateway.nutritionImageDimensions(image);
-  if (!context.mounted) return null;
   return Navigator.of(context).push<FoodCapturedImage>(
     MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => _ManualNutritionCropPage(
-        gateway: gateway,
-        image: image,
-        dimensions: dimensions,
-      ),
+      builder: (_) => _ManualNutritionCropPage(gateway: gateway, image: image),
     ),
   );
 }
 
 class _ManualNutritionCropPage extends StatefulWidget {
-  const _ManualNutritionCropPage({
-    required this.gateway,
-    required this.image,
-    required this.dimensions,
-  });
+  const _ManualNutritionCropPage({required this.gateway, required this.image});
 
   final FoodManualNutritionCropGateway gateway;
   final FoodCapturedImage image;
-  final FoodImageDimensions dimensions;
 
   @override
   State<_ManualNutritionCropPage> createState() =>
@@ -177,7 +166,8 @@ class _ManualNutritionCropPage extends StatefulWidget {
 class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
   final GlobalKey _imageLayerKey = GlobalKey();
-  late final ImageProvider<Object> _sourceImageProvider;
+  ImageProvider<Object>? _previewImageProvider;
+  FoodNutritionCropPreview? _preview;
   double _scale = 1;
   Offset _pan = Offset.zero;
   double _startScale = 1;
@@ -187,14 +177,51 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   _CropRenderGeometrySnapshot? _renderGeometry;
   Offset? _lastReleaseNormalizedOffset;
   bool _renderGeometryQueued = false;
+  bool _previewImageDrawable = false;
+  bool _previewLoadFailed = false;
   bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
-    // Keep one provider for the full crop session. Gesture frames must move a
-    // decoded image layer, never recreate a web image resource.
-    _sourceImageProvider = NetworkImage(widget.image.dataUrl);
+    _preparePreview();
+  }
+
+  FoodImageDimensions get _dimensions => _preview!.originalDimensions;
+
+  Future<void> _preparePreview() async {
+    try {
+      final preview = await widget.gateway.prepareNutritionCropPreview(
+        widget.image,
+      );
+      if (!mounted) return;
+      setState(() {
+        _preview = preview;
+        // Keep one preview provider for the full crop session. Gesture frames
+        // never recreate a web image resource or decode the original again.
+        _previewImageProvider = NetworkImage(preview.previewDataUrl);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _previewLoadFailed = true);
+    }
+  }
+
+  void _markPreviewImageDrawable() {
+    if (_previewImageDrawable) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_previewImageDrawable) {
+        setState(() => _previewImageDrawable = true);
+      }
+    });
+  }
+
+  void _markPreviewImageFailed() {
+    if (_previewLoadFailed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_previewLoadFailed) {
+        setState(() => _previewLoadFailed = true);
+      }
+    });
   }
 
   @override
@@ -210,147 +237,176 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       child: Column(
         children: [
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final canvas = Rect.fromLTWH(
-                  0,
-                  0,
-                  constraints.maxWidth,
-                  constraints.maxHeight,
-                );
-                final viewport = Rect.fromCenter(
-                  center: canvas.center,
-                  width: canvas.width * .88,
-                  height: canvas.height * .60,
-                );
-                final baseScale = _baseScale(viewport);
-                final actualScale = baseScale * _scale;
-                final imageOffset =
-                    _initialImageOffset(canvas, actualScale) + _pan;
-                _scheduleRenderGeometryProbe(viewport);
-                return GestureDetector(
-                  key: const ValueKey('manual-nutrition-crop-gesture-area'),
-                  onScaleStart: (details) {
-                    _startScale = _scale;
-                    _startImageOffset = imageOffset;
-                    _startFocalPoint = details.localFocalPoint;
-                  },
-                  onScaleUpdate: (details) {
-                    final next = (_startScale * details.scale)
-                        .clamp(1.0, 5.0)
-                        .toDouble();
-                    final nextActualScale = baseScale * next;
-                    // Map the source point under the gesture's initial focal
-                    // point to its current focal point. With one finger this
-                    // reduces exactly to direct pan by the finger delta.
-                    final nextOffset =
-                        FoodManualCropInteraction.offsetForGesture(
-                          startImageOffset: _startImageOffset,
-                          startFocalPoint: _startFocalPoint,
-                          currentFocalPoint: details.localFocalPoint,
-                          startScale: baseScale * _startScale,
-                          currentScale: nextActualScale,
-                        );
-                    final initial = _initialImageOffset(
-                      canvas,
-                      nextActualScale,
-                    );
-                    final strictBounds =
-                        FoodManualCropInteraction.translationBounds(
-                          viewport: viewport,
-                          imageSize: _imageSize(nextActualScale),
-                        );
-                    final acceptedOffset = strictBounds.clamp(nextOffset);
-                    setState(() {
-                      _scale = next;
-                      _pan = acceptedOffset - initial;
-                      _lastActiveSnapshot = _CropActiveSnapshot(
-                        rawDelta: details.localFocalPoint - _startFocalPoint,
-                        candidateOffset: nextOffset,
-                        acceptedOffset: acceptedOffset,
-                        bounds: strictBounds,
+            child: _preview == null
+                ? _CropImageLoadingState(failed: _previewLoadFailed)
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final canvas = Rect.fromLTWH(
+                        0,
+                        0,
+                        constraints.maxWidth,
+                        constraints.maxHeight,
                       );
-                    });
-                  },
-                  onScaleEnd: (_) => _normalizeAfterInteraction(
-                    canvas: canvas,
-                    viewport: viewport,
-                    baseScale: baseScale,
-                  ),
-                  child: Stack(
-                    key: _cropCanvasKey,
-                    fit: StackFit.expand,
-                    children: [
-                      ColoredBox(color: Theme.of(context).colorScheme.surface),
-                      ClipRect(
-                        child: KeyedSubtree(
-                          key: const ValueKey(
-                            'manual-nutrition-crop-image-layer',
-                          ),
-                          child: RepaintBoundary(
-                            key: _imageLayerKey,
-                            child: Transform(
-                              key: const ValueKey(
-                                'manual-nutrition-crop-image-transform',
-                              ),
-                              transform: Matrix4.identity()
-                                ..translateByDouble(
-                                  imageOffset.dx,
-                                  imageOffset.dy,
-                                  0,
-                                  1,
-                                )
-                                ..scaleByDouble(_scale, _scale, 1, 1),
-                              child: SizedBox(
-                                // Keep one stable decoded image at base cover
-                                // size. The current relative scale is applied by
-                                // the same paint transform used for gestures and
-                                // four-edge bounds, so a pinch changes rendered
-                                // pixels immediately instead of only state.
-                                width: widget.dimensions.width * baseScale,
-                                height: widget.dimensions.height * baseScale,
-                                child: Image(
-                                  key: const ValueKey(
-                                    'manual-nutrition-crop-source-image',
-                                  ),
-                                  image: _sourceImageProvider,
-                                  fit: BoxFit.fill,
-                                  gaplessPlayback: true,
-                                  filterQuality: FilterQuality.high,
-                                  errorBuilder: (_, _, _) => const ColoredBox(
-                                    color: Colors.transparent,
+                      final viewport = Rect.fromCenter(
+                        center: canvas.center,
+                        width: canvas.width * .88,
+                        height: canvas.height * .60,
+                      );
+                      final baseScale = _baseScale(viewport);
+                      final actualScale = baseScale * _scale;
+                      final imageOffset =
+                          _initialImageOffset(canvas, actualScale) + _pan;
+                      _scheduleRenderGeometryProbe(viewport);
+                      return GestureDetector(
+                        key: const ValueKey(
+                          'manual-nutrition-crop-gesture-area',
+                        ),
+                        onScaleStart: (details) {
+                          _startScale = _scale;
+                          _startImageOffset = imageOffset;
+                          _startFocalPoint = details.localFocalPoint;
+                        },
+                        onScaleUpdate: (details) {
+                          final next = (_startScale * details.scale)
+                              .clamp(1.0, 5.0)
+                              .toDouble();
+                          final nextActualScale = baseScale * next;
+                          // Map the source point under the gesture's initial focal
+                          // point to its current focal point. With one finger this
+                          // reduces exactly to direct pan by the finger delta.
+                          final nextOffset =
+                              FoodManualCropInteraction.offsetForGesture(
+                                startImageOffset: _startImageOffset,
+                                startFocalPoint: _startFocalPoint,
+                                currentFocalPoint: details.localFocalPoint,
+                                startScale: baseScale * _startScale,
+                                currentScale: nextActualScale,
+                              );
+                          final initial = _initialImageOffset(
+                            canvas,
+                            nextActualScale,
+                          );
+                          final strictBounds =
+                              FoodManualCropInteraction.translationBounds(
+                                viewport: viewport,
+                                imageSize: _imageSize(nextActualScale),
+                              );
+                          final acceptedOffset = strictBounds.clamp(nextOffset);
+                          setState(() {
+                            _scale = next;
+                            _pan = acceptedOffset - initial;
+                            _lastActiveSnapshot = _CropActiveSnapshot(
+                              rawDelta:
+                                  details.localFocalPoint - _startFocalPoint,
+                              candidateOffset: nextOffset,
+                              acceptedOffset: acceptedOffset,
+                              bounds: strictBounds,
+                            );
+                          });
+                        },
+                        onScaleEnd: (_) => _normalizeAfterInteraction(
+                          canvas: canvas,
+                          viewport: viewport,
+                          baseScale: baseScale,
+                        ),
+                        child: Stack(
+                          key: _cropCanvasKey,
+                          fit: StackFit.expand,
+                          children: [
+                            ColoredBox(
+                              color: Theme.of(context).colorScheme.surface,
+                            ),
+                            ClipRect(
+                              child: KeyedSubtree(
+                                key: const ValueKey(
+                                  'manual-nutrition-crop-image-layer',
+                                ),
+                                child: RepaintBoundary(
+                                  key: _imageLayerKey,
+                                  child: Transform(
+                                    key: const ValueKey(
+                                      'manual-nutrition-crop-image-transform',
+                                    ),
+                                    transform: Matrix4.identity()
+                                      ..translateByDouble(
+                                        imageOffset.dx,
+                                        imageOffset.dy,
+                                        0,
+                                        1,
+                                      )
+                                      ..scaleByDouble(_scale, _scale, 1, 1),
+                                    child: SizedBox(
+                                      // Keep one stable decoded image at base cover
+                                      // size. The current relative scale is applied by
+                                      // the same paint transform used for gestures and
+                                      // four-edge bounds, so a pinch changes rendered
+                                      // pixels immediately instead of only state.
+                                      width: _dimensions.width * baseScale,
+                                      height: _dimensions.height * baseScale,
+                                      child: Image(
+                                        key: const ValueKey(
+                                          'manual-nutrition-crop-source-image',
+                                        ),
+                                        image: _previewImageProvider!,
+                                        fit: BoxFit.fill,
+                                        gaplessPlayback: true,
+                                        filterQuality: FilterQuality.high,
+                                        frameBuilder:
+                                            (
+                                              _,
+                                              child,
+                                              frame,
+                                              wasSynchronouslyLoaded,
+                                            ) {
+                                              if (frame != null ||
+                                                  wasSynchronouslyLoaded) {
+                                                _markPreviewImageDrawable();
+                                              }
+                                              return child;
+                                            },
+                                        errorBuilder: (_, _, _) {
+                                          _markPreviewImageFailed();
+                                          return const ColoredBox(
+                                            color: Colors.transparent,
+                                          );
+                                        },
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                            _CropMask(viewport: viewport),
+                            Positioned(
+                              top: AppSpacing.sm,
+                              right: AppSpacing.sm,
+                              child: IgnorePointer(
+                                child: _CropGeometryDiagnosticPanel(
+                                  canvas: canvas,
+                                  viewport: viewport,
+                                  source: _dimensions,
+                                  baseScale: baseScale,
+                                  relativeScale: _scale,
+                                  actualScale: actualScale,
+                                  currentOffset: imageOffset,
+                                  lastActive: _lastActiveSnapshot,
+                                  renderGeometry: _renderGeometry,
+                                  lastReleaseNormalizedOffset:
+                                      _lastReleaseNormalizedOffset,
+                                ),
+                              ),
+                            ),
+                            if (!_previewImageDrawable)
+                              Positioned.fill(
+                                child: _CropImageLoadingState(
+                                  failed: _previewLoadFailed,
+                                ),
+                              ),
+                          ],
                         ),
-                      ),
-                      _CropMask(viewport: viewport),
-                      Positioned(
-                        top: AppSpacing.sm,
-                        right: AppSpacing.sm,
-                        child: IgnorePointer(
-                          child: _CropGeometryDiagnosticPanel(
-                            canvas: canvas,
-                            viewport: viewport,
-                            source: widget.dimensions,
-                            baseScale: baseScale,
-                            relativeScale: _scale,
-                            actualScale: actualScale,
-                            currentOffset: imageOffset,
-                            lastActive: _lastActiveSnapshot,
-                            renderGeometry: _renderGeometry,
-                            lastReleaseNormalizedOffset:
-                                _lastReleaseNormalizedOffset,
-                          ),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -388,16 +444,16 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   double _baseScale(Rect viewport) =>
       FoodManualCropInteraction.minimumBaseScale(
         viewport: viewport,
-        source: widget.dimensions,
+        source: _dimensions,
       );
 
   Offset _initialImageOffset(Rect canvas, double scale) => Offset(
-    canvas.center.dx - widget.dimensions.width * scale / 2,
-    canvas.center.dy - widget.dimensions.height * scale / 2,
+    canvas.center.dx - _dimensions.width * scale / 2,
+    canvas.center.dy - _dimensions.height * scale / 2,
   );
 
   Size _imageSize(double scale) =>
-      Size(widget.dimensions.width * scale, widget.dimensions.height * scale);
+      Size(_dimensions.width * scale, _dimensions.height * scale);
 
   void _scheduleRenderGeometryProbe(Rect viewport) {
     if (_renderGeometryQueued) return;
@@ -477,7 +533,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       ),
     );
     final sourceRect = FoodManualCropTransform(
-      source: widget.dimensions,
+      source: _dimensions,
       viewport: viewport,
       scale: actualScale,
       imageOffset: offset,
@@ -513,6 +569,27 @@ class _CropActiveSnapshot {
   final Offset candidateOffset;
   final Offset acceptedOffset;
   final FoodManualCropTranslationBounds bounds;
+}
+
+class _CropImageLoadingState extends StatelessWidget {
+  const _CropImageLoadingState({this.failed = false});
+
+  final bool failed;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: Theme.of(context).colorScheme.surface,
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!failed) const Icon(Icons.image_outlined, size: 20),
+          if (!failed) const SizedBox(height: AppSpacing.sm),
+          Text(failed ? 'IMAGE UNAVAILABLE' : 'LOADING IMAGE...'),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Screen-space corners captured from the actual transformed render object.

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -439,7 +440,7 @@ void main() {
       ),
     );
     await tester.tap(find.text('OPEN'));
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     expect(find.text('CROP NUTRITION LABEL'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
@@ -449,8 +450,48 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey('manual-nutrition-crop-cancel')),
     );
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     expect(gateway.cropCalls, 0);
+  });
+
+  testWidgets('crop opens while its display preview is being prepared', (
+    tester,
+  ) async {
+    final preview = Completer<FoodNutritionCropPreview>();
+    final gateway = _CropGateway(preparePreview: () => preview.future);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showManualNutritionCrop(
+              context: context,
+              gateway: gateway,
+              image: const FoodCapturedImage('data:image/png;base64,AA=='),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('OPEN'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('LOADING IMAGE...'), findsOneWidget);
+
+    preview.complete(
+      const FoodNutritionCropPreview(
+        previewDataUrl:
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JQJ0AAAAASUVORK5CYII=',
+        originalDimensions: FoodImageDimensions(width: 4284, height: 5712),
+      ),
+    );
+    await _pumpCropFrames(tester);
+
+    expect(
+      find.byKey(const ValueKey('manual-nutrition-crop-source-image')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Use This Area produces a manual-crop image', (tester) async {
@@ -470,11 +511,11 @@ void main() {
       ),
     );
     await tester.tap(find.text('OPEN'));
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     await tester.tap(
       find.byKey(const ValueKey('manual-nutrition-crop-confirm')),
     );
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     expect(gateway.cropCalls, 1);
     expect(gateway.lastRect, isNotNull);
     expect(gateway.lastRect!.width, greaterThan(1));
@@ -500,7 +541,7 @@ void main() {
       ),
     );
     await tester.tap(find.text('OPEN'));
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     expect(
       find.byKey(const ValueKey('manual-nutrition-crop-geometry-diagnostic')),
       findsOneWidget,
@@ -541,7 +582,7 @@ void main() {
     expect(find.textContaining('bounds x:'), findsOneWidget);
     expect(find.textContaining('post='), findsOneWidget);
     await gesture.up();
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     expect(find.textContaining('RELEASE norm='), findsOneWidget);
   });
 
@@ -568,7 +609,7 @@ void main() {
         ),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await _pumpCropFrames(tester);
       final transform = find.byKey(
         const ValueKey('manual-nutrition-crop-image-transform'),
       );
@@ -588,7 +629,7 @@ void main() {
           .transform
           .getTranslation();
       await gesture.up();
-      await tester.pumpAndSettle();
+      await _pumpCropFrames(tester);
       final after = tester
           .widget<Transform>(transform)
           .transform
@@ -621,7 +662,7 @@ void main() {
       ),
     );
     await tester.tap(find.text('OPEN'));
-    await tester.pumpAndSettle();
+    await _pumpCropFrames(tester);
     final transform = find.byKey(
       const ValueKey('manual-nutrition-crop-image-transform'),
     );
@@ -656,14 +697,21 @@ void main() {
   });
 }
 
+Future<void> _pumpCropFrames(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump();
+}
+
 class _CropGateway implements FoodManualNutritionCropGateway {
   _CropGateway({
     this.dimensions = const FoodImageDimensions(width: 1200, height: 800),
+    this.preparePreview,
   });
 
   int cropCalls = 0;
   FoodImageCropRect? lastRect;
   final FoodImageDimensions dimensions;
+  final Future<FoodNutritionCropPreview> Function()? preparePreview;
 
   @override
   Future<FoodCapturedImage> cropNutritionImage(
@@ -679,7 +727,15 @@ class _CropGateway implements FoodManualNutritionCropGateway {
   }
 
   @override
-  Future<FoodImageDimensions> nutritionImageDimensions(
+  Future<FoodNutritionCropPreview> prepareNutritionCropPreview(
     FoodCapturedImage image,
-  ) async => dimensions;
+  ) =>
+      preparePreview?.call() ??
+      Future.value(
+        FoodNutritionCropPreview(
+          previewDataUrl:
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JQJ0AAAAASUVORK5CYII=',
+          originalDimensions: dimensions,
+        ),
+      );
 }
