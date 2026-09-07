@@ -12,6 +12,7 @@ import 'package:or_app/core/widgets/startup_gate.dart';
 
 const _timing = BootSequenceTiming(
   logoIntro: Duration(milliseconds: 10),
+  waitForLogoDrawable: false,
   typingCharacter: Duration(milliseconds: 10),
   fullNameCharacter: Duration(milliseconds: 10),
   identityHold: Duration(milliseconds: 10),
@@ -36,7 +37,7 @@ void main() {
     expect(find.text('SYSTEM READY'), findsNothing);
     expect(find.text('TAP TO START'), findsNothing);
 
-    await _elapse(tester, _timing.logoIntro);
+    await _advanceLogoFade(tester, _timing);
     await _elapse(tester, _timing.typingCharacter);
     expect(find.text('O'), findsOneWidget);
     expect(find.text('O.R.L.O.'), findsNothing);
@@ -75,6 +76,7 @@ void main() {
     const typedName = 'Operation Reasoning Lifesystem Orchestrator';
     const typingTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 1),
+      waitForLogoDrawable: false,
       typingCharacter: Duration(milliseconds: 1),
       fullNameCharacter: Duration(milliseconds: 17),
       identityHold: Duration(milliseconds: 1),
@@ -86,7 +88,7 @@ void main() {
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: typingTiming));
 
-    await _elapse(tester, typingTiming.logoIntro);
+    await _advanceLogoFade(tester, typingTiming);
     await _advanceTyping(tester, typingTiming);
     expect(find.text('O.R.L.O.'), findsOneWidget);
     expect(find.text('SYSTEM BOOT'), findsNothing);
@@ -117,6 +119,7 @@ void main() {
   ) async {
     const continuousTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 20),
+      waitForLogoDrawable: false,
       typingCharacter: Duration(milliseconds: 100),
       fullNameCharacter: Duration(milliseconds: 10),
       identityHold: Duration(milliseconds: 100),
@@ -128,7 +131,7 @@ void main() {
     final semantics = tester.ensureSemantics();
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: continuousTiming));
-    await _elapse(tester, continuousTiming.logoIntro);
+    await _advanceLogoFade(tester, continuousTiming);
     await _advanceTyping(tester, continuousTiming);
     await _elapse(tester, continuousTiming.identityHold);
     final p0 = _progressValue(tester);
@@ -244,6 +247,7 @@ void main() {
   ) async {
     const spinnerTiming = BootSequenceTiming(
       logoIntro: Duration(milliseconds: 10),
+      waitForLogoDrawable: false,
       typingCharacter: Duration(milliseconds: 10),
       fullNameCharacter: Duration(milliseconds: 10),
       identityHold: Duration(milliseconds: 10),
@@ -254,7 +258,7 @@ void main() {
     );
     final controller = AppInitializationController();
     await tester.pumpWidget(_gate(controller, timing: spinnerTiming));
-    await _elapse(tester, spinnerTiming.logoIntro);
+    await _advanceLogoFade(tester, spinnerTiming);
     await _advanceTyping(tester, spinnerTiming);
     await _elapse(tester, spinnerTiming.identityHold);
     await _elapse(tester, spinnerTiming.systemBootTransition);
@@ -323,7 +327,7 @@ void main() {
         ),
       ),
     );
-    await _elapse(tester, _timing.logoIntro);
+    await tester.pump();
     expect(audio.playCalls, 0);
 
     await tester.pumpWidget(
@@ -382,7 +386,7 @@ void main() {
         ),
       ),
     );
-    await _elapse(tester, _timing.logoIntro);
+    await tester.pump();
     expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -727,13 +731,33 @@ AppInitializationController _activeSessionReentryController() {
 }
 
 Future<void> _advanceRows(WidgetTester tester) async {
-  await _elapse(tester, _timing.logoIntro);
+  await _advanceLogoFade(tester, _timing);
   await _advanceTyping(tester, _timing);
   await _elapse(tester, _timing.identityHold);
   await _elapse(tester, _timing.systemBootTransition);
   await _elapse(tester, _timing.row * 2);
   await _elapse(tester, _timing.row);
   await _elapse(tester, _timing.row);
+}
+
+Future<void> _advanceLogoFade(
+  WidgetTester tester,
+  BootSequenceTiming timing,
+) async {
+  await tester.pump();
+  expect(find.text('O.R.L.O.'), findsNothing);
+  await _elapse(tester, timing.logoIntro);
+  expect(
+    tester
+        .widget<FadeTransition>(
+          find.byKey(const ValueKey('boot-brand-logo-fade')),
+        )
+        .opacity
+        .value,
+    1,
+  );
+  await _elapse(tester, const Duration(milliseconds: 1));
+  expect(find.byKey(const ValueKey('boot-brand-identity')), findsOneWidget);
 }
 
 Future<void> _advanceTyping(

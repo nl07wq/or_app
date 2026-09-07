@@ -506,6 +506,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('CANVAS'), findsOneWidget);
+    expect(find.textContaining('PAINT image'), findsOneWidget);
+    expect(find.textContaining('PAINT view'), findsOneWidget);
     final transformFinder = find.descendant(
       of: find.byKey(const ValueKey('manual-nutrition-crop-image-layer')),
       matching: find.byType(Transform),

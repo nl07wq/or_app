@@ -176,6 +176,7 @@ class _ManualNutritionCropPage extends StatefulWidget {
 
 class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
+  final GlobalKey _imageLayerKey = GlobalKey();
   late final ImageProvider<Object> _sourceImageProvider;
   double _scale = 1;
   Offset _pan = Offset.zero;
@@ -183,7 +184,9 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   Offset _startImageOffset = Offset.zero;
   Offset _startFocalPoint = Offset.zero;
   _CropActiveSnapshot? _lastActiveSnapshot;
+  _CropRenderGeometrySnapshot? _renderGeometry;
   Offset? _lastReleaseNormalizedOffset;
+  bool _renderGeometryQueued = false;
   bool _submitting = false;
 
   @override
@@ -224,6 +227,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                 final actualScale = baseScale * _scale;
                 final imageOffset =
                     _initialImageOffset(canvas, actualScale) + _pan;
+                _scheduleRenderGeometryProbe(viewport);
                 return GestureDetector(
                   key: const ValueKey('manual-nutrition-crop-gesture-area'),
                   onScaleStart: (details) {
@@ -279,40 +283,44 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                     children: [
                       ColoredBox(color: Theme.of(context).colorScheme.surface),
                       ClipRect(
-                        child: RepaintBoundary(
+                        child: KeyedSubtree(
                           key: const ValueKey(
                             'manual-nutrition-crop-image-layer',
                           ),
-                          child: Transform(
-                            key: const ValueKey(
-                              'manual-nutrition-crop-image-transform',
-                            ),
-                            transform: Matrix4.identity()
-                              ..translateByDouble(
-                                imageOffset.dx,
-                                imageOffset.dy,
-                                0,
-                                1,
-                              )
-                              ..scaleByDouble(_scale, _scale, 1, 1),
-                            child: SizedBox(
-                              // Keep one stable decoded image at base cover
-                              // size. The current relative scale is applied by
-                              // the same paint transform used for gestures and
-                              // four-edge bounds, so a pinch changes rendered
-                              // pixels immediately instead of only state.
-                              width: widget.dimensions.width * baseScale,
-                              height: widget.dimensions.height * baseScale,
-                              child: Image(
-                                key: const ValueKey(
-                                  'manual-nutrition-crop-source-image',
+                          child: RepaintBoundary(
+                            key: _imageLayerKey,
+                            child: Transform(
+                              key: const ValueKey(
+                                'manual-nutrition-crop-image-transform',
+                              ),
+                              transform: Matrix4.identity()
+                                ..translateByDouble(
+                                  imageOffset.dx,
+                                  imageOffset.dy,
+                                  0,
+                                  1,
+                                )
+                                ..scaleByDouble(_scale, _scale, 1, 1),
+                              child: SizedBox(
+                                // Keep one stable decoded image at base cover
+                                // size. The current relative scale is applied by
+                                // the same paint transform used for gestures and
+                                // four-edge bounds, so a pinch changes rendered
+                                // pixels immediately instead of only state.
+                                width: widget.dimensions.width * baseScale,
+                                height: widget.dimensions.height * baseScale,
+                                child: Image(
+                                  key: const ValueKey(
+                                    'manual-nutrition-crop-source-image',
+                                  ),
+                                  image: _sourceImageProvider,
+                                  fit: BoxFit.fill,
+                                  gaplessPlayback: true,
+                                  filterQuality: FilterQuality.high,
+                                  errorBuilder: (_, _, _) => const ColoredBox(
+                                    color: Colors.transparent,
+                                  ),
                                 ),
-                                image: _sourceImageProvider,
-                                fit: BoxFit.fill,
-                                gaplessPlayback: true,
-                                filterQuality: FilterQuality.high,
-                                errorBuilder: (_, _, _) =>
-                                    const ColoredBox(color: Colors.transparent),
                               ),
                             ),
                           ),
@@ -332,6 +340,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                             actualScale: actualScale,
                             currentOffset: imageOffset,
                             lastActive: _lastActiveSnapshot,
+                            renderGeometry: _renderGeometry,
                             lastReleaseNormalizedOffset:
                                 _lastReleaseNormalizedOffset,
                           ),
@@ -389,6 +398,28 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
 
   Size _imageSize(double scale) =>
       Size(widget.dimensions.width * scale, widget.dimensions.height * scale);
+
+  void _scheduleRenderGeometryProbe(Rect viewport) {
+    if (_renderGeometryQueued) return;
+    _renderGeometryQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _renderGeometryQueued = false;
+      if (!mounted) return;
+      final canvasBox = _cropCanvasKey.currentContext?.findRenderObject();
+      final imageBox = _imageLayerKey.currentContext?.findRenderObject();
+      if (canvasBox is! RenderBox || imageBox is! RenderBox) return;
+      final next = _CropRenderGeometrySnapshot(
+        imageTopLeft: imageBox.localToGlobal(Offset.zero),
+        imageBottomRight: imageBox.localToGlobal(
+          Offset(imageBox.size.width, imageBox.size.height),
+        ),
+        viewportTopLeft: canvasBox.localToGlobal(viewport.topLeft),
+        viewportBottomRight: canvasBox.localToGlobal(viewport.bottomRight),
+      );
+      if (_renderGeometry == next) return;
+      setState(() => _renderGeometry = next);
+    });
+  }
 
   void _normalizeAfterInteraction({
     required Rect canvas,
@@ -484,6 +515,39 @@ class _CropActiveSnapshot {
   final FoodManualCropTranslationBounds bounds;
 }
 
+/// Screen-space corners captured from the actual transformed render object.
+/// These are deliberately separate from crop math diagnostics so device paint
+/// behavior can be compared with the model without changing crop state.
+class _CropRenderGeometrySnapshot {
+  const _CropRenderGeometrySnapshot({
+    required this.imageTopLeft,
+    required this.imageBottomRight,
+    required this.viewportTopLeft,
+    required this.viewportBottomRight,
+  });
+
+  final Offset imageTopLeft;
+  final Offset imageBottomRight;
+  final Offset viewportTopLeft;
+  final Offset viewportBottomRight;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CropRenderGeometrySnapshot &&
+      imageTopLeft == other.imageTopLeft &&
+      imageBottomRight == other.imageBottomRight &&
+      viewportTopLeft == other.viewportTopLeft &&
+      viewportBottomRight == other.viewportBottomRight;
+
+  @override
+  int get hashCode => Object.hash(
+    imageTopLeft,
+    imageBottomRight,
+    viewportTopLeft,
+    viewportBottomRight,
+  );
+}
+
 class _CropGeometryDiagnosticPanel extends StatelessWidget {
   const _CropGeometryDiagnosticPanel({
     required this.canvas,
@@ -494,6 +558,7 @@ class _CropGeometryDiagnosticPanel extends StatelessWidget {
     required this.actualScale,
     required this.currentOffset,
     required this.lastActive,
+    required this.renderGeometry,
     required this.lastReleaseNormalizedOffset,
   });
 
@@ -505,6 +570,7 @@ class _CropGeometryDiagnosticPanel extends StatelessWidget {
   final double actualScale;
   final Offset currentOffset;
   final _CropActiveSnapshot? lastActive;
+  final _CropRenderGeometrySnapshot? renderGeometry;
   final Offset? lastReleaseNormalizedOffset;
 
   String _number(double? value) =>
@@ -529,6 +595,8 @@ class _CropGeometryDiagnosticPanel extends StatelessWidget {
       'bounds y:${_number(active?.bounds.minY)}..${_number(active?.bounds.maxY)}',
       'post=${_pair(active?.acceptedOffset)}',
       'RELEASE norm=${_pair(lastReleaseNormalizedOffset)}',
+      'PAINT image ${_pair(renderGeometry?.imageTopLeft)}..${_pair(renderGeometry?.imageBottomRight)}',
+      'PAINT view ${_pair(renderGeometry?.viewportTopLeft)}..${_pair(renderGeometry?.viewportBottomRight)}',
     ];
     return Semantics(
       label: 'Crop geometry diagnostic',

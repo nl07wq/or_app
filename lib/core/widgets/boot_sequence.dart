@@ -28,6 +28,7 @@ const bootSignalFragmentColor = Color(0xB8A4C4CE);
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
   final Duration logoIntro;
+  final bool waitForLogoDrawable;
   final Duration typingCharacter;
   final Duration fullNameCharacter;
   final Duration identityHold;
@@ -38,7 +39,8 @@ class BootSequenceTiming {
   final Duration readyHold;
 
   const BootSequenceTiming({
-    this.logoIntro = const Duration(milliseconds: 360),
+    this.logoIntro = const Duration(milliseconds: 600),
+    this.waitForLogoDrawable = true,
     this.typingCharacter = const Duration(milliseconds: 130),
     this.fullNameCharacter = const Duration(milliseconds: 17),
     this.identityHold = const Duration(milliseconds: 320),
@@ -106,6 +108,9 @@ class _BootSequenceVisual extends StatefulWidget {
   final int typedLength;
   final int typedNameLength;
   final double progress;
+  final Duration logoFadeDuration;
+  final bool waitForLogoDrawable;
+  final VoidCallback onLogoFadeComplete;
   final VoidCallback onSkip;
 
   const _BootSequenceVisual({
@@ -113,6 +118,9 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.typedLength,
     required this.typedNameLength,
     required this.progress,
+    required this.logoFadeDuration,
+    required this.waitForLogoDrawable,
+    required this.onLogoFadeComplete,
     required this.onSkip,
   });
 
@@ -122,11 +130,17 @@ class _BootSequenceVisual extends StatefulWidget {
 
 class _BootSequenceVisualState extends State<_BootSequenceVisual>
     with TickerProviderStateMixin {
+  static const _logoProvider = AssetImage(
+    'assets/icons/orlo_logo_1024_transparent.png',
+  );
   late final AnimationController _cursorController;
   late final AnimationController _logoFadeController;
   late final AnimationController _spinnerController;
+  late final ImageStreamListener _logoImageListener;
+  ImageStream? _logoImageStream;
   bool _logoFadeQueued = false;
   bool _logoFadeStarted = false;
+  bool _logoFadeCompleted = false;
 
   @override
   void initState() {
@@ -135,14 +149,33 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
-    _logoFadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
+    _logoFadeController =
+        AnimationController(vsync: this, duration: widget.logoFadeDuration)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              _completeLogoFade();
+            }
+          });
     _spinnerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 480),
     );
+    _logoImageListener = ImageStreamListener(
+      (_, _) => _beginLogoFadeWhenDrawable(),
+      onError: (_, _) => widget.waitForLogoDrawable
+          ? _skipLogoFadeAfterImageError()
+          : _beginLogoFadeWhenDrawable(),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_logoImageStream != null) return;
+    _logoImageStream = _logoProvider.resolve(
+      createLocalImageConfiguration(context),
+    )..addListener(_logoImageListener);
+    if (!widget.waitForLogoDrawable) _beginLogoFadeWhenDrawable();
   }
 
   @override
@@ -161,6 +194,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
 
   @override
   void dispose() {
+    _logoImageStream?.removeListener(_logoImageListener);
     _cursorController.dispose();
     _logoFadeController.dispose();
     _spinnerController.dispose();
@@ -174,6 +208,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       if (!mounted || _logoFadeStarted) return;
       _logoFadeStarted = true;
       _logoFadeController.forward();
+    });
+  }
+
+  void _completeLogoFade() {
+    if (_logoFadeCompleted) return;
+    _logoFadeCompleted = true;
+    widget.onLogoFadeComplete();
+  }
+
+  void _skipLogoFadeAfterImageError() {
+    if (_logoFadeQueued || _logoFadeCompleted) return;
+    _logoFadeQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _completeLogoFade();
     });
   }
 
@@ -238,21 +286,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                             parent: _logoFadeController,
                             curve: Curves.easeOut,
                           ),
-                          child: Image.asset(
-                            'assets/icons/orlo_logo_1024_transparent.png',
+                          child: Image(
+                            image: _logoProvider,
                             key: const ValueKey('boot-brand-logo'),
                             height: 128,
                             width: 220,
                             fit: BoxFit.contain,
-                            frameBuilder:
-                                (_, child, frame, wasSynchronouslyLoaded) {
-                                  if (frame != null || wasSynchronouslyLoaded) {
-                                    _beginLogoFadeWhenDrawable();
-                                  }
-                                  return child;
-                                },
-                            errorBuilder: (_, _, _) =>
-                                const SizedBox(height: 72),
+                            errorBuilder: (_, _, _) {
+                              if (widget.waitForLogoDrawable) {
+                                _skipLogoFadeAfterImageError();
+                              } else {
+                                _beginLogoFadeWhenDrawable();
+                              }
+                              return const SizedBox(height: 72);
+                            },
                           ),
                         ),
                         if (phase.index >=
@@ -561,6 +608,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   bool _finalProgressStarted = false;
   bool _readyDelayElapsed = false;
   bool _skipRequested = false;
+  bool _logoFadeCompleted = false;
   bool _presentationReleased = false;
   String? _lastDiagnosticPresentation;
   BootPresentationState _presentation =
@@ -593,7 +641,6 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     _emit(BootSequenceEventType.bootStart);
     _trace('boot_gate_created');
     _onInitializationChanged();
-    _schedule(widget.timing.logoIntro, _startIdentityTyping);
   }
 
   @override
@@ -651,6 +698,12 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     setState(() => _phase = _BootVisualPhase.identityTyping);
     _animateProgressTo(.2, const Duration(milliseconds: 1500));
     _typeNextCharacter();
+  }
+
+  void _startIdentityTypingAfterLogoFade() {
+    if (_logoFadeCompleted || !_isPresentationActive) return;
+    _logoFadeCompleted = true;
+    _startIdentityTyping();
   }
 
   void _typeNextCharacter() {
@@ -961,6 +1014,9 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         typedLength: _typedLength,
         typedNameLength: _typedNameLength,
         progress: _progressController.value,
+        logoFadeDuration: widget.timing.logoIntro,
+        waitForLogoDrawable: widget.timing.waitForLogoDrawable,
+        onLogoFadeComplete: _startIdentityTypingAfterLogoFade,
         onSkip: _requestSkip,
       ),
     );
