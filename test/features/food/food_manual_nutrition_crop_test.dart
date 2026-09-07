@@ -242,7 +242,7 @@ void main() {
   });
 
   test(
-    'minimum over-coverage gives portrait geometry persistent pan range',
+    'minimum over-coverage gives portrait geometry a usable persistent pan range',
     () {
       const canvas = Size(402, 640);
       final crop = Rect.fromCenter(
@@ -270,13 +270,13 @@ void main() {
       expect(image.height, greaterThan(crop.height));
       expect(
         FoodManualCropInteraction.minimumOverCoverageFactor,
-        closeTo(1.10, .0001),
+        closeTo(1.20, .0001),
       );
-      expect(bounds.maxX - bounds.minX, closeTo(crop.width * .10, .001));
-      expect((bounds.maxX - bounds.minX) / 2, closeTo(crop.width * .05, .001));
+      expect(bounds.maxX - bounds.minX, closeTo(crop.width * .20, .001));
+      expect((bounds.maxX - bounds.minX) / 2, closeTo(crop.width * .10, .001));
       expect(
         (bounds.maxY - bounds.minY) / 2,
-        greaterThanOrEqualTo(crop.height * .05),
+        greaterThanOrEqualTo(crop.height * .10),
       );
       expect(centered.dx, closeTo((bounds.minX + bounds.maxX) / 2, .001));
       expect(centered.dy, closeTo((bounds.minY + bounds.maxY) / 2, .001));
@@ -308,11 +308,11 @@ void main() {
       expect(image.height, greaterThan(crop.height));
       expect(
         (bounds.maxX - bounds.minX) / 2,
-        greaterThanOrEqualTo(crop.width * .05),
+        greaterThanOrEqualTo(crop.width * .10),
       );
       expect(
         (bounds.maxY - bounds.minY) / 2,
-        greaterThanOrEqualTo(crop.height * .05),
+        greaterThanOrEqualTo(crop.height * .10),
       );
     }
   });
