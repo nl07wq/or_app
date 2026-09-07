@@ -30,6 +30,7 @@ void main() {
     await tester.pumpWidget(_gate(controller));
 
     expect(find.byKey(const ValueKey('boot-brand-logo')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-brand-logo-fade')), findsOneWidget);
     expect(find.text('SYSTEM BOOT'), findsNothing);
     expect(find.text('CORE SYSTEM'), findsNothing);
     expect(find.text('SYSTEM READY'), findsNothing);

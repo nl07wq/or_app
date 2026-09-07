@@ -356,6 +356,59 @@ void main() {
     expect(up.dy - centered.dy, closeTo(-yStep, .001));
   });
 
+  test(
+    'paint transform rect covers every strict edge on portrait geometry',
+    () {
+      const canvas = Size(402, 640);
+      final viewport = Rect.fromCenter(
+        center: canvas.center(Offset.zero),
+        width: canvas.width * .88,
+        height: canvas.height * .60,
+      );
+      const source = FoodImageDimensions(width: 4284, height: 5712);
+      final baseScale = FoodManualCropInteraction.minimumBaseScale(
+        viewport: viewport,
+        source: source,
+      );
+      final imageSize = Size(
+        source.width * baseScale,
+        source.height * baseScale,
+      );
+      final bounds = FoodManualCropInteraction.translationBounds(
+        viewport: viewport,
+        imageSize: imageSize,
+      );
+      final canvasCenter = canvas.center(Offset.zero);
+      final centered = Offset(
+        canvasCenter.dx - imageSize.width / 2,
+        canvasCenter.dy - imageSize.height / 2,
+      );
+
+      Rect paintRect(Offset imageOffset) {
+        final matrix = Matrix4.identity()
+          ..translateByDouble(imageOffset.dx, imageOffset.dy, 0, 1)
+          ..scaleByDouble(1, 1, 1, 1);
+        return Rect.fromPoints(
+          MatrixUtils.transformPoint(matrix, Offset.zero),
+          MatrixUtils.transformPoint(
+            matrix,
+            imageSize.bottomRight(Offset.zero),
+          ),
+        );
+      }
+
+      final left = paintRect(Offset(bounds.minX, centered.dy));
+      final right = paintRect(Offset(bounds.maxX, centered.dy));
+      final top = paintRect(Offset(centered.dx, bounds.minY));
+      final bottom = paintRect(Offset(centered.dx, bounds.maxY));
+
+      expect(left.right, closeTo(viewport.right, .001));
+      expect(right.left, closeTo(viewport.left, .001));
+      expect(top.bottom, closeTo(viewport.bottom, .001));
+      expect(bottom.top, closeTo(viewport.top, .001));
+    },
+  );
+
   test('crop geometry diagnostic has no persistent storage dependency', () {
     final source = File(
       'lib/features/food/widgets/food_manual_nutrition_crop.dart',

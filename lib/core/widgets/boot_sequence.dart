@@ -123,7 +123,10 @@ class _BootSequenceVisual extends StatefulWidget {
 class _BootSequenceVisualState extends State<_BootSequenceVisual>
     with TickerProviderStateMixin {
   late final AnimationController _cursorController;
+  late final AnimationController _logoFadeController;
   late final AnimationController _spinnerController;
+  bool _logoFadeQueued = false;
+  bool _logoFadeStarted = false;
 
   @override
   void initState() {
@@ -132,6 +135,10 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+    _logoFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
     _spinnerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 480),
@@ -155,8 +162,19 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
   @override
   void dispose() {
     _cursorController.dispose();
+    _logoFadeController.dispose();
     _spinnerController.dispose();
     super.dispose();
+  }
+
+  void _beginLogoFadeWhenDrawable() {
+    if (_logoFadeStarted || _logoFadeQueued) return;
+    _logoFadeQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _logoFadeStarted) return;
+      _logoFadeStarted = true;
+      _logoFadeController.forward();
+    });
   }
 
   @override
@@ -214,13 +232,28 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Image.asset(
-                          'assets/icons/orlo_logo_1024_transparent.png',
-                          key: const ValueKey('boot-brand-logo'),
-                          height: 128,
-                          width: 220,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const SizedBox(height: 72),
+                        FadeTransition(
+                          key: const ValueKey('boot-brand-logo-fade'),
+                          opacity: CurvedAnimation(
+                            parent: _logoFadeController,
+                            curve: Curves.easeOut,
+                          ),
+                          child: Image.asset(
+                            'assets/icons/orlo_logo_1024_transparent.png',
+                            key: const ValueKey('boot-brand-logo'),
+                            height: 128,
+                            width: 220,
+                            fit: BoxFit.contain,
+                            frameBuilder:
+                                (_, child, frame, wasSynchronouslyLoaded) {
+                                  if (frame != null || wasSynchronouslyLoaded) {
+                                    _beginLogoFadeWhenDrawable();
+                                  }
+                                  return child;
+                                },
+                            errorBuilder: (_, _, _) =>
+                                const SizedBox(height: 72),
+                          ),
                         ),
                         if (phase.index >=
                             _BootVisualPhase.identityTyping.index) ...[
