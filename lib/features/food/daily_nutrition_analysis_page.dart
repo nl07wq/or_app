@@ -517,6 +517,7 @@ class _MealShareLegendRow extends StatelessWidget {
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ),
+      const SizedBox(width: 12),
       SizedBox(
         width: 28,
         child: Text(
@@ -548,7 +549,7 @@ class _MealVisualCard extends StatelessWidget {
           Text(
             calories == null
                 ? '—'
-                : '${FoodNutritionFormatter.macro(calories)} kcal  ${_percent(calories, dailyCalories)}% OF DAY',
+                : '${FoodNutritionFormatter.macro(calories)} kcal  ${_percent(calories, dailyCalories)}% of DAY',
           ),
           if (pfc == null || !FoodPfcBalanceCard.hasBalance(pfc))
             const Text('PFC —')

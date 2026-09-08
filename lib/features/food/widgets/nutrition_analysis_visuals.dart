@@ -193,7 +193,7 @@ class NutritionContributorCard extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (sharePercent != null)
-            Text('$sharePercent% OF ${_contributorMetricLabel(metric)}'),
+            Text('$sharePercent% of ${_contributorMetricLabel(metric)}'),
           if (mealType != null)
             Align(
               alignment: Alignment.centerLeft,

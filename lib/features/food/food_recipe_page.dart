@@ -159,6 +159,56 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
     ).whenComplete(controller.dispose);
   }
 
+  Future<void> _editIngredientQuantity(int index) async {
+    final ingredient = _ingredients[index];
+    final controller = TextEditingController(
+      text: _amount(ingredient.quantity.value),
+    );
+    final quantity = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(ingredient.nameSnapshot),
+        content: OperationTextField(
+          key: ValueKey('recipe-ingredient-edit-quantity-$index'),
+          controller: controller,
+          label:
+              'QUANTITY (${FoodNutritionFormatter.quantityUnit(ingredient.quantity.unit)})',
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text.trim());
+              if (value != null && value.isFinite && value > 0)
+                Navigator.pop(context, value);
+            },
+            child: const Text('UPDATE'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (quantity == null || !mounted) return;
+    final factor = quantity / ingredient.quantity.value;
+    setState(() {
+      _ingredients[index] = RecipeIngredientV2.fromJson({
+        ...ingredient.toJson(),
+        'quantity': FoodQuantityDefinition(
+          value: quantity,
+          unit: ingredient.quantity.unit,
+        ).toJson(),
+        'nutritionSnapshot': FoodRecipeNutrition.scale(
+          ingredient.nutritionSnapshot,
+          factor,
+        ).toJson(),
+      });
+    });
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     final name = _name.text.trim();
@@ -358,11 +408,25 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                       ],
                     ),
                     isThreeLine: true,
-                    trailing: IconButton(
-                      icon: const Icon(Icons.remove_circle_outline),
-                      onPressed: readOnly
-                          ? null
-                          : () => setState(() => _ingredients.removeAt(index)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: ValueKey('recipe-ingredient-edit-$index'),
+                          icon: const Icon(Icons.edit),
+                          onPressed: readOnly
+                              ? null
+                              : () => _editIngredientQuantity(index),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: readOnly
+                              ? null
+                              : () => setState(
+                                  () => _ingredients.removeAt(index),
+                                ),
+                        ),
+                      ],
                     ),
                   ),
                 );
