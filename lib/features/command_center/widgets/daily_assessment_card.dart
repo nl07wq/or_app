@@ -255,6 +255,22 @@ class _BodyFatFact extends StatelessWidget {
     final previous = reference.previousFormalBodyFatPercent;
     final validCurrent = current != null && current.isFinite && current > 0;
     final validPrevious = previous != null && previous.isFinite && previous > 0;
+    if (!validCurrent && !reference.statusExists) {
+      // Match the WEIGHT unavailable hierarchy exactly: no historical Body
+      // Fat context is meaningful until the operation day's STATUS exists.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
+          AppSpacing.gapXS,
+          const Text('NOT AVAILABLE'),
+          AppSpacing.gapXS,
+          const Text('—'),
+          AppSpacing.gapXS,
+          const Text('NOT AVAILABLE'),
+        ],
+      );
+    }
     final delta = validCurrent && validPrevious ? current - previous : null;
     final isWeekAverage =
         reference.source == DailyBodyFatReferenceSource.sevenDayMean;

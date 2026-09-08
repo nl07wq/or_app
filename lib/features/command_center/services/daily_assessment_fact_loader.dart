@@ -153,7 +153,9 @@ class DailyAssessmentFactLoader {
       );
     }
     final average = await _recentBodyFatAverage(operationDate: operationDate);
-    if (average == null) return const DailyBodyFatReference.notAvailable();
+    if (average == null) {
+      return const DailyBodyFatReference.notAvailable(statusExists: true);
+    }
     return DailyBodyFatReference(
       valuePercent: average.value,
       source: DailyBodyFatReferenceSource.sevenDayMean,
