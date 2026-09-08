@@ -21,11 +21,10 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
 const _bootSignalHandoffDuration = Duration(milliseconds: 120);
 
-/// Applies only after the logo Fade. The visual sequence was previously
-/// paced at 1.5625x baseline duration; this 1.5x speed pass makes its
-/// duration two-thirds of that current pacing.
-const postLogoBootSpeedFactor = 1.5;
-const postLogoBootTimingFactor = 1.5625 / postLogoBootSpeedFactor;
+/// Applies only after the logo Fade. These base durations are deliberately
+/// chosen as a timeline, rather than derived from another global multiplier:
+/// the deterministic Boot visible → Main UI path is about 4.49 seconds.
+const postLogoBootTimingFactor = 1.0;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
@@ -48,14 +47,14 @@ class BootSequenceTiming {
   const BootSequenceTiming({
     this.logoIntro = const Duration(milliseconds: 600),
     this.waitForLogoDrawable = true,
-    this.typingCharacter = const Duration(milliseconds: 130),
-    this.fullNameCharacter = const Duration(milliseconds: 17),
-    this.identityHold = const Duration(milliseconds: 320),
-    this.systemBootTransition = const Duration(milliseconds: 240),
+    this.typingCharacter = const Duration(milliseconds: 120),
+    this.fullNameCharacter = const Duration(milliseconds: 14),
+    this.identityHold = const Duration(milliseconds: 230),
+    this.systemBootTransition = const Duration(milliseconds: 190),
     this.header = const Duration(milliseconds: 180),
-    this.row = const Duration(milliseconds: 360),
-    this.readyDelay = const Duration(milliseconds: 300),
-    this.readyHold = const Duration(milliseconds: 500),
+    this.row = const Duration(milliseconds: 280),
+    this.readyDelay = const Duration(milliseconds: 210),
+    this.readyHold = const Duration(milliseconds: 400),
     this.postLogoTimingFactor = postLogoBootTimingFactor,
   });
 
@@ -743,14 +742,14 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     }
     return widget.timing.postLogo(
       const [
-        Duration(milliseconds: 260),
-        Duration(milliseconds: 230),
-        Duration(milliseconds: 210),
-        Duration(milliseconds: 190),
         Duration(milliseconds: 170),
-        Duration(milliseconds: 150),
-        Duration(milliseconds: 140),
-        Duration(milliseconds: 130),
+        Duration(milliseconds: 160),
+        Duration(milliseconds: 145),
+        Duration(milliseconds: 135),
+        Duration(milliseconds: 125),
+        Duration(milliseconds: 115),
+        Duration(milliseconds: 95),
+        Duration(milliseconds: 75),
       ][index.clamp(0, 7)],
     );
   }

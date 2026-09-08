@@ -41,18 +41,33 @@ void main() {
     expect(pending, [PeriodicReportType.monthly, PeriodicReportType.yearly]);
   });
 
-  test('FINALIZE workflow chains only after successful imports', () async {
-    final opened = <PeriodicReportType>[];
+  test(
+    'Sunday FINALIZE opens the completed weekly report even when it exists',
+    () async {
+      final opened = <PeriodicReportType>[];
+      await runPeriodicReportWorkflowForFinalizedDate(
+        finalizedDate: DateTime(2026, 8, 30),
+        openReport: (type) async {
+          opened.add(type);
+          return false;
+        },
+      );
+
+      expect(opened, [PeriodicReportType.weekly]);
+    },
+  );
+
+  test('non-Sunday FINALIZE does not open a weekly report', () async {
+    var opened = false;
     await runPeriodicReportWorkflowForFinalizedDate(
-      finalizedDate: DateTime(2028, 12, 31),
-      reportExists: (_) async => false,
-      openReport: (type) async {
-        opened.add(type);
-        return type != PeriodicReportType.monthly;
+      finalizedDate: DateTime(2026, 8, 25),
+      openReport: (_) async {
+        opened = true;
+        return true;
       },
     );
 
-    expect(opened, [PeriodicReportType.weekly, PeriodicReportType.monthly]);
+    expect(opened, isFalse);
   });
 
   test('presentation formatter preserves numeric meaning', () {

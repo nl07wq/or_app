@@ -25,26 +25,40 @@ const _timing = BootSequenceTiming(
 );
 
 void main() {
-  test('post-logo visual phases run at 1.5x the current pacing speed', () {
+  test('production Boot timeline uses the explicit 4.5 second pacing plan', () {
     const timing = BootSequenceTiming();
 
     expect(timing.logoIntro, const Duration(milliseconds: 600));
     expect(
       timing.postLogo(timing.typingCharacter),
-      const Duration(microseconds: 135417),
+      const Duration(milliseconds: 120),
     );
     expect(
       timing.postLogo(timing.systemBootTransition),
-      const Duration(milliseconds: 250),
+      const Duration(milliseconds: 190),
     );
     expect(
       timing.postLogo(timing.readyHold),
-      const Duration(microseconds: 520833),
+      const Duration(milliseconds: 400),
     );
     expect(
       timing.postLogo(const Duration(milliseconds: 120)),
-      const Duration(milliseconds: 125),
+      const Duration(milliseconds: 120),
     );
+    const identity = [170, 160, 145, 135, 125, 115, 95, 75];
+    final deterministicTotal =
+        timing.logoIntro +
+        Duration(
+          milliseconds: identity.fold<int>(0, (sum, value) => sum + value),
+        ) +
+        timing.fullNameCharacter * 43 +
+        timing.identityHold +
+        timing.systemBootTransition +
+        timing.row * 4 +
+        timing.readyDelay +
+        timing.readyHold +
+        const Duration(milliseconds: 120);
+    expect(deterministicTotal, const Duration(milliseconds: 4492));
   });
 
   testWidgets('boot rows are revealed and completed in sequence', (
@@ -119,7 +133,7 @@ void main() {
 
     expect(
       const BootSequenceTiming().fullNameCharacter,
-      const Duration(milliseconds: 17),
+      const Duration(milliseconds: 14),
     );
     await _elapse(tester, typingTiming.fullNameCharacter * 2);
     final partial = tester.widget<Text>(

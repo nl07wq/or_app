@@ -801,7 +801,6 @@ class _AssessmentCard extends StatelessWidget {
           AppSpacing.gapSM,
           _AssessmentRow(
             'CALORIES',
-            summary!.calories,
             assessSingleNutritionTarget(
               summary!.calories,
               DynamicDailyTargetPresentation.caloriesTargetKcal(
@@ -811,7 +810,6 @@ class _AssessmentCard extends StatelessWidget {
           ),
           _AssessmentRow(
             'PROTEIN',
-            summary!.protein,
             assessSingleNutritionTarget(
               summary!.protein,
               DynamicDailyTargetPresentation.proteinTargetG(
@@ -821,7 +819,6 @@ class _AssessmentCard extends StatelessWidget {
           ),
           _AssessmentRow(
             'FAT',
-            summary!.fat,
             assessRangedNutritionTarget(
               summary!.fat,
               DynamicDailyTargetPresentation.fatTargetMinG(
@@ -834,7 +831,6 @@ class _AssessmentCard extends StatelessWidget {
           ),
           _AssessmentRow(
             'CARBOHYDRATE',
-            summary!.carbohydrates,
             assessSingleNutritionTarget(
               summary!.carbohydrates,
               DynamicDailyTargetPresentation.carbohydrateTargetG(
@@ -870,9 +866,8 @@ class _HintCard extends StatelessWidget {
 }
 
 class _AssessmentRow extends StatelessWidget {
-  const _AssessmentRow(this.label, this.current, this.assessment);
+  const _AssessmentRow(this.label, this.assessment);
   final String label;
-  final double current;
   final DailyNutritionTargetAssessment assessment;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -891,7 +886,10 @@ class _AssessmentRow extends StatelessWidget {
             ),
             Expanded(
               child: Text(
-                _assessmentComment(label, current, assessment),
+                nutritionAssessmentComment(
+                  _assessmentMetric(label),
+                  assessment,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
@@ -948,38 +946,14 @@ double? _fat(NutritionSnapshot value) => value.fat;
 double? _carb(NutritionSnapshot value) => value.carbohydrate;
 String _nutritionText(FoodNutritionAggregate value) =>
     '${FoodNutritionFormatter.macro(value.calories.knownTotal)} kcal / P ${FoodNutritionFormatter.macro(value.protein.knownTotal)} / F ${FoodNutritionFormatter.macro(value.fat.knownTotal)} / C ${FoodNutritionFormatter.macro(value.carbohydrate.knownTotal)}';
-String _assessmentComment(
-  String label,
-  double current,
-  DailyNutritionTargetAssessment assessment,
-) => switch (label) {
-  'CALORIES' => switch (assessment.status) {
-    DailyNutritionTargetStatus.low => '摂取やや少なめ',
-    DailyNutritionTargetStatus.onTrack => '目標範囲内',
-    DailyNutritionTargetStatus.over => '摂取やや多め',
-    DailyNutritionTargetStatus.unavailable => '目標データなし',
-  },
-  'PROTEIN' => switch (assessment.status) {
-    DailyNutritionTargetStatus.low =>
-      'あと約${((assessment.lowerBound ?? current) - current).clamp(0, double.infinity).round()}g',
-    DailyNutritionTargetStatus.onTrack => '目標範囲内',
-    DailyNutritionTargetStatus.over => '十分に確保',
-    DailyNutritionTargetStatus.unavailable => '目標データなし',
-  },
-  'FAT' => switch (assessment.status) {
-    DailyNutritionTargetStatus.low => '脂質やや少なめ',
-    DailyNutritionTargetStatus.onTrack => '目標範囲内',
-    DailyNutritionTargetStatus.over => '脂質を控えめに',
-    DailyNutritionTargetStatus.unavailable => '目標データなし',
-  },
-  'CARBOHYDRATE' => switch (assessment.status) {
-    DailyNutritionTargetStatus.low => '炭水化物少なめ',
-    DailyNutritionTargetStatus.onTrack => '目標範囲内',
-    DailyNutritionTargetStatus.over => '炭水化物多め',
-    DailyNutritionTargetStatus.unavailable => '目標データなし',
-  },
-  _ => '目標データなし',
-};
+DailyNutritionAssessmentMetric _assessmentMetric(String label) =>
+    switch (label) {
+      'CALORIES' => DailyNutritionAssessmentMetric.calories,
+      'PROTEIN' => DailyNutritionAssessmentMetric.protein,
+      'FAT' => DailyNutritionAssessmentMetric.fat,
+      'CARBOHYDRATE' => DailyNutritionAssessmentMetric.carbohydrate,
+      _ => DailyNutritionAssessmentMetric.calories,
+    };
 
 String _dailyHint(
   String date,
@@ -991,41 +965,71 @@ String _dailyHint(
       !targets.nutritionTargetsAvailable) {
     return '目標データなし';
   }
-  final fat = assessRangedNutritionTarget(
-    summary.fat,
-    DynamicDailyTargetPresentation.fatTargetMinG(targets.fat)?.toDouble(),
-    DynamicDailyTargetPresentation.fatTargetMaxG(targets.fat)?.toDouble(),
-  );
-  final protein = assessSingleNutritionTarget(
-    summary.protein,
-    DynamicDailyTargetPresentation.proteinTargetG(targets.protein)?.toDouble(),
-  );
-  final calories = assessSingleNutritionTarget(
-    summary.calories,
-    DynamicDailyTargetPresentation.caloriesTargetKcal(
-      targets.calories,
-    )?.toDouble(),
-  );
-  final carbohydrate = assessSingleNutritionTarget(
-    summary.carbohydrates,
-    DynamicDailyTargetPresentation.carbohydrateTargetG(
-      targets.carbohydrate,
-    )?.toDouble(),
-  );
+  final findings =
+      <(DailyNutritionAssessmentMetric, DailyNutritionTargetAssessment)>[
+        (
+          DailyNutritionAssessmentMetric.calories,
+          assessSingleNutritionTarget(
+            summary.calories,
+            DynamicDailyTargetPresentation.caloriesTargetKcal(
+              targets.calories,
+            )?.toDouble(),
+          ),
+        ),
+        (
+          DailyNutritionAssessmentMetric.protein,
+          assessSingleNutritionTarget(
+            summary.protein,
+            DynamicDailyTargetPresentation.proteinTargetG(
+              targets.protein,
+            )?.toDouble(),
+          ),
+        ),
+        (
+          DailyNutritionAssessmentMetric.fat,
+          assessRangedNutritionTarget(
+            summary.fat,
+            DynamicDailyTargetPresentation.fatTargetMinG(
+              targets.fat,
+            )?.toDouble(),
+            DynamicDailyTargetPresentation.fatTargetMaxG(
+              targets.fat,
+            )?.toDouble(),
+          ),
+        ),
+        (
+          DailyNutritionAssessmentMetric.carbohydrate,
+          assessSingleNutritionTarget(
+            summary.carbohydrates,
+            DynamicDailyTargetPresentation.carbohydrateTargetG(
+              targets.carbohydrate,
+            )?.toDouble(),
+          ),
+        ),
+      ];
   final historical = date != DateTime.now().toIso8601String().substring(0, 10);
-  if (fat.status == DailyNutritionTargetStatus.over) {
-    return historical ? 'この日は脂質が高めでした。' : '脂質は十分なため、残りは低脂質を優先。';
-  }
-  if (protein.status == DailyNutritionTargetStatus.low) {
-    return historical
-        ? 'この日はタンパク質が目標未達でした。'
-        : 'タンパク質をあと${((protein.lowerBound ?? summary.protein) - summary.protein).clamp(0, double.infinity).round()}g程度確保。';
-  }
-  if (calories.status == DailyNutritionTargetStatus.over) {
-    return historical ? 'この日は総摂取量がやや多めでした。' : '総摂取量はやや多めです。';
-  }
-  if (carbohydrate.status == DailyNutritionTargetStatus.over) {
-    return historical ? 'この日は炭水化物が多めでした。' : '炭水化物はやや控えめに。';
+  final abnormal =
+      findings
+          .where(
+            (finding) =>
+                finding.$2.status != DailyNutritionTargetStatus.onTrack &&
+                finding.$2.status != DailyNutritionTargetStatus.unavailable,
+          )
+          .toList()
+        ..sort((first, second) {
+          final severity = second.$2.severity.index.compareTo(
+            first.$2.severity.index,
+          );
+          return severity != 0
+              ? severity
+              : second.$2.relativeDeviation.compareTo(
+                  first.$2.relativeDeviation,
+                );
+        });
+  if (abnormal.isNotEmpty) {
+    final finding = abnormal.first;
+    final comment = nutritionAssessmentComment(finding.$1, finding.$2);
+    return historical ? 'この日は$commentでした。' : '$commentです。';
   }
   return historical ? 'この日は目標内でバランスを維持できました。' : '総摂取量は目標内。次の食事ではバランス維持を優先。';
 }

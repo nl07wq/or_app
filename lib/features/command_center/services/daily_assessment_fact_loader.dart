@@ -30,9 +30,14 @@ class DailyAssessmentFactLoader {
       operationDate.value,
       (status) => status.bodyFat,
     );
+    final previousDayStatus = await container.status.findByLocalDate(
+      operationDate.addDays(-1).value,
+    );
     final bodyFatReference = await _bodyFatReference(
       operationDate: operationDate.value,
+      statusExists: currentStatus != null,
       measuredToday: currentStatus?.bodyFat,
+      previousDayBodyFat: previousDayStatus?.bodyFat,
       previousFormalBodyFat: previousFormalBodyFat,
     );
     final currentFood = await container.foodMixedRead.readForLocalDate(
@@ -124,34 +129,58 @@ class DailyAssessmentFactLoader {
 
   Future<DailyBodyFatReference> _bodyFatReference({
     required String operationDate,
+    required bool statusExists,
     required double? measuredToday,
+    required double? previousDayBodyFat,
     required double? previousFormalBodyFat,
   }) async {
+    if (!statusExists) return const DailyBodyFatReference.notAvailable();
     if (_validBodyFat(measuredToday)) {
+      final recentAverage = await _recentBodyFatAverage(
+        operationDate: operationDate,
+        excludeOperationDate: true,
+      );
       return DailyBodyFatReference(
         valuePercent: measuredToday,
         source: DailyBodyFatReferenceSource.measuredToday,
         sampleCount: 1,
         windowDays: 1,
-        previousFormalBodyFatPercent: previousFormalBodyFat,
+        previousFormalBodyFatPercent: _validBodyFat(previousDayBodyFat)
+            ? previousDayBodyFat
+            : recentAverage?.value ?? previousFormalBodyFat,
       );
     }
+    final average = await _recentBodyFatAverage(operationDate: operationDate);
+    if (average == null) return const DailyBodyFatReference.notAvailable();
+    return DailyBodyFatReference(
+      valuePercent: average.value,
+      source: DailyBodyFatReferenceSource.sevenDayMean,
+      sampleCount: average.sampleCount,
+      windowDays: 7,
+      previousFormalBodyFatPercent: _validBodyFat(previousDayBodyFat)
+          ? previousDayBodyFat
+          : previousFormalBodyFat,
+    );
+  }
+
+  Future<({double value, int sampleCount})?> _recentBodyFatAverage({
+    required String operationDate,
+    bool excludeOperationDate = false,
+  }) async {
     final target = DateTime.parse(operationDate);
     final start = DateTime(target.year, target.month, target.day - 6);
     final values = [
       for (final status in (await container.status.findAllCanonical()).values)
         if (DateTime.tryParse(status.date) case final DateTime date)
           if (!date.isBefore(start) && !date.isAfter(target))
-            if (_validBodyFat(status.bodyFat)) status.bodyFat!,
+            if (!excludeOperationDate || status.date != operationDate)
+              if (_validBodyFat(status.bodyFat)) status.bodyFat!,
     ];
-    if (values.length < 2) return const DailyBodyFatReference.notAvailable();
-    return DailyBodyFatReference(
-      valuePercent:
+    if (values.length < 2) return null;
+    return (
+      value:
           values.fold<double>(0, (sum, value) => sum + value) / values.length,
-      source: DailyBodyFatReferenceSource.sevenDayMean,
       sampleCount: values.length,
-      windowDays: 7,
-      previousFormalBodyFatPercent: previousFormalBodyFat,
     );
   }
 

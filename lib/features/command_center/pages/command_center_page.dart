@@ -59,14 +59,13 @@ Future<List<PeriodicReportType>> pendingPeriodicReportTypesForFinalizedDate(
 @visibleForTesting
 Future<void> runPeriodicReportWorkflowForFinalizedDate({
   required DateTime finalizedDate,
-  required Future<bool> Function(String periodId) reportExists,
   required Future<bool> Function(PeriodicReportType type) openReport,
 }) async {
-  final pending = await pendingPeriodicReportTypesForFinalizedDate(
-    finalizedDate,
-    reportExists,
-  );
-  for (final type in pending) {
+  // The report workspace resolves both states: it displays an existing record
+  // directly or opens the formal creation/import flow when it is missing.
+  // Skipping an existing period here used to suppress the required Sunday
+  // navigation entirely.
+  for (final type in periodicReportTypesForFinalizedDate(finalizedDate)) {
     if (!await openReport(type)) return;
   }
 }
@@ -311,11 +310,8 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
 
   Future<void> _offerPeriodicReports(OperationLocalDate finalizedDate) async {
     final date = DateTime.parse(finalizedDate.value);
-    final container = AppRepositoryRegistry.container;
     await runPeriodicReportWorkflowForFinalizedDate(
       finalizedDate: date,
-      reportExists: (periodId) async =>
-          await container.periodicReports.read(periodId) != null,
       openReport: (type) async {
         if (!mounted) return false;
         return await Navigator.of(context).push<bool>(

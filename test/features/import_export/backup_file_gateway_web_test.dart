@@ -46,18 +46,18 @@ void main() {
     expect(downloaded, isFalse);
   });
 
-  test('propagates share failure without claiming a download', () async {
+  test('falls back to download when share loses browser activation', () async {
     var downloaded = false;
     final gateway = WebBackupFileGateway(
       share: (_, _) async => throw StateError('share failed'),
       download: (_, _) => downloaded = true,
     );
 
-    await expectLater(
-      gateway.shareOrSave(fileName: 'backup.json', content: '{}'),
-      throwsStateError,
+    expect(
+      await gateway.shareOrSave(fileName: 'backup.json', content: '{}'),
+      BackupFileDelivery.downloaded,
     );
-    expect(downloaded, isFalse);
+    expect(downloaded, isTrue);
   });
 
   test('falls back to a UTF-8 download with the requested file name', () async {

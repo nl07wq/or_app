@@ -46,8 +46,14 @@ class WebBackupFileGateway implements BackupFileGateway {
     final bytes = Uint8List.fromList(utf8.encode(content));
     final shareOverride = _shareOverride;
     if (shareOverride != null) {
-      final delivery = await shareOverride(fileName, bytes);
-      if (delivery != null) return delivery;
+      try {
+        final delivery = await shareOverride(fileName, bytes);
+        if (delivery != null) return delivery;
+      } catch (error) {
+        if (_isShareCancellation(error)) return BackupFileDelivery.cancelled;
+        _downloadOrOverride(fileName, bytes);
+        return BackupFileDelivery.downloaded;
+      }
     } else if (_navigator.has('share') && _navigator.has('canShare')) {
       final options = JSObject()
         ..['type'] = 'application/json;charset=utf-8'.toJS;
@@ -70,18 +76,28 @@ class WebBackupFileGateway implements BackupFileGateway {
           if (_isShareCancellation(error)) {
             return BackupFileDelivery.cancelled;
           }
-          rethrow;
+          // Finalize creates its canonical package asynchronously. iOS PWA can
+          // reject navigator.share once that work has crossed the original tap
+          // activation boundary. Preserve a real user-visible export by using
+          // the established download path instead of reporting a silent
+          // finalize success with no backup output.
+          _downloadOrOverride(fileName, bytes);
+          return BackupFileDelivery.downloaded;
         }
       }
     }
 
+    _downloadOrOverride(fileName, bytes);
+    return BackupFileDelivery.downloaded;
+  }
+
+  void _downloadOrOverride(String fileName, Uint8List bytes) {
     final downloadOverride = _downloadOverride;
     if (downloadOverride == null) {
       _download(fileName: fileName, bytes: bytes);
     } else {
       downloadOverride(fileName, bytes);
     }
-    return BackupFileDelivery.downloaded;
   }
 
   static void _download({required String fileName, required Uint8List bytes}) {

@@ -45,4 +45,47 @@ void main() {
     expect(assessRangedNutritionTarget(119.1, 61, 74).badgeLabel, 'OVER');
     expect(assessSingleNutritionTarget(393.3, 273).badgeLabel, 'OVER');
   });
+
+  test('comment severity uses the same assessment boundaries as badges', () {
+    final smallOver = assessSingleNutritionTarget(111, 100);
+    final largeOver = assessSingleNutritionTarget(400, 100);
+    final onTrackPositive = assessSingleNutritionTarget(105, 100);
+
+    expect(smallOver.status, DailyNutritionTargetStatus.over);
+    expect(smallOver.severity, DailyNutritionAssessmentSeverity.slight);
+    expect(
+      nutritionAssessmentComment(
+        DailyNutritionAssessmentMetric.protein,
+        smallOver,
+      ),
+      'たんぱく質はやや多め',
+    );
+    expect(largeOver.severity, DailyNutritionAssessmentSeverity.large);
+    expect(
+      nutritionAssessmentComment(
+        DailyNutritionAssessmentMetric.calories,
+        largeOver,
+      ),
+      '摂取が大きく超過',
+    );
+    expect(onTrackPositive.status, DailyNutritionTargetStatus.onTrack);
+    expect(
+      nutritionAssessmentComment(
+        DailyNutritionAssessmentMetric.protein,
+        onTrackPositive,
+      ),
+      '十分に確保',
+    );
+  });
+
+  test('Fat severity continues to use its formal range boundary', () {
+    final fat = assessRangedNutritionTarget(200.2, 45, 55);
+
+    expect(fat.status, DailyNutritionTargetStatus.over);
+    expect(fat.severity, DailyNutritionAssessmentSeverity.large);
+    expect(
+      nutritionAssessmentComment(DailyNutritionAssessmentMetric.fat, fat),
+      '脂質が大きく超過',
+    );
+  });
 }

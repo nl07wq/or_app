@@ -213,6 +213,20 @@ void main() {
     expect(facts.currentBodyFatReference.previousFormalBodyFatPercent, 32.2);
   });
 
+  test('keeps Body Fat unavailable until today STATUS exists', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.status.save(_status(date: '2026-08-08', bodyFat: 32.2));
+    await container.status.save(_status(date: '2026-08-09', bodyFat: 31.8));
+
+    final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+    expect(
+      facts.currentBodyFatReference.source,
+      DailyBodyFatReferenceSource.notAvailable,
+    );
+    expect(facts.currentBodyFatReference.valuePercent, isNull);
+  });
+
   test(
     'uses a seven-day formal Body Fat average when today is missing',
     () async {

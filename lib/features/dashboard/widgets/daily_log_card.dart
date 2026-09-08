@@ -41,7 +41,8 @@ Future<void> presentDailyFinalizeBackupPrompt({
     context: targetNavigator.context,
     useRootNavigator: false,
     barrierDismissible: true,
-    builder: (_) => BackupPromptDialog(exportService: exportService),
+    builder: (_) =>
+        BackupPromptDialog(exportService: exportService, autoExport: true),
   );
 }
 
