@@ -183,8 +183,9 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
-              if (value != null && value.isFinite && value > 0)
+              if (value != null && value.isFinite && value > 0) {
                 Navigator.pop(context, value);
+              }
             },
             child: const Text('UPDATE'),
           ),
