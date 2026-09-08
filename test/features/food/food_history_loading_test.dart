@@ -522,7 +522,7 @@ void main() {
     expect(name.overflow, TextOverflow.ellipsis);
     expect(name.style?.fontSize, 14);
     expect(name.style?.height, 1.25);
-    expect(find.text('25% OF CALORIES'), findsOneWidget);
+    expect(find.text('25% of CALORIES'), findsOneWidget);
     expect(
       tester
           .getSize(
@@ -626,8 +626,8 @@ void main() {
       ),
     );
 
-    expect(find.text('25% OF CARB'), findsOneWidget);
-    expect(find.text('25% OF CARBOHYDRATE'), findsNothing);
+    expect(find.text('25% of CARB'), findsOneWidget);
+    expect(find.text('25% of CARBOHYDRATE'), findsNothing);
   });
 }
 

@@ -141,6 +141,117 @@ void main() {
     });
   });
 
+  group('formal STATUS target resolution', () {
+    test(
+      'uses the matching formal STATUS for the requested operation date',
+      () async {
+        final container = AppRepositoryContainer.indexedDb(
+          FakeIndexedDbDatabase(),
+        );
+        for (final record in _referenceHistory(weight: 90, bodyFat: 20)) {
+          await container.status.save(record);
+        }
+        final service = DynamicDailyTargetService(
+          statusRepository: container.status,
+          trainingRepository: container.training,
+        );
+
+        final target = await service.loadForOperationDate(
+          operationDate: '2026-08-10',
+          food: const FoodSummary(
+            calories: 1600,
+            protein: 100,
+            fat: 45,
+            carbohydrates: 180,
+            hydrationMl: 0,
+            mealCount: 1,
+          ),
+          activity: const ActivitySummary.empty(),
+          training: null,
+        );
+
+        expect(target.nutritionTargetsAvailable, isTrue);
+        expect(target.referenceBody.weight.value, 90);
+      },
+    );
+
+    test(
+      'stays unavailable without a formal STATUS for that operation date',
+      () async {
+        final container = AppRepositoryContainer.indexedDb(
+          FakeIndexedDbDatabase(),
+        );
+        await container.status.save(
+          _status('2026-08-09', weight: 90, bodyFat: 20),
+        );
+
+        final target =
+            await DynamicDailyTargetService(
+              statusRepository: container.status,
+              trainingRepository: container.training,
+            ).loadForOperationDate(
+              operationDate: '2026-08-10',
+              food: const FoodSummary(
+                calories: 1600,
+                protein: 100,
+                fat: 45,
+                carbohydrates: 180,
+                hydrationMl: 0,
+                mealCount: 1,
+              ),
+              activity: const ActivitySummary.empty(),
+              training: null,
+            );
+
+        expect(target.nutritionTargetsAvailable, isFalse);
+      },
+    );
+
+    test(
+      're-resolves target-relevant STATUS updates without stale values',
+      () async {
+        final container = AppRepositoryContainer.indexedDb(
+          FakeIndexedDbDatabase(),
+        );
+        for (final record in _referenceHistory(weight: 90, bodyFat: 20)) {
+          await container.status.save(record);
+        }
+        final service = DynamicDailyTargetService(
+          statusRepository: container.status,
+          trainingRepository: container.training,
+        );
+
+        Future<DynamicDailyTargetResult> resolve() =>
+            service.loadForOperationDate(
+              operationDate: '2026-08-10',
+              food: const FoodSummary(
+                calories: 1600,
+                protein: 100,
+                fat: 45,
+                carbohydrates: 180,
+                hydrationMl: 0,
+                mealCount: 1,
+              ),
+              activity: const ActivitySummary.empty(),
+              training: null,
+            );
+
+        final before = await resolve();
+        await container.status.save(
+          _status('2026-08-10', weight: 90, bodyFat: 20, workHours: 8),
+        );
+        final after = await resolve();
+
+        expect(before.nutritionTargetsAvailable, isTrue);
+        expect(after.nutritionTargetsAvailable, isTrue);
+        expect(
+          after.estimatedBaseBurnKcal,
+          greaterThan(before.estimatedBaseBurnKcal!),
+        );
+      },
+    );
+  });
+
   group('calories and protein', () {
     test('applies the DDT-v1 calorie bands without a fixed fallback', () {
       for (final value in [
@@ -400,18 +511,22 @@ List<MorningData> _referenceHistory({
   _status('2026-08-10', weight: weight, bodyFat: bodyFat),
 ];
 
-MorningData _status(String date, {double? weight, double? bodyFat = 20}) =>
-    MorningData(
-      date: date,
-      weight: weight,
-      bodyFat: bodyFat,
-      sleepHours: null,
-      sleepScore: null,
-      footPain: 1,
-      workType: WorkType.holiday,
-      workStart: '',
-      workEnd: '',
-      workBreak: '',
-      workHours: 0,
-      memo: '',
-    );
+MorningData _status(
+  String date, {
+  double? weight,
+  double? bodyFat = 20,
+  double workHours = 0,
+}) => MorningData(
+  date: date,
+  weight: weight,
+  bodyFat: bodyFat,
+  sleepHours: null,
+  sleepScore: null,
+  footPain: 1,
+  workType: WorkType.holiday,
+  workStart: '',
+  workEnd: '',
+  workBreak: '',
+  workHours: workHours,
+  memo: '',
+);

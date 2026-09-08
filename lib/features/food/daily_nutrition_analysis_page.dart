@@ -35,7 +35,36 @@ class DailyNutritionAnalysisPage extends StatefulWidget {
 
 class _DailyNutritionAnalysisPageState
     extends State<DailyNutritionAnalysisPage> {
-  late final Future<_DailyContext> _context = _loadContext();
+  late Future<_DailyContext> _context;
+
+  @override
+  void initState() {
+    super.initState();
+    _context = _loadContext();
+    morningFactNotifier.addListener(_refreshForStatusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant DailyNutritionAnalysisPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.operationDate != widget.operationDate) {
+      _context = _loadContext();
+    }
+  }
+
+  @override
+  void dispose() {
+    morningFactNotifier.removeListener(_refreshForStatusChange);
+    super.dispose();
+  }
+
+  void _refreshForStatusChange() {
+    final status = morningFactNotifier.value;
+    if (status == null || _localDate(status.date) != widget.operationDate) {
+      return;
+    }
+    setState(() => _context = _loadContext());
+  }
 
   Future<_DailyContext> _loadContext() async {
     final summary = await loadFoodSummary(localDate: widget.operationDate);
@@ -47,11 +76,8 @@ class _DailyNutritionAnalysisPageState
             await DynamicDailyTargetService(
               statusRepository: container.status,
               trainingRepository: container.training,
-            ).load(
+            ).loadForOperationDate(
               operationDate: widget.operationDate,
-              currentStatus: await loadMorningFact(
-                localDate: widget.operationDate,
-              ),
               food: summary,
               activity: const ActivitySummary.empty(),
               training: null,
@@ -113,6 +139,11 @@ class _DailyNutritionAnalysisPageState
     ),
   );
 }
+
+String _localDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
 
 class _DailyContext {
   const _DailyContext({this.summary, this.targets});

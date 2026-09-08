@@ -36,7 +36,36 @@ class MealAnalysisPage extends StatefulWidget {
 }
 
 class _MealAnalysisPageState extends State<MealAnalysisPage> {
-  late final Future<_MealAnalysisContext> _context = _loadContext();
+  late Future<_MealAnalysisContext> _context;
+
+  @override
+  void initState() {
+    super.initState();
+    _context = _loadContext();
+    morningFactNotifier.addListener(_refreshForStatusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant MealAnalysisPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.record.localDate != widget.record.localDate) {
+      _context = _loadContext();
+    }
+  }
+
+  @override
+  void dispose() {
+    morningFactNotifier.removeListener(_refreshForStatusChange);
+    super.dispose();
+  }
+
+  void _refreshForStatusChange() {
+    final status = morningFactNotifier.value;
+    if (status == null || _localDate(status.date) != widget.record.localDate) {
+      return;
+    }
+    setState(() => _context = _loadContext());
+  }
 
   Future<_MealAnalysisContext> _loadContext() async {
     final summary = await loadFoodSummary(localDate: widget.record.localDate);
@@ -48,11 +77,8 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
             await DynamicDailyTargetService(
               statusRepository: container.status,
               trainingRepository: container.training,
-            ).load(
+            ).loadForOperationDate(
               operationDate: widget.record.localDate,
-              currentStatus: await loadMorningFact(
-                localDate: widget.record.localDate,
-              ),
               food: summary,
               activity: const ActivitySummary.empty(),
               training: null,
@@ -130,6 +156,11 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
     ),
   );
 }
+
+String _localDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
 
 class _MealAnalysisContext {
   const _MealAnalysisContext({this.summary, this.targets});

@@ -18,6 +18,27 @@ class DynamicDailyTargetService {
   final StatusRepository statusRepository;
   final TrainingSessionRepository trainingRepository;
 
+  /// Resolves a date-bound target from the canonical formal STATUS record.
+  ///
+  /// Analysis surfaces must not reconstruct the current STATUS through a
+  /// separate read path: target availability depends on the formal record for
+  /// the same operation date.
+  Future<DynamicDailyTargetResult> loadForOperationDate({
+    required String operationDate,
+    required FoodSummary? food,
+    required ActivitySummary activity,
+    required TrainingSummary? training,
+  }) async {
+    final status = await statusRepository.findByLocalDate(operationDate);
+    return load(
+      operationDate: operationDate,
+      currentStatus: status == null ? null : _toMorningFact(status),
+      food: food,
+      activity: activity,
+      training: training,
+    );
+  }
+
   Future<DynamicDailyTargetResult> load({
     required String operationDate,
     required MorningFact? currentStatus,
@@ -71,6 +92,22 @@ class DynamicDailyTargetService {
       (entry) => entry.durationSeconds >= 30 * 60,
     );
   }
+
+  static MorningFact _toMorningFact(MorningData status) => MorningFact(
+    date: DateTime.parse(status.date),
+    weight: status.weight,
+    bodyFat: status.bodyFat,
+    sleepDuration: status.sleepHours == null
+        ? null
+        : Duration(minutes: (status.sleepHours! * 60).round()),
+    sleepScore: status.sleepScore,
+    workHours: status.workHours,
+    footPain: status.footPain,
+    condition: status.condition,
+    previousCarryoverConfirmed: status.previousCarryoverConfirmed,
+    medications: const [],
+    freeNotes: status.memo.isEmpty ? null : status.memo,
+  );
 
   static String _formatDate(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-'
