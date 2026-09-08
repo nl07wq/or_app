@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
@@ -70,50 +69,25 @@ class _DailyNutritionAnalysisPageState
   Future<_DailyContext> _loadContext() async {
     final summary = await loadFoodSummary(localDate: widget.operationDate);
     DynamicDailyTargetResult? targets;
-    DynamicDailyTargetDiagnostic? diagnostic;
     if (AppRepositoryRegistry.hasContainer) {
       final container = AppRepositoryRegistry.container;
-      diagnostic =
+      targets =
           await DynamicDailyTargetService(
             statusRepository: container.status,
             trainingRepository: container.training,
-          ).diagnoseForOperationDate(
+          ).loadForOperationDate(
             operationDate: widget.operationDate,
             food: summary,
             activity: const ActivitySummary.empty(),
             training: null,
           );
-      targets = diagnostic.result;
     }
-    return _DailyContext(
-      summary: summary,
-      targets: targets,
-      diagnostic: diagnostic,
-    );
+    return _DailyContext(summary: summary, targets: targets);
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('DAILY NUTRITION ANALYSIS'),
-      actions: [
-        IconButton(
-          key: const ValueKey('daily-target-diagnostic'),
-          tooltip: 'DAILY TARGET DIAGNOSTIC',
-          icon: const Icon(Icons.bug_report_outlined),
-          onPressed: () async {
-            final data = await _context;
-            if (!context.mounted || data.diagnostic == null) return;
-            await _showDailyTargetDiagnostic(
-              context,
-              diagnostic: data.diagnostic!,
-              consumer: 'DailyNutritionAnalysis.TargetProgress',
-              operationDate: widget.operationDate,
-            );
-          },
-        ),
-      ],
-    ),
+    appBar: AppBar(title: const Text('DAILY NUTRITION ANALYSIS')),
     body: FutureBuilder<_DailyContext>(
       future: _context,
       builder: (context, snapshot) {
@@ -170,45 +144,9 @@ String _localDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}';
 
 class _DailyContext {
-  const _DailyContext({this.summary, this.targets, this.diagnostic});
+  const _DailyContext({this.summary, this.targets});
   final FoodSummary? summary;
   final DynamicDailyTargetResult? targets;
-  final DynamicDailyTargetDiagnostic? diagnostic;
-}
-
-Future<void> _showDailyTargetDiagnostic(
-  BuildContext context, {
-  required DynamicDailyTargetDiagnostic diagnostic,
-  required String consumer,
-  required String operationDate,
-}) async {
-  final json = diagnostic.jsonForConsumer(
-    consumer: consumer,
-    operationDate: operationDate,
-  );
-  await showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('DAILY TARGET DIAGNOSTIC'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(child: SelectableText(json)),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('CLOSE'),
-        ),
-        FilledButton(
-          onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: json));
-            if (dialogContext.mounted) Navigator.pop(dialogContext);
-          },
-          child: const Text('COPY'),
-        ),
-      ],
-    ),
-  );
 }
 
 class _DateCard extends StatelessWidget {

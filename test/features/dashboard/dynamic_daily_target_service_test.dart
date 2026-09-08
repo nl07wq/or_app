@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
@@ -7,6 +5,7 @@ import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/training_session.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/features/dashboard/models/dynamic_daily_target.dart';
@@ -145,83 +144,6 @@ void main() {
 
   group('formal STATUS target resolution', () {
     test(
-      'diagnostic captures formal inputs and canonical consumer result',
-      () async {
-        final container = AppRepositoryContainer.indexedDb(
-          FakeIndexedDbDatabase(),
-        );
-        for (final record in _referenceHistory(weight: 90, bodyFat: 20)) {
-          await container.status.save(record);
-        }
-
-        final diagnostic =
-            await DynamicDailyTargetService(
-              statusRepository: container.status,
-              trainingRepository: container.training,
-            ).diagnoseForOperationDate(
-              operationDate: '2026-08-10',
-              food: const FoodSummary(
-                calories: 1600,
-                protein: 100,
-                fat: 45,
-                carbohydrates: 180,
-                hydrationMl: 0,
-                mealCount: 1,
-              ),
-              activity: const ActivitySummary.empty(),
-              training: null,
-            );
-
-        final payload =
-            jsonDecode(
-                  diagnostic.jsonForConsumer(
-                    consumer: 'DailyNutritionAnalysis.TargetProgress',
-                    operationDate: '2026-08-10',
-                  ),
-                )
-                as Map<String, dynamic>;
-        expect(diagnostic.result?.nutritionTargetsAvailable, isTrue);
-        expect(payload['operationDate'], '2026-08-10');
-        expect(payload['statusLookup']['exists'], isTrue);
-        expect(payload['statusInputs']['weight'], 90);
-        expect(
-          payload['referenceBody']['weight']['sourceType'],
-          'sevenDayMean',
-        );
-        expect(payload['activityContext']['stepsRequiredForTarget'], isFalse);
-        expect(payload['consumer']['receivedTargetResult'], isTrue);
-      },
-    );
-
-    test('diagnostic records a truthful same-date STATUS absence', () async {
-      final container = AppRepositoryContainer.indexedDb(
-        FakeIndexedDbDatabase(),
-      );
-      final diagnostic =
-          await DynamicDailyTargetService(
-            statusRepository: container.status,
-            trainingRepository: container.training,
-          ).diagnoseForOperationDate(
-            operationDate: '2026-08-10',
-            food: const FoodSummary(
-              calories: 1600,
-              protein: 100,
-              fat: 45,
-              carbohydrates: 180,
-              hydrationMl: 0,
-              mealCount: 1,
-            ),
-            activity: const ActivitySummary.empty(),
-            training: null,
-          );
-
-      final payload = diagnostic.payload;
-      expect(diagnostic.result?.nutritionTargetsAvailable, isFalse);
-      expect(payload['statusLookup']['exists'], isFalse);
-      expect(payload['result']['nutritionTargetsAvailable'], isFalse);
-    });
-
-    test(
       'uses the matching formal STATUS for the requested operation date',
       () async {
         final container = AppRepositoryContainer.indexedDb(
@@ -327,6 +249,133 @@ void main() {
           after.estimatedBaseBurnKcal,
           greaterThan(before.estimatedBaseBurnKcal!),
         );
+      },
+    );
+
+    test(
+      'derives the canonical Training summary for the real failure shape',
+      () async {
+        final container = AppRepositoryContainer.indexedDb(
+          FakeIndexedDbDatabase(),
+        );
+        for (var day = 2; day <= 8; day++) {
+          await container.status.save(
+            _status(
+              '2026-09-${day.toString().padLeft(2, '0')}',
+              weight: day == 8 ? 94.4 : 93.66,
+              bodyFat: day == 8 ? 31.8 : 31.62,
+              workHours: day == 8 ? 7 : 0,
+            ),
+          );
+        }
+        const strengthEnergy = 346.92;
+        await container.training.saveNewV2(
+          TrainingSessionV2.forMigration(
+            date: '2026-09-08T12:00:00',
+            startTime: '2026-09-08T10:00:00+09:00',
+            endTime: '2026-09-08T11:00:00+09:00',
+            estimatedStrengthCaloriesKcal: strengthEnergy,
+            strengthWeightSnapshotKg: 94.4,
+            strengthCalculationMethod:
+                TrainingSessionV2.strengthCalculationMethodId,
+            strengthCalculationVersion:
+                TrainingSessionV2.strengthCalculationVersionValue,
+          ),
+        );
+
+        final target =
+            await DynamicDailyTargetService(
+              statusRepository: container.status,
+              trainingRepository: container.training,
+            ).loadForOperationDate(
+              operationDate: '2026-09-08',
+              food: const FoodSummary(
+                calories: 1968.9,
+                protein: 140.9,
+                fat: 69.3,
+                carbohydrates: 202.4,
+                hydrationMl: 0,
+                mealCount: 5,
+              ),
+              activity: const ActivitySummary.empty(),
+              training: null,
+            );
+
+        expect(target.estimatedBaseBurnKcal, isNotNull);
+        expect(
+          target.estimatedTotalBurnKcal,
+          closeTo(target.estimatedBaseBurnKcal! + strengthEnergy, 0.001),
+        );
+        expect(target.nutritionTargetsAvailable, isTrue);
+        expect(
+          target.calories.availability,
+          DynamicTargetAvailability.available,
+        );
+        expect(target.fat.availability, DynamicTargetAvailability.available);
+        expect(
+          target.carbohydrate.availability,
+          DynamicTargetAvailability.available,
+        );
+      },
+    );
+
+    test(
+      'preserves unknown Training energy as distinct from formal zero',
+      () async {
+        final container = AppRepositoryContainer.indexedDb(
+          FakeIndexedDbDatabase(),
+        );
+        for (final record in _referenceHistory(weight: 90, bodyFat: 20)) {
+          await container.status.save(record);
+        }
+        await container.training.saveNew(
+          TrainingSession(
+            date: '2026-08-10',
+            memo: '',
+            exercises: const [],
+            cardioEntries: const [],
+          ),
+        );
+        final target =
+            await DynamicDailyTargetService(
+              statusRepository: container.status,
+              trainingRepository: container.training,
+            ).loadForOperationDate(
+              operationDate: '2026-08-10',
+              food: const FoodSummary(
+                calories: 1600,
+                protein: 100,
+                fat: 45,
+                carbohydrates: 180,
+                hydrationMl: 0,
+                mealCount: 1,
+              ),
+              activity: const ActivitySummary.empty(),
+              training: null,
+            );
+
+        expect(target.estimatedBaseBurnKcal, isNotNull);
+        expect(target.estimatedTotalBurnKcal, isNull);
+        expect(
+          target.calories.availability,
+          DynamicTargetAvailability.notAvailable,
+        );
+
+        final formalZero = DynamicDailyTargetEngine.evaluate(
+          operationDate: '2026-08-10',
+          statusHistory: _referenceHistory(weight: 90, bodyFat: 20),
+          currentStatus: _morningFact(weight: 90, bodyFat: 20),
+          currentCaloriesKcal: 1600,
+          currentProteinG: 100,
+          currentFatG: 45,
+          currentCarbohydrateG: 180,
+          currentWaterMl: null,
+          formalTrainingRecorded: true,
+          formalCardioAtLeast30Minutes: false,
+          trainingEnergyKcal: 0,
+        );
+        expect(formalZero.estimatedTotalBurnKcal, isNotNull);
+        expect(formalZero.nutritionTargetsAvailable, isTrue);
       },
     );
   });
