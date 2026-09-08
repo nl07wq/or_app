@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
@@ -142,6 +144,83 @@ void main() {
   });
 
   group('formal STATUS target resolution', () {
+    test(
+      'diagnostic captures formal inputs and canonical consumer result',
+      () async {
+        final container = AppRepositoryContainer.indexedDb(
+          FakeIndexedDbDatabase(),
+        );
+        for (final record in _referenceHistory(weight: 90, bodyFat: 20)) {
+          await container.status.save(record);
+        }
+
+        final diagnostic =
+            await DynamicDailyTargetService(
+              statusRepository: container.status,
+              trainingRepository: container.training,
+            ).diagnoseForOperationDate(
+              operationDate: '2026-08-10',
+              food: const FoodSummary(
+                calories: 1600,
+                protein: 100,
+                fat: 45,
+                carbohydrates: 180,
+                hydrationMl: 0,
+                mealCount: 1,
+              ),
+              activity: const ActivitySummary.empty(),
+              training: null,
+            );
+
+        final payload =
+            jsonDecode(
+                  diagnostic.jsonForConsumer(
+                    consumer: 'DailyNutritionAnalysis.TargetProgress',
+                    operationDate: '2026-08-10',
+                  ),
+                )
+                as Map<String, dynamic>;
+        expect(diagnostic.result?.nutritionTargetsAvailable, isTrue);
+        expect(payload['operationDate'], '2026-08-10');
+        expect(payload['statusLookup']['exists'], isTrue);
+        expect(payload['statusInputs']['weight'], 90);
+        expect(
+          payload['referenceBody']['weight']['sourceType'],
+          'sevenDayMean',
+        );
+        expect(payload['activityContext']['stepsRequiredForTarget'], isFalse);
+        expect(payload['consumer']['receivedTargetResult'], isTrue);
+      },
+    );
+
+    test('diagnostic records a truthful same-date STATUS absence', () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      final diagnostic =
+          await DynamicDailyTargetService(
+            statusRepository: container.status,
+            trainingRepository: container.training,
+          ).diagnoseForOperationDate(
+            operationDate: '2026-08-10',
+            food: const FoodSummary(
+              calories: 1600,
+              protein: 100,
+              fat: 45,
+              carbohydrates: 180,
+              hydrationMl: 0,
+              mealCount: 1,
+            ),
+            activity: const ActivitySummary.empty(),
+            training: null,
+          );
+
+      final payload = diagnostic.payload;
+      expect(diagnostic.result?.nutritionTargetsAvailable, isFalse);
+      expect(payload['statusLookup']['exists'], isFalse);
+      expect(payload['result']['nutritionTargetsAvailable'], isFalse);
+    });
+
     test(
       'uses the matching formal STATUS for the requested operation date',
       () async {

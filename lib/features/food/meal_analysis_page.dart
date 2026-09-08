@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
@@ -70,25 +71,26 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
   Future<_MealAnalysisContext> _loadContext() async {
     final summary = await loadFoodSummary(localDate: widget.record.localDate);
     DynamicDailyTargetResult? targets;
+    DynamicDailyTargetDiagnostic? diagnostic;
     if (AppRepositoryRegistry.hasContainer) {
-      try {
-        final container = AppRepositoryRegistry.container;
-        targets =
-            await DynamicDailyTargetService(
-              statusRepository: container.status,
-              trainingRepository: container.training,
-            ).loadForOperationDate(
-              operationDate: widget.record.localDate,
-              food: summary,
-              activity: const ActivitySummary.empty(),
-              training: null,
-            );
-      } catch (_) {
-        // Historical records remain analyzable even when a target cannot be
-        // reconstructed from formal date-specific context.
-      }
+      final container = AppRepositoryRegistry.container;
+      diagnostic =
+          await DynamicDailyTargetService(
+            statusRepository: container.status,
+            trainingRepository: container.training,
+          ).diagnoseForOperationDate(
+            operationDate: widget.record.localDate,
+            food: summary,
+            activity: const ActivitySummary.empty(),
+            training: null,
+          );
+      targets = diagnostic.result;
     }
-    return _MealAnalysisContext(summary: summary, targets: targets);
+    return _MealAnalysisContext(
+      summary: summary,
+      targets: targets,
+      diagnostic: diagnostic,
+    );
   }
 
   @override
@@ -96,6 +98,21 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
     appBar: AppBar(
       title: const Text('MEAL ANALYSIS'),
       actions: [
+        IconButton(
+          key: const ValueKey('meal-target-diagnostic'),
+          tooltip: 'DAILY TARGET DIAGNOSTIC',
+          icon: const Icon(Icons.bug_report_outlined),
+          onPressed: () async {
+            final data = await _context;
+            if (!context.mounted || data.diagnostic == null) return;
+            await _showDailyTargetDiagnostic(
+              context,
+              diagnostic: data.diagnostic!,
+              consumer: 'MealAnalysis.DailyContext',
+              operationDate: widget.record.localDate,
+            );
+          },
+        ),
         IconButton(
           key: const ValueKey('meal-analysis-edit'),
           tooltip: 'EDIT',
@@ -163,9 +180,45 @@ String _localDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}';
 
 class _MealAnalysisContext {
-  const _MealAnalysisContext({this.summary, this.targets});
+  const _MealAnalysisContext({this.summary, this.targets, this.diagnostic});
   final FoodSummary? summary;
   final DynamicDailyTargetResult? targets;
+  final DynamicDailyTargetDiagnostic? diagnostic;
+}
+
+Future<void> _showDailyTargetDiagnostic(
+  BuildContext context, {
+  required DynamicDailyTargetDiagnostic diagnostic,
+  required String consumer,
+  required String operationDate,
+}) async {
+  final json = diagnostic.jsonForConsumer(
+    consumer: consumer,
+    operationDate: operationDate,
+  );
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('DAILY TARGET DIAGNOSTIC'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(child: SelectableText(json)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('CLOSE'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: json));
+            if (dialogContext.mounted) Navigator.pop(dialogContext);
+          },
+          child: const Text('COPY'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Header extends StatelessWidget {

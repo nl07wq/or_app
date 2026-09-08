@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/operation_engine.dart';
@@ -38,6 +40,168 @@ class DynamicDailyTargetService {
       training: training,
     );
   }
+
+  /// Observes the production target path without mutating formal data.
+  ///
+  /// This is intentionally narrow and temporary: it makes unavailable target
+  /// results actionable on a real device instead of silently collapsing an
+  /// exception into a presentation-only "not available" state.
+  Future<DynamicDailyTargetDiagnostic> diagnoseForOperationDate({
+    required String operationDate,
+    required FoodSummary? food,
+    required ActivitySummary activity,
+    required TrainingSummary? training,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': 'OR-APP DAILY TARGET DIAGNOSTIC',
+      'operationDate': operationDate,
+      'resolver': 'DynamicDailyTargetService.loadForOperationDate',
+      'statusLookup': <String, dynamic>{
+        'repository': 'StatusRepository.findByLocalDate',
+        'requestedOperationDate': operationDate,
+      },
+      'foodContext': _foodDiagnostic(food),
+      'activityContext': <String, dynamic>{
+        'stepsRequiredForTarget': false,
+        'isRecorded': activity.isRecorded,
+      },
+      'trainingContext': <String, dynamic>{
+        'summaryProvided': training != null,
+        'energyKcal': training?.trainingEstimatedCaloriesKcal,
+        'energyStatus': training?.totalEnergyCalculationStatus?.name,
+      },
+    };
+
+    MorningData? status;
+    try {
+      status = await statusRepository.findByLocalDate(operationDate);
+      payload['statusLookup'] = <String, dynamic>{
+        ...payload['statusLookup'] as Map<String, dynamic>,
+        'exists': status != null,
+        'storedDate': status?.date,
+        'canonicalDate': status == null ? null : operationDate,
+      };
+      payload['statusInputs'] = _statusDiagnostic(status);
+    } catch (error) {
+      payload['error'] = _errorDiagnostic('statusLookup', error);
+      return DynamicDailyTargetDiagnostic(payload: payload);
+    }
+
+    try {
+      final date = DateTime.parse(operationDate);
+      final start = DateTime(date.year, date.month, date.day - 13);
+      final history = await statusRepository.getRange(
+        _formatDate(start),
+        operationDate,
+      );
+      payload['statusHistory'] = <String, dynamic>{
+        'rangeStart': _formatDate(start),
+        'rangeEnd': operationDate,
+        'recordCount': history.values.length,
+        'hasReadIssues': history.hasIssues,
+        'localDates': [
+          for (final record in history.values) record.date.split('T').first,
+        ],
+      };
+    } catch (error) {
+      payload['error'] = _errorDiagnostic('statusHistory', error);
+      return DynamicDailyTargetDiagnostic(payload: payload);
+    }
+
+    try {
+      final records = await trainingRepository.findRecordsByLocalDate(
+        operationDate,
+      );
+      payload['trainingContext'] = <String, dynamic>{
+        ...payload['trainingContext'] as Map<String, dynamic>,
+        'formalRecordCount': records.length,
+      };
+    } catch (error) {
+      payload['error'] = _errorDiagnostic('trainingLookup', error);
+      return DynamicDailyTargetDiagnostic(payload: payload);
+    }
+
+    try {
+      final result = await loadForOperationDate(
+        operationDate: operationDate,
+        food: food,
+        activity: activity,
+        training: training,
+      );
+      payload['referenceBody'] = _referenceBodyDiagnostic(result.referenceBody);
+      payload['calculation'] = _calculationDiagnostic(result);
+      payload['result'] = <String, dynamic>{
+        'nutritionTargetsAvailable': result.nutritionTargetsAvailable,
+        'availabilityRule': 'allCaloriesProteinFatCarbohydrateRequired',
+      };
+      return DynamicDailyTargetDiagnostic(payload: payload, result: result);
+    } catch (error) {
+      payload['error'] = _errorDiagnostic('targetCalculation', error);
+      return DynamicDailyTargetDiagnostic(payload: payload);
+    }
+  }
+
+  static Map<String, dynamic> _statusDiagnostic(MorningData? status) =>
+      <String, dynamic>{
+        'exists': status != null,
+        'weight': status?.weight,
+        'bodyFat': status?.bodyFat,
+        'workHours': status?.workHours,
+      };
+
+  static Map<String, dynamic> _foodDiagnostic(FoodSummary? food) =>
+      <String, dynamic>{
+        'summaryPresent': food != null,
+        'mealCount': food?.mealCount,
+        'calories': food?.calories,
+        'protein': food?.protein,
+        'fat': food?.fat,
+        'carbohydrates': food?.carbohydrates,
+      };
+
+  static Map<String, dynamic> _referenceBodyDiagnostic(
+    ReferenceBodyState reference,
+  ) => <String, dynamic>{
+    'weight': _derivedReferenceDiagnostic(reference.weight),
+    'bodyFat': _derivedReferenceDiagnostic(reference.bodyFat),
+    'leanMassKg': reference.leanMassKg,
+  };
+
+  static Map<String, dynamic> _derivedReferenceDiagnostic(
+    DerivedBodyReference reference,
+  ) => <String, dynamic>{
+    'value': reference.value,
+    'sourceType': reference.sourceType.name,
+    'sampleCount': reference.sampleCount,
+    'windowDays': reference.windowDays,
+  };
+
+  static Map<String, dynamic> _calculationDiagnostic(
+    DynamicDailyTargetResult result,
+  ) => <String, dynamic>{
+    'estimatedBaseBurnKcal': result.estimatedBaseBurnKcal,
+    'estimatedTotalBurnKcal': result.estimatedTotalBurnKcal,
+    'calories': _rangeDiagnostic(result.calories),
+    'protein': _rangeDiagnostic(result.protein),
+    'fat': _rangeDiagnostic(result.fat),
+    'carbohydrate': _rangeDiagnostic(result.carbohydrate),
+  };
+
+  static Map<String, dynamic> _rangeDiagnostic(DynamicRangeTarget target) =>
+      <String, dynamic>{
+        'availability': target.availability.name,
+        'current': target.current,
+        'low': target.low,
+        'high': target.high,
+        'state': target.state.name,
+      };
+
+  static Map<String, dynamic> _errorDiagnostic(String stage, Object error) =>
+      <String, dynamic>{
+        'stage': stage,
+        'type': error.runtimeType.toString(),
+        'message': error.toString(),
+      };
 
   Future<DynamicDailyTargetResult> load({
     required String operationDate,
@@ -113,6 +277,26 @@ class DynamicDailyTargetService {
       '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-'
       '${value.day.toString().padLeft(2, '0')}';
+}
+
+class DynamicDailyTargetDiagnostic {
+  const DynamicDailyTargetDiagnostic({required this.payload, this.result});
+
+  final Map<String, dynamic> payload;
+  final DynamicDailyTargetResult? result;
+
+  String jsonForConsumer({
+    required String consumer,
+    required String operationDate,
+  }) => const JsonEncoder.withIndent('  ').convert(<String, dynamic>{
+    ...payload,
+    'consumer': <String, dynamic>{
+      'name': consumer,
+      'operationDate': operationDate,
+      'receivedTargetResult': result != null,
+      'nutritionTargetsAvailable': result?.nutritionTargetsAvailable,
+    },
+  });
 }
 
 abstract final class DynamicDailyTargetEngine {
