@@ -24,18 +24,6 @@ class FoodPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
-
-            AppSpacing.gapSM,
-
-            OperationDescription(text: 'ChatGPTから\n食事記録を取り込みます。'),
-
-            AppSpacing.gapMD,
-
-            const FoodSyncCard(),
-
-            AppSpacing.gapXL,
-
             SectionHeader(icon: Icons.edit_note, title: 'MANUAL ENTRY'),
 
             AppSpacing.gapSM,
@@ -91,6 +79,18 @@ class FoodPage extends StatelessWidget {
                 ),
               ),
             ),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(text: 'ChatGPTから\n食事記録を取り込みます。'),
+
+            AppSpacing.gapMD,
+
+            const FoodSyncCard(),
           ],
         ),
       ),

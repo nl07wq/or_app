@@ -26,15 +26,22 @@ class TrainingPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+            const SectionHeader(
+              icon: Icons.fitness_center,
+              title: 'MANUAL ENTRY',
+            ),
 
             AppSpacing.gapSM,
 
-            const OperationDescription(text: 'ChatGPTから\nトレーニング記録を取り込みます。'),
+            const OperationDescription(
+              text:
+                  '本日のトレーニング内容を\n'
+                  '手動で記録します。',
+            ),
 
             AppSpacing.gapMD,
 
-            const TrainingSyncCard(),
+            const TrainingManualCard(),
 
             AppSpacing.gapXL,
 
@@ -58,25 +65,6 @@ class TrainingPage extends StatelessWidget {
                 ),
               ),
             ),
-
-            AppSpacing.gapXL,
-
-            const SectionHeader(
-              icon: Icons.fitness_center,
-              title: 'MANUAL ENTRY',
-            ),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(
-              text:
-                  '本日のトレーニング内容を\n'
-                  '手動で記録します。',
-            ),
-
-            AppSpacing.gapMD,
-
-            const TrainingManualCard(),
 
             AppSpacing.gapXL,
 
@@ -121,6 +109,18 @@ class TrainingPage extends StatelessWidget {
                 ),
               ),
             ),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(text: 'ChatGPTから\nトレーニング記録を取り込みます。'),
+
+            AppSpacing.gapMD,
+
+            const TrainingSyncCard(),
           ],
         ),
       ),
