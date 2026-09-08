@@ -534,36 +534,43 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
             constraints: const BoxConstraints(maxWidth: 900),
             child: Theme(
               key: ValueKey(
-                active ? 'training-green-base' : 'training-blue-base',
+                switch (presentationState) {
+                  TrainingPresentationState.active => 'training-green-base',
+                  TrainingPresentationState.paused => 'training-amber-base',
+                  _ => 'training-blue-base',
+                },
               ),
-              data: _trainingEntryTheme(context, active: active),
+              data: _trainingEntryTheme(context, state: presentationState),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_form.hasPlan) ...[
-                    OperationCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SectionHeader(
-                            icon: Icons.event_note_outlined,
-                            title: 'PLAN READY',
-                          ),
-                          if (_form.planSourceOperationDate != null) ...[
-                            AppSpacing.gapSM,
-                            Text(
-                              'REFERENCE  ${_form.planSourceOperationDate}',
-                              key: const ValueKey(
-                                'active-training-plan-reference',
-                              ),
-                              style: Theme.of(context).textTheme.labelLarge,
+                    Theme(
+                      data: Theme.of(context),
+                      child: OperationCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SectionHeader(
+                              icon: Icons.event_note_outlined,
+                              title: 'PLAN READY',
                             ),
+                            if (_form.planSourceOperationDate != null) ...[
+                              AppSpacing.gapSM,
+                              Text(
+                                'REFERENCE  ${_form.planSourceOperationDate}',
+                                key: const ValueKey(
+                                  'active-training-plan-reference',
+                                ),
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                            ],
+                            if (_form.planNote != null) ...[
+                              AppSpacing.gapSM,
+                              Text(_form.planNote!),
+                            ],
                           ],
-                          if (_form.planNote != null) ...[
-                            AppSpacing.gapSM,
-                            Text(_form.planNote!),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
                     AppSpacing.gapMD,
@@ -715,13 +722,23 @@ class _TrainingAppBarStateBadge extends StatelessWidget {
   }
 }
 
-ThemeData _trainingEntryTheme(BuildContext context, {required bool active}) {
+ThemeData _trainingEntryTheme(
+  BuildContext context, {
+  required TrainingPresentationState state,
+}) {
   final theme = Theme.of(context);
   final colors = theme.colorScheme;
-  final base = active ? AppColors.success : AppColors.primary;
+  final stateTint =
+      state == TrainingPresentationState.active ||
+      state == TrainingPresentationState.paused;
+  final base = switch (state) {
+    TrainingPresentationState.active => AppColors.success,
+    TrainingPresentationState.paused => AppColors.warning,
+    _ => AppColors.primary,
+  };
   return theme.copyWith(
     cardColor: Color.alphaBlend(
-      base.withValues(alpha: active ? 0.12 : 0.07),
+      base.withValues(alpha: stateTint ? 0.12 : 0.07),
       theme.cardColor,
     ),
     colorScheme: colors.copyWith(
