@@ -31,6 +31,33 @@ class DailyWeightReference {
   final double? previousFormalWeightKg;
 }
 
+enum DailyBodyFatReferenceSource { measuredToday, sevenDayMean, notAvailable }
+
+/// Analysis-only basis for the Body Fat display. It never creates or changes
+/// a formal STATUS fact when today's measurement is unavailable.
+class DailyBodyFatReference {
+  const DailyBodyFatReference({
+    required this.valuePercent,
+    required this.source,
+    required this.sampleCount,
+    required this.windowDays,
+    this.previousFormalBodyFatPercent,
+  });
+
+  const DailyBodyFatReference.notAvailable()
+    : valuePercent = null,
+      source = DailyBodyFatReferenceSource.notAvailable,
+      sampleCount = 0,
+      windowDays = 0,
+      previousFormalBodyFatPercent = null;
+
+  final double? valuePercent;
+  final DailyBodyFatReferenceSource source;
+  final int sampleCount;
+  final int windowDays;
+  final double? previousFormalBodyFatPercent;
+}
+
 enum DailyAssessmentLevel {
   support('SUPPORT', '今日の運用を積極的に支える要因'),
   stable('STABLE', '通常運用可能'),
@@ -102,6 +129,7 @@ class DailyAssessment {
     required Iterable<String> primaryConstraints,
     required Iterable<String> availableResources,
     this.currentWeightReference = const DailyWeightReference.notAvailable(),
+    this.currentBodyFatReference = const DailyBodyFatReference.notAvailable(),
     this.currentBodyFatPercent,
     this.previousFormalBodyFatPercent,
     this.workDisplayValue,
@@ -114,6 +142,7 @@ class DailyAssessment {
   final List<String> primaryConstraints;
   final List<String> availableResources;
   final DailyWeightReference currentWeightReference;
+  final DailyBodyFatReference currentBodyFatReference;
   final double? currentBodyFatPercent;
   final double? previousFormalBodyFatPercent;
   final String? workDisplayValue;
@@ -133,6 +162,7 @@ class DailyAssessmentFacts {
     required Iterable<BodyHistoryDataPoint> weightHistory,
     this.trainingReadiness,
     this.currentWeightReference = const DailyWeightReference.notAvailable(),
+    this.currentBodyFatReference = const DailyBodyFatReference.notAvailable(),
     this.previousFormalBodyFatPercent,
     this.workDisplayValue,
   }) : weightHistory = List.unmodifiable(weightHistory);
@@ -149,6 +179,7 @@ class DailyAssessmentFacts {
   final List<BodyHistoryDataPoint> weightHistory;
   final TrainingReadinessFacts? trainingReadiness;
   final DailyWeightReference currentWeightReference;
+  final DailyBodyFatReference currentBodyFatReference;
   final double? previousFormalBodyFatPercent;
   final String? workDisplayValue;
 }

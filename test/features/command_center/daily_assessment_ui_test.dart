@@ -271,6 +271,34 @@ void main() {
     expect(find.text('CURRENT WEIGHT'), findsNothing);
     expect(find.text('NOT AVAILABLE'), findsWidgets);
   });
+
+  testWidgets('labels Body Fat fallback as a formal week average in points', (
+    tester,
+  ) async {
+    const reference = DailyBodyFatReference(
+      valuePercent: 32.1,
+      source: DailyBodyFatReferenceSource.sevenDayMean,
+      sampleCount: 3,
+      windowDays: 7,
+      previousFormalBodyFatPercent: 32.5,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: DailyAssessmentView(
+              assessment: _assessment(currentBodyFatReference: reference),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('WEEK AVERAGE'), findsOneWidget);
+    expect(find.text('32.1 %'), findsOneWidget);
+    expect(find.text('-0.4 pt'), findsOneWidget);
+    expect(find.text('直近平均は緩やかに低下しています。'), findsOneWidget);
+  });
 }
 
 DailyAssessment _assessment({
@@ -280,9 +308,17 @@ DailyAssessment _assessment({
     sampleCount: 1,
     windowDays: 1,
   ),
+  DailyBodyFatReference currentBodyFatReference = const DailyBodyFatReference(
+    valuePercent: 31.8,
+    source: DailyBodyFatReferenceSource.measuredToday,
+    sampleCount: 1,
+    windowDays: 1,
+    previousFormalBodyFatPercent: 31.9,
+  ),
 }) => DailyAssessment(
   operationDate: '2026-08-10',
   currentWeightReference: currentWeightReference,
+  currentBodyFatReference: currentBodyFatReference,
   currentBodyFatPercent: 31.8,
   previousFormalBodyFatPercent: 31.9,
   workDisplayValue: '7:00–18:00',

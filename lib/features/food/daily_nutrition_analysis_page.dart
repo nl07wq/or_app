@@ -267,10 +267,6 @@ class _TargetProgressCard extends StatelessWidget {
             summary!.fat,
             DynamicDailyTargetPresentation.fatTargetG(targets!.fat)?.toDouble(),
             'g',
-            range: (
-              DynamicDailyTargetPresentation.fatTargetMinG(targets!.fat),
-              DynamicDailyTargetPresentation.fatTargetMaxG(targets!.fat),
-            ),
             assessment: assessRangedNutritionTarget(
               summary!.fat,
               DynamicDailyTargetPresentation.fatTargetMinG(
@@ -321,26 +317,27 @@ class _ProgressRow extends StatelessWidget {
     this.current,
     this.target,
     this.unit, {
-    this.range,
     required this.assessment,
   });
   final String label;
   final double current;
   final double? target;
   final String unit;
-  final (int?, int?)? range;
   final DailyNutritionTargetAssessment assessment;
   @override
   Widget build(BuildContext context) {
-    final remaining = target == null ? null : target! - current;
-    final rangeInfo = range == null || range!.$1 == null
-        ? null
-        : '${range!.$1}–${range!.$2}$unit · ';
-    final progress = remaining == null
+    final delta = target == null ? null : current - target!;
+    final deltaText = delta == null
         ? '目標なし'
-        : remaining >= 0
-        ? '残り ${FoodNutritionFormatter.macro(remaining)}$unit'
-        : 'OVER +${FoodNutritionFormatter.macro(-remaining)}$unit';
+        : '${delta >= 0 ? '+' : ''}${FoodNutritionFormatter.macro(delta)}$unit';
+    final deltaColor = switch (assessment.status) {
+      DailyNutritionTargetStatus.low => NutritionVisualColors.low,
+      DailyNutritionTargetStatus.onTrack => NutritionVisualColors.onTrack,
+      DailyNutritionTargetStatus.over => NutritionVisualColors.high,
+      DailyNutritionTargetStatus.unavailable => Theme.of(
+        context,
+      ).colorScheme.outline,
+    };
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
@@ -350,11 +347,22 @@ class _ProgressRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 116,
-            child: Text(
-              target == null
-                  ? '目標なし'
-                  : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit\n${rangeInfo ?? ''}$progress',
-              textAlign: TextAlign.end,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  target == null
+                      ? '目標なし'
+                      : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit',
+                  textAlign: TextAlign.end,
+                ),
+                Text(
+                  deltaText,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(color: deltaColor),
+                ),
+              ],
             ),
           ),
           SizedBox(

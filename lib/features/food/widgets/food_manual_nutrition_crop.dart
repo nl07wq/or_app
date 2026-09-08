@@ -167,8 +167,6 @@ class _ManualNutritionCropPage extends StatefulWidget {
 
 class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
-  final GlobalKey _imageLayerKey = GlobalKey();
-  final GlobalKey _sourceImageRenderKey = GlobalKey();
   ImageProvider<Object>? _previewImageProvider;
   FoodNutritionCropPreview? _preview;
   double _scale = 1;
@@ -176,10 +174,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   double _startScale = 1;
   Offset _startImageOffset = Offset.zero;
   Offset _startFocalPoint = Offset.zero;
-  _CropActiveSnapshot? _lastActiveSnapshot;
-  _CropRenderGeometrySnapshot? _renderGeometry;
-  Offset? _lastReleaseNormalizedOffset;
-  bool _renderGeometryQueued = false;
   bool _previewImageDrawable = false;
   bool _previewLoadFailed = false;
   bool _submitting = false;
@@ -259,7 +253,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                       final actualScale = baseScale * _scale;
                       final imageOffset =
                           _initialImageOffset(canvas, actualScale) + _pan;
-                      _scheduleRenderGeometryProbe(viewport);
                       return GestureDetector(
                         key: const ValueKey(
                           'manual-nutrition-crop-gesture-area',
@@ -298,13 +291,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                           setState(() {
                             _scale = next;
                             _pan = acceptedOffset - initial;
-                            _lastActiveSnapshot = _CropActiveSnapshot(
-                              rawDelta:
-                                  details.localFocalPoint - _startFocalPoint,
-                              candidateOffset: nextOffset,
-                              acceptedOffset: acceptedOffset,
-                              bounds: strictBounds,
-                            );
                           });
                         },
                         onScaleEnd: (_) => _normalizeAfterInteraction(
@@ -320,72 +306,65 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                               color: Theme.of(context).colorScheme.surface,
                             ),
                             ClipRect(
-                              child: KeyedSubtree(
-                                key: const ValueKey(
-                                  'manual-nutrition-crop-image-layer',
-                                ),
-                                child: RepaintBoundary(
-                                  key: _imageLayerKey,
-                                  child: Transform(
-                                    key: const ValueKey(
-                                      'manual-nutrition-crop-image-transform',
-                                    ),
-                                    transform: Matrix4.identity()
-                                      ..translateByDouble(
-                                        imageOffset.dx,
-                                        imageOffset.dy,
-                                        0,
-                                        1,
-                                      )
-                                      ..scaleByDouble(_scale, _scale, 1, 1),
-                                    // Transform receives the canvas's tight
-                                    // constraints. Release them for the bitmap so
-                                    // its painted rect stays at the same base size
-                                    // used by strict bounds and source mapping.
-                                    child: OverflowBox(
-                                      alignment: Alignment.topLeft,
-                                      minWidth: 0,
-                                      maxWidth: double.infinity,
-                                      minHeight: 0,
-                                      maxHeight: double.infinity,
-                                      child: SizedBox(
-                                        // Keep one stable decoded image at base cover
-                                        // size. The current relative scale is applied by
-                                        // the same paint transform used for gestures and
-                                        // four-edge bounds, so a pinch changes rendered
-                                        // pixels immediately instead of only state.
-                                        width: _dimensions.width * baseScale,
-                                        height: _dimensions.height * baseScale,
-                                        child: KeyedSubtree(
-                                          key: const ValueKey(
-                                            'manual-nutrition-crop-source-image',
-                                          ),
-                                          child: Image(
-                                            key: _sourceImageRenderKey,
-                                            image: _previewImageProvider!,
-                                            fit: BoxFit.fill,
-                                            gaplessPlayback: true,
-                                            filterQuality: FilterQuality.high,
-                                            frameBuilder:
-                                                (
-                                                  _,
-                                                  child,
-                                                  frame,
-                                                  wasSynchronouslyLoaded,
-                                                ) {
-                                                  if (frame != null ||
-                                                      wasSynchronouslyLoaded) {
-                                                    _markPreviewImageDrawable();
-                                                  }
-                                                  return child;
-                                                },
-                                            errorBuilder: (_, _, _) {
-                                              _markPreviewImageFailed();
-                                              return const ColoredBox(
-                                                color: Colors.transparent,
-                                              );
-                                            },
-                                          ),
+                              child: RepaintBoundary(
+                                child: Transform(
+                                  key: const ValueKey(
+                                    'manual-nutrition-crop-image-transform',
+                                  ),
+                                  transform: Matrix4.identity()
+                                    ..translateByDouble(
+                                      imageOffset.dx,
+                                      imageOffset.dy,
+                                      0,
+                                      1,
+                                    )
+                                    ..scaleByDouble(_scale, _scale, 1, 1),
+                                  // Transform receives the canvas's tight
+                                  // constraints. Release them for the bitmap so
+                                  // its painted rect stays at the same base size
+                                  // used by strict bounds and source mapping.
+                                  child: OverflowBox(
+                                    alignment: Alignment.topLeft,
+                                    minWidth: 0,
+                                    maxWidth: double.infinity,
+                                    minHeight: 0,
+                                    maxHeight: double.infinity,
+                                    child: SizedBox(
+                                      // Keep one stable decoded image at base cover
+                                      // size. The current relative scale is applied by
+                                      // the same paint transform used for gestures and
+                                      // four-edge bounds, so a pinch changes rendered
+                                      // pixels immediately instead of only state.
+                                      width: _dimensions.width * baseScale,
+                                      height: _dimensions.height * baseScale,
+                                      child: KeyedSubtree(
+                                        key: const ValueKey(
+                                          'manual-nutrition-crop-source-image',
+                                        ),
+                                        child: Image(
+                                          image: _previewImageProvider!,
+                                          fit: BoxFit.fill,
+                                          gaplessPlayback: true,
+                                          filterQuality: FilterQuality.high,
+                                          frameBuilder:
+                                              (
+                                                _,
+                                                child,
+                                                frame,
+                                                wasSynchronouslyLoaded,
+                                              ) {
+                                                if (frame != null ||
+                                                    wasSynchronouslyLoaded) {
+                                                  _markPreviewImageDrawable();
+                                                }
+                                                return child;
+                                              },
+                                          errorBuilder: (_, _, _) {
+                                            _markPreviewImageFailed();
+                                            return const ColoredBox(
+                                              color: Colors.transparent,
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -394,25 +373,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                               ),
                             ),
                             _CropMask(viewport: viewport),
-                            Positioned(
-                              top: AppSpacing.sm,
-                              right: AppSpacing.sm,
-                              child: IgnorePointer(
-                                child: _CropGeometryDiagnosticPanel(
-                                  canvas: canvas,
-                                  viewport: viewport,
-                                  source: _dimensions,
-                                  baseScale: baseScale,
-                                  relativeScale: _scale,
-                                  actualScale: actualScale,
-                                  currentOffset: imageOffset,
-                                  lastActive: _lastActiveSnapshot,
-                                  renderGeometry: _renderGeometry,
-                                  lastReleaseNormalizedOffset:
-                                      _lastReleaseNormalizedOffset,
-                                ),
-                              ),
-                            ),
                             if (!_previewImageDrawable)
                               Positioned.fill(
                                 child: _CropImageLoadingState(
@@ -472,29 +432,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   Size _imageSize(double scale) =>
       Size(_dimensions.width * scale, _dimensions.height * scale);
 
-  void _scheduleRenderGeometryProbe(Rect viewport) {
-    if (_renderGeometryQueued) return;
-    _renderGeometryQueued = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _renderGeometryQueued = false;
-      if (!mounted) return;
-      final canvasBox = _cropCanvasKey.currentContext?.findRenderObject();
-      final imageBox = _sourceImageRenderKey.currentContext?.findRenderObject();
-      if (canvasBox is! RenderBox || imageBox is! RenderBox) return;
-      final next = _CropRenderGeometrySnapshot(
-        imageBoxSize: imageBox.size,
-        imageTopLeft: imageBox.localToGlobal(Offset.zero),
-        imageBottomRight: imageBox.localToGlobal(
-          Offset(imageBox.size.width, imageBox.size.height),
-        ),
-        viewportTopLeft: canvasBox.localToGlobal(viewport.topLeft),
-        viewportBottomRight: canvasBox.localToGlobal(viewport.bottomRight),
-      );
-      if (_renderGeometry == next) return;
-      setState(() => _renderGeometry = next);
-    });
-  }
-
   void _normalizeAfterInteraction({
     required Rect canvas,
     required Rect viewport,
@@ -521,7 +458,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     setState(() {
       _scale = normalizedScale;
       _pan = targetPan;
-      _lastReleaseNormalizedOffset = targetOffset;
     });
   }
 
@@ -575,20 +511,6 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   }
 }
 
-class _CropActiveSnapshot {
-  const _CropActiveSnapshot({
-    required this.rawDelta,
-    required this.candidateOffset,
-    required this.acceptedOffset,
-    required this.bounds,
-  });
-
-  final Offset rawDelta;
-  final Offset candidateOffset;
-  final Offset acceptedOffset;
-  final FoodManualCropTranslationBounds bounds;
-}
-
 class _CropImageLoadingState extends StatelessWidget {
   const _CropImageLoadingState({this.failed = false});
 
@@ -608,116 +530,6 @@ class _CropImageLoadingState extends StatelessWidget {
       ),
     ),
   );
-}
-
-/// Screen-space corners captured from the actual transformed render object.
-/// These are deliberately separate from crop math diagnostics so device paint
-/// behavior can be compared with the model without changing crop state.
-class _CropRenderGeometrySnapshot {
-  const _CropRenderGeometrySnapshot({
-    required this.imageBoxSize,
-    required this.imageTopLeft,
-    required this.imageBottomRight,
-    required this.viewportTopLeft,
-    required this.viewportBottomRight,
-  });
-
-  final Size imageBoxSize;
-  final Offset imageTopLeft;
-  final Offset imageBottomRight;
-  final Offset viewportTopLeft;
-  final Offset viewportBottomRight;
-
-  @override
-  bool operator ==(Object other) =>
-      other is _CropRenderGeometrySnapshot &&
-      imageBoxSize == other.imageBoxSize &&
-      imageTopLeft == other.imageTopLeft &&
-      imageBottomRight == other.imageBottomRight &&
-      viewportTopLeft == other.viewportTopLeft &&
-      viewportBottomRight == other.viewportBottomRight;
-
-  @override
-  int get hashCode => Object.hash(
-    imageTopLeft,
-    imageBottomRight,
-    viewportTopLeft,
-    viewportBottomRight,
-    imageBoxSize,
-  );
-}
-
-class _CropGeometryDiagnosticPanel extends StatelessWidget {
-  const _CropGeometryDiagnosticPanel({
-    required this.canvas,
-    required this.viewport,
-    required this.source,
-    required this.baseScale,
-    required this.relativeScale,
-    required this.actualScale,
-    required this.currentOffset,
-    required this.lastActive,
-    required this.renderGeometry,
-    required this.lastReleaseNormalizedOffset,
-  });
-
-  final Rect canvas;
-  final Rect viewport;
-  final FoodImageDimensions source;
-  final double baseScale;
-  final double relativeScale;
-  final double actualScale;
-  final Offset currentOffset;
-  final _CropActiveSnapshot? lastActive;
-  final _CropRenderGeometrySnapshot? renderGeometry;
-  final Offset? lastReleaseNormalizedOffset;
-
-  String _number(double? value) =>
-      value == null ? '-' : value.toStringAsFixed(1);
-
-  String _pair(Offset? value) =>
-      value == null ? '(-, -)' : '(${_number(value.dx)}, ${_number(value.dy)})';
-
-  @override
-  Widget build(BuildContext context) {
-    final active = lastActive;
-    final baseWidth = source.width * baseScale;
-    final baseHeight = source.height * baseScale;
-    final lines = [
-      'CROP GEOMETRY',
-      'CANVAS ${_number(canvas.width)}×${_number(canvas.height)}  VIEW ${_number(viewport.width)}×${_number(viewport.height)}',
-      'SOURCE ${source.width}×${source.height}  BASE ${_number(baseWidth)}×${_number(baseHeight)}',
-      'SCALE b:${_number(baseScale)} r:${_number(relativeScale)} a:${_number(actualScale)}',
-      'CURRENT ${_pair(currentOffset)}',
-      'STRICT raw=${_pair(active?.rawDelta)} candidate=${_pair(active?.candidateOffset)}',
-      'bounds x:${_number(active?.bounds.minX)}..${_number(active?.bounds.maxX)}',
-      'bounds y:${_number(active?.bounds.minY)}..${_number(active?.bounds.maxY)}',
-      'post=${_pair(active?.acceptedOffset)}',
-      'RELEASE norm=${_pair(lastReleaseNormalizedOffset)}',
-      'IMAGE box ${_number(renderGeometry?.imageBoxSize.width)}×${_number(renderGeometry?.imageBoxSize.height)}',
-      'PAINT bitmap ${_pair(renderGeometry?.imageTopLeft)}..${_pair(renderGeometry?.imageBottomRight)}',
-      'PAINT view ${_pair(renderGeometry?.viewportTopLeft)}..${_pair(renderGeometry?.viewportBottomRight)}',
-    ];
-    return Semantics(
-      label: 'Crop geometry diagnostic',
-      child: Container(
-        key: const ValueKey('manual-nutrition-crop-geometry-diagnostic'),
-        constraints: const BoxConstraints(maxWidth: 224),
-        padding: const EdgeInsets.all(AppSpacing.xs),
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: .92),
-        child: Text(
-          lines.join('\n'),
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 9,
-            height: 1.18,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _CropMask extends StatelessWidget {

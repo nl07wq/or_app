@@ -410,12 +410,12 @@ void main() {
     },
   );
 
-  test('crop geometry diagnostic has no persistent storage dependency', () {
+  test('crop implementation has no persistent crop diagnostic dependency', () {
     final source = File(
       'lib/features/food/widgets/food_manual_nutrition_crop.dart',
     ).readAsStringSync();
 
-    expect(source, contains('_CropGeometryDiagnosticPanel'));
+    expect(source, isNot(contains('_CropGeometryDiagnosticPanel')));
     expect(source, isNot(contains('SharedPreferences')));
     expect(source, isNot(contains('localStorage')));
     expect(source, isNot(contains('IndexedDB')));
@@ -544,15 +544,10 @@ void main() {
     await _pumpCropFrames(tester);
     expect(
       find.byKey(const ValueKey('manual-nutrition-crop-geometry-diagnostic')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.textContaining('CANVAS'), findsOneWidget);
-    expect(find.textContaining('IMAGE box'), findsOneWidget);
-    expect(find.textContaining('PAINT bitmap'), findsOneWidget);
-    expect(find.textContaining('PAINT view'), findsOneWidget);
-    final transformFinder = find.descendant(
-      of: find.byKey(const ValueKey('manual-nutrition-crop-image-layer')),
-      matching: find.byType(Transform),
+    final transformFinder = find.byKey(
+      const ValueKey('manual-nutrition-crop-image-transform'),
     );
     final before = tester
         .widget<Transform>(transformFinder)
@@ -591,13 +586,8 @@ void main() {
     final paintedSourceTopLeft = sourceBox.localToGlobal(Offset.zero);
     expect(paintedSourceTopLeft.dx, closeTo(canvasTopLeft.dx + during.x, .1));
     expect(paintedSourceTopLeft.dy, closeTo(canvasTopLeft.dy + during.y, .1));
-    expect(find.textContaining('STRICT raw='), findsOneWidget);
-    expect(find.textContaining('candidate='), findsOneWidget);
-    expect(find.textContaining('bounds x:'), findsOneWidget);
-    expect(find.textContaining('post='), findsOneWidget);
     await gesture.up();
     await _pumpCropFrames(tester);
-    expect(find.textContaining('RELEASE norm='), findsOneWidget);
   });
 
   testWidgets(
@@ -653,7 +643,6 @@ void main() {
       expect(atStrictEdge.y, greaterThan(before.y));
       expect(after.x, closeTo(atStrictEdge.x, .1));
       expect(after.y, closeTo(atStrictEdge.y, .1));
-      expect(find.textContaining('RELEASE norm='), findsOneWidget);
     },
   );
 

@@ -24,7 +24,7 @@ abstract final class NutritionVisualColors {
   static const fat = Color(0xFFE9A052);
   static const carbohydrate = Color(0xFF62BFE3);
   static const onTrack = Color(0xFF63C692);
-  static const low = Color(0xFFE9A052);
+  static const low = Color(0xFF62BFE3);
   static const high = Color(0xFFE08A6A);
 
   static Color forMetric(NutritionVisualMetric metric) => switch (metric) {
@@ -104,9 +104,11 @@ class NutritionStatusBadge extends StatelessWidget {
       ),
       child: Text(
         status,
+        maxLines: 1,
+        softWrap: false,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.bold,
         ),
       ),

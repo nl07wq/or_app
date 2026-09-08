@@ -197,6 +197,82 @@ void main() {
       );
     },
   );
+
+  test('uses today Body Fat fact with the previous formal fact', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.status.save(_status(date: '2026-08-09', bodyFat: 32.2));
+    await container.status.save(_status(bodyFat: 31.8));
+
+    final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+    expect(
+      facts.currentBodyFatReference.source,
+      DailyBodyFatReferenceSource.measuredToday,
+    );
+    expect(facts.currentBodyFatReference.valuePercent, 31.8);
+    expect(facts.currentBodyFatReference.previousFormalBodyFatPercent, 32.2);
+  });
+
+  test(
+    'uses a seven-day formal Body Fat average when today is missing',
+    () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(_status(date: '2026-08-04', bodyFat: 32.2));
+      await container.status.save(_status(date: '2026-08-05', bodyFat: 31.8));
+      await container.status.save(_status(date: '2026-08-09', bodyFat: null));
+      await container.status.save(_status(bodyFat: null));
+
+      final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+      expect(
+        facts.currentBodyFatReference.source,
+        DailyBodyFatReferenceSource.sevenDayMean,
+      );
+      expect(facts.currentBodyFatReference.valuePercent, 32.0);
+      expect(facts.currentBodyFatReference.sampleCount, 2);
+      expect(facts.currentBodyFatReference.previousFormalBodyFatPercent, 31.8);
+      expect(facts.currentStatus?.bodyFat, isNull);
+      expect(
+        (await container.status.findByLocalDate('2026-08-10'))?.bodyFat,
+        isNull,
+      );
+    },
+  );
+
+  test('does not call one formal Body Fat fact a week average', () async {
+    final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+    await container.status.save(_status(date: '2026-08-09', bodyFat: 32.2));
+    await container.status.save(_status(bodyFat: null));
+
+    final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+    expect(
+      facts.currentBodyFatReference.source,
+      DailyBodyFatReferenceSource.notAvailable,
+    );
+    expect(facts.currentBodyFatReference.valuePercent, isNull);
+  });
+
+  test(
+    'excludes null and numeric zero Body Fat from the fallback average',
+    () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(_status(date: '2026-08-06', bodyFat: 0));
+      await container.status.save(_status(date: '2026-08-07', bodyFat: null));
+      await container.status.save(_status(date: '2026-08-08', bodyFat: 32));
+      await container.status.save(_status(date: '2026-08-09', bodyFat: 31));
+      await container.status.save(_status(bodyFat: null));
+
+      final facts = await DailyAssessmentFactLoader(container).load(_state());
+
+      expect(facts.currentBodyFatReference.valuePercent, 31.5);
+      expect(facts.currentBodyFatReference.sampleCount, 2);
+    },
+  );
 }
 
 OperationState _state({String? lastFinalizedDate}) {
@@ -211,21 +287,24 @@ OperationState _state({String? lastFinalizedDate}) {
   );
 }
 
-MorningData _status({String date = '2026-08-10', double? weight = 80}) =>
-    MorningData(
-      date: date,
-      weight: weight,
-      bodyFat: 20,
-      sleepHours: 7,
-      sleepScore: 80,
-      footPain: 2,
-      workType: WorkType.holiday,
-      workStart: '',
-      workEnd: '',
-      workBreak: '',
-      workHours: 0,
-      memo: '',
-    );
+MorningData _status({
+  String date = '2026-08-10',
+  double? weight = 80,
+  double? bodyFat = 20,
+}) => MorningData(
+  date: date,
+  weight: weight,
+  bodyFat: bodyFat,
+  sleepHours: 7,
+  sleepScore: 80,
+  footPain: 2,
+  workType: WorkType.holiday,
+  workStart: '',
+  workEnd: '',
+  workBreak: '',
+  workHours: 0,
+  memo: '',
+);
 
 MealData _meal() => const MealData(
   date: '2026-08-10',

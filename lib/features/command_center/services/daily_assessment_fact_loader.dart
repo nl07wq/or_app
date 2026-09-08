@@ -30,6 +30,11 @@ class DailyAssessmentFactLoader {
       operationDate.value,
       (status) => status.bodyFat,
     );
+    final bodyFatReference = await _bodyFatReference(
+      operationDate: operationDate.value,
+      measuredToday: currentStatus?.bodyFat,
+      previousFormalBodyFat: previousFormalBodyFat,
+    );
     final currentFood = await container.foodMixedRead.readForLocalDate(
       operationDate.value,
     );
@@ -88,6 +93,7 @@ class DailyAssessmentFactLoader {
               history: weightHistory,
               previousFormalWeightKg: previousFormalWeight,
             ),
+      currentBodyFatReference: bodyFatReference,
       previousFormalBodyFatPercent: previousFormalBodyFat,
       workDisplayValue: currentStatus == null
           ? null
@@ -115,4 +121,40 @@ class DailyAssessmentFactLoader {
           ..sort((first, second) => second.date.compareTo(first.date));
     return records.isEmpty ? null : select(records.first);
   }
+
+  Future<DailyBodyFatReference> _bodyFatReference({
+    required String operationDate,
+    required double? measuredToday,
+    required double? previousFormalBodyFat,
+  }) async {
+    if (_validBodyFat(measuredToday)) {
+      return DailyBodyFatReference(
+        valuePercent: measuredToday,
+        source: DailyBodyFatReferenceSource.measuredToday,
+        sampleCount: 1,
+        windowDays: 1,
+        previousFormalBodyFatPercent: previousFormalBodyFat,
+      );
+    }
+    final target = DateTime.parse(operationDate);
+    final start = DateTime(target.year, target.month, target.day - 6);
+    final values = [
+      for (final status in (await container.status.findAllCanonical()).values)
+        if (DateTime.tryParse(status.date) case final DateTime date)
+          if (!date.isBefore(start) && !date.isAfter(target))
+            if (_validBodyFat(status.bodyFat)) status.bodyFat!,
+    ];
+    if (values.length < 2) return const DailyBodyFatReference.notAvailable();
+    return DailyBodyFatReference(
+      valuePercent:
+          values.fold<double>(0, (sum, value) => sum + value) / values.length,
+      source: DailyBodyFatReferenceSource.sevenDayMean,
+      sampleCount: values.length,
+      windowDays: 7,
+      previousFormalBodyFatPercent: previousFormalBodyFat,
+    );
+  }
+
+  bool _validBodyFat(double? value) =>
+      value != null && value.isFinite && value > 0;
 }

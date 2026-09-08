@@ -144,6 +144,7 @@ class DailyAssessmentRuleEngine {
       primaryConstraints: _unique(constraints.map((value) => value.label)),
       availableResources: _unique(resources),
       currentWeightReference: facts.currentWeightReference,
+      currentBodyFatReference: facts.currentBodyFatReference,
       currentBodyFatPercent: status?.bodyFat,
       previousFormalBodyFatPercent: facts.previousFormalBodyFatPercent,
       workDisplayValue: facts.workDisplayValue,

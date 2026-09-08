@@ -64,8 +64,7 @@ class DailyAssessmentView extends StatelessWidget {
   Widget _module(DailyAssessmentModule module) => _ModuleAssessmentCard(
     module: module,
     currentWeightReference: assessment.currentWeightReference,
-    currentBodyFatPercent: assessment.currentBodyFatPercent,
-    previousFormalBodyFatPercent: assessment.previousFormalBodyFatPercent,
+    currentBodyFatReference: assessment.currentBodyFatReference,
     workDisplayValue: assessment.workDisplayValue,
     items: assessment.assessments
         .where((item) => item.module == module)
@@ -78,16 +77,14 @@ class _ModuleAssessmentCard extends StatelessWidget {
     required this.module,
     required this.items,
     required this.currentWeightReference,
-    required this.currentBodyFatPercent,
-    required this.previousFormalBodyFatPercent,
+    required this.currentBodyFatReference,
     required this.workDisplayValue,
   });
 
   final DailyAssessmentModule module;
   final List<DailyAssessmentItem> items;
   final DailyWeightReference currentWeightReference;
-  final double? currentBodyFatPercent;
-  final double? previousFormalBodyFatPercent;
+  final DailyBodyFatReference currentBodyFatReference;
   final String? workDisplayValue;
 
   @override
@@ -129,10 +126,7 @@ class _ModuleAssessmentCard extends StatelessWidget {
           ],
           if (module == DailyAssessmentModule.body) ...[
             if (items.isNotEmpty) const Divider(height: 24),
-            _BodyFatFact(
-              current: currentBodyFatPercent,
-              previous: previousFormalBodyFatPercent,
-            ),
+            _BodyFatFact(reference: currentBodyFatReference),
           ],
         ],
       ),
@@ -251,41 +245,54 @@ class _TrainingReadinessDetails extends StatelessWidget {
 }
 
 class _BodyFatFact extends StatelessWidget {
-  const _BodyFatFact({required this.current, required this.previous});
+  const _BodyFatFact({required this.reference});
 
-  final double? current;
-  final double? previous;
+  final DailyBodyFatReference reference;
 
   @override
   Widget build(BuildContext context) {
-    final validCurrent = current != null && current!.isFinite && current! > 0;
-    final validPrevious =
-        previous != null && previous!.isFinite && previous! > 0;
-    final delta = validCurrent && validPrevious ? current! - previous! : null;
+    final current = reference.valuePercent;
+    final previous = reference.previousFormalBodyFatPercent;
+    final validCurrent = current != null && current.isFinite && current > 0;
+    final validPrevious = previous != null && previous.isFinite && previous > 0;
+    final delta = validCurrent && validPrevious ? current - previous : null;
+    final isWeekAverage =
+        reference.source == DailyBodyFatReferenceSource.sevenDayMean;
+    final comment = delta == null
+        ? isWeekAverage
+              ? '直近平均を表示しています。'
+              : '前回計測値を確認できません。'
+        : isWeekAverage
+        ? delta < -.1
+              ? '直近平均は緩やかに低下しています。'
+              : delta > .1
+              ? '直近平均はやや上昇しています。'
+              : '直近平均は概ね安定しています。'
+        : delta < 0
+        ? '前回計測値から減少しています。'
+        : delta > 0
+        ? '前回計測値から増加しています。'
+        : '前回計測値から変化はありません。';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
         AppSpacing.gapXS,
+        if (isWeekAverage) ...[
+          Text('WEEK AVERAGE', style: Theme.of(context).textTheme.labelSmall),
+          AppSpacing.gapXS,
+        ],
         Text(
-          validCurrent ? '${current!.toStringAsFixed(1)} %' : 'NOT AVAILABLE',
+          validCurrent ? '${current.toStringAsFixed(1)} %' : 'NOT AVAILABLE',
         ),
         AppSpacing.gapXS,
         Text(
           delta == null
               ? 'NOT AVAILABLE'
-              : '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} %',
+              : '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} pt',
         ),
         AppSpacing.gapXS,
-        Text(
-          delta == null
-              ? '前回計測値を確認できません。'
-              : delta < 0
-              ? '前回計測値から減少しています。'
-              : delta > 0
-              ? '前回計測値から増加しています。'
-              : '前回計測値から変化はありません。',
-        ),
+        Text(comment),
       ],
     );
   }

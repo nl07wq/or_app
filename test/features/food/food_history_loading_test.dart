@@ -46,6 +46,28 @@ void main() {
     expect(analysisMealTypeLabel('legacy meal'), 'LEGACY MEAL');
   });
 
+  testWidgets('ON TRACK nutrition badge remains a single line', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 68,
+            child: Center(
+              child: NutritionStatusBadge(
+                status: 'ON TRACK',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final label = tester.widget<Text>(find.text('ON TRACK'));
+    expect(label.maxLines, 1);
+    expect(label.softWrap, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('immutable empty result stops loading and shows empty state', (
     tester,
   ) async {
