@@ -35,6 +35,11 @@ class TrainingSessionV2Form extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = trainingPresentationState(
+      startTime: controller.startTime,
+      endTime: controller.endTime,
+      isEditing: !active,
+    );
     return OperationCard(
       key: const ValueKey('training-session-card'),
       child: Column(
@@ -45,7 +50,8 @@ class TrainingSessionV2Form extends StatelessWidget {
               const Expanded(
                 child: SectionHeader(icon: Icons.event_note, title: 'SESSION'),
               ),
-              if (active)
+              if (state == TrainingPresentationState.active ||
+                  state == TrainingPresentationState.paused)
                 Container(
                   key: const ValueKey('training-active-state'),
                   padding: const EdgeInsets.symmetric(
@@ -53,14 +59,26 @@ class TrainingSessionV2Form extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.success),
+                    border: Border.all(
+                      color: state == TrainingPresentationState.active
+                          ? AppColors.success
+                          : AppColors.warning,
+                    ),
                     borderRadius: BorderRadius.circular(999),
-                    color: AppColors.success.withValues(alpha: 0.12),
+                    color:
+                        (state == TrainingPresentationState.active
+                                ? AppColors.success
+                                : AppColors.warning)
+                            .withValues(alpha: 0.12),
                   ),
                   child: Text(
-                    controller.endTime == null ? 'RECORDING' : 'ACTIVE SESSION',
+                    state == TrainingPresentationState.active
+                        ? 'ACTIVE'
+                        : 'PAUSED',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.success,
+                      color: state == TrainingPresentationState.active
+                          ? AppColors.success
+                          : AppColors.warning,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

@@ -16,6 +16,20 @@ class TrainingTimeValidationException implements Exception {
   String toString() => message;
 }
 
+enum TrainingPresentationState { idle, active, paused, completed }
+
+TrainingPresentationState trainingPresentationState({
+  required String? startTime,
+  required String? endTime,
+  required bool isEditing,
+}) {
+  if (isEditing) return TrainingPresentationState.completed;
+  if (startTime == null) return TrainingPresentationState.idle;
+  return endTime == null
+      ? TrainingPresentationState.active
+      : TrainingPresentationState.paused;
+}
+
 class TrainingV2FormController {
   final String date;
   String? startTime;

@@ -621,7 +621,7 @@ void main() {
 
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
-    expect(find.text('RECORDING'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
       AppColors.success,
@@ -668,7 +668,7 @@ void main() {
     );
     expect(find.text('ELAPSED'), findsOneWidget);
     expect(find.text('END TRAINING'), findsOneWidget);
-    expect(find.text('RECORDING'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
       AppColors.success,
@@ -699,7 +699,7 @@ void main() {
 
     await tester.tap(find.text('END TRAINING'));
     await tester.pump();
-    expect(find.text('ACTIVE SESSION'), findsOneWidget);
+    expect(find.text('PAUSED'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
       AppColors.success,
@@ -712,7 +712,7 @@ void main() {
 
     await tester.tap(find.text('RESUME TRAINING'));
     await tester.pump();
-    expect(find.text('RECORDING'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsWidgets);
     expect(
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
       containsPair('endTime', null),
@@ -844,7 +844,7 @@ void main() {
     );
     expect(find.text('PLAN  80 kg'), findsOneWidget);
     expect(find.text('TARGET  8–10'), findsOneWidget);
-    expect(find.text('RECORDING'), findsNothing);
+    expect(find.text('ACTIVE'), findsNothing);
     expect(find.text('ELAPSED'), findsNothing);
     expect(
       _trainingTheme(tester, active: false).colorScheme.primary,
@@ -854,7 +854,7 @@ void main() {
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
 
-    expect(find.text('RECORDING'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
       AppColors.success,
@@ -904,8 +904,8 @@ void main() {
       database: database,
       activeTrainingDraftRepository: drafts,
     );
-    expect(find.text('RECORDING'), findsNothing);
-    expect(find.text('ACTIVE SESSION'), findsNothing);
+    expect(find.text('ACTIVE'), findsNothing);
+    expect(find.text('PAUSED'), findsNothing);
     expect(
       _trainingTheme(tester, active: false).colorScheme.primary,
       AppColors.primary,
@@ -913,7 +913,7 @@ void main() {
 
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
-    expect(find.text('RECORDING'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
       AppColors.success,
@@ -930,8 +930,8 @@ void main() {
       await database.findAll(IndexedDbStoreNames.activeTrainingDrafts),
       isEmpty,
     );
-    expect(find.text('RECORDING'), findsNothing);
-    expect(find.text('ACTIVE SESSION'), findsNothing);
+    expect(find.text('ACTIVE'), findsNothing);
+    expect(find.text('PAUSED'), findsNothing);
     expect(find.text('START TRAINING'), findsOneWidget);
     expect(
       _trainingTheme(tester, active: false).colorScheme.primary,
@@ -998,7 +998,7 @@ void main() {
     await tester.ensureVisible(find.text('END TRAINING'));
     await tester.tap(find.text('END TRAINING'));
     await tester.pump();
-    expect(find.text('ACTIVE SESSION'), findsOneWidget);
+    expect(find.text('PAUSED'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
       AppColors.success,

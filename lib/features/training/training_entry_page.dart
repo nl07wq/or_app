@@ -489,10 +489,18 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       );
     }
     final active = !_isEditing && _form.startTime != null;
+    final presentationState = trainingPresentationState(
+      startTime: _form.startTime,
+      endTime: _form.endTime,
+      isEditing: _isEditing,
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('TRAINING'),
         actions: [
+          if (presentationState == TrainingPresentationState.active ||
+              presentationState == TrainingPresentationState.paused)
+            _TrainingAppBarStateBadge(state: presentationState),
           OperationMenuButton(
             items: [
               OperationMenuItem(
@@ -662,6 +670,47 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       mets: double.tryParse(cardio.mets.text.trim()),
       durationSeconds: duration,
       weightKg: cardio.weightSnapshotKg ?? _statusWeight?.weightKg,
+    );
+  }
+}
+
+class _TrainingAppBarStateBadge extends StatelessWidget {
+  const _TrainingAppBarStateBadge({required this.state});
+
+  final TrainingPresentationState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = state == TrainingPresentationState.active;
+    final color = active ? AppColors.success : AppColors.warning;
+    final label = active ? 'ACTIVE' : 'PAUSED';
+    return Semantics(
+      label: 'Training session ${active ? 'active' : 'paused'}',
+      child: Container(
+        key: const ValueKey('training-appbar-state'),
+        margin: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .12),
+          border: Border.all(color: color),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.circle, size: 7, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
