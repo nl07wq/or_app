@@ -42,6 +42,7 @@ class DailyBodyFatReference {
     required this.sampleCount,
     required this.windowDays,
     this.previousFormalBodyFatPercent,
+    this.weeklyTrendPt,
   });
 
   const DailyBodyFatReference.notAvailable()
@@ -49,13 +50,18 @@ class DailyBodyFatReference {
       source = DailyBodyFatReferenceSource.notAvailable,
       sampleCount = 0,
       windowDays = 0,
-      previousFormalBodyFatPercent = null;
+      previousFormalBodyFatPercent = null,
+      weeklyTrendPt = null;
 
   final double? valuePercent;
   final DailyBodyFatReferenceSource source;
   final int sampleCount;
   final int windowDays;
   final double? previousFormalBodyFatPercent;
+
+  /// Difference between recent and preceding seven formal measurements.
+  /// It is analysis-only and expressed as percentage points per week.
+  final double? weeklyTrendPt;
 }
 
 enum DailyAssessmentLevel {

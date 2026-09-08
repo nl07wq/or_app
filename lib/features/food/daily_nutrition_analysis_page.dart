@@ -873,6 +873,20 @@ class _AssessmentRow extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final compact = constraints.maxWidth < 300;
+      final comment = nutritionAssessmentComment(
+        _assessmentMetric(label),
+        assessment,
+      );
+      final commentStyle = Theme.of(context).textTheme.bodySmall;
+      final commentWidth =
+          (constraints.maxWidth - (compact ? 102 : 116) - (compact ? 80 : 92))
+              .clamp(0.0, double.infinity);
+      final painter = TextPainter(
+        text: TextSpan(text: comment, style: commentStyle),
+        maxLines: 1,
+        textDirection: Directionality.of(context),
+      )..layout(maxWidth: commentWidth);
+      final isTruncated = painter.didExceedMaxLines;
       return Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.xs),
         child: Row(
@@ -885,20 +899,65 @@ class _AssessmentRow extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Text(
-                nutritionAssessmentComment(
-                  _assessmentMetric(label),
-                  assessment,
+              child: Semantics(
+                button: isTruncated,
+                label: isTruncated
+                    ? '$label ${assessment.badgeLabel}: $comment'
+                    : null,
+                child: InkWell(
+                  onTap: isTruncated
+                      ? () => _showAssessmentDetail(
+                          context,
+                          label: label,
+                          status: assessment.badgeLabel,
+                          comment: comment,
+                        )
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      comment,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: commentStyle,
+                    ),
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           ],
         ),
       );
     },
+  );
+}
+
+void _showAssessmentDetail(
+  BuildContext context, {
+  required String label,
+  required String status,
+  required String comment,
+}) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(label),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NutritionStatusBadge(status: status),
+          AppSpacing.gapSM,
+          Text(comment),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('CLOSE'),
+        ),
+      ],
+    ),
   );
 }
 

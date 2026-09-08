@@ -258,19 +258,23 @@ class _BodyFatFact extends StatelessWidget {
     final delta = validCurrent && validPrevious ? current - previous : null;
     final isWeekAverage =
         reference.source == DailyBodyFatReferenceSource.sevenDayMean;
-    final comment = delta == null
+    final weeklyTrend = reference.weeklyTrendPt;
+    final trendValue = isWeekAverage && weeklyTrend != null
+        ? weeklyTrend
+        : delta;
+    final comment = trendValue == null
         ? isWeekAverage
               ? '直近平均を表示しています。'
               : '前回計測値を確認できません。'
         : isWeekAverage
-        ? delta < -.1
-              ? '直近平均は緩やかに低下しています。'
-              : delta > .1
-              ? '直近平均はやや上昇しています。'
-              : '直近平均は概ね安定しています。'
-        : delta < 0
+        ? trendValue < -.1
+              ? '体脂肪率の直近傾向は低下しています。'
+              : trendValue > .1
+              ? '体脂肪率の直近傾向は上昇しています。'
+              : '体脂肪率の直近傾向は概ね安定しています。'
+        : trendValue < 0
         ? '前回計測値から減少しています。'
-        : delta > 0
+        : trendValue > 0
         ? '前回計測値から増加しています。'
         : '前回計測値から変化はありません。';
     return Column(
@@ -278,8 +282,11 @@ class _BodyFatFact extends StatelessWidget {
       children: [
         Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
         AppSpacing.gapXS,
-        if (isWeekAverage) ...[
-          Text('WEEK AVERAGE', style: Theme.of(context).textTheme.labelSmall),
+        if (reference.source != DailyBodyFatReferenceSource.notAvailable) ...[
+          Text(
+            isWeekAverage ? 'WEEK AVERAGE' : 'TODAY FACT',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
           AppSpacing.gapXS,
         ],
         Text(
@@ -287,9 +294,9 @@ class _BodyFatFact extends StatelessWidget {
         ),
         AppSpacing.gapXS,
         Text(
-          delta == null
+          trendValue == null
               ? 'NOT AVAILABLE'
-              : '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} pt',
+              : '${trendValue > 0 ? '+' : ''}${trendValue.toStringAsFixed(1)} pt${isWeekAverage && weeklyTrend != null ? '/week' : ''}',
         ),
         AppSpacing.gapXS,
         Text(comment),

@@ -135,6 +135,7 @@ class DailyAssessmentFactLoader {
     required double? previousFormalBodyFat,
   }) async {
     if (!statusExists) return const DailyBodyFatReference.notAvailable();
+    final weeklyTrendPt = await _bodyFatWeeklyTrend();
     if (_validBodyFat(measuredToday)) {
       final recentAverage = await _recentBodyFatAverage(
         operationDate: operationDate,
@@ -148,6 +149,7 @@ class DailyAssessmentFactLoader {
         previousFormalBodyFatPercent: _validBodyFat(previousDayBodyFat)
             ? previousDayBodyFat
             : recentAverage?.value ?? previousFormalBodyFat,
+        weeklyTrendPt: weeklyTrendPt,
       );
     }
     final average = await _recentBodyFatAverage(operationDate: operationDate);
@@ -160,6 +162,7 @@ class DailyAssessmentFactLoader {
       previousFormalBodyFatPercent: _validBodyFat(previousDayBodyFat)
           ? previousDayBodyFat
           : previousFormalBodyFat,
+      weeklyTrendPt: weeklyTrendPt,
     );
   }
 
@@ -182,6 +185,26 @@ class DailyAssessmentFactLoader {
           values.fold<double>(0, (sum, value) => sum + value) / values.length,
       sampleCount: values.length,
     );
+  }
+
+  /// Mirrors the BODY weight trend structure: compare the mean of the latest
+  /// seven formal observations with the preceding seven. A sparse Body Fat
+  /// history can still use the WEEK AVERAGE fallback, but it must not claim a
+  /// weekly rate without this full comparison basis.
+  Future<double?> _bodyFatWeeklyTrend() async {
+    final points = [
+      for (final status in (await container.status.findAllCanonical()).values)
+        if (DateTime.tryParse(status.date) != null)
+          if (_validBodyFat(status.bodyFat))
+            (date: status.date, value: status.bodyFat!),
+    ]..sort((first, second) => first.date.compareTo(second.date));
+    if (points.length < 14) return null;
+    final recent = points.sublist(points.length - 14);
+    final previousMean =
+        recent.take(7).fold<double>(0, (sum, point) => sum + point.value) / 7;
+    final currentMean =
+        recent.skip(7).fold<double>(0, (sum, point) => sum + point.value) / 7;
+    return double.parse((currentMean - previousMean).toStringAsFixed(6));
   }
 
   bool _validBodyFat(double? value) =>

@@ -198,6 +198,7 @@ void main() {
       expect(find.text('91.2 kg'), findsOneWidget);
       expect(find.text('BODY FAT'), findsOneWidget);
       expect(find.text('31.8 %'), findsOneWidget);
+      expect(find.text('TODAY FACT'), findsOneWidget);
       expect(find.text('THIS WEEK'), findsNothing);
       expect(find.text('TRAINING INTERVALS'), findsOneWidget);
       expect(find.text('48h / 72h'), findsOneWidget);
@@ -281,6 +282,7 @@ void main() {
       sampleCount: 3,
       windowDays: 7,
       previousFormalBodyFatPercent: 32.5,
+      weeklyTrendPt: -0.4,
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -296,8 +298,8 @@ void main() {
 
     expect(find.text('WEEK AVERAGE'), findsOneWidget);
     expect(find.text('32.1 %'), findsOneWidget);
-    expect(find.text('-0.4 pt'), findsOneWidget);
-    expect(find.text('直近平均は緩やかに低下しています。'), findsOneWidget);
+    expect(find.text('-0.4 pt/week'), findsOneWidget);
+    expect(find.text('体脂肪率の直近傾向は低下しています。'), findsOneWidget);
   });
 }
 

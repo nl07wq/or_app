@@ -4,14 +4,9 @@ import '../../import_export/services/backup_file_export_service.dart';
 import '../../import_export/services/backup_file_gateway.dart';
 
 class BackupPromptDialog extends StatefulWidget {
-  const BackupPromptDialog({
-    super.key,
-    required this.exportService,
-    this.autoExport = false,
-  });
+  const BackupPromptDialog({super.key, required this.exportService});
 
   final BackupFileExportService exportService;
-  final bool autoExport;
 
   @override
   State<BackupPromptDialog> createState() => _BackupPromptDialogState();
@@ -21,16 +16,6 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
   _BackupPromptState _state = _BackupPromptState.ready;
 
   bool get _busy => _state == _BackupPromptState.exporting;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.autoExport) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _export();
-      });
-    }
-  }
 
   Future<void> _export() async {
     if (_busy) return;
@@ -68,7 +53,7 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
     return switch (_state) {
       _BackupPromptState.ready => const Text(
         '本日の記録を確定しました。\n'
-        '最新のBACKUPを出力しますか？',
+        'EXPORT BACKUPをタップして最新のBACKUPを保存してください。',
       ),
       _BackupPromptState.exporting => const Row(
         mainAxisSize: MainAxisSize.min,

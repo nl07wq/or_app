@@ -26,8 +26,10 @@ typedef DailyLogReviewCompleted =
 typedef DailyLogFinalizeCompleted = Future<void> Function();
 
 /// The single post-finalize Backup presentation used by both Dashboard and
-/// Command Center.  Command Center embeds [DailyLogSection], so it must never
-/// grow a route-specific Backup path of its own.
+/// Command Center. A completed finalize crosses asynchronous formal writes,
+/// so iOS PWA no longer has a reliable user-activation token for an automatic
+/// share/download. The dialog keeps the established export path directly
+/// behind one explicit user gesture instead of silently attempting it.
 @visibleForTesting
 Future<void> presentDailyFinalizeBackupPrompt({
   required BuildContext context,
@@ -41,8 +43,7 @@ Future<void> presentDailyFinalizeBackupPrompt({
     context: targetNavigator.context,
     useRootNavigator: false,
     barrierDismissible: true,
-    builder: (_) =>
-        BackupPromptDialog(exportService: exportService, autoExport: true),
+    builder: (_) => BackupPromptDialog(exportService: exportService),
   );
 }
 

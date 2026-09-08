@@ -1236,7 +1236,7 @@ void main() {
   });
 
   testWidgets(
-    'finalize pipeline automatically exports one BACKUP before origin completion',
+    'finalize pipeline presents one user-activated BACKUP before origin completion',
     (tester) async {
       final gateway = _RecordingBackupGateway();
       final order = <String>[];
@@ -1263,6 +1263,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(order, ['finalize']);
       expect(find.text('BACKUP'), findsOneWidget);
+      expect(gateway.exportCount, 0);
+      await tester.tap(find.text('EXPORT BACKUP'));
+      await tester.pumpAndSettle();
       expect(gateway.exportCount, 1);
       expect(find.text('Backup exported'), findsOneWidget);
       await tester.tap(find.text('CLOSE'));
@@ -1313,6 +1316,9 @@ void main() {
       expect(rootNavigatorKey.currentState, isNotNull);
       expect(find.text('BACKUP'), findsOneWidget);
       expect(find.text('FINALIZE'), findsNothing);
+      await tester.tap(find.text('EXPORT BACKUP'));
+      await tester.pumpAndSettle();
+      expect(gateway.exportCount, 1);
       await tester.tap(find.text('CLOSE'));
       await tester.pumpAndSettle();
       expect(find.text('BACKUP'), findsNothing);

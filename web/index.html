@@ -31,6 +31,19 @@
 
   <title>or_app</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Keep the document surface continuous with Flutter's Boot canvas. */
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      background: #061522;
+      color: #f4fafc;
+    }
+    flutter-view, flt-glass-pane, flt-scene-host {
+      background: #061522;
+    }
+  </style>
 </head>
 <body>
   <script>
