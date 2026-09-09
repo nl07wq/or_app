@@ -38,6 +38,7 @@ class TrainingSessionV2Form extends StatelessWidget {
     final state = trainingPresentationState(
       startTime: controller.startTime,
       endTime: controller.endTime,
+      isPaused: controller.isPaused,
       isEditing: !active,
     );
     return OperationCard(
@@ -186,7 +187,8 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
   void _syncTimer() {
     final active =
         widget.controller.startTime != null &&
-        widget.controller.endTime == null;
+        widget.controller.endTime == null &&
+        !widget.controller.isPaused;
     if (active && _timer == null) {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
@@ -233,7 +235,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
           onEdit: end == null ? null : () => _editEnd(context, end),
         ),
         AppSpacing.gapSM,
-        if (start != null && end == null) ...[
+        if (start != null && end == null && !widget.controller.isPaused) ...[
           _DurationField(
             label: 'ELAPSED',
             value: _elapsed(start, _currentTime),
@@ -249,11 +251,12 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
                 widget.onChanged();
               }
             },
-            icon: const Icon(Icons.stop),
-            label: const Text('END TRAINING'),
+            icon: const Icon(Icons.pause),
+            label: const Text('PAUSE TRAINING'),
           ),
-        ] else if (start != null && end != null) ...[
-          _DurationField(label: 'DURATION', value: _duration(start, end)),
+        ] else if (start != null &&
+            end == null &&
+            widget.controller.isPaused) ...[
           AppSpacing.gapSM,
           OutlinedButton.icon(
             onPressed: () async {

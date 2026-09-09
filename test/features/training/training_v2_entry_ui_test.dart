@@ -667,7 +667,7 @@ void main() {
       settle: false,
     );
     expect(find.text('ELAPSED'), findsOneWidget);
-    expect(find.text('END TRAINING'), findsOneWidget);
+    expect(find.text('PAUSE TRAINING'), findsOneWidget);
     expect(find.text('ACTIVE'), findsWidgets);
     expect(
       _trainingTheme(tester, active: true).colorScheme.primary,
@@ -697,18 +697,22 @@ void main() {
     ]);
     expect(restoredExercise.sets.map((value) => value.reps.text), ['5', '8']);
 
-    await tester.tap(find.text('END TRAINING'));
+    await tester.tap(find.text('PAUSE TRAINING'));
     await tester.pump();
     expect(find.text('PAUSED'), findsWidgets);
     expect(
-      _trainingTheme(tester, active: true).colorScheme.primary,
-      AppColors.success,
+      tester
+          .widget<Theme>(find.byKey(const ValueKey('training-amber-base')))
+          .data
+          .colorScheme
+          .primary,
+      AppColors.warning,
     );
     expect(
       database.rawRecord(IndexedDbStoreNames.activeTrainingDrafts, draftId),
-      containsPair('endTime', isNotNull),
+      containsPair('endTime', null),
     );
-    expect(find.text('DURATION'), findsOneWidget);
+    expect(find.text('DURATION'), findsNothing);
 
     await tester.tap(find.text('RESUME TRAINING'));
     await tester.pump();
@@ -729,6 +733,17 @@ void main() {
     expect(
       await database.findAll(IndexedDbStoreNames.trainingRecords),
       hasLength(1),
+    );
+    final savedEnvelope = (await database.findAll(
+      IndexedDbStoreNames.trainingRecords,
+    )).single;
+    expect(savedEnvelope, containsPair('recordVersion', 2));
+    expect(
+      savedEnvelope['data'],
+      allOf(
+        containsPair('startTime', isNotNull),
+        containsPair('endTime', isNotNull),
+      ),
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -995,13 +1010,17 @@ void main() {
       activeTheme.cardColor,
     );
 
-    await tester.ensureVisible(find.text('END TRAINING'));
-    await tester.tap(find.text('END TRAINING'));
+    await tester.ensureVisible(find.text('PAUSE TRAINING'));
+    await tester.tap(find.text('PAUSE TRAINING'));
     await tester.pump();
     expect(find.text('PAUSED'), findsWidgets);
     expect(
-      _trainingTheme(tester, active: true).colorScheme.primary,
-      AppColors.success,
+      tester
+          .widget<Theme>(find.byKey(const ValueKey('training-amber-base')))
+          .data
+          .colorScheme
+          .primary,
+      AppColors.warning,
     );
     expect(tester.takeException(), isNull);
   });

@@ -21,19 +21,21 @@ enum TrainingPresentationState { idle, active, paused, completed }
 TrainingPresentationState trainingPresentationState({
   required String? startTime,
   required String? endTime,
+  required bool isPaused,
   required bool isEditing,
 }) {
   if (isEditing) return TrainingPresentationState.completed;
   if (startTime == null) return TrainingPresentationState.idle;
-  return endTime == null
-      ? TrainingPresentationState.active
-      : TrainingPresentationState.paused;
+  return isPaused
+      ? TrainingPresentationState.paused
+      : TrainingPresentationState.active;
 }
 
 class TrainingV2FormController {
   final String date;
   String? startTime;
   String? endTime;
+  bool isPaused = false;
   final String? initialStartTime;
   final String? initialEndTime;
   final int initialCardioDurationSeconds;
@@ -98,18 +100,38 @@ class TrainingV2FormController {
   void startTraining(DateTime now) {
     startTime = TrainingSessionV2.formatOffsetDateTime(now);
     endTime = null;
+    isPaused = false;
     _clearStrengthSnapshot();
   }
 
+  /// Keeps an in-progress session resumable without assigning a formal end.
+  void pauseTraining() {
+    if (startTime == null || endTime != null) return;
+    isPaused = true;
+    _clearStrengthSnapshot();
+  }
+
+  /// Backward-compatible name for the existing in-progress pause action.
   void endTraining(DateTime now) {
+    pauseTraining();
+  }
+
+  void resumeTraining() {
+    if (!isPaused) return;
+    isPaused = false;
+    _clearStrengthSnapshot();
+  }
+
+  /// Backward-compatible name for the existing resume action.
+  void undoEnd() {
+    resumeTraining();
+  }
+
+  /// Assigns the formal end only when the session is being saved as complete.
+  void completeTraining(DateTime now) {
     if (startTime == null) return;
     endTime = TrainingSessionV2.formatOffsetDateTime(now);
-    _clearStrengthSnapshot();
-  }
-
-  void undoEnd() {
-    if (endTime == null) return;
-    endTime = null;
+    isPaused = false;
     _clearStrengthSnapshot();
   }
 
@@ -122,10 +144,12 @@ class TrainingV2FormController {
     TrainingSessionV2(date: date, startTime: startTime, endTime: endTime);
     this.startTime = startTime;
     this.endTime = endTime;
+    isPaused = endTime != null;
     _clearStrengthSnapshot();
   }
 
   Map<String, Object?> toDraftState() => {
+    'isPaused': isPaused,
     'sessionName': sessionName.text,
     'sessionMemo': sessionMemo.text,
     'overallEvaluation': overallEvaluation.text,
@@ -194,6 +218,8 @@ class TrainingV2FormController {
   };
 
   void restoreDraftState(Map<String, Object?> state) {
+    final draftPaused = _draftNullableBool(state, 'isPaused');
+    if (draftPaused != null) isPaused = draftPaused;
     sessionName.text = _draftString(state, 'sessionName');
     sessionMemo.text = _draftString(state, 'sessionMemo');
     overallEvaluation.text = _draftString(state, 'overallEvaluation');

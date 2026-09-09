@@ -151,8 +151,13 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     if (_isSaving || _hasSaved) return;
     setState(() => _isSaving = true);
     var saved = false;
+    final previousEnd = _form.endTime;
+    final previousPaused = _form.isPaused;
     TrainingRecord? savedRecord;
     try {
+      if (!_isEditing && _form.startTime != null && _form.endTime == null) {
+        _form.completeTraining(DateTime.now());
+      }
       final session = TrainingV2FormMapper.toDomain(_form);
       if (_isEditing) {
         final date = DateTime.parse(session.date);
@@ -181,10 +186,16 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       _hasSaved = true;
       saved = true;
     } on TrainingV2FormValidationException catch (error) {
+      _form.restoreDraftTimes(startTime: _form.startTime, endTime: previousEnd);
+      _form.isPaused = previousPaused;
       _showError(error.message);
     } on ConfirmedDailyLogException catch (error) {
+      _form.restoreDraftTimes(startTime: _form.startTime, endTime: previousEnd);
+      _form.isPaused = previousPaused;
       if (mounted) showConfirmedLogMessage(context, error);
     } catch (_) {
+      _form.restoreDraftTimes(startTime: _form.startTime, endTime: previousEnd);
+      _form.isPaused = previousPaused;
       _draftWritesEnabled = true;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -253,6 +264,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     }
     final previousStart = _form.startTime;
     final previousEnd = _form.endTime;
+    final previousPaused = _form.isPaused;
     try {
       update();
       final start = _form.startTime;
@@ -279,9 +291,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       if (mounted) setState(() {});
     } on TrainingTimeValidationException catch (error) {
       _form.restoreDraftTimes(startTime: previousStart, endTime: previousEnd);
+      _form.isPaused = previousPaused;
       if (mounted) _showTimeError(error.message);
     } catch (_) {
       _form.restoreDraftTimes(startTime: previousStart, endTime: previousEnd);
+      _form.isPaused = previousPaused;
       if (mounted) {
         _showTimeError('Training Sessionの時刻を保存できませんでした。');
       }
@@ -492,6 +506,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     final presentationState = trainingPresentationState(
       startTime: _form.startTime,
       endTime: _form.endTime,
+      isPaused: _form.isPaused,
       isEditing: _isEditing,
     );
     return Scaffold(
@@ -533,13 +548,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 900),
             child: Theme(
-              key: ValueKey(
-                switch (presentationState) {
-                  TrainingPresentationState.active => 'training-green-base',
-                  TrainingPresentationState.paused => 'training-amber-base',
-                  _ => 'training-blue-base',
-                },
-              ),
+              key: ValueKey(switch (presentationState) {
+                TrainingPresentationState.active => 'training-green-base',
+                TrainingPresentationState.paused => 'training-amber-base',
+                _ => 'training-blue-base',
+              }),
               data: _trainingEntryTheme(context, state: presentationState),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
