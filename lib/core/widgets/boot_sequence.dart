@@ -28,10 +28,12 @@ const postLogoBootTimingFactor = 1.0;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
+const bootBackgroundColor = Color(0xFF101010);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
+  final Duration preBootSignalIntro;
   final Duration logoIntro;
   final bool waitForLogoDrawable;
   final Duration typingCharacter;
@@ -45,6 +47,7 @@ class BootSequenceTiming {
   final double postLogoTimingFactor;
 
   const BootSequenceTiming({
+    this.preBootSignalIntro = const Duration(milliseconds: 450),
     this.logoIntro = const Duration(milliseconds: 600),
     this.waitForLogoDrawable = true,
     this.typingCharacter = const Duration(milliseconds: 120),
@@ -120,6 +123,7 @@ class _BootSequenceVisual extends StatefulWidget {
   final int typedNameLength;
   final double progress;
   final Duration logoFadeDuration;
+  final Duration preBootSignalIntroDuration;
   final bool waitForLogoDrawable;
   final VoidCallback onLogoFadeComplete;
   final VoidCallback onSkip;
@@ -130,6 +134,7 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.typedNameLength,
     required this.progress,
     required this.logoFadeDuration,
+    required this.preBootSignalIntroDuration,
     required this.waitForLogoDrawable,
     required this.onLogoFadeComplete,
     required this.onSkip,
@@ -145,6 +150,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     'assets/icons/orlo_logo_1024_transparent.png',
   );
   late final AnimationController _cursorController;
+  late final AnimationController _preBootSignalController;
   late final AnimationController _logoFadeController;
   late final AnimationController _spinnerController;
   late final ImageStreamListener _logoImageListener;
@@ -152,6 +158,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
   bool _logoFadeQueued = false;
   bool _logoFadeStarted = false;
   bool _logoFadeCompleted = false;
+  bool _preBootSignalComplete = false;
+  bool _logoDrawable = false;
+  bool _logoLoadFailed = false;
 
   @override
   void initState() {
@@ -160,6 +169,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+    _preBootSignalController =
+        AnimationController(
+          vsync: this,
+          duration: widget.preBootSignalIntroDuration,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            if (mounted) {
+              setState(() => _preBootSignalComplete = true);
+            } else {
+              _preBootSignalComplete = true;
+            }
+            _tryBeginLogoFade();
+          }
+        });
     _logoFadeController =
         AnimationController(vsync: this, duration: widget.logoFadeDuration)
           ..addStatusListener((status) {
@@ -172,11 +195,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       duration: const Duration(milliseconds: 480),
     );
     _logoImageListener = ImageStreamListener(
-      (_, _) => _beginLogoFadeWhenDrawable(),
-      onError: (_, _) => widget.waitForLogoDrawable
-          ? _skipLogoFadeAfterImageError()
-          : _beginLogoFadeWhenDrawable(),
+      (_, _) {
+        _logoDrawable = true;
+        _tryBeginLogoFade();
+      },
+      onError: (_, _) {
+        _logoLoadFailed = true;
+        _tryBeginLogoFade();
+      },
     );
+    if (widget.preBootSignalIntroDuration == Duration.zero) {
+      _preBootSignalComplete = true;
+    } else {
+      _preBootSignalController.forward();
+    }
   }
 
   @override
@@ -186,7 +218,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     _logoImageStream = _logoProvider.resolve(
       createLocalImageConfiguration(context),
     )..addListener(_logoImageListener);
-    if (!widget.waitForLogoDrawable) _beginLogoFadeWhenDrawable();
+    if (!widget.waitForLogoDrawable) _tryBeginLogoFade();
   }
 
   @override
@@ -207,12 +239,19 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
   void dispose() {
     _logoImageStream?.removeListener(_logoImageListener);
     _cursorController.dispose();
+    _preBootSignalController.dispose();
     _logoFadeController.dispose();
     _spinnerController.dispose();
     super.dispose();
   }
 
-  void _beginLogoFadeWhenDrawable() {
+  void _tryBeginLogoFade() {
+    if (!_preBootSignalComplete) return;
+    if (_logoLoadFailed && widget.waitForLogoDrawable) {
+      _skipLogoFadeAfterImageError();
+      return;
+    }
+    if (widget.waitForLogoDrawable && !_logoDrawable) return;
     if (_logoFadeStarted || _logoFadeQueued) return;
     _logoFadeQueued = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -273,7 +312,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
         phase == _BootVisualPhase.dataInitializing ||
         phase == _BootVisualPhase.operationInitializing;
     return ColoredBox(
-      color: const Color(0xFF101010),
+      color: bootBackgroundColor,
       child: SafeArea(
         child: Stack(
           children: [
@@ -304,11 +343,8 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                             width: 220,
                             fit: BoxFit.contain,
                             errorBuilder: (_, _, _) {
-                              if (widget.waitForLogoDrawable) {
-                                _skipLogoFadeAfterImageError();
-                              } else {
-                                _beginLogoFadeWhenDrawable();
-                              }
+                              _logoLoadFailed = true;
+                              _tryBeginLogoFade();
                               return const SizedBox(height: 72);
                             },
                           ),
@@ -406,6 +442,15 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                 ),
               ),
             ),
+            if (!_preBootSignalComplete)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('boot-pre-signal-intro'),
+                    painter: _BootPreSignalPainter(_preBootSignalController),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -425,6 +470,60 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       phase == _BootVisualPhase.coreInitializing ||
       phase == _BootVisualPhase.dataInitializing ||
       phase == _BootVisualPhase.operationInitializing;
+}
+
+class _BootPreSignalPainter extends CustomPainter {
+  const _BootPreSignalPainter(this.progress) : super(repaint: progress);
+
+  final Animation<double> progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frame = progress.value;
+    final centerY = size.height / 2;
+    final lineProgress = (frame / .22).clamp(0.0, 1.0);
+    final restoreProgress = ((frame - .49) / .51).clamp(0.0, 1.0);
+    final restored = Curves.easeOut.transform(restoreProgress);
+    final lineOpacity = (1 - restored).clamp(0.0, 1.0);
+    final expansionHeight = 2 + (size.height - 2) * restored;
+
+    if (restoreProgress > 0) {
+      final restorePaint = Paint()
+        ..color = bootSignalHaloColor.withValues(alpha: .11 * (1 - restored));
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(size.width / 2, centerY),
+          width: size.width,
+          height: expansionHeight,
+        ),
+        restorePaint,
+      );
+    }
+
+    final lineWidth = size.width * (.35 + .65 * lineProgress);
+    final lineLeft = (size.width - lineWidth) / 2;
+    final halo = Paint()
+      ..color = bootSignalHaloColor.withValues(alpha: .75 * lineOpacity);
+    final core = Paint()
+      ..color = bootSignalCoreColor.withValues(alpha: lineOpacity);
+    canvas.drawRect(Rect.fromLTWH(lineLeft, centerY - 2, lineWidth, 5), halo);
+    canvas.drawRect(Rect.fromLTWH(lineLeft, centerY, lineWidth, 1), core);
+
+    if (frame >= .22 && frame < .64) {
+      final noise = ((frame - .22) / .42).clamp(0.0, 1.0);
+      final bandPaint = Paint()
+        ..color = bootSignalFragmentColor.withValues(alpha: (1 - noise) * .4);
+      for (var index = 0; index < 4; index += 1) {
+        final y = centerY + (index - 1.5) * (6 + noise * 12);
+        final offset = (index.isEven ? 1 : -1) * (5 + noise * 9);
+        final width = size.width * (.24 + index * .11);
+        canvas.drawRect(Rect.fromLTWH(offset, y, width, 1), bandPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BootPreSignalPainter oldDelegate) => false;
 }
 
 class _BootStatusLine extends StatelessWidget {
@@ -1045,6 +1144,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         typedNameLength: _typedNameLength,
         progress: _progressController.value,
         logoFadeDuration: widget.timing.logoIntro,
+        preBootSignalIntroDuration: widget.timing.preBootSignalIntro,
         waitForLogoDrawable: widget.timing.waitForLogoDrawable,
         onLogoFadeComplete: _startIdentityTypingAfterLogoFade,
         onSkip: _requestSkip,

@@ -11,6 +11,7 @@ import 'package:or_app/core/widgets/boot_sequence.dart';
 import 'package:or_app/core/widgets/startup_gate.dart';
 
 const _timing = BootSequenceTiming(
+  preBootSignalIntro: Duration.zero,
   logoIntro: Duration(milliseconds: 10),
   waitForLogoDrawable: false,
   postLogoTimingFactor: 1,
@@ -25,9 +26,10 @@ const _timing = BootSequenceTiming(
 );
 
 void main() {
-  test('production Boot timeline uses the explicit 4.5 second pacing plan', () {
+  test('production Boot timeline adds the 450ms signal intro before fade', () {
     const timing = BootSequenceTiming();
 
+    expect(timing.preBootSignalIntro, const Duration(milliseconds: 450));
     expect(timing.logoIntro, const Duration(milliseconds: 600));
     expect(
       timing.postLogo(timing.typingCharacter),
@@ -58,7 +60,79 @@ void main() {
         timing.readyDelay +
         timing.readyHold +
         const Duration(milliseconds: 120);
-    expect(deterministicTotal, const Duration(milliseconds: 4492));
+    expect(
+      timing.preBootSignalIntro + deterministicTotal,
+      const Duration(milliseconds: 4942),
+    );
+  });
+
+  testWidgets('signal intro completes before the logo fade begins', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      preBootSignalIntro: Duration(milliseconds: 450),
+      logoIntro: Duration(milliseconds: 10),
+      waitForLogoDrawable: false,
+      typingCharacter: Duration(milliseconds: 10),
+      fullNameCharacter: Duration(milliseconds: 10),
+      identityHold: Duration(milliseconds: 10),
+      systemBootTransition: Duration(milliseconds: 10),
+      row: Duration(milliseconds: 10),
+      readyDelay: Duration(milliseconds: 10),
+      readyHold: Duration(milliseconds: 10),
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController(), timing: timing),
+    );
+
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+    expect(
+      tester
+          .widget<FadeTransition>(
+            find.byKey(const ValueKey('boot-brand-logo-fade')),
+          )
+          .opacity
+          .value,
+      0,
+    );
+    await _elapse(tester, const Duration(milliseconds: 220));
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+    expect(find.text('O.R.L.O.'), findsNothing);
+    await _elapse(tester, const Duration(milliseconds: 231));
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    expect(
+      tester
+          .widget<FadeTransition>(
+            find.byKey(const ValueKey('boot-brand-logo-fade')),
+          )
+          .opacity
+          .value,
+      0,
+    );
+    await _elapse(
+      tester,
+      timing.logoIntro + const Duration(milliseconds: 1),
+    );
+    expect(find.byKey(const ValueKey('boot-brand-identity')), findsOneWidget);
+  });
+
+  testWidgets('skip during signal intro removes the overlay immediately', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      preBootSignalIntro: Duration(milliseconds: 450),
+      waitForLogoDrawable: false,
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController()..markReady(), timing: timing),
+    );
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+    await tester.pump();
+
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
   });
 
   testWidgets('boot rows are revealed and completed in sequence', (
@@ -786,6 +860,10 @@ Future<void> _advanceLogoFade(
 ) async {
   await tester.pump();
   expect(find.text('O.R.L.O.'), findsNothing);
+  await _elapse(
+    tester,
+    timing.preBootSignalIntro + const Duration(milliseconds: 1),
+  );
   await _elapse(tester, timing.logoIntro);
   expect(
     tester
