@@ -40,30 +40,24 @@ double bootSignalRestoreHeightFraction(double progress) =>
     .02 + .98 * bootSignalRestoreProgress(progress);
 
 @visibleForTesting
-double bootSignalLineJitter(double progress) =>
-    math.sin(progress * 61) * 2.4 * (1 - bootSignalRestoreProgress(progress));
+double bootSignalContentScaleY(double progress) =>
+    bootSignalRestoreHeightFraction(progress);
 
 @visibleForTesting
-double bootSignalLineThickness(double progress) =>
-    1.1 + (math.sin(progress * 47) + 1) * 1.05;
-
-@visibleForTesting
-double bootSignalBandOffset(double progress, int index) {
-  final start = .10 + index * .035;
-  final end = .78 + index * .025;
-  final active = ((progress - start) / (end - start))
-      .clamp(0.0, 1.0)
-      .toDouble();
-  final envelope = math.sin(active * math.pi);
-  final amplitude = 10 + index * 2.5;
-  return math.sin(progress * (31 + index * 9) + index * 1.71) *
-      amplitude *
-      envelope;
+double bootSignalSliceOffset(double progress, int index) {
+  final start = .06 + index * .035;
+  final end = .58 + (index % 3) * .11 + (index == 5 ? .10 : 0);
+  final local = ((progress - start) / (end - start)).clamp(0.0, 1.0).toDouble();
+  final envelope = math.sin(local * math.pi);
+  final direction = index.isEven ? 1.0 : -1.0;
+  final amplitude = 7 + index * 2.6;
+  final flutter = .72 + .28 * math.sin(progress * (18 + index * 4));
+  return direction * amplitude * envelope * flutter;
 }
 
 @visibleForTesting
-double bootSignalBandVerticalOffset(double progress, int index) =>
-    math.sin(progress * (21 + index * 6) + index * 2.13) * (2 + index * .5);
+double bootSignalLineOpacity(double progress) =>
+    math.pow(1 - bootSignalRestoreProgress(progress), .72).toDouble();
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -318,138 +312,19 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
 
   Widget _buildContent(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final phase = widget.phase;
-    final rows = <Widget>[
-      if (phase.index >= _BootVisualPhase.coreInitializing.index)
-        _BootStatusLine(
-          key: const ValueKey('boot-row-core'),
-          label: 'CORE SYSTEM',
-          initializing: phase == _BootVisualPhase.coreInitializing,
-          spinner: _spinnerCharacter,
-        ),
-      if (phase.index >= _BootVisualPhase.dataInitializing.index)
-        _BootStatusLine(
-          key: const ValueKey('boot-row-data'),
-          label: 'DATA INITIALIZATION',
-          initializing: phase == _BootVisualPhase.dataInitializing,
-          spinner: _spinnerCharacter,
-        ),
-      if (phase.index >= _BootVisualPhase.operationInitializing.index)
-        _BootStatusLine(
-          key: const ValueKey('boot-row-operation'),
-          label: 'OPERATION DATA',
-          initializing: phase == _BootVisualPhase.operationInitializing,
-          spinner: _spinnerCharacter,
-        ),
-    ];
-    final hasActiveRow =
-        phase == _BootVisualPhase.coreInitializing ||
-        phase == _BootVisualPhase.dataInitializing ||
-        phase == _BootVisualPhase.operationInitializing;
     return ColoredBox(
       color: bootBackgroundColor,
       child: SafeArea(
         child: Stack(
           children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: DefaultTextStyle(
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                      color: Colors.white70,
-                      fontFamily: 'monospace',
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        FadeTransition(
-                          key: const ValueKey('boot-brand-logo-fade'),
-                          opacity: CurvedAnimation(
-                            parent: _logoFadeController,
-                            curve: Curves.easeOut,
-                          ),
-                          child: Image(
-                            image: _logoProvider,
-                            key: const ValueKey('boot-brand-logo'),
-                            height: 128,
-                            width: 220,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) {
-                              _logoLoadFailed = true;
-                              _tryBeginLogoFade();
-                              return const SizedBox(height: 72);
-                            },
-                          ),
-                        ),
-                        if (phase.index >=
-                            _BootVisualPhase.identityTyping.index) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            'O.R.L.O.'.substring(0, widget.typedLength),
-                            key: const ValueKey('boot-brand-identity'),
-                            style: Theme.of(context).textTheme.titleLarge!
-                                .copyWith(
-                                  color: colorScheme.primary,
-                                  fontFamily: 'monospace',
-                                  letterSpacing: 2,
-                                ),
-                          ),
-                        ],
-                        if (phase.index >= _BootVisualPhase.identityName.index)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: FittedBox(
-                              alignment: Alignment.centerLeft,
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                _fullName.substring(0, widget.typedNameLength),
-                                key: const ValueKey('boot-brand-full-name'),
-                                style: Theme.of(context).textTheme.labelSmall!
-                                    .copyWith(
-                                      color: colorScheme.primary.withValues(
-                                        alpha: .7,
-                                      ),
-                                    ),
-                              ),
-                            ),
-                          ),
-                        if (phase == _BootVisualPhase.identityTyping)
-                          FadeTransition(
-                            opacity: _cursorController,
-                            child: Text(
-                              '▌',
-                              key: const ValueKey('boot-typing-cursor'),
-                              style: TextStyle(color: colorScheme.primary),
-                            ),
-                          ),
-                        if (phase.index >=
-                            _BootVisualPhase.systemBoot.index) ...[
-                          const SizedBox(height: 16),
-                          const Text('SYSTEM BOOT'),
-                          const SizedBox(height: 8),
-                          _BootProgressBar(value: widget.progress),
-                        ],
-                        if (rows.isNotEmpty) const SizedBox(height: 28),
-                        ...rows,
-                        if (hasActiveRow) const SizedBox(height: 8),
-                        if (phase == _BootVisualPhase.systemReady) ...[
-                          const SizedBox(height: 28),
-                          Text(
-                            'SYSTEM READY',
-                            key: const ValueKey('boot-system-ready'),
-                            style: TextStyle(
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+            Positioned.fill(
+              child: _BootContentRestore(
+                progress: _preBootSignalController,
+                active: !_preBootSignalComplete,
+                contentBuilder: (includeKeys) => _buildBootContentLayer(
+                  colorScheme,
+                  widget.phase,
+                  includeKeys,
                 ),
               ),
             ),
@@ -492,6 +367,146 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     );
   }
 
+  Widget _buildBootContentLayer(
+    ColorScheme colorScheme,
+    _BootVisualPhase phase,
+    bool includeKeys,
+  ) {
+    final rows = <Widget>[
+      if (phase.index >= _BootVisualPhase.coreInitializing.index)
+        _BootStatusLine(
+          key: const ValueKey('boot-row-core'),
+          label: 'CORE SYSTEM',
+          initializing: phase == _BootVisualPhase.coreInitializing,
+          spinner: _spinnerCharacter,
+        ),
+      if (phase.index >= _BootVisualPhase.dataInitializing.index)
+        _BootStatusLine(
+          key: const ValueKey('boot-row-data'),
+          label: 'DATA INITIALIZATION',
+          initializing: phase == _BootVisualPhase.dataInitializing,
+          spinner: _spinnerCharacter,
+        ),
+      if (phase.index >= _BootVisualPhase.operationInitializing.index)
+        _BootStatusLine(
+          key: const ValueKey('boot-row-operation'),
+          label: 'OPERATION DATA',
+          initializing: phase == _BootVisualPhase.operationInitializing,
+          spinner: _spinnerCharacter,
+        ),
+    ];
+    final hasActiveRow =
+        phase == _BootVisualPhase.coreInitializing ||
+        phase == _BootVisualPhase.dataInitializing ||
+        phase == _BootVisualPhase.operationInitializing;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: DefaultTextStyle(
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+              color: Colors.white70,
+              fontFamily: 'monospace',
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FadeTransition(
+                  key: includeKeys
+                      ? const ValueKey('boot-brand-logo-fade')
+                      : null,
+                  opacity: CurvedAnimation(
+                    parent: _logoFadeController,
+                    curve: Curves.easeOut,
+                  ),
+                  child: Image(
+                    image: _logoProvider,
+                    key: includeKeys ? const ValueKey('boot-brand-logo') : null,
+                    height: 128,
+                    width: 220,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) {
+                      _logoLoadFailed = true;
+                      _tryBeginLogoFade();
+                      return const SizedBox(height: 72);
+                    },
+                  ),
+                ),
+                if (phase.index >= _BootVisualPhase.identityTyping.index) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'O.R.L.O.'.substring(0, widget.typedLength),
+                    key: includeKeys
+                        ? const ValueKey('boot-brand-identity')
+                        : null,
+                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                      color: colorScheme.primary,
+                      fontFamily: 'monospace',
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+                if (phase.index >= _BootVisualPhase.identityName.index)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: FittedBox(
+                      alignment: Alignment.centerLeft,
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _fullName.substring(0, widget.typedNameLength),
+                        key: includeKeys
+                            ? const ValueKey('boot-brand-full-name')
+                            : null,
+                        style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                          color: colorScheme.primary.withValues(alpha: .7),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (phase == _BootVisualPhase.identityTyping)
+                  FadeTransition(
+                    opacity: _cursorController,
+                    child: Text(
+                      '▌',
+                      key: includeKeys
+                          ? const ValueKey('boot-typing-cursor')
+                          : null,
+                      style: TextStyle(color: colorScheme.primary),
+                    ),
+                  ),
+                if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
+                  const SizedBox(height: 16),
+                  const Text('SYSTEM BOOT'),
+                  const SizedBox(height: 8),
+                  _BootProgressBar(value: widget.progress),
+                ],
+                if (rows.isNotEmpty) const SizedBox(height: 28),
+                ...rows,
+                if (hasActiveRow) const SizedBox(height: 8),
+                if (phase == _BootVisualPhase.systemReady) ...[
+                  const SizedBox(height: 28),
+                  Text(
+                    'SYSTEM READY',
+                    key: includeKeys
+                        ? const ValueKey('boot-system-ready')
+                        : null,
+                    style: TextStyle(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   String get _spinnerCharacter {
     return switch ((_spinnerController.value * 4).floor().clamp(0, 3)) {
       0 => '/',
@@ -507,6 +522,79 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       phase == _BootVisualPhase.operationInitializing;
 }
 
+class _BootContentRestore extends StatelessWidget {
+  const _BootContentRestore({
+    required this.progress,
+    required this.active,
+    required this.contentBuilder,
+  });
+
+  static const _sliceCount = 6;
+
+  final Animation<double> progress;
+  final bool active;
+  final Widget Function(bool includeKeys) contentBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!active) {
+      return KeyedSubtree(
+        key: const ValueKey('boot-content-normal'),
+        child: contentBuilder(true),
+      );
+    }
+    return AnimatedBuilder(
+      animation: progress,
+      builder: (context, _) {
+        final scaleY = bootSignalContentScaleY(progress.value);
+        return Stack(
+          key: const ValueKey('boot-content-transform'),
+          fit: StackFit.expand,
+          children: [
+            for (var index = 0; index < _sliceCount; index += 1)
+              ClipRect(
+                clipper: _BootContentSliceClipper(index, _sliceCount),
+                child: Transform.translate(
+                  offset: Offset(
+                    bootSignalSliceOffset(progress.value, index),
+                    0,
+                  ),
+                  child: Transform.scale(
+                    alignment: Alignment.center,
+                    scaleY: scaleY,
+                    child: KeyedSubtree(
+                      key: ValueKey('boot-content-slice-$index'),
+                      child: contentBuilder(index == 0),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BootContentSliceClipper extends CustomClipper<Rect> {
+  const _BootContentSliceClipper(this.index, this.count);
+
+  final int index;
+  final int count;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTWH(
+    0,
+    size.height * index / count,
+    size.width,
+    size.height / count,
+  );
+
+  @override
+  bool shouldReclip(covariant _BootContentSliceClipper oldClipper) =>
+      oldClipper.index != index || oldClipper.count != count;
+}
+
 class _BootPreSignalPainter extends CustomPainter {
   const _BootPreSignalPainter(this.progress) : super(repaint: progress);
 
@@ -518,39 +606,10 @@ class _BootPreSignalPainter extends CustomPainter {
     final centerY = size.height / 2;
     final lineProgress = (frame / .18).clamp(0.0, 1.0);
     final restored = bootSignalRestoreProgress(frame);
-    final lineOpacity = math.pow(1 - restored, .72).toDouble();
-    final expansionHeight = size.height * bootSignalRestoreHeightFraction(frame);
+    final lineOpacity = bootSignalLineOpacity(frame);
     final lineFlicker = math.sin(frame * 83) * .7 * lineOpacity;
-    final lineJitter = bootSignalLineJitter(frame);
-    final lineThickness = bootSignalLineThickness(frame);
-
-    if (restored > 0) {
-      final restoreRect = Rect.fromCenter(
-        center: Offset(size.width / 2, centerY),
-        width: size.width,
-        height: expansionHeight,
-      );
-      final restorePaint = Paint()
-        ..color = bootSignalHaloColor.withValues(
-          alpha: (.19 * (1 - restored)).clamp(0.0, .19),
-        );
-      canvas.drawRect(restoreRect, restorePaint);
-      canvas.save();
-      canvas.clipRect(restoreRect);
-      for (var index = 0; index < 5; index += 1) {
-        final scanProgress = (frame * (2.4 + index * .14) + index * .19) % 1;
-        final y = restoreRect.top + restoreRect.height * scanProgress;
-        final scanPaint = Paint()
-          ..color = bootSignalFragmentColor.withValues(
-            alpha: (1 - restored) * (.15 + index * .018),
-          );
-        canvas.drawRect(
-          Rect.fromLTWH(0, y, size.width, 1 + (index.isEven ? .5 : 0)),
-          scanPaint,
-        );
-      }
-      canvas.restore();
-    }
+    final lineJitter = math.sin(frame * 61) * 2.4 * lineOpacity;
+    final lineThickness = 1.1 + (math.sin(frame * 47) + 1) * 1.05;
 
     final endpointFlicker = math.sin(frame * 39) * 7 * lineOpacity;
     final lineWidth =
@@ -578,30 +637,18 @@ class _BootPreSignalPainter extends CustomPainter {
       core,
     );
 
-    if (frame >= .10 && frame < .86) {
-      for (var index = 0; index < 4; index += 1) {
-        final bandStart = .10 + index * .035;
-        final bandEnd = .78 + index * .025;
-        final bandProgress = ((frame - bandStart) / (bandEnd - bandStart))
-            .clamp(0.0, 1.0)
-            .toDouble();
-        final bandStrength = math.sin(bandProgress * math.pi);
-        if (bandStrength <= 0) continue;
-        final spread = 9 + restored * 34;
-        final y =
-            centerY +
-            (index - 1.5) * spread +
-            bootSignalBandVerticalOffset(frame, index);
-        final offset = bootSignalBandOffset(frame, index);
-        final width =
-            size.width * (.30 + index * .12) * (1 - restored * .18);
-        final bandPaint = Paint()
+    if (frame >= .12 && frame < .78) {
+      final scanOpacity = (1 - restored) * .18;
+      for (var index = 0; index < 3; index += 1) {
+        final scanProgress = (frame * (3.1 + index * .21) + index * .29) % 1;
+        final y = centerY + (scanProgress - .5) * size.height * restored;
+        final scanPaint = Paint()
           ..color = bootSignalFragmentColor.withValues(
-            alpha: bandStrength * (1 - restored * .35) * (.34 + index * .04),
+            alpha: scanOpacity * (1 - index * .12),
           );
         canvas.drawRect(
-          Rect.fromLTWH(offset, y, width, 1 + (index.isEven ? .5 : 0)),
-          bandPaint,
+          Rect.fromLTWH(0, y, size.width, 1 + (index.isEven ? .5 : 0)),
+          scanPaint,
         );
       }
     }

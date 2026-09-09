@@ -66,7 +66,7 @@ void main() {
     );
   });
 
-  test('signal restore, line, and glitch geometry vary continuously', () {
+  test('Boot content restore and slices vary continuously', () {
     expect(bootSignalRestoreProgress(.25), 0);
     expect(bootSignalRestoreProgress(.45), greaterThan(0));
     expect(
@@ -79,29 +79,20 @@ void main() {
     );
     expect(bootSignalRestoreProgress(1), 1);
     expect(
-      bootSignalRestoreHeightFraction(.25),
-      lessThan(bootSignalRestoreHeightFraction(.50)),
+      bootSignalContentScaleY(.25),
+      lessThan(bootSignalContentScaleY(.50)),
     );
     expect(
-      bootSignalRestoreHeightFraction(.50),
-      lessThan(bootSignalRestoreHeightFraction(.75)),
+      bootSignalContentScaleY(.50),
+      lessThan(bootSignalContentScaleY(.75)),
     );
-    expect(bootSignalRestoreHeightFraction(.25), closeTo(.02, .001));
-    expect(bootSignalRestoreHeightFraction(.75), greaterThan(.80));
-    expect(
-      bootSignalLineJitter(.08),
-      isNot(bootSignalLineJitter(.14)),
-    );
-    expect(
-      bootSignalLineThickness(.08),
-      isNot(bootSignalLineThickness(.14)),
-    );
-    expect(bootSignalBandOffset(.22, 0), isNot(bootSignalBandOffset(.31, 0)));
-    expect(bootSignalBandOffset(.31, 0), isNot(bootSignalBandOffset(.31, 1)));
-    expect(
-      bootSignalBandVerticalOffset(.22, 2),
-      isNot(bootSignalBandVerticalOffset(.31, 2)),
-    );
+    expect(bootSignalContentScaleY(.25), closeTo(.02, .001));
+    expect(bootSignalContentScaleY(.75), greaterThan(.80));
+    expect(bootSignalSliceOffset(.10, 0), isNot(bootSignalSliceOffset(.22, 0)));
+    expect(bootSignalSliceOffset(.22, 0), greaterThan(0));
+    expect(bootSignalSliceOffset(.22, 1), lessThan(0));
+    expect(bootSignalSliceOffset(1, 0), closeTo(0, .000001));
+    expect(bootSignalLineOpacity(1), 0);
   });
 
   testWidgets('signal intro completes before the logo fade begins', (
@@ -135,9 +126,16 @@ void main() {
     );
     await _elapse(tester, const Duration(milliseconds: 220));
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-content-transform')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('boot-content-slice-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-content-slice-5')), findsOneWidget);
     expect(find.text('O.R.L.O.'), findsNothing);
     await _elapse(tester, const Duration(milliseconds: 231));
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    expect(find.byKey(const ValueKey('boot-content-normal')), findsOneWidget);
     expect(
       tester
           .widget<FadeTransition>(
@@ -207,6 +205,28 @@ void main() {
     await tester.pump();
 
     expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+  });
+
+  testWidgets('skip during late signal settle removes all content slices', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      preBootSignalIntro: Duration(milliseconds: 450),
+      waitForLogoDrawable: false,
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController()..markReady(), timing: timing),
+    );
+    await _elapse(tester, const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('boot-content-slice-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-content-slice-5')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+    await tester.pump();
+
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-content-transform')), findsNothing);
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
   });
 
