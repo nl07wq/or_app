@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/services/finalize_backup_trace.dart';
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -282,6 +283,12 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
   Future<void> _showFinalizeDateTransition(
     OperationLocalDate previousOperationDate,
   ) async {
+    FinalizeBackupTrace.instance.record(
+      'COMMAND_CENTER',
+      'CC_DATE_TRANSITION_STARTED',
+      operationDate: previousOperationDate.value,
+      fields: {'mounted': mounted},
+    );
     final nextOperationDate = await const OperationDateService().current();
     if (!mounted) return;
     if (_scrollController.hasClients) {
@@ -305,7 +312,14 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
       OperationDateFlipCalendar.maximumTransitionDuration,
     );
     if (mounted) await _offerPeriodicReports(previousOperationDate);
-    if (mounted) widget.onRefresh();
+    if (mounted) {
+      FinalizeBackupTrace.instance.record(
+        'COMMAND_CENTER',
+        'CC_REFRESH_STARTED',
+        operationDate: previousOperationDate.value,
+      );
+      widget.onRefresh();
+    }
   }
 
   Future<void> _offerPeriodicReports(OperationLocalDate finalizedDate) async {
@@ -313,6 +327,12 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     await runPeriodicReportWorkflowForFinalizedDate(
       finalizedDate: date,
       openReport: (type) async {
+        FinalizeBackupTrace.instance.record(
+          'COMMAND_CENTER',
+          'PERIODIC_REPORT_STARTED',
+          operationDate: finalizedDate.value,
+          fields: {'type': type.name},
+        );
         if (!mounted) return false;
         return await Navigator.of(context).push<bool>(
               MaterialPageRoute(
@@ -408,6 +428,8 @@ class _DailyCommandContent extends StatelessWidget {
           trainingSummary: trainingSummaryNotifier.value,
           estimatedTotalBurn: model.estimatedTotalBurnKcal,
           onReviewCompleted: onReviewCompleted,
+          finalizeTraceSource: 'COMMAND_CENTER',
+          finalizeTraceWorkspace: 'DAILY_COMMAND_PAGEVIEW',
         ),
         AppSpacing.gapLG,
       ],

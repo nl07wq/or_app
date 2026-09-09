@@ -179,6 +179,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 ),
                                             onReviewCompleted:
                                                 _showFinalizeDateTransition,
+                                            finalizeTraceSource: 'DASHBOARD',
+                                            finalizeTraceWorkspace: 'DASHBOARD',
                                           ),
                                           AppSpacing.gapXL,
                                           SectionHeader(

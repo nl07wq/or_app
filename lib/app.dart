@@ -29,6 +29,7 @@ import 'features/system/pages/animations_sandbox_page.dart';
 import 'features/system/pages/profile_page.dart';
 import 'features/system/pages/system_page.dart';
 import 'features/system/pages/device_transfer_page.dart';
+import 'features/system/pages/finalize_backup_trace_page.dart';
 import 'features/system/pages/system_monitoring_page.dart';
 import 'features/system/pages/startup_diagnostic_page.dart';
 
@@ -163,6 +164,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
         AppRoutes.systemMonitoring: (_) => const SystemMonitoringPage(),
         AppRoutes.startupDiagnostic: (_) => const StartupDiagnosticPage(),
+        AppRoutes.finalizeBackupTrace: (_) => const FinalizeBackupTracePage(),
         AppRoutes.operationSync: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
           return OperationSyncPage(

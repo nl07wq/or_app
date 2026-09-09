@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/finalize_backup_trace.dart';
 import '../../import_export/services/backup_file_export_service.dart';
 import '../../import_export/services/backup_file_gateway.dart';
 
 class BackupPromptDialog extends StatefulWidget {
-  const BackupPromptDialog({super.key, required this.exportService});
+  const BackupPromptDialog({
+    super.key,
+    required this.exportService,
+    this.traceSource,
+    this.operationDate,
+  });
 
   final BackupFileExportService exportService;
+  final String? traceSource;
+  final String? operationDate;
 
   @override
   State<BackupPromptDialog> createState() => _BackupPromptDialogState();
@@ -16,6 +24,20 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
   _BackupPromptState _state = _BackupPromptState.ready;
 
   bool get _busy => _state == _BackupPromptState.exporting;
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.traceSource;
+    if (source != null) {
+      FinalizeBackupTrace.instance.record(
+        source,
+        'BACKUP_PROMPT_VISIBLE',
+        operationDate: widget.operationDate,
+        fields: {'dialogMounted': mounted},
+      );
+    }
+  }
 
   Future<void> _export() async {
     if (_busy) return;
