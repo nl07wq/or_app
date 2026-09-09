@@ -45,7 +45,8 @@ enum BootSignalMode { legacyInterference, microSignalField }
 @visibleForTesting
 const bootSignalAcquisitionFineSegmentCount = 18;
 const _bootSignalAcquisitionLockFragmentCount = 4;
-const _bootSignalAcquisitionDuration = Duration(milliseconds: 300);
+const _legacySignalAcquisitionDuration = Duration(milliseconds: 300);
+const _microSignalAcquisitionDuration = Duration(milliseconds: 500);
 
 /// A bounded field of deterministic source primitives. Offset pairs render a
 /// second related fragment, but still count as one signal primitive here.
@@ -227,7 +228,7 @@ BootSignalAcquisitionDiagnostics bootSignalAcquisitionDiagnosticsAt(
   Size size,
 ) {
   final progress =
-      (elapsed.inMicroseconds / _bootSignalAcquisitionDuration.inMicroseconds)
+      (elapsed.inMicroseconds / _legacySignalAcquisitionDuration.inMicroseconds)
           .clamp(0.0, 1.0)
           .toDouble();
   final centerY = size.height / 2;
@@ -396,7 +397,7 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
   Size size,
 ) {
   final progress =
-      (elapsed.inMicroseconds / _bootSignalAcquisitionDuration.inMicroseconds)
+      (elapsed.inMicroseconds / _microSignalAcquisitionDuration.inMicroseconds)
           .clamp(0.0, 1.0)
           .toDouble();
   var activeCount = 0;
@@ -521,7 +522,7 @@ class BootSequenceTiming {
 
   const BootSequenceTiming({
     this.signalMode = BootSignalMode.microSignalField,
-    this.signalAcquisitionIntro = const Duration(milliseconds: 300),
+    Duration? signalAcquisitionIntro,
     this.preBootSignalIntro = const Duration(milliseconds: 450),
     this.logoIntro = const Duration(milliseconds: 600),
     this.waitForLogoDrawable = true,
@@ -534,7 +535,11 @@ class BootSequenceTiming {
     this.readyDelay = const Duration(milliseconds: 210),
     this.readyHold = const Duration(milliseconds: 400),
     this.postLogoTimingFactor = postLogoBootTimingFactor,
-  });
+  }) : signalAcquisitionIntro =
+           signalAcquisitionIntro ??
+           (signalMode == BootSignalMode.microSignalField
+               ? _microSignalAcquisitionDuration
+               : _legacySignalAcquisitionDuration);
 
   Duration postLogo(Duration duration) => Duration(
     microseconds: (duration.inMicroseconds * postLogoTimingFactor).round(),

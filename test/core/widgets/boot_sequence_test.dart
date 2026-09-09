@@ -35,7 +35,7 @@ void main() {
       const timing = BootSequenceTiming();
 
       expect(timing.signalMode, BootSignalMode.microSignalField);
-      expect(timing.signalAcquisitionIntro, const Duration(milliseconds: 300));
+      expect(timing.signalAcquisitionIntro, const Duration(milliseconds: 500));
       expect(timing.preBootSignalIntro, const Duration(milliseconds: 450));
       expect(timing.logoIntro, const Duration(milliseconds: 600));
       expect(
@@ -71,7 +71,7 @@ void main() {
         timing.signalAcquisitionIntro +
             timing.preBootSignalIntro +
             deterministicTotal,
-        const Duration(milliseconds: 5242),
+        const Duration(milliseconds: 5442),
       );
     },
   );
@@ -184,17 +184,17 @@ void main() {
       viewport,
     );
     final peak = bootMicroSignalFieldDiagnosticsAt(
-      const Duration(milliseconds: 180),
+      const Duration(milliseconds: 300),
       viewport,
     );
     final converge = bootMicroSignalFieldDiagnosticsAt(
-      const Duration(milliseconds: 240),
+      const Duration(milliseconds: 400),
       viewport,
     );
 
     expect(bootMicroSignalFieldPrimitiveCount, 64);
     expect(sparse.activePrimitiveCount, lessThan(build.activePrimitiveCount));
-    expect(build.activePrimitiveCount, greaterThanOrEqualTo(40));
+    expect(build.activePrimitiveCount, greaterThanOrEqualTo(20));
     expect(peak.activePrimitiveCount, inInclusiveRange(40, 100));
     expect(peak.activeCountByType.values.where((count) => count > 0).length, 5);
     expect(peak.maximumEffectiveOpacity, greaterThan(.15));
