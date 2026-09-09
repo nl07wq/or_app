@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/services/operation_system_metadata.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../services/app_metadata.dart';
@@ -33,6 +34,11 @@ class AboutPage extends StatelessWidget {
               const _AboutValue(
                 label: 'Operation Reboot Version',
                 value: AppMetadata.operationRebootVersion,
+              ),
+              const Divider(),
+              const _AboutValue(
+                label: 'OPERATION SYSTEM VERSION',
+                value: OperationSystemMetadata.version,
               ),
               const Divider(),
               const _AboutValue(

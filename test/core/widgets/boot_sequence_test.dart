@@ -5,12 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/active_session_heartbeat.dart';
 import 'package:or_app/core/services/boot_audio.dart';
 import 'package:or_app/core/services/boot_presentation_session.dart';
+import 'package:or_app/core/services/operation_system_metadata.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/boot_sequence.dart';
 import 'package:or_app/core/widgets/startup_gate.dart';
 
 const _timing = BootSequenceTiming(
+  signalAcquisitionIntro: Duration.zero,
   preBootSignalIntro: Duration.zero,
   logoIntro: Duration(milliseconds: 10),
   waitForLogoDrawable: false,
@@ -26,47 +28,59 @@ const _timing = BootSequenceTiming(
 );
 
 void main() {
-  test('production Boot timeline adds the 450ms signal intro before fade', () {
-    const timing = BootSequenceTiming();
+  test(
+    'production Boot timeline acquires signal before reconstruction and fade',
+    () {
+      const timing = BootSequenceTiming();
 
-    expect(timing.preBootSignalIntro, const Duration(milliseconds: 450));
-    expect(timing.logoIntro, const Duration(milliseconds: 600));
-    expect(
-      timing.postLogo(timing.typingCharacter),
-      const Duration(milliseconds: 120),
-    );
-    expect(
-      timing.postLogo(timing.systemBootTransition),
-      const Duration(milliseconds: 190),
-    );
-    expect(
-      timing.postLogo(timing.readyHold),
-      const Duration(milliseconds: 400),
-    );
-    expect(
-      timing.postLogo(const Duration(milliseconds: 120)),
-      const Duration(milliseconds: 120),
-    );
-    const identity = [170, 160, 145, 135, 125, 115, 95, 75];
-    final deterministicTotal =
-        timing.logoIntro +
-        Duration(
-          milliseconds: identity.fold<int>(0, (sum, value) => sum + value),
-        ) +
-        timing.fullNameCharacter * 43 +
-        timing.identityHold +
-        timing.systemBootTransition +
-        timing.row * 4 +
-        timing.readyDelay +
-        timing.readyHold +
-        const Duration(milliseconds: 120);
-    expect(
-      timing.preBootSignalIntro + deterministicTotal,
-      const Duration(milliseconds: 4942),
-    );
-  });
+      expect(timing.signalAcquisitionIntro, const Duration(milliseconds: 240));
+      expect(timing.preBootSignalIntro, const Duration(milliseconds: 450));
+      expect(timing.logoIntro, const Duration(milliseconds: 600));
+      expect(
+        timing.postLogo(timing.typingCharacter),
+        const Duration(milliseconds: 120),
+      );
+      expect(
+        timing.postLogo(timing.systemBootTransition),
+        const Duration(milliseconds: 190),
+      );
+      expect(
+        timing.postLogo(timing.readyHold),
+        const Duration(milliseconds: 400),
+      );
+      expect(
+        timing.postLogo(const Duration(milliseconds: 120)),
+        const Duration(milliseconds: 120),
+      );
+      const identity = [170, 160, 145, 135, 125, 115, 95, 75];
+      final deterministicTotal =
+          timing.logoIntro +
+          Duration(
+            milliseconds: identity.fold<int>(0, (sum, value) => sum + value),
+          ) +
+          timing.fullNameCharacter * 43 +
+          timing.identityHold +
+          timing.systemBootTransition +
+          timing.row * 4 +
+          timing.readyDelay +
+          timing.readyHold +
+          const Duration(milliseconds: 120);
+      expect(
+        timing.signalAcquisitionIntro +
+            timing.preBootSignalIntro +
+            deterministicTotal,
+        const Duration(milliseconds: 5182),
+      );
+    },
+  );
 
   test('Boot content restore and slices vary continuously', () {
+    expect(bootSignalAcquisitionLineOpacity(0), 0);
+    expect(bootSignalAcquisitionLineOpacity(.5), greaterThan(.16));
+    expect(bootSignalAcquisitionLineOpacity(1), greaterThan(.6));
+    expect(bootSignalAcquisitionInterferenceOpacity(.14), 0);
+    expect(bootSignalAcquisitionInterferenceOpacity(.5), greaterThan(0));
+    expect(bootSignalAcquisitionInterferenceOpacity(.84), closeTo(0, .000001));
     expect(bootSignalRestoreProgress(.25), 0);
     expect(bootSignalRestoreProgress(.45), greaterThan(0));
     expect(
@@ -103,10 +117,45 @@ void main() {
     expect(bootIntroSilhouetteOpacity(.95), closeTo(0, .000001));
   });
 
+  testWidgets('signal acquisition completes before ghost reconstruction', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration(milliseconds: 240),
+      preBootSignalIntro: Duration(milliseconds: 450),
+      logoIntro: Duration(milliseconds: 10),
+      waitForLogoDrawable: false,
+      typingCharacter: Duration(milliseconds: 10),
+      fullNameCharacter: Duration(milliseconds: 10),
+      identityHold: Duration(milliseconds: 10),
+      systemBootTransition: Duration(milliseconds: 10),
+      row: Duration(milliseconds: 10),
+      readyDelay: Duration(milliseconds: 10),
+      readyHold: Duration(milliseconds: 10),
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController(), timing: timing),
+    );
+
+    expect(
+      find.byKey(const ValueKey('boot-signal-acquisition')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    await _elapse(tester, const Duration(milliseconds: 241));
+    expect(find.byKey(const ValueKey('boot-signal-acquisition')), findsNothing);
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-content-transform')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('signal intro completes before the logo fade begins', (
     tester,
   ) async {
     const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
       preBootSignalIntro: Duration(milliseconds: 450),
       logoIntro: Duration(milliseconds: 10),
       waitForLogoDrawable: false,
@@ -177,6 +226,7 @@ void main() {
     tester,
   ) async {
     const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
       preBootSignalIntro: Duration(milliseconds: 450),
       waitForLogoDrawable: false,
     );
@@ -196,10 +246,35 @@ void main() {
     );
   });
 
+  testWidgets('skip during signal acquisition remains immediate', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration(milliseconds: 240),
+      preBootSignalIntro: Duration(milliseconds: 450),
+      waitForLogoDrawable: false,
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController()..markReady(), timing: timing),
+    );
+    expect(
+      find.byKey(const ValueKey('boot-signal-acquisition')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+    await tester.pump();
+
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-signal-acquisition')), findsNothing);
+    expect(find.byKey(const ValueKey('boot-content-transform')), findsNothing);
+  });
+
   testWidgets('skip during signal restore removes the overlay immediately', (
     tester,
   ) async {
     const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
       preBootSignalIntro: Duration(milliseconds: 450),
       waitForLogoDrawable: false,
     );
@@ -224,6 +299,7 @@ void main() {
     tester,
   ) async {
     const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
       preBootSignalIntro: Duration(milliseconds: 450),
       waitForLogoDrawable: false,
     );
@@ -248,6 +324,7 @@ void main() {
     tester,
   ) async {
     const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
       preBootSignalIntro: Duration(milliseconds: 450),
       waitForLogoDrawable: false,
     );
@@ -289,6 +366,11 @@ void main() {
     expect(find.text('O.R.L.O.'), findsNothing);
     await _advanceTyping(tester, _timing, count: 7);
     expect(find.byKey(const ValueKey('boot-brand-full-name')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-operation-system-version')),
+      findsOneWidget,
+    );
+    expect(find.text(OperationSystemMetadata.version), findsOneWidget);
     expect(find.text('SYSTEM BOOT'), findsNothing);
     await _elapse(tester, _timing.identityHold);
     expect(find.byKey(const ValueKey('boot-progress-bar')), findsOneWidget);
@@ -321,12 +403,14 @@ void main() {
   ) async {
     const typedName = 'Operation Reasoning Lifesystem Orchestrator';
     const typingTiming = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
+      preBootSignalIntro: Duration.zero,
       logoIntro: Duration(milliseconds: 1),
       waitForLogoDrawable: false,
       postLogoTimingFactor: 1,
       typingCharacter: Duration(milliseconds: 1),
       fullNameCharacter: Duration(milliseconds: 17),
-      identityHold: Duration(milliseconds: 1),
+      identityHold: Duration(milliseconds: 50),
       systemBootTransition: Duration(milliseconds: 1),
       row: Duration(milliseconds: 1),
       readyDelay: Duration(milliseconds: 1),
@@ -338,6 +422,7 @@ void main() {
     await _advanceLogoFade(tester, typingTiming);
     await _advanceTyping(tester, typingTiming);
     expect(find.text('O.R.L.O.'), findsOneWidget);
+    expect(find.text(OperationSystemMetadata.version), findsNothing);
     expect(find.text('SYSTEM BOOT'), findsNothing);
 
     expect(
@@ -356,6 +441,7 @@ void main() {
       typingTiming.fullNameCharacter * (typedName.length - 2),
     );
     expect(find.text(typedName), findsOneWidget);
+    expect(find.text(OperationSystemMetadata.version), findsOneWidget);
     expect(find.text('SYSTEM BOOT'), findsNothing);
     await _elapse(tester, typingTiming.identityHold);
     expect(find.text('SYSTEM BOOT'), findsOneWidget);
@@ -365,6 +451,8 @@ void main() {
     tester,
   ) async {
     const continuousTiming = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
+      preBootSignalIntro: Duration.zero,
       logoIntro: Duration(milliseconds: 20),
       waitForLogoDrawable: false,
       postLogoTimingFactor: 1,
@@ -494,6 +582,8 @@ void main() {
     tester,
   ) async {
     const spinnerTiming = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
+      preBootSignalIntro: Duration.zero,
       logoIntro: Duration(milliseconds: 10),
       waitForLogoDrawable: false,
       postLogoTimingFactor: 1,

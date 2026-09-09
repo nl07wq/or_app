@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/boot_audio.dart';
+import '../services/operation_system_metadata.dart';
 import '../services/startup_diagnostic.dart';
 import '../state/app_initialization_state.dart';
 
@@ -30,6 +31,19 @@ const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
+
+@visibleForTesting
+double bootSignalAcquisitionLineOpacity(double progress) {
+  final detection = Curves.easeOut.transform((progress / .28).clamp(0.0, 1.0));
+  final lock = Curves.easeInOut.transform(
+    ((progress - .36) / .64).clamp(0.0, 1.0),
+  );
+  return .16 * detection + .52 * lock;
+}
+
+@visibleForTesting
+double bootSignalAcquisitionInterferenceOpacity(double progress) =>
+    math.sin(((progress - .14) / .70).clamp(0.0, 1.0).toDouble() * math.pi);
 
 @visibleForTesting
 double bootSignalRestoreProgress(double progress) => Curves.easeInOutCubic
@@ -80,6 +94,7 @@ double bootIntroSilhouetteOpacity(double progress) {
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
+  final Duration signalAcquisitionIntro;
   final Duration preBootSignalIntro;
   final Duration logoIntro;
   final bool waitForLogoDrawable;
@@ -94,6 +109,7 @@ class BootSequenceTiming {
   final double postLogoTimingFactor;
 
   const BootSequenceTiming({
+    this.signalAcquisitionIntro = const Duration(milliseconds: 240),
     this.preBootSignalIntro = const Duration(milliseconds: 450),
     this.logoIntro = const Duration(milliseconds: 600),
     this.waitForLogoDrawable = true,
@@ -117,6 +133,7 @@ enum _BootVisualPhase {
   logo,
   identityTyping,
   identityName,
+  axisIdentity,
   systemBoot,
   coreInitializing,
   dataInitializing,
@@ -170,6 +187,7 @@ class _BootSequenceVisual extends StatefulWidget {
   final int typedNameLength;
   final double progress;
   final Duration logoFadeDuration;
+  final Duration signalAcquisitionIntroDuration;
   final Duration preBootSignalIntroDuration;
   final bool waitForLogoDrawable;
   final VoidCallback onLogoFadeComplete;
@@ -181,6 +199,7 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.typedNameLength,
     required this.progress,
     required this.logoFadeDuration,
+    required this.signalAcquisitionIntroDuration,
     required this.preBootSignalIntroDuration,
     required this.waitForLogoDrawable,
     required this.onLogoFadeComplete,
@@ -197,6 +216,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     'assets/icons/orlo_logo_1024_transparent.png',
   );
   late final AnimationController _cursorController;
+  late final AnimationController _signalAcquisitionController;
   late final AnimationController _preBootSignalController;
   late final AnimationController _logoFadeController;
   late final AnimationController _spinnerController;
@@ -205,6 +225,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
   bool _logoFadeQueued = false;
   bool _logoFadeStarted = false;
   bool _logoFadeCompleted = false;
+  bool _signalAcquisitionComplete = false;
   bool _preBootSignalComplete = false;
   bool _logoDrawable = false;
   bool _logoLoadFailed = false;
@@ -216,6 +237,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+    _signalAcquisitionController =
+        AnimationController(
+          vsync: this,
+          duration: widget.signalAcquisitionIntroDuration,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            if (mounted) {
+              setState(() => _signalAcquisitionComplete = true);
+            } else {
+              _signalAcquisitionComplete = true;
+            }
+            _startGhostReconstruction();
+          }
+        });
     _preBootSignalController =
         AnimationController(
           vsync: this,
@@ -251,10 +286,11 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
         _tryBeginLogoFade();
       },
     );
-    if (widget.preBootSignalIntroDuration == Duration.zero) {
-      _preBootSignalComplete = true;
+    if (widget.signalAcquisitionIntroDuration == Duration.zero) {
+      _signalAcquisitionComplete = true;
+      _startGhostReconstruction();
     } else {
-      _preBootSignalController.forward();
+      _signalAcquisitionController.forward();
     }
   }
 
@@ -286,6 +322,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
   void dispose() {
     _logoImageStream?.removeListener(_logoImageListener);
     _cursorController.dispose();
+    _signalAcquisitionController.dispose();
     _preBootSignalController.dispose();
     _logoFadeController.dispose();
     _spinnerController.dispose();
@@ -306,6 +343,15 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       _logoFadeStarted = true;
       _logoFadeController.forward();
     });
+  }
+
+  void _startGhostReconstruction() {
+    if (widget.preBootSignalIntroDuration == Duration.zero) {
+      _preBootSignalComplete = true;
+      _tryBeginLogoFade();
+      return;
+    }
+    _preBootSignalController.forward();
   }
 
   void _completeLogoFade() {
@@ -338,7 +384,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
             Positioned.fill(
               child: _BootContentRestore(
                 progress: _preBootSignalController,
-                active: !_preBootSignalComplete,
+                active: _signalAcquisitionComplete && !_preBootSignalComplete,
                 contentBuilder: (includeKeys, introProgress) =>
                     _buildBootContentLayer(
                       colorScheme,
@@ -372,7 +418,18 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                 ),
               ),
             ),
-            if (!_preBootSignalComplete)
+            if (!_signalAcquisitionComplete)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('boot-signal-acquisition'),
+                    painter: _BootSignalAcquisitionPainter(
+                      _signalAcquisitionController,
+                    ),
+                  ),
+                ),
+              ),
+            if (_signalAcquisitionComplete && !_preBootSignalComplete)
               Positioned.fill(
                 child: IgnorePointer(
                   child: CustomPaint(
@@ -474,6 +531,21 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                         style: Theme.of(context).textTheme.labelSmall!.copyWith(
                           color: colorScheme.primary.withValues(alpha: .7),
                         ),
+                      ),
+                    ),
+                  ),
+                if (phase.index >= _BootVisualPhase.axisIdentity.index)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      OperationSystemMetadata.version,
+                      key: includeKeys
+                          ? const ValueKey('boot-operation-system-version')
+                          : null,
+                      style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                        color: colorScheme.primary.withValues(alpha: .48),
+                        fontFamily: 'monospace',
+                        letterSpacing: 1,
                       ),
                     ),
                   ),
@@ -668,6 +740,61 @@ class _BootContentSliceClipper extends CustomClipper<Rect> {
   @override
   bool shouldReclip(covariant _BootContentSliceClipper oldClipper) =>
       oldClipper.index != index || oldClipper.count != count;
+}
+
+class _BootSignalAcquisitionPainter extends CustomPainter {
+  const _BootSignalAcquisitionPainter(this.progress) : super(repaint: progress);
+
+  final Animation<double> progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frame = progress.value;
+    final centerY = size.height / 2;
+    final lineOpacity = bootSignalAcquisitionLineOpacity(frame);
+    final interferenceOpacity = bootSignalAcquisitionInterferenceOpacity(frame);
+    final detection = Curves.easeOut.transform((frame / .28).clamp(0.0, 1.0));
+    final lineWidth = size.width * (.18 + .64 * detection);
+    final lineLeft = (size.width - lineWidth) / 2;
+    final lineJitter = math.sin(frame * 49) * (1.8 - frame * .8);
+    final lineThickness = 1 + .8 * math.sin(frame * 37).abs();
+    final halo = Paint()
+      ..color = bootSignalHaloColor.withValues(alpha: lineOpacity * .58);
+    final core = Paint()
+      ..color = bootSignalCoreColor.withValues(alpha: lineOpacity);
+    canvas.drawRect(
+      Rect.fromLTWH(
+        lineLeft,
+        centerY + lineJitter - lineThickness,
+        lineWidth,
+        lineThickness * 3,
+      ),
+      halo,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(lineLeft, centerY + lineJitter, lineWidth, lineThickness),
+      core,
+    );
+
+    final fragments = Paint()
+      ..color = bootSignalFragmentColor.withValues(
+        alpha: interferenceOpacity * .26,
+      );
+    for (var index = 0; index < 4; index += 1) {
+      final direction = index.isEven ? 1.0 : -1.0;
+      final y = centerY + direction * (16 + index * 13) + lineJitter;
+      final offset = math.sin(frame * (19 + index * 7) + index) * 18;
+      final start = (size.width * (.13 + index * .19) + offset)
+          .clamp(0.0, size.width)
+          .toDouble();
+      final width = size.width * (.09 + index * .025);
+      canvas.drawRect(Rect.fromLTWH(start, y, width, 1), fragments);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BootSignalAcquisitionPainter oldDelegate) =>
+      false;
 }
 
 class _BootPreSignalPainter extends CustomPainter {
@@ -1065,23 +1192,26 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     final duration = widget.timing.postLogo(widget.timing.fullNameCharacter);
     if (duration <= const Duration(milliseconds: 10)) {
       setState(() => _typedNameLength = _fullName.length);
-      _schedule(
-        widget.timing.postLogo(widget.timing.identityHold),
-        _showSystemBoot,
-      );
+      _showAxisIdentity();
       return;
     }
     if (_typedNameLength >= _fullName.length) {
-      _schedule(
-        widget.timing.postLogo(widget.timing.identityHold),
-        _showSystemBoot,
-      );
+      _showAxisIdentity();
       return;
     }
     _schedule(duration, () {
       setState(() => _typedNameLength += 1);
       _typeNextNameCharacter();
     });
+  }
+
+  void _showAxisIdentity() {
+    if (!_isPresentationActive) return;
+    setState(() => _phase = _BootVisualPhase.axisIdentity);
+    _schedule(
+      widget.timing.postLogo(widget.timing.identityHold),
+      _showSystemBoot,
+    );
   }
 
   void _showSystemBoot() {
@@ -1351,6 +1481,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         typedNameLength: _typedNameLength,
         progress: _progressController.value,
         logoFadeDuration: widget.timing.logoIntro,
+        signalAcquisitionIntroDuration: widget.timing.signalAcquisitionIntro,
         preBootSignalIntroDuration: widget.timing.preBootSignalIntro,
         waitForLogoDrawable: widget.timing.waitForLogoDrawable,
         onLogoFadeComplete: _startIdentityTypingAfterLogoFade,

@@ -7,6 +7,7 @@ import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
+import 'package:or_app/core/services/operation_system_metadata.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
@@ -150,6 +151,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: AboutPage()));
     expect(find.text('App Version'), findsOneWidget);
     expect(find.text('Operation Reboot Version'), findsOneWidget);
+    expect(find.text('OPERATION SYSTEM VERSION'), findsOneWidget);
     expect(find.text('Database Version'), findsOneWidget);
     expect(find.text('Backup Schema Version'), findsOneWidget);
     expect(find.text('Build Number'), findsOneWidget);
@@ -331,6 +333,7 @@ void main() {
     for (final label in [
       'App Version',
       'Operation Reboot Version',
+      'OPERATION SYSTEM VERSION',
       'Database Version',
       'Backup Schema Version',
       'Build Number',
@@ -344,6 +347,7 @@ void main() {
     }
     expect(find.text('1.0.0'), findsOneWidget);
     expect(find.text('5.2'), findsOneWidget);
+    expect(find.text(OperationSystemMetadata.version), findsOneWidget);
     expect(find.text(AppMetadata.databaseVersion), findsOneWidget);
     expect(find.text(AppMetadata.backupSchemaVersion), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
