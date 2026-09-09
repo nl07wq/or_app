@@ -33,7 +33,7 @@ const bootBackgroundColor = Color(0xFF101010);
 
 @visibleForTesting
 double bootSignalRestoreProgress(double progress) => Curves.easeInOutCubic
-    .transform(((progress - .25) / .71).clamp(0.0, 1.0).toDouble());
+    .transform(((progress - .25) / .70).clamp(0.0, 1.0).toDouble());
 
 @visibleForTesting
 double bootSignalRestoreHeightFraction(double progress) =>
@@ -45,8 +45,11 @@ double bootSignalContentScaleY(double progress) =>
 
 @visibleForTesting
 double bootSignalSliceOffset(double progress, int index) {
-  final start = .06 + index * .035;
-  final end = .58 + (index % 3) * .11 + (index == 5 ? .10 : 0);
+  // Start the signal fragments sooner and let them settle at .95. This keeps
+  // a short, fully restored frame inside the fixed 450ms intro before the
+  // official logo begins, while making the fragmented signal readable.
+  final start = index * .025;
+  final end = .66 + (index % 3) * .09 + (index == 5 ? .11 : 0);
   final local = ((progress - start) / (end - start)).clamp(0.0, 1.0).toDouble();
   final envelope = math.sin(local * math.pi);
   final direction = index.isEven ? 1.0 : -1.0;
@@ -61,10 +64,17 @@ double bootSignalLineOpacity(double progress) =>
 
 @visibleForTesting
 double bootIntroSilhouetteOpacity(double progress) {
-  final rise = Curves.easeOut.transform((progress / .24).clamp(0.0, 1.0));
+  final rise = Curves.easeOut.transform(
+    ((progress - .02) / .18).clamp(0.0, 1.0),
+  );
+  final heavyGlitch = math.sin(
+    ((progress - .08) / .54).clamp(0.0, 1.0).toDouble() * math.pi,
+  );
   final decay =
-      1 - Curves.easeIn.transform(((progress - .62) / .30).clamp(0.0, 1.0));
-  return (.08 + .14 * rise) * decay;
+      1 - Curves.easeIn.transform(((progress - .70) / .25).clamp(0.0, 1.0));
+  // The ghost is legible only during the unstable signal window. Its .35
+  // peak remains distinctly below the official logo's full-opacity reveal.
+  return (.09 + .22 * rise + .04 * heavyGlitch) * decay;
 }
 
 /// A small deterministic visual timeline. It does not represent persistence

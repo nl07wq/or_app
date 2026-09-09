@@ -77,6 +77,7 @@ void main() {
       bootSignalRestoreProgress(.80),
       greaterThan(bootSignalRestoreProgress(.55)),
     );
+    expect(bootSignalRestoreProgress(.95), 1);
     expect(bootSignalRestoreProgress(1), 1);
     expect(
       bootSignalContentScaleY(.25),
@@ -91,12 +92,15 @@ void main() {
     expect(bootSignalSliceOffset(.10, 0), isNot(bootSignalSliceOffset(.22, 0)));
     expect(bootSignalSliceOffset(.22, 0), greaterThan(0));
     expect(bootSignalSliceOffset(.22, 1), lessThan(0));
-    expect(bootSignalSliceOffset(1, 0), closeTo(0, .000001));
+    expect(bootSignalSliceOffset(.95, 0), closeTo(0, .000001));
+    expect(bootSignalSliceOffset(.95, 5), closeTo(0, .000001));
+    expect(bootSignalLineOpacity(.95), 0);
     expect(bootSignalLineOpacity(1), 0);
     expect(bootIntroSilhouetteOpacity(.10), greaterThan(.08));
-    expect(bootIntroSilhouetteOpacity(.24), closeTo(.22, .000001));
-    expect(bootIntroSilhouetteOpacity(.24), greaterThan(.18));
-    expect(bootIntroSilhouetteOpacity(.92), closeTo(0, .000001));
+    expect(bootIntroSilhouetteOpacity(.35), closeTo(.35, .000001));
+    expect(bootIntroSilhouetteOpacity(.35), inInclusiveRange(.30, .35));
+    expect(bootIntroSilhouetteOpacity(.20), greaterThan(.30));
+    expect(bootIntroSilhouetteOpacity(.95), closeTo(0, .000001));
   });
 
   testWidgets('signal intro completes before the logo fade begins', (
@@ -146,7 +150,7 @@ void main() {
             find.byKey(const ValueKey('boot-intro-logo-silhouette')),
           )
           .opacity,
-      lessThan(.28),
+      inInclusiveRange(.30, .35),
     );
     expect(find.text('O.R.L.O.'), findsNothing);
     await _elapse(tester, const Duration(milliseconds: 231));
