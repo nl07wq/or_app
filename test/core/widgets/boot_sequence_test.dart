@@ -34,6 +34,7 @@ void main() {
     () {
       const timing = BootSequenceTiming();
 
+      expect(timing.signalMode, BootSignalMode.microSignalField);
       expect(timing.signalAcquisitionIntro, const Duration(milliseconds: 300));
       expect(timing.preBootSignalIntro, const Duration(milliseconds: 450));
       expect(timing.logoIntro, const Duration(milliseconds: 600));
@@ -172,6 +173,39 @@ void main() {
     expect(peak.hasAdditionalClip, isFalse);
   });
 
+  test('micro signal field has a deterministic, broad mixed peak', () {
+    const viewport = Size(390, 844);
+    final sparse = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 30),
+      viewport,
+    );
+    final build = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 90),
+      viewport,
+    );
+    final peak = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 180),
+      viewport,
+    );
+    final converge = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 240),
+      viewport,
+    );
+
+    expect(bootMicroSignalFieldPrimitiveCount, 64);
+    expect(sparse.activePrimitiveCount, lessThan(build.activePrimitiveCount));
+    expect(build.activePrimitiveCount, greaterThanOrEqualTo(40));
+    expect(peak.activePrimitiveCount, inInclusiveRange(40, 100));
+    expect(peak.activeCountByType.values.where((count) => count > 0).length, 5);
+    expect(peak.maximumEffectiveOpacity, greaterThan(.15));
+    expect(peak.minimumLogicalWidth, greaterThanOrEqualTo(1));
+    expect(peak.maximumLogicalWidth, lessThanOrEqualTo(32));
+    expect(peak.aggregateHorizontalCoverage, greaterThan(2));
+    expect(peak.minimumVerticalFraction, lessThan(.15));
+    expect(peak.maximumVerticalFraction, greaterThan(.80));
+    expect(converge.activePrimitiveCount, lessThan(peak.activePrimitiveCount));
+  });
+
   testWidgets('signal acquisition completes before ghost reconstruction', (
     tester,
   ) async {
@@ -196,6 +230,10 @@ void main() {
       find.byKey(const ValueKey('boot-signal-acquisition')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('boot-signal-mode-microSignalField')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
     await _elapse(tester, const Duration(milliseconds: 301));
     expect(find.byKey(const ValueKey('boot-signal-acquisition')), findsNothing);
@@ -204,6 +242,54 @@ void main() {
       find.byKey(const ValueKey('boot-content-transform')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('legacy acquisition remains available as a clean rollback', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      signalMode: BootSignalMode.legacyInterference,
+      signalAcquisitionIntro: Duration(milliseconds: 300),
+      preBootSignalIntro: Duration(milliseconds: 450),
+      logoIntro: Duration(milliseconds: 10),
+      waitForLogoDrawable: false,
+      typingCharacter: Duration(milliseconds: 10),
+      fullNameCharacter: Duration(milliseconds: 10),
+      identityHold: Duration(milliseconds: 10),
+      systemBootTransition: Duration(milliseconds: 10),
+      row: Duration(milliseconds: 10),
+      readyDelay: Duration(milliseconds: 10),
+      readyHold: Duration(milliseconds: 10),
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController(), timing: timing),
+    );
+
+    expect(
+      find.byKey(const ValueKey('boot-signal-mode-legacyInterference')),
+      findsOneWidget,
+    );
+    await _elapse(tester, const Duration(milliseconds: 301));
+    expect(find.byKey(const ValueKey('boot-signal-acquisition')), findsNothing);
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+  });
+
+  testWidgets('legacy acquisition preserves immediate skip', (tester) async {
+    const timing = BootSequenceTiming(
+      signalMode: BootSignalMode.legacyInterference,
+      signalAcquisitionIntro: Duration(milliseconds: 300),
+      preBootSignalIntro: Duration(milliseconds: 450),
+      waitForLogoDrawable: false,
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController()..markReady(), timing: timing),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+    await tester.pump();
+
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-signal-acquisition')), findsNothing);
   });
 
   testWidgets('Boot identity uses the constrained terminal typography', (

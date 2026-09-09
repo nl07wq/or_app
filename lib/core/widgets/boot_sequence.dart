@@ -33,13 +33,32 @@ const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
 const _bootTerminalFontFamily = 'ShareTechMono';
 
+/// The acquisition renderer is deliberately selectable at one point so a
+/// real-device rollback never requires reconstructing a prior visual model.
+/// Production uses [microSignalField]; [legacyInterference] retains the
+/// pre-pivot 1b589b9 renderer unchanged.
+enum BootSignalMode { legacyInterference, microSignalField }
+
 /// The fixed count deliberately reads as mixed signal detail rather than a
 /// uniformly spaced scan pattern. The segments are positioned and timed with
-/// deterministic envelopes in [_BootSignalAcquisitionPainter].
+/// deterministic envelopes in [_BootLegacySignalAcquisitionPainter].
 @visibleForTesting
 const bootSignalAcquisitionFineSegmentCount = 18;
 const _bootSignalAcquisitionLockFragmentCount = 4;
 const _bootSignalAcquisitionDuration = Duration(milliseconds: 300);
+
+/// A bounded field of deterministic source primitives. Offset pairs render a
+/// second related fragment, but still count as one signal primitive here.
+@visibleForTesting
+const bootMicroSignalFieldPrimitiveCount = 64;
+
+enum _BootMicroSignalPrimitiveType {
+  horizontalFragment,
+  microBlock,
+  signalSpeck,
+  offsetPair,
+  darkInterruption,
+}
 
 @immutable
 class BootSignalAcquisitionDiagnostics {
@@ -77,6 +96,37 @@ class BootSignalAcquisitionDiagnostics {
   final double maximumVerticalFraction;
   final double parentOpacityMultiplier;
   final bool hasAdditionalClip;
+}
+
+@immutable
+class BootMicroSignalFieldDiagnostics {
+  const BootMicroSignalFieldDiagnostics({
+    required this.elapsed,
+    required this.activePrimitiveCount,
+    required this.activeCountByType,
+    required this.minimumEffectiveOpacity,
+    required this.maximumEffectiveOpacity,
+    required this.minimumLogicalWidth,
+    required this.maximumLogicalWidth,
+    required this.minimumLogicalHeight,
+    required this.maximumLogicalHeight,
+    required this.aggregateHorizontalCoverage,
+    required this.minimumVerticalFraction,
+    required this.maximumVerticalFraction,
+  });
+
+  final Duration elapsed;
+  final int activePrimitiveCount;
+  final Map<String, int> activeCountByType;
+  final double minimumEffectiveOpacity;
+  final double maximumEffectiveOpacity;
+  final double minimumLogicalWidth;
+  final double maximumLogicalWidth;
+  final double minimumLogicalHeight;
+  final double maximumLogicalHeight;
+  final double aggregateHorizontalCoverage;
+  final double minimumVerticalFraction;
+  final double maximumVerticalFraction;
 }
 
 @visibleForTesting
@@ -258,6 +308,151 @@ BootSignalAcquisitionDiagnostics bootSignalAcquisitionDiagnosticsAt(
   );
 }
 
+_BootMicroSignalPrimitiveType _bootMicroSignalType(int index) =>
+    _BootMicroSignalPrimitiveType.values[index %
+        _BootMicroSignalPrimitiveType.values.length];
+
+double _bootMicroSignalOnset(int index) => .025 + ((index * 17) % 34) / 100;
+
+double _bootMicroSignalEnd(int index) => .74 + ((index * 13) % 13) / 100;
+
+double _bootMicroSignalEnvelope(double progress, int index) {
+  final local =
+      ((progress - _bootMicroSignalOnset(index)) /
+              (_bootMicroSignalEnd(index) - _bootMicroSignalOnset(index)))
+          .clamp(0.0, 1.0)
+          .toDouble();
+  return math.sin(local * math.pi);
+}
+
+double _bootMicroSignalConvergence(double progress) =>
+    Curves.easeIn.transform(((progress - .72) / .22).clamp(0.0, 1.0));
+
+double _bootMicroSignalBaseX(Size size, int index) =>
+    size.width * (.025 + ((index * .371) % .92));
+
+double _bootMicroSignalBaseY(Size size, int index) =>
+    size.height * (.10 + ((index * .173) % .80));
+
+double _bootMicroSignalWidth(int index) =>
+    switch (_bootMicroSignalType(index)) {
+      _BootMicroSignalPrimitiveType.horizontalFragment => 8 + (index % 7) * 3.4,
+      _BootMicroSignalPrimitiveType.microBlock => 3 + (index % 5) * 1.9,
+      _BootMicroSignalPrimitiveType.signalSpeck => 1.4 + (index % 3) * .65,
+      _BootMicroSignalPrimitiveType.offsetPair => 6 + (index % 6) * 2.8,
+      _BootMicroSignalPrimitiveType.darkInterruption => 10 + (index % 5) * 3.2,
+    };
+
+double _bootMicroSignalHeight(int index) =>
+    switch (_bootMicroSignalType(index)) {
+      _BootMicroSignalPrimitiveType.horizontalFragment => 1.15,
+      _BootMicroSignalPrimitiveType.microBlock => 1.6 + (index % 3) * .65,
+      _BootMicroSignalPrimitiveType.signalSpeck => 1.3 + (index % 2) * .7,
+      _BootMicroSignalPrimitiveType.offsetPair => 1.15,
+      _BootMicroSignalPrimitiveType.darkInterruption => 1.4,
+    };
+
+double _bootMicroSignalOpacity(double progress, int index) {
+  final type = _bootMicroSignalType(index);
+  final typeIntensity = switch (type) {
+    _BootMicroSignalPrimitiveType.horizontalFragment => .28,
+    _BootMicroSignalPrimitiveType.microBlock => .23,
+    _BootMicroSignalPrimitiveType.signalSpeck => .19,
+    _BootMicroSignalPrimitiveType.offsetPair => .26,
+    _BootMicroSignalPrimitiveType.darkInterruption => .17,
+  };
+  final build = Curves.easeOut.transform(
+    ((progress - .10) / .34).clamp(0.0, 1.0),
+  );
+  final decay = 1 - _bootMicroSignalConvergence(progress);
+  return _bootMicroSignalEnvelope(progress, index) *
+      build *
+      decay *
+      typeIntensity;
+}
+
+Offset _bootMicroSignalPosition(Size size, double progress, int index) {
+  final convergence = _bootMicroSignalConvergence(progress);
+  final baseX = _bootMicroSignalBaseX(size, index);
+  final baseY = _bootMicroSignalBaseY(size, index);
+  final jitterX =
+      math.sin(progress * (23 + index % 7) + index) *
+      (2.5 + index % 4 * 1.2) *
+      (1 - convergence);
+  final jitterY =
+      math.cos(progress * (29 + index % 5) + index * .7) *
+      2.2 *
+      (1 - convergence);
+  final lockX = size.width / 2 + (index.isEven ? -1 : 1) * (index % 5) * 3.5;
+  return Offset(
+    (baseX + jitterX) * (1 - convergence) + lockX * convergence,
+    (baseY + jitterY) * (1 - convergence) + size.height / 2 * convergence,
+  );
+}
+
+@visibleForTesting
+BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
+  Duration elapsed,
+  Size size,
+) {
+  final progress =
+      (elapsed.inMicroseconds / _bootSignalAcquisitionDuration.inMicroseconds)
+          .clamp(0.0, 1.0)
+          .toDouble();
+  var activeCount = 0;
+  var minimumOpacity = double.infinity;
+  var maximumOpacity = 0.0;
+  var minimumWidth = double.infinity;
+  var maximumWidth = 0.0;
+  var minimumHeight = double.infinity;
+  var maximumHeight = 0.0;
+  var minimumY = double.infinity;
+  var maximumY = 0.0;
+  var aggregateWidth = 0.0;
+  final byType = <String, int>{
+    for (final type in _BootMicroSignalPrimitiveType.values) type.name: 0,
+  };
+
+  for (var index = 0; index < bootMicroSignalFieldPrimitiveCount; index += 1) {
+    final opacity = _bootMicroSignalOpacity(progress, index);
+    if (opacity <= .012) continue;
+    final position = _bootMicroSignalPosition(size, progress, index);
+    final width = _bootMicroSignalWidth(index);
+    final height = _bootMicroSignalHeight(index);
+    activeCount += 1;
+    byType[_bootMicroSignalType(index).name] =
+        byType[_bootMicroSignalType(index).name]! + 1;
+    minimumOpacity = math.min(minimumOpacity, opacity);
+    maximumOpacity = math.max(maximumOpacity, opacity);
+    minimumWidth = math.min(minimumWidth, width);
+    maximumWidth = math.max(maximumWidth, width);
+    minimumHeight = math.min(minimumHeight, height);
+    maximumHeight = math.max(maximumHeight, height);
+    minimumY = math.min(minimumY, position.dy);
+    maximumY = math.max(maximumY, position.dy + height);
+    aggregateWidth +=
+        width *
+        (_bootMicroSignalType(index) == _BootMicroSignalPrimitiveType.offsetPair
+            ? 2
+            : 1);
+  }
+
+  return BootMicroSignalFieldDiagnostics(
+    elapsed: elapsed,
+    activePrimitiveCount: activeCount,
+    activeCountByType: Map.unmodifiable(byType),
+    minimumEffectiveOpacity: activeCount == 0 ? 0 : minimumOpacity,
+    maximumEffectiveOpacity: maximumOpacity,
+    minimumLogicalWidth: activeCount == 0 ? 0 : minimumWidth,
+    maximumLogicalWidth: maximumWidth,
+    minimumLogicalHeight: activeCount == 0 ? 0 : minimumHeight,
+    maximumLogicalHeight: maximumHeight,
+    aggregateHorizontalCoverage: aggregateWidth / size.width,
+    minimumVerticalFraction: activeCount == 0 ? .5 : minimumY / size.height,
+    maximumVerticalFraction: activeCount == 0 ? .5 : maximumY / size.height,
+  );
+}
+
 @visibleForTesting
 double bootSignalRestoreProgress(double progress) => Curves.easeInOutCubic
     .transform(((progress - .25) / .70).clamp(0.0, 1.0).toDouble());
@@ -307,6 +502,9 @@ double bootIntroSilhouetteOpacity(double progress) {
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
+  /// The sole production selector for the pre-Ghost acquisition renderer.
+  /// Changing this default is the complete emergency rollback mechanism.
+  final BootSignalMode signalMode;
   final Duration signalAcquisitionIntro;
   final Duration preBootSignalIntro;
   final Duration logoIntro;
@@ -322,6 +520,7 @@ class BootSequenceTiming {
   final double postLogoTimingFactor;
 
   const BootSequenceTiming({
+    this.signalMode = BootSignalMode.microSignalField,
     this.signalAcquisitionIntro = const Duration(milliseconds: 300),
     this.preBootSignalIntro = const Duration(milliseconds: 450),
     this.logoIntro = const Duration(milliseconds: 600),
@@ -402,6 +601,7 @@ class _BootSequenceVisual extends StatefulWidget {
   final double progress;
   final Duration logoFadeDuration;
   final Duration signalAcquisitionIntroDuration;
+  final BootSignalMode signalMode;
   final Duration preBootSignalIntroDuration;
   final bool waitForLogoDrawable;
   final VoidCallback onLogoFadeComplete;
@@ -415,6 +615,7 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.progress,
     required this.logoFadeDuration,
     required this.signalAcquisitionIntroDuration,
+    required this.signalMode,
     required this.preBootSignalIntroDuration,
     required this.waitForLogoDrawable,
     required this.onLogoFadeComplete,
@@ -638,10 +839,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
             if (!_signalAcquisitionComplete)
               Positioned.fill(
                 child: IgnorePointer(
-                  child: CustomPaint(
-                    key: const ValueKey('boot-signal-acquisition'),
-                    painter: _BootSignalAcquisitionPainter(
-                      _signalAcquisitionController,
+                  child: KeyedSubtree(
+                    key: ValueKey('boot-signal-mode-${widget.signalMode.name}'),
+                    child: CustomPaint(
+                      key: const ValueKey('boot-signal-acquisition'),
+                      painter: switch (widget.signalMode) {
+                        BootSignalMode.legacyInterference =>
+                          _BootLegacySignalAcquisitionPainter(
+                            _signalAcquisitionController,
+                          ),
+                        BootSignalMode.microSignalField =>
+                          _BootMicroSignalFieldPainter(
+                            _signalAcquisitionController,
+                          ),
+                      },
                     ),
                   ),
                 ),
@@ -979,8 +1190,11 @@ class _BootContentSliceClipper extends CustomClipper<Rect> {
       oldClipper.index != index || oldClipper.count != count;
 }
 
-class _BootSignalAcquisitionPainter extends CustomPainter {
-  const _BootSignalAcquisitionPainter(this.progress) : super(repaint: progress);
+/// Preserves the pre-pivot acquisition implementation for a one-point
+/// production rollback through [BootSequenceTiming.signalMode].
+class _BootLegacySignalAcquisitionPainter extends CustomPainter {
+  const _BootLegacySignalAcquisitionPainter(this.progress)
+    : super(repaint: progress);
 
   final Animation<double> progress;
 
@@ -1056,7 +1270,92 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BootSignalAcquisitionPainter oldDelegate) =>
+  bool shouldRepaint(
+    covariant _BootLegacySignalAcquisitionPainter oldDelegate,
+  ) => false;
+}
+
+/// A deterministic field of small scan-shaped primitives. It intentionally
+/// avoids assets, textures, and random runtime generation: each frame draws
+/// from the same fixed primitive definitions and temporal envelopes.
+class _BootMicroSignalFieldPainter extends CustomPainter {
+  const _BootMicroSignalFieldPainter(this.progress) : super(repaint: progress);
+
+  final Animation<double> progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frame = progress.value;
+    final light = Paint();
+    final dark = Paint();
+
+    for (
+      var index = 0;
+      index < bootMicroSignalFieldPrimitiveCount;
+      index += 1
+    ) {
+      final opacity = _bootMicroSignalOpacity(frame, index);
+      if (opacity <= .004) continue;
+      final position = _bootMicroSignalPosition(size, frame, index);
+      final width = _bootMicroSignalWidth(index);
+      final height = _bootMicroSignalHeight(index);
+      final type = _bootMicroSignalType(index);
+      final rect = Rect.fromLTWH(position.dx, position.dy, width, height);
+
+      if (type == _BootMicroSignalPrimitiveType.darkInterruption) {
+        dark.color = bootBackgroundColor.withValues(alpha: opacity * .8);
+        canvas.drawRect(rect, dark);
+        continue;
+      }
+
+      light.color = bootSignalFragmentColor.withValues(alpha: opacity);
+      canvas.drawRect(rect, light);
+      if (type == _BootMicroSignalPrimitiveType.offsetPair) {
+        final pairOffset = 8 + (index % 4) * 3.5;
+        canvas.drawRect(
+          Rect.fromLTWH(
+            (position.dx + pairOffset).clamp(0.0, size.width).toDouble(),
+            position.dy + (index.isEven ? 1.8 : -1.8),
+            width * .7,
+            height,
+          ),
+          light,
+        );
+      }
+    }
+
+    // The field gradually organizes around a short central structure in the
+    // final acquisition frames. It shares the same 300ms boundary as legacy
+    // mode and hands directly to the unchanged Ghost reconstruction.
+    final lock = Curves.easeInOut.transform(
+      ((frame - .78) / .22).clamp(0.0, 1.0),
+    );
+    if (lock > 0) {
+      final centerY = size.height / 2;
+      final width = size.width * (.18 + .55 * lock);
+      final thickness = 1.1 + lock * .7;
+      final halo = Paint()
+        ..color = bootSignalHaloColor.withValues(alpha: lock * .42);
+      final core = Paint()
+        ..color = bootSignalCoreColor.withValues(alpha: lock * .72);
+      canvas.drawRect(
+        Rect.fromLTWH(
+          (size.width - width) / 2,
+          centerY - thickness,
+          width,
+          thickness * 3,
+        ),
+        halo,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH((size.width - width) / 2, centerY, width, thickness),
+        core,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BootMicroSignalFieldPainter oldDelegate) =>
       false;
 }
 
@@ -1777,6 +2076,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         progress: _progressController.value,
         logoFadeDuration: widget.timing.logoIntro,
         signalAcquisitionIntroDuration: widget.timing.signalAcquisitionIntro,
+        signalMode: widget.timing.signalMode,
         preBootSignalIntroDuration: widget.timing.preBootSignalIntro,
         waitForLogoDrawable: widget.timing.waitForLogoDrawable,
         onLogoFadeComplete: _startIdentityTypingAfterLogoFade,
