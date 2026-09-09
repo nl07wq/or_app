@@ -38,7 +38,7 @@ double bootSignalAcquisitionLineOpacity(double progress) {
   final lock = Curves.easeInOut.transform(
     ((progress - .36) / .64).clamp(0.0, 1.0),
   );
-  return .16 * detection + .52 * lock;
+  return .14 * detection + .66 * lock;
 }
 
 @visibleForTesting
@@ -109,7 +109,7 @@ class BootSequenceTiming {
   final double postLogoTimingFactor;
 
   const BootSequenceTiming({
-    this.signalAcquisitionIntro = const Duration(milliseconds: 240),
+    this.signalAcquisitionIntro = const Duration(milliseconds: 300),
     this.preBootSignalIntro = const Duration(milliseconds: 450),
     this.logoIntro = const Duration(milliseconds: 600),
     this.waitForLogoDrawable = true,
@@ -185,6 +185,7 @@ class _BootSequenceVisual extends StatefulWidget {
   final _BootVisualPhase phase;
   final int typedLength;
   final int typedNameLength;
+  final int typedAxisLength;
   final double progress;
   final Duration logoFadeDuration;
   final Duration signalAcquisitionIntroDuration;
@@ -197,6 +198,7 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.phase,
     required this.typedLength,
     required this.typedNameLength,
+    required this.typedAxisLength,
     required this.progress,
     required this.logoFadeDuration,
     required this.signalAcquisitionIntroDuration,
@@ -391,6 +393,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       widget.phase,
                       includeKeys,
                       introProgress,
+                      widget.typedAxisLength,
                     ),
               ),
             ),
@@ -449,6 +452,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     _BootVisualPhase phase,
     bool includeKeys,
     double introProgress,
+    int typedAxisLength,
   ) {
     final rows = <Widget>[
       if (phase.index >= _BootVisualPhase.coreInitializing.index)
@@ -538,7 +542,10 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      OperationSystemMetadata.version,
+                      OperationSystemMetadata.version.substring(
+                        0,
+                        typedAxisLength,
+                      ),
                       key: includeKeys
                           ? const ValueKey('boot-operation-system-version')
                           : null,
@@ -757,9 +764,9 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
     final lineWidth = size.width * (.18 + .64 * detection);
     final lineLeft = (size.width - lineWidth) / 2;
     final lineJitter = math.sin(frame * 49) * (1.8 - frame * .8);
-    final lineThickness = 1 + .8 * math.sin(frame * 37).abs();
+    final lineThickness = 1.2 + 1.1 * math.sin(frame * 37).abs();
     final halo = Paint()
-      ..color = bootSignalHaloColor.withValues(alpha: lineOpacity * .58);
+      ..color = bootSignalHaloColor.withValues(alpha: lineOpacity * .74);
     final core = Paint()
       ..color = bootSignalCoreColor.withValues(alpha: lineOpacity);
     canvas.drawRect(
@@ -778,17 +785,20 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
 
     final fragments = Paint()
       ..color = bootSignalFragmentColor.withValues(
-        alpha: interferenceOpacity * .26,
+        alpha: interferenceOpacity * .38,
       );
-    for (var index = 0; index < 4; index += 1) {
+    for (var index = 0; index < 6; index += 1) {
       final direction = index.isEven ? 1.0 : -1.0;
-      final y = centerY + direction * (16 + index * 13) + lineJitter;
-      final offset = math.sin(frame * (19 + index * 7) + index) * 18;
-      final start = (size.width * (.13 + index * .19) + offset)
+      final y = centerY + direction * (14 + index * 11) + lineJitter;
+      final offset = math.sin(frame * (19 + index * 7) + index) * 27;
+      final start = (size.width * (.08 + index * .15) + offset)
           .clamp(0.0, size.width)
           .toDouble();
-      final width = size.width * (.09 + index * .025);
-      canvas.drawRect(Rect.fromLTWH(start, y, width, 1), fragments);
+      final width = size.width * (.08 + index * .022);
+      canvas.drawRect(
+        Rect.fromLTWH(start, y, width, 1 + (index.isEven ? .6 : 0)),
+        fragments,
+      );
     }
   }
 
@@ -1044,6 +1054,7 @@ class BootSequenceGate extends StatefulWidget {
 
 class _BootSequenceGateState extends State<BootSequenceGate>
     with SingleTickerProviderStateMixin {
+  static const _axisTypingCharacter = Duration(milliseconds: 27);
   Timer? _timelineTimer;
   late final AnimationController _progressController;
   int _session = 0;
@@ -1059,6 +1070,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       BootPresentationState.initialBootPresentation;
   int _typedLength = 0;
   int _typedNameLength = 0;
+  int _typedAxisLength = 0;
   _BootVisualPhase _phase = _BootVisualPhase.logo;
 
   @override
@@ -1207,11 +1219,40 @@ class _BootSequenceGateState extends State<BootSequenceGate>
 
   void _showAxisIdentity() {
     if (!_isPresentationActive) return;
-    setState(() => _phase = _BootVisualPhase.axisIdentity);
-    _schedule(
-      widget.timing.postLogo(widget.timing.identityHold),
-      _showSystemBoot,
-    );
+    setState(() {
+      _phase = _BootVisualPhase.axisIdentity;
+      _typedAxisLength = 0;
+    });
+    if (widget.timing.fullNameCharacter <= const Duration(milliseconds: 10)) {
+      setState(() => _typedAxisLength = OperationSystemMetadata.version.length);
+      _schedule(
+        widget.timing.postLogo(widget.timing.identityHold),
+        _showSystemBoot,
+      );
+      return;
+    }
+    _typeNextAxisCharacter();
+  }
+
+  void _typeNextAxisCharacter() {
+    if (!_isPresentationActive) return;
+    if (_typedAxisLength >= OperationSystemMetadata.version.length) {
+      _schedule(_axisIdentitySettleDuration, _showSystemBoot);
+      return;
+    }
+    _schedule(widget.timing.postLogo(_axisTypingCharacter), () {
+      setState(() => _typedAxisLength += 1);
+      _typeNextAxisCharacter();
+    });
+  }
+
+  Duration get _axisIdentitySettleDuration {
+    final identityHold = widget.timing.postLogo(widget.timing.identityHold);
+    final typingDuration =
+        widget.timing.postLogo(_axisTypingCharacter) *
+        OperationSystemMetadata.version.length;
+    final remaining = identityHold - typingDuration;
+    return remaining.isNegative ? Duration.zero : remaining;
   }
 
   void _showSystemBoot() {
@@ -1479,6 +1520,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
         phase: _phase,
         typedLength: _typedLength,
         typedNameLength: _typedNameLength,
+        typedAxisLength: _typedAxisLength,
         progress: _progressController.value,
         logoFadeDuration: widget.timing.logoIntro,
         signalAcquisitionIntroDuration: widget.timing.signalAcquisitionIntro,
