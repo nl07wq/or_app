@@ -51,8 +51,6 @@ class AppRoutes {
 
   static const startupDiagnostic = '/system/startup-diagnostic';
 
-  static const finalizeBackupTrace = '/system/finalize-backup-trace';
-
   static const operationSync = '/operation-sync';
 
   static const historicalTrainingImport = '/operation-sync/historical-training';

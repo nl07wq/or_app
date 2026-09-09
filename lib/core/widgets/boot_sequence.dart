@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,21 @@ const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
+
+@visibleForTesting
+double bootSignalRestoreProgress(double progress) => Curves.easeOutCubic
+    .transform(((progress - .40) / .60).clamp(0.0, 1.0).toDouble());
+
+@visibleForTesting
+double bootSignalBandOffset(double progress, int index) {
+  final active = ((progress - .15) / .68).clamp(0.0, 1.0).toDouble();
+  final amplitude = (1 - active) * (6 + index * 2.5);
+  return math.sin(progress * (28 + index * 7) + index * 1.71) * amplitude;
+}
+
+@visibleForTesting
+double bootSignalBandVerticalOffset(double progress, int index) =>
+    math.sin(progress * (19 + index * 5) + index * 2.13) * (1.5 + index * .35);
 
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
@@ -481,43 +497,84 @@ class _BootPreSignalPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final frame = progress.value;
     final centerY = size.height / 2;
-    final lineProgress = (frame / .22).clamp(0.0, 1.0);
-    final restoreProgress = ((frame - .49) / .51).clamp(0.0, 1.0);
-    final restored = Curves.easeOut.transform(restoreProgress);
+    final lineProgress = (frame / .20).clamp(0.0, 1.0);
+    final restored = bootSignalRestoreProgress(frame);
     final lineOpacity = (1 - restored).clamp(0.0, 1.0);
     final expansionHeight = 2 + (size.height - 2) * restored;
+    final lineFlicker = math.sin(frame * 83) * .55 * lineOpacity;
+    final lineJitter = math.sin(frame * 61) * .9 * lineOpacity;
+    final lineThickness = 1 + (math.sin(frame * 47) + 1) * .45 * lineOpacity;
 
-    if (restoreProgress > 0) {
+    if (restored > 0) {
+      final restoreRect = Rect.fromCenter(
+        center: Offset(size.width / 2, centerY),
+        width: size.width,
+        height: expansionHeight,
+      );
       final restorePaint = Paint()
         ..color = bootSignalHaloColor.withValues(alpha: .11 * (1 - restored));
-      canvas.drawRect(
-        Rect.fromCenter(
-          center: Offset(size.width / 2, centerY),
-          width: size.width,
-          height: expansionHeight,
-        ),
-        restorePaint,
-      );
+      canvas.drawRect(restoreRect, restorePaint);
+      canvas.save();
+      canvas.clipRect(restoreRect);
+      for (var index = 0; index < 5; index += 1) {
+        final scanProgress = (frame * (2.4 + index * .14) + index * .19) % 1;
+        final y = restoreRect.top + restoreRect.height * scanProgress;
+        final scanPaint = Paint()
+          ..color = bootSignalFragmentColor.withValues(
+            alpha: (1 - restored) * (.08 + index * .012),
+          );
+        canvas.drawRect(
+          Rect.fromLTWH(0, y, size.width, 1 + (index.isEven ? .5 : 0)),
+          scanPaint,
+        );
+      }
+      canvas.restore();
     }
 
-    final lineWidth = size.width * (.35 + .65 * lineProgress);
+    final endpointFlicker = math.sin(frame * 39) * 4 * lineOpacity;
+    final lineWidth =
+        (size.width * (.35 + .65 * lineProgress) + endpointFlicker)
+            .clamp(0.0, size.width)
+            .toDouble();
     final lineLeft = (size.width - lineWidth) / 2;
     final halo = Paint()
-      ..color = bootSignalHaloColor.withValues(alpha: .75 * lineOpacity);
+      ..color = bootSignalHaloColor.withValues(
+        alpha: (.62 + lineFlicker * .18).clamp(0.0, .82) * lineOpacity,
+      );
     final core = Paint()
       ..color = bootSignalCoreColor.withValues(alpha: lineOpacity);
-    canvas.drawRect(Rect.fromLTWH(lineLeft, centerY - 2, lineWidth, 5), halo);
-    canvas.drawRect(Rect.fromLTWH(lineLeft, centerY, lineWidth, 1), core);
+    canvas.drawRect(
+      Rect.fromLTWH(
+        lineLeft,
+        centerY + lineJitter - lineThickness * 1.8,
+        lineWidth,
+        lineThickness * 4,
+      ),
+      halo,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(lineLeft, centerY + lineJitter, lineWidth, lineThickness),
+      core,
+    );
 
-    if (frame >= .22 && frame < .64) {
-      final noise = ((frame - .22) / .42).clamp(0.0, 1.0);
-      final bandPaint = Paint()
-        ..color = bootSignalFragmentColor.withValues(alpha: (1 - noise) * .4);
+    if (frame >= .15 && frame < .84) {
+      final bandFade = ((frame - .15) / .69).clamp(0.0, 1.0);
       for (var index = 0; index < 4; index += 1) {
-        final y = centerY + (index - 1.5) * (6 + noise * 12);
-        final offset = (index.isEven ? 1 : -1) * (5 + noise * 9);
-        final width = size.width * (.24 + index * .11);
-        canvas.drawRect(Rect.fromLTWH(offset, y, width, 1), bandPaint);
+        final spread = 8 + restored * 26;
+        final y =
+            centerY +
+            (index - 1.5) * spread +
+            bootSignalBandVerticalOffset(frame, index);
+        final offset = bootSignalBandOffset(frame, index);
+        final width = size.width * (.26 + index * .11) * (1 - restored * .25);
+        final bandPaint = Paint()
+          ..color = bootSignalFragmentColor.withValues(
+            alpha: (1 - bandFade) * (.26 + index * .035),
+          );
+        canvas.drawRect(
+          Rect.fromLTWH(offset, y, width, 1 + (index.isEven ? .5 : 0)),
+          bandPaint,
+        );
       }
     }
   }

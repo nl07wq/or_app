@@ -1244,15 +1244,18 @@ void main() {
         MaterialApp(
           home: Builder(
             builder: (context) => ElevatedButton(
-              onPressed: () => executeDailyLogFinalize(
-                finalize: () async => order.add('finalize'),
-                previousOperationDate: OperationLocalDate.parse('2026-07-27'),
-                afterFinalize: () => presentDailyFinalizeBackupPrompt(
-                  context: context,
-                  exportService: _backupService(gateway),
-                ),
-                onReviewCompleted: (_) async => order.add('origin'),
-              ),
+              onPressed: () async {
+                final navigator = Navigator.of(context, rootNavigator: true);
+                await executeDailyLogFinalize(
+                  finalize: () async => order.add('finalize'),
+                  previousOperationDate: OperationLocalDate.parse('2026-07-27'),
+                  afterFinalize: () => presentDailyFinalizeBackupPrompt(
+                    navigator: navigator,
+                    exportService: _backupService(gateway),
+                  ),
+                  onReviewCompleted: (_) async => order.add('origin'),
+                );
+              },
               child: const Text('FINALIZE'),
             ),
           ),
@@ -1281,6 +1284,7 @@ void main() {
       final gateway = _RecordingBackupGateway();
       final rootNavigatorKey = GlobalKey<NavigatorState>();
       var showLocalFinalizeSource = true;
+      final order = <String>[];
       await tester.pumpWidget(
         MaterialApp(
           navigatorKey: rootNavigatorKey,
@@ -1294,11 +1298,18 @@ void main() {
                             localContext,
                             rootNavigator: true,
                           );
+                          final exportService = _backupService(gateway);
                           setState(() => showLocalFinalizeSource = false);
-                          await presentDailyFinalizeBackupPrompt(
-                            context: localContext,
-                            navigator: navigator,
-                            exportService: _backupService(gateway),
+                          await executeDailyLogFinalize(
+                            finalize: () async => order.add('finalize'),
+                            previousOperationDate:
+                                OperationLocalDate.parse('2026-07-27'),
+                            afterFinalize: () =>
+                                presentDailyFinalizeBackupPrompt(
+                                  navigator: navigator,
+                                  exportService: exportService,
+                                ),
+                            onReviewCompleted: (_) async => order.add('origin'),
                           );
                         },
                         child: const Text('FINALIZE'),
@@ -1316,12 +1327,14 @@ void main() {
       expect(rootNavigatorKey.currentState, isNotNull);
       expect(find.text('BACKUP'), findsOneWidget);
       expect(find.text('FINALIZE'), findsNothing);
+      expect(order, ['finalize']);
       await tester.tap(find.text('EXPORT BACKUP'));
       await tester.pumpAndSettle();
       expect(gateway.exportCount, 1);
       await tester.tap(find.text('CLOSE'));
       await tester.pumpAndSettle();
       expect(find.text('BACKUP'), findsNothing);
+      expect(order, ['finalize', 'origin']);
     },
   );
 

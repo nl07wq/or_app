@@ -66,6 +66,25 @@ void main() {
     );
   });
 
+  test('signal restore and glitch bands vary continuously through intro', () {
+    expect(bootSignalRestoreProgress(.45), greaterThan(0));
+    expect(
+      bootSignalRestoreProgress(.55),
+      greaterThan(bootSignalRestoreProgress(.45)),
+    );
+    expect(
+      bootSignalRestoreProgress(.80),
+      greaterThan(bootSignalRestoreProgress(.55)),
+    );
+    expect(bootSignalRestoreProgress(1), 1);
+    expect(bootSignalBandOffset(.22, 0), isNot(bootSignalBandOffset(.31, 0)));
+    expect(bootSignalBandOffset(.31, 0), isNot(bootSignalBandOffset(.31, 1)));
+    expect(
+      bootSignalBandVerticalOffset(.22, 2),
+      isNot(bootSignalBandVerticalOffset(.31, 2)),
+    );
+  });
+
   testWidgets('signal intro completes before the logo fade begins', (
     tester,
   ) async {
@@ -109,10 +128,7 @@ void main() {
           .value,
       0,
     );
-    await _elapse(
-      tester,
-      timing.logoIntro + const Duration(milliseconds: 1),
-    );
+    await _elapse(tester, timing.logoIntro + const Duration(milliseconds: 1));
     expect(find.byKey(const ValueKey('boot-brand-identity')), findsOneWidget);
   });
 
@@ -126,6 +142,26 @@ void main() {
     await tester.pumpWidget(
       _gate(AppInitializationController()..markReady(), timing: timing),
     );
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));
+    await tester.pump();
+
+    expect(find.text('MAIN UI'), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+  });
+
+  testWidgets('skip during signal restore removes the overlay immediately', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      preBootSignalIntro: Duration(milliseconds: 450),
+      waitForLogoDrawable: false,
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController()..markReady(), timing: timing),
+    );
+    await _elapse(tester, const Duration(milliseconds: 330));
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('boot-tap-to-skip')));

@@ -230,16 +230,6 @@ class _SystemPageState extends State<SystemPage> {
         ),
         AppSpacing.gapXL,
         _SystemSection(
-          icon: Icons.compare_arrows_outlined,
-          title: 'FINALIZE BACKUP TRACE',
-          description:
-              'DashboardとCOMMAND CENTERのFINALIZE/BACKUP表示を比較する一時的な診断トレースです。',
-          buttonText: 'OPEN FINALIZE BACKUP TRACE',
-          onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.finalizeBackupTrace),
-        ),
-        AppSpacing.gapXL,
-        _SystemSection(
           icon: Icons.animation_outlined,
           title: 'ANIMATIONS SANDBOX',
           description: 'アニメーション演出を本番導入前に確認します。',

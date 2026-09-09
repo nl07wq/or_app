@@ -5,7 +5,6 @@ import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
-import '../../../core/services/finalize_backup_trace.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_radius.dart';
@@ -26,15 +25,6 @@ typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
 typedef DailyLogFinalizeCompleted = Future<void> Function();
 
-Map<String, Object?> _finalizeTraceRouteFields(BuildContext context) {
-  final route = ModalRoute.of(context);
-  return {
-    'routeType': route?.runtimeType.toString(),
-    'routeName': route?.settings.name,
-    'routeIsCurrent': route?.isCurrent,
-  };
-}
-
 /// The single post-finalize Backup presentation used by both Dashboard and
 /// Command Center. A completed finalize crosses asynchronous formal writes,
 /// so iOS PWA no longer has a reliable user-activation token for an automatic
@@ -42,57 +32,18 @@ Map<String, Object?> _finalizeTraceRouteFields(BuildContext context) {
 /// behind one explicit user gesture instead of silently attempting it.
 @visibleForTesting
 Future<void> presentDailyFinalizeBackupPrompt({
-  required BuildContext context,
+  required NavigatorState navigator,
   required BackupFileExportService exportService,
-  NavigatorState? navigator,
-  String traceSource = 'UNKNOWN',
-  String? operationDate,
-  Map<String, Object?> traceFields = const {},
 }) {
-  final targetNavigator =
-      navigator ?? Navigator.of(context, rootNavigator: true);
-  FinalizeBackupTrace.instance.record(
-    traceSource,
-    'BACKUP_PROMPT_REQUESTED',
-    operationDate: operationDate,
-    fields: {
-      'contextMounted': context.mounted,
-      'navigatorMounted': targetNavigator.mounted,
-      'navigatorIdentity': identityHashCode(targetNavigator),
-      ..._finalizeTraceRouteFields(context),
-      ...traceFields,
-    },
-  );
-  if (!targetNavigator.mounted) {
-    FinalizeBackupTrace.instance.record(
-      traceSource,
-      'BACKUP_PROMPT_SKIPPED_NAVIGATOR_UNMOUNTED',
-      operationDate: operationDate,
-    );
-    return Future.value();
+  if (!navigator.mounted) {
+    return Future.error(StateError('Backup prompt navigator is unavailable.'));
   }
-  FinalizeBackupTrace.instance.record(
-    traceSource,
-    'BACKUP_PROMPT_ROUTE_PUSH_REQUESTED',
-    operationDate: operationDate,
-    fields: {'navigatorIdentity': identityHashCode(targetNavigator)},
-  );
   return showDialog<void>(
-    context: targetNavigator.context,
+    context: navigator.context,
     useRootNavigator: false,
     barrierDismissible: true,
-    builder: (_) => BackupPromptDialog(
-      exportService: exportService,
-      traceSource: traceSource,
-      operationDate: operationDate,
-    ),
-  ).whenComplete(() {
-    FinalizeBackupTrace.instance.record(
-      traceSource,
-      'BACKUP_PROMPT_RESOLVED',
-      operationDate: operationDate,
-    );
-  });
+    builder: (_) => BackupPromptDialog(exportService: exportService),
+  );
 }
 
 @visibleForTesting
@@ -101,30 +52,9 @@ Future<void> executeDailyLogFinalize({
   required OperationLocalDate previousOperationDate,
   DailyLogFinalizeCompleted? afterFinalize,
   required DailyLogReviewCompleted? onReviewCompleted,
-  String traceSource = 'UNKNOWN',
 }) async {
-  FinalizeBackupTrace.instance.record(
-    traceSource,
-    'FINALIZE_STARTED',
-    operationDate: previousOperationDate.value,
-  );
   await finalize();
-  FinalizeBackupTrace.instance.record(
-    traceSource,
-    'FINALIZE_FORMAL_SUCCESS',
-    operationDate: previousOperationDate.value,
-  );
-  FinalizeBackupTrace.instance.record(
-    traceSource,
-    'POST_FINALIZE_ENTER',
-    operationDate: previousOperationDate.value,
-  );
   await afterFinalize?.call();
-  FinalizeBackupTrace.instance.record(
-    traceSource,
-    'CALLER_POST_FINALIZE_STARTED',
-    operationDate: previousOperationDate.value,
-  );
   await onReviewCompleted?.call(previousOperationDate);
 }
 
@@ -138,8 +68,6 @@ class DailyLogSection extends StatefulWidget {
     required this.estimatedTotalBurn,
     this.onReviewCompleted,
     this.backupExportService,
-    this.finalizeTraceSource = 'UNKNOWN',
-    this.finalizeTraceWorkspace = 'UNKNOWN',
   });
 
   final MorningFact? morningFact;
@@ -149,8 +77,6 @@ class DailyLogSection extends StatefulWidget {
   final double? estimatedTotalBurn;
   final DailyLogReviewCompleted? onReviewCompleted;
   final BackupFileExportService? backupExportService;
-  final String finalizeTraceSource;
-  final String finalizeTraceWorkspace;
 
   @override
   State<DailyLogSection> createState() => _DailyLogSectionState();
@@ -224,15 +150,6 @@ class _DailyLogSectionState extends State<DailyLogSection> {
 
   Future<void> _finalize() async {
     if (_isFinalizing) return;
-    FinalizeBackupTrace.instance.record(
-      widget.finalizeTraceSource,
-      'FINALIZE_TAP',
-      fields: {
-        'contextMounted': mounted,
-        'workspace': widget.finalizeTraceWorkspace,
-        ..._finalizeTraceRouteFields(context),
-      },
-    );
     final approved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -255,60 +172,44 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       ),
     );
     if (approved != true || !mounted) return;
-    FinalizeBackupTrace.instance.record(
-      widget.finalizeTraceSource,
-      'FINALIZE_CONFIRM_APPROVED',
-      fields: {
-        'contextMounted': mounted,
-        'workspace': widget.finalizeTraceWorkspace,
-        ..._finalizeTraceRouteFields(context),
-      },
-    );
-    // Command Center refreshes its DailyLogSection as finalize updates its
-    // read model. Capture the app navigator before that await so a completed
-    // formal finalize cannot silently lose its post-finalize Backup prompt.
+    // Formal Finalize can reconstruct Command Center's DailyLogSection.
+    // Capture every dependency used by the post-Finalize path beforehand.
     final promptNavigator = Navigator.of(context, rootNavigator: true);
-    FinalizeBackupTrace.instance.record(
-      widget.finalizeTraceSource,
-      'BACKUP_NAVIGATOR_CAPTURED',
-      fields: {
-        'contextMounted': mounted,
-        'navigatorMounted': promptNavigator.mounted,
-        'navigatorIdentity': identityHashCode(promptNavigator),
-        'workspace': widget.finalizeTraceWorkspace,
-        ..._finalizeTraceRouteFields(context),
-      },
-    );
+    final backupExportService =
+        widget.backupExportService ?? BackupFileExportService();
+    final onReviewCompleted = widget.onReviewCompleted;
+    final state = await AppRepositoryRegistry.container.operationState
+        .requireCurrent();
+    if (!mounted) return;
+    final previousDate = state.operationDate;
     setState(() => _isFinalizing = true);
+    var formalFinalizeSucceeded = false;
     try {
-      final state = await AppRepositoryRegistry.container.operationState
-          .requireCurrent();
-      final previousDate = state.operationDate;
-      final onReviewCompleted = widget.onReviewCompleted;
       await executeDailyLogFinalize(
         finalize: () async {
           await DailyFinalizeCoordinatorFactory.production().finalize(
             targetLocalDate: previousDate,
           );
+          formalFinalizeSucceeded = true;
         },
         previousOperationDate: previousDate,
         afterFinalize: () async {
           await presentDailyFinalizeBackupPrompt(
-            context: context,
-            exportService:
-                widget.backupExportService ?? BackupFileExportService(),
             navigator: promptNavigator,
-            traceSource: widget.finalizeTraceSource,
-            operationDate: previousDate.value,
-            traceFields: {'workspace': widget.finalizeTraceWorkspace},
+            exportService: backupExportService,
           );
         },
         onReviewCompleted: onReviewCompleted,
-        traceSource: widget.finalizeTraceSource,
       );
       if (!mounted) return;
       _reloadCloseState();
     } catch (error) {
+      if (formalFinalizeSucceeded && promptNavigator.mounted) {
+        ScaffoldMessenger.maybeOf(
+          promptNavigator.context,
+        )?.showSnackBar(SnackBar(content: Text('BACKUPを表示できませんでした: $error')));
+        return;
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
