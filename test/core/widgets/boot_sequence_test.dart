@@ -82,6 +82,13 @@ void main() {
     expect(bootSignalAcquisitionInterferenceOpacity(.40), greaterThan(.75));
     expect(bootSignalAcquisitionInterferenceOpacity(.60), greaterThan(.75));
     expect(bootSignalAcquisitionInterferenceOpacity(.84), closeTo(0, .000001));
+    expect(bootSignalAcquisitionFineSegmentCount, 18);
+    expect(bootSignalAcquisitionDensity(.10), 0);
+    expect(bootSignalAcquisitionDensity(.25), greaterThan(0));
+    expect(bootSignalAcquisitionDensity(.50), greaterThan(.80));
+    expect(bootSignalAcquisitionDensity(.70), greaterThan(.80));
+    expect(bootSignalAcquisitionDensity(.92), lessThan(.30));
+    expect(bootSignalAcquisitionDensity(1), 0);
     expect(bootSignalRestoreProgress(.25), 0);
     expect(bootSignalRestoreProgress(.45), greaterThan(0));
     expect(
@@ -150,6 +157,41 @@ void main() {
       find.byKey(const ValueKey('boot-content-transform')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Boot identity uses the constrained terminal typography', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_gate(AppInitializationController()));
+    await _advanceLogoFade(tester, _timing);
+    await _advanceTyping(tester, _timing);
+
+    final identity = tester.widget<Text>(
+      find.byKey(const ValueKey('boot-brand-identity')),
+    );
+    expect(identity.style!.fontFamily, 'monospace');
+    expect(identity.style!.fontWeight, FontWeight.w500);
+    expect(identity.style!.letterSpacing, 2.8);
+
+    await _elapse(tester, _timing.fullNameCharacter * 43);
+    final fullName = tester.widget<Text>(
+      find.byKey(const ValueKey('boot-brand-full-name')),
+    );
+    expect(fullName.style!.fontFamily, 'monospace');
+    expect(fullName.style!.letterSpacing, .55);
+
+    await _elapse(tester, const Duration(milliseconds: 1));
+    final axis = tester.widget<Text>(
+      find.byKey(const ValueKey('boot-operation-system-version')),
+    );
+    expect(axis.style!.fontFamily, 'monospace');
+    expect(axis.style!.letterSpacing, 1.15);
+
+    await _elapse(tester, _timing.identityHold);
+    final systemBoot = tester.widget<Text>(find.text('SYSTEM BOOT'));
+    expect(systemBoot.style!.fontFamily, 'monospace');
+    expect(systemBoot.style!.fontWeight, FontWeight.w500);
+    expect(systemBoot.style!.letterSpacing, 1.4);
   });
 
   testWidgets('signal intro completes before the logo fade begins', (

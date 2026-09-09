@@ -31,6 +31,13 @@ const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
+const _bootTerminalFontFamily = 'monospace';
+
+/// The fixed count deliberately reads as mixed signal detail rather than a
+/// uniformly spaced scan pattern. The segments are positioned and timed with
+/// deterministic envelopes in [_BootSignalAcquisitionPainter].
+@visibleForTesting
+const bootSignalAcquisitionFineSegmentCount = 18;
 
 @visibleForTesting
 double bootSignalAcquisitionLineOpacity(double progress) {
@@ -44,6 +51,19 @@ double bootSignalAcquisitionLineOpacity(double progress) {
 @visibleForTesting
 double bootSignalAcquisitionInterferenceOpacity(double progress) =>
     math.sin(((progress - .14) / .70).clamp(0.0, 1.0).toDouble() * math.pi);
+
+/// The dense mixed-signal window runs from roughly 135ms through 225ms of
+/// the fixed 300ms acquisition. It stays visible across several real-device
+/// frames, then decays into the lock line rather than cutting to black.
+@visibleForTesting
+double bootSignalAcquisitionDensity(double progress) {
+  final build = Curves.easeOut.transform(
+    ((progress - .12) / .33).clamp(0.0, 1.0),
+  );
+  final converge =
+      1 - Curves.easeIn.transform(((progress - .74) / .20).clamp(0.0, 1.0));
+  return build * converge;
+}
 
 @visibleForTesting
 double bootSignalRestoreProgress(double progress) => Curves.easeInOutCubic
@@ -413,8 +433,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       'TAP TO SKIP',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: colorScheme.primary.withValues(alpha: .72),
-                        fontFamily: 'monospace',
-                        letterSpacing: 1.2,
+                        fontFamily: _bootTerminalFontFamily,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 1.35,
                       ),
                     ),
                   ),
@@ -489,7 +510,10 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
           child: DefaultTextStyle(
             style: Theme.of(context).textTheme.bodyMedium!.copyWith(
               color: Colors.white70,
-              fontFamily: 'monospace',
+              fontFamily: _bootTerminalFontFamily,
+              fontWeight: FontWeight.w400,
+              letterSpacing: .45,
+              height: 1.24,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -516,8 +540,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                         : null,
                     style: Theme.of(context).textTheme.titleLarge!.copyWith(
                       color: colorScheme.primary,
-                      fontFamily: 'monospace',
-                      letterSpacing: 2,
+                      fontFamily: _bootTerminalFontFamily,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 2.8,
                     ),
                   ),
                 ],
@@ -534,6 +559,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                             : null,
                         style: Theme.of(context).textTheme.labelSmall!.copyWith(
                           color: colorScheme.primary.withValues(alpha: .7),
+                          fontFamily: _bootTerminalFontFamily,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: .55,
                         ),
                       ),
                     ),
@@ -551,8 +579,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                           : null,
                       style: Theme.of(context).textTheme.labelSmall!.copyWith(
                         color: colorScheme.primary.withValues(alpha: .48),
-                        fontFamily: 'monospace',
-                        letterSpacing: 1,
+                        fontFamily: _bootTerminalFontFamily,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 1.15,
                       ),
                     ),
                   ),
@@ -569,7 +598,15 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                   ),
                 if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
                   const SizedBox(height: 16),
-                  const Text('SYSTEM BOOT'),
+                  Text(
+                    'SYSTEM BOOT',
+                    style: Theme.of(context).textTheme.labelMedium!.copyWith(
+                      color: colorScheme.primary.withValues(alpha: .82),
+                      fontFamily: _bootTerminalFontFamily,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   _BootProgressBar(value: widget.progress),
                 ],
@@ -760,6 +797,7 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
     final centerY = size.height / 2;
     final lineOpacity = bootSignalAcquisitionLineOpacity(frame);
     final interferenceOpacity = bootSignalAcquisitionInterferenceOpacity(frame);
+    final interferenceDensity = bootSignalAcquisitionDensity(frame);
     final detection = Curves.easeOut.transform((frame / .28).clamp(0.0, 1.0));
     final lineWidth = size.width * (.18 + .64 * detection);
     final lineLeft = (size.width - lineWidth) / 2;
@@ -783,22 +821,59 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
       core,
     );
 
-    final fragments = Paint()
-      ..color = bootSignalFragmentColor.withValues(
-        alpha: interferenceOpacity * .38,
-      );
-    for (var index = 0; index < 6; index += 1) {
-      final direction = index.isEven ? 1.0 : -1.0;
-      final y = centerY + direction * (14 + index * 11) + lineJitter;
-      final offset = math.sin(frame * (19 + index * 7) + index) * 27;
-      final start = (size.width * (.08 + index * .15) + offset)
+    // Fine, non-uniform fragments make the acquisition read as an unstable
+    // video feed. Their positions, widths, lifetimes, and offsets are all
+    // deterministic: no runtime noise texture or random allocation is used.
+    final fragments = Paint();
+    for (
+      var index = 0;
+      index < bootSignalAcquisitionFineSegmentCount;
+      index += 1
+    ) {
+      final onset = .03 + (index % 6) * .055;
+      final lifetime = .32 + (index % 4) * .055;
+      final local = ((frame - onset) / lifetime).clamp(0.0, 1.0).toDouble();
+      final lifetimeOpacity = math.sin(local * math.pi);
+      final cluster = index % 3;
+      final clusterCenter = size.height * (.31 + cluster * .19);
+      final y =
+          clusterCenter +
+          ((index * 17) % 43 - 21) +
+          math.sin(frame * 41 + index) * 1.8;
+      final offset =
+          math.sin(frame * (16 + index * 2.7) + index * .9) *
+          (5 + (index % 5) * 1.8);
+      final start = (size.width * (.035 + ((index * .137) % .76)) + offset)
           .clamp(0.0, size.width)
           .toDouble();
-      final width = size.width * (.08 + index * .022);
+      final width = size.width * (.035 + (index % 6) * .016);
+      final alpha =
+          interferenceOpacity *
+          interferenceDensity *
+          lifetimeOpacity *
+          (.12 + (index % 4) * .025);
+      fragments.color = bootSignalFragmentColor.withValues(alpha: alpha);
       canvas.drawRect(
-        Rect.fromLTWH(start, y, width, 1 + (index.isEven ? .6 : 0)),
+        Rect.fromLTWH(start, y, width, index % 5 == 0 ? 1.15 : .55),
         fragments,
       );
+    }
+
+    // A few wider displaced fragments organize the fine interference around
+    // the lock line, giving the final acquisition frames a clear direction
+    // into the existing Ghost reconstruction.
+    for (var index = 0; index < 4; index += 1) {
+      final direction = index.isEven ? 1.0 : -1.0;
+      final y = centerY + direction * (18 + index * 17) + lineJitter;
+      final offset = math.sin(frame * (18 + index * 6) + index) * 15;
+      final start = (size.width * (.16 + index * .17) + offset)
+          .clamp(0.0, size.width)
+          .toDouble();
+      final width = size.width * (.10 + index * .018);
+      fragments.color = bootSignalFragmentColor.withValues(
+        alpha: interferenceOpacity * interferenceDensity * .24,
+      );
+      canvas.drawRect(Rect.fromLTWH(start, y, width, 1.1), fragments);
     }
   }
 
