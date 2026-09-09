@@ -93,6 +93,10 @@ void main() {
     expect(bootSignalSliceOffset(.22, 1), lessThan(0));
     expect(bootSignalSliceOffset(1, 0), closeTo(0, .000001));
     expect(bootSignalLineOpacity(1), 0);
+    expect(bootIntroSilhouetteOpacity(.10), greaterThan(.08));
+    expect(bootIntroSilhouetteOpacity(.24), closeTo(.22, .000001));
+    expect(bootIntroSilhouetteOpacity(.24), greaterThan(.18));
+    expect(bootIntroSilhouetteOpacity(.92), closeTo(0, .000001));
   });
 
   testWidgets('signal intro completes before the logo fade begins', (
@@ -132,10 +136,26 @@ void main() {
     );
     expect(find.byKey(const ValueKey('boot-content-slice-0')), findsOneWidget);
     expect(find.byKey(const ValueKey('boot-content-slice-5')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Opacity>(
+            find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+          )
+          .opacity,
+      lessThan(.28),
+    );
     expect(find.text('O.R.L.O.'), findsNothing);
     await _elapse(tester, const Duration(milliseconds: 231));
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
     expect(find.byKey(const ValueKey('boot-content-normal')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+      findsNothing,
+    );
     expect(
       tester
           .widget<FadeTransition>(
@@ -166,6 +186,10 @@ void main() {
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+      findsNothing,
+    );
   });
 
   testWidgets('skip during signal restore removes the overlay immediately', (
@@ -186,6 +210,10 @@ void main() {
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+      findsNothing,
+    );
   });
 
   testWidgets('skip during the heavy glitch stage removes the overlay', (
@@ -206,6 +234,10 @@ void main() {
 
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+      findsNothing,
+    );
   });
 
   testWidgets('skip during late signal settle removes all content slices', (
@@ -228,6 +260,10 @@ void main() {
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(find.byKey(const ValueKey('boot-content-transform')), findsNothing);
     expect(find.byKey(const ValueKey('boot-pre-signal-intro')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('boot-intro-logo-silhouette')),
+      findsNothing,
+    );
   });
 
   testWidgets('boot rows are revealed and completed in sequence', (

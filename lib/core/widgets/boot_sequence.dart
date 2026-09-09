@@ -59,6 +59,14 @@ double bootSignalSliceOffset(double progress, int index) {
 double bootSignalLineOpacity(double progress) =>
     math.pow(1 - bootSignalRestoreProgress(progress), .72).toDouble();
 
+@visibleForTesting
+double bootIntroSilhouetteOpacity(double progress) {
+  final rise = Curves.easeOut.transform((progress / .24).clamp(0.0, 1.0));
+  final decay =
+      1 - Curves.easeIn.transform(((progress - .62) / .30).clamp(0.0, 1.0));
+  return (.08 + .14 * rise) * decay;
+}
+
 /// A small deterministic visual timeline. It does not represent persistence
 /// work and remains independent from the real initialization state.
 class BootSequenceTiming {
@@ -321,11 +329,13 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
               child: _BootContentRestore(
                 progress: _preBootSignalController,
                 active: !_preBootSignalComplete,
-                contentBuilder: (includeKeys) => _buildBootContentLayer(
-                  colorScheme,
-                  widget.phase,
-                  includeKeys,
-                ),
+                contentBuilder: (includeKeys, introProgress) =>
+                    _buildBootContentLayer(
+                      colorScheme,
+                      widget.phase,
+                      includeKeys,
+                      introProgress,
+                    ),
               ),
             ),
             Positioned(
@@ -371,6 +381,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     ColorScheme colorScheme,
     _BootVisualPhase phase,
     bool includeKeys,
+    double introProgress,
   ) {
     final rows = <Widget>[
       if (phase.index >= _BootVisualPhase.coreInitializing.index)
@@ -413,26 +424,17 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FadeTransition(
-                  key: includeKeys
-                      ? const ValueKey('boot-brand-logo-fade')
-                      : null,
-                  opacity: CurvedAnimation(
-                    parent: _logoFadeController,
-                    curve: Curves.easeOut,
+                _BootLogoSlot(
+                  logoProvider: _logoProvider,
+                  officialFade: _logoFadeController,
+                  introSilhouetteOpacity: bootIntroSilhouetteOpacity(
+                    introProgress,
                   ),
-                  child: Image(
-                    image: _logoProvider,
-                    key: includeKeys ? const ValueKey('boot-brand-logo') : null,
-                    height: 128,
-                    width: 220,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) {
-                      _logoLoadFailed = true;
-                      _tryBeginLogoFade();
-                      return const SizedBox(height: 72);
-                    },
-                  ),
+                  includeKeys: includeKeys,
+                  onOfficialLogoError: () {
+                    _logoLoadFailed = true;
+                    _tryBeginLogoFade();
+                  },
                 ),
                 if (phase.index >= _BootVisualPhase.identityTyping.index) ...[
                   const SizedBox(height: 16),
@@ -522,6 +524,69 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       phase == _BootVisualPhase.operationInitializing;
 }
 
+class _BootLogoSlot extends StatelessWidget {
+  const _BootLogoSlot({
+    required this.logoProvider,
+    required this.officialFade,
+    required this.introSilhouetteOpacity,
+    required this.includeKeys,
+    required this.onOfficialLogoError,
+  });
+
+  final ImageProvider<Object> logoProvider;
+  final Animation<double> officialFade;
+  final double introSilhouetteOpacity;
+  final bool includeKeys;
+  final VoidCallback onOfficialLogoError;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 128,
+    width: 220,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        if (introSilhouetteOpacity > 0)
+          Opacity(
+            key: includeKeys
+                ? const ValueKey('boot-intro-logo-silhouette')
+                : null,
+            opacity: introSilhouetteOpacity,
+            child: ExcludeSemantics(
+              child: ColorFiltered(
+                colorFilter: const ColorFilter.mode(
+                  Color(0xFF9ABAC6),
+                  BlendMode.srcIn,
+                ),
+                child: Image(
+                  image: logoProvider,
+                  height: 128,
+                  width: 220,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+        FadeTransition(
+          key: includeKeys ? const ValueKey('boot-brand-logo-fade') : null,
+          opacity: CurvedAnimation(parent: officialFade, curve: Curves.easeOut),
+          child: Image(
+            image: logoProvider,
+            key: includeKeys ? const ValueKey('boot-brand-logo') : null,
+            height: 128,
+            width: 220,
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) {
+              onOfficialLogoError();
+              return const SizedBox(height: 72);
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _BootContentRestore extends StatelessWidget {
   const _BootContentRestore({
     required this.progress,
@@ -533,14 +598,14 @@ class _BootContentRestore extends StatelessWidget {
 
   final Animation<double> progress;
   final bool active;
-  final Widget Function(bool includeKeys) contentBuilder;
+  final Widget Function(bool includeKeys, double introProgress) contentBuilder;
 
   @override
   Widget build(BuildContext context) {
     if (!active) {
       return KeyedSubtree(
         key: const ValueKey('boot-content-normal'),
-        child: contentBuilder(true),
+        child: contentBuilder(true, 1),
       );
     }
     return AnimatedBuilder(
@@ -564,7 +629,7 @@ class _BootContentRestore extends StatelessWidget {
                     scaleY: scaleY,
                     child: KeyedSubtree(
                       key: ValueKey('boot-content-slice-$index'),
-                      child: contentBuilder(index == 0),
+                      child: contentBuilder(index == 0, progress.value),
                     ),
                   ),
                 ),
