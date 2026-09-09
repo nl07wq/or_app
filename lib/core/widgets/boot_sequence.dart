@@ -31,21 +31,61 @@ const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
-const _bootTerminalFontFamily = 'monospace';
+const _bootTerminalFontFamily = 'ShareTechMono';
 
 /// The fixed count deliberately reads as mixed signal detail rather than a
 /// uniformly spaced scan pattern. The segments are positioned and timed with
 /// deterministic envelopes in [_BootSignalAcquisitionPainter].
 @visibleForTesting
 const bootSignalAcquisitionFineSegmentCount = 18;
+const _bootSignalAcquisitionLockFragmentCount = 4;
+const _bootSignalAcquisitionDuration = Duration(milliseconds: 300);
+
+@immutable
+class BootSignalAcquisitionDiagnostics {
+  const BootSignalAcquisitionDiagnostics({
+    required this.elapsed,
+    required this.activeFineFragmentCount,
+    required this.activeLockFragmentCount,
+    required this.minimumEffectiveOpacity,
+    required this.maximumEffectiveOpacity,
+    required this.minimumStrokeWidth,
+    required this.maximumStrokeWidth,
+    required this.minimumLogicalWidth,
+    required this.maximumLogicalWidth,
+    required this.aggregateHorizontalCoverage,
+    required this.minimumVerticalFraction,
+    required this.maximumVerticalFraction,
+    required this.parentOpacityMultiplier,
+    required this.hasAdditionalClip,
+  });
+
+  final Duration elapsed;
+  final int activeFineFragmentCount;
+  final int activeLockFragmentCount;
+  final double minimumEffectiveOpacity;
+  final double maximumEffectiveOpacity;
+  final double minimumStrokeWidth;
+  final double maximumStrokeWidth;
+  final double minimumLogicalWidth;
+  final double maximumLogicalWidth;
+
+  /// Sum of active fragment widths divided by viewport width. It is a bounded
+  /// scale diagnostic, not a visual-quality or non-overlap measurement.
+  final double aggregateHorizontalCoverage;
+  final double minimumVerticalFraction;
+  final double maximumVerticalFraction;
+  final double parentOpacityMultiplier;
+  final bool hasAdditionalClip;
+}
 
 @visibleForTesting
 double bootSignalAcquisitionLineOpacity(double progress) {
-  final detection = Curves.easeOut.transform((progress / .28).clamp(0.0, 1.0));
+  final detection = Curves.easeOut.transform((progress / .24).clamp(0.0, 1.0));
   final lock = Curves.easeInOut.transform(
-    ((progress - .36) / .64).clamp(0.0, 1.0),
+    ((progress - .70) / .30).clamp(0.0, 1.0),
   );
-  return .14 * detection + .66 * lock;
+  return .08 * detection + .72 * lock;
 }
 
 @visibleForTesting
@@ -63,6 +103,159 @@ double bootSignalAcquisitionDensity(double progress) {
   final converge =
       1 - Curves.easeIn.transform(((progress - .74) / .20).clamp(0.0, 1.0));
   return build * converge;
+}
+
+double _bootSignalFineFragmentOnset(int index) => .03 + (index % 6) * .055;
+
+double _bootSignalFineFragmentEnd(int index) => .80 - (index % 4) * .035;
+
+double _bootSignalFineFragmentOpacity(double progress, int index) {
+  final local =
+      ((progress - _bootSignalFineFragmentOnset(index)) /
+              (_bootSignalFineFragmentEnd(index) -
+                  _bootSignalFineFragmentOnset(index)))
+          .clamp(0.0, 1.0)
+          .toDouble();
+  return bootSignalAcquisitionInterferenceOpacity(progress) *
+      bootSignalAcquisitionDensity(progress) *
+      math.sin(local * math.pi) *
+      (.23 + (index % 4) * .055);
+}
+
+double _bootSignalFineFragmentWidth(Size size, int index) =>
+    size.width * (.035 + (index % 6) * .016);
+
+double _bootSignalFineFragmentY(Size size, double progress, int index) {
+  final distribution = .14 + ((index * .173) % .72);
+  return size.height * distribution +
+      ((index * 19) % 31 - 15) +
+      math.sin(progress * 41 + index) * 2.4;
+}
+
+double _bootSignalFineFragmentStart(Size size, double progress, int index) {
+  final offset =
+      math.sin(progress * (16 + index * 2.7) + index * .9) *
+      (5 + (index % 5) * 1.8);
+  return (size.width * (.035 + ((index * .137) % .76)) + offset)
+      .clamp(0.0, size.width)
+      .toDouble();
+}
+
+double _bootSignalFineFragmentStrokeWidth(int index) =>
+    index % 5 == 0 ? 1.55 : 1.0;
+
+double _bootSignalLockFragmentOpacity(double progress) =>
+    bootSignalAcquisitionInterferenceOpacity(progress) *
+    bootSignalAcquisitionDensity(progress) *
+    .24;
+
+double _bootSignalLockFragmentWidth(Size size, int index) =>
+    size.width * (.10 + index * .018);
+
+double _bootSignalLockFragmentY(
+  Size size,
+  double centerY,
+  double lineJitter,
+  int index,
+) {
+  final direction = index.isEven ? 1.0 : -1.0;
+  return centerY + direction * (18 + index * 17) + lineJitter;
+}
+
+double _bootSignalLockFragmentStart(Size size, double progress, int index) {
+  final offset = math.sin(progress * (18 + index * 6) + index) * 15;
+  return (size.width * (.16 + index * .17) + offset)
+      .clamp(0.0, size.width)
+      .toDouble();
+}
+
+/// Test-only rendering metrics for the same deterministic geometry used by
+/// the acquisition painter. This does not run in the production animation.
+@visibleForTesting
+BootSignalAcquisitionDiagnostics bootSignalAcquisitionDiagnosticsAt(
+  Duration elapsed,
+  Size size,
+) {
+  final progress =
+      (elapsed.inMicroseconds / _bootSignalAcquisitionDuration.inMicroseconds)
+          .clamp(0.0, 1.0)
+          .toDouble();
+  final centerY = size.height / 2;
+  final lineJitter = math.sin(progress * 49) * (1.8 - progress * .8);
+  final lineOpacity = bootSignalAcquisitionLineOpacity(progress);
+  final detection = Curves.easeOut.transform((progress / .24).clamp(0.0, 1.0));
+  final lineWidth = size.width * (.18 + .64 * detection);
+  final lineThickness = 1.2 + 1.1 * math.sin(progress * 37).abs();
+  var activeFineFragmentCount = 0;
+  var activeLockFragmentCount = 0;
+  var minimumOpacity = lineOpacity;
+  var maximumOpacity = lineOpacity;
+  var minimumStrokeWidth = lineThickness;
+  var maximumStrokeWidth = lineThickness;
+  var minimumLogicalWidth = lineWidth;
+  var maximumLogicalWidth = lineWidth;
+  var minimumY = centerY + lineJitter;
+  var maximumY = centerY + lineJitter;
+  var aggregateWidth = 0.0;
+
+  for (
+    var index = 0;
+    index < bootSignalAcquisitionFineSegmentCount;
+    index += 1
+  ) {
+    final opacity = _bootSignalFineFragmentOpacity(progress, index);
+    if (opacity <= .01) continue;
+    final y = _bootSignalFineFragmentY(size, progress, index);
+    final width = _bootSignalFineFragmentWidth(size, index);
+    final strokeWidth = _bootSignalFineFragmentStrokeWidth(index);
+    activeFineFragmentCount += 1;
+    minimumOpacity = math.min(minimumOpacity, opacity);
+    maximumOpacity = math.max(maximumOpacity, opacity);
+    minimumStrokeWidth = math.min(minimumStrokeWidth, strokeWidth);
+    maximumStrokeWidth = math.max(maximumStrokeWidth, strokeWidth);
+    minimumLogicalWidth = math.min(minimumLogicalWidth, width);
+    maximumLogicalWidth = math.max(maximumLogicalWidth, width);
+    minimumY = math.min(minimumY, y);
+    maximumY = math.max(maximumY, y + strokeWidth);
+    aggregateWidth += width;
+  }
+  for (
+    var index = 0;
+    index < _bootSignalAcquisitionLockFragmentCount;
+    index += 1
+  ) {
+    final opacity = _bootSignalLockFragmentOpacity(progress);
+    if (opacity <= .01) continue;
+    final y = _bootSignalLockFragmentY(size, centerY, lineJitter, index);
+    final width = _bootSignalLockFragmentWidth(size, index);
+    activeLockFragmentCount += 1;
+    minimumOpacity = math.min(minimumOpacity, opacity);
+    maximumOpacity = math.max(maximumOpacity, opacity);
+    minimumStrokeWidth = math.min(minimumStrokeWidth, 1.1);
+    maximumStrokeWidth = math.max(maximumStrokeWidth, 1.1);
+    minimumLogicalWidth = math.min(minimumLogicalWidth, width);
+    maximumLogicalWidth = math.max(maximumLogicalWidth, width);
+    minimumY = math.min(minimumY, y);
+    maximumY = math.max(maximumY, y + 1.1);
+    aggregateWidth += width;
+  }
+
+  return BootSignalAcquisitionDiagnostics(
+    elapsed: elapsed,
+    activeFineFragmentCount: activeFineFragmentCount,
+    activeLockFragmentCount: activeLockFragmentCount,
+    minimumEffectiveOpacity: minimumOpacity,
+    maximumEffectiveOpacity: maximumOpacity,
+    minimumStrokeWidth: minimumStrokeWidth,
+    maximumStrokeWidth: maximumStrokeWidth,
+    minimumLogicalWidth: minimumLogicalWidth,
+    maximumLogicalWidth: maximumLogicalWidth,
+    aggregateHorizontalCoverage: aggregateWidth / size.width,
+    minimumVerticalFraction: minimumY / size.height,
+    maximumVerticalFraction: maximumY / size.height,
+    parentOpacityMultiplier: 1,
+    hasAdditionalClip: false,
+  );
 }
 
 @visibleForTesting
@@ -541,7 +734,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                     style: Theme.of(context).textTheme.titleLarge!.copyWith(
                       color: colorScheme.primary,
                       fontFamily: _bootTerminalFontFamily,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
                       letterSpacing: 2.8,
                     ),
                   ),
@@ -603,7 +796,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                     style: Theme.of(context).textTheme.labelMedium!.copyWith(
                       color: colorScheme.primary.withValues(alpha: .82),
                       fontFamily: _bootTerminalFontFamily,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
                       letterSpacing: 1.4,
                     ),
                   ),
@@ -796,9 +989,7 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
     final frame = progress.value;
     final centerY = size.height / 2;
     final lineOpacity = bootSignalAcquisitionLineOpacity(frame);
-    final interferenceOpacity = bootSignalAcquisitionInterferenceOpacity(frame);
-    final interferenceDensity = bootSignalAcquisitionDensity(frame);
-    final detection = Curves.easeOut.transform((frame / .28).clamp(0.0, 1.0));
+    final detection = Curves.easeOut.transform((frame / .24).clamp(0.0, 1.0));
     final lineWidth = size.width * (.18 + .64 * detection);
     final lineLeft = (size.width - lineWidth) / 2;
     final lineJitter = math.sin(frame * 49) * (1.8 - frame * .8);
@@ -830,31 +1021,18 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
       index < bootSignalAcquisitionFineSegmentCount;
       index += 1
     ) {
-      final onset = .03 + (index % 6) * .055;
-      final lifetime = .32 + (index % 4) * .055;
-      final local = ((frame - onset) / lifetime).clamp(0.0, 1.0).toDouble();
-      final lifetimeOpacity = math.sin(local * math.pi);
-      final cluster = index % 3;
-      final clusterCenter = size.height * (.31 + cluster * .19);
-      final y =
-          clusterCenter +
-          ((index * 17) % 43 - 21) +
-          math.sin(frame * 41 + index) * 1.8;
-      final offset =
-          math.sin(frame * (16 + index * 2.7) + index * .9) *
-          (5 + (index % 5) * 1.8);
-      final start = (size.width * (.035 + ((index * .137) % .76)) + offset)
-          .clamp(0.0, size.width)
-          .toDouble();
-      final width = size.width * (.035 + (index % 6) * .016);
-      final alpha =
-          interferenceOpacity *
-          interferenceDensity *
-          lifetimeOpacity *
-          (.12 + (index % 4) * .025);
+      final y = _bootSignalFineFragmentY(size, frame, index);
+      final start = _bootSignalFineFragmentStart(size, frame, index);
+      final width = _bootSignalFineFragmentWidth(size, index);
+      final alpha = _bootSignalFineFragmentOpacity(frame, index);
       fragments.color = bootSignalFragmentColor.withValues(alpha: alpha);
       canvas.drawRect(
-        Rect.fromLTWH(start, y, width, index % 5 == 0 ? 1.15 : .55),
+        Rect.fromLTWH(
+          start,
+          y,
+          width,
+          _bootSignalFineFragmentStrokeWidth(index),
+        ),
         fragments,
       );
     }
@@ -862,16 +1040,16 @@ class _BootSignalAcquisitionPainter extends CustomPainter {
     // A few wider displaced fragments organize the fine interference around
     // the lock line, giving the final acquisition frames a clear direction
     // into the existing Ghost reconstruction.
-    for (var index = 0; index < 4; index += 1) {
-      final direction = index.isEven ? 1.0 : -1.0;
-      final y = centerY + direction * (18 + index * 17) + lineJitter;
-      final offset = math.sin(frame * (18 + index * 6) + index) * 15;
-      final start = (size.width * (.16 + index * .17) + offset)
-          .clamp(0.0, size.width)
-          .toDouble();
-      final width = size.width * (.10 + index * .018);
+    for (
+      var index = 0;
+      index < _bootSignalAcquisitionLockFragmentCount;
+      index += 1
+    ) {
+      final y = _bootSignalLockFragmentY(size, centerY, lineJitter, index);
+      final start = _bootSignalLockFragmentStart(size, frame, index);
+      final width = _bootSignalLockFragmentWidth(size, index);
       fragments.color = bootSignalFragmentColor.withValues(
-        alpha: interferenceOpacity * interferenceDensity * .24,
+        alpha: _bootSignalLockFragmentOpacity(frame),
       );
       canvas.drawRect(Rect.fromLTWH(start, y, width, 1.1), fragments);
     }

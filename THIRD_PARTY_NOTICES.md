@@ -1,5 +1,17 @@
 # Third-Party Notices
 
+## Share Tech Mono
+
+- Version: Google Fonts distribution at repository main, retrieved 2026-09-10
+- Project: https://github.com/google/fonts/tree/main/ofl/sharetechmono
+- License: SIL Open Font License 1.1
+- Copyright: Copyright (c) 2012, Carrois Type Design, Ralph du Carrois
+- Bundled asset: `assets/fonts/ShareTechMono-Regular.ttf`
+- License copy: `assets/fonts/licenses/SHARE_TECH_MONO_OFL.txt`
+
+Share Tech Mono is bundled locally for the Boot identity only. It is not
+loaded from a network provider and remains available in the installed PWA.
+
 OR-APP self-hosts the following components for local, in-browser food-label
 recognition. Runtime assets are served from `web/assets/food_input/`; captured
 images and recognized text are not sent to an external OCR or product API.

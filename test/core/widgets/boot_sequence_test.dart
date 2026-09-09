@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/active_session_heartbeat.dart';
 import 'package:or_app/core/services/boot_audio.dart';
@@ -76,7 +77,7 @@ void main() {
 
   test('Boot content restore and slices vary continuously', () {
     expect(bootSignalAcquisitionLineOpacity(0), 0);
-    expect(bootSignalAcquisitionLineOpacity(.5), greaterThan(.16));
+    expect(bootSignalAcquisitionLineOpacity(.5), closeTo(.08, .000001));
     expect(bootSignalAcquisitionLineOpacity(1), greaterThan(.75));
     expect(bootSignalAcquisitionInterferenceOpacity(.14), 0);
     expect(bootSignalAcquisitionInterferenceOpacity(.40), greaterThan(.75));
@@ -125,6 +126,52 @@ void main() {
     expect(bootIntroSilhouetteOpacity(.95), closeTo(0, .000001));
   });
 
+  test('signal acquisition diagnostics sample the actual painter geometry', () {
+    const viewport = Size(390, 844);
+    final early = bootSignalAcquisitionDiagnosticsAt(
+      const Duration(milliseconds: 30),
+      viewport,
+    );
+    final build = bootSignalAcquisitionDiagnosticsAt(
+      const Duration(milliseconds: 90),
+      viewport,
+    );
+    final peak = bootSignalAcquisitionDiagnosticsAt(
+      const Duration(milliseconds: 150),
+      viewport,
+    );
+    final peakHold = bootSignalAcquisitionDiagnosticsAt(
+      const Duration(milliseconds: 180),
+      viewport,
+    );
+    final converge = bootSignalAcquisitionDiagnosticsAt(
+      const Duration(milliseconds: 210),
+      viewport,
+    );
+    final lock = bootSignalAcquisitionDiagnosticsAt(
+      const Duration(milliseconds: 270),
+      viewport,
+    );
+
+    expect(early.activeFineFragmentCount, 0);
+    expect(build.activeFineFragmentCount, greaterThanOrEqualTo(15));
+    expect(build.activeLockFragmentCount, 4);
+    expect(peak.activeFineFragmentCount, 18);
+    expect(peak.activeLockFragmentCount, 4);
+    expect(peak.maximumEffectiveOpacity, greaterThan(.35));
+    expect(peak.minimumStrokeWidth, greaterThanOrEqualTo(1));
+    expect(peak.aggregateHorizontalCoverage, greaterThan(1.8));
+    expect(peak.minimumVerticalFraction, lessThan(.15));
+    expect(peak.maximumVerticalFraction, greaterThan(.80));
+    expect(peakHold.activeFineFragmentCount, 18);
+    expect(converge.activeFineFragmentCount, greaterThanOrEqualTo(12));
+    expect(lock.activeFineFragmentCount, 0);
+    expect(lock.activeLockFragmentCount, 0);
+    expect(lock.maximumEffectiveOpacity, greaterThan(.60));
+    expect(peak.parentOpacityMultiplier, 1);
+    expect(peak.hasAdditionalClip, isFalse);
+  });
+
   testWidgets('signal acquisition completes before ghost reconstruction', (
     tester,
   ) async {
@@ -162,6 +209,12 @@ void main() {
   testWidgets('Boot identity uses the constrained terminal typography', (
     tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final fontData = await rootBundle.load(
+      'assets/fonts/ShareTechMono-Regular.ttf',
+    );
+    expect(fontData.lengthInBytes, greaterThan(40000));
     await tester.pumpWidget(_gate(AppInitializationController()));
     await _advanceLogoFade(tester, _timing);
     await _advanceTyping(tester, _timing);
@@ -169,28 +222,28 @@ void main() {
     final identity = tester.widget<Text>(
       find.byKey(const ValueKey('boot-brand-identity')),
     );
-    expect(identity.style!.fontFamily, 'monospace');
-    expect(identity.style!.fontWeight, FontWeight.w500);
+    expect(identity.style!.fontFamily, 'ShareTechMono');
+    expect(identity.style!.fontWeight, FontWeight.w400);
     expect(identity.style!.letterSpacing, 2.8);
 
     await _elapse(tester, _timing.fullNameCharacter * 43);
     final fullName = tester.widget<Text>(
       find.byKey(const ValueKey('boot-brand-full-name')),
     );
-    expect(fullName.style!.fontFamily, 'monospace');
+    expect(fullName.style!.fontFamily, 'ShareTechMono');
     expect(fullName.style!.letterSpacing, .55);
 
     await _elapse(tester, const Duration(milliseconds: 1));
     final axis = tester.widget<Text>(
       find.byKey(const ValueKey('boot-operation-system-version')),
     );
-    expect(axis.style!.fontFamily, 'monospace');
+    expect(axis.style!.fontFamily, 'ShareTechMono');
     expect(axis.style!.letterSpacing, 1.15);
 
     await _elapse(tester, _timing.identityHold);
     final systemBoot = tester.widget<Text>(find.text('SYSTEM BOOT'));
-    expect(systemBoot.style!.fontFamily, 'monospace');
-    expect(systemBoot.style!.fontWeight, FontWeight.w500);
+    expect(systemBoot.style!.fontFamily, 'ShareTechMono');
+    expect(systemBoot.style!.fontWeight, FontWeight.w400);
     expect(systemBoot.style!.letterSpacing, 1.4);
   });
 
