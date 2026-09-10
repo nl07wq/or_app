@@ -57,6 +57,12 @@ void main() {
     expect(find.widgetWithText(ChoiceChip, 'OVERVIEW'), findsNothing);
     expect(find.widgetWithText(ChoiceChip, 'EXERCISE'), findsNothing);
     expect(find.textContaining('表示期間:'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('月曜開始・週あたりのストレングスセッション数'), 300);
+    expect(find.text('月曜開始・週あたりのストレングスセッション数'), findsOneWidget);
+    expect(
+      find.text('MONDAY START · STRENGTH SESSIONS PER WEEK'),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -457,6 +463,20 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('recovery-card-chest')), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '一覧'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('recovery-body-map')), findsNothing);
+    expect(find.byKey(const ValueKey('body-map-back-canvas')), findsNothing);
+    expect(find.byKey(const ValueKey('recovery-card-chest')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('recovery-card-quadriceps')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '前面'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('body-map-front-canvas')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -484,6 +504,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
       await tester.pumpAndSettle();
+
+      _expectFindersOneRow(tester, [
+        find.widgetWithText(ChoiceChip, '前面'),
+        find.widgetWithText(ChoiceChip, '背面'),
+        find.widgetWithText(ChoiceChip, '一覧'),
+      ]);
 
       final canvas = tester.getRect(
         find.byKey(const ValueKey('body-map-front-canvas')),
@@ -1035,6 +1061,14 @@ void _expectOneRow(WidgetTester tester, List<Finder> finders) {
         find.ancestor(of: finder, matching: find.byType(OperationCard)),
       ),
   ];
+  for (final rect in rects) {
+    expect(rect.right, lessThanOrEqualTo(tester.view.physicalSize.width));
+    expect(rect.top, closeTo(rects.first.top, 0.1));
+  }
+}
+
+void _expectFindersOneRow(WidgetTester tester, List<Finder> finders) {
+  final rects = [for (final finder in finders) tester.getRect(finder)];
   for (final rect in rects) {
     expect(rect.right, lessThanOrEqualTo(tester.view.physicalSize.width));
     expect(rect.top, closeTo(rects.first.top, 0.1));

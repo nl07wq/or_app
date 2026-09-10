@@ -223,7 +223,7 @@ class _DataCenterTrainingHistoryPageState
               AppSpacing.gapXL,
               _MetricSection(
                 title: 'STRENGTH FREQUENCY',
-                note: 'MONDAY START · STRENGTH SESSIONS PER WEEK',
+                note: '月曜開始・週あたりのストレングスセッション数',
                 weeklyBars: true,
                 points: [
                   for (final point in overview.frequencyPoints)
@@ -293,7 +293,7 @@ class _RecoveryView extends StatefulWidget {
 }
 
 class _RecoveryViewState extends State<_RecoveryView> {
-  var _bodyMapSide = _BodyMapSide.front;
+  var _mode = _RecoveryMode.front;
   MuscleGroup? _selectedMuscle;
 
   List<TrainingRecoveryEvidence> _evidence() => widget.adapter.evidence(
@@ -335,16 +335,27 @@ class _RecoveryViewState extends State<_RecoveryView> {
           title: '回復',
         ),
         AppSpacing.gapSM,
-        _RecoveryBodyMap(
-          evidence: evidence,
-          side: _bodyMapSide,
-          selectedMuscle: selectedMuscle,
-          onSideChanged: (side) => setState(() => _bodyMapSide = side),
-          onMuscleSelected: (muscle) =>
-              setState(() => _selectedMuscle = muscle),
+        _RecoveryModeSelector(
+          selected: _mode,
+          onSelected: (mode) => setState(() => _mode = mode),
         ),
         AppSpacing.gapSM,
-        _RecoveryEvidenceCard(evidence: selectedEvidence),
+        if (_mode == _RecoveryMode.list)
+          for (final item in evidence) ...[
+            _RecoveryEvidenceCard(evidence: item),
+            if (item != evidence.last) AppSpacing.gapSM,
+          ]
+        else ...[
+          _RecoveryBodyMap(
+            evidence: evidence,
+            side: _mode.bodyMapSide,
+            selectedMuscle: selectedMuscle,
+            onMuscleSelected: (muscle) =>
+                setState(() => _selectedMuscle = muscle),
+          ),
+          AppSpacing.gapSM,
+          _RecoveryEvidenceCard(evidence: selectedEvidence),
+        ],
       ],
     );
   }
@@ -352,19 +363,44 @@ class _RecoveryViewState extends State<_RecoveryView> {
 
 enum _BodyMapSide { front, back }
 
+enum _RecoveryMode { front, back, list }
+
+extension on _RecoveryMode {
+  _BodyMapSide get bodyMapSide => switch (this) {
+    _RecoveryMode.front => _BodyMapSide.front,
+    _RecoveryMode.back => _BodyMapSide.back,
+    _RecoveryMode.list => throw StateError('一覧 mode does not have a body map.'),
+  };
+}
+
+class _RecoveryModeSelector extends StatelessWidget {
+  const _RecoveryModeSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final _RecoveryMode selected;
+  final ValueChanged<_RecoveryMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) => _CompactChoiceRow(
+    labels: const ['前面', '背面', '一覧'],
+    selectedIndex: selected.index,
+    onSelected: (index) => onSelected(_RecoveryMode.values[index]),
+  );
+}
+
 class _RecoveryBodyMap extends StatelessWidget {
   const _RecoveryBodyMap({
     required this.evidence,
     required this.side,
     required this.selectedMuscle,
-    required this.onSideChanged,
     required this.onMuscleSelected,
   });
 
   final List<TrainingRecoveryEvidence> evidence;
   final _BodyMapSide side;
   final MuscleGroup selectedMuscle;
-  final ValueChanged<_BodyMapSide> onSideChanged;
   final ValueChanged<MuscleGroup> onMuscleSelected;
 
   @override
@@ -384,12 +420,6 @@ class _RecoveryBodyMap extends StatelessWidget {
               const Spacer(),
               Text('回復状態', style: Theme.of(context).textTheme.labelSmall),
             ],
-          ),
-          AppSpacing.gapSM,
-          _CompactChoiceRow(
-            labels: const ['前面', '背面'],
-            selectedIndex: side.index,
-            onSelected: (index) => onSideChanged(_BodyMapSide.values[index]),
           ),
           AppSpacing.gapSM,
           _RecoveryBodyMapCanvas(
@@ -534,24 +564,11 @@ class _RecoveryBodyMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scaleX = size.width / _bodyMapBaseWidth;
-    final scaleY = size.height / _bodyMapBaseHeight;
     final neutral = Paint()
       ..color = AppColors.secondary.withValues(alpha: .22)
       ..style = PaintingStyle.fill;
-    final silhouette = <Rect>[
-      Rect.fromLTWH(82 * scaleX, 10 * scaleY, 36 * scaleX, 42 * scaleY),
-      Rect.fromLTWH(58 * scaleX, 55 * scaleY, 84 * scaleX, 118 * scaleY),
-      Rect.fromLTWH(38 * scaleX, 72 * scaleY, 22 * scaleX, 94 * scaleY),
-      Rect.fromLTWH(140 * scaleX, 72 * scaleY, 22 * scaleX, 94 * scaleY),
-      Rect.fromLTWH(66 * scaleX, 170 * scaleY, 30 * scaleX, 136 * scaleY),
-      Rect.fromLTWH(104 * scaleX, 170 * scaleY, 30 * scaleX, 136 * scaleY),
-    ];
-    for (final rect in silhouette) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(14 * scaleX)),
-        neutral,
-      );
+    for (final shape in _bodyMapSilhouettePaths(size)) {
+      canvas.drawPath(shape, neutral);
     }
     for (final region in _bodyMapRegions(side, size)) {
       final evidence = evidenceByMuscle[region.muscle];
@@ -561,11 +578,10 @@ class _RecoveryBodyMapPainter extends CustomPainter {
       final fill = Paint()
         ..color = color.withValues(alpha: evidence == null ? .36 : .78)
         ..style = PaintingStyle.fill;
-      final radius = Radius.circular(math.min(region.bounds.width, 12) / 2);
-      final shape = RRect.fromRectAndRadius(region.bounds, radius);
-      canvas.drawRRect(shape, fill);
+      final shape = _bodyMapRegionPath(side, region, size);
+      canvas.drawPath(shape, fill);
       if (selectedMuscle == region.muscle) {
-        canvas.drawRRect(
+        canvas.drawPath(
           shape,
           Paint()
             ..color = AppColors.textPrimary.withValues(alpha: .9)
@@ -670,6 +686,503 @@ List<_BodyMapRegion> _bodyMapRegions(_BodyMapSide side, Size size) {
       region(109, 264, 28, 45),
     ),
   ];
+}
+
+List<Path> _bodyMapSilhouettePaths(Size size) {
+  Offset point(double x, double y) => Offset(
+    x * size.width / _bodyMapBaseWidth,
+    y * size.height / _bodyMapBaseHeight,
+  );
+  Path path(
+    void Function(Path path, Offset Function(double, double) point) build,
+  ) {
+    final result = Path();
+    build(result, point);
+    return result;
+  }
+
+  return [
+    Path()..addOval(
+      Rect.fromCenter(
+        center: point(100, 30),
+        width: 32 * size.width / _bodyMapBaseWidth,
+        height: 40 * size.height / _bodyMapBaseHeight,
+      ),
+    ),
+    path((body, p) {
+      body
+        ..moveTo(p(88, 49).dx, p(88, 49).dy)
+        ..cubicTo(
+          p(86, 56).dx,
+          p(86, 56).dy,
+          p(68, 57).dx,
+          p(68, 57).dy,
+          p(57, 66).dx,
+          p(57, 66).dy,
+        )
+        ..cubicTo(
+          p(53, 84).dx,
+          p(53, 84).dy,
+          p(61, 110).dx,
+          p(61, 110).dy,
+          p(69, 129).dx,
+          p(69, 129).dy,
+        )
+        ..cubicTo(
+          p(72, 145).dx,
+          p(72, 145).dy,
+          p(74, 161).dx,
+          p(74, 161).dy,
+          p(68, 177).dx,
+          p(68, 177).dy,
+        )
+        ..cubicTo(
+          p(76, 186).dx,
+          p(76, 186).dy,
+          p(87, 190).dx,
+          p(87, 190).dy,
+          p(100, 190).dx,
+          p(100, 190).dy,
+        )
+        ..cubicTo(
+          p(113, 190).dx,
+          p(113, 190).dy,
+          p(124, 186).dx,
+          p(124, 186).dy,
+          p(132, 177).dx,
+          p(132, 177).dy,
+        )
+        ..cubicTo(
+          p(126, 161).dx,
+          p(126, 161).dy,
+          p(128, 145).dx,
+          p(128, 145).dy,
+          p(131, 129).dx,
+          p(131, 129).dy,
+        )
+        ..cubicTo(
+          p(139, 110).dx,
+          p(139, 110).dy,
+          p(147, 84).dx,
+          p(147, 84).dy,
+          p(143, 66).dx,
+          p(143, 66).dy,
+        )
+        ..cubicTo(
+          p(132, 57).dx,
+          p(132, 57).dy,
+          p(114, 56).dx,
+          p(114, 56).dy,
+          p(112, 49).dx,
+          p(112, 49).dy,
+        )
+        ..close();
+    }),
+    path((arm, p) {
+      arm
+        ..moveTo(p(59, 67).dx, p(59, 67).dy)
+        ..cubicTo(
+          p(48, 74).dx,
+          p(48, 74).dy,
+          p(42, 93).dx,
+          p(42, 93).dy,
+          p(38, 112).dx,
+          p(38, 112).dy,
+        )
+        ..cubicTo(
+          p(34, 133).dx,
+          p(34, 133).dy,
+          p(31, 157).dx,
+          p(31, 157).dy,
+          p(33, 178).dx,
+          p(33, 178).dy,
+        )
+        ..cubicTo(
+          p(34, 189).dx,
+          p(34, 189).dy,
+          p(41, 193).dx,
+          p(41, 193).dy,
+          p(47, 185).dx,
+          p(47, 185).dy,
+        )
+        ..cubicTo(
+          p(50, 164).dx,
+          p(50, 164).dy,
+          p(55, 143).dx,
+          p(55, 143).dy,
+          p(59, 124).dx,
+          p(59, 124).dy,
+        )
+        ..cubicTo(
+          p(66, 98).dx,
+          p(66, 98).dy,
+          p(69, 80).dx,
+          p(69, 80).dy,
+          p(59, 67).dx,
+          p(59, 67).dy,
+        )
+        ..close();
+    }),
+    path((arm, p) {
+      arm
+        ..moveTo(p(141, 67).dx, p(141, 67).dy)
+        ..cubicTo(
+          p(152, 74).dx,
+          p(152, 74).dy,
+          p(158, 93).dx,
+          p(158, 93).dy,
+          p(162, 112).dx,
+          p(162, 112).dy,
+        )
+        ..cubicTo(
+          p(166, 133).dx,
+          p(166, 133).dy,
+          p(169, 157).dx,
+          p(169, 157).dy,
+          p(167, 178).dx,
+          p(167, 178).dy,
+        )
+        ..cubicTo(
+          p(166, 189).dx,
+          p(166, 189).dy,
+          p(159, 193).dx,
+          p(159, 193).dy,
+          p(153, 185).dx,
+          p(153, 185).dy,
+        )
+        ..cubicTo(
+          p(150, 164).dx,
+          p(150, 164).dy,
+          p(145, 143).dx,
+          p(145, 143).dy,
+          p(141, 124).dx,
+          p(141, 124).dy,
+        )
+        ..cubicTo(
+          p(134, 98).dx,
+          p(134, 98).dy,
+          p(131, 80).dx,
+          p(131, 80).dy,
+          p(141, 67).dx,
+          p(141, 67).dy,
+        )
+        ..close();
+    }),
+    path((leg, p) {
+      leg
+        ..moveTo(p(70, 178).dx, p(70, 178).dy)
+        ..cubicTo(
+          p(61, 197).dx,
+          p(61, 197).dy,
+          p(61, 228).dx,
+          p(61, 228).dy,
+          p(64, 253).dx,
+          p(64, 253).dy,
+        )
+        ..cubicTo(
+          p(66, 274).dx,
+          p(66, 274).dy,
+          p(59, 290).dx,
+          p(59, 290).dy,
+          p(62, 310).dx,
+          p(62, 310).dy,
+        )
+        ..cubicTo(
+          p(66, 316).dx,
+          p(66, 316).dy,
+          p(80, 316).dx,
+          p(80, 316).dy,
+          p(86, 310).dx,
+          p(86, 310).dy,
+        )
+        ..cubicTo(
+          p(90, 291).dx,
+          p(90, 291).dy,
+          p(95, 273).dx,
+          p(95, 273).dy,
+          p(94, 252).dx,
+          p(94, 252).dy,
+        )
+        ..cubicTo(
+          p(93, 220).dx,
+          p(93, 220).dy,
+          p(92, 196).dx,
+          p(92, 196).dy,
+          p(84, 180).dx,
+          p(84, 180).dy,
+        )
+        ..close();
+    }),
+    path((leg, p) {
+      leg
+        ..moveTo(p(130, 178).dx, p(130, 178).dy)
+        ..cubicTo(
+          p(139, 197).dx,
+          p(139, 197).dy,
+          p(139, 228).dx,
+          p(139, 228).dy,
+          p(136, 253).dx,
+          p(136, 253).dy,
+        )
+        ..cubicTo(
+          p(134, 274).dx,
+          p(134, 274).dy,
+          p(141, 290).dx,
+          p(141, 290).dy,
+          p(138, 310).dx,
+          p(138, 310).dy,
+        )
+        ..cubicTo(
+          p(134, 316).dx,
+          p(134, 316).dy,
+          p(120, 316).dx,
+          p(120, 316).dy,
+          p(114, 310).dx,
+          p(114, 310).dy,
+        )
+        ..cubicTo(
+          p(110, 291).dx,
+          p(110, 291).dy,
+          p(105, 273).dx,
+          p(105, 273).dy,
+          p(106, 252).dx,
+          p(106, 252).dy,
+        )
+        ..cubicTo(
+          p(107, 220).dx,
+          p(107, 220).dy,
+          p(108, 196).dx,
+          p(108, 196).dy,
+          p(116, 180).dx,
+          p(116, 180).dy,
+        )
+        ..close();
+    }),
+  ];
+}
+
+Path _bodyMapRegionPath(_BodyMapSide side, _BodyMapRegion region, Size size) {
+  final bounds = region.bounds;
+  final left = bounds.center.dx < size.width / 2;
+  switch (region.muscle) {
+    case MuscleGroup.shoulders:
+      return _bodyMapShoulderPath(bounds, left: left);
+    case MuscleGroup.chest:
+      return _bodyMapChestPath(bounds, left: left);
+    case MuscleGroup.back:
+      return _bodyMapBackPath(bounds);
+    case MuscleGroup.core:
+      return _bodyMapCorePath(bounds);
+    case MuscleGroup.glutes:
+      return _bodyMapGlutePath(bounds, left: left);
+    case MuscleGroup.calves:
+      return _bodyMapCalfPath(bounds, left: left);
+    case MuscleGroup.biceps:
+    case MuscleGroup.triceps:
+    case MuscleGroup.forearms:
+    case MuscleGroup.quadriceps:
+    case MuscleGroup.hamstrings:
+      return _bodyMapTaperedPath(bounds, left: left);
+  }
+}
+
+Path _bodyMapShoulderPath(Rect rect, {required bool left}) {
+  final inner = left ? rect.right : rect.left;
+  final outer = left ? rect.left : rect.right;
+  final path = Path()..moveTo(inner, rect.top + rect.height * .2);
+  path
+    ..quadraticBezierTo(
+      rect.center.dx,
+      rect.top - rect.height * .18,
+      outer,
+      rect.top + rect.height * .38,
+    )
+    ..quadraticBezierTo(
+      outer,
+      rect.bottom - rect.height * .1,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..quadraticBezierTo(
+      inner,
+      rect.bottom - rect.height * .08,
+      inner,
+      rect.top + rect.height * .2,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapChestPath(Rect rect, {required bool left}) {
+  final inner = left ? rect.right : rect.left;
+  final outer = left ? rect.left : rect.right;
+  final path = Path()..moveTo(inner, rect.top + rect.height * .06);
+  path
+    ..quadraticBezierTo(
+      rect.center.dx,
+      rect.top - rect.height * .08,
+      outer,
+      rect.top + rect.height * .14,
+    )
+    ..cubicTo(
+      outer,
+      rect.center.dy,
+      rect.center.dx,
+      rect.bottom,
+      inner,
+      rect.bottom - rect.height * .08,
+    )
+    ..quadraticBezierTo(
+      inner,
+      rect.center.dy,
+      inner,
+      rect.top + rect.height * .06,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapBackPath(Rect rect) {
+  final path = Path()..moveTo(rect.left + rect.width * .14, rect.top);
+  path
+    ..quadraticBezierTo(
+      rect.center.dx,
+      rect.top - rect.height * .08,
+      rect.right - rect.width * .14,
+      rect.top,
+    )
+    ..cubicTo(
+      rect.right,
+      rect.top + rect.height * .28,
+      rect.right - rect.width * .11,
+      rect.bottom - rect.height * .12,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..cubicTo(
+      rect.left + rect.width * .11,
+      rect.bottom - rect.height * .12,
+      rect.left,
+      rect.top + rect.height * .28,
+      rect.left + rect.width * .14,
+      rect.top,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapCorePath(Rect rect) {
+  final path = Path()..moveTo(rect.left + rect.width * .2, rect.top);
+  path
+    ..quadraticBezierTo(
+      rect.center.dx,
+      rect.top - rect.height * .05,
+      rect.right - rect.width * .2,
+      rect.top,
+    )
+    ..cubicTo(
+      rect.right - rect.width * .08,
+      rect.center.dy,
+      rect.right - rect.width * .24,
+      rect.bottom,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..cubicTo(
+      rect.left + rect.width * .24,
+      rect.bottom,
+      rect.left + rect.width * .08,
+      rect.center.dy,
+      rect.left + rect.width * .2,
+      rect.top,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapGlutePath(Rect rect, {required bool left}) {
+  final inner = left ? rect.right : rect.left;
+  final outer = left ? rect.left : rect.right;
+  final path = Path()..moveTo(inner, rect.top + rect.height * .08);
+  path
+    ..quadraticBezierTo(
+      rect.center.dx,
+      rect.top - rect.height * .06,
+      outer,
+      rect.top + rect.height * .18,
+    )
+    ..cubicTo(
+      outer,
+      rect.bottom - rect.height * .12,
+      rect.center.dx,
+      rect.bottom + rect.height * .06,
+      inner,
+      rect.bottom - rect.height * .08,
+    )
+    ..quadraticBezierTo(
+      inner,
+      rect.center.dy,
+      inner,
+      rect.top + rect.height * .08,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapCalfPath(Rect rect, {required bool left}) {
+  final inner = left ? rect.right : rect.left;
+  final outer = left ? rect.left : rect.right;
+  final path = Path()..moveTo(rect.center.dx, rect.top);
+  path
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .16,
+      outer - (left ? rect.width * .04 : -rect.width * .04),
+      rect.center.dy,
+      outer + (left ? rect.width * .18 : -rect.width * .18),
+      rect.bottom - rect.height * .14,
+    )
+    ..quadraticBezierTo(
+      rect.center.dx,
+      rect.bottom,
+      inner,
+      rect.bottom - rect.height * .14,
+    )
+    ..cubicTo(
+      inner + (left ? -rect.width * .04 : rect.width * .04),
+      rect.center.dy,
+      inner,
+      rect.top + rect.height * .16,
+      rect.center.dx,
+      rect.top,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapTaperedPath(Rect rect, {required bool left}) {
+  final outer = left ? rect.left : rect.right;
+  final inner = left ? rect.right : rect.left;
+  final path = Path()..moveTo(rect.center.dx, rect.top);
+  path
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .18,
+      outer,
+      rect.bottom - rect.height * .22,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..cubicTo(
+      inner,
+      rect.bottom - rect.height * .22,
+      inner,
+      rect.top + rect.height * .18,
+      rect.center.dx,
+      rect.top,
+    )
+    ..close();
+  return path;
 }
 
 String _bodyMapStatusLabel(TrainingRecoveryEvidence? evidence) =>
