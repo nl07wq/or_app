@@ -370,7 +370,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
     await tester.pumpAndSettle();
-    expect(find.text('LATEST RECORDED VOLUME'), findsOneWidget);
+    expect(find.text('LATEST RECORDED\nVOLUME'), findsOneWidget);
     expect(find.text('RECORDED VOLUME HISTORY'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'RPE'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'RECORDED'), findsOneWidget);
@@ -404,7 +404,7 @@ void main() {
     await tester.ensureVisible(working);
     await tester.tap(working);
     await tester.pumpAndSettle();
-    expect(find.text('LATEST WORKING VOLUME'), findsOneWidget);
+    expect(find.text('LATEST WORKING\nVOLUME'), findsOneWidget);
     expect(find.text('WORKING VOLUME HISTORY'), findsOneWidget);
 
     final rpe = find.widgetWithText(ChoiceChip, 'RPE');
@@ -413,6 +413,89 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('LATEST RPE'), findsOneWidget);
     expect(find.text('RPE HISTORY'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('aligns exercise metric values left and units right', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(id: 'first', date: '2026-08-01', weight: 250, rpe: 8),
+            _v2Record(id: 'latest', date: '2026-08-03', weight: 260, rpe: 9),
+          ],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+    await tester.pumpAndSettle();
+
+    for (final id in [
+      'latest-summary',
+      'max-summary',
+      'latest-comparison',
+      'previous-comparison',
+      'change-comparison',
+    ]) {
+      _expectInlineMetricValueUnit(tester, id, 'kg');
+    }
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'REPS'));
+    await tester.pumpAndSettle();
+    for (final id in [
+      'latest-summary',
+      'max-summary',
+      'latest-comparison',
+      'previous-comparison',
+      'change-comparison',
+    ]) {
+      _expectInlineMetricValueUnit(tester, id, 'reps');
+    }
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+    await tester.pumpAndSettle();
+    expect(find.text('LATEST RECORDED\nVOLUME'), findsOneWidget);
+    expect(find.text('MAX RECORDED\nVOLUME'), findsOneWidget);
+    for (final (id, unit) in [
+      ('latest-summary', 't'),
+      ('max-summary', 't'),
+      ('latest-comparison', 't'),
+      ('previous-comparison', 't'),
+      ('change-comparison', 'kg'),
+    ]) {
+      _expectInlineMetricValueUnit(tester, id, unit);
+    }
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+    await tester.pumpAndSettle();
+    expect(find.text('LATEST WORKING\nVOLUME'), findsOneWidget);
+    expect(find.text('MAX WORKING\nVOLUME'), findsOneWidget);
+    for (final (id, unit) in [
+      ('latest-summary', 't'),
+      ('max-summary', 't'),
+      ('latest-comparison', 't'),
+      ('previous-comparison', 't'),
+      ('change-comparison', 'kg'),
+    ]) {
+      _expectInlineMetricValueUnit(tester, id, unit);
+    }
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'RPE'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('metric-unit-latest-summary')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('metric-unit-latest-comparison')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -560,8 +643,8 @@ void main() {
     ]);
     _expectOneRow(tester, [
       find.text('LAST TRAINED'),
-      find.text('LATEST RECORDED VOLUME'),
-      find.text('MAX RECORDED VOLUME'),
+      find.text('LATEST RECORDED\nVOLUME'),
+      find.text('MAX RECORDED\nVOLUME'),
     ]);
     _expectOneRow(tester, [
       find.text('LATEST'),
@@ -573,8 +656,8 @@ void main() {
     await tester.pumpAndSettle();
     _expectOneRow(tester, [
       find.text('LAST TRAINED'),
-      find.text('LATEST WORKING VOLUME'),
-      find.text('MAX WORKING VOLUME'),
+      find.text('LATEST WORKING\nVOLUME'),
+      find.text('MAX WORKING\nVOLUME'),
     ]);
     _expectOneRow(tester, [
       find.text('LATEST'),
@@ -620,11 +703,20 @@ void main() {
       ]);
       _expectOneRow(tester, [
         find.text('LAST TRAINED'),
-        find.text('LATEST WORKING VOLUME'),
-        find.text('MAX WORKING VOLUME'),
+        find.text('LATEST WORKING\nVOLUME'),
+        find.text('MAX WORKING\nVOLUME'),
       ]);
-      _expectNotEllipsized(tester, find.text('LATEST WORKING VOLUME'));
-      _expectNotEllipsized(tester, find.text('MAX WORKING VOLUME'));
+      _expectNotEllipsized(tester, find.text('LATEST WORKING\nVOLUME'));
+      _expectNotEllipsized(tester, find.text('MAX WORKING\nVOLUME'));
+      for (final id in [
+        'latest-summary',
+        'max-summary',
+        'latest-comparison',
+        'previous-comparison',
+        'change-comparison',
+      ]) {
+        _expectInlineMetricValueUnit(tester, id, 'kg');
+      }
       _expectOneRow(tester, [
         find.text('LATEST'),
         find.text('PREVIOUS'),
@@ -797,6 +889,24 @@ void _expectOneRow(WidgetTester tester, List<Finder> finders) {
 void _expectNotEllipsized(WidgetTester tester, Finder finder) {
   final paragraph = tester.renderObject<RenderParagraph>(finder);
   expect(paragraph.didExceedMaxLines, isFalse);
+}
+
+void _expectInlineMetricValueUnit(
+  WidgetTester tester,
+  String id,
+  String expectedUnit,
+) {
+  final value = find.byKey(ValueKey('metric-value-$id'));
+  final unit = find.byKey(ValueKey('metric-unit-$id'));
+  final card = find.ancestor(of: value, matching: find.byType(OperationCard));
+  final valueRect = tester.getRect(value);
+  final unitRect = tester.getRect(unit);
+  final cardRect = tester.getRect(card);
+  expect(tester.widget<Text>(unit).data, expectedUnit);
+  expect(valueRect.left, lessThan(unitRect.left));
+  expect(valueRect.right, lessThanOrEqualTo(unitRect.left));
+  expect((valueRect.center.dy - unitRect.center.dy).abs(), lessThan(8));
+  expect(unitRect.right, lessThanOrEqualTo(cardRect.right));
 }
 
 TrainingRecordReadModel _record() => TrainingRecordReadModel.v1(

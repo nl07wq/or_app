@@ -922,21 +922,24 @@ class _ExerciseSummary extends StatelessWidget {
         _formatDate(DateTime.parse(points.last.operationDate)),
         '',
         compact: true,
+        compactId: 'last-trained',
       ),
       _SummaryMetric(
-        _latestLabel(metric, volumeMetric),
+        _exerciseSummaryLabel(_latestLabel(metric, volumeMetric), metric),
         latest == null
             ? '—'
             : _summaryValue(metric, volumeMetric, latest!.value),
         latest == null ? '' : _summaryUnit(metric, volumeMetric, latest!.value),
         compact: true,
+        compactId: 'latest-summary',
       ),
       if (metric != _ExerciseMetric.rpe)
         _SummaryMetric(
-          _maxLabel(metric, volumeMetric),
+          _exerciseSummaryLabel(_maxLabel(metric, volumeMetric), metric),
           maximum == null ? '—' : _summaryValue(metric, volumeMetric, maximum!),
           maximum == null ? '' : _summaryUnit(metric, volumeMetric, maximum!),
           compact: true,
+          compactId: 'max-summary',
         ),
     ],
   );
@@ -991,6 +994,7 @@ class _LatestPreviousChange extends StatelessWidget {
           _summaryValue(metric, volumeMetric, latest.value),
           _summaryUnit(metric, volumeMetric, latest.value),
           compact: true,
+          compactId: 'latest-comparison',
         ),
         if (previous != null) ...[
           _SummaryMetric(
@@ -998,12 +1002,14 @@ class _LatestPreviousChange extends StatelessWidget {
             _summaryValue(metric, volumeMetric, previous.value),
             _summaryUnit(metric, volumeMetric, previous.value),
             compact: true,
+            compactId: 'previous-comparison',
           ),
           _SummaryMetric(
             'CHANGE',
             _deltaValue(metric, volumeMetric, latest.value - previous.value),
             _summaryUnit(metric, volumeMetric, latest.value - previous.value),
             compact: true,
+            compactId: 'change-comparison',
           ),
         ],
       ],
@@ -1089,57 +1095,98 @@ class _SummaryMetric extends StatelessWidget {
     this.value,
     this.unit, {
     this.compact = false,
+    this.compactId,
   });
 
   final String label;
   final String value;
   final String unit;
   final bool compact;
+  final String? compactId;
 
   @override
   Widget build(BuildContext context) {
+    final compactLabelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+      fontSize: 8,
+      height: 1.15,
+      letterSpacing: -.25,
+    );
     return OperationCard(
       padding: compact
-          ? const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xs,
-              vertical: AppSpacing.md,
-            )
+          ? const EdgeInsets.symmetric(horizontal: 2, vertical: AppSpacing.sm)
           : const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            maxLines: compact ? 3 : null,
-            overflow: compact ? TextOverflow.ellipsis : null,
-            style: compact
-                ? Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontSize: 9,
-                    height: 1.15,
-                    letterSpacing: 0,
-                  )
-                : Theme.of(context).textTheme.labelSmall,
-          ),
-          AppSpacing.gapXS,
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: compact
-                ? Theme.of(
-                    context,
-                  ).textTheme.headlineSmall?.copyWith(fontSize: 20)
-                : Theme.of(context).textTheme.headlineSmall,
-          ),
-          if (unit.isNotEmpty)
+          if (compact && label.contains('\n'))
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                alignment: Alignment.centerLeft,
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  key: compactId == null
+                      ? null
+                      : ValueKey('metric-label-$compactId'),
+                  maxLines: 2,
+                  style: compactLabelStyle,
+                ),
+              ),
+            )
+          else
             Text(
-              unit,
+              label,
+              key: compactId == null
+                  ? null
+                  : ValueKey('metric-label-$compactId'),
+              maxLines: compact ? 2 : null,
+              overflow: compact ? TextOverflow.ellipsis : null,
               style: compact
-                  ? Theme.of(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(fontSize: 10)
+                  ? compactLabelStyle
                   : Theme.of(context).textTheme.labelSmall,
             ),
+          AppSpacing.gapXS,
+          if (compact)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Expanded(
+                  child: Text(
+                    key: compactId == null
+                        ? null
+                        : ValueKey('metric-value-$compactId'),
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.headlineSmall?.copyWith(fontSize: 20),
+                  ),
+                ),
+                if (unit.isNotEmpty)
+                  Text(
+                    key: compactId == null
+                        ? null
+                        : ValueKey('metric-unit-$compactId'),
+                    unit,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(fontSize: 10),
+                  ),
+              ],
+            )
+          else ...[
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            if (unit.isNotEmpty)
+              Text(unit, style: Theme.of(context).textTheme.labelSmall),
+          ],
         ],
       ),
     );
@@ -1571,6 +1618,11 @@ String _latestLabel(_ExerciseMetric metric, _VolumeMetric volumeMetric) =>
     'LATEST ${_metricTitle(metric, volumeMetric)}';
 String _maxLabel(_ExerciseMetric metric, _VolumeMetric volumeMetric) =>
     'MAX ${_metricTitle(metric, volumeMetric)}';
+
+String _exerciseSummaryLabel(String label, _ExerciseMetric metric) =>
+    metric == _ExerciseMetric.volume
+    ? label.replaceFirst(' VOLUME', '\nVOLUME')
+    : label;
 
 String _summaryValue(
   _ExerciseMetric metric,
