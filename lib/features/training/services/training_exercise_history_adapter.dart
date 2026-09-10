@@ -1,4 +1,5 @@
 import 'exercise_name_localization.dart';
+import 'equipment_catalog.dart';
 import 'training_exercise_identity.dart';
 import 'training_history_domain_service.dart';
 import 'training_history_overview_adapter.dart';
@@ -45,13 +46,48 @@ class TrainingExerciseHistoryAdapter {
       if (point.identity == identity) point,
   ]..sort((a, b) => _dateOf(a).compareTo(_dateOf(b)));
 
-  String label(TrainingExerciseIdentity identity) {
-    final name = exerciseDisplayName(identity.exerciseKey);
-    return identity.equipmentKey == 'none'
-        ? name
-        : '$name · ${identity.equipmentKey.replaceFirst('catalog:', '')}';
+  TrainingExerciseSelectorPresentation selectorPresentation(
+    TrainingExerciseIdentity identity,
+  ) => TrainingExerciseSelectorPresentation(
+    exerciseLabel: exerciseDisplayName(identity.exerciseKey),
+    equipmentLabel: _equipmentLabel(identity.equipmentKey),
+  );
+
+  String? _equipmentLabel(String equipmentKey) {
+    if (equipmentKey == 'none') return null;
+    if (equipmentKey.startsWith('catalog:')) {
+      final catalogId = equipmentKey.substring('catalog:'.length);
+      final equipment =
+          equipmentById(catalogId) ??
+          equipmentById(catalogId.replaceAll('-', '_'));
+      if (equipment != null) return equipmentDisplayNameJa(equipment);
+      return _readableFallback(catalogId);
+    }
+    if (equipmentKey.startsWith('name:')) {
+      return _readableFallback(equipmentKey.substring('name:'.length));
+    }
+    return _readableFallback(equipmentKey);
   }
 
   DateTime _dateOf(ExerciseHistoryPoint point) =>
       point.startTime ?? DateTime.parse(point.operationDate);
+}
+
+class TrainingExerciseSelectorPresentation {
+  const TrainingExerciseSelectorPresentation({
+    required this.exerciseLabel,
+    required this.equipmentLabel,
+  });
+
+  final String exerciseLabel;
+  final String? equipmentLabel;
+}
+
+String? _readableFallback(String value) {
+  final cleaned = value
+      .replaceFirst(RegExp(r'^name:'), '')
+      .replaceAll(RegExp(r'[_-]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return cleaned.isEmpty ? null : cleaned.toUpperCase();
 }

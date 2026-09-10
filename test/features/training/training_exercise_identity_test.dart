@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/training/services/training_exercise_history_adapter.dart';
 import 'package:or_app/features/training/services/training_exercise_identity.dart';
 
 import 'training_v2_calculation_test_fixture.dart';
@@ -70,5 +71,44 @@ void main() {
     );
 
     expect(unknownV1, isNot(namedV2));
+  });
+
+  test('formats selector equipment labels without exposing identity keys', () {
+    const adapter = TrainingExerciseHistoryAdapter();
+
+    final catalog = adapter.selectorPresentation(
+      TrainingExerciseIdentity.fromV1(
+        exerciseName: 'Bench Press',
+        equipmentId: 'hammer_strength_power_rack',
+      ),
+    );
+    final custom = adapter.selectorPresentation(
+      TrainingExerciseIdentity.v2(
+        v2Exercise(
+          name: 'Leg Press',
+          equipmentId: null,
+          equipmentName: 'Hammer Strength Linear Leg Press',
+        ),
+      ),
+    );
+
+    expect(catalog.exerciseLabel, 'ベンチプレス');
+    expect(catalog.equipmentLabel, 'HAMMER STRENGTH パワーラック');
+    expect(catalog.equipmentLabel, isNot(contains('_')));
+    expect(custom.equipmentLabel, 'HAMMER STRENGTH LINEAR LEG PRESS');
+    expect(custom.equipmentLabel, isNot(startsWith('name:')));
+  });
+
+  test('keeps absent equipment metadata absent from selector presentation', () {
+    const adapter = TrainingExerciseHistoryAdapter();
+    final presentation = adapter.selectorPresentation(
+      TrainingExerciseIdentity.fromV1(
+        exerciseName: 'Dumbbell Curl',
+        equipmentId: null,
+      ),
+    );
+
+    expect(presentation.exerciseLabel, 'ダンベルカール');
+    expect(presentation.equipmentLabel, isNull);
   });
 }

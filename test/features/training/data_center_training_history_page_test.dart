@@ -5,6 +5,7 @@ import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
+import 'package:or_app/features/training/services/training_exercise_identity.dart';
 
 void main() {
   testWidgets('renders overview metrics and charts at narrow widths', (
@@ -125,6 +126,67 @@ void main() {
     expect(find.widgetWithText(ChoiceChip, 'VOLUME'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('presents equipment as readable selector metadata', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => _recordsWithEquipment(),
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXERCISE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ベンチプレス'), findsOneWidget);
+    expect(find.text('ダンベル'), findsOneWidget);
+    expect(find.textContaining('hammer_strength'), findsNothing);
+    await tester.tap(find.byType(DropdownButton<TrainingExerciseIdentity>));
+    await tester.pumpAndSettle();
+
+    expect(find.text('HAMMER STRENGTH パワーラック'), findsOneWidget);
+    await tester.tap(find.text('HAMMER STRENGTH パワーラック'));
+    await tester.pumpAndSettle();
+    final selected = tester.widget<DropdownButton<TrainingExerciseIdentity>>(
+      find.byType(DropdownButton<TrainingExerciseIdentity>),
+    );
+    expect(
+      selected.value,
+      TrainingExerciseIdentity.fromV1(
+        exerciseName: 'Bench Press',
+        equipmentId: 'hammer_strength_power_rack',
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps two-line exercise selector usable at 320px', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => _recordsWithEquipment(),
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXERCISE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ベンチプレス'), findsOneWidget);
+    expect(find.text('ダンベル'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<List<TrainingRecordReadModel>> _noRecords() async => const [];
@@ -142,6 +204,45 @@ TrainingRecordReadModel _record() => TrainingRecordReadModel.v1(
         exerciseName: 'Bench Press',
         order: 1,
         sets: [const TrainingSet(setNo: 1, weight: 50, reps: 10)],
+      ),
+    ],
+  ),
+);
+
+List<TrainingRecordReadModel> _recordsWithEquipment() => [
+  _recordWithEquipment(
+    id: 'rack',
+    date: '2026-08-02',
+    equipmentId: 'hammer_strength_power_rack',
+    weight: 50,
+  ),
+  _recordWithEquipment(
+    id: 'dumbbells',
+    date: '2026-08-03',
+    equipmentId: 'dumbbells',
+    weight: 20,
+  ),
+];
+
+TrainingRecordReadModel _recordWithEquipment({
+  required String id,
+  required String date,
+  required String equipmentId,
+  required double weight,
+}) => TrainingRecordReadModel.v1(
+  id: id,
+  localDate: date,
+  createdAt: DateTime.parse('${date}T00:00:00Z'),
+  updatedAt: DateTime.parse('${date}T00:00:00Z'),
+  data: TrainingSession(
+    date: '${date}T00:00:00.000',
+    memo: '',
+    exercises: [
+      TrainingExercise(
+        exerciseName: 'Bench Press',
+        equipmentId: equipmentId,
+        order: 1,
+        sets: [TrainingSet(setNo: 1, weight: weight, reps: 10)],
       ),
     ],
   ),

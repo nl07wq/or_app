@@ -242,14 +242,20 @@ class _ExerciseView extends StatelessWidget {
         OperationCard(
           child: DropdownButton<TrainingExerciseIdentity>(
             isExpanded: true,
+            itemHeight: null,
             value: identity,
+            selectedItemBuilder: (context) => [
+              for (final item in identities)
+                _ExerciseSelectorEntry(
+                  presentation: adapter.selectorPresentation(item),
+                ),
+            ],
             items: [
               for (final item in identities)
                 DropdownMenuItem(
                   value: item,
-                  child: Text(
-                    adapter.label(item),
-                    overflow: TextOverflow.ellipsis,
+                  child: _ExerciseSelectorEntry(
+                    presentation: adapter.selectorPresentation(item),
                   ),
                 ),
             ],
@@ -278,6 +284,36 @@ class _ExerciseView extends StatelessWidget {
             points: metricPoints,
             axisFormatter: _axisFormatter(metric),
             detailFormatter: _detailFormatter(metric),
+          ),
+      ],
+    );
+  }
+}
+
+class _ExerciseSelectorEntry extends StatelessWidget {
+  const _ExerciseSelectorEntry({required this.presentation});
+
+  final TrainingExerciseSelectorPresentation presentation;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          presentation.exerciseLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.bodyMedium,
+        ),
+        if (presentation.equipmentLabel case final equipmentLabel?)
+          Text(
+            equipmentLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelSmall,
           ),
       ],
     );
