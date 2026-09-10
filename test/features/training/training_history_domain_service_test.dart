@@ -44,6 +44,9 @@ void main() {
       final point = service.exerciseHistory([_v2()]).single;
       final mapping = ExerciseMuscleRegistry.resolve(point.identity);
 
+      expect(point.maxWeight, 80);
+      expect(point.recordedReps, 15);
+      expect(point.recordedVolume, 1000);
       expect(mapping?.primaryMuscles, [MuscleGroup.chest]);
       expect(mapping?.secondaryMuscles, contains(MuscleGroup.triceps));
       expect(

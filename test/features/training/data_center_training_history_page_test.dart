@@ -71,6 +71,60 @@ void main() {
     expect(find.text('LAST TRAINED'), findsOneWidget);
     expect(find.text('RECOVERY'), findsNothing);
   });
+
+  testWidgets('switches exercise metric between weight reps and volume', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXERCISE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('WEIGHT HISTORY'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'REPS'));
+    await tester.pumpAndSettle();
+    expect(find.text('LATEST REPS'), findsOneWidget);
+    expect(find.text('REPS HISTORY'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+    await tester.pumpAndSettle();
+    expect(find.text('LATEST RECORDED VOLUME'), findsOneWidget);
+    expect(find.text('RECORDED VOLUME HISTORY'), findsOneWidget);
+    expect(find.text('RPE'), findsNothing);
+    expect(find.text('WORKING VOLUME'), findsNothing);
+    expect(find.text('CHANGE'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps all exercise metrics usable at 320px', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXERCISE'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(ChoiceChip, 'WEIGHT'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'REPS'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'VOLUME'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<List<TrainingRecordReadModel>> _noRecords() async => const [];
