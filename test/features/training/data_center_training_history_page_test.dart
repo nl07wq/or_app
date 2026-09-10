@@ -123,6 +123,7 @@ void main() {
     expect(find.text('48時間'), findsOneWidget);
     expect(find.text('基準回復進行'), findsOneWidget);
     expect(find.textContaining('日付のみ'), findsWidgets);
+    expect(find.bySemanticsLabel('胸 算出不可'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -187,6 +188,7 @@ void main() {
     expect(find.text('算出不可'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('基準回復進行 [0-9]+%')), findsNothing);
     expect(find.text('回復目安'), findsNothing);
+    expect(find.bySemanticsLabel('胸 算出不可'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -370,6 +372,107 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('maps recovery status and selection through the body map', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(
+              id: 'chest',
+              date: '2026-09-08',
+              startTime: '2026-09-08T20:00:00+09:00',
+            ),
+            _v2Record(
+              id: 'quadriceps',
+              date: '2026-09-09',
+              startTime: '2026-09-09T20:00:00+09:00',
+              exerciseName: 'Squat',
+            ),
+          ],
+          clock: () => DateTime.parse('2026-09-10T06:00:00+09:00'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('recovery-body-map')), findsOneWidget);
+    expect(find.byKey(const ValueKey('body-map-front-canvas')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('body-map-region-front-chest-2')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('上腕二頭筋 データなし'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('recovery-card-quadriceps')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('body-map-region-front-chest-2')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('recovery-card-chest')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('recovery-card-quadriceps')),
+      findsNothing,
+    );
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '背面'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('body-map-back-canvas')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('body-map-region-back-back-2')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('recovery-card-chest')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps the body map bounded at narrow and iPhone widths', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 1000));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [
+              _v2Record(
+                date: '2026-09-08',
+                startTime: '2026-09-08T20:00:00+09:00',
+                equipment: TrainingEquipmentSnapshot(
+                  name: 'HAMMER STRENGTH LINEAR LEG PRESS',
+                ),
+              ),
+            ],
+            clock: () => DateTime.parse('2026-09-09T06:00:00+09:00'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+      await tester.pumpAndSettle();
+
+      final canvas = tester.getRect(
+        find.byKey(const ValueKey('body-map-front-canvas')),
+      );
+      expect(canvas.width, lessThanOrEqualTo(224));
+      expect(canvas.right, lessThanOrEqualTo(width));
+      expect(
+        find.byKey(const ValueKey('body-map-region-front-chest-2')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
 
   testWidgets('switches exercise metric between weight reps and volume', (
     tester,
