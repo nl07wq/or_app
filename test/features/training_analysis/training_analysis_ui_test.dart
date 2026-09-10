@@ -138,8 +138,92 @@ void main() {
       find.byKey(const ValueKey('training-analysis-stale-warning')),
       findsOneWidget,
     );
-    expect(find.text('ANALYSIS OUTDATED'), findsWidgets);
+    expect(find.text('STALE'), findsOneWidget);
+    expect(find.text('ANALYSIS OUTDATED'), findsNothing);
     expect(find.text(_sessionSummary), findsOneWidget);
+  });
+
+  testWidgets(
+    'uses three compact columns and intentional metric labels at 390px',
+    (tester) async {
+      await _pumpReport(tester, width: 390);
+
+      final maxWeight = find.byKey(
+        const ValueKey('training-analysis-exercise-metric-max-weight'),
+      );
+      final totalReps = find.byKey(
+        const ValueKey('training-analysis-exercise-metric-total-reps'),
+      );
+      final recordedSets = find.byKey(
+        const ValueKey('training-analysis-exercise-metric-recorded-sets'),
+      );
+      expect(tester.getTopLeft(maxWeight).dy, tester.getTopLeft(totalReps).dy);
+      expect(
+        tester.getTopLeft(totalReps).dy,
+        tester.getTopLeft(recordedSets).dy,
+      );
+      final duration = find.byKey(
+        const ValueKey('training-analysis-session-metric-duration'),
+      );
+      final exercises = find.byKey(
+        const ValueKey('training-analysis-session-metric-exercises'),
+      );
+      final sessionSets = find.byKey(
+        const ValueKey('training-analysis-session-metric-recorded-sets'),
+      );
+      expect(tester.getTopLeft(duration).dy, tester.getTopLeft(exercises).dy);
+      expect(
+        tester.getTopLeft(exercises).dy,
+        tester.getTopLeft(sessionSets).dy,
+      );
+      expect(find.text('RECORDED\nVOLUME'), findsWidgets);
+      expect(find.text('MAIN SET\nVOLUME'), findsWidgets);
+    },
+  );
+
+  testWidgets('uses a two-column metric fallback and no trend for one point', (
+    tester,
+  ) async {
+    await _pumpReport(tester, width: 320, includeHistory: false);
+
+    final maxWeight = find.byKey(
+      const ValueKey('training-analysis-exercise-metric-max-weight'),
+    );
+    final totalReps = find.byKey(
+      const ValueKey('training-analysis-exercise-metric-total-reps'),
+    );
+    final recordedSets = find.byKey(
+      const ValueKey('training-analysis-exercise-metric-recorded-sets'),
+    );
+    expect(tester.getTopLeft(maxWeight).dy, tester.getTopLeft(totalReps).dy);
+    expect(
+      tester.getTopLeft(recordedSets).dy,
+      greaterThan(tester.getTopLeft(maxWeight).dy),
+    );
+    expect(find.text('PREVIOUS: NOT AVAILABLE'), findsOneWidget);
+    expect(find.text('TREND — RECENT HISTORY'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows canonical trend graphs only when comparison data exists', (
+    tester,
+  ) async {
+    await _pumpReport(tester, width: 390);
+
+    expect(find.text('TREND — RECENT HISTORY'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('training-analysis-trend-max-weight')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('training-analysis-trend-total-reps')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('training-analysis-trend-recorded-volume')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('valid Analysis shows compact initial READY preview', (
@@ -223,6 +307,7 @@ Future<_Fixture> _pumpReport(
   required double width,
   bool initialOnly = false,
   bool stale = false,
+  bool includeHistory = true,
 }) async {
   tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
@@ -231,6 +316,29 @@ Future<_Fixture> _pumpReport(
 
   final database = FakeIndexedDbDatabase();
   final container = AppRepositoryContainer.indexedDb(database);
+  if (includeHistory) {
+    await container.training.saveNewV2(
+      TrainingSessionV2(
+        date: '2026-08-17T10:00:00+09:00',
+        sessionName: 'Strength',
+        exercises: [
+          TrainingExerciseV2(
+            exerciseName: 'Bench Press',
+            order: 1,
+            sets: [
+              TrainingSetV2(
+                setNo: 1,
+                setType: TrainingSetType.main,
+                weightKg: 70,
+                reps: 7,
+                rpe: 7,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
   final record = await container.training.saveNewV2(
     TrainingSessionV2(
       date: '2026-08-24T10:00:00+09:00',
@@ -245,6 +353,7 @@ Future<_Fixture> _pumpReport(
               setType: TrainingSetType.main,
               weightKg: 80,
               reps: 8,
+              rpe: 8,
             ),
           ],
         ),

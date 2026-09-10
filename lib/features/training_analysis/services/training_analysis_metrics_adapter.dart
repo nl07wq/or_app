@@ -69,6 +69,7 @@ class TrainingAnalysisMetricsAdapter {
     final selector = exerciseHistory.selectorPresentation(current.identity);
     return TrainingAnalysisExerciseMetrics(
       identity: current.identity,
+      operationDate: target.localDate,
       exerciseName: selector.exerciseLabel,
       equipmentLabel: selector.equipmentLabel,
       current: TrainingAnalysisExerciseMetricValues.fromPoint(current),
@@ -138,6 +139,7 @@ class TrainingAnalysisSessionMetrics {
 class TrainingAnalysisExerciseMetrics {
   TrainingAnalysisExerciseMetrics({
     required this.identity,
+    required this.operationDate,
     required this.exerciseName,
     required this.equipmentLabel,
     required this.current,
@@ -146,6 +148,7 @@ class TrainingAnalysisExerciseMetrics {
   }) : recentHistory = List.unmodifiable(recentHistory);
 
   final TrainingExerciseIdentity identity;
+  final String operationDate;
   final String exerciseName;
   final String? equipmentLabel;
   final TrainingAnalysisExerciseMetricValues current;
@@ -191,6 +194,7 @@ class TrainingAnalysisHistoryEvidence {
   const TrainingAnalysisHistoryEvidence({
     required this.recordId,
     required this.operationDate,
+    required this.metrics,
   });
 
   factory TrainingAnalysisHistoryEvidence.fromPoint(
@@ -198,8 +202,10 @@ class TrainingAnalysisHistoryEvidence {
   ) => TrainingAnalysisHistoryEvidence(
     recordId: point.recordId,
     operationDate: point.operationDate,
+    metrics: TrainingAnalysisExerciseMetricValues.fromPoint(point),
   );
 
   final String recordId;
   final String operationDate;
+  final TrainingAnalysisExerciseMetricValues metrics;
 }

@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -137,26 +138,31 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
                 icon: Icons.analytics_outlined,
                 title: 'TRAINING ANALYSIS REPORT',
               ),
-              AppSpacing.gapMD,
-              Text('Operation Date  ${target.localDate}'),
-              Text('Training  ${target.displaySessionName ?? 'SESSION'}'),
-              if (_report != null)
-                Text(
-                  _report!.revision >= 2
-                      ? 'REV ${_report!.revision}  LATEST'
-                      : 'LATEST',
-                ),
-              if (_report != null)
-                Text(
-                  _reportIsCurrent == true
-                      ? 'ANALYSIS CURRENT'
-                      : 'ANALYSIS OUTDATED',
-                  style: TextStyle(
-                    color: _reportIsCurrent == true
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.error,
+              AppSpacing.gapXS,
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    '${target.localDate} ・ ${target.displaySessionName ?? 'SESSION'}',
                   ),
-                ),
+                  if (_report != null)
+                    Text(
+                      _report!.revision >= 2
+                          ? 'REV ${_report!.revision}  LATEST'
+                          : 'LATEST',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  if (_report != null && _reportIsCurrent != true)
+                    Text(
+                      'STALE',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -615,8 +621,8 @@ class _StaleAnalysisWarning extends StatelessWidget {
         AppSpacing.gapSM,
         const Expanded(
           child: Text(
-            'ANALYSIS OUTDATED\n'
-            '分析結果が現在のTraining Recordと一致していません。保存済みの内容は履歴として表示しています。再生成してください。',
+            '現在のTraining Recordと一致しない保存済みスナップショットです。'
+            '最新の分析を確認するには再生成してください。',
           ),
         ),
       ],
@@ -633,17 +639,19 @@ class _SessionMetricsCard extends StatelessWidget {
   Widget build(BuildContext context) => OperationCard(
     key: const ValueKey('training-analysis-session-metrics'),
     child: _MetricGrid(
+      compact: true,
+      keyPrefix: 'session',
       values: [
         _MetricValue('DURATION', _durationValue(metrics.duration), ''),
         _MetricValue('EXERCISES', '${metrics.exerciseCount}', ''),
         _MetricValue(
-          'RECORDED SETS',
+          'RECORDED\nSETS',
           _integerValue(metrics.recordedSetCount),
           '',
         ),
         _MetricValue('TOTAL REPS', _integerValue(metrics.totalReps), 'reps'),
-        _volumeMetric('RECORDED VOLUME', metrics.recordedVolume),
-        _volumeMetric('MAIN SET VOLUME', metrics.workingVolume),
+        _volumeMetric('RECORDED\nVOLUME', metrics.recordedVolume),
+        _volumeMetric('MAIN SET\nVOLUME', metrics.workingVolume),
         _MetricValue('AVERAGE RPE', _rpeValue(metrics.averageRpe), ''),
       ],
     ),
@@ -728,7 +736,11 @@ class _ExerciseAnalysisCard extends StatelessWidget {
         if (metrics != null) ...[
           const Text('CURRENT METRICS'),
           AppSpacing.gapSM,
-          _MetricGrid(values: _currentMetricValues(metrics!.current)),
+          _MetricGrid(
+            values: _currentMetricValues(metrics!.current),
+            compact: true,
+            keyPrefix: 'exercise',
+          ),
           AppSpacing.gapLG,
           _ExerciseComparison(metrics: metrics!),
           AppSpacing.gapLG,
@@ -821,9 +833,232 @@ class _ExerciseComparison extends StatelessWidget {
             for (final row in rows) row.toTableRow(),
           ],
         ),
+        _ExerciseTrendGraphs(metrics: metrics),
       ],
     );
   }
+}
+
+class _ExerciseTrendGraphs extends StatelessWidget {
+  const _ExerciseTrendGraphs({required this.metrics});
+
+  final TrainingAnalysisExerciseMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final graphs = [
+      _TrendMetric(
+        key: 'max-weight',
+        title: 'MAX WEIGHT',
+        unit: 'kg',
+        valueOf: (value) => value.maxWeight,
+      ),
+      _TrendMetric(
+        key: 'total-reps',
+        title: 'TOTAL REPS',
+        unit: 'reps',
+        valueOf: (value) => value.totalReps?.toDouble(),
+      ),
+      _TrendMetric(
+        key: 'recorded-volume',
+        title: 'RECORDED\nVOLUME',
+        unit: 'kg / t',
+        valueOf: (value) => value.recordedVolume,
+      ),
+    ];
+    final available = graphs
+        .map((metric) => _TrendGraphData.tryCreate(metric, metrics))
+        .whereType<_TrendGraphData>()
+        .toList(growable: false);
+    if (available.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSpacing.gapMD,
+        const Text('TREND — RECENT HISTORY'),
+        AppSpacing.gapSM,
+        for (final graph in available) ...[
+          _ExerciseTrendGraph(data: graph),
+          if (graph != available.last) AppSpacing.gapSM,
+        ],
+      ],
+    );
+  }
+}
+
+class _ExerciseTrendGraph extends StatelessWidget {
+  const _ExerciseTrendGraph({required this.data});
+
+  final _TrendGraphData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = data.points.map((point) => point.value).toList();
+    final minValue = values.reduce((a, b) => a < b ? a : b);
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    final padding = maxValue == minValue
+        ? maxValue.abs() * .15 + 1
+        : (maxValue - minValue).abs() * .15;
+    final minY = (minValue - padding).clamp(0.0, double.infinity);
+    final maxY = maxValue + padding;
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: ValueKey('training-analysis-trend-${data.metric.key}'),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${data.metric.title}  ${data.metric.unit}',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+              Text(
+                'CURRENT',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.tertiary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(
+            height: 104,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: (data.points.length - 1).toDouble(),
+                minY: minY,
+                maxY: maxY,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: (maxY - minY) / 2,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: Colors.white.withValues(alpha: .10),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      interval: _trendLabelInterval(data.points.length),
+                      getTitlesWidget: (value, _) {
+                        final index = value.round();
+                        if (index < 0 || index >= data.points.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            _shortDate(data.points[index].operationDate),
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                lineTouchData: const LineTouchData(enabled: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: [
+                      for (var index = 0; index < data.points.length; index++)
+                        FlSpot(index.toDouble(), data.points[index].value),
+                    ],
+                    isCurved: false,
+                    color: colors.primary,
+                    barWidth: 2,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, _, _, _) => FlDotCirclePainter(
+                        radius: spot.x.round() == data.points.length - 1
+                            ? 4
+                            : 2.5,
+                        color: spot.x.round() == data.points.length - 1
+                            ? colors.tertiary
+                            : colors.primary,
+                        strokeColor: colors.surface,
+                        strokeWidth: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendMetric {
+  const _TrendMetric({
+    required this.key,
+    required this.title,
+    required this.unit,
+    required this.valueOf,
+  });
+
+  final String key;
+  final String title;
+  final String unit;
+  final double? Function(TrainingAnalysisExerciseMetricValues) valueOf;
+}
+
+class _TrendGraphData {
+  const _TrendGraphData({required this.metric, required this.points});
+
+  static _TrendGraphData? tryCreate(
+    _TrendMetric metric,
+    TrainingAnalysisExerciseMetrics metrics,
+  ) {
+    final points = <_TrendPoint>[
+      for (final evidence in metrics.recentHistory.reversed)
+        if (metric.valueOf(evidence.metrics) case final value?)
+          _TrendPoint(evidence.operationDate, value),
+      if (metric.valueOf(metrics.current) case final value?)
+        _TrendPoint(metrics.operationDate, value),
+    ];
+    if (points.length < 2) return null;
+    return _TrendGraphData(metric: metric, points: points);
+  }
+
+  final _TrendMetric metric;
+  final List<_TrendPoint> points;
+}
+
+class _TrendPoint {
+  const _TrendPoint(this.operationDate, this.value);
+
+  final String operationDate;
+  final double value;
 }
 
 class _ComparisonHeader extends StatelessWidget {
@@ -868,13 +1103,23 @@ class _ComparisonCell extends StatelessWidget {
 }
 
 class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.values});
+  const _MetricGrid({
+    required this.values,
+    this.compact = false,
+    this.keyPrefix,
+  });
   final List<_MetricValue> values;
+  final bool compact;
+  final String? keyPrefix;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 620 ? 3 : 2;
+      final columns = compact && constraints.maxWidth >= 300
+          ? 3
+          : constraints.maxWidth >= 620
+          ? 3
+          : 2;
       final width =
           (constraints.maxWidth - AppSpacing.sm * (columns - 1)) / columns;
       return Wrap(
@@ -884,7 +1129,15 @@ class _MetricGrid extends StatelessWidget {
           for (final value in values)
             SizedBox(
               width: width,
-              child: _MetricTile(value: value),
+              child: _MetricTile(
+                key: keyPrefix == null
+                    ? null
+                    : ValueKey(
+                        'training-analysis-$keyPrefix-metric-${_metricKey(value.label)}',
+                      ),
+                value: value,
+                compact: compact,
+              ),
             ),
         ],
       );
@@ -893,12 +1146,13 @@ class _MetricGrid extends StatelessWidget {
 }
 
 class _MetricTile extends StatelessWidget {
-  const _MetricTile({required this.value});
+  const _MetricTile({super.key, required this.value, required this.compact});
   final _MetricValue value;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(AppSpacing.sm),
+    padding: EdgeInsets.all(compact ? AppSpacing.xs : AppSpacing.sm),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(8),
@@ -906,16 +1160,31 @@ class _MetricTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(value.label, style: Theme.of(context).textTheme.labelSmall),
-        AppSpacing.gapXS,
         Text(
-          value.display,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          value.label,
+          style: Theme.of(context).textTheme.labelSmall,
+          maxLines: 2,
         ),
-        if (value.unit.isNotEmpty)
-          Text(value.unit, style: Theme.of(context).textTheme.labelSmall),
+        SizedBox(height: compact ? 2 : AppSpacing.xs),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Flexible(
+              child: Text(
+                value.display,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (value.unit.isNotEmpty) ...[
+              const SizedBox(width: 3),
+              Text(value.unit, style: Theme.of(context).textTheme.labelSmall),
+            ],
+          ],
+        ),
       ],
     ),
   );
@@ -933,9 +1202,9 @@ List<_MetricValue> _currentMetricValues(
 ) => [
   _MetricValue('MAX WEIGHT', _weightValue(values.maxWeight), 'kg'),
   _MetricValue('TOTAL REPS', _integerValue(values.totalReps), 'reps'),
-  _MetricValue('RECORDED SETS', _integerValue(values.recordedSetCount), ''),
-  _volumeMetric('RECORDED VOLUME', values.recordedVolume),
-  _volumeMetric('MAIN SET VOLUME', values.workingVolume),
+  _MetricValue('RECORDED\nSETS', _integerValue(values.recordedSetCount), ''),
+  _volumeMetric('RECORDED\nVOLUME', values.recordedVolume),
+  _volumeMetric('MAIN SET\nVOLUME', values.workingVolume),
   _MetricValue('AVERAGE RPE', _rpeValue(values.averageRpe), ''),
 ];
 
@@ -976,6 +1245,15 @@ String _durationValue(Duration? value) => value == null
     : '${value.inHours.toString().padLeft(2, '0')}:'
           '${value.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
           '${value.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+
+String _metricKey(String value) =>
+    value.toLowerCase().replaceAll('\n', '-').replaceAll(' ', '-');
+
+double _trendLabelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
+
+String _shortDate(String operationDate) => operationDate.length >= 10
+    ? operationDate.substring(5, 10).replaceAll('-', '/')
+    : operationDate;
 
 class _ReportSectionTitle extends StatelessWidget {
   const _ReportSectionTitle({
