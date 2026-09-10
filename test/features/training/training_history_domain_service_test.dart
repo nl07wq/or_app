@@ -12,6 +12,32 @@ import 'package:or_app/features/training/services/training_history_domain_servic
 void main() {
   const service = TrainingHistoryDomainService();
 
+  test('ships the approved Recovery Reference Policy V1 table', () {
+    const policy = RecoveryReferencePolicy();
+
+    expect(policy.policyVersion, RecoveryReferencePolicy.policyVersionV1);
+    expect(policy.referenceDurations, hasLength(11));
+    for (final muscle in [
+      MuscleGroup.chest,
+      MuscleGroup.back,
+      MuscleGroup.shoulders,
+      MuscleGroup.biceps,
+      MuscleGroup.triceps,
+      MuscleGroup.forearms,
+      MuscleGroup.core,
+      MuscleGroup.calves,
+    ]) {
+      expect(policy.durationFor(muscle), const Duration(hours: 48));
+    }
+    for (final muscle in [
+      MuscleGroup.quadriceps,
+      MuscleGroup.hamstrings,
+      MuscleGroup.glutes,
+    ]) {
+      expect(policy.durationFor(muscle), const Duration(hours: 72));
+    }
+  });
+
   test('separates v2 main working volume from recorded volume and RPE', () {
     final aggregate = service.sessionAggregate(_v2());
 
@@ -130,18 +156,25 @@ void main() {
     },
   );
 
-  test('date-only exposure and missing policy return no precise recovery', () {
-    final recovery = service.recoveryEstimate(MuscleGroup.chest, [
-      _v1(),
-    ], now: DateTime.parse('2026-08-04T04:00:00+09:00'));
+  test(
+    'date-only exposure keeps the policy but returns no precise recovery',
+    () {
+      final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+        _v1(),
+      ], now: DateTime.parse('2026-08-04T04:00:00+09:00'));
 
-    expect(recovery.precision, RecoveryPrecision.dateOnly);
-    expect(recovery.status, RecoveryStatus.noData);
-    expect(recovery.referenceProgressRatio, isNull);
-  });
+      expect(recovery.precision, RecoveryPrecision.dateOnly);
+      expect(recovery.status, RecoveryStatus.noData);
+      expect(recovery.referenceProgressRatio, isNull);
+      expect(recovery.referenceRecoveryDuration, const Duration(hours: 48));
+    },
+  );
 
   test('missing policy preserves a formal exact exposure time', () {
-    final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+    const noPolicy = TrainingHistoryDomainService(
+      recoveryPolicy: RecoveryReferencePolicy(referenceDurations: {}),
+    );
+    final recovery = noPolicy.recoveryEstimate(MuscleGroup.chest, [
       _v2(),
     ], now: DateTime(2026, 8, 4));
 
@@ -151,6 +184,70 @@ void main() {
     );
     expect(recovery.precision, RecoveryPrecision.exact);
     expect(recovery.referenceProgressRatio, isNull);
+  });
+
+  test('uses V1 progress thresholds and caps display progress', () {
+    final exposure = _v2();
+    final cases =
+        <({DateTime now, RecoveryStatus status, double raw, double displayed})>[
+          (
+            now: DateTime.parse('2026-08-03T10:00:00+09:00'),
+            status: RecoveryStatus.loaded,
+            raw: 0,
+            displayed: 0,
+          ),
+          (
+            now: DateTime.parse('2026-08-03T21:59:00+09:00'),
+            status: RecoveryStatus.loaded,
+            raw: 0.24965,
+            displayed: 0.24965,
+          ),
+          (
+            now: DateTime.parse('2026-08-03T22:00:00+09:00'),
+            status: RecoveryStatus.recovering,
+            raw: .25,
+            displayed: .25,
+          ),
+          (
+            now: DateTime.parse('2026-08-04T22:00:00+09:00'),
+            status: RecoveryStatus.nearReady,
+            raw: .75,
+            displayed: .75,
+          ),
+          (
+            now: DateTime.parse('2026-08-05T10:00:00+09:00'),
+            status: RecoveryStatus.estimatedReady,
+            raw: 1,
+            displayed: 1,
+          ),
+          (
+            now: DateTime.parse('2026-08-06T10:00:00+09:00'),
+            status: RecoveryStatus.estimatedReady,
+            raw: 1.5,
+            displayed: 1,
+          ),
+        ];
+    for (final entry in cases) {
+      final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+        exposure,
+      ], now: entry.now);
+      expect(recovery.status, entry.status);
+      expect(recovery.referenceProgressRatio, closeTo(entry.raw, .001));
+      expect(recovery.displayProgressRatio, closeTo(entry.displayed, .001));
+    }
+  });
+
+  test('future formal exposure is unavailable rather than zero progress', () {
+    final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+      _v2(),
+    ], now: DateTime.parse('2026-08-03T09:59:00+09:00'));
+
+    expect(recovery.precision, RecoveryPrecision.invalid);
+    expect(recovery.status, RecoveryStatus.noData);
+    expect(recovery.elapsedDuration, isNull);
+    expect(recovery.referenceProgressRatio, isNull);
+    expect(recovery.displayProgressRatio, isNull);
+    expect(recovery.estimatedReadyAt, isNull);
   });
 }
 

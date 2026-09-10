@@ -9,7 +9,9 @@ import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/services/training_history_overview_adapter.dart';
+import 'package:or_app/features/training/services/training_history_domain_service.dart';
 import 'package:or_app/features/training/services/training_history_range_preference.dart';
+import 'package:or_app/features/training/services/training_recovery_evidence_adapter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -89,6 +91,8 @@ void main() {
   testWidgets('opens exercise weight history and recovery evidence', (
     tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
         home: DataCenterTrainingHistoryPage(
@@ -113,7 +117,9 @@ void main() {
     expect(find.text('時刻精度'), findsOneWidget);
     expect(find.text('日付のみ'), findsOneWidget);
     expect(find.text('回復基準'), findsOneWidget);
-    expect(find.text('未設定'), findsOneWidget);
+    expect(find.text('48時間'), findsOneWidget);
+    expect(find.text('基準回復進行'), findsOneWidget);
+    expect(find.textContaining('日付のみ'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -139,7 +145,66 @@ void main() {
     expect(find.textContaining('2026-08-03'), findsOneWidget);
     expect(find.text('日付のみ'), findsNothing);
     expect(find.text('回復基準'), findsOneWidget);
+    expect(find.text('48時間'), findsOneWidget);
+    expect(find.text('基準回復進行'), findsOneWidget);
+    expect(find.text('負荷直後'), findsOneWidget);
+    expect(find.text('回復目安'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps a future formal exposure unavailable without a gauge', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(
+              date: '2026-08-04',
+              startTime: '2026-08-04T20:14:00+09:00',
+            ),
+          ],
+          clock: () => DateTime(2026, 8, 4, 9),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('算出不可'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('基準回復進行 [0-9]+%')), findsNothing);
+    expect(find.text('回復目安'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps the V1-C1 fallback when a policy is absent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+          ],
+          clock: () => DateTime(2026, 8, 3, 22),
+          recoveryAdapter: TrainingRecoveryEvidenceAdapter(
+            domain: const TrainingHistoryDomainService(
+              recoveryPolicy: RecoveryReferencePolicy(referenceDurations: {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+
     expect(find.text('未設定'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('基準回復進行 [0-9]+%')), findsNothing);
+    expect(find.text('回復目安'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

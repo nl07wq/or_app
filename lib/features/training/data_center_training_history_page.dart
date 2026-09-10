@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/repositories/training_repository.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
@@ -23,12 +24,14 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
     this.overviewAdapter = const TrainingHistoryOverviewAdapter(),
     this.clock,
     this.rangePreference,
+    this.recoveryAdapter,
   });
 
   final Future<List<TrainingRecordReadModel>> Function()? recordsLoader;
   final TrainingHistoryOverviewAdapter overviewAdapter;
   final DateTime Function()? clock;
   final TrainingHistoryRangePreference? rangePreference;
+  final TrainingRecoveryEvidenceAdapter? recoveryAdapter;
 
   @override
   State<DataCenterTrainingHistoryPage> createState() =>
@@ -48,13 +51,15 @@ class _DataCenterTrainingHistoryPageState
   TrainingExerciseIdentity? _selectedEquipment;
   var _allEquipment = false;
   static const _exerciseAdapter = TrainingExerciseHistoryAdapter();
-  static const _recoveryAdapter = TrainingRecoveryEvidenceAdapter();
+  late final TrainingRecoveryEvidenceAdapter _recoveryAdapter;
 
   @override
   void initState() {
     super.initState();
     _rangePreference =
         widget.rangePreference ?? TrainingHistoryRangePreference();
+    _recoveryAdapter =
+        widget.recoveryAdapter ?? const TrainingRecoveryEvidenceAdapter();
     _records = _restoreAndLoad();
   }
 
@@ -319,15 +324,36 @@ class _RecoveryEvidenceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final estimate = evidence.estimate;
     final exactTime = estimate.lastExposureDateTime;
+    final progress = estimate.displayProgressRatio;
+    final hasProgress =
+        estimate.precision == RecoveryPrecision.exact && progress != null;
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            muscleGroupDisplayName(estimate.muscleGroup),
-            style: Theme.of(context).textTheme.titleMedium,
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                muscleGroupDisplayName(estimate.muscleGroup),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if (hasProgress)
+                Text(
+                  _recoveryStatusLabel(estimate.status),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: _recoveryStatusColor(estimate.status),
+                  ),
+                ),
+            ],
           ),
           AppSpacing.gapSM,
+          if (hasProgress) ...[
+            _RecoveryGauge(progress: progress, status: estimate.status),
+            AppSpacing.gapSM,
+          ],
           _RecoveryEvidenceField(
             label: '最終実施',
             value: exactTime == null
@@ -359,7 +385,72 @@ class _RecoveryEvidenceCard extends StatelessWidget {
           AppSpacing.gapSM,
           _RecoveryEvidenceField(
             label: '回復基準',
-            value: estimate.referenceRecoveryDuration == null ? '未設定' : '設定済み',
+            value: estimate.referenceRecoveryDuration == null
+                ? '未設定'
+                : _formatRecoveryDuration(estimate.referenceRecoveryDuration!),
+          ),
+          if (estimate.referenceRecoveryDuration != null && !hasProgress) ...[
+            AppSpacing.gapXS,
+            _RecoveryEvidenceField(
+              label: '基準回復進行',
+              value: estimate.precision == RecoveryPrecision.dateOnly
+                  ? '算出不可（時刻精度: 日付のみ）'
+                  : '算出不可',
+            ),
+          ],
+          if (hasProgress) ...[
+            AppSpacing.gapXS,
+            _RecoveryEvidenceField(
+              label: '回復目安',
+              value: _formatRecoveryReadyAt(estimate.estimatedReadyAt!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RecoveryGauge extends StatelessWidget {
+  const _RecoveryGauge({required this.progress, required this.status});
+
+  final double progress;
+  final RecoveryStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (progress * 100).round();
+    final color = _recoveryStatusColor(status);
+    return Semantics(
+      label: '基準回復進行 $percent% ${_recoveryStatusLabel(status)}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('基準回復進行', style: Theme.of(context).textTheme.labelSmall),
+              const Spacer(),
+              Text('$percent%', style: Theme.of(context).textTheme.titleSmall),
+            ],
+          ),
+          AppSpacing.gapXS,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 10,
+              child: ColoredBox(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: .14),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: progress,
+                    child: ColoredBox(color: color),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -1197,6 +1288,27 @@ String _formatDate(DateTime date) => '${date.month}/${date.day}';
 String _formatRecoveryDateTime(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
     '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+String _formatRecoveryReadyAt(DateTime date) =>
+    '${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+String _formatRecoveryDuration(Duration duration) => '${duration.inHours}時間';
+
+String _recoveryStatusLabel(RecoveryStatus status) => switch (status) {
+  RecoveryStatus.loaded => '負荷直後',
+  RecoveryStatus.recovering => '回復中',
+  RecoveryStatus.nearReady => '回復目安に接近',
+  RecoveryStatus.estimatedReady => '回復目安到達',
+  RecoveryStatus.noData => '算出不可',
+};
+
+Color _recoveryStatusColor(RecoveryStatus status) => switch (status) {
+  RecoveryStatus.loaded => AppColors.danger,
+  RecoveryStatus.recovering => AppColors.warning,
+  RecoveryStatus.nearReady => AppColors.primary,
+  RecoveryStatus.estimatedReady => AppColors.success,
+  RecoveryStatus.noData => AppColors.secondary,
+};
 
 String _formatInteger(double value) => value.round().toString();
 

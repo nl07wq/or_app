@@ -34,7 +34,7 @@ void main() {
     );
     expect(chest.estimate.precision, RecoveryPrecision.exact);
     expect(chest.source.exerciseLabel, 'チェストプレス');
-    expect(chest.estimate.referenceRecoveryDuration, isNull);
+    expect(chest.estimate.referenceRecoveryDuration, const Duration(hours: 48));
   });
 
   test('preserves date-only precision without createdAt fallback', () {

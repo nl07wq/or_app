@@ -88,16 +88,36 @@ class ExerciseMuscleRegistry {
       _byExerciseKey[identity.exerciseKey];
 }
 
-/// Intentionally empty until Product Owner-approved reference durations exist.
+/// Active analysis policy. It is separate from Formal Training Records.
 class RecoveryReferencePolicy {
-  const RecoveryReferencePolicy({this.referenceDurations = const {}});
+  const RecoveryReferencePolicy({
+    this.policyVersion = policyVersionV1,
+    this.referenceDurations = referenceDurationsV1,
+  });
 
+  static const policyVersionV1 = 'recovery-reference-policy-v1';
+
+  static const referenceDurationsV1 = <MuscleGroup, Duration>{
+    MuscleGroup.chest: Duration(hours: 48),
+    MuscleGroup.back: Duration(hours: 48),
+    MuscleGroup.shoulders: Duration(hours: 48),
+    MuscleGroup.biceps: Duration(hours: 48),
+    MuscleGroup.triceps: Duration(hours: 48),
+    MuscleGroup.forearms: Duration(hours: 48),
+    MuscleGroup.core: Duration(hours: 48),
+    MuscleGroup.calves: Duration(hours: 48),
+    MuscleGroup.quadriceps: Duration(hours: 72),
+    MuscleGroup.hamstrings: Duration(hours: 72),
+    MuscleGroup.glutes: Duration(hours: 72),
+  };
+
+  final String policyVersion;
   final Map<MuscleGroup, Duration> referenceDurations;
 
   Duration? durationFor(MuscleGroup muscle) => referenceDurations[muscle];
 }
 
-enum RecoveryPrecision { exact, dateOnly, unavailable }
+enum RecoveryPrecision { exact, dateOnly, invalid, unavailable }
 
 enum RecoveryStatus { loaded, recovering, nearReady, estimatedReady, noData }
 
@@ -314,7 +334,23 @@ class TrainingHistoryDomainService {
         status: RecoveryStatus.noData,
         precision: RecoveryPrecision.dateOnly,
       );
-    final elapsed = now.isBefore(time) ? Duration.zero : now.difference(time);
+    if (now.isBefore(time)) {
+      return MuscleRecoveryEstimate(
+        muscleGroup: muscle,
+        lastExposureOperationDate: exposure.record.localDate,
+        lastExposureDateTime: time,
+        sourceRecordId: exposure.record.id,
+        sourceExerciseIdentity: exposure.point.identity,
+        referenceRecoveryDuration: reference,
+        elapsedDuration: null,
+        referenceProgressRatio: null,
+        displayProgressRatio: null,
+        estimatedReadyAt: null,
+        status: RecoveryStatus.noData,
+        precision: RecoveryPrecision.invalid,
+      );
+    }
+    final elapsed = now.difference(time);
     final ratio = elapsed.inMicroseconds / reference.inMicroseconds;
     final status = ratio < .25
         ? RecoveryStatus.loaded
