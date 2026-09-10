@@ -120,6 +120,7 @@ class _DataCenterTrainingHistoryPageState
               _MetricSection(
                 title: 'STRENGTH FREQUENCY',
                 note: 'MONDAY START · STRENGTH SESSIONS PER WEEK',
+                weeklyBars: true,
                 points: [
                   for (final point in overview.frequencyPoints)
                     _ChartPoint(point.weekStart, point.sessions.toDouble()),
@@ -220,6 +221,7 @@ class _MetricSection extends StatelessWidget {
     required this.points,
     required this.axisFormatter,
     required this.detailFormatter,
+    this.weeklyBars = false,
     this.note,
   });
 
@@ -228,6 +230,7 @@ class _MetricSection extends StatelessWidget {
   final List<_ChartPoint> points;
   final String Function(double value) axisFormatter;
   final String Function(double value) detailFormatter;
+  final bool weeklyBars;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -246,11 +249,13 @@ class _MetricSection extends StatelessWidget {
           AppSpacing.md,
           AppSpacing.md,
         ),
-        child: _TrainingLineChart(
-          points: points,
-          axisFormatter: axisFormatter,
-          detailFormatter: detailFormatter,
-        ),
+        child: weeklyBars
+            ? _FrequencyBarChart(points: points)
+            : _TrainingLineChart(
+                points: points,
+                axisFormatter: axisFormatter,
+                detailFormatter: detailFormatter,
+              ),
       ),
     ],
   );
@@ -411,6 +416,126 @@ class _ChartPoint {
 
   final DateTime date;
   final double value;
+}
+
+class _FrequencyBarChart extends StatefulWidget {
+  const _FrequencyBarChart({required this.points});
+
+  final List<_ChartPoint> points;
+
+  @override
+  State<_FrequencyBarChart> createState() => _FrequencyBarChartState();
+}
+
+class _FrequencyBarChartState extends State<_FrequencyBarChart> {
+  int? _selectedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final maximum = widget.points.fold<double>(
+      1,
+      (value, point) => point.value > value ? point.value : value,
+    );
+    final selected = _selectedIndex == null
+        ? null
+        : widget.points[_selectedIndex!];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 190,
+          child: BarChart(
+            BarChartData(
+              maxY: maximum + 1,
+              minY: 0,
+              gridData: FlGridData(
+                drawVerticalLine: false,
+                horizontalInterval: 1,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: Colors.white.withValues(alpha: .10)),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    interval: 1,
+                    getTitlesWidget: (value, _) => Text(
+                      value == value.roundToDouble()
+                          ? value.toStringAsFixed(0)
+                          : '',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    interval: _labelInterval(widget.points.length),
+                    getTitlesWidget: (value, _) {
+                      final index = value.round();
+                      if (index < 0 || index >= widget.points.length)
+                        return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          _formatDate(widget.points[index].date),
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              barTouchData: BarTouchData(
+                touchCallback: (_, response) {
+                  final index = response?.spot?.touchedBarGroupIndex;
+                  if (index != null) setState(() => _selectedIndex = index);
+                },
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                    'WEEK OF ${_formatDate(widget.points[group.x.toInt()].date)}\n${rod.toY.toInt()} strength sessions',
+                    Theme.of(context).textTheme.labelMedium!.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ),
+              ),
+              barGroups: [
+                for (var index = 0; index < widget.points.length; index++)
+                  BarChartGroupData(
+                    x: index,
+                    barRods: [
+                      BarChartRodData(
+                        toY: widget.points[index].value,
+                        color: Theme.of(context).colorScheme.primary,
+                        width: widget.points.length > 20 ? 5 : 10,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (selected != null) ...[
+          AppSpacing.gapXS,
+          Text(
+            'WEEK OF ${_formatDate(selected.date)} · ${selected.value.toInt()} strength sessions',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _EmptyHistoryState extends StatelessWidget {
