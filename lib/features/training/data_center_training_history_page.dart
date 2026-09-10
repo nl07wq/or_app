@@ -8,6 +8,9 @@ import '../../core/widgets/section_header.dart';
 import 'models/training_record_read_model.dart';
 import 'services/training_history_overview_adapter.dart';
 import 'services/training_volume_formatter.dart';
+import 'services/training_exercise_history_adapter.dart';
+import 'services/training_exercise_identity.dart';
+import 'services/training_history_domain_service.dart';
 
 /// Data Center analytics. The existing TrainingHistoryPage remains the raw
 /// formal-record list and is intentionally not reused as this page.
@@ -32,6 +35,9 @@ class _DataCenterTrainingHistoryPageState
     extends State<DataCenterTrainingHistoryPage> {
   late final Future<List<TrainingRecordReadModel>> _records;
   var _period = TrainingHistoryOverviewPeriod.oneMonth;
+  var _view = _TrainingHistoryView.overview;
+  TrainingExerciseIdentity? _selectedExercise;
+  static const _exerciseAdapter = TrainingExerciseHistoryAdapter();
 
   @override
   void initState() {
@@ -73,11 +79,26 @@ class _DataCenterTrainingHistoryPageState
               selected: _period,
               onSelected: (period) => setState(() => _period = period),
             ),
+            AppSpacing.gapSM,
+            _ViewSelector(
+              selected: _view,
+              onSelected: (value) => setState(() => _view = value),
+            ),
             AppSpacing.gapLG,
             if (all.isEmpty)
               const _EmptyHistoryState()
-            else if (overview.isEmpty)
+            else if (_view == _TrainingHistoryView.overview && overview.isEmpty)
               const _EmptyPeriodState()
+            else if (_view == _TrainingHistoryView.exercise)
+              _ExerciseView(
+                records: snapshot.requireData,
+                period: _period,
+                referenceDate: widget.clock?.call(),
+                selected: _selectedExercise,
+                onSelected: (identity) =>
+                    setState(() => _selectedExercise = identity),
+                adapter: _exerciseAdapter,
+              )
             else ...[
               const SectionHeader(
                 icon: Icons.summarize_outlined,
@@ -134,6 +155,159 @@ class _DataCenterTrainingHistoryPageState
         );
       },
     ),
+  );
+}
+
+enum _TrainingHistoryView { overview, exercise }
+
+class _ViewSelector extends StatelessWidget {
+  const _ViewSelector({required this.selected, required this.onSelected});
+  final _TrainingHistoryView selected;
+  final ValueChanged<_TrainingHistoryView> onSelected;
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Wrap(
+      spacing: AppSpacing.sm,
+      children: [
+        for (final view in _TrainingHistoryView.values)
+          ChoiceChip(
+            label: Text(
+              view == _TrainingHistoryView.overview ? 'OVERVIEW' : 'EXERCISE',
+            ),
+            selected: selected == view,
+            onSelected: (_) => onSelected(view),
+          ),
+      ],
+    ),
+  );
+}
+
+class _ExerciseView extends StatelessWidget {
+  const _ExerciseView({
+    required this.records,
+    required this.period,
+    required this.referenceDate,
+    required this.selected,
+    required this.onSelected,
+    required this.adapter,
+  });
+  final List<TrainingRecordReadModel> records;
+  final TrainingHistoryOverviewPeriod period;
+  final DateTime? referenceDate;
+  final TrainingExerciseIdentity? selected;
+  final ValueChanged<TrainingExerciseIdentity> onSelected;
+  final TrainingExerciseHistoryAdapter adapter;
+  @override
+  Widget build(BuildContext context) {
+    final allPoints = adapter.points(
+      records,
+      period: period,
+      referenceDate: referenceDate,
+    );
+    final identities = adapter.identities(allPoints);
+    if (identities.isEmpty) return const _EmptyPeriodState();
+    final identity = identities.contains(selected)
+        ? selected!
+        : identities.first;
+    final points = adapter.forIdentity(allPoints, identity);
+    final weights = [
+      for (final point in points)
+        if (point.maxWeight != null)
+          _ChartPoint(DateTime.parse(point.operationDate), point.maxWeight!),
+    ];
+    final latest = weights.isEmpty ? null : weights.last;
+    final maximum = weights.isEmpty
+        ? null
+        : weights.map((point) => point.value).reduce((a, b) => a > b ? a : b);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.fitness_center_outlined,
+          title: 'EXERCISE',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: DropdownButton<TrainingExerciseIdentity>(
+            isExpanded: true,
+            value: identity,
+            items: [
+              for (final item in identities)
+                DropdownMenuItem(
+                  value: item,
+                  child: Text(
+                    adapter.label(item),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null) onSelected(value);
+            },
+          ),
+        ),
+        AppSpacing.gapLG,
+        _ExerciseSummary(points: points, latest: latest, maximum: maximum),
+        AppSpacing.gapXL,
+        if (weights.isEmpty)
+          const OperationCard(child: Text('WEIGHT DATA NOT AVAILABLE'))
+        else
+          _MetricSection(
+            title: 'WEIGHT HISTORY',
+            points: weights,
+            axisFormatter: _formatWeight,
+            detailFormatter: (value) => '${_formatWeight(value)} kg',
+          ),
+      ],
+    );
+  }
+}
+
+class _ExerciseSummary extends StatelessWidget {
+  const _ExerciseSummary({
+    required this.points,
+    required this.latest,
+    required this.maximum,
+  });
+  final List<ExerciseHistoryPoint> points;
+  final _ChartPoint? latest;
+  final double? maximum;
+  @override
+  Widget build(BuildContext context) => _SummaryGridLike(
+    children: [
+      _SummaryMetric(
+        'LAST TRAINED',
+        _formatDate(DateTime.parse(points.last.operationDate)),
+        '',
+      ),
+      _SummaryMetric(
+        'LATEST WEIGHT',
+        latest == null ? '—' : _formatWeight(latest!.value),
+        latest == null ? '' : 'kg',
+      ),
+      _SummaryMetric(
+        'MAX WEIGHT',
+        maximum == null ? '—' : _formatWeight(maximum!),
+        maximum == null ? '' : 'kg',
+      ),
+    ],
+  );
+}
+
+class _SummaryGridLike extends StatelessWidget {
+  const _SummaryGridLike({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: AppSpacing.sm,
+    runSpacing: AppSpacing.sm,
+    children: [
+      for (final child in children)
+        SizedBox(
+          width: (MediaQuery.sizeOf(context).width - AppSpacing.lg * 3) / 2,
+          child: child,
+        ),
+    ],
   );
 }
 
@@ -560,3 +734,7 @@ double _labelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
 String _formatDate(DateTime date) => '${date.month}/${date.day}';
 
 String _formatInteger(double value) => value.round().toString();
+
+String _formatWeight(double value) => value == value.roundToDouble()
+    ? value.toStringAsFixed(0)
+    : value.toStringAsFixed(1);

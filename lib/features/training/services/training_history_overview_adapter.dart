@@ -70,6 +70,17 @@ class TrainingHistoryOverviewAdapter {
 
   final TrainingHistoryDomainService domainService;
 
+  bool includesOperationDate(
+    String operationDate, {
+    required TrainingHistoryOverviewPeriod period,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final end = DateTime(now.year, now.month, now.day);
+    final start = _startFor(period, end);
+    return start == null || !_parseLocalDate(operationDate).isBefore(start);
+  }
+
   TrainingHistoryOverview build(
     Iterable<TrainingRecordReadModel> records, {
     required TrainingHistoryOverviewPeriod period,

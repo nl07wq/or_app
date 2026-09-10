@@ -60,6 +60,17 @@ void main() {
     expect(find.text('STRENGTH DAYS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('opens exercise weight history without exposing recovery', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: DataCenterTrainingHistoryPage(recordsLoader: () async => [_record()], clock: () => DateTime(2026, 8, 3))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXERCISE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('WEIGHT HISTORY'), findsOneWidget);
+    expect(find.text('LAST TRAINED'), findsOneWidget);
+    expect(find.text('RECOVERY'), findsNothing);
+  });
 }
 
 Future<List<TrainingRecordReadModel>> _noRecords() async => const [];
