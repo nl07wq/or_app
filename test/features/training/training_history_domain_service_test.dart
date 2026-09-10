@@ -61,6 +61,53 @@ void main() {
     },
   );
 
+  test('uses only formally recorded exercise RPE values in the average', () {
+    final record = TrainingRecordReadModel.v2(
+      id: 'partial-rpe',
+      localDate: '2026-08-04',
+      createdAt: DateTime.utc(2026, 8, 4),
+      updatedAt: DateTime.utc(2026, 8, 4),
+      data: TrainingSessionV2(
+        date: '2026-08-04T00:00:00.000',
+        exercises: [
+          TrainingExerciseV2(
+            exerciseName: 'Bench Press',
+            order: 1,
+            sets: [
+              TrainingSetV2(
+                setNo: 1,
+                setType: TrainingSetType.warmUp,
+                weightKg: 40,
+                reps: 5,
+              ),
+              TrainingSetV2(
+                setNo: 2,
+                setType: TrainingSetType.main,
+                weightKg: 80,
+                reps: 10,
+                rpe: 8,
+              ),
+              TrainingSetV2(
+                setNo: 3,
+                setType: TrainingSetType.main,
+                weightKg: 80,
+                reps: 8,
+                rpe: 9,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final point = service.exerciseHistory([record]).single;
+
+    expect(point.workingVolume, 1440);
+    expect(point.workingSetCount, 2);
+    expect(point.recordedRpeAverage, 8.5);
+    expect(point.recordedRpeMax, 9);
+  });
+
   test(
     'recovery uses latest exact primary exposure and never uses secondary',
     () {

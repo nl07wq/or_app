@@ -42,6 +42,7 @@ class _DataCenterTrainingHistoryPageState
   DateTimeRange? _customRange;
   var _view = _TrainingHistoryView.overview;
   var _exerciseMetric = _ExerciseMetric.weight;
+  var _volumeMetric = _VolumeMetric.recorded;
   String? _selectedCategory;
   TrainingExerciseIdentity? _selectedEquipment;
   var _allEquipment = false;
@@ -145,6 +146,7 @@ class _DataCenterTrainingHistoryPageState
                 selectedEquipment: _selectedEquipment,
                 allEquipment: _allEquipment,
                 metric: _exerciseMetric,
+                volumeMetric: _volumeMetric,
                 onCategorySelected: (category) => setState(() {
                   _selectedCategory = category;
                   _selectedEquipment = null;
@@ -158,6 +160,8 @@ class _DataCenterTrainingHistoryPageState
                     setState(() => _allEquipment = true),
                 onMetricSelected: (metric) =>
                     setState(() => _exerciseMetric = metric),
+                onVolumeMetricSelected: (metric) =>
+                    setState(() => _volumeMetric = metric),
                 adapter: _exerciseAdapter,
               )
             else ...[
@@ -221,7 +225,9 @@ class _DataCenterTrainingHistoryPageState
 
 enum _TrainingHistoryView { overview, exercise }
 
-enum _ExerciseMetric { weight, reps, volume }
+enum _ExerciseMetric { weight, reps, volume, rpe }
+
+enum _VolumeMetric { recorded, working }
 
 class _ViewSelector extends StatelessWidget {
   const _ViewSelector({required this.selected, required this.onSelected});
@@ -253,10 +259,12 @@ class _ExerciseView extends StatelessWidget {
     required this.selectedEquipment,
     required this.allEquipment,
     required this.metric,
+    required this.volumeMetric,
     required this.onCategorySelected,
     required this.onEquipmentSelected,
     required this.onAllEquipmentSelected,
     required this.onMetricSelected,
+    required this.onVolumeMetricSelected,
     required this.adapter,
   });
   final List<TrainingRecordReadModel> records;
@@ -267,10 +275,12 @@ class _ExerciseView extends StatelessWidget {
   final TrainingExerciseIdentity? selectedEquipment;
   final bool allEquipment;
   final _ExerciseMetric metric;
+  final _VolumeMetric volumeMetric;
   final ValueChanged<String> onCategorySelected;
   final ValueChanged<TrainingExerciseIdentity> onEquipmentSelected;
   final VoidCallback onAllEquipmentSelected;
   final ValueChanged<_ExerciseMetric> onMetricSelected;
+  final ValueChanged<_VolumeMetric> onVolumeMetricSelected;
   final TrainingExerciseHistoryAdapter adapter;
   @override
   Widget build(BuildContext context) {
@@ -295,7 +305,7 @@ class _ExerciseView extends StatelessWidget {
         : adapter.forIdentity(allPoints, variant.identity);
     final metricPoints = [
       for (final point in points)
-        if (_metricValue(point, metric) case final value?)
+        if (_metricValue(point, metric, volumeMetric) case final value?)
           _ChartPoint(DateTime.parse(point.operationDate), value),
     ];
     final latest = metricPoints.isEmpty ? null : metricPoints.last;
@@ -365,6 +375,13 @@ class _ExerciseView extends StatelessWidget {
         ),
         AppSpacing.gapLG,
         _ExerciseMetricSelector(selected: metric, onSelected: onMetricSelected),
+        if (metric == _ExerciseMetric.volume) ...[
+          AppSpacing.gapSM,
+          _VolumeMetricSelector(
+            selected: volumeMetric,
+            onSelected: onVolumeMetricSelected,
+          ),
+        ],
         AppSpacing.gapLG,
         if (showAllEquipment)
           const _AllEquipmentState()
@@ -372,21 +389,29 @@ class _ExerciseView extends StatelessWidget {
           _ExerciseSummary(
             points: points,
             metric: metric,
+            volumeMetric: volumeMetric,
             latest: latest,
             maximum: maximum,
           ),
           AppSpacing.gapXL,
           if (metricPoints.isEmpty)
-            OperationCard(
-              child: Text('${_metricTitle(metric)} DATA NOT AVAILABLE'),
-            )
-          else
-            _MetricSection(
-              title: '${_metricTitle(metric)} HISTORY',
+            _MetricUnavailableState(metric: metric, volumeMetric: volumeMetric)
+          else ...[
+            _LatestPreviousChange(
+              metric: metric,
+              volumeMetric: volumeMetric,
               points: metricPoints,
-              axisFormatter: _axisFormatter(metric),
-              detailFormatter: _detailFormatter(metric),
             ),
+            AppSpacing.gapXL,
+            _MetricSection(
+              title: '${_metricTitle(metric, volumeMetric)} HISTORY',
+              points: metricPoints,
+              axisFormatter: _axisFormatter(metric, volumeMetric),
+              detailFormatter: _detailFormatter(metric, volumeMetric),
+              minimumY: metric == _ExerciseMetric.rpe ? 1 : null,
+              maximumY: metric == _ExerciseMetric.rpe ? 10 : null,
+            ),
+          ],
         ],
       ],
     );
@@ -405,7 +430,9 @@ class _AllEquipmentState extends StatelessWidget {
   const _AllEquipmentState();
   @override
   Widget build(BuildContext context) => const OperationCard(
-    child: Text('SELECT EQUIPMENT TO VIEW WEIGHT, REPS, OR VOLUME HISTORY'),
+    child: Text(
+      'SELECT EQUIPMENT TO VIEW WEIGHT, REPS, VOLUME, OR RPE HISTORY',
+    ),
   );
 }
 
@@ -450,15 +477,45 @@ class _ExerciseMetricSelector extends StatelessWidget {
   );
 }
 
+class _VolumeMetricSelector extends StatelessWidget {
+  const _VolumeMetricSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final _VolumeMetric selected;
+  final ValueChanged<_VolumeMetric> onSelected;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final metric in _VolumeMetric.values)
+          ChoiceChip(
+            label: Text(
+              metric == _VolumeMetric.recorded ? 'RECORDED' : 'WORKING',
+            ),
+            selected: metric == selected,
+            onSelected: (_) => onSelected(metric),
+          ),
+      ],
+    ),
+  );
+}
+
 class _ExerciseSummary extends StatelessWidget {
   const _ExerciseSummary({
     required this.points,
     required this.metric,
+    required this.volumeMetric,
     required this.latest,
     required this.maximum,
   });
   final List<ExerciseHistoryPoint> points;
   final _ExerciseMetric metric;
+  final _VolumeMetric volumeMetric;
   final _ChartPoint? latest;
   final double? maximum;
   @override
@@ -470,17 +527,86 @@ class _ExerciseSummary extends StatelessWidget {
         '',
       ),
       _SummaryMetric(
-        _latestLabel(metric),
-        latest == null ? '—' : _summaryValue(metric, latest!.value),
-        latest == null ? '' : _summaryUnit(metric, latest!.value),
+        _latestLabel(metric, volumeMetric),
+        latest == null
+            ? '—'
+            : _summaryValue(metric, volumeMetric, latest!.value),
+        latest == null ? '' : _summaryUnit(metric, volumeMetric, latest!.value),
       ),
-      _SummaryMetric(
-        _maxLabel(metric),
-        maximum == null ? '—' : _summaryValue(metric, maximum!),
-        maximum == null ? '' : _summaryUnit(metric, maximum!),
-      ),
+      if (metric != _ExerciseMetric.rpe)
+        _SummaryMetric(
+          _maxLabel(metric, volumeMetric),
+          maximum == null ? '—' : _summaryValue(metric, volumeMetric, maximum!),
+          maximum == null ? '' : _summaryUnit(metric, volumeMetric, maximum!),
+        ),
     ],
   );
+}
+
+class _MetricUnavailableState extends StatelessWidget {
+  const _MetricUnavailableState({
+    required this.metric,
+    required this.volumeMetric,
+  });
+
+  final _ExerciseMetric metric;
+  final _VolumeMetric volumeMetric;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${_metricTitle(metric, volumeMetric)} DATA NOT AVAILABLE'),
+        if (metric == _ExerciseMetric.volume &&
+            volumeMetric == _VolumeMetric.working) ...[
+          AppSpacing.gapXS,
+          const Text(
+            'Working-set classification is not recorded for this history.',
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+class _LatestPreviousChange extends StatelessWidget {
+  const _LatestPreviousChange({
+    required this.metric,
+    required this.volumeMetric,
+    required this.points,
+  });
+
+  final _ExerciseMetric metric;
+  final _VolumeMetric volumeMetric;
+  final List<_ChartPoint> points;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = points.last;
+    final previous = points.length < 2 ? null : points[points.length - 2];
+    return _SummaryGridLike(
+      children: [
+        _SummaryMetric(
+          'LATEST',
+          _summaryValue(metric, volumeMetric, latest.value),
+          _summaryUnit(metric, volumeMetric, latest.value),
+        ),
+        if (previous != null) ...[
+          _SummaryMetric(
+            'PREVIOUS',
+            _summaryValue(metric, volumeMetric, previous.value),
+            _summaryUnit(metric, volumeMetric, previous.value),
+          ),
+          _SummaryMetric(
+            'CHANGE',
+            _deltaValue(metric, volumeMetric, latest.value - previous.value),
+            _summaryUnit(metric, volumeMetric, latest.value - previous.value),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _SummaryGridLike extends StatelessWidget {
@@ -586,6 +712,8 @@ class _MetricSection extends StatelessWidget {
     required this.detailFormatter,
     this.weeklyBars = false,
     this.note,
+    this.minimumY,
+    this.maximumY,
   });
 
   final String title;
@@ -594,6 +722,8 @@ class _MetricSection extends StatelessWidget {
   final String Function(double value) axisFormatter;
   final String Function(double value) detailFormatter;
   final bool weeklyBars;
+  final double? minimumY;
+  final double? maximumY;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -618,6 +748,8 @@ class _MetricSection extends StatelessWidget {
                 points: points,
                 axisFormatter: axisFormatter,
                 detailFormatter: detailFormatter,
+                minimumY: minimumY,
+                maximumY: maximumY,
               ),
       ),
     ],
@@ -629,11 +761,15 @@ class _TrainingLineChart extends StatefulWidget {
     required this.points,
     required this.axisFormatter,
     required this.detailFormatter,
+    this.minimumY,
+    this.maximumY,
   });
 
   final List<_ChartPoint> points;
   final String Function(double value) axisFormatter;
   final String Function(double value) detailFormatter;
+  final double? minimumY;
+  final double? maximumY;
 
   @override
   State<_TrainingLineChart> createState() => _TrainingLineChartState();
@@ -651,8 +787,10 @@ class _TrainingLineChartState extends State<_TrainingLineChart> {
     final verticalPadding = range == 0
         ? (maxValue.abs() * .15 + 1)
         : range * .15;
-    final minY = (minValue - verticalPadding).clamp(0.0, double.infinity);
-    final maxY = maxValue + verticalPadding;
+    final minY =
+        widget.minimumY ??
+        (minValue - verticalPadding).clamp(0.0, double.infinity);
+    final maxY = widget.maximumY ?? maxValue + verticalPadding;
     final selected = _selectedIndex == null
         ? null
         : widget.points[_selectedIndex!];
@@ -928,50 +1066,92 @@ String _formatWeight(double value) => value == value.roundToDouble()
     ? value.toStringAsFixed(0)
     : value.toStringAsFixed(1);
 
-double? _metricValue(ExerciseHistoryPoint point, _ExerciseMetric metric) =>
-    switch (metric) {
-      _ExerciseMetric.weight => point.maxWeight,
-      _ExerciseMetric.reps => point.recordedReps.toDouble(),
-      _ExerciseMetric.volume => point.recordedVolume,
-    };
-
-String _metricTitle(_ExerciseMetric metric) => switch (metric) {
-  _ExerciseMetric.weight => 'WEIGHT',
-  _ExerciseMetric.reps => 'REPS',
-  _ExerciseMetric.volume => 'RECORDED VOLUME',
+double? _metricValue(
+  ExerciseHistoryPoint point,
+  _ExerciseMetric metric,
+  _VolumeMetric volumeMetric,
+) => switch (metric) {
+  _ExerciseMetric.weight => point.maxWeight,
+  _ExerciseMetric.reps => point.recordedReps.toDouble(),
+  _ExerciseMetric.volume =>
+    volumeMetric == _VolumeMetric.recorded
+        ? point.recordedVolume
+        : point.workingSetCount == null || point.workingSetCount == 0
+        ? null
+        : point.workingVolume,
+  _ExerciseMetric.rpe => point.recordedRpeAverage,
 };
+
+String _metricTitle(_ExerciseMetric metric, _VolumeMetric volumeMetric) =>
+    switch (metric) {
+      _ExerciseMetric.weight => 'WEIGHT',
+      _ExerciseMetric.reps => 'REPS',
+      _ExerciseMetric.volume =>
+        volumeMetric == _VolumeMetric.recorded
+            ? 'RECORDED VOLUME'
+            : 'WORKING VOLUME',
+      _ExerciseMetric.rpe => 'RPE',
+    };
 
 String _metricSelectorLabel(_ExerciseMetric metric) => switch (metric) {
   _ExerciseMetric.weight => 'WEIGHT',
   _ExerciseMetric.reps => 'REPS',
   _ExerciseMetric.volume => 'VOLUME',
+  _ExerciseMetric.rpe => 'RPE',
 };
 
-String _latestLabel(_ExerciseMetric metric) => 'LATEST ${_metricTitle(metric)}';
-String _maxLabel(_ExerciseMetric metric) => 'MAX ${_metricTitle(metric)}';
+String _latestLabel(_ExerciseMetric metric, _VolumeMetric volumeMetric) =>
+    'LATEST ${_metricTitle(metric, volumeMetric)}';
+String _maxLabel(_ExerciseMetric metric, _VolumeMetric volumeMetric) =>
+    'MAX ${_metricTitle(metric, volumeMetric)}';
 
-String _summaryValue(_ExerciseMetric metric, double value) => switch (metric) {
+String _summaryValue(
+  _ExerciseMetric metric,
+  _VolumeMetric volumeMetric,
+  double value,
+) => switch (metric) {
   _ExerciseMetric.weight => _formatWeight(value),
   _ExerciseMetric.reps => _formatInteger(value),
   _ExerciseMetric.volume => TrainingVolumeFormatter.display(value).value,
+  _ExerciseMetric.rpe => value.toStringAsFixed(1),
 };
 
-String _summaryUnit(_ExerciseMetric metric, double value) => switch (metric) {
+String _summaryUnit(
+  _ExerciseMetric metric,
+  _VolumeMetric volumeMetric,
+  double value,
+) => switch (metric) {
   _ExerciseMetric.weight => 'kg',
   _ExerciseMetric.reps => 'reps',
   _ExerciseMetric.volume => TrainingVolumeFormatter.display(value).unit,
+  _ExerciseMetric.rpe => '',
 };
 
-String Function(double) _axisFormatter(_ExerciseMetric metric) =>
-    switch (metric) {
-      _ExerciseMetric.weight => _formatWeight,
-      _ExerciseMetric.reps => _formatInteger,
-      _ExerciseMetric.volume => TrainingVolumeFormatter.axisLabel,
-    };
+String _deltaValue(
+  _ExerciseMetric metric,
+  _VolumeMetric volumeMetric,
+  double value,
+) {
+  final prefix = value > 0 ? '+' : '';
+  return '$prefix${_summaryValue(metric, volumeMetric, value)}';
+}
 
-String Function(double) _detailFormatter(_ExerciseMetric metric) =>
-    switch (metric) {
-      _ExerciseMetric.weight => (value) => '${_formatWeight(value)} kg',
-      _ExerciseMetric.reps => (value) => '${_formatInteger(value)} reps',
-      _ExerciseMetric.volume => TrainingVolumeFormatter.format,
-    };
+String Function(double) _axisFormatter(
+  _ExerciseMetric metric,
+  _VolumeMetric volumeMetric,
+) => switch (metric) {
+  _ExerciseMetric.weight => _formatWeight,
+  _ExerciseMetric.reps => _formatInteger,
+  _ExerciseMetric.volume => TrainingVolumeFormatter.axisLabel,
+  _ExerciseMetric.rpe => (value) => value.toStringAsFixed(0),
+};
+
+String Function(double) _detailFormatter(
+  _ExerciseMetric metric,
+  _VolumeMetric volumeMetric,
+) => switch (metric) {
+  _ExerciseMetric.weight => (value) => '${_formatWeight(value)} kg',
+  _ExerciseMetric.reps => (value) => '${_formatInteger(value)} reps',
+  _ExerciseMetric.volume => TrainingVolumeFormatter.format,
+  _ExerciseMetric.rpe => (value) => value.toStringAsFixed(1),
+};

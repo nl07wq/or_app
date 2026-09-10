@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/training_exercise.dart';
 import 'package:or_app/core/models/training_session.dart';
+import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
+import 'package:or_app/core/models/training_set_v2.dart';
+import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/services/training_history_overview_adapter.dart';
@@ -130,9 +133,134 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('LATEST RECORDED VOLUME'), findsOneWidget);
     expect(find.text('RECORDED VOLUME HISTORY'), findsOneWidget);
-    expect(find.text('RPE'), findsNothing);
-    expect(find.text('WORKING VOLUME'), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, 'RPE'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'RECORDED'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'WORKING'), findsOneWidget);
     expect(find.text('CHANGE'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows Working Volume and RPE only from formal v2 data', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record(), _v2Record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+    await tester.pumpAndSettle();
+
+    final volume = find.widgetWithText(ChoiceChip, 'VOLUME');
+    await tester.ensureVisible(volume);
+    await tester.tap(volume);
+    await tester.pumpAndSettle();
+    final working = find.widgetWithText(ChoiceChip, 'WORKING');
+    await tester.ensureVisible(working);
+    await tester.tap(working);
+    await tester.pumpAndSettle();
+    expect(find.text('LATEST WORKING VOLUME'), findsOneWidget);
+    expect(find.text('WORKING VOLUME HISTORY'), findsOneWidget);
+
+    final rpe = find.widgetWithText(ChoiceChip, 'RPE');
+    await tester.ensureVisible(rpe);
+    await tester.tap(rpe);
+    await tester.pumpAndSettle();
+    expect(find.text('LATEST RPE'), findsOneWidget);
+    expect(find.text('RPE HISTORY'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses the latest two available points for comparison', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(id: 'first', date: '2026-08-01', weight: 60, rpe: 8),
+            _v2Record(id: 'latest', date: '2026-08-03', weight: 70, rpe: 9),
+          ],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PREVIOUS'), findsOneWidget);
+    expect(find.text('CHANGE'), findsOneWidget);
+    expect(find.text('+10'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('skips missing RPE observations when comparing sessions', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(id: 'first', date: '2026-08-01', rpe: 8),
+            _v2Record(id: 'missing', date: '2026-08-02', rpe: null),
+            _v2Record(id: 'latest', date: '2026-08-03', rpe: 9),
+          ],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+    await tester.pumpAndSettle();
+    final rpe = find.widgetWithText(ChoiceChip, 'RPE');
+    await tester.ensureVisible(rpe);
+    await tester.tap(rpe);
+    await tester.pumpAndSettle();
+
+    expect(find.text('PREVIOUS'), findsOneWidget);
+    expect(find.text('+1.0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps v1 Working Volume and RPE intentionally unavailable', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+    await tester.pumpAndSettle();
+    expect(find.text('WORKING VOLUME DATA NOT AVAILABLE'), findsOneWidget);
+    expect(
+      find.text('Working-set classification is not recorded for this history.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'RPE'));
+    await tester.pumpAndSettle();
+    expect(find.text('RPE DATA NOT AVAILABLE'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -154,6 +282,7 @@ void main() {
     expect(find.widgetWithText(ChoiceChip, 'WEIGHT'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'REPS'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'VOLUME'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'RPE'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -195,7 +324,9 @@ void main() {
     await tester.tap(find.text('ALL EQUIPMENT'));
     await tester.pumpAndSettle();
     expect(
-      find.text('SELECT EQUIPMENT TO VIEW WEIGHT, REPS, OR VOLUME HISTORY'),
+      find.text(
+        'SELECT EQUIPMENT TO VIEW WEIGHT, REPS, VOLUME, OR RPE HISTORY',
+      ),
       findsOneWidget,
     );
     expect(find.text('WEIGHT HISTORY'), findsNothing);
@@ -360,6 +491,42 @@ TrainingRecordReadModel _recordWithEquipment({
         equipmentId: equipmentId,
         order: 1,
         sets: [TrainingSet(setNo: 1, weight: weight, reps: 10)],
+      ),
+    ],
+  ),
+);
+
+TrainingRecordReadModel _v2Record({
+  String id = 'v2',
+  String date = '2026-08-03',
+  double weight = 80,
+  int? rpe = 8,
+}) => TrainingRecordReadModel.v2(
+  id: id,
+  localDate: date,
+  createdAt: DateTime.parse('${date}T00:00:00Z'),
+  updatedAt: DateTime.parse('${date}T00:00:00Z'),
+  data: TrainingSessionV2(
+    date: '${date}T00:00:00.000',
+    exercises: [
+      TrainingExerciseV2(
+        exerciseName: 'Bench Press',
+        order: 1,
+        sets: [
+          TrainingSetV2(
+            setNo: 1,
+            setType: TrainingSetType.warmUp,
+            weightKg: 40,
+            reps: 5,
+          ),
+          TrainingSetV2(
+            setNo: 2,
+            setType: TrainingSetType.main,
+            weightKg: weight,
+            reps: 10,
+            rpe: rpe,
+          ),
+        ],
       ),
     ],
   ),
