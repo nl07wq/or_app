@@ -5,8 +5,15 @@ import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
+import 'package:or_app/features/training/services/training_history_overview_adapter.dart';
+import 'package:or_app/features/training/services/training_history_range_preference.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('renders overview metrics and charts at narrow widths', (
     tester,
   ) async {
@@ -25,8 +32,23 @@ void main() {
     expect(find.text('TRAINING HISTORY'), findsWidgets);
     expect(find.text('RECORDED VOLUME'), findsWidgets);
     expect(find.text('STRENGTH OVERVIEW'), findsOneWidget);
-    expect(find.text('1 WEEK'), findsOneWidget);
-    expect(find.text('6 MONTHS'), findsOneWidget);
+    for (final label in [
+      '1週間',
+      '15日',
+      '1か月',
+      '3か月',
+      '6か月',
+      '1年',
+      '全期間',
+      '指定期間',
+    ]) {
+      expect(find.widgetWithText(ChoiceChip, label), findsOneWidget);
+    }
+    expect(find.widgetWithText(ChoiceChip, '概要'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, '種目'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'OVERVIEW'), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, 'EXERCISE'), findsNothing);
+    expect(find.textContaining('表示期間:'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -61,10 +83,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('opens exercise weight history without exposing recovery', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: DataCenterTrainingHistoryPage(recordsLoader: () async => [_record()], clock: () => DateTime(2026, 8, 3))));
+  testWidgets('opens exercise weight history without exposing recovery', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('EXERCISE'));
+    await tester.tap(find.text('種目'));
     await tester.pumpAndSettle();
 
     expect(find.text('WEIGHT HISTORY'), findsOneWidget);
@@ -86,7 +117,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('EXERCISE'));
+    await tester.tap(find.text('種目'));
     await tester.pumpAndSettle();
 
     expect(find.text('WEIGHT HISTORY'), findsOneWidget);
@@ -117,7 +148,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('EXERCISE'));
+    await tester.tap(find.text('種目'));
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(ChoiceChip, 'WEIGHT'), findsOneWidget);
@@ -140,10 +171,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('EXERCISE'));
+    await tester.tap(find.text('種目'));
     await tester.pumpAndSettle();
 
-    expect(find.text('EXERCISE'), findsWidgets);
+    expect(find.text('種目'), findsOneWidget);
     expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('ベンチプレス'), findsOneWidget);
     expect(find.text('ダンベル'), findsOneWidget);
@@ -185,7 +216,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('EXERCISE'));
+    await tester.tap(find.text('種目'));
     await tester.pumpAndSettle();
 
     expect(find.text('ベンチプレス'), findsOneWidget);
@@ -205,12 +236,66 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'EXERCISE'));
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('exercise-equipment-selector')));
     await tester.pumpAndSettle();
 
     expect(find.text('ALL EQUIPMENT'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'restores the Training-specific period without affecting Body History',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final rangePreference = TrainingHistoryRangePreference(
+        preferencesLoader: () async => preferences,
+      );
+      await rangePreference.save(TrainingHistoryOverviewPeriod.threeMonths);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [_record()],
+            clock: () => DateTime(2026, 8, 3),
+            rangePreference: rangePreference,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(ChoiceChip, '3か月'), findsOneWidget);
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '3か月'))
+            .selected,
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('opens and cancels the shared-style custom range flow', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '指定期間'));
+    await tester.pumpAndSettle();
+    expect(find.text('SELECT TRAINING HISTORY RANGE'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }

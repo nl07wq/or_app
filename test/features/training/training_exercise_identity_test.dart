@@ -95,7 +95,7 @@ void main() {
     expect(catalog.exerciseLabel, 'ベンチプレス');
     expect(catalog.equipmentLabel, 'HAMMER STRENGTH パワーラック');
     expect(catalog.equipmentLabel, isNot(contains('_')));
-    expect(custom.equipmentLabel, 'HAMMER STRENGTH LINEAR LEG PRESS');
+    expect(custom.equipmentLabel, 'HAMMER STRENGTH リニアレッグプレス');
     expect(custom.equipmentLabel, isNot(startsWith('name:')));
   });
 

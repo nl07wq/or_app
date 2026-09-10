@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/training_exercise.dart';
 import 'package:or_app/core/models/cardio_entry.dart';
@@ -84,6 +85,32 @@ void main() {
       0,
       0,
     ]);
+  });
+
+  test('uses Body History-equivalent 15-day and custom formal-date ranges', () {
+    final records = [
+      _record('old', '2026-07-19', weight: 10, reps: 1),
+      _record('included', '2026-07-20', weight: 20, reps: 2),
+      _record('custom', '2026-08-04', weight: 30, reps: 3),
+    ];
+
+    final fifteenDays = adapter.build(
+      records,
+      period: TrainingHistoryOverviewPeriod.fifteenDays,
+      referenceDate: DateTime(2026, 8, 3),
+    );
+    expect(fifteenDays.points.map((point) => point.date.day), [20]);
+
+    final custom = adapter.build(
+      records,
+      period: TrainingHistoryOverviewPeriod.custom,
+      referenceDate: DateTime(2026, 8, 10),
+      customRange: DateTimeRange(
+        start: DateTime(2026, 8, 1),
+        end: DateTime(2026, 8, 5),
+      ),
+    );
+    expect(custom.points.map((point) => point.date.day), [4]);
   });
 }
 

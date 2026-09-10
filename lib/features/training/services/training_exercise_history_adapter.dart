@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'exercise_name_localization.dart';
 import 'equipment_catalog.dart';
 import 'training_exercise_identity.dart';
@@ -18,12 +20,14 @@ class TrainingExerciseHistoryAdapter {
     Iterable<TrainingRecordReadModel> records, {
     required TrainingHistoryOverviewPeriod period,
     DateTime? referenceDate,
+    DateTimeRange? customRange,
   }) => [
     for (final point in domain.exerciseHistory(records))
       if (periods.includesOperationDate(
         point.operationDate,
         period: period,
         referenceDate: referenceDate,
+        customRange: customRange,
       ))
         point,
   ];
@@ -100,7 +104,9 @@ class TrainingExerciseHistoryAdapter {
       return _readableFallback(catalogId);
     }
     if (equipmentKey.startsWith('name:')) {
-      return _readableFallback(equipmentKey.substring('name:'.length));
+      final name = equipmentKey.substring('name:'.length);
+      return equipmentDisplayNameJaForRecordedName(name) ??
+          _readableFallback(name);
     }
     return _readableFallback(equipmentKey);
   }

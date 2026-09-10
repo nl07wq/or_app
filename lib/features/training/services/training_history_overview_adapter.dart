@@ -1,15 +1,19 @@
+import 'package:flutter/material.dart';
+
 import '../models/training_record_read_model.dart';
 import 'training_history_domain_service.dart';
 
 /// Presentation-level period choices for the Data Center training overview.
 /// They deliberately operate on formal operation dates, not persistence dates.
 enum TrainingHistoryOverviewPeriod {
-  oneWeek('1 WEEK'),
-  oneMonth('1 MONTH'),
-  threeMonths('3 MONTHS'),
-  sixMonths('6 MONTHS'),
-  oneYear('1 YEAR'),
-  all('ALL');
+  oneWeek('1週間'),
+  fifteenDays('15日'),
+  oneMonth('1か月'),
+  threeMonths('3か月'),
+  sixMonths('6か月'),
+  oneYear('1年'),
+  all('全期間'),
+  custom('指定期間');
 
   const TrainingHistoryOverviewPeriod(this.label);
 
@@ -74,17 +78,35 @@ class TrainingHistoryOverviewAdapter {
     String operationDate, {
     required TrainingHistoryOverviewPeriod period,
     DateTime? referenceDate,
+    DateTimeRange? customRange,
+  }) {
+    final range = selectedRange(
+      period: period,
+      referenceDate: referenceDate,
+      customRange: customRange,
+    );
+    final date = _parseLocalDate(operationDate);
+    return !date.isBefore(range.start) && !date.isAfter(range.end);
+  }
+
+  DateTimeRange selectedRange({
+    required TrainingHistoryOverviewPeriod period,
+    DateTime? referenceDate,
+    DateTimeRange? customRange,
   }) {
     final now = referenceDate ?? DateTime.now();
     final end = DateTime(now.year, now.month, now.day);
-    final start = _startFor(period, end);
-    return start == null || !_parseLocalDate(operationDate).isBefore(start);
+    if (period == TrainingHistoryOverviewPeriod.custom && customRange != null) {
+      return customRange;
+    }
+    return DateTimeRange(start: _startFor(period, end), end: end);
   }
 
   TrainingHistoryOverview build(
     Iterable<TrainingRecordReadModel> records, {
     required TrainingHistoryOverviewPeriod period,
     DateTime? referenceDate,
+    DateTimeRange? customRange,
   }) {
     final aggregates = [
       for (final record in records)
@@ -93,13 +115,19 @@ class TrainingHistoryOverviewAdapter {
     ]..sort((a, b) => a.operationDate.compareTo(b.operationDate));
     if (aggregates.isEmpty) return _empty();
 
-    final now = referenceDate ?? DateTime.now();
-    final end = DateTime(now.year, now.month, now.day);
-    final start = _startFor(period, end);
+    final range = selectedRange(
+      period: period,
+      referenceDate: referenceDate,
+      customRange: customRange,
+    );
     final selected = [
       for (final aggregate in aggregates)
-        if (start == null ||
-            !_parseLocalDate(aggregate.operationDate).isBefore(start))
+        if (includesOperationDate(
+          aggregate.operationDate,
+          period: period,
+          referenceDate: referenceDate,
+          customRange: customRange,
+        ))
           aggregate,
     ];
     if (selected.isEmpty) return _empty();
@@ -120,10 +148,12 @@ class TrainingHistoryOverviewAdapter {
       frequencyPoints: List.unmodifiable(
         _frequency(
           selected,
-          rangeStart: start ?? _parseLocalDate(selected.first.operationDate),
+          rangeStart: period == TrainingHistoryOverviewPeriod.all
+              ? _parseLocalDate(selected.first.operationDate)
+              : range.start,
           rangeEnd: period == TrainingHistoryOverviewPeriod.all
               ? _parseLocalDate(selected.last.operationDate)
-              : end,
+              : range.end,
         ),
       ),
       sessionCount: selected.length,
@@ -148,16 +178,20 @@ class TrainingHistoryOverviewAdapter {
     recordedReps: 0,
   );
 
-  DateTime? _startFor(TrainingHistoryOverviewPeriod period, DateTime end) =>
+  DateTime _startFor(TrainingHistoryOverviewPeriod period, DateTime end) =>
       switch (period) {
         TrainingHistoryOverviewPeriod.oneWeek => end.subtract(
           const Duration(days: 6),
+        ),
+        TrainingHistoryOverviewPeriod.fifteenDays => end.subtract(
+          const Duration(days: 14),
         ),
         TrainingHistoryOverviewPeriod.oneMonth => _monthsBefore(end, 1),
         TrainingHistoryOverviewPeriod.threeMonths => _monthsBefore(end, 3),
         TrainingHistoryOverviewPeriod.sixMonths => _monthsBefore(end, 6),
         TrainingHistoryOverviewPeriod.oneYear => _yearsBefore(end, 1),
-        TrainingHistoryOverviewPeriod.all => null,
+        TrainingHistoryOverviewPeriod.all => DateTime(1),
+        TrainingHistoryOverviewPeriod.custom => end,
       };
 
   List<TrainingHistoryFrequencyPoint> _frequency(

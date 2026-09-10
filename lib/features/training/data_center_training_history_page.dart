@@ -7,6 +7,7 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import 'models/training_record_read_model.dart';
 import 'services/training_history_overview_adapter.dart';
+import 'services/training_history_range_preference.dart';
 import 'services/training_volume_formatter.dart';
 import 'services/training_exercise_history_adapter.dart';
 import 'services/training_exercise_identity.dart';
@@ -20,11 +21,13 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
     this.recordsLoader,
     this.overviewAdapter = const TrainingHistoryOverviewAdapter(),
     this.clock,
+    this.rangePreference,
   });
 
   final Future<List<TrainingRecordReadModel>> Function()? recordsLoader;
   final TrainingHistoryOverviewAdapter overviewAdapter;
   final DateTime Function()? clock;
+  final TrainingHistoryRangePreference? rangePreference;
 
   @override
   State<DataCenterTrainingHistoryPage> createState() =>
@@ -34,7 +37,9 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
 class _DataCenterTrainingHistoryPageState
     extends State<DataCenterTrainingHistoryPage> {
   late final Future<List<TrainingRecordReadModel>> _records;
-  var _period = TrainingHistoryOverviewPeriod.oneMonth;
+  late final TrainingHistoryRangePreference _rangePreference;
+  var _period = TrainingHistoryOverviewPeriod.oneWeek;
+  DateTimeRange? _customRange;
   var _view = _TrainingHistoryView.overview;
   var _exerciseMetric = _ExerciseMetric.weight;
   String? _selectedCategory;
@@ -45,7 +50,37 @@ class _DataCenterTrainingHistoryPageState
   @override
   void initState() {
     super.initState();
-    _records = (widget.recordsLoader ?? TrainingRepository.getReadModels)();
+    _rangePreference =
+        widget.rangePreference ?? TrainingHistoryRangePreference();
+    _records = _restoreAndLoad();
+  }
+
+  Future<List<TrainingRecordReadModel>> _restoreAndLoad() async {
+    final selection = await _rangePreference.load();
+    if (mounted) {
+      _period = selection.period;
+      _customRange = selection.customRange;
+    }
+    return (widget.recordsLoader ?? TrainingRepository.getReadModels)();
+  }
+
+  Future<void> _selectPeriod(TrainingHistoryOverviewPeriod period) async {
+    if (period == TrainingHistoryOverviewPeriod.custom) {
+      final now = widget.clock?.call() ?? DateTime.now();
+      final selected = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(now.year, now.month, now.day),
+        initialDateRange: _customRange,
+        helpText: 'SELECT TRAINING HISTORY RANGE',
+        saveText: 'USE RANGE',
+      );
+      if (selected == null || !mounted) return;
+      _customRange = selected;
+    }
+    if (!mounted) return;
+    setState(() => _period = period);
+    await _rangePreference.save(period, customRange: _customRange);
   }
 
   @override
@@ -69,6 +104,12 @@ class _DataCenterTrainingHistoryPageState
           snapshot.requireData,
           period: _period,
           referenceDate: widget.clock?.call(),
+          customRange: _customRange,
+        );
+        final displayRange = widget.overviewAdapter.selectedRange(
+          period: _period,
+          referenceDate: widget.clock?.call(),
+          customRange: _customRange,
         );
         return ListView(
           padding: AppSpacing.cardPadding,
@@ -78,9 +119,11 @@ class _DataCenterTrainingHistoryPageState
               title: 'TRAINING HISTORY',
             ),
             AppSpacing.gapSM,
-            _PeriodSelector(
-              selected: _period,
-              onSelected: (period) => setState(() => _period = period),
+            _PeriodSelector(selected: _period, onSelected: _selectPeriod),
+            AppSpacing.gapSM,
+            Text(
+              '表示期間: ${_formatDate(displayRange.start)} – '
+              '${_formatDate(displayRange.end)}',
             ),
             AppSpacing.gapSM,
             _ViewSelector(
@@ -97,6 +140,7 @@ class _DataCenterTrainingHistoryPageState
                 records: snapshot.requireData,
                 period: _period,
                 referenceDate: widget.clock?.call(),
+                customRange: _customRange,
                 selectedCategory: _selectedCategory,
                 selectedEquipment: _selectedEquipment,
                 allEquipment: _allEquipment,
@@ -190,9 +234,7 @@ class _ViewSelector extends StatelessWidget {
       children: [
         for (final view in _TrainingHistoryView.values)
           ChoiceChip(
-            label: Text(
-              view == _TrainingHistoryView.overview ? 'OVERVIEW' : 'EXERCISE',
-            ),
+            label: Text(view == _TrainingHistoryView.overview ? '概要' : '種目'),
             selected: selected == view,
             onSelected: (_) => onSelected(view),
           ),
@@ -206,6 +248,7 @@ class _ExerciseView extends StatelessWidget {
     required this.records,
     required this.period,
     required this.referenceDate,
+    required this.customRange,
     required this.selectedCategory,
     required this.selectedEquipment,
     required this.allEquipment,
@@ -219,6 +262,7 @@ class _ExerciseView extends StatelessWidget {
   final List<TrainingRecordReadModel> records;
   final TrainingHistoryOverviewPeriod period;
   final DateTime? referenceDate;
+  final DateTimeRange? customRange;
   final String? selectedCategory;
   final TrainingExerciseIdentity? selectedEquipment;
   final bool allEquipment;
@@ -234,6 +278,7 @@ class _ExerciseView extends StatelessWidget {
       records,
       period: period,
       referenceDate: referenceDate,
+      customRange: customRange,
     );
     final categories = adapter.categories(allPoints);
     if (categories.isEmpty) return const _EmptyPeriodState();

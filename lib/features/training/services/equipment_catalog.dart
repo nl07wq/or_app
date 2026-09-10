@@ -191,6 +191,21 @@ String equipmentDisplayNameJa(Equipment equipment) {
   };
 }
 
+/// Presentation-only lookup for historically recorded Equipment names.
+///
+/// This does not participate in canonical identity resolution: older records
+/// retain their exact `name:` identity while known labels can still be shown in
+/// the same language as catalog-backed Equipment.
+String? equipmentDisplayNameJaForRecordedName(String name) {
+  final normalizedName = _normalizeEquipmentName(name);
+  for (final equipment in builtInEquipment) {
+    if (_normalizeEquipmentName(equipment.displayName) == normalizedName) {
+      return equipmentDisplayNameJa(equipment);
+    }
+  }
+  return _recordedEquipmentDisplayAliases[normalizedName];
+}
+
 const _canonicalEquipmentAliases = <String, String>{
   'ハンマーストレングス ベンチ': 'hammer_strength_bench',
   'ハンマーストレングス・ベンチ': 'hammer_strength_bench',
@@ -208,6 +223,14 @@ const _canonicalEquipmentAliases = <String, String>{
   'technogym ラットプルダウン': 'technogym_lat_pulldown',
   'ライフフィットネス・ラットプルダウン': 'life_fitness_lat_pulldown',
   'life fitness ラットプルダウン': 'life_fitness_lat_pulldown',
+};
+
+const _recordedEquipmentDisplayAliases = <String, String>{
+  'hammer strength linear leg press': 'HAMMER STRENGTH リニアレッグプレス',
+  'hammer strength power rack': 'HAMMER STRENGTH パワーラック',
+  'hammer strength lat pulldown': 'HAMMER STRENGTH ラットプルダウン',
+  'nautilus plate loaded': 'NAUTILUS プレートロード',
+  'cybex squat press': 'CYBEX スクワットプレス',
 };
 
 String _normalizeEquipmentName(String value) =>

@@ -72,6 +72,45 @@ void main() {
       'catalog',
     );
   });
+
+  test(
+    'uses Japanese presentation for known named Equipment without changing identity',
+    () {
+      final knownNamed = TrainingExerciseIdentity.v2(
+        v2Exercise(
+          name: 'Leg Press',
+          equipmentId: null,
+          equipmentName: 'Hammer Strength Linear Leg Press',
+        ),
+      );
+      final customNamed = TrainingExerciseIdentity.v2(
+        v2Exercise(
+          name: 'Leg Press',
+          equipmentId: null,
+          equipmentName: 'Custom Leg Press Attachment',
+        ),
+      );
+      final points = [
+        _point('known', '2026-08-01', knownNamed),
+        _point('custom', '2026-08-02', customNamed),
+      ];
+
+      final variants = adapter.equipmentVariants(
+        points,
+        knownNamed.exerciseKey,
+      );
+
+      expect(knownNamed.equipmentKey, 'name:hammer strength linear leg press');
+      expect(
+        variants.singleWhere((item) => item.identity == knownNamed).label,
+        'HAMMER STRENGTH リニアレッグプレス',
+      );
+      expect(
+        variants.singleWhere((item) => item.identity == customNamed).label,
+        'CUSTOM LEG PRESS ATTACHMENT',
+      );
+    },
+  );
 }
 
 TrainingExerciseIdentity _identity(String name, String? equipmentId) =>
