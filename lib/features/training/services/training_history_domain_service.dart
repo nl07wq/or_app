@@ -21,13 +21,29 @@ enum MuscleGroup {
 
 class ExerciseMuscleMapping {
   const ExerciseMuscleMapping({
-    required this.primaryMuscles,
-    this.secondaryMuscles = const [],
+    required this.targetMuscles,
+    this.supportMuscles = const [],
+    required this.exerciseType,
   });
 
-  final List<MuscleGroup> primaryMuscles;
-  final List<MuscleGroup> secondaryMuscles;
+  /// Muscles this exercise directly targets. Recovery evidence is derived only
+  /// from these muscles.
+  final List<MuscleGroup> targetMuscles;
+
+  /// Muscles with explicit supporting involvement. They are descriptive
+  /// mapping metadata only and never reset a recovery clock.
+  final List<MuscleGroup> supportMuscles;
+
+  final ExerciseMuscleExerciseType exerciseType;
+
+  /// Compatibility alias for the former recovery-oriented terminology.
+  List<MuscleGroup> get primaryMuscles => targetMuscles;
+
+  /// Compatibility alias for the former recovery-oriented terminology.
+  List<MuscleGroup> get secondaryMuscles => supportMuscles;
 }
+
+enum ExerciseMuscleExerciseType { isolation, compound }
 
 /// Domain metadata only. Unknown/custom exercises intentionally have no entry.
 class ExerciseMuscleRegistry {
@@ -35,57 +51,74 @@ class ExerciseMuscleRegistry {
 
   static const _byExerciseKey = <String, ExerciseMuscleMapping>{
     'benchpress': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.chest],
-      secondaryMuscles: [MuscleGroup.triceps, MuscleGroup.shoulders],
+      targetMuscles: [MuscleGroup.chest],
+      supportMuscles: [MuscleGroup.triceps, MuscleGroup.shoulders],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'inclinebenchpress': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.chest],
-      secondaryMuscles: [MuscleGroup.triceps, MuscleGroup.shoulders],
+      targetMuscles: [MuscleGroup.chest],
+      supportMuscles: [MuscleGroup.triceps, MuscleGroup.shoulders],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'chestpress': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.chest],
-      secondaryMuscles: [MuscleGroup.triceps, MuscleGroup.shoulders],
+      targetMuscles: [MuscleGroup.chest],
+      supportMuscles: [MuscleGroup.triceps, MuscleGroup.shoulders],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'latpulldown': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.back],
-      secondaryMuscles: [MuscleGroup.biceps],
+      targetMuscles: [MuscleGroup.back],
+      supportMuscles: [MuscleGroup.biceps, MuscleGroup.forearms],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'seatedrow': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.back],
-      secondaryMuscles: [MuscleGroup.biceps],
+      targetMuscles: [MuscleGroup.back],
+      supportMuscles: [MuscleGroup.biceps],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'shoulderpress': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.shoulders],
-      secondaryMuscles: [MuscleGroup.triceps],
+      targetMuscles: [MuscleGroup.shoulders],
+      supportMuscles: [MuscleGroup.triceps],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'facepull': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.shoulders],
-      secondaryMuscles: [MuscleGroup.back],
+      targetMuscles: [MuscleGroup.shoulders],
+      supportMuscles: [MuscleGroup.back],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'dumbbellcurl': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.biceps],
-      secondaryMuscles: [MuscleGroup.forearms],
+      targetMuscles: [MuscleGroup.biceps],
+      supportMuscles: [MuscleGroup.forearms],
+      exerciseType: ExerciseMuscleExerciseType.isolation,
     ),
     'legpress': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.quadriceps],
-      secondaryMuscles: [MuscleGroup.glutes, MuscleGroup.hamstrings],
+      targetMuscles: [MuscleGroup.quadriceps, MuscleGroup.glutes],
+      supportMuscles: [MuscleGroup.hamstrings],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'hacksquat': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.quadriceps],
-      secondaryMuscles: [MuscleGroup.glutes],
+      targetMuscles: [MuscleGroup.quadriceps],
+      supportMuscles: [MuscleGroup.glutes],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'squat': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.quadriceps],
-      secondaryMuscles: [MuscleGroup.glutes, MuscleGroup.hamstrings],
+      targetMuscles: [MuscleGroup.quadriceps, MuscleGroup.glutes],
+      supportMuscles: [MuscleGroup.hamstrings],
+      exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'legcurl': ExerciseMuscleMapping(
-      primaryMuscles: [MuscleGroup.hamstrings],
-      secondaryMuscles: [MuscleGroup.calves],
+      targetMuscles: [MuscleGroup.hamstrings],
+      supportMuscles: [MuscleGroup.calves],
+      exerciseType: ExerciseMuscleExerciseType.isolation,
     ),
   };
 
   static ExerciseMuscleMapping? resolve(TrainingExerciseIdentity identity) =>
-      _byExerciseKey[identity.exerciseKey];
+      resolveExerciseKey(identity.exerciseKey);
+
+  /// Default exercise-level profile. Equipment-specific overrides can be
+  /// layered here later without changing formal exercise identities.
+  static ExerciseMuscleMapping? resolveExerciseKey(String exerciseKey) =>
+      _byExerciseKey[exerciseKey];
 }
 
 /// Active analysis policy. It is separate from Formal Training Records.
@@ -277,7 +310,7 @@ class TrainingHistoryDomainService {
     for (final record in records) {
       for (final point in _exercisePoints(record)) {
         final mapping = ExerciseMuscleRegistry.resolve(point.identity);
-        if (mapping == null || !mapping.primaryMuscles.contains(muscle))
+        if (mapping == null || !mapping.targetMuscles.contains(muscle))
           continue;
         final exposure = _Exposure(record, point);
         if (point.startTime != null &&

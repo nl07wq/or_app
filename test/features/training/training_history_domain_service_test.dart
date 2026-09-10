@@ -6,6 +6,7 @@ import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
+import 'package:or_app/features/training/services/exercise_name_localization.dart';
 import 'package:or_app/features/training/services/training_exercise_identity.dart';
 import 'package:or_app/features/training/services/training_history_domain_service.dart';
 
@@ -65,7 +66,7 @@ void main() {
   );
 
   test(
-    'registry uses canonical exercise identity and preserves secondary data',
+    'registry uses canonical identity with target and support semantics',
     () {
       final point = service.exerciseHistory([_v2()]).single;
       final mapping = ExerciseMuscleRegistry.resolve(point.identity);
@@ -73,6 +74,12 @@ void main() {
       expect(point.maxWeight, 80);
       expect(point.recordedReps, 15);
       expect(point.recordedVolume, 1000);
+      expect(mapping?.targetMuscles, [MuscleGroup.chest]);
+      expect(mapping?.supportMuscles, [
+        MuscleGroup.triceps,
+        MuscleGroup.shoulders,
+      ]);
+      expect(mapping?.exerciseType, ExerciseMuscleExerciseType.compound);
       expect(mapping?.primaryMuscles, [MuscleGroup.chest]);
       expect(mapping?.secondaryMuscles, contains(MuscleGroup.triceps));
       expect(
@@ -86,6 +93,42 @@ void main() {
       );
     },
   );
+
+  test('models compound and isolation target/support profiles explicitly', () {
+    final latPulldown = ExerciseMuscleRegistry.resolveExerciseKey(
+      exerciseIdentityKey('Lat Pulldown'),
+    );
+    final shoulderPress = ExerciseMuscleRegistry.resolveExerciseKey(
+      exerciseIdentityKey('Shoulder Press'),
+    );
+    final legPress = ExerciseMuscleRegistry.resolveExerciseKey(
+      exerciseIdentityKey('Leg Press'),
+    );
+    final squat = ExerciseMuscleRegistry.resolveExerciseKey(
+      exerciseIdentityKey('Squat'),
+    );
+    final dumbbellCurl = ExerciseMuscleRegistry.resolveExerciseKey(
+      exerciseIdentityKey('Dumbbell Curl'),
+    );
+
+    expect(latPulldown?.targetMuscles, [MuscleGroup.back]);
+    expect(latPulldown?.supportMuscles, [
+      MuscleGroup.biceps,
+      MuscleGroup.forearms,
+    ]);
+    expect(shoulderPress?.targetMuscles, [MuscleGroup.shoulders]);
+    expect(shoulderPress?.supportMuscles, [MuscleGroup.triceps]);
+    expect(legPress?.targetMuscles, [
+      MuscleGroup.quadriceps,
+      MuscleGroup.glutes,
+    ]);
+    expect(legPress?.supportMuscles, [MuscleGroup.hamstrings]);
+    expect(squat?.targetMuscles, [MuscleGroup.quadriceps, MuscleGroup.glutes]);
+    expect(squat?.supportMuscles, [MuscleGroup.hamstrings]);
+    expect(dumbbellCurl?.exerciseType, ExerciseMuscleExerciseType.isolation);
+    expect(dumbbellCurl?.targetMuscles, [MuscleGroup.biceps]);
+    expect(dumbbellCurl?.supportMuscles, [MuscleGroup.forearms]);
+  });
 
   test('uses only formally recorded exercise RPE values in the average', () {
     final record = TrainingRecordReadModel.v2(
@@ -249,40 +292,65 @@ void main() {
     expect(recovery.displayProgressRatio, isNull);
     expect(recovery.estimatedReadyAt, isNull);
   });
+
+  test(
+    'recovery creates evidence for every target but never a support muscle',
+    () {
+      final legPress = _v2(exerciseName: 'Leg Press');
+      final quadriceps = service.recoveryEstimate(MuscleGroup.quadriceps, [
+        legPress,
+      ], now: DateTime.parse('2026-08-03T12:00:00+09:00'));
+      final glutes = service.recoveryEstimate(MuscleGroup.glutes, [
+        legPress,
+      ], now: DateTime.parse('2026-08-03T12:00:00+09:00'));
+      final hamstrings = service.recoveryEstimate(MuscleGroup.hamstrings, [
+        legPress,
+      ], now: DateTime.parse('2026-08-03T12:00:00+09:00'));
+      final benchTriceps = service.recoveryEstimate(MuscleGroup.triceps, [
+        _v2(),
+      ], now: DateTime.parse('2026-08-03T12:00:00+09:00'));
+
+      expect(quadriceps.precision, RecoveryPrecision.exact);
+      expect(glutes.precision, RecoveryPrecision.exact);
+      expect(hamstrings.precision, RecoveryPrecision.unavailable);
+      expect(benchTriceps.precision, RecoveryPrecision.unavailable);
+    },
+  );
 }
 
-TrainingRecordReadModel _v2() => TrainingRecordReadModel.v2(
-  id: 'v2',
-  localDate: '2026-08-03',
-  createdAt: DateTime.utc(2026, 8, 3),
-  updatedAt: DateTime.utc(2026, 8, 3),
-  data: TrainingSessionV2(
-    date: '2026-08-03T00:00:00.000',
-    startTime: '2026-08-03T10:00:00+09:00',
-    endTime: '2026-08-03T11:00:00+09:00',
-    exercises: [
-      TrainingExerciseV2(
-        exerciseName: 'Bench Press',
-        order: 1,
-        sets: [
-          TrainingSetV2(
-            setNo: 1,
-            setType: TrainingSetType.warmUp,
-            weightKg: 40,
-            reps: 5,
-          ),
-          TrainingSetV2(
-            setNo: 2,
-            setType: TrainingSetType.main,
-            weightKg: 80,
-            reps: 10,
-            rpe: 8,
+TrainingRecordReadModel _v2({String exerciseName = 'Bench Press'}) =>
+    TrainingRecordReadModel.v2(
+      id: 'v2',
+      localDate: '2026-08-03',
+      createdAt: DateTime.utc(2026, 8, 3),
+      updatedAt: DateTime.utc(2026, 8, 3),
+      data: TrainingSessionV2(
+        date: '2026-08-03T00:00:00.000',
+        startTime: '2026-08-03T10:00:00+09:00',
+        endTime: '2026-08-03T11:00:00+09:00',
+        exercises: [
+          TrainingExerciseV2(
+            exerciseName: exerciseName,
+            order: 1,
+            sets: [
+              TrainingSetV2(
+                setNo: 1,
+                setType: TrainingSetType.warmUp,
+                weightKg: 40,
+                reps: 5,
+              ),
+              TrainingSetV2(
+                setNo: 2,
+                setType: TrainingSetType.main,
+                weightKg: 80,
+                reps: 10,
+                rpe: 8,
+              ),
+            ],
           ),
         ],
       ),
-    ],
-  ),
-);
+    );
 
 TrainingRecordReadModel _v1() => TrainingRecordReadModel.v1(
   id: 'v1',
