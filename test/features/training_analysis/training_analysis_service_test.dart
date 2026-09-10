@@ -40,8 +40,8 @@ void main() {
         preparation.prompt,
         isNot(contains('"operationDate": "2026-08-15"')),
       );
-      expect(preparation.prompt, contains('"changeFromCurrent"'));
-      expect(preparation.prompt, contains('"volumeKg"'));
+      expect(preparation.prompt, contains('"recentHistoryOperationDates"'));
+      expect(preparation.prompt, contains('"recordedVolumeKg"'));
     },
   );
 
@@ -118,6 +118,35 @@ void main() {
       expect(noChange.result, ReportSyncHistoryResult.noChange);
       expect(noChange.report.revision, 2);
       expect(noChange.report.previousRevisions, hasLength(1));
+    },
+  );
+
+  test(
+    'marks a saved report stale when its Formal Training facts change',
+    () async {
+      final fixture = await _fixture(now);
+      final preparation = await fixture.service.prepare(fixture.targetId);
+      final preview = await fixture.service.preview(
+        fixture.targetId,
+        fixture.container.reportSyncCodec.encode(
+          _response(
+            fixture.container,
+            targetId: fixture.targetId,
+            sourceDigest: preparation.sourceDigest,
+            exchangeId: 'training-analysis-response:stale',
+            summary: '保存済み分析です。',
+            now: now,
+          ),
+        ),
+      );
+      final imported = await fixture.service.apply(preview);
+
+      expect(await fixture.service.isCurrent(imported.report), isTrue);
+      await fixture.container.training.updateV2ById(
+        fixture.targetId,
+        _session('2026-08-21', 71),
+      );
+      expect(await fixture.service.isCurrent(imported.report), isFalse);
     },
   );
 }

@@ -19,6 +19,7 @@ import 'package:or_app/features/training/services/training_plan_service.dart';
 import 'package:or_app/features/training/services/training_v2_form_mapper.dart';
 import 'package:or_app/features/training/training_plan_import_page.dart';
 import 'package:or_app/features/training_analysis/models/training_analysis_report.dart';
+import 'package:or_app/features/training_analysis/services/training_analysis_service.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -69,6 +70,24 @@ void main() {
     expect(preparation.prompt, isNot(contains('2026-08-18')));
     expect(preparation.prompt, contains('"weightTrendKg"'));
     expect(preparation.prompt, contains('"volumeTrendKg"'));
+  });
+
+  test('omits stale analysis from a Training Plan fact package', () async {
+    final fixture = await _fixture();
+    await fixture.container.training.updateV2ById(
+      fixture.targetId,
+      _session(24),
+    );
+
+    final preparation = await fixture.service.prepare(
+      targetRecordId: fixture.targetId,
+    );
+
+    expect(preparation.prompt, contains('"latestAnalysis": null'));
+    expect(
+      preparation.prompt,
+      isNot(contains('"sessionSummary": "Latest analysis"')),
+    );
   });
 
   test('validates ranges and applies a version 3 plan-only draft', () async {
@@ -630,7 +649,9 @@ Future<_Fixture> _fixture({List<int> latestCardioDays = const []}) async {
   final report = TrainingAnalysisReport.initial(
     targetRecordId: target.id,
     operationDate: target.localDate,
-    sourceDigest: 'a' * 64,
+    sourceDigest: await TrainingAnalysisService(
+      container: container,
+    ).sourceDigestFor(target.id),
     responseDigest: 'b' * 64,
     exchangeId: 'analysis-1',
     timestamp: DateTime.utc(2026, 8, 24, 12),

@@ -7,10 +7,12 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_record_read_model.dart';
+import '../../training/services/training_volume_formatter.dart';
 import '../../training/training_plan_import_page.dart';
 import '../../report_sync/widgets/report_sync_action_bar.dart';
 import '../models/training_analysis_report.dart';
 import '../services/training_analysis_service.dart';
+import '../services/training_analysis_metrics_adapter.dart';
 
 class TrainingAnalysisPage extends StatefulWidget {
   const TrainingAnalysisPage({super.key, this.targetRecordId});
@@ -25,6 +27,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
   late Future<List<TrainingRecordReadModel>> _records;
   String? _targetRecordId;
   TrainingAnalysisReport? _report;
+  bool? _reportIsCurrent;
 
   @override
   void initState() {
@@ -39,13 +42,22 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
     if (id == null) return;
     final report = await AppRepositoryRegistry.container.trainingAnalysisReports
         .read(id);
-    if (mounted) setState(() => _report = report);
+    final isCurrent = report == null
+        ? null
+        : await TrainingAnalysisService().isCurrent(report);
+    if (mounted) {
+      setState(() {
+        _report = report;
+        _reportIsCurrent = isCurrent;
+      });
+    }
   }
 
   void _select(TrainingRecordReadModel record) {
     setState(() {
       _targetRecordId = record.id;
       _report = null;
+      _reportIsCurrent = null;
     });
     _loadReport();
   }
@@ -66,6 +78,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
               onPressed: () => setState(() {
                 _targetRecordId = null;
                 _report = null;
+                _reportIsCurrent = null;
               }),
               icon: const Icon(Icons.list_alt_outlined),
             ),
@@ -95,7 +108,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
                     child: Text('Target Training Recordが見つかりません。'),
                   );
                 }
-                return _buildReportFlow(target.single);
+                return _buildReportFlow(target.single, snapshot.data!);
               },
             ),
           ),
@@ -104,7 +117,14 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
     );
   }
 
-  Widget _buildReportFlow(TrainingRecordReadModel target) {
+  Widget _buildReportFlow(
+    TrainingRecordReadModel target,
+    List<TrainingRecordReadModel> records,
+  ) {
+    final metrics = const TrainingAnalysisMetricsAdapter().build(
+      target: target,
+      records: records,
+    );
     return ListView(
       padding: AppSpacing.cardPadding,
       children: [
@@ -126,11 +146,31 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
                       ? 'REV ${_report!.revision}  LATEST'
                       : 'LATEST',
                 ),
+              if (_report != null)
+                Text(
+                  _reportIsCurrent == true
+                      ? 'ANALYSIS CURRENT'
+                      : 'ANALYSIS OUTDATED',
+                  style: TextStyle(
+                    color: _reportIsCurrent == true
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.error,
+                  ),
+                ),
             ],
           ),
         ),
         AppSpacing.gapMD,
-        if (_report != null) _ReportView(report: _report!),
+        if (_report != null && _reportIsCurrent != true) ...[
+          _StaleAnalysisWarning(),
+          AppSpacing.gapMD,
+        ],
+        if (_report != null)
+          _ReportView(
+            report: _report!,
+            metrics: metrics,
+            isCurrent: _reportIsCurrent == true,
+          ),
         if (_report != null) ...[
           AppSpacing.gapMD,
           OperationCard(
@@ -472,9 +512,15 @@ class _RecordSelector extends StatelessWidget {
 }
 
 class _ReportView extends StatelessWidget {
-  const _ReportView({required this.report});
+  const _ReportView({
+    required this.report,
+    required this.metrics,
+    required this.isCurrent,
+  });
 
   final TrainingAnalysisReport report;
+  final TrainingAnalysisMetrics metrics;
+  final bool isCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -484,35 +530,19 @@ class _ReportView extends StatelessWidget {
         const _ReportSectionTitle(
           key: ValueKey('training-analysis-summary-section'),
           icon: Icons.summarize_outlined,
-          title: 'SUMMARY',
-        ),
-        AppSpacing.gapMD,
-        _AnalysisCard(
-          key: const ValueKey('training-analysis-session-summary'),
-          icon: Icons.article_outlined,
           title: 'SESSION SUMMARY',
-          text: report.analysis.sessionSummary,
         ),
         AppSpacing.gapMD,
-        _AnalysisCard(
-          key: const ValueKey('training-analysis-performance'),
-          icon: Icons.analytics_outlined,
-          title: 'PERFORMANCE',
-          text: report.analysis.performanceAnalysis,
-        ),
-        AppSpacing.gapMD,
-        _AnalysisCard(
-          key: const ValueKey('training-analysis-previous-session'),
-          icon: Icons.history_outlined,
-          title: 'PREVIOUS SESSION',
-          text: report.analysis.previousComparison,
-        ),
-        AppSpacing.gapMD,
-        _AnalysisCard(
-          key: const ValueKey('training-analysis-progress'),
-          icon: Icons.trending_up_outlined,
-          title: 'PROGRESS',
-          text: report.analysis.progressAnalysis,
+        _SessionMetricsCard(metrics: metrics.session),
+        AppSpacing.gapLG,
+        _NarrativeCard(
+          title: isCurrent ? 'SESSION ANALYSIS' : 'SAVED ANALYSIS SNAPSHOT',
+          values: [
+            ('SESSION SUMMARY', report.analysis.sessionSummary),
+            ('PERFORMANCE', report.analysis.performanceAnalysis),
+            ('RECENT HISTORY NOTES', report.analysis.previousComparison),
+            ('PROGRESS', report.analysis.progressAnalysis),
+          ],
         ),
         AppSpacing.gapXL,
         const _ReportSectionTitle(
@@ -522,7 +552,10 @@ class _ReportView extends StatelessWidget {
         ),
         for (final exercise in report.analysis.exerciseAnalyses) ...[
           AppSpacing.gapMD,
-          _ExerciseAnalysisCard(exercise: exercise),
+          _ExerciseAnalysisCard(
+            exercise: exercise,
+            metrics: _metricsFor(exercise.exerciseIdentity),
+          ),
         ],
         AppSpacing.gapXL,
         const _ReportSectionTitle(
@@ -541,7 +574,7 @@ class _ReportView extends StatelessWidget {
         _AnalysisCard(
           key: const ValueKey('training-analysis-recovery'),
           icon: Icons.bedtime_outlined,
-          title: 'RECOVERY / FREQUENCY',
+          title: 'RECOVERY / FREQUENCY NOTES',
           text: report.analysis.recoveryFrequencyComment,
         ),
         AppSpacing.gapMD,
@@ -554,6 +587,87 @@ class _ReportView extends StatelessWidget {
       ],
     );
   }
+
+  TrainingAnalysisExerciseMetrics? _metricsFor(String identity) {
+    for (final value in metrics.exercises) {
+      if ('${value.identity.exerciseKey}|${value.identity.equipmentKey}' ==
+          identity) {
+        return value;
+      }
+    }
+    return null;
+  }
+}
+
+class _StaleAnalysisWarning extends StatelessWidget {
+  const _StaleAnalysisWarning();
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    key: const ValueKey('training-analysis-stale-warning'),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.warning_amber_outlined,
+          color: Theme.of(context).colorScheme.error,
+        ),
+        AppSpacing.gapSM,
+        const Expanded(
+          child: Text(
+            'ANALYSIS OUTDATED\n'
+            '分析結果が現在のTraining Recordと一致していません。保存済みの内容は履歴として表示しています。再生成してください。',
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _SessionMetricsCard extends StatelessWidget {
+  const _SessionMetricsCard({required this.metrics});
+
+  final TrainingAnalysisSessionMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    key: const ValueKey('training-analysis-session-metrics'),
+    child: _MetricGrid(
+      values: [
+        _MetricValue('DURATION', _durationValue(metrics.duration), ''),
+        _MetricValue('EXERCISES', '${metrics.exerciseCount}', ''),
+        _MetricValue(
+          'RECORDED SETS',
+          _integerValue(metrics.recordedSetCount),
+          '',
+        ),
+        _MetricValue('TOTAL REPS', _integerValue(metrics.totalReps), 'reps'),
+        _volumeMetric('RECORDED VOLUME', metrics.recordedVolume),
+        _volumeMetric('MAIN SET VOLUME', metrics.workingVolume),
+        _MetricValue('AVERAGE RPE', _rpeValue(metrics.averageRpe), ''),
+      ],
+    ),
+  );
+}
+
+class _NarrativeCard extends StatelessWidget {
+  const _NarrativeCard({required this.title, required this.values});
+
+  final String title;
+  final List<(String, String)> values;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CardTitle(icon: Icons.article_outlined, title: title),
+        AppSpacing.gapMD,
+        for (final (label, text) in values)
+          _LabelText(label: label, text: text, isLast: label == values.last.$1),
+      ],
+    ),
+  );
 }
 
 class _AnalysisCard extends StatelessWidget {
@@ -582,9 +696,10 @@ class _AnalysisCard extends StatelessWidget {
 }
 
 class _ExerciseAnalysisCard extends StatelessWidget {
-  const _ExerciseAnalysisCard({required this.exercise});
+  const _ExerciseAnalysisCard({required this.exercise, required this.metrics});
 
   final TrainingExerciseAnalysis exercise;
+  final TrainingAnalysisExerciseMetrics? metrics;
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -594,10 +709,30 @@ class _ExerciseAnalysisCard extends StatelessWidget {
       children: [
         _CardTitle(
           icon: Icons.fitness_center,
-          title: exercise.exerciseName.toUpperCase(),
+          title: metrics?.exerciseName ?? exercise.exerciseName.toUpperCase(),
           prominent: true,
         ),
+        if (metrics?.equipmentLabel != null) ...[
+          AppSpacing.gapXS,
+          Text(
+            metrics!.equipmentLabel!,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ] else ...[
+          AppSpacing.gapXS,
+          const Text('EQUIPMENT NOT RECORDED'),
+        ],
         AppSpacing.gapLG,
+        if (metrics != null) ...[
+          const Text('CURRENT METRICS'),
+          AppSpacing.gapSM,
+          _MetricGrid(values: _currentMetricValues(metrics!.current)),
+          AppSpacing.gapLG,
+          _ExerciseComparison(metrics: metrics!),
+          AppSpacing.gapLG,
+        ],
         _LabelText(label: 'CURRENT / ASSESSMENT', text: exercise.assessment),
         _LabelText(label: 'VS PREVIOUS', text: exercise.previousComparison),
         _LabelText(label: 'ANALYSIS / PROGRESS', text: exercise.progress),
@@ -606,6 +741,241 @@ class _ExerciseAnalysisCard extends StatelessWidget {
     ),
   );
 }
+
+class _ExerciseComparison extends StatelessWidget {
+  const _ExerciseComparison({required this.metrics});
+
+  final TrainingAnalysisExerciseMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final previous = metrics.previous;
+    if (previous == null) {
+      return const Text('PREVIOUS: NOT AVAILABLE');
+    }
+    final rows = <_ComparisonRow>[
+      _comparisonRow(
+        'MAX WEIGHT',
+        metrics.current.maxWeight,
+        previous.maxWeight,
+        'kg',
+      ),
+      _comparisonRow(
+        'TOTAL REPS',
+        metrics.current.totalReps?.toDouble(),
+        previous.totalReps?.toDouble(),
+        'reps',
+      ),
+      _comparisonRow(
+        'RECORDED SETS',
+        metrics.current.recordedSetCount?.toDouble(),
+        previous.recordedSetCount?.toDouble(),
+        '',
+      ),
+      _comparisonRow(
+        'RECORDED VOLUME',
+        metrics.current.recordedVolume,
+        previous.recordedVolume,
+        'volume',
+      ),
+      _comparisonRow(
+        'MAIN SET VOLUME',
+        metrics.current.workingVolume,
+        previous.workingVolume,
+        'volume',
+      ),
+      _comparisonRow(
+        'AVERAGE RPE',
+        metrics.current.averageRpe,
+        previous.averageRpe,
+        'rpe',
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('PREVIOUS — SAME EXERCISE / EQUIPMENT'),
+        if (metrics.recentHistory.isNotEmpty) ...[
+          AppSpacing.gapXS,
+          Text(
+            'RECENT HISTORY  ${metrics.recentHistory.map((value) => value.operationDate).join(' / ')}',
+          ),
+        ],
+        AppSpacing.gapSM,
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(1.5),
+            1: FlexColumnWidth(),
+            2: FlexColumnWidth(),
+            3: FlexColumnWidth(),
+          },
+          children: [
+            const TableRow(
+              children: [
+                _ComparisonHeader('METRIC'),
+                _ComparisonHeader('CURRENT'),
+                _ComparisonHeader('PREVIOUS'),
+                _ComparisonHeader('CHANGE'),
+              ],
+            ),
+            for (final row in rows) row.toTableRow(),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ComparisonHeader extends StatelessWidget {
+  const _ComparisonHeader(this.value);
+  final String value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(AppSpacing.xs),
+    child: Text(value, style: Theme.of(context).textTheme.labelSmall),
+  );
+}
+
+class _ComparisonRow {
+  const _ComparisonRow(this.label, this.current, this.previous, this.kind);
+  final String label;
+  final double? current;
+  final double? previous;
+  final String kind;
+
+  TableRow toTableRow() => TableRow(
+    children: [
+      _ComparisonCell(label),
+      _ComparisonCell(_comparisonValue(current, kind)),
+      _ComparisonCell(_comparisonValue(previous, kind)),
+      _ComparisonCell(
+        current == null || previous == null
+            ? '—'
+            : _comparisonValue(current! - previous!, kind, signed: true),
+      ),
+    ],
+  );
+}
+
+class _ComparisonCell extends StatelessWidget {
+  const _ComparisonCell(this.value);
+  final String value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(AppSpacing.xs),
+    child: Text(value, style: Theme.of(context).textTheme.bodySmall),
+  );
+}
+
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.values});
+  final List<_MetricValue> values;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = constraints.maxWidth >= 620 ? 3 : 2;
+      final width =
+          (constraints.maxWidth - AppSpacing.sm * (columns - 1)) / columns;
+      return Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          for (final value in values)
+            SizedBox(
+              width: width,
+              child: _MetricTile(value: value),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({required this.value});
+  final _MetricValue value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(AppSpacing.sm),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value.label, style: Theme.of(context).textTheme.labelSmall),
+        AppSpacing.gapXS,
+        Text(
+          value.display,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        if (value.unit.isNotEmpty)
+          Text(value.unit, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    ),
+  );
+}
+
+class _MetricValue {
+  const _MetricValue(this.label, this.display, this.unit);
+  final String label;
+  final String display;
+  final String unit;
+}
+
+List<_MetricValue> _currentMetricValues(
+  TrainingAnalysisExerciseMetricValues values,
+) => [
+  _MetricValue('MAX WEIGHT', _weightValue(values.maxWeight), 'kg'),
+  _MetricValue('TOTAL REPS', _integerValue(values.totalReps), 'reps'),
+  _MetricValue('RECORDED SETS', _integerValue(values.recordedSetCount), ''),
+  _volumeMetric('RECORDED VOLUME', values.recordedVolume),
+  _volumeMetric('MAIN SET VOLUME', values.workingVolume),
+  _MetricValue('AVERAGE RPE', _rpeValue(values.averageRpe), ''),
+];
+
+_MetricValue _volumeMetric(String label, double? value) {
+  if (value == null) return _MetricValue(label, '—', '');
+  final display = TrainingVolumeFormatter.display(value);
+  return _MetricValue(label, display.value, display.unit);
+}
+
+_ComparisonRow _comparisonRow(
+  String label,
+  double? current,
+  double? previous,
+  String kind,
+) => _ComparisonRow(label, current, previous, kind);
+
+String _comparisonValue(double? value, String kind, {bool signed = false}) {
+  if (value == null) return '—';
+  final prefix = signed && value > 0 ? '+' : '';
+  return switch (kind) {
+    'kg' => '$prefix${_weightValue(value)} kg',
+    'reps' => '$prefix${value.round()} reps',
+    'volume' => '$prefix${TrainingVolumeFormatter.format(value)}',
+    'rpe' => '$prefix${_rpeValue(value)}',
+    _ => '$prefix${value.round()}',
+  };
+}
+
+String _integerValue(int? value) => value?.toString() ?? '—';
+String _weightValue(double? value) => value == null
+    ? '—'
+    : value == value.roundToDouble()
+    ? value.round().toString()
+    : value.toStringAsFixed(1);
+String _rpeValue(double? value) => value?.toStringAsFixed(1) ?? '—';
+String _durationValue(Duration? value) => value == null
+    ? '—'
+    : '${value.inHours.toString().padLeft(2, '0')}:'
+          '${value.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
+          '${value.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
 class _ReportSectionTitle extends StatelessWidget {
   const _ReportSectionTitle({

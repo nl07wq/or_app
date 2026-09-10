@@ -2,8 +2,6 @@ import 'dart:convert';
 
 import '../../../core/models/training_exercise.dart';
 import '../../../core/models/training_exercise_v2.dart';
-import '../../../core/models/training_set.dart';
-import '../../../core/models/training_set_v2.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../repositories/app_repository_container.dart';
@@ -14,6 +12,7 @@ import '../../report_sync/services/report_sync_canonical_service.dart';
 import '../../training/models/training_record_read_model.dart';
 import '../../training/services/training_exercise_identity.dart';
 import '../models/training_analysis_report.dart';
+import 'training_analysis_metrics_adapter.dart';
 
 class TrainingAnalysisPreparation {
   const TrainingAnalysisPreparation({
@@ -97,6 +96,14 @@ class TrainingAnalysisService {
     );
   }
 
+  /// The single freshness boundary for import validation, report display, and
+  /// downstream consumers such as Training Plan generation.
+  Future<String> sourceDigestFor(String targetRecordId) async =>
+      ReportSyncCanonicalService.digest(await _factPackage(targetRecordId));
+
+  Future<bool> isCurrent(TrainingAnalysisReport report) async =>
+      report.sourceDigest == await sourceDigestFor(report.targetRecordId);
+
   Future<TrainingAnalysisPreview> preview(
     String targetRecordId,
     String rawResponse,
@@ -128,9 +135,7 @@ class TrainingAnalysisService {
         'Target Training operationDate does not match.',
       );
     }
-    final currentDigest = ReportSyncCanonicalService.digest(
-      await _factPackage(targetRecordId),
-    );
+    final currentDigest = await sourceDigestFor(targetRecordId);
     if (payload['sourceDigest'] != currentDigest) {
       throw const ReportSyncException(
         ReportSyncIssueCode.integrityFailure,
@@ -259,6 +264,10 @@ class TrainingAnalysisService {
     final target = await _requireTarget(targetRecordId);
     final records = await _container.training.findAllRecords();
     final currentExercises = _exerciseFacts(target);
+    final metrics = const TrainingAnalysisMetricsAdapter().build(
+      target: target,
+      records: records,
+    );
     return {
       'operationDate': target.localDate,
       'targetRecordId': target.id,
@@ -270,11 +279,43 @@ class TrainingAnalysisService {
             'exerciseIdentity': current.identity,
             'exerciseName': current.name,
             'current': current.fact,
+            'metrics': _metricsFor(metrics, current.identity),
             'previous': _comparableFacts(records, target, current),
           },
       ],
     };
   }
+
+  Map<String, Object?> _metricsFor(
+    TrainingAnalysisMetrics metrics,
+    String identity,
+  ) {
+    final exercise = metrics.exercises.firstWhere(
+      (value) =>
+          '${value.identity.exerciseKey}|${value.identity.equipmentKey}' ==
+          identity,
+    );
+    return {
+      'current': _metricValues(exercise.current),
+      'previous': exercise.previous == null
+          ? null
+          : _metricValues(exercise.previous!),
+      'recentHistoryOperationDates': [
+        for (final value in exercise.recentHistory) value.operationDate,
+      ],
+    };
+  }
+
+  Map<String, Object?> _metricValues(
+    TrainingAnalysisExerciseMetricValues values,
+  ) => {
+    'maxWeightKg': values.maxWeight,
+    'totalReps': values.totalReps,
+    'recordedSetCount': values.recordedSetCount,
+    'recordedVolumeKg': values.recordedVolume,
+    'workingVolumeKg': values.workingVolume,
+    'averageRpe': values.averageRpe,
+  };
 
   Future<TrainingRecordReadModel> _requireTarget(String id) async {
     final target = await _container.training.findRecordById(id);
@@ -309,20 +350,10 @@ class TrainingAnalysisService {
       }
       for (final exercise in _exerciseFacts(record)) {
         if (exercise.identity != current.identity) continue;
-        final elapsed = DateTime.parse(
-          target.localDate,
-        ).difference(DateTime.parse(record.localDate)).inDays;
         results.add({
           'recordId': record.id,
           'operationDate': record.localDate,
-          'elapsedDays': elapsed,
           'fact': exercise.fact,
-          'changeFromCurrent': {
-            'weightKg': current.topWeightKg - exercise.topWeightKg,
-            'reps': current.totalReps - exercise.totalReps,
-            'sets': current.setCount - exercise.setCount,
-            'volumeKg': current.volumeKg - exercise.volumeKg,
-          },
         });
         break;
       }
@@ -437,54 +468,28 @@ class _ExerciseFact {
     required this.identity,
     required this.name,
     required this.fact,
-    required this.topWeightKg,
-    required this.totalReps,
-    required this.setCount,
-    required this.volumeKg,
   });
 
   factory _ExerciseFact.v2(TrainingExerciseV2 exercise) {
-    final sets = exercise.sets;
     return _ExerciseFact(
       identity: _identity(TrainingExerciseIdentity.v2(exercise)),
       name: exercise.exerciseName,
       fact: exercise.toJson(),
-      topWeightKg: _topWeightV2(sets),
-      totalReps: sets.fold(0, (sum, set) => sum + set.reps),
-      setCount: sets.length,
-      volumeKg: sets.fold(0, (sum, set) => sum + set.weightKg * set.reps),
     );
   }
 
   factory _ExerciseFact.v1(TrainingExercise exercise) {
-    final sets = exercise.sets;
     return _ExerciseFact(
       identity: _identity(TrainingExerciseIdentity.v1(exercise)),
       name: exercise.exerciseName,
       fact: exercise.toJson(),
-      topWeightKg: _topWeightV1(sets),
-      totalReps: sets.fold(0, (sum, set) => sum + set.reps),
-      setCount: sets.length,
-      volumeKg: sets.fold(0, (sum, set) => sum + set.weight * set.reps),
     );
   }
 
   final String identity;
   final String name;
   final Map<String, Object?> fact;
-  final double topWeightKg;
-  final int totalReps;
-  final int setCount;
-  final double volumeKg;
 
   static String _identity(TrainingExerciseIdentity value) =>
       '${value.exerciseKey}|${value.equipmentKey}';
-
-  static double _topWeightV2(List<TrainingSetV2> sets) => sets.isEmpty
-      ? 0
-      : sets.map((set) => set.weightKg).reduce((a, b) => a > b ? a : b);
-
-  static double _topWeightV1(List<TrainingSet> sets) => sets.isEmpty
-      ? 0
-      : sets.map((set) => set.weight).reduce((a, b) => a > b ? a : b);
 }

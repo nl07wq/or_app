@@ -56,26 +56,26 @@ void main() {
 
       expect(find.text('TRAINING ANALYSIS REPORT'), findsWidgets);
       expect(find.text('REV 2  LATEST'), findsOneWidget);
-      expect(find.text('SUMMARY'), findsOneWidget);
-      expect(find.text('SESSION SUMMARY'), findsOneWidget);
+      expect(find.text('SESSION SUMMARY'), findsWidgets);
       expect(find.text('PERFORMANCE'), findsOneWidget);
-      expect(find.text('PREVIOUS SESSION'), findsOneWidget);
+      expect(find.text('SESSION ANALYSIS'), findsOneWidget);
       expect(find.text('PROGRESS'), findsOneWidget);
       expect(find.text('EXERCISE BREAKDOWN'), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('training-analysis-exercise-bench-press')),
+        find.byKey(
+          const ValueKey('training-analysis-exercise-benchpress|none'),
+        ),
         findsOneWidget,
       );
+      expect(find.text('CURRENT METRICS'), findsOneWidget);
       expect(find.text('CURRENT / ASSESSMENT'), findsOneWidget);
       expect(find.text('VS PREVIOUS'), findsOneWidget);
       expect(find.text('ANALYSIS / PROGRESS'), findsOneWidget);
       expect(find.text('NEXT'), findsOneWidget);
       expect(find.text('NEXT ACTIONS'), findsOneWidget);
       expect(find.text('NEXT SESSION'), findsOneWidget);
-      expect(find.text('RECOVERY / FREQUENCY'), findsOneWidget);
+      expect(find.text('RECOVERY / FREQUENCY NOTES'), findsOneWidget);
       expect(find.text('RISK / ATTENTION'), findsOneWidget);
-      expect(find.text('CREATE ANALYSIS REPORT'), findsOneWidget);
-      expect(find.text('CREATE NEXT PLAN'), findsOneWidget);
       expect(find.text('RESPONSE JSON'), findsNothing);
       expect(find.text(_sessionSummary), findsOneWidget);
       expect(find.text(_performance), findsOneWidget);
@@ -89,6 +89,13 @@ void main() {
       expect(find.text(_recovery), findsOneWidget);
       expect(find.text(_risk), findsOneWidget);
       await tester.scrollUntilVisible(
+        find.text('CREATE ANALYSIS REPORT'),
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('CREATE ANALYSIS REPORT'), findsOneWidget);
+      expect(find.text('CREATE NEXT PLAN'), findsOneWidget);
+      await tester.scrollUntilVisible(
         find.text('PREVIOUS REVISIONS'),
         500,
         scrollable: find.byType(Scrollable).first,
@@ -97,6 +104,11 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(fixture.report.analysis.toJson(), fixture.analysisBefore);
 
+      await tester.scrollUntilVisible(
+        find.text('CREATE ANALYSIS REPORT'),
+        -500,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('CREATE ANALYSIS REPORT'));
       await tester.pumpAndSettle();
       expect(find.byType(TrainingAnalysisCreatePage), findsOneWidget);
@@ -115,6 +127,19 @@ void main() {
     expect(find.text('LATEST'), findsOneWidget);
     expect(find.textContaining('REV 1'), findsNothing);
     expect(fixture.report.revision, 1);
+  });
+
+  testWidgets('stale Analysis remains viewable with a regeneration warning', (
+    tester,
+  ) async {
+    await _pumpReport(tester, width: 390, stale: true);
+
+    expect(
+      find.byKey(const ValueKey('training-analysis-stale-warning')),
+      findsOneWidget,
+    );
+    expect(find.text('ANALYSIS OUTDATED'), findsWidgets);
+    expect(find.text(_sessionSummary), findsOneWidget);
   });
 
   testWidgets('valid Analysis shows compact initial READY preview', (
@@ -197,6 +222,7 @@ Future<_Fixture> _pumpReport(
   WidgetTester tester, {
   required double width,
   bool initialOnly = false,
+  bool stale = false,
 }) async {
   tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
@@ -225,19 +251,23 @@ Future<_Fixture> _pumpReport(
       ],
     ),
   );
+  final currentDigest = await TrainingAnalysisService(
+    container: container,
+  ).sourceDigestFor(record.id);
   final initial = TrainingAnalysisReport.initial(
     targetRecordId: record.id,
     operationDate: record.localDate,
-    sourceDigest: _digest('a'),
+    sourceDigest: stale ? _digest('d') : currentDigest,
     responseDigest: _digest('b'),
     exchangeId: 'analysis-response-1',
     timestamp: DateTime.utc(2026, 8, 24, 12),
     analysis: _analysis('previous'),
   );
+  final sourceDigest = initial.sourceDigest;
   final report = initialOnly
       ? initial
       : initial.revise(
-          sourceDigest: _digest('a'),
+          sourceDigest: sourceDigest,
           responseDigest: _digest('c'),
           exchangeId: 'analysis-response-2',
           timestamp: DateTime.utc(2026, 8, 24, 13),
@@ -270,7 +300,7 @@ TrainingAnalysis _analysis(String revision) => TrainingAnalysis(
   riskAttentionNotes: _risk,
   exerciseAnalyses: const [
     TrainingExerciseAnalysis(
-      exerciseIdentity: 'bench-press',
+      exerciseIdentity: 'benchpress|none',
       exerciseName: 'Bench Press',
       assessment: _assessment,
       previousComparison: _exercisePrevious,

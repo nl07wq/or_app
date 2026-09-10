@@ -9,6 +9,8 @@ import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/models/report_sync_issue.dart';
 import '../../report_sync/services/report_sync_canonical_service.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../training_analysis/models/training_analysis_report.dart';
+import '../../training_analysis/services/training_analysis_service.dart';
 import '../models/active_training_draft.dart';
 import '../models/training_plan_proposal.dart';
 import '../models/training_record_read_model.dart';
@@ -286,7 +288,7 @@ class TrainingPlanService {
     final allowed = await _allowedExercises(records);
     final latestAnalysis = strengthReference == null
         ? null
-        : await _container.trainingAnalysisReports.read(strengthReference.id);
+        : await _currentAnalysisFor(strengthReference);
     return {
       'operationDate': state.operationDate.value,
       'referenceMode': targetRecordId == null ? 'auto' : 'selected',
@@ -310,7 +312,7 @@ class TrainingPlanService {
                   ),
                 },
             ],
-      'latestAnalysis': latestAnalysis?.analysis.toJson(),
+      'latestAnalysis': latestAnalysis?.toJson(),
       'availableExercises': [
         for (final value in allowed.values)
           {
@@ -320,6 +322,17 @@ class TrainingPlanService {
           },
       ],
     };
+  }
+
+  Future<TrainingAnalysis?> _currentAnalysisFor(
+    TrainingRecordReadModel reference,
+  ) async {
+    final report = await _container.trainingAnalysisReports.read(reference.id);
+    if (report == null) return null;
+    final isCurrent = await TrainingAnalysisService(
+      container: _container,
+    ).isCurrent(report);
+    return isCurrent ? report.analysis : null;
   }
 
   /// `referenceMode` describes the page selection, not a Formal Training fact.
