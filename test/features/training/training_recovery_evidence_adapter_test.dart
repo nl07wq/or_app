@@ -13,7 +13,7 @@ import 'package:or_app/features/training/services/training_recovery_evidence_ada
 void main() {
   const adapter = TrainingRecoveryEvidenceAdapter();
 
-  test('uses the latest formal PRIMARY exposure and its exact start time', () {
+  test('uses the latest formal PRIMARY exposure and its exact end time', () {
     final evidence = adapter.evidence(
       [
         _v2('bench', '2026-08-01', '2026-08-01T10:00:00+09:00', 'Bench Press'),
@@ -30,7 +30,7 @@ void main() {
     expect(chest.estimate.lastExposureOperationDate, '2026-08-03');
     expect(
       chest.estimate.lastExposureDateTime,
-      DateTime.parse('2026-08-03T20:14:00+09:00'),
+      DateTime.parse('2026-08-03T20:15:00+09:00'),
     );
     expect(chest.estimate.precision, RecoveryPrecision.exact);
     expect(chest.source.exerciseLabel, 'チェストプレス');
@@ -316,8 +316,9 @@ TrainingRecordReadModel _v2(
   String id,
   String date,
   String startTime,
-  String exerciseName,
-) => TrainingRecordReadModel.v2(
+  String exerciseName, {
+  String? endTime,
+}) => TrainingRecordReadModel.v2(
   id: id,
   localDate: date,
   createdAt: DateTime.utc(2030, 1, 1),
@@ -325,6 +326,11 @@ TrainingRecordReadModel _v2(
   data: TrainingSessionV2(
     date: '${date}T00:00:00.000',
     startTime: startTime,
+    endTime:
+        endTime ??
+        DateTime.parse(
+          startTime,
+        ).add(const Duration(minutes: 1)).toIso8601String(),
     exercises: [
       TrainingExerciseV2(
         exerciseName: exerciseName,

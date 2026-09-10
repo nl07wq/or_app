@@ -270,7 +270,10 @@ void main() {
         MaterialApp(
           home: DataCenterTrainingHistoryPage(
             recordsLoader: () async => [
-              _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+              _v2Record(
+                startTime: '2026-08-03T20:13:00+09:00',
+                endTime: '2026-08-03T20:14:00+09:00',
+              ),
             ],
             clock: () => start.add(
               Duration(milliseconds: (testCase.hours * 3600000).round()),
@@ -1462,6 +1465,7 @@ TrainingRecordReadModel _v2Record({
   double weight = 80,
   int? rpe = 8,
   String? startTime,
+  String? endTime,
   String exerciseName = 'Bench Press',
   TrainingEquipmentSnapshot? equipment,
 }) => TrainingRecordReadModel.v2(
@@ -1472,6 +1476,12 @@ TrainingRecordReadModel _v2Record({
   data: TrainingSessionV2(
     date: '${date}T00:00:00.000',
     startTime: startTime,
+    endTime: startTime == null
+        ? endTime
+        : endTime ??
+              DateTime.parse(
+                startTime,
+              ).add(const Duration(minutes: 1)).toIso8601String(),
     exercises: [
       TrainingExerciseV2(
         exerciseName: exerciseName,

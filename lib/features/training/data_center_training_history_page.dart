@@ -3045,12 +3045,16 @@ double _labelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
 
 String _formatDate(DateTime date) => '${date.month}/${date.day}';
 
-String _formatRecoveryDateTime(DateTime date) =>
-    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
-    '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+String _formatRecoveryDateTime(DateTime date) {
+  final local = date.toLocal();
+  return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} '
+      '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
 
-String _formatRecoveryReadyAt(DateTime date) =>
-    '${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+String _formatRecoveryReadyAt(DateTime date) {
+  final local = date.toLocal();
+  return '${local.month}/${local.day} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
 
 String _formatRecoveryDuration(Duration duration) => '${duration.inHours}時間';
 

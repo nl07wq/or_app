@@ -192,7 +192,7 @@ void main() {
   });
 
   test(
-    'recovery uses latest exact primary exposure and never uses secondary',
+    'recovery uses the completed session end time and never a support muscle',
     () {
       final policy = RecoveryReferencePolicy(
         referenceDurations: {MuscleGroup.chest: const Duration(hours: 72)},
@@ -204,11 +204,11 @@ void main() {
           ], now: DateTime.parse('2026-08-04T04:00:00+09:00'));
 
       expect(recovery.precision, RecoveryPrecision.exact);
-      expect(recovery.referenceProgressRatio, closeTo(.25, .0001));
-      expect(recovery.status, RecoveryStatus.recovering);
+      expect(recovery.referenceProgressRatio, closeTo(17 / 72, .0001));
+      expect(recovery.status, RecoveryStatus.loaded);
       expect(
         recovery.estimatedReadyAt,
-        DateTime.parse('2026-08-06T10:00:00+09:00'),
+        DateTime.parse('2026-08-06T11:00:00+09:00'),
       );
     },
   );
@@ -227,7 +227,56 @@ void main() {
     },
   );
 
-  test('missing policy preserves a formal exact exposure time', () {
+  test('completed v2 recovery anchors exact timestamps to formal end time', () {
+    final completed = _v2(
+      date: '2026-09-08',
+      startTime: '2026-09-08T23:25:19.410+09:00',
+      endTime: '2026-09-09T00:44:22.162+09:00',
+    );
+    final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+      completed,
+    ], now: DateTime.parse('2026-09-09T00:44:22.162+09:00'));
+
+    expect(
+      recovery.lastExposureDateTime,
+      DateTime.parse('2026-09-09T00:44:22.162+09:00'),
+    );
+    expect(
+      recovery.estimatedReadyAt,
+      DateTime.parse('2026-09-11T00:44:22.162+09:00'),
+    );
+    expect(recovery.elapsedDuration, Duration.zero);
+  });
+
+  test('72-hour target recovery uses the same formal session end time', () {
+    final completed = _v2(
+      date: '2026-09-08',
+      exerciseName: 'Leg Press',
+      startTime: '2026-09-08T23:25:19.410+09:00',
+      endTime: '2026-09-09T00:44:22.162+09:00',
+    );
+    final recovery = service.recoveryEstimate(MuscleGroup.quadriceps, [
+      completed,
+    ], now: DateTime.parse('2026-09-09T00:44:22.162+09:00'));
+
+    expect(
+      recovery.estimatedReadyAt,
+      DateTime.parse('2026-09-12T00:44:22.162+09:00'),
+    );
+  });
+
+  test('v2 without formal end time never falls back to its start time', () {
+    final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+      _v2(endTime: null),
+    ], now: DateTime.parse('2026-08-04T10:00:00+09:00'));
+
+    expect(recovery.precision, RecoveryPrecision.dateOnly);
+    expect(recovery.lastExposureDateTime, isNull);
+    expect(recovery.estimatedReadyAt, isNull);
+    expect(recovery.referenceProgressRatio, isNull);
+  });
+
+  test('missing policy preserves a formal exact session end time', () {
     const noPolicy = TrainingHistoryDomainService(
       recoveryPolicy: RecoveryReferencePolicy(referenceDurations: {}),
     );
@@ -237,7 +286,7 @@ void main() {
 
     expect(
       recovery.lastExposureDateTime,
-      DateTime.parse('2026-08-03T10:00:00+09:00'),
+      DateTime.parse('2026-08-03T11:00:00+09:00'),
     );
     expect(recovery.precision, RecoveryPrecision.exact);
     expect(recovery.referenceProgressRatio, isNull);
@@ -248,37 +297,37 @@ void main() {
     final cases =
         <({DateTime now, RecoveryStatus status, double raw, double displayed})>[
           (
-            now: DateTime.parse('2026-08-03T10:00:00+09:00'),
+            now: DateTime.parse('2026-08-03T11:00:00+09:00'),
             status: RecoveryStatus.loaded,
             raw: 0,
             displayed: 0,
           ),
           (
-            now: DateTime.parse('2026-08-03T21:59:00+09:00'),
+            now: DateTime.parse('2026-08-03T22:59:00+09:00'),
             status: RecoveryStatus.loaded,
             raw: 0.24965,
             displayed: 0.24965,
           ),
           (
-            now: DateTime.parse('2026-08-03T22:00:00+09:00'),
+            now: DateTime.parse('2026-08-03T23:00:00+09:00'),
             status: RecoveryStatus.recovering,
             raw: .25,
             displayed: .25,
           ),
           (
-            now: DateTime.parse('2026-08-04T22:00:00+09:00'),
+            now: DateTime.parse('2026-08-04T23:00:00+09:00'),
             status: RecoveryStatus.nearReady,
             raw: .75,
             displayed: .75,
           ),
           (
-            now: DateTime.parse('2026-08-05T10:00:00+09:00'),
+            now: DateTime.parse('2026-08-05T11:00:00+09:00'),
             status: RecoveryStatus.estimatedReady,
             raw: 1,
             displayed: 1,
           ),
           (
-            now: DateTime.parse('2026-08-06T10:00:00+09:00'),
+            now: DateTime.parse('2026-08-06T11:00:00+09:00'),
             status: RecoveryStatus.estimatedReady,
             raw: 1.5,
             displayed: 1,
@@ -297,7 +346,7 @@ void main() {
   test('future formal exposure is unavailable rather than zero progress', () {
     final recovery = service.recoveryEstimate(MuscleGroup.chest, [
       _v2(),
-    ], now: DateTime.parse('2026-08-03T09:59:00+09:00'));
+    ], now: DateTime.parse('2026-08-03T10:59:00+09:00'));
 
     expect(recovery.precision, RecoveryPrecision.invalid);
     expect(recovery.status, RecoveryStatus.noData);
@@ -327,44 +376,54 @@ void main() {
       expect(quadriceps.precision, RecoveryPrecision.exact);
       expect(glutes.precision, RecoveryPrecision.exact);
       expect(hamstrings.precision, RecoveryPrecision.exact);
+      expect(
+        quadriceps.lastExposureDateTime,
+        DateTime.parse('2026-08-03T11:00:00+09:00'),
+      );
+      expect(glutes.lastExposureDateTime, quadriceps.lastExposureDateTime);
+      expect(hamstrings.lastExposureDateTime, quadriceps.lastExposureDateTime);
       expect(benchTriceps.precision, RecoveryPrecision.unavailable);
     },
   );
 }
 
-TrainingRecordReadModel _v2({String exerciseName = 'Bench Press'}) =>
-    TrainingRecordReadModel.v2(
-      id: 'v2',
-      localDate: '2026-08-03',
-      createdAt: DateTime.utc(2026, 8, 3),
-      updatedAt: DateTime.utc(2026, 8, 3),
-      data: TrainingSessionV2(
-        date: '2026-08-03T00:00:00.000',
-        startTime: '2026-08-03T10:00:00+09:00',
-        endTime: '2026-08-03T11:00:00+09:00',
-        exercises: [
-          TrainingExerciseV2(
-            exerciseName: exerciseName,
-            order: 1,
-            sets: [
-              TrainingSetV2(
-                setNo: 1,
-                setType: TrainingSetType.warmUp,
-                weightKg: 40,
-                reps: 5,
-              ),
-              TrainingSetV2(
-                setNo: 2,
-                setType: TrainingSetType.main,
-                weightKg: 80,
-                reps: 10,
-                rpe: 8,
-              ),
-            ],
+TrainingRecordReadModel _v2({
+  String exerciseName = 'Bench Press',
+  String date = '2026-08-03',
+  String startTime = '2026-08-03T10:00:00+09:00',
+  String? endTime = '2026-08-03T11:00:00+09:00',
+}) => TrainingRecordReadModel.v2(
+  id: 'v2',
+  localDate: date,
+  createdAt: DateTime.utc(2026, 8, 3),
+  updatedAt: DateTime.utc(2026, 8, 3),
+  data: TrainingSessionV2(
+    date: '${date}T00:00:00.000',
+    startTime: startTime,
+    endTime: endTime,
+    exercises: [
+      TrainingExerciseV2(
+        exerciseName: exerciseName,
+        order: 1,
+        sets: [
+          TrainingSetV2(
+            setNo: 1,
+            setType: TrainingSetType.warmUp,
+            weightKg: 40,
+            reps: 5,
+          ),
+          TrainingSetV2(
+            setNo: 2,
+            setType: TrainingSetType.main,
+            weightKg: 80,
+            reps: 10,
+            rpe: 8,
           ),
         ],
       ),
-    );
+    ],
+  ),
+);
 
 TrainingRecordReadModel _v1() => TrainingRecordReadModel.v1(
   id: 'v1',

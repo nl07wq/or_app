@@ -354,9 +354,10 @@ class TrainingHistoryDomainService {
         if (mapping == null || !mapping.targetMuscles.contains(muscle))
           continue;
         final exposure = _Exposure(record, point);
-        if (point.startTime != null &&
+        final endTime = _exactEnd(record);
+        if (endTime != null &&
             (latestExact == null ||
-                point.startTime!.isAfter(latestExact.point.startTime!)))
+                endTime.isAfter(_exactEnd(latestExact.record)!)))
           latestExact = exposure;
         if (latestDateOnly == null ||
             record.localDate.compareTo(latestDateOnly.record.localDate) > 0)
@@ -377,7 +378,9 @@ class TrainingHistoryDomainService {
       return MuscleRecoveryEstimate(
         muscleGroup: muscle,
         lastExposureOperationDate: exposure?.record.localDate,
-        lastExposureDateTime: exposure?.point.startTime,
+        lastExposureDateTime: exposure == null
+            ? null
+            : _exactEnd(exposure.record),
         sourceRecordId: exposure?.record.id,
         sourceExerciseIdentity: exposure?.point.identity,
         referenceRecoveryDuration: reference,
@@ -388,11 +391,11 @@ class TrainingHistoryDomainService {
         status: RecoveryStatus.noData,
         precision: exposure == null
             ? RecoveryPrecision.unavailable
-            : exposure.point.startTime == null
+            : _exactEnd(exposure.record) == null
             ? RecoveryPrecision.dateOnly
             : RecoveryPrecision.exact,
       );
-    final time = exposure.point.startTime;
+    final time = _exactEnd(exposure.record);
     if (time == null)
       return MuscleRecoveryEstimate(
         muscleGroup: muscle,
@@ -532,11 +535,13 @@ class TrainingHistoryDomainService {
       record.v2Data?.startTime == null
       ? null
       : DateTime.tryParse(record.v2Data!.startTime!);
+  DateTime? _exactEnd(TrainingRecordReadModel record) =>
+      record.v2Data?.endTime == null
+      ? null
+      : DateTime.tryParse(record.v2Data!.endTime!);
   Duration? _duration(TrainingRecordReadModel record) {
     final start = _exactStart(record);
-    final end = record.v2Data?.endTime == null
-        ? null
-        : DateTime.tryParse(record.v2Data!.endTime!);
+    final end = _exactEnd(record);
     return start == null || end == null ? null : end.difference(start);
   }
 
