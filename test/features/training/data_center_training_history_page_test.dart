@@ -5,7 +5,6 @@ import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
-import 'package:or_app/features/training/services/training_exercise_identity.dart';
 
 void main() {
   testWidgets('renders overview metrics and charts at narrow widths', (
@@ -144,25 +143,31 @@ void main() {
     await tester.tap(find.text('EXERCISE'));
     await tester.pumpAndSettle();
 
+    expect(find.text('EXERCISE'), findsWidgets);
+    expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('ベンチプレス'), findsOneWidget);
     expect(find.text('ダンベル'), findsOneWidget);
     expect(find.textContaining('hammer_strength'), findsNothing);
-    await tester.tap(find.byType(DropdownButton<TrainingExerciseIdentity>));
+    await tester.tap(find.byKey(const Key('exercise-equipment-selector')));
     await tester.pumpAndSettle();
 
+    expect(find.text('ALL EQUIPMENT'), findsOneWidget);
     expect(find.text('HAMMER STRENGTH パワーラック'), findsOneWidget);
+    expect(find.text('EQUIPMENT NOT RECORDED'), findsOneWidget);
     await tester.tap(find.text('HAMMER STRENGTH パワーラック'));
     await tester.pumpAndSettle();
-    final selected = tester.widget<DropdownButton<TrainingExerciseIdentity>>(
-      find.byType(DropdownButton<TrainingExerciseIdentity>),
-    );
+    expect(find.text('WEIGHT HISTORY'), findsOneWidget);
+    expect(find.text('HAMMER STRENGTH パワーラック'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('exercise-equipment-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ALL EQUIPMENT'));
+    await tester.pumpAndSettle();
     expect(
-      selected.value,
-      TrainingExerciseIdentity.fromV1(
-        exerciseName: 'Bench Press',
-        equipmentId: 'hammer_strength_power_rack',
-      ),
+      find.text('SELECT EQUIPMENT TO VIEW WEIGHT, REPS, OR VOLUME HISTORY'),
+      findsOneWidget,
     );
+    expect(find.text('WEIGHT HISTORY'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -185,6 +190,27 @@ void main() {
 
     expect(find.text('ベンチプレス'), findsOneWidget);
     expect(find.text('ダンベル'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('hides all equipment when a category has one variant', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'EXERCISE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('exercise-equipment-selector')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ALL EQUIPMENT'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
@@ -222,12 +248,18 @@ List<TrainingRecordReadModel> _recordsWithEquipment() => [
     equipmentId: 'dumbbells',
     weight: 20,
   ),
+  _recordWithEquipment(
+    id: 'unrecorded',
+    date: '2026-08-01',
+    equipmentId: null,
+    weight: 40,
+  ),
 ];
 
 TrainingRecordReadModel _recordWithEquipment({
   required String id,
   required String date,
-  required String equipmentId,
+  required String? equipmentId,
   required double weight,
 }) => TrainingRecordReadModel.v1(
   id: id,

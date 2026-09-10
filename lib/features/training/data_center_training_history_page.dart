@@ -37,7 +37,9 @@ class _DataCenterTrainingHistoryPageState
   var _period = TrainingHistoryOverviewPeriod.oneMonth;
   var _view = _TrainingHistoryView.overview;
   var _exerciseMetric = _ExerciseMetric.weight;
-  TrainingExerciseIdentity? _selectedExercise;
+  String? _selectedCategory;
+  TrainingExerciseIdentity? _selectedEquipment;
+  var _allEquipment = false;
   static const _exerciseAdapter = TrainingExerciseHistoryAdapter();
 
   @override
@@ -95,10 +97,21 @@ class _DataCenterTrainingHistoryPageState
                 records: snapshot.requireData,
                 period: _period,
                 referenceDate: widget.clock?.call(),
-                selected: _selectedExercise,
+                selectedCategory: _selectedCategory,
+                selectedEquipment: _selectedEquipment,
+                allEquipment: _allEquipment,
                 metric: _exerciseMetric,
-                onSelected: (identity) =>
-                    setState(() => _selectedExercise = identity),
+                onCategorySelected: (category) => setState(() {
+                  _selectedCategory = category;
+                  _selectedEquipment = null;
+                  _allEquipment = false;
+                }),
+                onEquipmentSelected: (identity) => setState(() {
+                  _selectedEquipment = identity;
+                  _allEquipment = false;
+                }),
+                onAllEquipmentSelected: () =>
+                    setState(() => _allEquipment = true),
                 onMetricSelected: (metric) =>
                     setState(() => _exerciseMetric = metric),
                 adapter: _exerciseAdapter,
@@ -193,18 +206,26 @@ class _ExerciseView extends StatelessWidget {
     required this.records,
     required this.period,
     required this.referenceDate,
-    required this.selected,
+    required this.selectedCategory,
+    required this.selectedEquipment,
+    required this.allEquipment,
     required this.metric,
-    required this.onSelected,
+    required this.onCategorySelected,
+    required this.onEquipmentSelected,
+    required this.onAllEquipmentSelected,
     required this.onMetricSelected,
     required this.adapter,
   });
   final List<TrainingRecordReadModel> records;
   final TrainingHistoryOverviewPeriod period;
   final DateTime? referenceDate;
-  final TrainingExerciseIdentity? selected;
+  final String? selectedCategory;
+  final TrainingExerciseIdentity? selectedEquipment;
+  final bool allEquipment;
   final _ExerciseMetric metric;
-  final ValueChanged<TrainingExerciseIdentity> onSelected;
+  final ValueChanged<String> onCategorySelected;
+  final ValueChanged<TrainingExerciseIdentity> onEquipmentSelected;
+  final VoidCallback onAllEquipmentSelected;
   final ValueChanged<_ExerciseMetric> onMetricSelected;
   final TrainingExerciseHistoryAdapter adapter;
   @override
@@ -214,12 +235,19 @@ class _ExerciseView extends StatelessWidget {
       period: period,
       referenceDate: referenceDate,
     );
-    final identities = adapter.identities(allPoints);
-    if (identities.isEmpty) return const _EmptyPeriodState();
-    final identity = identities.contains(selected)
-        ? selected!
-        : identities.first;
-    final points = adapter.forIdentity(allPoints, identity);
+    final categories = adapter.categories(allPoints);
+    if (categories.isEmpty) return const _EmptyPeriodState();
+    final category = categories.any((item) => item.key == selectedCategory)
+        ? categories.firstWhere((item) => item.key == selectedCategory)
+        : categories.first;
+    final variants = adapter.equipmentVariants(allPoints, category.key);
+    final variant = variants.any((item) => item.identity == selectedEquipment)
+        ? variants.firstWhere((item) => item.identity == selectedEquipment)
+        : variants.first;
+    final showAllEquipment = allEquipment && variants.length > 1;
+    final points = showAllEquipment
+        ? const <ExerciseHistoryPoint>[]
+        : adapter.forIdentity(allPoints, variant.identity);
     final metricPoints = [
       for (final point in points)
         if (_metricValue(point, metric) case final value?)
@@ -239,85 +267,116 @@ class _ExerciseView extends StatelessWidget {
           title: 'EXERCISE',
         ),
         AppSpacing.gapSM,
+        const _SelectorCaption('EXERCISE'),
+        AppSpacing.gapSM,
         OperationCard(
-          child: DropdownButton<TrainingExerciseIdentity>(
+          child: DropdownButton<String>(
+            key: const Key('exercise-category-selector'),
             isExpanded: true,
-            itemHeight: null,
-            value: identity,
-            selectedItemBuilder: (context) => [
-              for (final item in identities)
-                _ExerciseSelectorEntry(
-                  presentation: adapter.selectorPresentation(item),
-                ),
-            ],
+            value: category.key,
             items: [
-              for (final item in identities)
+              for (final item in categories)
                 DropdownMenuItem(
-                  value: item,
-                  child: _ExerciseSelectorEntry(
-                    presentation: adapter.selectorPresentation(item),
-                  ),
+                  value: item.key,
+                  child: Text(item.label, overflow: TextOverflow.ellipsis),
                 ),
             ],
             onChanged: (value) {
-              if (value != null) onSelected(value);
+              if (value != null) onCategorySelected(value);
+            },
+          ),
+        ),
+        AppSpacing.gapLG,
+        const _SelectorCaption('EQUIPMENT'),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: DropdownButton<_EquipmentSelection>(
+            key: const Key('exercise-equipment-selector'),
+            isExpanded: true,
+            value: showAllEquipment
+                ? const _EquipmentSelection.all()
+                : _EquipmentSelection.specific(variant),
+            items: [
+              if (variants.length > 1)
+                const DropdownMenuItem(
+                  value: _EquipmentSelection.all(),
+                  child: Text('ALL EQUIPMENT'),
+                ),
+              for (final item in variants)
+                DropdownMenuItem(
+                  value: _EquipmentSelection.specific(item),
+                  child: Text(item.label, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              if (value.isAll) {
+                onAllEquipmentSelected();
+              } else {
+                onEquipmentSelected(value.variant!.identity);
+              }
             },
           ),
         ),
         AppSpacing.gapLG,
         _ExerciseMetricSelector(selected: metric, onSelected: onMetricSelected),
         AppSpacing.gapLG,
-        _ExerciseSummary(
-          points: points,
-          metric: metric,
-          latest: latest,
-          maximum: maximum,
-        ),
-        AppSpacing.gapXL,
-        if (metricPoints.isEmpty)
-          OperationCard(
-            child: Text('${_metricTitle(metric)} DATA NOT AVAILABLE'),
-          )
-        else
-          _MetricSection(
-            title: '${_metricTitle(metric)} HISTORY',
-            points: metricPoints,
-            axisFormatter: _axisFormatter(metric),
-            detailFormatter: _detailFormatter(metric),
+        if (showAllEquipment)
+          const _AllEquipmentState()
+        else ...[
+          _ExerciseSummary(
+            points: points,
+            metric: metric,
+            latest: latest,
+            maximum: maximum,
           ),
+          AppSpacing.gapXL,
+          if (metricPoints.isEmpty)
+            OperationCard(
+              child: Text('${_metricTitle(metric)} DATA NOT AVAILABLE'),
+            )
+          else
+            _MetricSection(
+              title: '${_metricTitle(metric)} HISTORY',
+              points: metricPoints,
+              axisFormatter: _axisFormatter(metric),
+              detailFormatter: _detailFormatter(metric),
+            ),
+        ],
       ],
     );
   }
 }
 
-class _ExerciseSelectorEntry extends StatelessWidget {
-  const _ExerciseSelectorEntry({required this.presentation});
+class _SelectorCaption extends StatelessWidget {
+  const _SelectorCaption(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) =>
+      Text(label, style: Theme.of(context).textTheme.labelSmall);
+}
 
-  final TrainingExerciseSelectorPresentation presentation;
+class _AllEquipmentState extends StatelessWidget {
+  const _AllEquipmentState();
+  @override
+  Widget build(BuildContext context) => const OperationCard(
+    child: Text('SELECT EQUIPMENT TO VIEW WEIGHT, REPS, OR VOLUME HISTORY'),
+  );
+}
+
+class _EquipmentSelection {
+  const _EquipmentSelection.all() : variant = null;
+  const _EquipmentSelection.specific(this.variant);
+
+  final TrainingExerciseEquipmentVariant? variant;
+  bool get isAll => variant == null;
 
   @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          presentation.exerciseLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: textTheme.bodyMedium,
-        ),
-        if (presentation.equipmentLabel case final equipmentLabel?)
-          Text(
-            equipmentLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: textTheme.labelSmall,
-          ),
-      ],
-    );
-  }
+  bool operator ==(Object other) =>
+      other is _EquipmentSelection && other.variant == variant;
+
+  @override
+  int get hashCode => variant.hashCode;
 }
 
 class _ExerciseMetricSelector extends StatelessWidget {

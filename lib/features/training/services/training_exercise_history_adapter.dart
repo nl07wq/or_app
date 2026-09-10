@@ -28,14 +28,50 @@ class TrainingExerciseHistoryAdapter {
         point,
   ];
 
-  List<TrainingExerciseIdentity> identities(List<ExerciseHistoryPoint> points) {
+  List<TrainingExerciseCategory> categories(
+    Iterable<ExerciseHistoryPoint> points,
+  ) {
+    final latest = <String, ExerciseHistoryPoint>{};
+    for (final point in points) {
+      final current = latest[point.identity.exerciseKey];
+      if (current == null || _dateOf(point).isAfter(_dateOf(current))) {
+        latest[point.identity.exerciseKey] = point;
+      }
+    }
+    final values = latest.entries.toList()
+      ..sort((a, b) => _dateOf(b.value).compareTo(_dateOf(a.value)));
+    return [
+      for (final entry in values)
+        TrainingExerciseCategory(
+          key: entry.key,
+          label: exerciseDisplayName(entry.key),
+        ),
+    ];
+  }
+
+  List<TrainingExerciseEquipmentVariant> equipmentVariants(
+    Iterable<ExerciseHistoryPoint> points,
+    String categoryKey,
+  ) {
     final latest = <TrainingExerciseIdentity, ExerciseHistoryPoint>{};
     for (final point in points) {
-      latest[point.identity] = point;
+      if (point.identity.exerciseKey != categoryKey) continue;
+      final current = latest[point.identity];
+      if (current == null || _dateOf(point).isAfter(_dateOf(current))) {
+        latest[point.identity] = point;
+      }
     }
     final values = latest.values.toList()
       ..sort((a, b) => _dateOf(b).compareTo(_dateOf(a)));
-    return [for (final point in values) point.identity];
+    return [
+      for (final point in values)
+        TrainingExerciseEquipmentVariant(
+          identity: point.identity,
+          label:
+              _equipmentLabel(point.identity.equipmentKey) ??
+              'EQUIPMENT NOT RECORDED',
+        ),
+    ];
   }
 
   List<ExerciseHistoryPoint> forIdentity(
@@ -71,6 +107,23 @@ class TrainingExerciseHistoryAdapter {
 
   DateTime _dateOf(ExerciseHistoryPoint point) =>
       point.startTime ?? DateTime.parse(point.operationDate);
+}
+
+class TrainingExerciseCategory {
+  const TrainingExerciseCategory({required this.key, required this.label});
+
+  final String key;
+  final String label;
+}
+
+class TrainingExerciseEquipmentVariant {
+  const TrainingExerciseEquipmentVariant({
+    required this.identity,
+    required this.label,
+  });
+
+  final TrainingExerciseIdentity identity;
+  final String label;
 }
 
 class TrainingExerciseSelectorPresentation {
