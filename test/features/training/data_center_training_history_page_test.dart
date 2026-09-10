@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/models/training_exercise.dart';
 import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_session_v2.dart';
@@ -388,6 +390,115 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('keeps exercise analytics controls and cards compact at 390px', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(id: 'first', date: '2026-08-01', weight: 60),
+            _v2Record(id: 'latest', date: '2026-08-03', weight: 80),
+          ],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+    await tester.pumpAndSettle();
+
+    _expectOneRow(tester, [
+      find.widgetWithText(ChoiceChip, 'WEIGHT'),
+      find.widgetWithText(ChoiceChip, 'REPS'),
+      find.widgetWithText(ChoiceChip, 'VOLUME'),
+      find.widgetWithText(ChoiceChip, 'RPE'),
+    ]);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+    await tester.pumpAndSettle();
+    _expectOneRow(tester, [
+      find.widgetWithText(ChoiceChip, 'RECORDED'),
+      find.widgetWithText(ChoiceChip, 'WORKING'),
+    ]);
+    _expectOneRow(tester, [
+      find.text('LAST TRAINED'),
+      find.text('LATEST RECORDED VOLUME'),
+      find.text('MAX RECORDED VOLUME'),
+    ]);
+    _expectOneRow(tester, [
+      find.text('LATEST'),
+      find.text('PREVIOUS'),
+      find.text('CHANGE'),
+    ]);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+    await tester.pumpAndSettle();
+    _expectOneRow(tester, [
+      find.text('LAST TRAINED'),
+      find.text('LATEST WORKING VOLUME'),
+      find.text('MAX WORKING VOLUME'),
+    ]);
+    _expectOneRow(tester, [
+      find.text('LATEST'),
+      find.text('PREVIOUS'),
+      find.text('CHANGE'),
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'keeps long exercise summary labels in compact columns at 320px',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [
+              _v2Record(id: 'first', date: '2026-08-01', weight: 60),
+              _v2Record(id: 'latest', date: '2026-08-03', weight: 80),
+            ],
+            clock: () => DateTime(2026, 8, 3),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, '種目'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+      await tester.pumpAndSettle();
+
+      _expectOneRow(tester, [
+        find.widgetWithText(ChoiceChip, 'WEIGHT'),
+        find.widgetWithText(ChoiceChip, 'REPS'),
+        find.widgetWithText(ChoiceChip, 'VOLUME'),
+        find.widgetWithText(ChoiceChip, 'RPE'),
+      ]);
+      _expectOneRow(tester, [
+        find.widgetWithText(ChoiceChip, 'RECORDED'),
+        find.widgetWithText(ChoiceChip, 'WORKING'),
+      ]);
+      _expectOneRow(tester, [
+        find.text('LAST TRAINED'),
+        find.text('LATEST WORKING VOLUME'),
+        find.text('MAX WORKING VOLUME'),
+      ]);
+      _expectNotEllipsized(tester, find.text('LATEST WORKING VOLUME'));
+      _expectNotEllipsized(tester, find.text('MAX WORKING VOLUME'));
+      _expectOneRow(tester, [
+        find.text('LATEST'),
+        find.text('PREVIOUS'),
+        find.text('CHANGE'),
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('presents equipment as readable selector metadata', (
     tester,
   ) async {
@@ -534,6 +645,24 @@ void main() {
 }
 
 Future<List<TrainingRecordReadModel>> _noRecords() async => const [];
+
+void _expectOneRow(WidgetTester tester, List<Finder> finders) {
+  final rects = [
+    for (final finder in finders)
+      tester.getRect(
+        find.ancestor(of: finder, matching: find.byType(OperationCard)),
+      ),
+  ];
+  for (final rect in rects) {
+    expect(rect.right, lessThanOrEqualTo(tester.view.physicalSize.width));
+    expect(rect.top, closeTo(rects.first.top, 0.1));
+  }
+}
+
+void _expectNotEllipsized(WidgetTester tester, Finder finder) {
+  final paragraph = tester.renderObject<RenderParagraph>(finder);
+  expect(paragraph.didExceedMaxLines, isFalse);
+}
 
 TrainingRecordReadModel _record() => TrainingRecordReadModel.v1(
   id: 'record',

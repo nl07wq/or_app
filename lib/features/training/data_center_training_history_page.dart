@@ -598,7 +598,7 @@ class _ExerciseView extends StatelessWidget {
             },
           ),
         ),
-        AppSpacing.gapLG,
+        AppSpacing.gapMD,
         _ExerciseMetricSelector(selected: metric, onSelected: onMetricSelected),
         if (metric == _ExerciseMetric.volume) ...[
           AppSpacing.gapSM,
@@ -607,7 +607,7 @@ class _ExerciseView extends StatelessWidget {
             onSelected: onVolumeMetricSelected,
           ),
         ],
-        AppSpacing.gapLG,
+        AppSpacing.gapMD,
         if (showAllEquipment)
           const _AllEquipmentState()
         else ...[
@@ -618,7 +618,7 @@ class _ExerciseView extends StatelessWidget {
             latest: latest,
             maximum: maximum,
           ),
-          AppSpacing.gapXL,
+          AppSpacing.gapLG,
           if (metricPoints.isEmpty)
             _MetricUnavailableState(metric: metric, volumeMetric: volumeMetric)
           else ...[
@@ -627,7 +627,7 @@ class _ExerciseView extends StatelessWidget {
               volumeMetric: volumeMetric,
               points: metricPoints,
             ),
-            AppSpacing.gapXL,
+            AppSpacing.gapLG,
             _MetricSection(
               title: '${_metricTitle(metric, volumeMetric)} HISTORY',
               points: metricPoints,
@@ -687,17 +687,14 @@ class _ExerciseMetricSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
+    padding: const EdgeInsets.all(AppSpacing.sm),
+    child: _CompactChoiceRow(
+      labels: [
         for (final metric in _ExerciseMetric.values)
-          ChoiceChip(
-            label: Text(_metricSelectorLabel(metric)),
-            selected: selected == metric,
-            onSelected: (_) => onSelected(metric),
-          ),
+          _metricSelectorLabel(metric),
       ],
+      selectedIndex: selected.index,
+      onSelected: (index) => onSelected(_ExerciseMetric.values[index]),
     ),
   );
 }
@@ -713,20 +710,46 @@ class _VolumeMetricSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        for (final metric in _VolumeMetric.values)
-          ChoiceChip(
-            label: Text(
-              metric == _VolumeMetric.recorded ? 'RECORDED' : 'WORKING',
-            ),
-            selected: metric == selected,
-            onSelected: (_) => onSelected(metric),
-          ),
-      ],
+    padding: const EdgeInsets.all(AppSpacing.sm),
+    child: _CompactChoiceRow(
+      labels: const ['RECORDED', 'WORKING'],
+      selectedIndex: selected.index,
+      onSelected: (index) => onSelected(_VolumeMetric.values[index]),
     ),
+  );
+}
+
+class _CompactChoiceRow extends StatelessWidget {
+  const _CompactChoiceRow({
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var index = 0; index < labels.length; index++) ...[
+        if (index > 0) const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: ChoiceChip(
+            label: SizedBox(
+              width: double.infinity,
+              child: Text(labels[index], textAlign: TextAlign.center),
+            ),
+            labelPadding: EdgeInsets.zero,
+            materialTapTargetSize: MaterialTapTargetSize.padded,
+            selected: selectedIndex == index,
+            onSelected: (_) => onSelected(index),
+          ),
+        ),
+      ],
+    ],
   );
 }
 
@@ -750,6 +773,7 @@ class _ExerciseSummary extends StatelessWidget {
         'LAST TRAINED',
         _formatDate(DateTime.parse(points.last.operationDate)),
         '',
+        compact: true,
       ),
       _SummaryMetric(
         _latestLabel(metric, volumeMetric),
@@ -757,12 +781,14 @@ class _ExerciseSummary extends StatelessWidget {
             ? '—'
             : _summaryValue(metric, volumeMetric, latest!.value),
         latest == null ? '' : _summaryUnit(metric, volumeMetric, latest!.value),
+        compact: true,
       ),
       if (metric != _ExerciseMetric.rpe)
         _SummaryMetric(
           _maxLabel(metric, volumeMetric),
           maximum == null ? '—' : _summaryValue(metric, volumeMetric, maximum!),
           maximum == null ? '' : _summaryUnit(metric, volumeMetric, maximum!),
+          compact: true,
         ),
     ],
   );
@@ -816,17 +842,20 @@ class _LatestPreviousChange extends StatelessWidget {
           'LATEST',
           _summaryValue(metric, volumeMetric, latest.value),
           _summaryUnit(metric, volumeMetric, latest.value),
+          compact: true,
         ),
         if (previous != null) ...[
           _SummaryMetric(
             'PREVIOUS',
             _summaryValue(metric, volumeMetric, previous.value),
             _summaryUnit(metric, volumeMetric, previous.value),
+            compact: true,
           ),
           _SummaryMetric(
             'CHANGE',
             _deltaValue(metric, volumeMetric, latest.value - previous.value),
             _summaryUnit(metric, volumeMetric, latest.value - previous.value),
+            compact: true,
           ),
         ],
       ],
@@ -838,15 +867,15 @@ class _SummaryGridLike extends StatelessWidget {
   const _SummaryGridLike({required this.children});
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: AppSpacing.sm,
-    runSpacing: AppSpacing.sm,
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      for (final child in children)
-        SizedBox(
-          width: (MediaQuery.sizeOf(context).width - AppSpacing.lg * 3) / 2,
-          child: child,
+      for (var index = 0; index < 3; index++) ...[
+        if (index > 0) const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: index < children.length ? children[index] : const SizedBox(),
         ),
+      ],
     ],
   );
 }
@@ -907,26 +936,66 @@ class _SummaryGrid extends StatelessWidget {
 }
 
 class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric(this.label, this.value, this.unit);
+  const _SummaryMetric(
+    this.label,
+    this.value,
+    this.unit, {
+    this.compact = false,
+  });
 
   final String label;
   final String value;
   final String unit;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelSmall),
-        AppSpacing.gapXS,
-        Text(value, style: Theme.of(context).textTheme.headlineSmall),
-        if (unit.isNotEmpty)
-          Text(unit, style: Theme.of(context).textTheme.labelSmall),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    return OperationCard(
+      padding: compact
+          ? const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.md,
+            )
+          : const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: compact ? 3 : null,
+            overflow: compact ? TextOverflow.ellipsis : null,
+            style: compact
+                ? Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 9,
+                    height: 1.15,
+                    letterSpacing: 0,
+                  )
+                : Theme.of(context).textTheme.labelSmall,
+          ),
+          AppSpacing.gapXS,
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: compact
+                ? Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(fontSize: 20)
+                : Theme.of(context).textTheme.headlineSmall,
+          ),
+          if (unit.isNotEmpty)
+            Text(
+              unit,
+              style: compact
+                  ? Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(fontSize: 10)
+                  : Theme.of(context).textTheme.labelSmall,
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MetricSection extends StatelessWidget {
