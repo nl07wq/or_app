@@ -8,6 +8,7 @@ import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/core/models/training_exercise_v2.dart';
+import 'package:or_app/core/models/training_equipment_snapshot.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/services/training_history_overview_adapter.dart';
@@ -209,6 +210,140 @@ void main() {
     expect(find.text('回復目安'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('renders recovery status badges and gauge fills by progress', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final start = DateTime.parse('2026-08-03T20:14:00+09:00');
+    final cases = [
+      (hours: 0, progress: 0.0, status: '負荷直後'),
+      (hours: 9.6, progress: 0.2, status: '負荷直後'),
+      (hours: 24.0, progress: 0.5, status: '回復中'),
+      (hours: 38.4, progress: 0.8, status: '回復目安に接近'),
+      (hours: 48.0, progress: 1.0, status: '回復目安到達'),
+    ];
+
+    for (final testCase in cases) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [
+              _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+            ],
+            clock: () => start.add(
+              Duration(milliseconds: (testCase.hours * 3600000).round()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+      await tester.pumpAndSettle();
+
+      final track = tester.getSize(
+        find.byKey(const ValueKey('recovery-gauge-track-chest')),
+      );
+      final fill = tester.getSize(
+        find.byKey(const ValueKey('recovery-gauge-fill-chest')),
+      );
+      expect(fill.width, closeTo(track.width * testCase.progress, 0.1));
+      expect(
+        find.byKey(const ValueKey('recovery-status-badge-chest')),
+        findsOneWidget,
+      );
+      expect(find.text(testCase.status), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'keeps recovery reference, gauge, and evidence compact at 390px',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [
+              _v2Record(
+                startTime: '2026-08-03T20:14:00+09:00',
+                exerciseName: 'Squat',
+                equipment: TrainingEquipmentSnapshot(
+                  catalogId: 'hammer_strength_linear_leg_press',
+                  name: 'HAMMER STRENGTH LINEAR LEG PRESS',
+                ),
+              ),
+            ],
+            clock: () => DateTime(2026, 8, 4, 20, 14),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+      await tester.pumpAndSettle();
+
+      final reference = tester.getRect(
+        find.byKey(const ValueKey('recovery-reference-field')),
+      );
+      final ready = tester.getRect(
+        find.byKey(const ValueKey('recovery-ready-field')),
+      );
+      expect(reference.top, closeTo(ready.top, 0.1));
+
+      final lastTrained = tester.getRect(
+        find.byKey(const ValueKey('recovery-evidence-last-trained')),
+      );
+      final exercise = tester.getRect(
+        find.byKey(const ValueKey('recovery-evidence-exercise')),
+      );
+      final equipment = tester.getRect(
+        find.byKey(const ValueKey('recovery-evidence-equipment')),
+      );
+      expect(lastTrained.top, closeTo(exercise.top, 0.1));
+      expect(lastTrained.top, closeTo(equipment.top, 0.1));
+      expect(equipment.right, lessThanOrEqualTo(390));
+      expect(equipment.width, greaterThan(0));
+      expect(find.text('72時間'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'uses the bounded two-plus-one recovery evidence fallback at 320px',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [
+              _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+            ],
+            clock: () => DateTime(2026, 8, 4, 20, 14),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+      await tester.pumpAndSettle();
+
+      final lastTrained = tester.getRect(
+        find.byKey(const ValueKey('recovery-evidence-last-trained')),
+      );
+      final exercise = tester.getRect(
+        find.byKey(const ValueKey('recovery-evidence-exercise')),
+      );
+      final equipment = tester.getRect(
+        find.byKey(const ValueKey('recovery-evidence-equipment')),
+      );
+      expect(lastTrained.top, closeTo(exercise.top, 0.1));
+      expect(equipment.top, greaterThan(lastTrained.top));
+      expect(equipment.right, lessThanOrEqualTo(320));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('switches exercise metric between weight reps and volume', (
     tester,
@@ -733,6 +868,8 @@ TrainingRecordReadModel _v2Record({
   double weight = 80,
   int? rpe = 8,
   String? startTime,
+  String exerciseName = 'Bench Press',
+  TrainingEquipmentSnapshot? equipment,
 }) => TrainingRecordReadModel.v2(
   id: id,
   localDate: date,
@@ -743,8 +880,9 @@ TrainingRecordReadModel _v2Record({
     startTime: startTime,
     exercises: [
       TrainingExerciseV2(
-        exerciseName: 'Bench Press',
+        exerciseName: exerciseName,
         order: 1,
+        equipment: equipment,
         sets: [
           TrainingSetV2(
             setNo: 1,

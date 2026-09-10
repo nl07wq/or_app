@@ -328,6 +328,11 @@ class _RecoveryEvidenceCard extends StatelessWidget {
     final hasProgress =
         estimate.precision == RecoveryPrecision.exact && progress != null;
     return OperationCard(
+      key: ValueKey('recovery-card-${estimate.muscleGroup.name}'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -340,70 +345,61 @@ class _RecoveryEvidenceCard extends StatelessWidget {
                 muscleGroupDisplayName(estimate.muscleGroup),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              if (hasProgress)
-                Text(
-                  _recoveryStatusLabel(estimate.status),
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _recoveryStatusColor(estimate.status),
-                  ),
-                ),
+              _RecoveryStatusBadge(
+                muscleGroup: estimate.muscleGroup,
+                status: estimate.status,
+              ),
             ],
           ),
           AppSpacing.gapSM,
           if (hasProgress) ...[
-            _RecoveryGauge(progress: progress, status: estimate.status),
+            _RecoveryReferenceRow(
+              duration: estimate.referenceRecoveryDuration!,
+              estimatedReadyAt: estimate.estimatedReadyAt!,
+            ),
             AppSpacing.gapSM,
-          ],
-          _RecoveryEvidenceField(
-            label: '最終実施',
-            value: exactTime == null
-                ? estimate.lastExposureOperationDate!
-                : _formatRecoveryDateTime(exactTime),
-          ),
-          if (exactTime == null) ...[
-            AppSpacing.gapXS,
-            const _RecoveryEvidenceField(label: '時刻精度', value: '日付のみ'),
-          ],
-          AppSpacing.gapSM,
-          _RecoveryEvidenceField(
-            label: '種目',
-            value: evidence.source.exerciseLabel,
-          ),
-          if (evidence.source.equipmentLabel != null) ...[
-            AppSpacing.gapXS,
-            _RecoveryEvidenceField(
-              label: 'EQUIPMENT',
-              value: evidence.source.equipmentLabel!,
+            _RecoveryGauge(
+              muscleGroup: estimate.muscleGroup,
+              progress: progress,
+              status: estimate.status,
+            ),
+            AppSpacing.gapMD,
+            _RecoveryEvidenceGrid(
+              lastTrained: exactTime == null
+                  ? estimate.lastExposureOperationDate!
+                  : _formatRecoveryDateTime(exactTime),
+              isDateOnly: exactTime == null,
+              exercise: evidence.source.exerciseLabel,
+              equipment:
+                  evidence.source.equipmentLabel ?? 'EQUIPMENT NOT RECORDED',
             ),
           ] else ...[
-            AppSpacing.gapXS,
-            const _RecoveryEvidenceField(
-              label: 'EQUIPMENT',
-              value: 'EQUIPMENT NOT RECORDED',
+            _RecoveryEvidenceGrid(
+              lastTrained: exactTime == null
+                  ? estimate.lastExposureOperationDate!
+                  : _formatRecoveryDateTime(exactTime),
+              isDateOnly: exactTime == null,
+              exercise: evidence.source.exerciseLabel,
+              equipment:
+                  evidence.source.equipmentLabel ?? 'EQUIPMENT NOT RECORDED',
             ),
-          ],
-          AppSpacing.gapSM,
-          _RecoveryEvidenceField(
-            label: '回復基準',
-            value: estimate.referenceRecoveryDuration == null
-                ? '未設定'
-                : _formatRecoveryDuration(estimate.referenceRecoveryDuration!),
-          ),
-          if (estimate.referenceRecoveryDuration != null && !hasProgress) ...[
-            AppSpacing.gapXS,
+            AppSpacing.gapSM,
             _RecoveryEvidenceField(
-              label: '基準回復進行',
-              value: estimate.precision == RecoveryPrecision.dateOnly
-                  ? '算出不可（時刻精度: 日付のみ）'
-                  : '算出不可',
+              label: '回復基準',
+              value: estimate.referenceRecoveryDuration == null
+                  ? '未設定'
+                  : _formatRecoveryDuration(
+                      estimate.referenceRecoveryDuration!,
+                    ),
             ),
-          ],
-          if (hasProgress) ...[
-            AppSpacing.gapXS,
-            _RecoveryEvidenceField(
-              label: '回復目安',
-              value: _formatRecoveryReadyAt(estimate.estimatedReadyAt!),
-            ),
+            if (estimate.referenceRecoveryDuration != null &&
+                estimate.precision == RecoveryPrecision.dateOnly) ...[
+              AppSpacing.gapXS,
+              const _RecoveryEvidenceField(
+                label: '基準回復進行',
+                value: '算出不可（時刻精度: 日付のみ）',
+              ),
+            ],
           ],
         ],
       ),
@@ -411,9 +407,86 @@ class _RecoveryEvidenceCard extends StatelessWidget {
   }
 }
 
-class _RecoveryGauge extends StatelessWidget {
-  const _RecoveryGauge({required this.progress, required this.status});
+class _RecoveryStatusBadge extends StatelessWidget {
+  const _RecoveryStatusBadge({required this.muscleGroup, required this.status});
 
+  final MuscleGroup muscleGroup;
+  final RecoveryStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _recoveryStatusColor(status);
+    return Semantics(
+      label: '回復状態 ${_recoveryStatusLabel(status)}',
+      child: Container(
+        key: ValueKey('recovery-status-badge-${muscleGroup.name}'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .14),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: .65)),
+        ),
+        child: Text(
+          _recoveryStatusLabel(status),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecoveryReferenceRow extends StatelessWidget {
+  const _RecoveryReferenceRow({
+    required this.duration,
+    required this.estimatedReadyAt,
+  });
+
+  final Duration duration;
+  final DateTime estimatedReadyAt;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    key: const ValueKey('recovery-reference-ready-row'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        child: _RecoveryEvidenceField(
+          key: const ValueKey('recovery-reference-field'),
+          label: '回復基準',
+          value: _formatRecoveryDuration(duration),
+        ),
+      ),
+      Container(
+        width: 1,
+        height: 34,
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        color: AppColors.divider,
+      ),
+      Expanded(
+        child: _RecoveryEvidenceField(
+          key: const ValueKey('recovery-ready-field'),
+          label: '回復目安',
+          value: _formatRecoveryReadyAt(estimatedReadyAt),
+        ),
+      ),
+    ],
+  );
+}
+
+class _RecoveryGauge extends StatelessWidget {
+  const _RecoveryGauge({
+    required this.muscleGroup,
+    required this.progress,
+    required this.status,
+  });
+
+  final MuscleGroup muscleGroup;
   final double progress;
   final RecoveryStatus status;
 
@@ -436,18 +509,19 @@ class _RecoveryGauge extends StatelessWidget {
           AppSpacing.gapXS,
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 10,
-              child: ColoredBox(
+            child: LayoutBuilder(
+              builder: (context, constraints) => Container(
+                key: ValueKey('recovery-gauge-track-${muscleGroup.name}'),
+                height: 12,
                 color: Theme.of(
                   context,
                 ).colorScheme.onSurface.withValues(alpha: .14),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: progress,
-                    child: ColoredBox(color: color),
-                  ),
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  key: ValueKey('recovery-gauge-fill-${muscleGroup.name}'),
+                  width: constraints.maxWidth * progress,
+                  height: double.infinity,
+                  child: ColoredBox(color: color),
                 ),
               ),
             ),
@@ -458,18 +532,92 @@ class _RecoveryGauge extends StatelessWidget {
   }
 }
 
+class _RecoveryEvidenceGrid extends StatelessWidget {
+  const _RecoveryEvidenceGrid({
+    required this.lastTrained,
+    required this.isDateOnly,
+    required this.exercise,
+    required this.equipment,
+  });
+
+  final String lastTrained;
+  final bool isDateOnly;
+  final String exercise;
+  final String equipment;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final fields = [
+        _RecoveryEvidenceField(
+          key: const ValueKey('recovery-evidence-last-trained'),
+          label: '最終実施',
+          value: lastTrained,
+          secondaryLabel: isDateOnly ? '時刻精度' : null,
+          secondaryValue: isDateOnly ? '日付のみ' : null,
+        ),
+        _RecoveryEvidenceField(
+          key: const ValueKey('recovery-evidence-exercise'),
+          label: '種目',
+          value: exercise,
+        ),
+        _RecoveryEvidenceField(
+          key: const ValueKey('recovery-evidence-equipment'),
+          label: 'EQUIPMENT',
+          value: equipment,
+        ),
+      ];
+      if (constraints.maxWidth >= 300) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < fields.length; index++) ...[
+              Expanded(child: fields[index]),
+              if (index < fields.length - 1)
+                const SizedBox(width: AppSpacing.sm),
+            ],
+          ],
+        );
+      }
+      final halfWidth = (constraints.maxWidth - AppSpacing.sm) / 2;
+      return Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          SizedBox(width: halfWidth, child: fields[0]),
+          SizedBox(width: halfWidth, child: fields[1]),
+          SizedBox(width: constraints.maxWidth, child: fields[2]),
+        ],
+      );
+    },
+  );
+}
+
 class _RecoveryEvidenceField extends StatelessWidget {
-  const _RecoveryEvidenceField({required this.label, required this.value});
+  const _RecoveryEvidenceField({
+    super.key,
+    required this.label,
+    required this.value,
+    this.secondaryLabel,
+    this.secondaryValue,
+  });
 
   final String label;
   final String value;
+  final String? secondaryLabel;
+  final String? secondaryValue;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(label, style: Theme.of(context).textTheme.labelSmall),
-      Text(value),
+      Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
+      if (secondaryLabel != null && secondaryValue != null) ...[
+        AppSpacing.gapXS,
+        Text(secondaryLabel!, style: Theme.of(context).textTheme.labelSmall),
+        Text(secondaryValue!),
+      ],
     ],
   );
 }
