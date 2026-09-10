@@ -16,6 +16,7 @@ import 'features/morning/morning_page.dart';
 import 'features/food/food_page.dart';
 import 'features/activity/activity_page.dart';
 import 'features/training/training_page.dart';
+import 'features/training/data_center_training_history_page.dart';
 import 'features/command_center/pages/command_center_page.dart';
 import 'features/body_history/pages/body_history_page.dart';
 import 'features/body_history/pages/data_center_history_page.dart';
@@ -141,6 +142,8 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.dataCenterHistory: (_) => const DataCenterHistoryPage(),
         AppRoutes.bodyHistory: (_) => const BodyHistoryPage(),
         AppRoutes.nutritionHistory: (_) => const NutritionHistoryPage(),
+        AppRoutes.trainingAnalyticsHistory: (_) =>
+            const DataCenterTrainingHistoryPage(),
         AppRoutes.dailyAggregateRecords: (_) =>
             const DailyAggregateRecordsPage(),
         AppRoutes.dailyAggregateDetail: (context) {

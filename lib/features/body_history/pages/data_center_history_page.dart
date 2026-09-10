@@ -58,6 +58,29 @@ class DataCenterHistoryPage extends StatelessWidget {
             ],
           ),
         ),
+        AppSpacing.gapMD,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TRAINING HISTORY',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みの正式データから、負荷・回数・セット数・頻度の推移を表示します。'),
+              AppSpacing.gapMD,
+              OperationButton(
+                text: 'OPEN TRAINING HISTORY',
+                icon: Icons.fitness_center_outlined,
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.trainingAnalyticsHistory,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     ),
   );
