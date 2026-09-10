@@ -135,7 +135,14 @@ void main() {
       MaterialApp(
         home: DataCenterTrainingHistoryPage(
           recordsLoader: () async => [
-            _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+            _v2Record(
+              startTime: '2026-08-03T20:14:00+09:00',
+              exerciseName: 'Lat Pulldown',
+              equipment: TrainingEquipmentSnapshot(
+                catalogId: 'hammer_strength_lat_pulldown',
+                name: 'Hammer Strength Lat Pulldown',
+              ),
+            ),
           ],
           clock: () => DateTime(2026, 8, 3, 22),
         ),
@@ -271,7 +278,6 @@ void main() {
                 startTime: '2026-08-03T20:14:00+09:00',
                 exerciseName: 'Squat',
                 equipment: TrainingEquipmentSnapshot(
-                  catalogId: 'hammer_strength_linear_leg_press',
                   name: 'HAMMER STRENGTH LINEAR LEG PRESS',
                 ),
               ),
@@ -301,10 +307,13 @@ void main() {
       final equipment = tester.getRect(
         find.byKey(const ValueKey('recovery-evidence-equipment')),
       );
-      expect(lastTrained.top, closeTo(exercise.top, 0.1));
-      expect(lastTrained.top, closeTo(equipment.top, 0.1));
+      expect(lastTrained.top, lessThan(exercise.top));
+      expect(exercise.top, closeTo(equipment.top, 0.1));
+      expect(equipment.width / exercise.width, closeTo(1.5, 0.1));
+      expect(lastTrained.width, greaterThan(equipment.width));
       expect(equipment.right, lessThanOrEqualTo(390));
       expect(equipment.width, greaterThan(0));
+      expect(find.text('HAMMER STRENGTH リニアレッグプレス'), findsOneWidget);
       expect(find.text('72時間'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -319,7 +328,14 @@ void main() {
         MaterialApp(
           home: DataCenterTrainingHistoryPage(
             recordsLoader: () async => [
-              _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+              _v2Record(
+                startTime: '2026-08-03T20:14:00+09:00',
+                exerciseName: 'Lat Pulldown',
+                equipment: TrainingEquipmentSnapshot(
+                  catalogId: 'hammer_strength_lat_pulldown',
+                  name: 'Hammer Strength Lat Pulldown',
+                ),
+              ),
             ],
             clock: () => DateTime(2026, 8, 4, 20, 14),
           ),
@@ -338,9 +354,19 @@ void main() {
       final equipment = tester.getRect(
         find.byKey(const ValueKey('recovery-evidence-equipment')),
       );
-      expect(lastTrained.top, closeTo(exercise.top, 0.1));
-      expect(equipment.top, greaterThan(lastTrained.top));
+      expect(lastTrained.top, lessThan(exercise.top));
+      expect(exercise.top, lessThan(equipment.top));
+      expect(equipment.width, greaterThan(exercise.width));
       expect(equipment.right, lessThanOrEqualTo(320));
+      _expectNotEllipsized(
+        tester,
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('recovery-evidence-equipment')),
+              matching: find.byType(Text),
+            )
+            .at(1),
+      );
       expect(tester.takeException(), isNull);
     },
   );

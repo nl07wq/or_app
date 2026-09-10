@@ -548,45 +548,43 @@ class _RecoveryEvidenceGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final fields = [
-        _RecoveryEvidenceField(
-          key: const ValueKey('recovery-evidence-last-trained'),
-          label: '最終実施',
-          value: lastTrained,
-          secondaryLabel: isDateOnly ? '時刻精度' : null,
-          secondaryValue: isDateOnly ? '日付のみ' : null,
-        ),
-        _RecoveryEvidenceField(
-          key: const ValueKey('recovery-evidence-exercise'),
-          label: '種目',
-          value: exercise,
-        ),
-        _RecoveryEvidenceField(
-          key: const ValueKey('recovery-evidence-equipment'),
-          label: 'EQUIPMENT',
-          value: equipment,
-        ),
-      ];
-      if (constraints.maxWidth >= 300) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var index = 0; index < fields.length; index++) ...[
-              Expanded(child: fields[index]),
-              if (index < fields.length - 1)
-                const SizedBox(width: AppSpacing.sm),
-            ],
-          ],
-        );
-      }
-      final halfWidth = (constraints.maxWidth - AppSpacing.sm) / 2;
-      return Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
+      final lastTrainedField = _RecoveryEvidenceField(
+        key: const ValueKey('recovery-evidence-last-trained'),
+        label: '最終実施',
+        value: lastTrained,
+        secondaryLabel: isDateOnly ? '時刻精度' : null,
+        secondaryValue: isDateOnly ? '日付のみ' : null,
+      );
+      final exerciseField = _RecoveryEvidenceField(
+        key: const ValueKey('recovery-evidence-exercise'),
+        label: '種目',
+        value: exercise,
+      );
+      final equipmentField = _RecoveryEvidenceField(
+        key: const ValueKey('recovery-evidence-equipment'),
+        label: 'EQUIPMENT',
+        value: equipment,
+      );
+      final twoColumnDetails = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: halfWidth, child: fields[0]),
-          SizedBox(width: halfWidth, child: fields[1]),
-          SizedBox(width: constraints.maxWidth, child: fields[2]),
+          Expanded(flex: 4, child: exerciseField),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(flex: 6, child: equipmentField),
+        ],
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          lastTrainedField,
+          AppSpacing.gapSM,
+          if (constraints.maxWidth >= 300)
+            twoColumnDetails
+          else ...[
+            exerciseField,
+            AppSpacing.gapXS,
+            equipmentField,
+          ],
         ],
       );
     },
