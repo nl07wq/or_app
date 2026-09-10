@@ -614,7 +614,7 @@ class _RecoveryBodyMapPainter extends CustomPainter {
     final neutral = Paint()
       ..color = AppColors.secondary.withValues(alpha: .22)
       ..style = PaintingStyle.fill;
-    for (final shape in _bodyMapSilhouettePaths(size)) {
+    for (final shape in _bodyMapSilhouettePaths(side, size)) {
       canvas.drawPath(shape, neutral);
     }
     for (final region in _bodyMapRegions(side, size)) {
@@ -764,7 +764,12 @@ List<_BodyMapRegion> _bodyMapRegions(_BodyMapSide side, Size size) {
   ];
 }
 
-List<Path> _bodyMapSilhouettePaths(Size size) {
+List<Path> _bodyMapSilhouettePaths(_BodyMapSide side, Size size) =>
+    side == _BodyMapSide.front
+    ? _frontBodySilhouettePaths(size)
+    : _backBodySilhouettePaths(size);
+
+List<Path> _frontBodySilhouettePaths(Size size) {
   Offset point(double x, double y) => Offset(
     x * size.width / _bodyMapBaseWidth,
     y * size.height / _bodyMapBaseHeight,
@@ -1037,6 +1042,235 @@ List<Path> _bodyMapSilhouettePaths(Size size) {
   ];
 }
 
+List<Path> _backBodySilhouettePaths(Size size) {
+  Offset point(double x, double y) => Offset(
+    x * size.width / _bodyMapBaseWidth,
+    y * size.height / _bodyMapBaseHeight,
+  );
+  Path build(
+    void Function(Path path, Offset Function(double, double) point) draw,
+  ) {
+    final path = Path();
+    draw(path, point);
+    return path;
+  }
+
+  return [
+    Path()..addOval(
+      Rect.fromCenter(
+        center: point(100, 30),
+        width: 30 * size.width / _bodyMapBaseWidth,
+        height: 39 * size.height / _bodyMapBaseHeight,
+      ),
+    ),
+    build((body, p) {
+      body
+        ..moveTo(p(87, 49).dx, p(87, 49).dy)
+        ..quadraticBezierTo(
+          p(86, 58).dx,
+          p(78, 60).dy,
+          p(67, 62).dx,
+          p(67, 62).dy,
+        )
+        ..quadraticBezierTo(
+          p(56, 68).dx,
+          p(55, 90).dy,
+          p(61, 112).dx,
+          p(61, 112).dy,
+        )
+        ..quadraticBezierTo(
+          p(66, 130).dx,
+          p(70, 145).dy,
+          p(69, 158).dx,
+          p(69, 158).dy,
+        )
+        ..quadraticBezierTo(
+          p(67, 170).dx,
+          p(63, 179).dy,
+          p(66, 187).dx,
+          p(66, 187).dy,
+        )
+        ..quadraticBezierTo(
+          p(75, 197).dx,
+          p(87, 200).dy,
+          p(100, 200).dx,
+          p(100, 200).dy,
+        )
+        ..quadraticBezierTo(
+          p(113, 200).dx,
+          p(125, 197).dy,
+          p(134, 187).dx,
+          p(134, 187).dy,
+        )
+        ..quadraticBezierTo(
+          p(137, 179).dx,
+          p(133, 170).dy,
+          p(131, 158).dx,
+          p(131, 158).dy,
+        )
+        ..quadraticBezierTo(
+          p(130, 145).dx,
+          p(134, 130).dy,
+          p(139, 112).dx,
+          p(139, 112).dy,
+        )
+        ..quadraticBezierTo(
+          p(145, 90).dx,
+          p(144, 68).dy,
+          p(133, 62).dx,
+          p(133, 62).dy,
+        )
+        ..quadraticBezierTo(
+          p(122, 60).dx,
+          p(114, 58).dy,
+          p(113, 49).dx,
+          p(113, 49).dy,
+        )
+        ..close();
+    }),
+    build((arm, p) {
+      arm
+        ..moveTo(p(61, 66).dx, p(61, 66).dy)
+        ..quadraticBezierTo(
+          p(49, 72).dx,
+          p(43, 93).dy,
+          p(40, 113).dx,
+          p(40, 113).dy,
+        )
+        ..quadraticBezierTo(
+          p(36, 135).dx,
+          p(32, 160).dy,
+          p(34, 181).dx,
+          p(34, 181).dy,
+        )
+        ..quadraticBezierTo(
+          p(35, 191).dx,
+          p(41, 195).dy,
+          p(46, 188).dx,
+          p(46, 188).dy,
+        )
+        ..quadraticBezierTo(
+          p(49, 166).dx,
+          p(54, 145).dy,
+          p(58, 125).dx,
+          p(58, 125).dy,
+        )
+        ..quadraticBezierTo(
+          p(65, 100).dx,
+          p(68, 80).dy,
+          p(61, 66).dx,
+          p(61, 66).dy,
+        )
+        ..close();
+    }),
+    build((arm, p) {
+      arm
+        ..moveTo(p(139, 66).dx, p(139, 66).dy)
+        ..quadraticBezierTo(
+          p(151, 72).dx,
+          p(157, 93).dy,
+          p(160, 113).dx,
+          p(160, 113).dy,
+        )
+        ..quadraticBezierTo(
+          p(164, 135).dx,
+          p(168, 160).dy,
+          p(166, 181).dx,
+          p(166, 181).dy,
+        )
+        ..quadraticBezierTo(
+          p(165, 191).dx,
+          p(159, 195).dy,
+          p(154, 188).dx,
+          p(154, 188).dy,
+        )
+        ..quadraticBezierTo(
+          p(151, 166).dx,
+          p(146, 145).dy,
+          p(142, 125).dx,
+          p(142, 125).dy,
+        )
+        ..quadraticBezierTo(
+          p(135, 100).dx,
+          p(132, 80).dy,
+          p(139, 66).dx,
+          p(139, 66).dy,
+        )
+        ..close();
+    }),
+    build((leg, p) {
+      leg
+        ..moveTo(p(68, 184).dx, p(68, 184).dy)
+        ..quadraticBezierTo(
+          p(61, 205).dx,
+          p(61, 226).dy,
+          p(65, 246).dx,
+          p(65, 246).dy,
+        )
+        ..quadraticBezierTo(
+          p(60, 266).dx,
+          p(59, 294).dy,
+          p(62, 326).dx,
+          p(62, 326).dy,
+        )
+        ..quadraticBezierTo(
+          p(67, 334).dx,
+          p(80, 334).dy,
+          p(86, 326).dx,
+          p(86, 326).dy,
+        )
+        ..quadraticBezierTo(
+          p(91, 299).dx,
+          p(95, 270).dy,
+          p(93, 246).dx,
+          p(93, 246).dy,
+        )
+        ..quadraticBezierTo(
+          p(94, 220).dx,
+          p(92, 198).dy,
+          p(84, 185).dx,
+          p(84, 185).dy,
+        )
+        ..close();
+    }),
+    build((leg, p) {
+      leg
+        ..moveTo(p(132, 184).dx, p(132, 184).dy)
+        ..quadraticBezierTo(
+          p(139, 205).dx,
+          p(139, 226).dy,
+          p(135, 246).dx,
+          p(135, 246).dy,
+        )
+        ..quadraticBezierTo(
+          p(140, 266).dx,
+          p(141, 294).dy,
+          p(138, 326).dx,
+          p(138, 326).dy,
+        )
+        ..quadraticBezierTo(
+          p(133, 334).dx,
+          p(120, 334).dy,
+          p(114, 326).dx,
+          p(114, 326).dy,
+        )
+        ..quadraticBezierTo(
+          p(109, 299).dx,
+          p(105, 270).dy,
+          p(107, 246).dx,
+          p(107, 246).dy,
+        )
+        ..quadraticBezierTo(
+          p(106, 220).dx,
+          p(108, 198).dy,
+          p(116, 185).dx,
+          p(116, 185).dy,
+        )
+        ..close();
+    }),
+  ];
+}
+
 Path _bodyMapRegionPath(_BodyMapSide side, _BodyMapRegion region, Size size) {
   final bounds = region.bounds;
   final left = bounds.center.dx < size.width / 2;
@@ -1077,25 +1311,27 @@ Path _bodyMapRegionPath(_BodyMapSide side, _BodyMapRegion region, Size size) {
 Path _bodyMapShoulderPath(Rect rect, {required bool left, required bool rear}) {
   final inner = left ? rect.right : rect.left;
   final outer = left ? rect.left : rect.right;
-  final path = Path()..moveTo(inner, rect.top + rect.height * .2);
+  final path = Path()..moveTo(inner, rect.top + rect.height * .32);
   path
-    ..quadraticBezierTo(
+    ..cubicTo(
       rect.center.dx,
-      rear ? rect.top + rect.height * .1 : rect.top + rect.height * .02,
+      rear ? rect.top + rect.height * .02 : rect.top + rect.height * .1,
       outer,
-      rear ? rect.top + rect.height * .22 : rect.top + rect.height * .34,
+      rear ? rect.top + rect.height * .24 : rect.top + rect.height * .28,
+      outer,
+      rect.top + rect.height * .54,
     )
     ..quadraticBezierTo(
-      outer,
-      rect.bottom - rect.height * .1,
+      outer + (left ? rect.width * .12 : -rect.width * .12),
+      rect.bottom - rect.height * .04,
       rect.center.dx,
       rect.bottom,
     )
     ..quadraticBezierTo(
       inner,
-      rect.bottom - rect.height * .08,
+      rect.bottom - rect.height * .14,
       inner,
-      rect.top + rect.height * .2,
+      rect.top + rect.height * .32,
     )
     ..close();
   return path;
@@ -1104,23 +1340,21 @@ Path _bodyMapShoulderPath(Rect rect, {required bool left, required bool rear}) {
 Path _bodyMapBicepsPath(Rect rect, {required bool left}) {
   final outer = left ? rect.left : rect.right;
   final inner = left ? rect.right : rect.left;
-  final path = Path()..moveTo(rect.center.dx, rect.top);
+  final path = Path()..moveTo(inner, rect.top + rect.height * .04);
   path
     ..cubicTo(
       outer,
-      rect.top + rect.height * .12,
-      outer - (left ? rect.width * .08 : -rect.width * .08),
-      rect.center.dy,
+      rect.top + rect.height * .16,
+      outer,
+      rect.bottom - rect.height * .18,
       rect.center.dx,
       rect.bottom,
     )
-    ..cubicTo(
+    ..quadraticBezierTo(
       inner,
-      rect.bottom - rect.height * .2,
+      rect.center.dy,
       inner,
-      rect.top + rect.height * .16,
-      rect.center.dx,
-      rect.top,
+      rect.top + rect.height * .04,
     )
     ..close();
   return path;
@@ -1129,21 +1363,23 @@ Path _bodyMapBicepsPath(Rect rect, {required bool left}) {
 Path _bodyMapTricepsPath(Rect rect, {required bool left}) {
   final outer = left ? rect.left : rect.right;
   final inner = left ? rect.right : rect.left;
-  final path = Path()..moveTo(inner, rect.top + rect.height * .05);
+  final path = Path()..moveTo(inner, rect.top + rect.height * .02);
   path
     ..cubicTo(
       outer,
-      rect.top + rect.height * .14,
+      rect.top + rect.height * .08,
       outer,
       rect.bottom - rect.height * .1,
       rect.center.dx,
       rect.bottom,
     )
-    ..quadraticBezierTo(
+    ..cubicTo(
       inner,
-      rect.center.dy,
+      rect.bottom - rect.height * .22,
       inner,
       rect.top + rect.height * .05,
+      inner,
+      rect.top + rect.height * .02,
     )
     ..close();
   return path;
@@ -1152,10 +1388,17 @@ Path _bodyMapTricepsPath(Rect rect, {required bool left}) {
 Path _bodyMapForearmPath(Rect rect, {required bool left}) {
   final outer = left ? rect.left : rect.right;
   final inner = left ? rect.right : rect.left;
-  final path = Path()..moveTo(rect.center.dx, rect.top);
+  final path = Path()..moveTo(inner, rect.top);
   path
-    ..quadraticBezierTo(outer, rect.center.dy, rect.center.dx, rect.bottom)
-    ..quadraticBezierTo(inner, rect.center.dy, rect.center.dx, rect.top)
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .18,
+      outer,
+      rect.bottom - rect.height * .22,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..quadraticBezierTo(inner, rect.center.dy, inner, rect.top)
     ..close();
   return path;
 }
@@ -1163,22 +1406,28 @@ Path _bodyMapForearmPath(Rect rect, {required bool left}) {
 Path _bodyMapQuadricepsPath(Rect rect, {required bool left}) {
   final outer = left ? rect.left : rect.right;
   final inner = left ? rect.right : rect.left;
-  final path = Path()..moveTo(rect.center.dx, rect.top);
+  final path = Path()..moveTo(inner, rect.top);
   path
     ..cubicTo(
       outer,
-      rect.top + rect.height * .14,
+      rect.top + rect.height * .08,
       outer,
       rect.bottom - rect.height * .16,
+      inner,
+      rect.bottom,
+    )
+    ..quadraticBezierTo(
       rect.center.dx,
+      rect.bottom + rect.height * .02,
+      inner,
       rect.bottom,
     )
     ..cubicTo(
       inner,
-      rect.bottom - rect.height * .16,
-      inner,
       rect.top + rect.height * .14,
-      rect.center.dx,
+      inner,
+      rect.top + rect.height * .04,
+      inner,
       rect.top,
     )
     ..close();
@@ -1188,21 +1437,29 @@ Path _bodyMapQuadricepsPath(Rect rect, {required bool left}) {
 Path _bodyMapHamstringPath(Rect rect, {required bool left}) {
   final outer = left ? rect.left : rect.right;
   final inner = left ? rect.right : rect.left;
-  final path = Path()..moveTo(inner, rect.top + rect.height * .04);
+  final path = Path()..moveTo(inner, rect.top);
   path
     ..cubicTo(
       outer,
-      rect.top + rect.height * .16,
+      rect.top + rect.height * .08,
       outer,
       rect.bottom - rect.height * .08,
-      rect.center.dx,
+      outer,
       rect.bottom,
     )
     ..quadraticBezierTo(
+      rect.center.dx,
+      rect.bottom + rect.height * .02,
       inner,
-      rect.bottom - rect.height * .2,
+      rect.bottom,
+    )
+    ..cubicTo(
       inner,
-      rect.top + rect.height * .04,
+      rect.top + rect.height * .22,
+      inner,
+      rect.top + rect.height * .05,
+      inner,
+      rect.top,
     )
     ..close();
   return path;
@@ -1241,34 +1498,30 @@ Path _bodyMapTrapeziusPath(Rect rect) {
   final path = Path()..moveTo(rect.center.dx, rect.top);
   path
     ..cubicTo(
-      rect.left + rect.width * .28,
-      rect.top + rect.height * .12,
+      rect.left + rect.width * .38,
+      rect.top + rect.height * .08,
+      rect.left + rect.width * .12,
+      rect.top + rect.height * .42,
       rect.left + rect.width * .08,
-      rect.top + rect.height * .54,
-      rect.left,
-      rect.bottom,
-    )
-    ..cubicTo(
-      rect.left + rect.width * .3,
       rect.bottom - rect.height * .08,
-      rect.center.dx - rect.width * .12,
-      rect.bottom - rect.height * .32,
+    )
+    ..quadraticBezierTo(
+      rect.center.dx - rect.width * .22,
+      rect.bottom,
       rect.center.dx,
-      rect.bottom - rect.height * .25,
+      rect.bottom - rect.height * .16,
     )
-    ..cubicTo(
-      rect.right - rect.width * .3,
-      rect.bottom - rect.height * .08,
-      rect.right,
+    ..quadraticBezierTo(
+      rect.center.dx + rect.width * .22,
       rect.bottom,
-      rect.right,
-      rect.bottom,
-    )
-    ..cubicTo(
       rect.right - rect.width * .08,
-      rect.top + rect.height * .54,
-      rect.right - rect.width * .28,
-      rect.top + rect.height * .12,
+      rect.bottom - rect.height * .08,
+    )
+    ..cubicTo(
+      rect.right - rect.width * .12,
+      rect.top + rect.height * .42,
+      rect.right - rect.width * .38,
+      rect.top + rect.height * .08,
       rect.center.dx,
       rect.top,
     )
@@ -1279,25 +1532,32 @@ Path _bodyMapTrapeziusPath(Rect rect) {
 Path _bodyMapLatPath(Rect rect, {required bool left}) {
   final inner = left ? rect.right : rect.left;
   final outer = left ? rect.left : rect.right;
-  final path = Path()..moveTo(inner, rect.top);
+  final path = Path()..moveTo(inner, rect.top + rect.height * .05);
   path
     ..cubicTo(
       rect.center.dx,
-      rect.top + rect.height * .06,
+      rect.top + rect.height * .02,
       outer,
-      rect.top + rect.height * .18,
+      rect.top + rect.height * .2,
       outer,
-      rect.center.dy,
+      rect.top + rect.height * .5,
     )
     ..cubicTo(
       outer,
-      rect.bottom - rect.height * .2,
+      rect.bottom - rect.height * .15,
       rect.center.dx,
       rect.bottom,
       inner,
-      rect.bottom - rect.height * .12,
+      rect.bottom - rect.height * .05,
     )
-    ..quadraticBezierTo(inner, rect.center.dy, inner, rect.top)
+    ..cubicTo(
+      inner,
+      rect.center.dy,
+      inner,
+      rect.top + rect.height * .18,
+      inner,
+      rect.top + rect.height * .05,
+    )
     ..close();
   return path;
 }
@@ -1334,19 +1594,19 @@ Path _bodyMapCorePath(Rect rect) {
 Path _bodyMapGlutePath(Rect rect, {required bool left}) {
   final inner = left ? rect.right : rect.left;
   final outer = left ? rect.left : rect.right;
-  final path = Path()..moveTo(inner, rect.top + rect.height * .08);
+  final path = Path()..moveTo(inner, rect.top + rect.height * .02);
   path
     ..quadraticBezierTo(
       rect.center.dx,
-      rect.top - rect.height * .06,
+      rect.top,
       outer,
-      rect.top + rect.height * .18,
+      rect.top + rect.height * .12,
     )
     ..cubicTo(
       outer,
       rect.bottom - rect.height * .12,
       rect.center.dx,
-      rect.bottom + rect.height * .06,
+      rect.bottom,
       inner,
       rect.bottom - rect.height * .08,
     )
@@ -1354,7 +1614,7 @@ Path _bodyMapGlutePath(Rect rect, {required bool left}) {
       inner,
       rect.center.dy,
       inner,
-      rect.top + rect.height * .08,
+      rect.top + rect.height * .02,
     )
     ..close();
   return path;
@@ -1363,14 +1623,14 @@ Path _bodyMapGlutePath(Rect rect, {required bool left}) {
 Path _bodyMapCalfPath(Rect rect, {required bool left}) {
   final inner = left ? rect.right : rect.left;
   final outer = left ? rect.left : rect.right;
-  final path = Path()..moveTo(rect.center.dx, rect.top);
+  final path = Path()..moveTo(inner, rect.top);
   path
     ..cubicTo(
       outer,
       rect.top + rect.height * .16,
-      outer - (left ? rect.width * .04 : -rect.width * .04),
-      rect.center.dy,
-      outer + (left ? rect.width * .18 : -rect.width * .18),
+      outer,
+      rect.top + rect.height * .54,
+      outer + (left ? rect.width * .1 : -rect.width * .1),
       rect.bottom - rect.height * .14,
     )
     ..quadraticBezierTo(
@@ -1380,11 +1640,11 @@ Path _bodyMapCalfPath(Rect rect, {required bool left}) {
       rect.bottom - rect.height * .14,
     )
     ..cubicTo(
-      inner + (left ? -rect.width * .04 : rect.width * .04),
-      rect.center.dy,
+      inner,
+      rect.top + rect.height * .54,
       inner,
       rect.top + rect.height * .16,
-      rect.center.dx,
+      inner,
       rect.top,
     )
     ..close();
@@ -1859,11 +2119,13 @@ class _ExerciseView extends StatelessWidget {
         ),
         AppSpacing.gapSM,
         const _SelectorCaption('EXERCISE'),
-        AppSpacing.gapSM,
-        OperationCard(
+        AppSpacing.gapXS,
+        _HistoryConditionSelectorCard(
+          key: const Key('exercise-category-selector-card'),
           child: DropdownButton<String>(
             key: const Key('exercise-category-selector'),
             isExpanded: true,
+            isDense: true,
             value: category.key,
             items: [
               for (final item in categories)
@@ -1877,13 +2139,15 @@ class _ExerciseView extends StatelessWidget {
             },
           ),
         ),
-        AppSpacing.gapLG,
+        AppSpacing.gapMD,
         const _SelectorCaption('EQUIPMENT'),
-        AppSpacing.gapSM,
-        OperationCard(
+        AppSpacing.gapXS,
+        _HistoryConditionSelectorCard(
+          key: const Key('exercise-equipment-selector-card'),
           child: DropdownButton<_EquipmentSelection>(
             key: const Key('exercise-equipment-selector'),
             isExpanded: true,
+            isDense: true,
             value: showAllEquipment
                 ? const _EquipmentSelection.all()
                 : _EquipmentSelection.specific(variant),
@@ -1962,6 +2226,24 @@ class _SelectorCaption extends StatelessWidget {
       Text(label, style: Theme.of(context).textTheme.labelSmall);
 }
 
+class _HistoryConditionSelectorCard extends StatelessWidget {
+  const _HistoryConditionSelectorCard({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.md,
+      vertical: AppSpacing.sm,
+    ),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 40),
+      child: Align(alignment: Alignment.centerLeft, child: child),
+    ),
+  );
+}
+
 class _AllEquipmentState extends StatelessWidget {
   const _AllEquipmentState();
   @override
@@ -2023,7 +2305,7 @@ class _VolumeMetricSelector extends StatelessWidget {
   Widget build(BuildContext context) => OperationCard(
     padding: const EdgeInsets.all(AppSpacing.sm),
     child: _CompactChoiceRow(
-      labels: const ['RECORDED', 'WORKING'],
+      labels: const ['総ボリューム', 'メインセット'],
       selectedIndex: selected.index,
       onSelected: (index) => onSelected(_VolumeMetric.values[index]),
     ),

@@ -765,8 +765,10 @@ void main() {
     expect(find.text('LATEST RECORDED\nVOLUME'), findsOneWidget);
     expect(find.text('RECORDED VOLUME HISTORY'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'RPE'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'RECORDED'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'WORKING'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, '総ボリューム'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'メインセット'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'RECORDED'), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, 'WORKING'), findsNothing);
     expect(find.text('CHANGE'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -792,7 +794,7 @@ void main() {
     await tester.ensureVisible(volume);
     await tester.tap(volume);
     await tester.pumpAndSettle();
-    final working = find.widgetWithText(ChoiceChip, 'WORKING');
+    final working = find.widgetWithText(ChoiceChip, 'メインセット');
     await tester.ensureVisible(working);
     await tester.tap(working);
     await tester.pumpAndSettle();
@@ -862,7 +864,7 @@ void main() {
       _expectInlineMetricValueUnit(tester, id, unit);
     }
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'メインセット'));
     await tester.pumpAndSettle();
     expect(find.text('LATEST WORKING\nVOLUME'), findsOneWidget);
     expect(find.text('MAX WORKING\nVOLUME'), findsOneWidget);
@@ -965,7 +967,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'メインセット'));
     await tester.pumpAndSettle();
     expect(find.text('WORKING VOLUME DATA NOT AVAILABLE'), findsOneWidget);
     expect(
@@ -1031,8 +1033,8 @@ void main() {
     await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
     await tester.pumpAndSettle();
     _expectOneRow(tester, [
-      find.widgetWithText(ChoiceChip, 'RECORDED'),
-      find.widgetWithText(ChoiceChip, 'WORKING'),
+      find.widgetWithText(ChoiceChip, '総ボリューム'),
+      find.widgetWithText(ChoiceChip, 'メインセット'),
     ]);
     _expectOneRow(tester, [
       find.text('LAST TRAINED'),
@@ -1045,7 +1047,7 @@ void main() {
       find.text('CHANGE'),
     ]);
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'メインセット'));
     await tester.pumpAndSettle();
     _expectOneRow(tester, [
       find.text('LAST TRAINED'),
@@ -1081,7 +1083,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ChoiceChip, 'WORKING'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'メインセット'));
       await tester.pumpAndSettle();
 
       _expectOneRow(tester, [
@@ -1091,8 +1093,8 @@ void main() {
         find.widgetWithText(ChoiceChip, 'RPE'),
       ]);
       _expectOneRow(tester, [
-        find.widgetWithText(ChoiceChip, 'RECORDED'),
-        find.widgetWithText(ChoiceChip, 'WORKING'),
+        find.widgetWithText(ChoiceChip, '総ボリューム'),
+        find.widgetWithText(ChoiceChip, 'メインセット'),
       ]);
       _expectOneRow(tester, [
         find.text('LAST TRAINED'),
@@ -1140,6 +1142,14 @@ void main() {
     expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('ベンチプレス'), findsOneWidget);
     expect(find.text('ダンベル'), findsOneWidget);
+    final categoryCard = tester.getRect(
+      find.byKey(const Key('exercise-category-selector-card')),
+    );
+    final equipmentCard = tester.getRect(
+      find.byKey(const Key('exercise-equipment-selector-card')),
+    );
+    expect(categoryCard.height, lessThanOrEqualTo(64));
+    expect(equipmentCard.height, lessThanOrEqualTo(64));
     expect(find.textContaining('hammer_strength'), findsNothing);
     await tester.tap(find.byKey(const Key('exercise-equipment-selector')));
     await tester.pumpAndSettle();
