@@ -43,6 +43,26 @@ void main() {
 
     expect(find.textContaining('TRAINING HISTORYはまだありません'), findsOneWidget);
   });
+
+  testWidgets('keeps the summary grid usable at iPhone-class width', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SESSIONS'), findsOneWidget);
+    expect(find.text('TRAINING DAYS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<List<TrainingRecordReadModel>> _noRecords() async => const [];
