@@ -4,9 +4,11 @@ import 'training_history_domain_service.dart';
 /// Presentation-level period choices for the Data Center training overview.
 /// They deliberately operate on formal operation dates, not persistence dates.
 enum TrainingHistoryOverviewPeriod {
-  recent('RECENT'),
+  oneWeek('1 WEEK'),
   oneMonth('1 MONTH'),
   threeMonths('3 MONTHS'),
+  sixMonths('6 MONTHS'),
+  oneYear('1 YEAR'),
   all('ALL');
 
   const TrainingHistoryOverviewPeriod(this.label);
@@ -66,8 +68,6 @@ class TrainingHistoryOverviewAdapter {
     this.domainService = const TrainingHistoryDomainService(),
   });
 
-  static const recentDays = 28;
-
   final TrainingHistoryDomainService domainService;
 
   TrainingHistoryOverview build(
@@ -76,7 +76,9 @@ class TrainingHistoryOverviewAdapter {
     DateTime? referenceDate,
   }) {
     final aggregates = [
-      for (final record in records) domainService.sessionAggregate(record),
+      for (final record in records)
+        if (record.strengthTrainingPerformed)
+          domainService.sessionAggregate(record),
     ]..sort((a, b) => a.operationDate.compareTo(b.operationDate));
     if (aggregates.isEmpty) return _empty();
 
@@ -89,6 +91,7 @@ class TrainingHistoryOverviewAdapter {
             !_parseLocalDate(aggregate.operationDate).isBefore(start))
           aggregate,
     ];
+    if (selected.isEmpty) return _empty();
     final points = [
       for (final aggregate in selected)
         TrainingHistoryOverviewPoint(
@@ -103,7 +106,15 @@ class TrainingHistoryOverviewAdapter {
     };
     return TrainingHistoryOverview(
       points: List.unmodifiable(points),
-      frequencyPoints: List.unmodifiable(_frequency(selected)),
+      frequencyPoints: List.unmodifiable(
+        _frequency(
+          selected,
+          rangeStart: start ?? _parseLocalDate(selected.first.operationDate),
+          rangeEnd: period == TrainingHistoryOverviewPeriod.all
+              ? _parseLocalDate(selected.last.operationDate)
+              : end,
+        ),
+      ),
       sessionCount: selected.length,
       trainingDays: days.length,
       recordedVolume: selected.fold<double>(
@@ -128,35 +139,59 @@ class TrainingHistoryOverviewAdapter {
 
   DateTime? _startFor(TrainingHistoryOverviewPeriod period, DateTime end) =>
       switch (period) {
-        TrainingHistoryOverviewPeriod.recent => end.subtract(
-          const Duration(days: recentDays - 1),
+        TrainingHistoryOverviewPeriod.oneWeek => end.subtract(
+          const Duration(days: 6),
         ),
-        TrainingHistoryOverviewPeriod.oneMonth => end.subtract(
-          const Duration(days: 29),
-        ),
-        TrainingHistoryOverviewPeriod.threeMonths => end.subtract(
-          const Duration(days: 89),
-        ),
+        TrainingHistoryOverviewPeriod.oneMonth => _monthsBefore(end, 1),
+        TrainingHistoryOverviewPeriod.threeMonths => _monthsBefore(end, 3),
+        TrainingHistoryOverviewPeriod.sixMonths => _monthsBefore(end, 6),
+        TrainingHistoryOverviewPeriod.oneYear => _yearsBefore(end, 1),
         TrainingHistoryOverviewPeriod.all => null,
       };
 
   List<TrainingHistoryFrequencyPoint> _frequency(
-    Iterable<TrainingSessionAggregate> aggregates,
-  ) {
+    Iterable<TrainingSessionAggregate> aggregates, {
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) {
     final counts = <DateTime, int>{};
     for (final aggregate in aggregates) {
       final week = _mondayFor(_parseLocalDate(aggregate.operationDate));
       counts[week] = (counts[week] ?? 0) + 1;
     }
-    final weeks = counts.keys.toList()..sort();
+    final firstWeek = _mondayFor(rangeStart);
+    final finalWeek = _mondayFor(rangeEnd);
+    final weeks = <DateTime>[];
+    for (
+      var week = firstWeek;
+      !week.isAfter(finalWeek);
+      week = week.add(const Duration(days: 7))
+    ) {
+      weeks.add(week);
+    }
     return [
       for (final week in weeks)
-        TrainingHistoryFrequencyPoint(weekStart: week, sessions: counts[week]!),
+        TrainingHistoryFrequencyPoint(
+          weekStart: week,
+          sessions: counts[week] ?? 0,
+        ),
     ];
   }
 
   DateTime _mondayFor(DateTime date) =>
       date.subtract(Duration(days: date.weekday - DateTime.monday));
+
+  DateTime _monthsBefore(DateTime date, int months) {
+    final firstOfFollowingMonth = DateTime(date.year, date.month - months + 1);
+    final lastDay = firstOfFollowingMonth.subtract(const Duration(days: 1)).day;
+    return DateTime(date.year, date.month - months, date.day.clamp(1, lastDay));
+  }
+
+  DateTime _yearsBefore(DateTime date, int years) {
+    final year = date.year - years;
+    final lastDay = DateTime(year, date.month + 1, 0).day;
+    return DateTime(year, date.month, date.day.clamp(1, lastDay));
+  }
 
   DateTime _parseLocalDate(String value) {
     final parsed = DateTime.parse(value);

@@ -24,12 +24,9 @@ void main() {
 
     expect(find.text('TRAINING HISTORY'), findsWidgets);
     expect(find.text('RECORDED VOLUME'), findsWidgets);
-    await tester.scrollUntilVisible(find.text('REPS'), 300);
-    expect(find.text('REPS'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('RECORDED SETS'), 300);
-    expect(find.text('RECORDED SETS'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('TRAINING FREQUENCY'), 300);
-    expect(find.text('TRAINING FREQUENCY'), findsOneWidget);
+    expect(find.text('STRENGTH OVERVIEW'), findsOneWidget);
+    expect(find.text('1 WEEK'), findsOneWidget);
+    expect(find.text('6 MONTHS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -59,8 +56,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('SESSIONS'), findsOneWidget);
-    expect(find.text('TRAINING DAYS'), findsOneWidget);
+    expect(find.text('STRENGTH SESSIONS'), findsOneWidget);
+    expect(find.text('STRENGTH DAYS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

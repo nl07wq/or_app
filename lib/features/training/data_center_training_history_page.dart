@@ -7,6 +7,7 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import 'models/training_record_read_model.dart';
 import 'services/training_history_overview_adapter.dart';
+import 'services/training_volume_formatter.dart';
 
 /// Data Center analytics. The existing TrainingHistoryPage remains the raw
 /// formal-record list and is intentionally not reused as this page.
@@ -30,7 +31,7 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
 class _DataCenterTrainingHistoryPageState
     extends State<DataCenterTrainingHistoryPage> {
   late final Future<List<TrainingRecordReadModel>> _records;
-  var _period = TrainingHistoryOverviewPeriod.recent;
+  var _period = TrainingHistoryOverviewPeriod.oneMonth;
 
   @override
   void initState() {
@@ -80,7 +81,7 @@ class _DataCenterTrainingHistoryPageState
             else ...[
               const SectionHeader(
                 icon: Icons.summarize_outlined,
-                title: 'OVERVIEW',
+                title: 'STRENGTH OVERVIEW',
               ),
               AppSpacing.gapSM,
               _SummaryGrid(overview: overview),
@@ -88,43 +89,43 @@ class _DataCenterTrainingHistoryPageState
               _MetricSection(
                 title: 'RECORDED VOLUME',
                 note: '正式に記録された全セットを含みます。',
-                unit: 'kg',
                 points: [
                   for (final point in overview.points)
                     _ChartPoint(point.date, point.recordedVolume),
                 ],
-                valueFormatter: _formatVolume,
+                axisFormatter: TrainingVolumeFormatter.axisLabel,
+                detailFormatter: TrainingVolumeFormatter.format,
               ),
               AppSpacing.gapXL,
               _MetricSection(
                 title: 'REPS',
-                unit: 'reps',
                 points: [
                   for (final point in overview.points)
                     _ChartPoint(point.date, point.recordedReps.toDouble()),
                 ],
-                valueFormatter: _formatInteger,
+                axisFormatter: _formatInteger,
+                detailFormatter: (value) => '${_formatInteger(value)} reps',
               ),
               AppSpacing.gapXL,
               _MetricSection(
                 title: 'RECORDED SETS',
-                unit: 'sets',
                 points: [
                   for (final point in overview.points)
                     _ChartPoint(point.date, point.recordedSetCount.toDouble()),
                 ],
-                valueFormatter: _formatInteger,
+                axisFormatter: _formatInteger,
+                detailFormatter: (value) => '${_formatInteger(value)} sets',
               ),
               AppSpacing.gapXL,
               _MetricSection(
-                title: 'TRAINING FREQUENCY',
-                note: 'MONDAY START · SESSIONS PER WEEK',
-                unit: 'sessions',
+                title: 'STRENGTH FREQUENCY',
+                note: 'MONDAY START · STRENGTH SESSIONS PER WEEK',
                 points: [
                   for (final point in overview.frequencyPoints)
                     _ChartPoint(point.weekStart, point.sessions.toDouble()),
                 ],
-                valueFormatter: _formatInteger,
+                axisFormatter: _formatInteger,
+                detailFormatter: (value) => '${_formatInteger(value)} sessions',
               ),
             ],
             AppSpacing.gapLG,
@@ -170,12 +171,12 @@ class _SummaryGrid extends StatelessWidget {
           ? (constraints.maxWidth - AppSpacing.sm) / 2
           : constraints.maxWidth;
       final cards = [
-        _SummaryMetric('SESSIONS', '${overview.sessionCount}', ''),
-        _SummaryMetric('TRAINING DAYS', '${overview.trainingDays}', ''),
+        _SummaryMetric('STRENGTH SESSIONS', '${overview.sessionCount}', ''),
+        _SummaryMetric('STRENGTH DAYS', '${overview.trainingDays}', ''),
         _SummaryMetric(
           'RECORDED VOLUME',
-          _formatVolume(overview.recordedVolume),
-          'kg',
+          TrainingVolumeFormatter.display(overview.recordedVolume).value,
+          TrainingVolumeFormatter.display(overview.recordedVolume).unit,
         ),
         _SummaryMetric('TOTAL REPS', '${overview.recordedReps}', 'reps'),
       ];
@@ -216,17 +217,17 @@ class _SummaryMetric extends StatelessWidget {
 class _MetricSection extends StatelessWidget {
   const _MetricSection({
     required this.title,
-    required this.unit,
     required this.points,
-    required this.valueFormatter,
+    required this.axisFormatter,
+    required this.detailFormatter,
     this.note,
   });
 
   final String title;
-  final String unit;
   final String? note;
   final List<_ChartPoint> points;
-  final String Function(double value) valueFormatter;
+  final String Function(double value) axisFormatter;
+  final String Function(double value) detailFormatter;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -247,8 +248,8 @@ class _MetricSection extends StatelessWidget {
         ),
         child: _TrainingLineChart(
           points: points,
-          unit: unit,
-          valueFormatter: valueFormatter,
+          axisFormatter: axisFormatter,
+          detailFormatter: detailFormatter,
         ),
       ),
     ],
@@ -258,13 +259,13 @@ class _MetricSection extends StatelessWidget {
 class _TrainingLineChart extends StatefulWidget {
   const _TrainingLineChart({
     required this.points,
-    required this.unit,
-    required this.valueFormatter,
+    required this.axisFormatter,
+    required this.detailFormatter,
   });
 
   final List<_ChartPoint> points;
-  final String unit;
-  final String Function(double value) valueFormatter;
+  final String Function(double value) axisFormatter;
+  final String Function(double value) detailFormatter;
 
   @override
   State<_TrainingLineChart> createState() => _TrainingLineChartState();
@@ -323,7 +324,7 @@ class _TrainingLineChartState extends State<_TrainingLineChart> {
                     getTitlesWidget: (value, _) => Padding(
                       padding: const EdgeInsets.only(right: 4),
                       child: Text(
-                        widget.valueFormatter(value),
+                        widget.axisFormatter(value),
                         textAlign: TextAlign.right,
                         style: Theme.of(context).textTheme.labelSmall,
                       ),
@@ -362,7 +363,7 @@ class _TrainingLineChartState extends State<_TrainingLineChart> {
                   getTooltipItems: (spots) => [
                     for (final spot in spots)
                       LineTooltipItem(
-                        '${_formatDate(widget.points[spot.x.round()].date)}\n${widget.valueFormatter(spot.y)} ${widget.unit}',
+                        '${_formatDate(widget.points[spot.x.round()].date)}\n${widget.detailFormatter(spot.y)}',
                         Theme.of(context).textTheme.labelMedium!.copyWith(
                           color: Theme.of(context).colorScheme.onPrimary,
                         ),
@@ -396,7 +397,7 @@ class _TrainingLineChartState extends State<_TrainingLineChart> {
         if (selected != null) ...[
           AppSpacing.gapXS,
           Text(
-            '${_formatDate(selected.date)} · ${widget.valueFormatter(selected.value)} ${widget.unit}',
+            '${_formatDate(selected.date)} · ${widget.detailFormatter(selected.value)}',
             style: Theme.of(context).textTheme.labelMedium,
           ),
         ],
@@ -434,9 +435,3 @@ double _labelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
 String _formatDate(DateTime date) => '${date.month}/${date.day}';
 
 String _formatInteger(double value) => value.round().toString();
-
-String _formatVolume(double value) {
-  return value == value.roundToDouble()
-      ? value.toStringAsFixed(0)
-      : value.toStringAsFixed(1);
-}

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/training_exercise.dart';
+import 'package:or_app/core/models/cardio_entry.dart';
 import 'package:or_app/core/models/training_session.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
@@ -34,7 +35,7 @@ void main() {
           _record('old', '2026-06-01', weight: 10, reps: 1),
           _record('latest', '2026-08-01', weight: 0, reps: 0),
         ],
-        period: TrainingHistoryOverviewPeriod.recent,
+        period: TrainingHistoryOverviewPeriod.oneWeek,
         referenceDate: DateTime(2026, 8, 1),
       );
 
@@ -43,6 +44,47 @@ void main() {
       expect(overview.points.single.recordedReps, 0);
     },
   );
+
+  test('excludes cardio-only records but retains mixed strength records', () {
+    final overview = adapter.build(
+      [
+        _record('strength', '2026-08-03', weight: 10, reps: 3),
+        _cardioOnly('cardio', '2026-08-04'),
+        _record('mixed', '2026-08-05', weight: 20, reps: 5, cardio: true),
+      ],
+      period: TrainingHistoryOverviewPeriod.all,
+      referenceDate: DateTime(2026, 8, 9),
+    );
+
+    expect(overview.sessionCount, 2);
+    expect(overview.trainingDays, 2);
+    expect(overview.recordedVolume, 130);
+    expect(overview.recordedReps, 8);
+    expect(overview.points.map((point) => point.date.day), [3, 5]);
+    expect(
+      overview.frequencyPoints
+          .where((point) => point.weekStart.day == 3)
+          .single
+          .sessions,
+      2,
+    );
+  });
+
+  test('includes zero-strength weeks in the weekly frequency series', () {
+    final overview = adapter.build(
+      [_record('strength', '2026-08-03', weight: 10, reps: 3)],
+      period: TrainingHistoryOverviewPeriod.oneMonth,
+      referenceDate: DateTime(2026, 8, 30),
+    );
+
+    expect(overview.frequencyPoints.map((point) => point.sessions), [
+      0,
+      1,
+      0,
+      0,
+      0,
+    ]);
+  });
 }
 
 TrainingRecordReadModel _record(
@@ -50,6 +92,7 @@ TrainingRecordReadModel _record(
   String localDate, {
   required double weight,
   required int reps,
+  bool cardio = false,
 }) => TrainingRecordReadModel.v1(
   id: id,
   localDate: localDate,
@@ -65,5 +108,26 @@ TrainingRecordReadModel _record(
         sets: [TrainingSet(setNo: 1, weight: weight, reps: reps)],
       ),
     ],
+    cardioEntries: cardio ? [_cardio()] : const [],
   ),
+);
+
+TrainingRecordReadModel _cardioOnly(String id, String localDate) =>
+    TrainingRecordReadModel.v1(
+      id: id,
+      localDate: localDate,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      data: TrainingSession(
+        date: '${localDate}T00:00:00.000',
+        memo: '',
+        exercises: const [],
+        cardioEntries: [_cardio()],
+      ),
+    );
+
+CardioEntry _cardio() => CardioEntry(
+  type: CardioType.walking,
+  intensity: CardioIntensity.light,
+  durationMinutes: 20,
 );
