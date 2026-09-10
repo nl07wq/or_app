@@ -29,6 +29,7 @@ class DataCenterHistoryPage extends StatelessWidget {
               const Text('保存済みの正式データから、体重と体脂肪率の履歴を表示します。'),
               AppSpacing.gapMD,
               OperationButton(
+                role: OperationActionRole.primary,
                 text: 'OPEN BODY HISTORY',
                 icon: Icons.monitor_weight_outlined,
                 onPressed: () =>
@@ -50,6 +51,7 @@ class DataCenterHistoryPage extends StatelessWidget {
               const Text('保存済みの正式データから、摂取・推定消費・カロリー収支の履歴を表示します。'),
               AppSpacing.gapMD,
               OperationButton(
+                role: OperationActionRole.primary,
                 text: 'OPEN NUTRITION HISTORY',
                 icon: Icons.restaurant_outlined,
                 onPressed: () =>
@@ -71,6 +73,7 @@ class DataCenterHistoryPage extends StatelessWidget {
               const Text('保存済みの正式データから、負荷・回数・セット数・頻度の推移を表示します。'),
               AppSpacing.gapMD,
               OperationButton(
+                role: OperationActionRole.primary,
                 text: 'OPEN TRAINING HISTORY',
                 icon: Icons.fitness_center_outlined,
                 onPressed: () => Navigator.pushNamed(

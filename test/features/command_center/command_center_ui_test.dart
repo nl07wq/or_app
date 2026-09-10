@@ -555,6 +555,47 @@ void main() {
     );
   });
 
+  testWidgets('prioritizes the high-use Command Center tabs initially', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+
+    expect(
+      _isCommandCenterTabVisible(tester, 'BRIEF / DEBRIEF'),
+      isTrue,
+      reason: _commandCenterTabGeometry(tester),
+    );
+    expect(
+      _isCommandCenterTabVisible(tester, 'DAILY COMMAND'),
+      isTrue,
+      reason: _commandCenterTabGeometry(tester),
+    );
+    expect(
+      _isCommandCenterTabVisible(tester, 'DATA CENTER'),
+      isTrue,
+      reason: _commandCenterTabGeometry(tester),
+    );
+    expect(_isCommandCenterTabVisible(tester, 'PERIODIC REPORT'), isFalse);
+  });
+
+  testWidgets('keeps the selected Command Center tab visible', (tester) async {
+    await _pump(tester, width: 320);
+
+    for (final label in [
+      'PERIODIC REPORT',
+      'BRIEF / DEBRIEF',
+      'DAILY COMMAND',
+      'DATA CENTER',
+    ]) {
+      await _tapCommandCenterTab(tester, label);
+      expect(
+        _isCommandCenterTabVisible(tester, label),
+        isTrue,
+        reason: '$label; ${_commandCenterTabGeometry(tester)}',
+      );
+    }
+  });
+
   testWidgets('maps reordered top tabs through taps and adjacent swipes', (
     tester,
   ) async {
@@ -2131,6 +2172,30 @@ Future<void> _tapCommandCenterTab(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
   await tester.tap(tab);
   await tester.pumpAndSettle();
+}
+
+bool _isCommandCenterTabVisible(WidgetTester tester, String label) {
+  final viewport = tester.getRect(
+    find.byKey(const ValueKey('command-center-tab-scroll')),
+  );
+  final tab = tester.getRect(find.widgetWithText(TextButton, label).first);
+  return tab.left >= viewport.left && tab.right <= viewport.right;
+}
+
+String _commandCenterTabGeometry(WidgetTester tester) {
+  final viewport = tester.getRect(
+    find.byKey(const ValueKey('command-center-tab-scroll')),
+  );
+  return [
+    'viewport=$viewport',
+    for (final label in [
+      'PERIODIC REPORT',
+      'BRIEF / DEBRIEF',
+      'DAILY COMMAND',
+      'DATA CENTER',
+    ])
+      '$label=${tester.getRect(find.widgetWithText(TextButton, label).first)}',
+  ].join('; ');
 }
 
 Future<void> _pump(

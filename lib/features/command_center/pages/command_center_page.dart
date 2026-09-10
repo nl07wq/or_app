@@ -108,6 +108,7 @@ class CommandCenterPage extends StatefulWidget {
 
 class _CommandCenterPageState extends State<CommandCenterPage> {
   late final PageController _pageController;
+  late final ScrollController _tabScrollController;
   late int _currentPage;
   var _refreshToken = 0;
 
@@ -116,19 +117,26 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
     super.initState();
     _currentPage = widget.initialSection.index;
     _pageController = PageController(initialPage: _currentPage);
+    _tabScrollController = ScrollController(
+      initialScrollOffset: _WorkspaceHeader.initialPriorityOffset,
+    );
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _tabScrollController.dispose();
     super.dispose();
   }
 
-  void _selectPage(int page) => _pageController.animateToPage(
-    page,
-    duration: const Duration(milliseconds: 200),
-    curve: Curves.easeOut,
-  );
+  void _selectPage(int page) {
+    if (_currentPage != page) setState(() => _currentPage = page);
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
 
   void _refresh() => setState(() => _refreshToken++);
 
@@ -141,6 +149,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
           _WorkspaceHeader(
             currentPage: _currentPage,
             onSelectPage: _selectPage,
+            scrollController: _tabScrollController,
           ),
           Expanded(
             child: PageView(
@@ -539,13 +548,66 @@ class _ErrorContent extends StatelessWidget {
   );
 }
 
-class _WorkspaceHeader extends StatelessWidget {
+class _WorkspaceHeader extends StatefulWidget {
   const _WorkspaceHeader({
     required this.currentPage,
     required this.onSelectPage,
+    required this.scrollController,
   });
+
+  static const initialPriorityOffset = 132.0;
+  static const _periodicTabWidth = 150.0;
+  static const _priorityTabWidth = 110.0;
+  static const _dataCenterTabWidth = 100.0;
+
   final int currentPage;
   final ValueChanged<int> onSelectPage;
+
+  final ScrollController scrollController;
+
+  @override
+  State<_WorkspaceHeader> createState() => _WorkspaceHeaderState();
+}
+
+class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.currentPage != CommandCenterSection.dailyCommand.index) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureCurrentTabVisible(),
+      );
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkspaceHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentPage != widget.currentPage) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureCurrentTabVisible(),
+      );
+    }
+  }
+
+  void _ensureCurrentTabVisible() {
+    if (!mounted || !widget.scrollController.hasClients) return;
+    final position = widget.scrollController.position;
+    final section = CommandCenterSection.values[widget.currentPage];
+    final target = switch (section) {
+      CommandCenterSection.periodicReport ||
+      CommandCenterSection.briefDebrief => position.minScrollExtent,
+      CommandCenterSection.dailyCommand ||
+      CommandCenterSection.dataCenter => position.maxScrollExtent,
+    };
+    if ((position.pixels - target).abs() < 0.5) return;
+    widget.scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const labels = [
@@ -555,33 +617,52 @@ class _WorkspaceHeader extends StatelessWidget {
       'DATA CENTER',
     ];
     return SingleChildScrollView(
+      key: const ValueKey('command-center-tab-scroll'),
+      controller: widget.scrollController,
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: List.generate(
           labels.length,
-          (index) => AnimatedContainer(
-            key: ValueKey('command-center-tab-$index'),
-            duration: const Duration(milliseconds: 160),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: index == currentPage
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.transparent,
-                  width: 3,
+          (index) => SizedBox(
+            width: index == CommandCenterSection.periodicReport.index
+                ? _WorkspaceHeader._periodicTabWidth
+                : index == CommandCenterSection.dataCenter.index
+                ? _WorkspaceHeader._dataCenterTabWidth
+                : _WorkspaceHeader._priorityTabWidth,
+            height: 48,
+            child: AnimatedContainer(
+              key: ValueKey('command-center-tab-$index'),
+              duration: const Duration(milliseconds: 160),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: index == widget.currentPage
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.transparent,
+                    width: 3,
+                  ),
                 ),
               ),
-            ),
-            child: TextButton(
-              onPressed: () => onSelectPage(index),
-              child: Text(
-                labels[index],
-                style: TextStyle(
-                  color: index == currentPage
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                  fontWeight: index == currentPage ? FontWeight.bold : null,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                onPressed: () => widget.onSelectPage(index),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    labels[index],
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: index == widget.currentPage
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                      fontWeight: index == widget.currentPage
+                          ? FontWeight.bold
+                          : null,
+                    ),
+                  ),
                 ),
               ),
             ),
