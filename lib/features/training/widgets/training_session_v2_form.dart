@@ -235,7 +235,9 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
           onEdit: end == null ? null : () => _editEnd(context, end),
         ),
         AppSpacing.gapSM,
-        if (start != null && end == null && !widget.controller.isPaused) ...[
+        if (start != null && end != null) ...[
+          _DurationField(label: 'DURATION', value: _duration(start, end)),
+        ] else if (start != null && !widget.controller.isPaused) ...[
           _DurationField(
             label: 'ELAPSED',
             value: _elapsed(start, _currentTime),

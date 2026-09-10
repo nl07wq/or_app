@@ -26,6 +26,7 @@ TrainingPresentationState trainingPresentationState({
 }) {
   if (isEditing) return TrainingPresentationState.completed;
   if (startTime == null) return TrainingPresentationState.idle;
+  if (endTime != null) return TrainingPresentationState.completed;
   return isPaused
       ? TrainingPresentationState.paused
       : TrainingPresentationState.active;

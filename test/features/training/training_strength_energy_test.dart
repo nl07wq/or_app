@@ -90,7 +90,7 @@ void main() {
     );
   });
 
-  testWidgets('records times only through explicit start and end actions', (
+  testWidgets('records start explicitly and pauses without a formal end', (
     tester,
   ) async {
     final controller = TrainingV2FormController.newSession(
@@ -118,9 +118,10 @@ void main() {
     await tester.pump();
     expect(controller.startTime, isNotNull);
     expect(controller.endTime, isNull);
-    await tester.tap(find.text('END TRAINING'));
+    await tester.tap(find.text('PAUSE TRAINING'));
     await tester.pump();
-    expect(controller.endTime, isNotNull);
+    expect(controller.endTime, isNull);
+    expect(controller.isPaused, isTrue);
   });
 
   testWidgets('shows flip elapsed, duration, and resumes the same session', (
@@ -164,11 +165,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const ValueKey('flip-digit-5-4')), findsNothing);
 
-    await tester.tap(find.text('END TRAINING'));
+    await tester.tap(find.text('PAUSE TRAINING'));
     await tester.pump();
-    expect(find.text('DURATION'), findsOneWidget);
-    expect(_flipTimerLabel(tester, 'DURATION'), 'DURATION 00:00:35');
-    expect(find.text('UNDO END'), findsNothing);
+    expect(find.text('DURATION'), findsNothing);
     expect(find.text('RESUME TRAINING'), findsOneWidget);
 
     final originalStart = controller.startTime;
@@ -176,6 +175,7 @@ void main() {
     await tester.pump();
     expect(controller.startTime, originalStart);
     expect(controller.endTime, isNull);
+    expect(controller.isPaused, isFalse);
     expect(find.text('ELAPSED'), findsOneWidget);
   });
 
@@ -208,7 +208,13 @@ void main() {
 
     controller.undoEnd();
     expect(controller.startTime, '2026-08-11T10:00:00+09:00');
-    expect(controller.endTime, isNull);
+    expect(controller.endTime, '2026-08-11T11:30:00.000+09:00');
+    controller.restoreDraftTimes(
+      startTime: '2026-08-11T10:00:00+09:00',
+      endTime: null,
+    );
+    controller.completeTraining(DateTime(2026, 8, 11, 11, 45));
+    expect(controller.endTime, '2026-08-11T11:45:00.000+09:00');
     expect(
       () => controller.editStartTime(
         const TimeOfDay(hour: 23, minute: 0),
