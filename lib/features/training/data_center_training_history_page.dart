@@ -1505,50 +1505,73 @@ class _SummaryMetric extends StatelessWidget {
                   : Theme.of(context).textTheme.labelSmall,
             ),
           AppSpacing.gapXS,
-          if (compact)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(
-                  child: Text(
-                    key: compactId == null
-                        ? null
-                        : ValueKey('metric-value-$compactId'),
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(
+          Center(
+            child: _MetricValueUnit(
+              value: value,
+              unit: unit,
+              valueKey: compactId == null
+                  ? null
+                  : ValueKey('metric-value-$compactId'),
+              unitKey: compactId == null
+                  ? null
+                  : ValueKey('metric-unit-$compactId'),
+              valueStyle: compact
+                  ? Theme.of(
                       context,
-                    ).textTheme.headlineSmall?.copyWith(fontSize: 20),
-                  ),
-                ),
-                if (unit.isNotEmpty)
-                  Text(
-                    key: compactId == null
-                        ? null
-                        : ValueKey('metric-unit-$compactId'),
-                    unit,
-                    style: Theme.of(
+                    ).textTheme.headlineSmall?.copyWith(fontSize: 20)
+                  : Theme.of(context).textTheme.headlineSmall,
+              unitStyle: compact
+                  ? Theme.of(
                       context,
-                    ).textTheme.labelSmall?.copyWith(fontSize: 10),
-                  ),
-              ],
-            )
-          else ...[
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.headlineSmall,
+                    ).textTheme.labelSmall?.copyWith(fontSize: 10)
+                  : Theme.of(context).textTheme.labelSmall,
             ),
-            if (unit.isNotEmpty)
-              Text(unit, style: Theme.of(context).textTheme.labelSmall),
-          ],
+          ),
         ],
       ),
     );
   }
+}
+
+class _MetricValueUnit extends StatelessWidget {
+  const _MetricValueUnit({
+    required this.value,
+    required this.unit,
+    required this.valueStyle,
+    required this.unitStyle,
+    this.valueKey,
+    this.unitKey,
+  });
+
+  final String value;
+  final String unit;
+  final TextStyle? valueStyle;
+  final TextStyle? unitStyle;
+  final Key? valueKey;
+  final Key? unitKey;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SizedBox(
+      width: constraints.maxWidth,
+      child: FittedBox(
+        alignment: Alignment.center,
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(key: valueKey, value, style: valueStyle),
+            if (unit.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.xs),
+              Text(key: unitKey, unit, style: unitStyle),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _MetricSection extends StatelessWidget {

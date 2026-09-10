@@ -91,6 +91,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('centers overview metric value and unit groups', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [_record()],
+          clock: () => DateTime(2026, 8, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectOverviewMetricValueCentered(tester, 'STRENGTH SESSIONS', '1');
+    _expectOverviewMetricValueCentered(tester, 'STRENGTH DAYS', '1');
+    _expectOverviewMetricValueUnitCentered(
+      tester,
+      'RECORDED VOLUME',
+      '500',
+      'kg',
+    );
+    _expectOverviewMetricValueUnitCentered(tester, 'TOTAL REPS', '10', 'reps');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('opens exercise weight history and recovery evidence', (
     tester,
   ) async {
@@ -545,9 +570,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('aligns exercise metric values left and units right', (
-    tester,
-  ) async {
+  testWidgets('centers exercise metric value and unit groups', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -625,6 +648,9 @@ void main() {
       find.byKey(const ValueKey('metric-unit-latest-comparison')),
       findsNothing,
     );
+    _expectMetricValueCentered(tester, 'last-trained');
+    _expectMetricValueCentered(tester, 'latest-summary');
+    _expectMetricValueCentered(tester, 'latest-comparison');
     expect(tester.takeException(), isNull);
   });
 
@@ -1033,9 +1059,56 @@ void _expectInlineMetricValueUnit(
   final cardRect = tester.getRect(card);
   expect(tester.widget<Text>(unit).data, expectedUnit);
   expect(valueRect.left, lessThan(unitRect.left));
-  expect(valueRect.right, lessThanOrEqualTo(unitRect.left));
+  expect(unitRect.left - valueRect.right, greaterThan(0));
+  expect(unitRect.left - valueRect.right, lessThanOrEqualTo(4));
   expect((valueRect.center.dy - unitRect.center.dy).abs(), lessThan(8));
+  expect((valueRect.left + unitRect.right) / 2, closeTo(cardRect.center.dx, 2));
   expect(unitRect.right, lessThanOrEqualTo(cardRect.right));
+}
+
+void _expectMetricValueCentered(WidgetTester tester, String id) {
+  final value = find.byKey(ValueKey('metric-value-$id'));
+  final card = find.ancestor(of: value, matching: find.byType(OperationCard));
+  expect(
+    tester.getRect(value).center.dx,
+    closeTo(tester.getRect(card).center.dx, 0.1),
+  );
+}
+
+void _expectOverviewMetricValueUnitCentered(
+  WidgetTester tester,
+  String label,
+  String value,
+  String unit,
+) {
+  final card = find.ancestor(
+    of: find.text(label),
+    matching: find.byType(OperationCard),
+  );
+  final valueFinder = find.descendant(of: card, matching: find.text(value));
+  final unitFinder = find.descendant(of: card, matching: find.text(unit));
+  final valueRect = tester.getRect(valueFinder);
+  final unitRect = tester.getRect(unitFinder);
+  final cardRect = tester.getRect(card);
+  expect(unitRect.left - valueRect.right, greaterThan(0));
+  expect(unitRect.left - valueRect.right, lessThanOrEqualTo(4));
+  expect((valueRect.left + unitRect.right) / 2, closeTo(cardRect.center.dx, 2));
+}
+
+void _expectOverviewMetricValueCentered(
+  WidgetTester tester,
+  String label,
+  String value,
+) {
+  final card = find.ancestor(
+    of: find.text(label),
+    matching: find.byType(OperationCard),
+  );
+  final valueFinder = find.descendant(of: card, matching: find.text(value));
+  expect(
+    tester.getRect(valueFinder).center.dx,
+    closeTo(tester.getRect(card).center.dx, 0.1),
+  );
 }
 
 TrainingRecordReadModel _record() => TrainingRecordReadModel.v1(
