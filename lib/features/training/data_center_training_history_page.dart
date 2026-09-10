@@ -305,28 +305,16 @@ class _RecoveryViewState extends State<_RecoveryView> {
   );
 
   @override
-  void didUpdateWidget(covariant _RecoveryView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_selectedMuscle == null) return;
-    final hasSelection = _evidence().any(
-      (item) => item.estimate.muscleGroup == _selectedMuscle,
-    );
-    if (!hasSelection) _selectedMuscle = null;
-  }
-
-  @override
   Widget build(BuildContext context) {
     final evidence = _evidence();
-    if (evidence.isEmpty) {
-      return const OperationCard(child: Text('この期間に回復エビデンスとなるトレーニング記録はありません。'));
-    }
     final selectedMuscle =
-        evidence.any((item) => item.estimate.muscleGroup == _selectedMuscle)
-        ? _selectedMuscle!
-        : evidence.first.estimate.muscleGroup;
-    final selectedEvidence = evidence.firstWhere(
-      (item) => item.estimate.muscleGroup == selectedMuscle,
-    );
+        _selectedMuscle ??
+        (evidence.isEmpty ? null : evidence.first.estimate.muscleGroup);
+    final selectedEvidence = selectedMuscle == null
+        ? null
+        : evidence
+              .where((item) => item.estimate.muscleGroup == selectedMuscle)
+              .firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -341,10 +329,13 @@ class _RecoveryViewState extends State<_RecoveryView> {
         ),
         AppSpacing.gapSM,
         if (_mode == _RecoveryMode.list)
-          for (final item in evidence) ...[
-            _RecoveryEvidenceCard(evidence: item),
-            if (item != evidence.last) AppSpacing.gapSM,
-          ]
+          if (evidence.isEmpty)
+            const OperationCard(child: Text('この期間に回復エビデンスとなるトレーニング記録はありません。'))
+          else
+            for (final item in evidence) ...[
+              _RecoveryEvidenceCard(evidence: item),
+              if (item != evidence.last) AppSpacing.gapSM,
+            ]
         else ...[
           _RecoveryBodyMap(
             evidence: evidence,
@@ -354,7 +345,12 @@ class _RecoveryViewState extends State<_RecoveryView> {
                 setState(() => _selectedMuscle = muscle),
           ),
           AppSpacing.gapSM,
-          _RecoveryEvidenceCard(evidence: selectedEvidence),
+          if (selectedEvidence != null)
+            _RecoveryEvidenceCard(evidence: selectedEvidence)
+          else if (selectedMuscle != null)
+            _RecoveryNoDataDetail(muscle: selectedMuscle)
+          else
+            const _RecoveryNoDataSelectionPrompt(),
         ],
       ],
     );
@@ -400,7 +396,7 @@ class _RecoveryBodyMap extends StatelessWidget {
 
   final List<TrainingRecoveryEvidence> evidence;
   final _BodyMapSide side;
-  final MuscleGroup selectedMuscle;
+  final MuscleGroup? selectedMuscle;
   final ValueChanged<MuscleGroup> onMuscleSelected;
 
   @override
@@ -446,14 +442,14 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
 
   final _BodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> evidenceByMuscle;
-  final MuscleGroup selectedMuscle;
+  final MuscleGroup? selectedMuscle;
   final ValueChanged<MuscleGroup> onMuscleSelected;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final width = math.min(constraints.maxWidth, 224.0);
-      final height = width * 1.5;
+      final height = width * _bodyMapBaseHeight / _bodyMapBaseWidth;
       final size = Size(width, height);
       final regions = _bodyMapRegions(side, size);
       return Center(
@@ -473,7 +469,7 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
               ),
               for (var index = 0; index < regions.length; index++)
                 Positioned.fromRect(
-                  rect: regions[index].bounds,
+                  rect: regions[index].hitBounds,
                   child: Semantics(
                     button: true,
                     selected: selectedMuscle == regions[index].muscle,
@@ -560,7 +556,7 @@ class _RecoveryBodyMapPainter extends CustomPainter {
 
   final _BodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> evidenceByMuscle;
-  final MuscleGroup selectedMuscle;
+  final MuscleGroup? selectedMuscle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -600,14 +596,23 @@ class _RecoveryBodyMapPainter extends CustomPainter {
 }
 
 class _BodyMapRegion {
-  const _BodyMapRegion(this.muscle, this.bounds);
+  _BodyMapRegion(this.muscle, this.bounds, {Rect? hitBounds})
+    : hitBounds =
+          hitBounds ??
+          Rect.fromLTRB(
+            bounds.left - math.min(bounds.width * .18, 5),
+            bounds.top - math.min(bounds.height * .08, 3),
+            bounds.right + math.min(bounds.width * .18, 5),
+            bounds.bottom + math.min(bounds.height * .08, 3),
+          );
 
   final MuscleGroup muscle;
   final Rect bounds;
+  final Rect hitBounds;
 }
 
 const _bodyMapBaseWidth = 200.0;
-const _bodyMapBaseHeight = 320.0;
+const _bodyMapBaseHeight = 340.0;
 
 List<_BodyMapRegion> _bodyMapRegions(_BodyMapSide side, Size size) {
   final x = size.width / _bodyMapBaseWidth;
@@ -622,68 +627,68 @@ List<_BodyMapRegion> _bodyMapRegions(_BodyMapSide side, Size size) {
     return [
       ...paired(
         MuscleGroup.shoulders,
-        region(42, 60, 42, 24),
-        region(116, 60, 42, 24),
+        region(42, 58, 42, 25),
+        region(116, 58, 42, 25),
       ),
       ...paired(
         MuscleGroup.chest,
-        region(61, 88, 36, 39),
-        region(103, 88, 36, 39),
+        region(60, 85, 37, 38),
+        region(103, 85, 37, 38),
       ),
       ...paired(
         MuscleGroup.biceps,
-        region(31, 93, 20, 45),
-        region(149, 93, 20, 45),
+        region(30, 89, 21, 47),
+        region(149, 89, 21, 47),
       ),
       ...paired(
         MuscleGroup.forearms,
-        region(26, 142, 18, 47),
-        region(156, 142, 18, 47),
+        region(25, 137, 19, 48),
+        region(156, 137, 19, 48),
       ),
-      _BodyMapRegion(MuscleGroup.core, region(72, 132, 56, 54)),
+      _BodyMapRegion(MuscleGroup.core, region(72, 126, 56, 48)),
       ...paired(
         MuscleGroup.quadriceps,
-        region(62, 191, 32, 65),
-        region(106, 191, 32, 65),
+        region(62, 180, 32, 64),
+        region(106, 180, 32, 64),
       ),
       ...paired(
         MuscleGroup.calves,
-        region(63, 262, 28, 47),
-        region(109, 262, 28, 47),
+        region(63, 250, 28, 76),
+        region(109, 250, 28, 76),
       ),
     ];
   }
   return [
     ...paired(
       MuscleGroup.shoulders,
-      region(42, 60, 42, 24),
-      region(116, 60, 42, 24),
+      region(42, 58, 42, 25),
+      region(116, 58, 42, 25),
     ),
-    _BodyMapRegion(MuscleGroup.back, region(62, 86, 76, 70)),
+    _BodyMapRegion(MuscleGroup.back, region(61, 84, 78, 72)),
     ...paired(
       MuscleGroup.triceps,
-      region(31, 93, 20, 45),
-      region(149, 93, 20, 45),
+      region(30, 89, 21, 47),
+      region(149, 89, 21, 47),
     ),
     ...paired(
       MuscleGroup.forearms,
-      region(26, 142, 18, 47),
-      region(156, 142, 18, 47),
+      region(25, 137, 19, 48),
+      region(156, 137, 19, 48),
     ),
     ...paired(
       MuscleGroup.glutes,
-      region(65, 160, 32, 34),
-      region(103, 160, 32, 34),
+      region(64, 160, 33, 32),
+      region(103, 160, 33, 32),
     ),
     ...paired(
       MuscleGroup.hamstrings,
-      region(62, 196, 32, 64),
-      region(106, 196, 32, 64),
+      region(62, 197, 32, 47),
+      region(106, 197, 32, 47),
     ),
     ...paired(
       MuscleGroup.calves,
-      region(63, 264, 28, 45),
-      region(109, 264, 28, 45),
+      region(63, 250, 28, 76),
+      region(109, 250, 28, 76),
     ),
   ];
 }
@@ -870,91 +875,91 @@ List<Path> _bodyMapSilhouettePaths(Size size) {
     }),
     path((leg, p) {
       leg
-        ..moveTo(p(70, 178).dx, p(70, 178).dy)
+        ..moveTo(p(70, 174).dx, p(70, 174).dy)
         ..cubicTo(
-          p(61, 197).dx,
-          p(61, 197).dy,
-          p(61, 228).dx,
-          p(61, 228).dy,
-          p(64, 253).dx,
-          p(64, 253).dy,
+          p(62, 193).dx,
+          p(62, 193).dy,
+          p(62, 221).dx,
+          p(62, 221).dy,
+          p(65, 244).dx,
+          p(65, 244).dy,
         )
         ..cubicTo(
-          p(66, 274).dx,
-          p(66, 274).dy,
-          p(59, 290).dx,
-          p(59, 290).dy,
-          p(62, 310).dx,
-          p(62, 310).dy,
+          p(63, 266).dx,
+          p(63, 266).dy,
+          p(60, 292).dx,
+          p(60, 292).dy,
+          p(62, 326).dx,
+          p(62, 326).dy,
         )
         ..cubicTo(
-          p(66, 316).dx,
-          p(66, 316).dy,
-          p(80, 316).dx,
-          p(80, 316).dy,
-          p(86, 310).dx,
-          p(86, 310).dy,
+          p(67, 334).dx,
+          p(67, 334).dy,
+          p(80, 334).dx,
+          p(80, 334).dy,
+          p(86, 326).dx,
+          p(86, 326).dy,
         )
         ..cubicTo(
-          p(90, 291).dx,
-          p(90, 291).dy,
-          p(95, 273).dx,
-          p(95, 273).dy,
-          p(94, 252).dx,
-          p(94, 252).dy,
+          p(90, 298).dx,
+          p(90, 298).dy,
+          p(95, 268).dx,
+          p(95, 268).dy,
+          p(94, 244).dx,
+          p(94, 244).dy,
         )
         ..cubicTo(
-          p(93, 220).dx,
-          p(93, 220).dy,
-          p(92, 196).dx,
-          p(92, 196).dy,
-          p(84, 180).dx,
-          p(84, 180).dy,
+          p(93, 215).dx,
+          p(93, 215).dy,
+          p(92, 190).dx,
+          p(92, 190).dy,
+          p(84, 176).dx,
+          p(84, 176).dy,
         )
         ..close();
     }),
     path((leg, p) {
       leg
-        ..moveTo(p(130, 178).dx, p(130, 178).dy)
+        ..moveTo(p(130, 174).dx, p(130, 174).dy)
         ..cubicTo(
-          p(139, 197).dx,
-          p(139, 197).dy,
-          p(139, 228).dx,
-          p(139, 228).dy,
-          p(136, 253).dx,
-          p(136, 253).dy,
+          p(138, 193).dx,
+          p(138, 193).dy,
+          p(138, 221).dx,
+          p(138, 221).dy,
+          p(135, 244).dx,
+          p(135, 244).dy,
         )
         ..cubicTo(
-          p(134, 274).dx,
-          p(134, 274).dy,
-          p(141, 290).dx,
-          p(141, 290).dy,
-          p(138, 310).dx,
-          p(138, 310).dy,
+          p(137, 266).dx,
+          p(137, 266).dy,
+          p(140, 292).dx,
+          p(140, 292).dy,
+          p(138, 326).dx,
+          p(138, 326).dy,
         )
         ..cubicTo(
-          p(134, 316).dx,
-          p(134, 316).dy,
-          p(120, 316).dx,
-          p(120, 316).dy,
-          p(114, 310).dx,
-          p(114, 310).dy,
+          p(133, 334).dx,
+          p(133, 334).dy,
+          p(120, 334).dx,
+          p(120, 334).dy,
+          p(114, 326).dx,
+          p(114, 326).dy,
         )
         ..cubicTo(
-          p(110, 291).dx,
-          p(110, 291).dy,
-          p(105, 273).dx,
-          p(105, 273).dy,
-          p(106, 252).dx,
-          p(106, 252).dy,
+          p(110, 298).dx,
+          p(110, 298).dy,
+          p(105, 268).dx,
+          p(105, 268).dy,
+          p(106, 244).dx,
+          p(106, 244).dy,
         )
         ..cubicTo(
-          p(107, 220).dx,
-          p(107, 220).dy,
-          p(108, 196).dx,
-          p(108, 196).dy,
-          p(116, 180).dx,
-          p(116, 180).dy,
+          p(107, 215).dx,
+          p(107, 215).dy,
+          p(108, 190).dx,
+          p(108, 190).dy,
+          p(116, 176).dx,
+          p(116, 176).dy,
         )
         ..close();
     }),
@@ -966,7 +971,11 @@ Path _bodyMapRegionPath(_BodyMapSide side, _BodyMapRegion region, Size size) {
   final left = bounds.center.dx < size.width / 2;
   switch (region.muscle) {
     case MuscleGroup.shoulders:
-      return _bodyMapShoulderPath(bounds, left: left);
+      return _bodyMapShoulderPath(
+        bounds,
+        left: left,
+        rear: side == _BodyMapSide.back,
+      );
     case MuscleGroup.chest:
       return _bodyMapChestPath(bounds, left: left);
     case MuscleGroup.back:
@@ -978,24 +987,28 @@ Path _bodyMapRegionPath(_BodyMapSide side, _BodyMapRegion region, Size size) {
     case MuscleGroup.calves:
       return _bodyMapCalfPath(bounds, left: left);
     case MuscleGroup.biceps:
+      return _bodyMapBicepsPath(bounds, left: left);
     case MuscleGroup.triceps:
+      return _bodyMapTricepsPath(bounds, left: left);
     case MuscleGroup.forearms:
+      return _bodyMapForearmPath(bounds, left: left);
     case MuscleGroup.quadriceps:
+      return _bodyMapQuadricepsPath(bounds, left: left);
     case MuscleGroup.hamstrings:
-      return _bodyMapTaperedPath(bounds, left: left);
+      return _bodyMapHamstringPath(bounds, left: left);
   }
 }
 
-Path _bodyMapShoulderPath(Rect rect, {required bool left}) {
+Path _bodyMapShoulderPath(Rect rect, {required bool left, required bool rear}) {
   final inner = left ? rect.right : rect.left;
   final outer = left ? rect.left : rect.right;
   final path = Path()..moveTo(inner, rect.top + rect.height * .2);
   path
     ..quadraticBezierTo(
       rect.center.dx,
-      rect.top - rect.height * .18,
+      rear ? rect.top + rect.height * .06 : rect.top - rect.height * .18,
       outer,
-      rect.top + rect.height * .38,
+      rear ? rect.top + rect.height * .18 : rect.top + rect.height * .38,
     )
     ..quadraticBezierTo(
       outer,
@@ -1008,6 +1021,113 @@ Path _bodyMapShoulderPath(Rect rect, {required bool left}) {
       rect.bottom - rect.height * .08,
       inner,
       rect.top + rect.height * .2,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapBicepsPath(Rect rect, {required bool left}) {
+  final outer = left ? rect.left : rect.right;
+  final inner = left ? rect.right : rect.left;
+  final path = Path()..moveTo(rect.center.dx, rect.top);
+  path
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .12,
+      outer - (left ? rect.width * .08 : -rect.width * .08),
+      rect.center.dy,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..cubicTo(
+      inner,
+      rect.bottom - rect.height * .2,
+      inner,
+      rect.top + rect.height * .16,
+      rect.center.dx,
+      rect.top,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapTricepsPath(Rect rect, {required bool left}) {
+  final outer = left ? rect.left : rect.right;
+  final inner = left ? rect.right : rect.left;
+  final path = Path()..moveTo(inner, rect.top + rect.height * .05);
+  path
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .14,
+      outer,
+      rect.bottom - rect.height * .1,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..quadraticBezierTo(
+      inner,
+      rect.center.dy,
+      inner,
+      rect.top + rect.height * .05,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapForearmPath(Rect rect, {required bool left}) {
+  final outer = left ? rect.left : rect.right;
+  final inner = left ? rect.right : rect.left;
+  final path = Path()..moveTo(rect.center.dx, rect.top);
+  path
+    ..quadraticBezierTo(outer, rect.center.dy, rect.center.dx, rect.bottom)
+    ..quadraticBezierTo(inner, rect.center.dy, rect.center.dx, rect.top)
+    ..close();
+  return path;
+}
+
+Path _bodyMapQuadricepsPath(Rect rect, {required bool left}) {
+  final outer = left ? rect.left : rect.right;
+  final inner = left ? rect.right : rect.left;
+  final path = Path()..moveTo(rect.center.dx, rect.top);
+  path
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .14,
+      outer,
+      rect.bottom - rect.height * .16,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..cubicTo(
+      inner,
+      rect.bottom - rect.height * .16,
+      inner,
+      rect.top + rect.height * .14,
+      rect.center.dx,
+      rect.top,
+    )
+    ..close();
+  return path;
+}
+
+Path _bodyMapHamstringPath(Rect rect, {required bool left}) {
+  final outer = left ? rect.left : rect.right;
+  final inner = left ? rect.right : rect.left;
+  final path = Path()..moveTo(inner, rect.top + rect.height * .04);
+  path
+    ..cubicTo(
+      outer,
+      rect.top + rect.height * .16,
+      outer,
+      rect.bottom - rect.height * .08,
+      rect.center.dx,
+      rect.bottom,
+    )
+    ..quadraticBezierTo(
+      inner,
+      rect.bottom - rect.height * .2,
+      inner,
+      rect.top + rect.height * .04,
     )
     ..close();
   return path;
@@ -1160,33 +1280,47 @@ Path _bodyMapCalfPath(Rect rect, {required bool left}) {
   return path;
 }
 
-Path _bodyMapTaperedPath(Rect rect, {required bool left}) {
-  final outer = left ? rect.left : rect.right;
-  final inner = left ? rect.right : rect.left;
-  final path = Path()..moveTo(rect.center.dx, rect.top);
-  path
-    ..cubicTo(
-      outer,
-      rect.top + rect.height * .18,
-      outer,
-      rect.bottom - rect.height * .22,
-      rect.center.dx,
-      rect.bottom,
-    )
-    ..cubicTo(
-      inner,
-      rect.bottom - rect.height * .22,
-      inner,
-      rect.top + rect.height * .18,
-      rect.center.dx,
-      rect.top,
-    )
-    ..close();
-  return path;
-}
-
 String _bodyMapStatusLabel(TrainingRecoveryEvidence? evidence) =>
     evidence == null ? 'データなし' : _recoveryStatusLabel(evidence.estimate.status);
+
+class _RecoveryNoDataSelectionPrompt extends StatelessWidget {
+  const _RecoveryNoDataSelectionPrompt();
+
+  @override
+  Widget build(BuildContext context) =>
+      const OperationCard(child: Text('Body Mapから部位を選択してください。'));
+}
+
+class _RecoveryNoDataDetail extends StatelessWidget {
+  const _RecoveryNoDataDetail({required this.muscle});
+
+  final MuscleGroup muscle;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    key: ValueKey('recovery-no-data-detail-${muscle.name}'),
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          muscleGroupDisplayName(muscle),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        AppSpacing.gapXS,
+        const Text('データなし'),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'この期間にRecovery Evidenceはありません。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    ),
+  );
+}
 
 class _RecoveryEvidenceCard extends StatelessWidget {
   const _RecoveryEvidenceCard({required this.evidence});

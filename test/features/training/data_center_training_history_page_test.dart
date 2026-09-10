@@ -459,7 +459,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('body-map-back-canvas')), findsOneWidget);
     expect(
+      find.byKey(const ValueKey('body-map-region-front-biceps-4')),
+      findsNothing,
+    );
+    expect(
       find.byKey(const ValueKey('body-map-region-back-back-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('body-map-region-back-triceps-3')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('recovery-card-chest')), findsOneWidget);
@@ -477,6 +485,78 @@ void main() {
     await tester.tap(find.widgetWithText(ChoiceChip, '前面'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('body-map-front-canvas')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps every body-map muscle selectable without recovery data', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(
+              id: 'chest',
+              date: '2026-09-08',
+              startTime: '2026-09-08T20:00:00+09:00',
+            ),
+          ],
+          clock: () => DateTime.parse('2026-09-10T06:00:00+09:00'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+
+    await _expectNoDataSelection(
+      tester,
+      const ValueKey('body-map-region-front-biceps-4'),
+      'biceps',
+    );
+    await _expectNoDataSelection(
+      tester,
+      const ValueKey('body-map-region-front-forearms-6'),
+      'forearms',
+    );
+    await _expectNoDataSelection(
+      tester,
+      const ValueKey('body-map-region-front-core-8'),
+      'core',
+    );
+    await _expectNoDataSelection(
+      tester,
+      const ValueKey('body-map-region-front-quadriceps-9'),
+      'quadriceps',
+    );
+    await _expectNoDataSelection(
+      tester,
+      const ValueKey('body-map-region-front-calves-11'),
+      'calves',
+    );
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '背面'));
+    await tester.pumpAndSettle();
+    for (final selection in const [
+      ('body-map-region-back-back-2', 'back'),
+      ('body-map-region-back-shoulders-0', 'shoulders'),
+      ('body-map-region-back-triceps-3', 'triceps'),
+      ('body-map-region-back-forearms-5', 'forearms'),
+      ('body-map-region-back-glutes-7', 'glutes'),
+      ('body-map-region-back-hamstrings-9', 'hamstrings'),
+      ('body-map-region-back-calves-11', 'calves'),
+    ]) {
+      await _expectNoDataSelection(
+        tester,
+        ValueKey(selection.$1),
+        selection.$2,
+      );
+    }
+
+    expect(find.byKey(const ValueKey('recovery-gauge-biceps')), findsNothing);
+    expect(find.byKey(const ValueKey('recovery-card-biceps')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -520,6 +600,14 @@ void main() {
         find.byKey(const ValueKey('body-map-region-front-chest-2')),
         findsOneWidget,
       );
+      final quadriceps = tester.getRect(
+        find.byKey(const ValueKey('body-map-region-front-quadriceps-9')),
+      );
+      final calves = tester.getRect(
+        find.byKey(const ValueKey('body-map-region-front-calves-11')),
+      );
+      expect(quadriceps.bottom, lessThanOrEqualTo(calves.top));
+      expect(calves.height, greaterThanOrEqualTo(quadriceps.height * .9));
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1053,6 +1141,19 @@ void main() {
 }
 
 Future<List<TrainingRecordReadModel>> _noRecords() async => const [];
+
+Future<void> _expectNoDataSelection(
+  WidgetTester tester,
+  ValueKey<String> region,
+  String muscleKey,
+) async {
+  await tester.tap(find.byKey(region));
+  await tester.pumpAndSettle();
+  expect(
+    find.byKey(ValueKey('recovery-no-data-detail-$muscleKey')),
+    findsOneWidget,
+  );
+}
 
 void _expectOneRow(WidgetTester tester, List<Finder> finders) {
   final rects = [
