@@ -166,23 +166,33 @@ void main() {
     },
   );
 
-  test('derives compound lower-body support without a recovery estimate', () {
+  test('treats all LEG PRESS lower-body muscles as recovery targets', () {
+    final records = [
+      _v2('leg-press', '2026-08-03', '2026-08-03T10:00:00+09:00', 'Leg Press'),
+    ];
     final support = adapter.supportInvolvement(
-      [
-        _v2(
-          'leg-press',
-          '2026-08-03',
-          '2026-08-03T10:00:00+09:00',
-          'Leg Press',
-        ),
-      ],
+      records,
       period: TrainingHistoryOverviewPeriod.all,
+      referenceDate: DateTime(2026, 8, 4),
+    );
+    final evidence = adapter.evidence(
+      records,
+      period: TrainingHistoryOverviewPeriod.all,
+      now: DateTime.parse('2026-08-03T12:00:00+09:00'),
       referenceDate: DateTime(2026, 8, 4),
     );
 
     expect(
-      support.map((item) => item.muscle),
-      contains(MuscleGroup.hamstrings),
+      support.where((item) => item.muscle == MuscleGroup.hamstrings),
+      isEmpty,
+    );
+    expect(
+      evidence.map((item) => item.estimate.muscleGroup),
+      containsAll([
+        MuscleGroup.quadriceps,
+        MuscleGroup.hamstrings,
+        MuscleGroup.glutes,
+      ]),
     );
   });
 
@@ -205,6 +215,35 @@ void main() {
       expect(
         support.map((item) => item.muscle),
         containsAll([MuscleGroup.biceps, MuscleGroup.forearms]),
+      );
+    },
+  );
+
+  test(
+    'uses LATS rather than legacy BACK for Lat Pulldown recovery evidence',
+    () {
+      final records = [
+        _v2(
+          'pulldown',
+          '2026-08-03',
+          '2026-08-03T10:00:00+09:00',
+          'Lat Pulldown',
+        ),
+      ];
+      final evidence = adapter.evidence(
+        records,
+        period: TrainingHistoryOverviewPeriod.all,
+        now: DateTime.parse('2026-08-03T12:00:00+09:00'),
+        referenceDate: DateTime(2026, 8, 4),
+      );
+
+      expect(
+        evidence.map((item) => item.estimate.muscleGroup),
+        contains(MuscleGroup.lats),
+      );
+      expect(
+        evidence.map((item) => item.estimate.muscleGroup),
+        isNot(contains(MuscleGroup.back)),
       );
     },
   );

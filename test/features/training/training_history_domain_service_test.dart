@@ -13,20 +13,28 @@ import 'package:or_app/features/training/services/training_history_domain_servic
 void main() {
   const service = TrainingHistoryDomainService();
 
-  test('ships the approved Recovery Reference Policy V1 table', () {
+  test('ships the approved Recovery Reference Policy V2 table', () {
     const policy = RecoveryReferencePolicy();
 
-    expect(policy.policyVersion, RecoveryReferencePolicy.policyVersionV1);
-    expect(policy.referenceDurations, hasLength(11));
+    expect(policy.policyVersion, RecoveryReferencePolicy.policyVersionV2);
+    expect(policy.referenceDurations, hasLength(12));
+    expect(activeRecoveryMuscleGroups, hasLength(12));
+    expect(activeRecoveryMuscleGroups, isNot(contains(MuscleGroup.back)));
+    expect(MuscleGroup.values, contains(MuscleGroup.back));
+    for (final muscle in [
+      MuscleGroup.core,
+      MuscleGroup.forearms,
+      MuscleGroup.calves,
+    ]) {
+      expect(policy.durationFor(muscle), const Duration(hours: 24));
+    }
     for (final muscle in [
       MuscleGroup.chest,
-      MuscleGroup.back,
+      MuscleGroup.trapezius,
+      MuscleGroup.lats,
       MuscleGroup.shoulders,
       MuscleGroup.biceps,
       MuscleGroup.triceps,
-      MuscleGroup.forearms,
-      MuscleGroup.core,
-      MuscleGroup.calves,
     ]) {
       expect(policy.durationFor(muscle), const Duration(hours: 48));
     }
@@ -37,6 +45,11 @@ void main() {
     ]) {
       expect(policy.durationFor(muscle), const Duration(hours: 72));
     }
+    expect(policy.durationFor(MuscleGroup.back), isNull);
+    expect(
+      RecoveryReferencePolicy.referenceDurationsV1[MuscleGroup.back],
+      const Duration(hours: 48),
+    );
   });
 
   test('separates v2 main working volume from recorded volume and RPE', () {
@@ -111,7 +124,7 @@ void main() {
       exerciseIdentityKey('Dumbbell Curl'),
     );
 
-    expect(latPulldown?.targetMuscles, [MuscleGroup.back]);
+    expect(latPulldown?.targetMuscles, [MuscleGroup.lats]);
     expect(latPulldown?.supportMuscles, [
       MuscleGroup.biceps,
       MuscleGroup.forearms,
@@ -120,9 +133,10 @@ void main() {
     expect(shoulderPress?.supportMuscles, [MuscleGroup.triceps]);
     expect(legPress?.targetMuscles, [
       MuscleGroup.quadriceps,
+      MuscleGroup.hamstrings,
       MuscleGroup.glutes,
     ]);
-    expect(legPress?.supportMuscles, [MuscleGroup.hamstrings]);
+    expect(legPress?.supportMuscles, isEmpty);
     expect(squat?.targetMuscles, [MuscleGroup.quadriceps, MuscleGroup.glutes]);
     expect(squat?.supportMuscles, [MuscleGroup.hamstrings]);
     expect(dumbbellCurl?.exerciseType, ExerciseMuscleExerciseType.isolation);
@@ -229,7 +243,7 @@ void main() {
     expect(recovery.referenceProgressRatio, isNull);
   });
 
-  test('uses V1 progress thresholds and caps display progress', () {
+  test('preserves progress thresholds and caps display progress under V2', () {
     final exposure = _v2();
     final cases =
         <({DateTime now, RecoveryStatus status, double raw, double displayed})>[
@@ -312,7 +326,7 @@ void main() {
 
       expect(quadriceps.precision, RecoveryPrecision.exact);
       expect(glutes.precision, RecoveryPrecision.exact);
-      expect(hamstrings.precision, RecoveryPrecision.unavailable);
+      expect(hamstrings.precision, RecoveryPrecision.exact);
       expect(benchTriceps.precision, RecoveryPrecision.unavailable);
     },
   );

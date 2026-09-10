@@ -39,7 +39,7 @@ class TrainingRecoveryEvidenceAdapter {
     ];
     final values =
         [
-          for (final muscle in MuscleGroup.values)
+          for (final muscle in activeRecoveryMuscleGroups)
             if (domain.recoveryEstimate(muscle, periodRecords, now: now)
                 case final estimate
                 when estimate.sourceExerciseIdentity != null)
@@ -151,7 +151,9 @@ class TrainingSupportInvolvement {
 
 String muscleGroupDisplayName(MuscleGroup muscle) => switch (muscle) {
   MuscleGroup.chest => '胸',
-  MuscleGroup.back => '背中',
+  MuscleGroup.back => '背中（旧分類）',
+  MuscleGroup.trapezius => '僧帽筋',
+  MuscleGroup.lats => '広背筋',
   MuscleGroup.shoulders => '肩',
   MuscleGroup.biceps => '上腕二頭筋',
   MuscleGroup.triceps => '上腕三頭筋',

@@ -463,11 +463,15 @@ void main() {
       findsNothing,
     );
     expect(
-      find.byKey(const ValueKey('body-map-region-back-back-2')),
+      find.byKey(const ValueKey('body-map-region-back-lats-2')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('body-map-region-back-triceps-3')),
+      find.byKey(const ValueKey('body-map-region-back-trapezius-4')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('body-map-region-back-triceps-5')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('recovery-card-chest')), findsOneWidget);
@@ -531,20 +535,20 @@ void main() {
       const ValueKey('body-map-region-front-quadriceps-9'),
       'quadriceps',
     );
-    await _expectNoDataSelection(
-      tester,
-      const ValueKey('body-map-region-front-calves-11'),
-      'calves',
+    expect(
+      find.byKey(const ValueKey('body-map-region-front-calves-11')),
+      findsNothing,
     );
 
     await tester.tap(find.widgetWithText(ChoiceChip, '背面'));
     await tester.pumpAndSettle();
     for (final selection in const [
-      ('body-map-region-back-back-2', 'back'),
-      ('body-map-region-back-forearms-5', 'forearms'),
-      ('body-map-region-back-glutes-7', 'glutes'),
-      ('body-map-region-back-hamstrings-9', 'hamstrings'),
-      ('body-map-region-back-calves-11', 'calves'),
+      ('body-map-region-back-lats-2', 'lats'),
+      ('body-map-region-back-trapezius-4', 'trapezius'),
+      ('body-map-region-back-forearms-7', 'forearms'),
+      ('body-map-region-back-glutes-9', 'glutes'),
+      ('body-map-region-back-hamstrings-11', 'hamstrings'),
+      ('body-map-region-back-calves-13', 'calves'),
     ]) {
       await _expectNoDataSelection(
         tester,
@@ -559,7 +563,7 @@ void main() {
     );
     await _expectSupportSelection(
       tester,
-      const ValueKey('body-map-region-back-triceps-3'),
+      const ValueKey('body-map-region-back-triceps-5'),
       'triceps',
     );
 
@@ -615,7 +619,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('上腕三頭筋 データなし・補助筋として関与'), findsWidgets);
     await tester.tap(
-      find.byKey(const ValueKey('body-map-region-back-triceps-3')),
+      find.byKey(const ValueKey('body-map-region-back-triceps-5')),
     );
     await tester.pumpAndSettle();
     expect(
@@ -711,14 +715,23 @@ void main() {
         find.byKey(const ValueKey('body-map-region-front-chest-2')),
         findsOneWidget,
       );
+      final frontShoulder = tester.getRect(
+        find.byKey(const ValueKey('body-map-region-front-shoulders-0')),
+      );
+      expect(frontShoulder.left, greaterThanOrEqualTo(canvas.left));
+      expect(frontShoulder.right, lessThanOrEqualTo(canvas.right));
       final quadriceps = tester.getRect(
         find.byKey(const ValueKey('body-map-region-front-quadriceps-9')),
       );
+      await tester.tap(find.widgetWithText(ChoiceChip, '背面'));
+      await tester.pumpAndSettle();
       final calves = tester.getRect(
-        find.byKey(const ValueKey('body-map-region-front-calves-11')),
+        find.byKey(const ValueKey('body-map-region-back-calves-13')),
       );
       expect(quadriceps.bottom, lessThanOrEqualTo(calves.top));
       expect(calves.height, greaterThanOrEqualTo(quadriceps.height * .9));
+      await tester.tap(find.widgetWithText(ChoiceChip, '前面'));
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));

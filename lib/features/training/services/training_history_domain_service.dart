@@ -4,10 +4,15 @@ import '../../../core/models/training_exercise_v2.dart';
 import '../models/training_record_read_model.dart';
 import 'training_exercise_identity.dart';
 
-/// Stable V1 muscle groups for derived history and recovery analysis.
+/// Stable muscle keys for derived history and recovery analysis.
 enum MuscleGroup {
   chest,
+
+  /// Legacy V1 compatibility group. New analysis mappings use
+  /// [trapezius] and [lats] instead of this unresolved broad category.
   back,
+  trapezius,
+  lats,
   shoulders,
   biceps,
   triceps,
@@ -18,6 +23,23 @@ enum MuscleGroup {
   glutes,
   calves,
 }
+
+/// The current analysis taxonomy. [MuscleGroup.back] remains available only
+/// for V1 compatibility and is not emitted as new recovery evidence.
+const activeRecoveryMuscleGroups = <MuscleGroup>[
+  MuscleGroup.chest,
+  MuscleGroup.trapezius,
+  MuscleGroup.lats,
+  MuscleGroup.shoulders,
+  MuscleGroup.biceps,
+  MuscleGroup.triceps,
+  MuscleGroup.forearms,
+  MuscleGroup.core,
+  MuscleGroup.quadriceps,
+  MuscleGroup.hamstrings,
+  MuscleGroup.glutes,
+  MuscleGroup.calves,
+];
 
 class ExerciseMuscleMapping {
   const ExerciseMuscleMapping({
@@ -66,13 +88,13 @@ class ExerciseMuscleRegistry {
       exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'latpulldown': ExerciseMuscleMapping(
-      targetMuscles: [MuscleGroup.back],
+      targetMuscles: [MuscleGroup.lats],
       supportMuscles: [MuscleGroup.biceps, MuscleGroup.forearms],
       exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'seatedrow': ExerciseMuscleMapping(
-      targetMuscles: [MuscleGroup.back],
-      supportMuscles: [MuscleGroup.biceps],
+      targetMuscles: [MuscleGroup.lats],
+      supportMuscles: [MuscleGroup.biceps, MuscleGroup.trapezius],
       exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'shoulderpress': ExerciseMuscleMapping(
@@ -82,7 +104,7 @@ class ExerciseMuscleRegistry {
     ),
     'facepull': ExerciseMuscleMapping(
       targetMuscles: [MuscleGroup.shoulders],
-      supportMuscles: [MuscleGroup.back],
+      supportMuscles: [MuscleGroup.trapezius],
       exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'dumbbellcurl': ExerciseMuscleMapping(
@@ -91,8 +113,11 @@ class ExerciseMuscleRegistry {
       exerciseType: ExerciseMuscleExerciseType.isolation,
     ),
     'legpress': ExerciseMuscleMapping(
-      targetMuscles: [MuscleGroup.quadriceps, MuscleGroup.glutes],
-      supportMuscles: [MuscleGroup.hamstrings],
+      targetMuscles: [
+        MuscleGroup.quadriceps,
+        MuscleGroup.hamstrings,
+        MuscleGroup.glutes,
+      ],
       exerciseType: ExerciseMuscleExerciseType.compound,
     ),
     'hacksquat': ExerciseMuscleMapping(
@@ -124,11 +149,12 @@ class ExerciseMuscleRegistry {
 /// Active analysis policy. It is separate from Formal Training Records.
 class RecoveryReferencePolicy {
   const RecoveryReferencePolicy({
-    this.policyVersion = policyVersionV1,
-    this.referenceDurations = referenceDurationsV1,
+    this.policyVersion = policyVersionV2,
+    this.referenceDurations = referenceDurationsV2,
   });
 
   static const policyVersionV1 = 'recovery-reference-policy-v1';
+  static const policyVersionV2 = 'recovery-reference-policy-v2';
 
   static const referenceDurationsV1 = <MuscleGroup, Duration>{
     MuscleGroup.chest: Duration(hours: 48),
@@ -139,6 +165,21 @@ class RecoveryReferencePolicy {
     MuscleGroup.forearms: Duration(hours: 48),
     MuscleGroup.core: Duration(hours: 48),
     MuscleGroup.calves: Duration(hours: 48),
+    MuscleGroup.quadriceps: Duration(hours: 72),
+    MuscleGroup.hamstrings: Duration(hours: 72),
+    MuscleGroup.glutes: Duration(hours: 72),
+  };
+
+  static const referenceDurationsV2 = <MuscleGroup, Duration>{
+    MuscleGroup.core: Duration(hours: 24),
+    MuscleGroup.forearms: Duration(hours: 24),
+    MuscleGroup.calves: Duration(hours: 24),
+    MuscleGroup.chest: Duration(hours: 48),
+    MuscleGroup.trapezius: Duration(hours: 48),
+    MuscleGroup.lats: Duration(hours: 48),
+    MuscleGroup.shoulders: Duration(hours: 48),
+    MuscleGroup.biceps: Duration(hours: 48),
+    MuscleGroup.triceps: Duration(hours: 48),
     MuscleGroup.quadriceps: Duration(hours: 72),
     MuscleGroup.hamstrings: Duration(hours: 72),
     MuscleGroup.glutes: Duration(hours: 72),
