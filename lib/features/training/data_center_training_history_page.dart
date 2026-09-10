@@ -12,6 +12,7 @@ import 'services/training_volume_formatter.dart';
 import 'services/training_exercise_history_adapter.dart';
 import 'services/training_exercise_identity.dart';
 import 'services/training_history_domain_service.dart';
+import 'services/training_recovery_evidence_adapter.dart';
 
 /// Data Center analytics. The existing TrainingHistoryPage remains the raw
 /// formal-record list and is intentionally not reused as this page.
@@ -47,6 +48,7 @@ class _DataCenterTrainingHistoryPageState
   TrainingExerciseIdentity? _selectedEquipment;
   var _allEquipment = false;
   static const _exerciseAdapter = TrainingExerciseHistoryAdapter();
+  static const _recoveryAdapter = TrainingRecoveryEvidenceAdapter();
 
   @override
   void initState() {
@@ -164,6 +166,15 @@ class _DataCenterTrainingHistoryPageState
                     setState(() => _volumeMetric = metric),
                 adapter: _exerciseAdapter,
               )
+            else if (_view == _TrainingHistoryView.recovery)
+              _RecoveryView(
+                records: snapshot.requireData,
+                period: _period,
+                referenceDate: widget.clock?.call(),
+                customRange: _customRange,
+                now: widget.clock?.call() ?? DateTime.now(),
+                adapter: _recoveryAdapter,
+              )
             else ...[
               const SectionHeader(
                 icon: Icons.summarize_outlined,
@@ -223,7 +234,7 @@ class _DataCenterTrainingHistoryPageState
   );
 }
 
-enum _TrainingHistoryView { overview, exercise }
+enum _TrainingHistoryView { overview, exercise, recovery }
 
 enum _ExerciseMetric { weight, reps, volume, rpe }
 
@@ -240,12 +251,135 @@ class _ViewSelector extends StatelessWidget {
       children: [
         for (final view in _TrainingHistoryView.values)
           ChoiceChip(
-            label: Text(view == _TrainingHistoryView.overview ? '概要' : '種目'),
+            label: Text(switch (view) {
+              _TrainingHistoryView.overview => '概要',
+              _TrainingHistoryView.exercise => '種目',
+              _TrainingHistoryView.recovery => '回復',
+            }),
             selected: selected == view,
             onSelected: (_) => onSelected(view),
           ),
       ],
     ),
+  );
+}
+
+class _RecoveryView extends StatelessWidget {
+  const _RecoveryView({
+    required this.records,
+    required this.period,
+    required this.referenceDate,
+    required this.customRange,
+    required this.now,
+    required this.adapter,
+  });
+
+  final List<TrainingRecordReadModel> records;
+  final TrainingHistoryOverviewPeriod period;
+  final DateTime? referenceDate;
+  final DateTimeRange? customRange;
+  final DateTime now;
+  final TrainingRecoveryEvidenceAdapter adapter;
+
+  @override
+  Widget build(BuildContext context) {
+    final evidence = adapter.evidence(
+      records,
+      period: period,
+      referenceDate: referenceDate,
+      customRange: customRange,
+      now: now,
+    );
+    if (evidence.isEmpty) {
+      return const OperationCard(child: Text('この期間に回復エビデンスとなるトレーニング記録はありません。'));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.health_and_safety_outlined,
+          title: '回復',
+        ),
+        AppSpacing.gapSM,
+        for (final item in evidence) ...[
+          _RecoveryEvidenceCard(evidence: item),
+          AppSpacing.gapSM,
+        ],
+      ],
+    );
+  }
+}
+
+class _RecoveryEvidenceCard extends StatelessWidget {
+  const _RecoveryEvidenceCard({required this.evidence});
+
+  final TrainingRecoveryEvidence evidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final estimate = evidence.estimate;
+    final exactTime = estimate.lastExposureDateTime;
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            muscleGroupDisplayName(estimate.muscleGroup),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          AppSpacing.gapSM,
+          _RecoveryEvidenceField(
+            label: '最終実施',
+            value: exactTime == null
+                ? estimate.lastExposureOperationDate!
+                : _formatRecoveryDateTime(exactTime),
+          ),
+          if (exactTime == null) ...[
+            AppSpacing.gapXS,
+            const _RecoveryEvidenceField(label: '時刻精度', value: '日付のみ'),
+          ],
+          AppSpacing.gapSM,
+          _RecoveryEvidenceField(
+            label: '種目',
+            value: evidence.source.exerciseLabel,
+          ),
+          if (evidence.source.equipmentLabel != null) ...[
+            AppSpacing.gapXS,
+            _RecoveryEvidenceField(
+              label: 'EQUIPMENT',
+              value: evidence.source.equipmentLabel!,
+            ),
+          ] else ...[
+            AppSpacing.gapXS,
+            const _RecoveryEvidenceField(
+              label: 'EQUIPMENT',
+              value: 'EQUIPMENT NOT RECORDED',
+            ),
+          ],
+          AppSpacing.gapSM,
+          _RecoveryEvidenceField(
+            label: '回復基準',
+            value: estimate.referenceRecoveryDuration == null ? '未設定' : '設定済み',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecoveryEvidenceField extends StatelessWidget {
+  const _RecoveryEvidenceField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.labelSmall),
+      Text(value),
+    ],
   );
 }
 
@@ -1059,6 +1193,10 @@ class _EmptyPeriodState extends StatelessWidget {
 double _labelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
 
 String _formatDate(DateTime date) => '${date.month}/${date.day}';
+
+String _formatRecoveryDateTime(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
+    '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
 String _formatInteger(double value) => value.round().toString();
 

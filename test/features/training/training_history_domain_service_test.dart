@@ -139,6 +139,19 @@ void main() {
     expect(recovery.status, RecoveryStatus.noData);
     expect(recovery.referenceProgressRatio, isNull);
   });
+
+  test('missing policy preserves a formal exact exposure time', () {
+    final recovery = service.recoveryEstimate(MuscleGroup.chest, [
+      _v2(),
+    ], now: DateTime(2026, 8, 4));
+
+    expect(
+      recovery.lastExposureDateTime,
+      DateTime.parse('2026-08-03T10:00:00+09:00'),
+    );
+    expect(recovery.precision, RecoveryPrecision.exact);
+    expect(recovery.referenceProgressRatio, isNull);
+  });
 }
 
 TrainingRecordReadModel _v2() => TrainingRecordReadModel.v2(

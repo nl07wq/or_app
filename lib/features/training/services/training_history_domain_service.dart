@@ -185,6 +185,7 @@ class MuscleRecoveryEstimate {
   final Duration? referenceRecoveryDuration;
   final Duration? elapsedDuration;
   final double? referenceProgressRatio;
+
   /// UI-safe clamped ratio; [referenceProgressRatio] retains elapsed excess.
   final double? displayProgressRatio;
   final DateTime? estimatedReadyAt;
@@ -268,7 +269,8 @@ class TrainingHistoryDomainService {
           latestDateOnly = exposure;
       }
     }
-    final exposure = latestDateOnly != null &&
+    final exposure =
+        latestDateOnly != null &&
             (latestExact == null ||
                 latestDateOnly.record.localDate.compareTo(
                       latestExact.record.localDate,
@@ -281,7 +283,7 @@ class TrainingHistoryDomainService {
       return MuscleRecoveryEstimate(
         muscleGroup: muscle,
         lastExposureOperationDate: exposure?.record.localDate,
-        lastExposureDateTime: null,
+        lastExposureDateTime: exposure?.point.startTime,
         sourceRecordId: exposure?.record.id,
         sourceExerciseIdentity: exposure?.point.identity,
         referenceRecoveryDuration: reference,
@@ -292,7 +294,9 @@ class TrainingHistoryDomainService {
         status: RecoveryStatus.noData,
         precision: exposure == null
             ? RecoveryPrecision.unavailable
-            : RecoveryPrecision.dateOnly,
+            : exposure.point.startTime == null
+            ? RecoveryPrecision.dateOnly
+            : RecoveryPrecision.exact,
       );
     final time = exposure.point.startTime;
     if (time == null)

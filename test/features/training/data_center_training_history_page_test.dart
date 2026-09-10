@@ -86,7 +86,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('opens exercise weight history without exposing recovery', (
+  testWidgets('opens exercise weight history and recovery evidence', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -103,7 +103,44 @@ void main() {
 
     expect(find.text('WEIGHT HISTORY'), findsOneWidget);
     expect(find.text('LAST TRAINED'), findsOneWidget);
-    expect(find.text('RECOVERY'), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, '回復'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+    expect(find.text('胸'), findsOneWidget);
+    expect(find.text('最終実施'), findsOneWidget);
+    expect(find.text('2026-08-03'), findsOneWidget);
+    expect(find.text('時刻精度'), findsOneWidget);
+    expect(find.text('日付のみ'), findsOneWidget);
+    expect(find.text('回復基準'), findsOneWidget);
+    expect(find.text('未設定'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows a formal exact exposure time in recovery at 390px', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(startTime: '2026-08-03T20:14:00+09:00'),
+          ],
+          clock: () => DateTime(2026, 8, 3, 22),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('2026-08-03'), findsOneWidget);
+    expect(find.text('日付のみ'), findsNothing);
+    expect(find.text('回復基準'), findsOneWidget);
+    expect(find.text('未設定'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('switches exercise metric between weight reps and volume', (
@@ -501,6 +538,7 @@ TrainingRecordReadModel _v2Record({
   String date = '2026-08-03',
   double weight = 80,
   int? rpe = 8,
+  String? startTime,
 }) => TrainingRecordReadModel.v2(
   id: id,
   localDate: date,
@@ -508,6 +546,7 @@ TrainingRecordReadModel _v2Record({
   updatedAt: DateTime.parse('${date}T00:00:00Z'),
   data: TrainingSessionV2(
     date: '${date}T00:00:00.000',
+    startTime: startTime,
     exercises: [
       TrainingExerciseV2(
         exerciseName: 'Bench Press',
