@@ -94,6 +94,135 @@ void main() {
     expect(evidence, isEmpty);
   });
 
+  test(
+    'derives latest SUPPORT involvement without creating recovery evidence',
+    () {
+      final support = adapter.supportInvolvement(
+        [
+          _v2(
+            'bench',
+            '2026-08-01',
+            '2026-08-01T10:00:00+09:00',
+            'Bench Press',
+          ),
+          _v2(
+            'press',
+            '2026-08-03',
+            '2026-08-03T20:14:00+09:00',
+            'Shoulder Press',
+          ),
+        ],
+        period: TrainingHistoryOverviewPeriod.all,
+        referenceDate: DateTime(2026, 8, 4),
+      );
+
+      final triceps = support.singleWhere(
+        (item) => item.muscle == MuscleGroup.triceps,
+      );
+      expect(triceps.operationDate, '2026-08-03');
+      expect(triceps.startTime, DateTime.parse('2026-08-03T20:14:00+09:00'));
+      expect(triceps.source.exerciseLabel, 'ショルダープレス');
+      expect(
+        adapter
+            .evidence(
+              [
+                _v2(
+                  'bench',
+                  '2026-08-01',
+                  '2026-08-01T10:00:00+09:00',
+                  'Bench Press',
+                ),
+              ],
+              period: TrainingHistoryOverviewPeriod.all,
+              now: DateTime(2026, 8, 4),
+              referenceDate: DateTime(2026, 8, 4),
+            )
+            .where((item) => item.estimate.muscleGroup == MuscleGroup.triceps),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'filters SUPPORT involvement by period and ignores unknown exercises',
+    () {
+      final records = [
+        _v2('old', '2026-08-01', '2026-08-01T10:00:00+09:00', 'Bench Press'),
+        _v2(
+          'unknown',
+          '2026-08-19',
+          '2026-08-19T10:00:00+09:00',
+          'Unknown Lift',
+        ),
+      ];
+
+      final support = adapter.supportInvolvement(
+        records,
+        period: TrainingHistoryOverviewPeriod.oneWeek,
+        referenceDate: DateTime(2026, 8, 20),
+      );
+
+      expect(support, isEmpty);
+    },
+  );
+
+  test('derives compound lower-body support without a recovery estimate', () {
+    final support = adapter.supportInvolvement(
+      [
+        _v2(
+          'leg-press',
+          '2026-08-03',
+          '2026-08-03T10:00:00+09:00',
+          'Leg Press',
+        ),
+      ],
+      period: TrainingHistoryOverviewPeriod.all,
+      referenceDate: DateTime(2026, 8, 4),
+    );
+
+    expect(
+      support.map((item) => item.muscle),
+      contains(MuscleGroup.hamstrings),
+    );
+  });
+
+  test(
+    'derives Lat Pulldown support from the registry without name guessing',
+    () {
+      final support = adapter.supportInvolvement(
+        [
+          _v2(
+            'pulldown',
+            '2026-08-03',
+            '2026-08-03T10:00:00+09:00',
+            'Lat Pulldown',
+          ),
+        ],
+        period: TrainingHistoryOverviewPeriod.all,
+        referenceDate: DateTime(2026, 8, 4),
+      );
+
+      expect(
+        support.map((item) => item.muscle),
+        containsAll([MuscleGroup.biceps, MuscleGroup.forearms]),
+      );
+    },
+  );
+
+  test('preserves date-only precision for SUPPORT involvement', () {
+    final support = adapter.supportInvolvement(
+      [_v1('date-only-support', '2026-08-03', 'Bench Press')],
+      period: TrainingHistoryOverviewPeriod.all,
+      referenceDate: DateTime(2026, 8, 4),
+    );
+
+    final triceps = support.singleWhere(
+      (item) => item.muscle == MuscleGroup.triceps,
+    );
+    expect(triceps.operationDate, '2026-08-03');
+    expect(triceps.startTime, isNull);
+  });
+
   test('exposes future policy wiring without shipping a duration', () {
     final policyAdapter = TrainingRecoveryEvidenceAdapter(
       domain: TrainingHistoryDomainService(

@@ -541,8 +541,6 @@ void main() {
     await tester.pumpAndSettle();
     for (final selection in const [
       ('body-map-region-back-back-2', 'back'),
-      ('body-map-region-back-shoulders-0', 'shoulders'),
-      ('body-map-region-back-triceps-3', 'triceps'),
       ('body-map-region-back-forearms-5', 'forearms'),
       ('body-map-region-back-glutes-7', 'glutes'),
       ('body-map-region-back-hamstrings-9', 'hamstrings'),
@@ -554,11 +552,124 @@ void main() {
         selection.$2,
       );
     }
+    await _expectSupportSelection(
+      tester,
+      const ValueKey('body-map-region-back-shoulders-0'),
+      'shoulders',
+    );
+    await _expectSupportSelection(
+      tester,
+      const ValueKey('body-map-region-back-triceps-3'),
+      'triceps',
+    );
 
     expect(find.byKey(const ValueKey('recovery-gauge-biceps')), findsNothing);
     expect(find.byKey(const ValueKey('recovery-card-biceps')), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('shows SUPPORT involvement without fabricating recovery detail', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataCenterTrainingHistoryPage(
+          recordsLoader: () async => [
+            _v2Record(
+              id: 'bench',
+              date: '2026-09-08',
+              startTime: '2026-09-08T20:00:00+09:00',
+            ),
+          ],
+          clock: () => DateTime.parse('2026-09-09T06:00:00+09:00'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('補助筋として関与'), findsOneWidget);
+    expect(find.bySemanticsLabel('肩 データなし・補助筋として関与'), findsWidgets);
+    await tester.tap(
+      find.byKey(const ValueKey('body-map-region-front-shoulders-0')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('recovery-support-detail-shoulders')),
+      findsOneWidget,
+    );
+    expect(find.text('補助筋として関与'), findsNWidgets(2));
+    expect(find.textContaining('最終関与:'), findsOneWidget);
+    expect(find.text('種目: ベンチプレス'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('recovery-gauge-track-shoulders')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('recovery-card-shoulders')), findsNothing);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, '背面'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('上腕三頭筋 データなし・補助筋として関与'), findsWidgets);
+    await tester.tap(
+      find.byKey(const ValueKey('body-map-region-back-triceps-3')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('recovery-support-detail-triceps')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'keeps target recovery and SUPPORT involvement as separate layers',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataCenterTrainingHistoryPage(
+            recordsLoader: () async => [
+              _v2Record(
+                id: 'bench',
+                date: '2026-09-08',
+                startTime: '2026-09-08T20:00:00+09:00',
+              ),
+              _v2Record(
+                id: 'shoulder',
+                date: '2026-09-09',
+                startTime: '2026-09-09T20:00:00+09:00',
+                exerciseName: 'Shoulder Press',
+              ),
+            ],
+            clock: () => DateTime.parse('2026-09-10T06:00:00+09:00'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, '回復'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('body-map-region-front-shoulders-0')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('recovery-card-shoulders')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('recovery-support-detail-shoulders')),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel('肩 負荷直後・補助筋として関与'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('keeps the body map bounded at narrow and iPhone widths', (
     tester,
@@ -1151,6 +1262,19 @@ Future<void> _expectNoDataSelection(
   await tester.pumpAndSettle();
   expect(
     find.byKey(ValueKey('recovery-no-data-detail-$muscleKey')),
+    findsOneWidget,
+  );
+}
+
+Future<void> _expectSupportSelection(
+  WidgetTester tester,
+  ValueKey<String> region,
+  String muscleKey,
+) async {
+  await tester.tap(find.byKey(region));
+  await tester.pumpAndSettle();
+  expect(
+    find.byKey(ValueKey('recovery-support-detail-$muscleKey')),
     findsOneWidget,
   );
 }

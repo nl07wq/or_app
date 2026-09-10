@@ -65,6 +65,60 @@ class TrainingRecoveryEvidenceAdapter {
         });
     return values;
   }
+
+  /// Period-scoped SUPPORT-role involvement. This is deliberately separate
+  /// from [evidence]: only target muscles produce recovery evidence.
+  List<TrainingSupportInvolvement> supportInvolvement(
+    Iterable<TrainingRecordReadModel> records, {
+    required TrainingHistoryOverviewPeriod period,
+    DateTime? referenceDate,
+    DateTimeRange? customRange,
+  }) {
+    final periodRecords = [
+      for (final record in records)
+        if (periods.includesOperationDate(
+          record.localDate,
+          period: period,
+          referenceDate: referenceDate,
+          customRange: customRange,
+        ))
+          record,
+    ];
+    final latest = <MuscleGroup, TrainingSupportInvolvement>{};
+    for (final point in domain.exerciseHistory(periodRecords)) {
+      final mapping = ExerciseMuscleRegistry.resolve(point.identity);
+      if (mapping == null) continue;
+      for (final muscle in mapping.supportMuscles) {
+        final involvement = TrainingSupportInvolvement(
+          muscle: muscle,
+          operationDate: point.operationDate,
+          startTime: point.startTime,
+          sourceRecordId: point.recordId,
+          source: exercisePresentation.selectorPresentation(point.identity),
+        );
+        final current = latest[muscle];
+        if (current == null || _isLater(involvement, current)) {
+          latest[muscle] = involvement;
+        }
+      }
+    }
+    return latest.values.toList()
+      ..sort((a, b) => _sortTime(b).compareTo(_sortTime(a)));
+  }
+
+  bool _isLater(
+    TrainingSupportInvolvement candidate,
+    TrainingSupportInvolvement current,
+  ) {
+    final date = candidate.operationDate.compareTo(current.operationDate);
+    if (date != 0) return date > 0;
+    if (candidate.startTime == null) return false;
+    if (current.startTime == null) return true;
+    return candidate.startTime!.isAfter(current.startTime!);
+  }
+
+  DateTime _sortTime(TrainingSupportInvolvement involvement) =>
+      involvement.startTime ?? DateTime.parse(involvement.operationDate);
 }
 
 class TrainingRecoveryEvidence {
@@ -74,6 +128,24 @@ class TrainingRecoveryEvidence {
   });
 
   final MuscleRecoveryEstimate estimate;
+  final TrainingExerciseSelectorPresentation source;
+}
+
+/// Derived SUPPORT-role metadata for Body Map presentation. It is not
+/// recovery evidence and is never persisted into formal training records.
+class TrainingSupportInvolvement {
+  const TrainingSupportInvolvement({
+    required this.muscle,
+    required this.operationDate,
+    required this.startTime,
+    required this.sourceRecordId,
+    required this.source,
+  });
+
+  final MuscleGroup muscle;
+  final String operationDate;
+  final DateTime? startTime;
+  final String sourceRecordId;
   final TrainingExerciseSelectorPresentation source;
 }
 

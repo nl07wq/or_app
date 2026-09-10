@@ -304,9 +304,18 @@ class _RecoveryViewState extends State<_RecoveryView> {
     now: widget.now,
   );
 
+  List<TrainingSupportInvolvement> _supportInvolvement() =>
+      widget.adapter.supportInvolvement(
+        widget.records,
+        period: widget.period,
+        referenceDate: widget.referenceDate,
+        customRange: widget.customRange,
+      );
+
   @override
   Widget build(BuildContext context) {
     final evidence = _evidence();
+    final supportInvolvement = _supportInvolvement();
     final selectedMuscle =
         _selectedMuscle ??
         (evidence.isEmpty ? null : evidence.first.estimate.muscleGroup);
@@ -314,6 +323,11 @@ class _RecoveryViewState extends State<_RecoveryView> {
         ? null
         : evidence
               .where((item) => item.estimate.muscleGroup == selectedMuscle)
+              .firstOrNull;
+    final selectedSupport = selectedMuscle == null
+        ? null
+        : supportInvolvement
+              .where((item) => item.muscle == selectedMuscle)
               .firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -339,6 +353,7 @@ class _RecoveryViewState extends State<_RecoveryView> {
         else ...[
           _RecoveryBodyMap(
             evidence: evidence,
+            supportInvolvement: supportInvolvement,
             side: _mode.bodyMapSide,
             selectedMuscle: selectedMuscle,
             onMuscleSelected: (muscle) =>
@@ -347,6 +362,8 @@ class _RecoveryViewState extends State<_RecoveryView> {
           AppSpacing.gapSM,
           if (selectedEvidence != null)
             _RecoveryEvidenceCard(evidence: selectedEvidence)
+          else if (selectedSupport != null)
+            _RecoverySupportDetail(involvement: selectedSupport)
           else if (selectedMuscle != null)
             _RecoveryNoDataDetail(muscle: selectedMuscle)
           else
@@ -389,12 +406,14 @@ class _RecoveryModeSelector extends StatelessWidget {
 class _RecoveryBodyMap extends StatelessWidget {
   const _RecoveryBodyMap({
     required this.evidence,
+    required this.supportInvolvement,
     required this.side,
     required this.selectedMuscle,
     required this.onMuscleSelected,
   });
 
   final List<TrainingRecoveryEvidence> evidence;
+  final List<TrainingSupportInvolvement> supportInvolvement;
   final _BodyMapSide side;
   final MuscleGroup? selectedMuscle;
   final ValueChanged<MuscleGroup> onMuscleSelected;
@@ -403,6 +422,9 @@ class _RecoveryBodyMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final byMuscle = <MuscleGroup, TrainingRecoveryEvidence>{
       for (final item in evidence) item.estimate.muscleGroup: item,
+    };
+    final supportByMuscle = <MuscleGroup, TrainingSupportInvolvement>{
+      for (final item in supportInvolvement) item.muscle: item,
     };
     return OperationCard(
       key: const ValueKey('recovery-body-map'),
@@ -421,11 +443,15 @@ class _RecoveryBodyMap extends StatelessWidget {
           _RecoveryBodyMapCanvas(
             side: side,
             evidenceByMuscle: byMuscle,
+            supportByMuscle: supportByMuscle,
             selectedMuscle: selectedMuscle,
             onMuscleSelected: onMuscleSelected,
           ),
           AppSpacing.gapSM,
-          _RecoveryBodyMapLegend(evidenceByMuscle: byMuscle),
+          _RecoveryBodyMapLegend(
+            evidenceByMuscle: byMuscle,
+            hasSupportInvolvement: supportByMuscle.isNotEmpty,
+          ),
         ],
       ),
     );
@@ -436,12 +462,14 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
   const _RecoveryBodyMapCanvas({
     required this.side,
     required this.evidenceByMuscle,
+    required this.supportByMuscle,
     required this.selectedMuscle,
     required this.onMuscleSelected,
   });
 
   final _BodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> evidenceByMuscle;
+  final Map<MuscleGroup, TrainingSupportInvolvement> supportByMuscle;
   final MuscleGroup? selectedMuscle;
   final ValueChanged<MuscleGroup> onMuscleSelected;
 
@@ -464,6 +492,7 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
                 painter: _RecoveryBodyMapPainter(
                   side: side,
                   evidenceByMuscle: evidenceByMuscle,
+                  supportByMuscle: supportByMuscle,
                   selectedMuscle: selectedMuscle,
                 ),
               ),
@@ -474,7 +503,7 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
                     button: true,
                     selected: selectedMuscle == regions[index].muscle,
                     label:
-                        '${muscleGroupDisplayName(regions[index].muscle)} ${_bodyMapStatusLabel(evidenceByMuscle[regions[index].muscle])}',
+                        '${muscleGroupDisplayName(regions[index].muscle)} ${_bodyMapStatusLabel(evidenceByMuscle[regions[index].muscle], supportByMuscle.containsKey(regions[index].muscle))}',
                     child: GestureDetector(
                       key: ValueKey(
                         'body-map-region-${side.name}-${regions[index].muscle.name}-$index',
@@ -493,9 +522,13 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
 }
 
 class _RecoveryBodyMapLegend extends StatelessWidget {
-  const _RecoveryBodyMapLegend({required this.evidenceByMuscle});
+  const _RecoveryBodyMapLegend({
+    required this.evidenceByMuscle,
+    required this.hasSupportInvolvement,
+  });
 
   final Map<MuscleGroup, TrainingRecoveryEvidence> evidenceByMuscle;
+  final bool hasSupportInvolvement;
 
   @override
   Widget build(BuildContext context) {
@@ -521,16 +554,27 @@ class _RecoveryBodyMapLegend extends StatelessWidget {
             label: '状態: データなし',
             color: AppColors.secondary,
           ),
+        if (hasSupportInvolvement)
+          const _RecoveryBodyMapLegendItem(
+            label: '補助筋として関与',
+            color: AppColors.information,
+            outlined: true,
+          ),
       ],
     );
   }
 }
 
 class _RecoveryBodyMapLegendItem extends StatelessWidget {
-  const _RecoveryBodyMapLegendItem({required this.label, required this.color});
+  const _RecoveryBodyMapLegendItem({
+    required this.label,
+    required this.color,
+    this.outlined = false,
+  });
 
   final String label;
   final Color color;
+  final bool outlined;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -539,7 +583,11 @@ class _RecoveryBodyMapLegendItem extends StatelessWidget {
       Container(
         width: 8,
         height: 8,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: outlined ? Colors.transparent : color,
+          shape: BoxShape.circle,
+          border: outlined ? Border.all(color: color, width: 1.5) : null,
+        ),
       ),
       const SizedBox(width: AppSpacing.xs),
       Text(label, style: Theme.of(context).textTheme.labelSmall),
@@ -551,11 +599,13 @@ class _RecoveryBodyMapPainter extends CustomPainter {
   const _RecoveryBodyMapPainter({
     required this.side,
     required this.evidenceByMuscle,
+    required this.supportByMuscle,
     required this.selectedMuscle,
   });
 
   final _BodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> evidenceByMuscle;
+  final Map<MuscleGroup, TrainingSupportInvolvement> supportByMuscle;
   final MuscleGroup? selectedMuscle;
 
   @override
@@ -576,14 +626,17 @@ class _RecoveryBodyMapPainter extends CustomPainter {
         ..style = PaintingStyle.fill;
       final shape = _bodyMapRegionPath(side, region, size);
       canvas.drawPath(shape, fill);
-      if (selectedMuscle == region.muscle) {
+      if (supportByMuscle.containsKey(region.muscle)) {
         canvas.drawPath(
           shape,
           Paint()
-            ..color = AppColors.textPrimary.withValues(alpha: .9)
+            ..color = AppColors.information.withValues(alpha: .95)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.5,
+            ..strokeWidth = 1.75,
         );
+      }
+      if (selectedMuscle == region.muscle) {
+        _drawBodyMapSelectionHighlight(canvas, shape, region.bounds);
       }
     }
   }
@@ -592,7 +645,24 @@ class _RecoveryBodyMapPainter extends CustomPainter {
   bool shouldRepaint(covariant _RecoveryBodyMapPainter oldDelegate) =>
       side != oldDelegate.side ||
       selectedMuscle != oldDelegate.selectedMuscle ||
-      evidenceByMuscle != oldDelegate.evidenceByMuscle;
+      evidenceByMuscle != oldDelegate.evidenceByMuscle ||
+      supportByMuscle != oldDelegate.supportByMuscle;
+}
+
+void _drawBodyMapSelectionHighlight(Canvas canvas, Path shape, Rect bounds) {
+  final center = bounds.center;
+  canvas.save();
+  canvas.translate(center.dx, center.dy);
+  canvas.scale(1.07);
+  canvas.translate(-center.dx, -center.dy);
+  canvas.drawPath(
+    shape,
+    Paint()
+      ..color = AppColors.textPrimary.withValues(alpha: .92)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2,
+  );
+  canvas.restore();
 }
 
 class _BodyMapRegion {
@@ -1280,8 +1350,15 @@ Path _bodyMapCalfPath(Rect rect, {required bool left}) {
   return path;
 }
 
-String _bodyMapStatusLabel(TrainingRecoveryEvidence? evidence) =>
-    evidence == null ? 'データなし' : _recoveryStatusLabel(evidence.estimate.status);
+String _bodyMapStatusLabel(
+  TrainingRecoveryEvidence? evidence,
+  bool hasSupportInvolvement,
+) {
+  final status = evidence == null
+      ? 'データなし'
+      : _recoveryStatusLabel(evidence.estimate.status);
+  return hasSupportInvolvement ? '$status・補助筋として関与' : status;
+}
 
 class _RecoveryNoDataSelectionPrompt extends StatelessWidget {
   const _RecoveryNoDataSelectionPrompt();
@@ -1317,6 +1394,46 @@ class _RecoveryNoDataDetail extends StatelessWidget {
           'この期間にRecovery Evidenceはありません。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+      ],
+    ),
+  );
+}
+
+class _RecoverySupportDetail extends StatelessWidget {
+  const _RecoverySupportDetail({required this.involvement});
+
+  final TrainingSupportInvolvement involvement;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    key: ValueKey('recovery-support-detail-${involvement.muscle.name}'),
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          muscleGroupDisplayName(involvement.muscle),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        AppSpacing.gapXS,
+        const Text('補助筋として関与'),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          '最終関与: ${involvement.startTime == null ? involvement.operationDate : _formatRecoveryDateTime(involvement.startTime!)}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        Text(
+          '種目: ${involvement.source.exerciseLabel}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (involvement.source.equipmentLabel != null)
+          Text(
+            'EQUIPMENT: ${involvement.source.equipmentLabel}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
       ],
     ),
   );
