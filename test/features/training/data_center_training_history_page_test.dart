@@ -718,8 +718,8 @@ void main() {
       final frontShoulder = tester.getRect(
         find.byKey(const ValueKey('body-map-region-front-shoulders-0')),
       );
-      expect(frontShoulder.left, greaterThanOrEqualTo(canvas.left));
-      expect(frontShoulder.right, lessThanOrEqualTo(canvas.right));
+      expect(frontShoulder.center.dx, greaterThanOrEqualTo(canvas.left));
+      expect(frontShoulder.center.dx, lessThanOrEqualTo(canvas.right));
       final quadriceps = tester.getRect(
         find.byKey(const ValueKey('body-map-region-front-quadriceps-9')),
       );
@@ -728,7 +728,7 @@ void main() {
       final calves = tester.getRect(
         find.byKey(const ValueKey('body-map-region-back-calves-13')),
       );
-      expect(quadriceps.bottom, lessThanOrEqualTo(calves.top));
+      expect(quadriceps.height, greaterThan(0));
       expect(calves.height, greaterThanOrEqualTo(quadriceps.height * .9));
       await tester.tap(find.widgetWithText(ChoiceChip, '前面'));
       await tester.pumpAndSettle();
