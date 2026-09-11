@@ -30,10 +30,13 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                   ButtonSegment(value: SvgBodyMapSide.back, label: Text('背面')),
                 ],
                 selected: {side},
-                onSelectionChanged: (value) => setState(() {
-                  side = value.first;
-                  selected = null;
-                }),
+                onSelectionChanged: (value) {
+                  if (value.isEmpty) return;
+                  setState(() {
+                    side = value.first;
+                    selected = null;
+                  });
+                },
               ),
               const SizedBox(height: 16),
               SvgBodyMapPrototype(
@@ -57,31 +60,31 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                 value: support,
                 onChanged: (value) => setState(() => support = value),
               ),
-              DropdownButtonFormField<RecoveryStatus?>(
+              DropdownButtonFormField<RecoveryStatus>(
                 key: const ValueKey('body-map-recovery-fixture'),
                 value: recoveryStatus,
                 decoration: const InputDecoration(
                   labelText: 'RECOVERY FILL PREVIEW',
                 ),
                 items: const [
-                  DropdownMenuItem<RecoveryStatus?>(
-                    value: null,
-                    child: Text('NEUTRAL / データなし'),
-                  ),
-                  DropdownMenuItem<RecoveryStatus?>(
+                  DropdownMenuItem<RecoveryStatus>(
                     value: RecoveryStatus.recovering,
                     child: Text('回復中'),
                   ),
-                  DropdownMenuItem<RecoveryStatus?>(
+                  DropdownMenuItem<RecoveryStatus>(
                     value: RecoveryStatus.nearReady,
                     child: Text('回復目安に接近'),
                   ),
-                  DropdownMenuItem<RecoveryStatus?>(
+                  DropdownMenuItem<RecoveryStatus>(
                     value: RecoveryStatus.estimatedReady,
                     child: Text('回復目安到達'),
                   ),
                 ],
                 onChanged: (value) => setState(() => recoveryStatus = value),
+              ),
+              TextButton(
+                onPressed: () => setState(() => recoveryStatus = null),
+                child: const Text('NEUTRAL / データなし'),
               ),
               const Text(
                 'Prototype only — production Recovery Body Map is unchanged.',
