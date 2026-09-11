@@ -197,10 +197,10 @@ void main() {
     expect(build.activePrimitiveCount, greaterThanOrEqualTo(20));
     expect(peak.activePrimitiveCount, inInclusiveRange(30, 64));
     expect(peak.activeCountByType.values.where((count) => count > 0).length, 5);
-    expect(peak.maximumEffectiveOpacity, greaterThan(.20));
+    expect(peak.maximumEffectiveOpacity, greaterThan(.30));
     expect(peak.minimumLogicalWidth, greaterThanOrEqualTo(1));
     expect(peak.maximumLogicalWidth, lessThanOrEqualTo(32));
-    expect(peak.aggregateHorizontalCoverage, greaterThan(1));
+    expect(peak.aggregateHorizontalCoverage, greaterThan(1.1));
     expect(peak.minimumVerticalFraction, lessThan(.15));
     expect(peak.maximumVerticalFraction, greaterThan(.80));
     expect(peak.maximumNearColumnRun, lessThanOrEqualTo(2));
