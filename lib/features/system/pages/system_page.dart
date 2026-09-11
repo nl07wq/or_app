@@ -237,6 +237,15 @@ class _SystemPageState extends State<SystemPage> {
           onPressed: () =>
               Navigator.pushNamed(context, AppRoutes.animationsSandbox),
         ),
+        AppSpacing.gapXL,
+        _SystemSection(
+          icon: Icons.accessibility_new_outlined,
+          title: 'BODY MAP SVG PREVIEW',
+          description: 'SVG Body Map geometry prototypeを実機確認します。',
+          buttonText: 'OPEN BODY MAP SVG PREVIEW',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.bodyMapSvgPreview),
+        ),
         AppSpacing.gapLG,
       ],
     ),

@@ -41,6 +41,7 @@ class AppRoutes {
   static const system = '/system';
 
   static const animationsSandbox = '/system/animations-sandbox';
+  static const bodyMapSvgPreview = '/system/body-map-svg-preview';
 
   static const bootSequencePreview = '/system/animations-sandbox/boot-sequence';
 

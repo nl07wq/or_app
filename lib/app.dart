@@ -32,6 +32,7 @@ import 'features/system/pages/system_page.dart';
 import 'features/system/pages/device_transfer_page.dart';
 import 'features/system/pages/system_monitoring_page.dart';
 import 'features/system/pages/startup_diagnostic_page.dart';
+import 'features/system/pages/body_map_svg_preview_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -160,6 +161,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
         AppRoutes.animationsSandbox: (_) => const AnimationsSandboxPage(),
+        AppRoutes.bodyMapSvgPreview: (_) => const BodyMapSvgPreviewPage(),
         AppRoutes.bootSequencePreview: (_) => const BootSequencePreviewPage(),
         AppRoutes.bootSequenceCalibration: (_) =>
             const BootSequenceCalibrationPage(),
