@@ -73,12 +73,14 @@ class SvgBodyMapPrototype extends StatefulWidget {
     required this.side,
     required this.recoveryByMuscle,
     required this.supportMuscles,
+    this.previewStatuses = const {},
     this.selectedMuscle,
     this.onSelected,
   });
   final SvgBodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> recoveryByMuscle;
   final Set<MuscleGroup> supportMuscles;
+  final Map<MuscleGroup, RecoveryStatus> previewStatuses;
   final MuscleGroup? selectedMuscle;
   final ValueChanged<MuscleGroup>? onSelected;
   @override
@@ -125,6 +127,7 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
                 document,
                 widget.side,
                 widget.recoveryByMuscle,
+                widget.previewStatuses,
                 widget.supportMuscles,
                 widget.selectedMuscle,
               ),
@@ -141,12 +144,14 @@ class _SvgBodyMapPainter extends CustomPainter {
     this.document,
     this.side,
     this.recovery,
+    this.previewStatuses,
     this.support,
     this.selected,
   );
   final SvgBodyMapDocument document;
   final SvgBodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> recovery;
+  final Map<MuscleGroup, RecoveryStatus> previewStatuses;
   final Set<MuscleGroup> support;
   final MuscleGroup? selected;
   @override
@@ -160,12 +165,11 @@ class _SvgBodyMapPainter extends CustomPainter {
       final muscle = entry.value;
       final path = document.paths[entry.key]!;
       final evidence = recovery[muscle];
-      final color = evidence == null
-          ? AppColors.secondary
-          : _color(evidence.estimate.status);
+      final status = previewStatuses[muscle] ?? evidence?.estimate.status;
+      final color = status == null ? AppColors.secondary : _color(status);
       canvas.drawPath(
         path,
-        Paint()..color = color.withValues(alpha: evidence == null ? .36 : .78),
+        Paint()..color = color.withValues(alpha: status == null ? .36 : .78),
       );
       if (support.contains(muscle))
         canvas.drawPath(
@@ -191,6 +195,7 @@ class _SvgBodyMapPainter extends CustomPainter {
       old.document != document ||
       old.side != side ||
       old.recovery != recovery ||
+      old.previewStatuses != previewStatuses ||
       old.support != support ||
       old.selected != selected;
 }
