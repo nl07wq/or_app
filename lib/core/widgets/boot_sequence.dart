@@ -142,7 +142,7 @@ List<_BootMicroSignalSeed> _buildBootMicroSignalSeeds() {
         y: y,
         width: _bootNoiseUnit(index, 61, attempt),
         height: _bootNoiseUnit(index, 79, attempt),
-        onset: .02 + _bootNoiseUnit(index, 97, attempt) * .34,
+        onset: .015 + _bootNoiseUnit(index, 97, attempt) * .28,
         lifetime: .30 + _bootNoiseUnit(index, 113, attempt) * .35,
         phase: _bootNoiseUnit(index, 131, attempt) * math.pi * 2,
         frequency: 17 + _bootNoiseUnit(index, 149, attempt) * 31,
@@ -195,6 +195,8 @@ class BootMicroSignalFieldDiagnostics {
   const BootMicroSignalFieldDiagnostics({
     required this.elapsed,
     required this.activePrimitiveCount,
+    required this.activeBasePrimitiveCount,
+    required this.activeAccentPrimitiveCount,
     required this.activeCountByType,
     required this.minimumEffectiveOpacity,
     required this.maximumEffectiveOpacity,
@@ -211,6 +213,8 @@ class BootMicroSignalFieldDiagnostics {
 
   final Duration elapsed;
   final int activePrimitiveCount;
+  final int activeBasePrimitiveCount;
+  final int activeAccentPrimitiveCount;
   final Map<String, int> activeCountByType;
   final double minimumEffectiveOpacity;
   final double maximumEffectiveOpacity;
@@ -429,6 +433,31 @@ double _bootMicroSignalEnvelope(double progress, int index) {
 double _bootMicroSignalConvergence(double progress) =>
     Curves.easeIn.transform(((progress - .72) / .22).clamp(0.0, 1.0));
 
+/// The global BASE envelope gives the field an early, low signal floor and a
+/// residual tail into the next acquisition stage. Seed envelopes still keep
+/// individual fragments asynchronous within this shared window.
+@visibleForTesting
+double bootMicroSignalBaseEnvelope(double progress) {
+  final rise = Curves.easeOut.transform(
+    ((progress - .05) / .26).clamp(0.0, 1.0),
+  );
+  final decay =
+      1 - Curves.easeIn.transform(((progress - .80) / .18).clamp(0.0, 1.0));
+  return rise * decay;
+}
+
+/// ACCENT disturbances deliberately arrive after the BASE floor and leave
+/// before it, avoiding a single synchronized flash across the entire field.
+@visibleForTesting
+double bootMicroSignalAccentEnvelope(double progress) {
+  final rise = Curves.easeOut.transform(
+    ((progress - .20) / .20).clamp(0.0, 1.0),
+  );
+  final decay =
+      1 - Curves.easeIn.transform(((progress - .68) / .16).clamp(0.0, 1.0));
+  return rise * decay;
+}
+
 double _bootMicroSignalBaseX(Size size, int index) =>
     size.width * _bootMicroSignalSeed(index).x;
 
@@ -474,16 +503,14 @@ double _bootMicroSignalOpacity(double progress, int index) {
     _BootMicroSignalPrimitiveType.offsetPair => .58,
     _BootMicroSignalPrimitiveType.darkInterruption => .23,
   };
-  final build = Curves.easeOut.transform(
-    ((progress - .10) / .34).clamp(0.0, 1.0),
-  );
-  final decay = 1 - _bootMicroSignalConvergence(progress);
+  final globalEnvelope = type == _BootMicroSignalPrimitiveType.offsetPair
+      ? bootMicroSignalAccentEnvelope(progress)
+      : bootMicroSignalBaseEnvelope(progress);
   final seed = _bootMicroSignalSeed(index);
   final flicker =
       .72 + .28 * math.sin(progress * seed.frequency + seed.phase).abs();
   return _bootMicroSignalEnvelope(progress, index) *
-      build *
-      decay *
+      globalEnvelope *
       typeIntensity *
       flicker;
 }
@@ -524,6 +551,8 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
           .clamp(0.0, 1.0)
           .toDouble();
   var activeCount = 0;
+  var activeBaseCount = 0;
+  var activeAccentCount = 0;
   var minimumOpacity = double.infinity;
   var maximumOpacity = 0.0;
   var minimumWidth = double.infinity;
@@ -546,8 +575,13 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
     final height = _bootMicroSignalHeight(index);
     activePositions.add(position);
     activeCount += 1;
-    byType[_bootMicroSignalType(index).name] =
-        byType[_bootMicroSignalType(index).name]! + 1;
+    final type = _bootMicroSignalType(index);
+    byType[type.name] = byType[type.name]! + 1;
+    if (type == _BootMicroSignalPrimitiveType.offsetPair) {
+      activeAccentCount += 1;
+    } else {
+      activeBaseCount += 1;
+    }
     minimumOpacity = math.min(minimumOpacity, opacity);
     maximumOpacity = math.max(maximumOpacity, opacity);
     minimumWidth = math.min(minimumWidth, width);
@@ -586,6 +620,8 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
   return BootMicroSignalFieldDiagnostics(
     elapsed: elapsed,
     activePrimitiveCount: activeCount,
+    activeBasePrimitiveCount: activeBaseCount,
+    activeAccentPrimitiveCount: activeAccentCount,
     activeCountByType: Map.unmodifiable(byType),
     minimumEffectiveOpacity: activeCount == 0 ? 0 : minimumOpacity,
     maximumEffectiveOpacity: maximumOpacity,

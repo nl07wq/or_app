@@ -125,6 +125,14 @@ void main() {
     expect(bootIntroSilhouetteOpacity(.35), inInclusiveRange(.30, .35));
     expect(bootIntroSilhouetteOpacity(.20), greaterThan(.30));
     expect(bootIntroSilhouetteOpacity(.95), closeTo(0, .000001));
+    expect(bootMicroSignalBaseEnvelope(.04), 0);
+    expect(bootMicroSignalBaseEnvelope(.12), greaterThan(0));
+    expect(bootMicroSignalAccentEnvelope(.12), 0);
+    expect(bootMicroSignalAccentEnvelope(.32), greaterThan(0));
+    expect(
+      bootMicroSignalBaseEnvelope(.88),
+      greaterThan(bootMicroSignalAccentEnvelope(.88)),
+    );
   });
 
   test('signal acquisition diagnostics sample the actual painter geometry', () {
@@ -187,14 +195,25 @@ void main() {
       const Duration(milliseconds: 300),
       viewport,
     );
-    final converge = bootMicroSignalFieldDiagnosticsAt(
-      const Duration(milliseconds: 400),
+    final accentBuild = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 180),
+      viewport,
+    );
+    final accentDecay = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 420),
+      viewport,
+    );
+    final residual = bootMicroSignalFieldDiagnosticsAt(
+      const Duration(milliseconds: 440),
       viewport,
     );
 
     expect(bootMicroSignalFieldPrimitiveCount, 64);
     expect(sparse.activePrimitiveCount, lessThan(build.activePrimitiveCount));
     expect(build.activePrimitiveCount, greaterThanOrEqualTo(20));
+    expect(build.activeBasePrimitiveCount, greaterThan(0));
+    expect(build.activeAccentPrimitiveCount, 0);
+    expect(accentBuild.activeAccentPrimitiveCount, greaterThan(0));
     expect(peak.activePrimitiveCount, inInclusiveRange(30, 64));
     expect(peak.activeCountByType.values.where((count) => count > 0).length, 5);
     expect(peak.maximumEffectiveOpacity, greaterThan(.30));
@@ -205,7 +224,10 @@ void main() {
     expect(peak.maximumVerticalFraction, greaterThan(.80));
     expect(peak.maximumNearColumnRun, lessThanOrEqualTo(2));
     expect(peak.maximumNearRowRun, lessThanOrEqualTo(2));
-    expect(converge.activePrimitiveCount, lessThan(peak.activePrimitiveCount));
+    expect(accentDecay.activeAccentPrimitiveCount, 0);
+    expect(accentDecay.activeBasePrimitiveCount, greaterThan(0));
+    expect(residual.activeBasePrimitiveCount, greaterThan(0));
+    expect(residual.activePrimitiveCount, lessThan(peak.activePrimitiveCount));
   });
 
   testWidgets('signal acquisition completes before ghost reconstruction', (
