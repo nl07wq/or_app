@@ -67,9 +67,9 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('CURRENT METRICS'), findsOneWidget);
-      expect(find.text('CURRENT / ASSESSMENT'), findsOneWidget);
-      expect(find.text('VS PREVIOUS'), findsOneWidget);
+      expect(find.text('現在の指標'), findsOneWidget);
+      expect(find.text('現在 / 評価'), findsOneWidget);
+      expect(find.text('前回比較'), findsOneWidget);
       expect(find.text('ANALYSIS / PROGRESS'), findsOneWidget);
       expect(find.text('NEXT'), findsOneWidget);
       expect(find.text('NEXT ACTIONS'), findsOneWidget);
@@ -177,8 +177,10 @@ void main() {
         tester.getTopLeft(exercises).dy,
         tester.getTopLeft(sessionSets).dy,
       );
-      expect(find.text('RECORDED\nVOLUME'), findsWidgets);
-      expect(find.text('MAIN SET\nVOLUME'), findsWidgets);
+      expect(find.text('総\nボリューム'), findsWidgets);
+      expect(find.text('メインセット\nボリューム'), findsWidgets);
+      expect(find.text('実施時間'), findsOneWidget);
+      expect(find.text('種目数'), findsOneWidget);
     },
   );
 
@@ -201,8 +203,8 @@ void main() {
       tester.getTopLeft(recordedSets).dy,
       greaterThan(tester.getTopLeft(maxWeight).dy),
     );
-    expect(find.text('PREVIOUS: NOT AVAILABLE'), findsOneWidget);
-    expect(find.text('TREND — RECENT HISTORY'), findsNothing);
+    expect(find.text('前回: 利用不可'), findsOneWidget);
+    expect(find.text('推移 — 直近履歴'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -211,7 +213,12 @@ void main() {
     (tester) async {
       await _pumpReport(tester, width: 390);
 
-      expect(find.text('TREND — RECENT HISTORY'), findsOneWidget);
+      expect(find.text('推移 — 直近履歴'), findsOneWidget);
+      expect(find.text('前回比較 — 同一種目 / 同一器具'), findsOneWidget);
+      expect(find.text('指標'), findsOneWidget);
+      expect(find.text('現在'), findsOneWidget);
+      expect(find.text('前回'), findsOneWidget);
+      expect(find.text('変化'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('training-analysis-trend-max-weight')),
         findsOneWidget,
@@ -220,28 +227,28 @@ void main() {
         find.byKey(const ValueKey('training-analysis-trend-total-reps')),
         findsNothing,
       );
-      expect(find.text('CURRENT  80 kg'), findsOneWidget);
+      expect(find.text('現在  80 kg'), findsOneWidget);
 
-      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'REPS'));
-      await tester.tap(find.widgetWithText(ChoiceChip, 'REPS'));
+      await tester.ensureVisible(find.widgetWithText(ChoiceChip, '回数'));
+      await tester.tap(find.widgetWithText(ChoiceChip, '回数'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('training-analysis-trend-total-reps')),
         findsOneWidget,
       );
-      expect(find.text('CURRENT  8 reps'), findsOneWidget);
+      expect(find.text('現在  8 回'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'ボリューム'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('training-analysis-trend-recorded-volume')),
         findsOneWidget,
       );
-      expect(find.text('CURRENT  640 kg'), findsOneWidget);
-      expect(find.widgetWithText(ChoiceChip, 'RECORDED'), findsOneWidget);
-      expect(find.widgetWithText(ChoiceChip, 'MAIN SET'), findsOneWidget);
+      expect(find.text('現在  640 kg'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, '総ボリューム'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'メインセット'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(ChoiceChip, 'MAIN SET'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'メインセット'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('training-analysis-trend-main-set-volume')),
@@ -254,7 +261,9 @@ void main() {
         find.byKey(const ValueKey('training-analysis-trend-average-rpe')),
         findsOneWidget,
       );
-      expect(find.text('CURRENT  8.0'), findsOneWidget);
+      expect(find.text('現在  8.0'), findsOneWidget);
+      expect(find.text('RECORDED'), findsNothing);
+      expect(find.text('MAIN SET'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

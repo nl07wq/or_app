@@ -641,17 +641,33 @@ class _SessionMetricsCard extends StatelessWidget {
       compact: true,
       keyPrefix: 'session',
       values: [
-        _MetricValue('DURATION', _durationValue(metrics.duration), ''),
-        _MetricValue('EXERCISES', '${metrics.exerciseCount}', ''),
         _MetricValue(
-          'RECORDED\nSETS',
+          _AnalysisLabels.duration,
+          _durationValue(metrics.duration),
+          '',
+        ),
+        _MetricValue(
+          _AnalysisLabels.exerciseCount,
+          '${metrics.exerciseCount}',
+          '',
+        ),
+        _MetricValue(
+          _AnalysisLabels.totalSets,
           _integerValue(metrics.recordedSetCount),
           '',
         ),
-        _MetricValue('TOTAL REPS', _integerValue(metrics.totalReps), 'reps'),
-        _volumeMetric('RECORDED\nVOLUME', metrics.recordedVolume),
-        _volumeMetric('MAIN SET\nVOLUME', metrics.workingVolume),
-        _MetricValue('AVERAGE RPE', _rpeValue(metrics.averageRpe), ''),
+        _MetricValue(
+          _AnalysisLabels.totalReps,
+          _integerValue(metrics.totalReps),
+          '回',
+        ),
+        _volumeMetric(_AnalysisLabels.totalVolume, metrics.recordedVolume),
+        _volumeMetric(_AnalysisLabels.mainSetVolume, metrics.workingVolume),
+        _MetricValue(
+          _AnalysisLabels.averageRpe,
+          _rpeValue(metrics.averageRpe),
+          '',
+        ),
       ],
     ),
   );
@@ -729,11 +745,11 @@ class _ExerciseAnalysisCard extends StatelessWidget {
           ),
         ] else ...[
           AppSpacing.gapXS,
-          const Text('EQUIPMENT NOT RECORDED'),
+          const Text('器具未記録'),
         ],
         AppSpacing.gapMD,
         if (metrics != null) ...[
-          const Text('CURRENT METRICS'),
+          const Text('現在の指標'),
           AppSpacing.gapSM,
           _MetricGrid(
             values: _currentMetricValues(metrics!.current),
@@ -744,8 +760,8 @@ class _ExerciseAnalysisCard extends StatelessWidget {
           _ExerciseComparison(metrics: metrics!),
           AppSpacing.gapMD,
         ],
-        _LabelText(label: 'CURRENT / ASSESSMENT', text: exercise.assessment),
-        _LabelText(label: 'VS PREVIOUS', text: exercise.previousComparison),
+        _LabelText(label: '現在 / 評価', text: exercise.assessment),
+        _LabelText(label: '前回比較', text: exercise.previousComparison),
         _LabelText(label: 'ANALYSIS / PROGRESS', text: exercise.progress),
         _LabelText(label: 'NEXT', text: exercise.nextProposal, isLast: true),
       ],
@@ -762,41 +778,41 @@ class _ExerciseComparison extends StatelessWidget {
   Widget build(BuildContext context) {
     final previous = metrics.previous;
     if (previous == null) {
-      return const Text('PREVIOUS: NOT AVAILABLE');
+      return const Text('前回: 利用不可');
     }
     final rows = <_ComparisonRow>[
       _comparisonRow(
-        'MAX WEIGHT',
+        _AnalysisLabels.maxWeight,
         metrics.current.maxWeight,
         previous.maxWeight,
         'kg',
       ),
       _comparisonRow(
-        'TOTAL REPS',
+        _AnalysisLabels.totalReps,
         metrics.current.totalReps?.toDouble(),
         previous.totalReps?.toDouble(),
         'reps',
       ),
       _comparisonRow(
-        'RECORDED SETS',
+        _AnalysisLabels.totalSets,
         metrics.current.recordedSetCount?.toDouble(),
         previous.recordedSetCount?.toDouble(),
         '',
       ),
       _comparisonRow(
-        'RECORDED\nVOLUME',
+        _AnalysisLabels.totalVolume,
         metrics.current.recordedVolume,
         previous.recordedVolume,
         'volume',
       ),
       _comparisonRow(
-        'MAIN SET\nVOLUME',
+        _AnalysisLabels.mainSetVolume,
         metrics.current.workingVolume,
         previous.workingVolume,
         'volume',
       ),
       _comparisonRow(
-        'AVERAGE RPE',
+        _AnalysisLabels.averageRpe,
         metrics.current.averageRpe,
         previous.averageRpe,
         'rpe',
@@ -805,11 +821,11 @@ class _ExerciseComparison extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('PREVIOUS — SAME EXERCISE / EQUIPMENT'),
+        const Text('前回比較 — 同一種目 / 同一器具'),
         if (metrics.recentHistory.isNotEmpty) ...[
           AppSpacing.gapXS,
           Text(
-            'RECENT HISTORY  ${metrics.recentHistory.map((value) => value.operationDate).join(' / ')}',
+            '直近履歴  ${metrics.recentHistory.map((value) => value.operationDate).join(' / ')}',
           ),
         ],
         AppSpacing.gapSM,
@@ -823,10 +839,10 @@ class _ExerciseComparison extends StatelessWidget {
           children: [
             const TableRow(
               children: [
-                _ComparisonHeader('METRIC'),
-                _ComparisonHeader('CURRENT', align: TextAlign.right),
-                _ComparisonHeader('PREVIOUS', align: TextAlign.right),
-                _ComparisonHeader('CHANGE', align: TextAlign.right),
+                _ComparisonHeader('指標'),
+                _ComparisonHeader('現在', align: TextAlign.right),
+                _ComparisonHeader('前回', align: TextAlign.right),
+                _ComparisonHeader('変化', align: TextAlign.right),
               ],
             ),
             for (final row in rows) row.toTableRow(),
@@ -856,35 +872,35 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
     final graphs = [
       _TrendMetric(
         key: 'max-weight',
-        title: 'MAX WEIGHT',
+        title: _AnalysisLabels.maxWeight,
         unit: 'kg',
         kind: 'kg',
         valueOf: (value) => value.maxWeight,
       ),
       _TrendMetric(
         key: 'total-reps',
-        title: 'TOTAL REPS',
-        unit: 'reps',
+        title: _AnalysisLabels.totalReps,
+        unit: '回',
         kind: 'reps',
         valueOf: (value) => value.totalReps?.toDouble(),
       ),
       _TrendMetric(
         key: 'recorded-volume',
-        title: 'RECORDED\nVOLUME',
+        title: _AnalysisLabels.totalVolume,
         unit: 'kg / t',
         kind: 'volume',
         valueOf: (value) => value.recordedVolume,
       ),
       _TrendMetric(
         key: 'main-set-volume',
-        title: 'MAIN SET\nVOLUME',
+        title: _AnalysisLabels.mainSetVolume,
         unit: 'kg / t',
         kind: 'volume',
         valueOf: (value) => value.workingVolume,
       ),
       _TrendMetric(
         key: 'average-rpe',
-        title: 'AVERAGE RPE',
+        title: _AnalysisLabels.averageRpe,
         unit: '',
         kind: 'rpe',
         valueOf: (value) => value.averageRpe,
@@ -927,7 +943,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSpacing.gapSM,
-        const Text('TREND — RECENT HISTORY'),
+        const Text('推移 — 直近履歴'),
         AppSpacing.gapXS,
         Wrap(
           spacing: AppSpacing.xs,
@@ -949,9 +965,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
             children: [
               for (final key in volumeOptions)
                 ChoiceChip(
-                  label: Text(
-                    key == 'recorded-volume' ? 'RECORDED' : 'MAIN SET',
-                  ),
+                  label: Text(key == 'recorded-volume' ? '総ボリューム' : 'メインセット'),
                   selected: selectedKey == key,
                   onSelected: (_) => setState(() => _selectedVolumeKey = key),
                 ),
@@ -1005,7 +1019,7 @@ class _ExerciseTrendGraph extends StatelessWidget {
                 ),
               ),
               Text(
-                'CURRENT  ${_comparisonValue(data.currentValue, data.metric.kind)}',
+                '現在  ${_comparisonValue(data.currentValue, data.metric.kind)}',
                 style: Theme.of(
                   context,
                 ).textTheme.labelSmall?.copyWith(color: colors.tertiary),
@@ -1292,12 +1306,16 @@ class _MetricValue {
 List<_MetricValue> _currentMetricValues(
   TrainingAnalysisExerciseMetricValues values,
 ) => [
-  _MetricValue('MAX WEIGHT', _weightValue(values.maxWeight), 'kg'),
-  _MetricValue('TOTAL REPS', _integerValue(values.totalReps), 'reps'),
-  _MetricValue('RECORDED\nSETS', _integerValue(values.recordedSetCount), ''),
-  _volumeMetric('RECORDED\nVOLUME', values.recordedVolume),
-  _volumeMetric('MAIN SET\nVOLUME', values.workingVolume),
-  _MetricValue('AVERAGE RPE', _rpeValue(values.averageRpe), ''),
+  _MetricValue(_AnalysisLabels.maxWeight, _weightValue(values.maxWeight), 'kg'),
+  _MetricValue(_AnalysisLabels.totalReps, _integerValue(values.totalReps), '回'),
+  _MetricValue(
+    _AnalysisLabels.totalSets,
+    _integerValue(values.recordedSetCount),
+    '',
+  ),
+  _volumeMetric(_AnalysisLabels.totalVolume, values.recordedVolume),
+  _volumeMetric(_AnalysisLabels.mainSetVolume, values.workingVolume),
+  _MetricValue(_AnalysisLabels.averageRpe, _rpeValue(values.averageRpe), ''),
 ];
 
 _MetricValue _volumeMetric(String label, double? value) {
@@ -1318,7 +1336,7 @@ String _comparisonValue(double? value, String kind, {bool signed = false}) {
   final prefix = signed && value > 0 ? '+' : '';
   return switch (kind) {
     'kg' => '$prefix${_weightValue(value)} kg',
-    'reps' => '$prefix${value.round()} reps',
+    'reps' => '$prefix${value.round()} 回',
     'volume' => '$prefix${TrainingVolumeFormatter.format(value)}',
     'rpe' => '$prefix${_rpeValue(value)}',
     _ => '$prefix${value.round()}',
@@ -1338,18 +1356,40 @@ String _durationValue(Duration? value) => value == null
           '${value.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
           '${value.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
-String _metricKey(String value) =>
-    value.toLowerCase().replaceAll('\n', '-').replaceAll(' ', '-');
+String _metricKey(String value) => switch (value) {
+  _AnalysisLabels.duration => 'duration',
+  _AnalysisLabels.exerciseCount => 'exercises',
+  _AnalysisLabels.maxWeight => 'max-weight',
+  _AnalysisLabels.totalReps => 'total-reps',
+  _AnalysisLabels.totalSets => 'recorded-sets',
+  _AnalysisLabels.totalVolume => 'recorded-volume',
+  _AnalysisLabels.mainSetVolume => 'main-set-volume',
+  _AnalysisLabels.averageRpe => 'average-rpe',
+  _ => value.toLowerCase().replaceAll('\n', '-').replaceAll(' ', '-'),
+};
 
 double _trendLabelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
 
 String _trendSelectorLabel(String category) => switch (category) {
-  'max-weight' => 'WEIGHT',
-  'total-reps' => 'REPS',
-  'volume' => 'VOLUME',
+  'max-weight' => '重量',
+  'total-reps' => '回数',
+  'volume' => 'ボリューム',
   'average-rpe' => 'RPE',
   _ => category,
 };
+
+class _AnalysisLabels {
+  const _AnalysisLabels._();
+
+  static const maxWeight = '最大重量';
+  static const duration = '実施時間';
+  static const exerciseCount = '種目数';
+  static const totalReps = '総回数';
+  static const totalSets = '総セット数';
+  static const totalVolume = '総\nボリューム';
+  static const mainSetVolume = 'メインセット\nボリューム';
+  static const averageRpe = '平均RPE';
+}
 
 String _shortDate(String operationDate) => operationDate.length >= 10
     ? operationDate.substring(5, 10).replaceAll('-', '/')
