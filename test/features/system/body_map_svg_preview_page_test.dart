@@ -13,11 +13,15 @@ void main() {
       await tester.tap(find.text('背面'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('svg-body-map-back')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('body-map-recovery-fixture')));
+      final fixture = find.byKey(const ValueKey('body-map-recovery-fixture'));
+      await tester.ensureVisible(fixture);
+      await tester.tap(fixture);
       await tester.pumpAndSettle();
       await tester.tap(find.text('回復中').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('SUPPORT OUTLINE PREVIEW'));
+      final support = find.text('SUPPORT OUTLINE PREVIEW');
+      await tester.ensureVisible(support);
+      await tester.tap(support);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }
