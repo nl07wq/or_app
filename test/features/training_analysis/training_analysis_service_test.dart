@@ -48,6 +48,11 @@ void main() {
       expect(preparation.prompt, contains('"総負荷量"'));
       expect(preparation.prompt, contains('"メインセット負荷量"'));
       expect(preparation.prompt, contains('Never use "ボリューム"'));
+      expect(preparation.prompt, contains('"frequencyRecommendations"'));
+      expect(
+        preparation.prompt,
+        contains('FREQUENCY RECOMMENDATION RESPONSIBILITY'),
+      );
     },
   );
 

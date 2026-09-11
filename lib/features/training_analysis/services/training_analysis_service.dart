@@ -14,6 +14,7 @@ import '../../training/services/training_exercise_identity.dart';
 import '../../training/services/training_volume_formatter.dart';
 import '../models/training_analysis_report.dart';
 import 'training_analysis_metrics_adapter.dart';
+import 'training_frequency_recommendation_service.dart';
 
 class TrainingAnalysisPreparation {
   const TrainingAnalysisPreparation({
@@ -269,6 +270,12 @@ class TrainingAnalysisService {
       target: target,
       records: records,
     );
+    final frequencyRecommendations =
+        const TrainingFrequencyRecommendationService().build(
+          target: target,
+          records: records,
+          now: _clock(),
+        );
     return {
       'operationDate': target.localDate,
       'targetRecordId': target.id,
@@ -284,8 +291,33 @@ class TrainingAnalysisService {
             'previous': _comparableFacts(records, target, current),
           },
       ],
+      'frequencyRecommendations': [
+        for (final recommendation in frequencyRecommendations)
+          _frequencyRecommendationFact(recommendation),
+      ],
     };
   }
+
+  Map<String, Object?> _frequencyRecommendationFact(
+    TrainingFrequencyRecommendation recommendation,
+  ) => {
+    'exerciseIdentity':
+        '${recommendation.targetIdentity.exerciseKey}|${recommendation.targetIdentity.equipmentKey}',
+    'targetMuscles': [
+      for (final muscle in recommendation.targetMuscles) muscle.name,
+    ],
+    'recoveryReferenceHours': recommendation.recoveryReferenceHours,
+    'recommendedMinHours': recommendation.recommendedMinHours,
+    'recommendedMaxHours': recommendation.recommendedMaxHours,
+    'observedMinHours': recommendation.observedMinHours,
+    'observedMaxHours': recommendation.observedMaxHours,
+    'validObservationCount': recommendation.validObservationCount,
+    'supportedObservationCount': recommendation.supportedObservationCount,
+    'longGapObservationCount': recommendation.longGapObservationCount,
+    'confidence': recommendation.confidence.name,
+    'status': recommendation.status.name,
+    'latestObservedIntervalHours': recommendation.latestObservedIntervalHours,
+  };
 
   Map<String, Object?> _metricsFor(
     TrainingAnalysisMetrics metrics,
@@ -462,6 +494,9 @@ Return exactly one fenced Plain Text code block using ```text. Put one JSON obje
 
 JAPANESE LOAD TERMINOLOGY
 Use "負荷量" for Volume, "総負荷量" for Recorded Volume, and "メインセット負荷量" for Working Volume or Main Set Volume. Never use "ボリューム", "記録ボリューム", or "ワーキングボリューム" in analysis prose. When a supplied metric has a *Display value, reproduce that formatter value verbatim in prose; do not restate its raw *Kg value. Missing metrics remain unavailable and must not be written as zero.
+
+FREQUENCY RECOMMENDATION RESPONSIBILITY
+frequencyRecommendations is a current, app-derived structured result. Do not choose, widen, narrow, or override its recommended range. Explain its supplied baseline, observation count, confidence, and status only. It is a recommendation supported by current Formal History, never a scientifically proven "optimal" frequency. When status is unavailable or baselineOnly, state the supplied limitation concisely rather than inventing a personalized range.
 
 COMPLETE RESPONSE SHAPE
 ${const JsonEncoder.withIndent('  ').convert(example)}

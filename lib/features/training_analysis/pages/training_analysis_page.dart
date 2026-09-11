@@ -8,12 +8,14 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_record_read_model.dart';
+import '../../training/services/training_exercise_identity.dart';
 import '../../training/services/training_volume_formatter.dart';
 import '../../training/training_plan_import_page.dart';
 import '../../report_sync/widgets/report_sync_action_bar.dart';
 import '../models/training_analysis_report.dart';
 import '../services/training_analysis_service.dart';
 import '../services/training_analysis_metrics_adapter.dart';
+import '../services/training_frequency_recommendation_service.dart';
 
 class TrainingAnalysisPage extends StatefulWidget {
   const TrainingAnalysisPage({super.key, this.targetRecordId});
@@ -126,6 +128,8 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
       target: target,
       records: records,
     );
+    final frequencyRecommendations = TrainingFrequencyRecommendationService()
+        .build(target: target, records: records, now: DateTime.now());
     return ListView(
       padding: AppSpacing.cardPadding,
       children: [
@@ -175,6 +179,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
           _ReportView(
             report: _report!,
             metrics: metrics,
+            frequencyRecommendations: frequencyRecommendations,
             isCurrent: _reportIsCurrent == true,
           ),
         if (_report != null) ...[
@@ -521,11 +526,13 @@ class _ReportView extends StatelessWidget {
   const _ReportView({
     required this.report,
     required this.metrics,
+    required this.frequencyRecommendations,
     required this.isCurrent,
   });
 
   final TrainingAnalysisReport report;
   final TrainingAnalysisMetrics metrics;
+  final List<TrainingFrequencyRecommendation> frequencyRecommendations;
   final bool isCurrent;
 
   @override
@@ -576,6 +583,12 @@ class _ReportView extends StatelessWidget {
           text: report.analysis.nextSessionProposal,
         ),
         AppSpacing.gapMD,
+        _FrequencyRecommendationSection(
+          recommendations: frequencyRecommendations,
+          metrics: metrics.exercises,
+          isCurrent: isCurrent,
+        ),
+        AppSpacing.gapMD,
         _AnalysisCard(
           key: const ValueKey('training-analysis-recovery'),
           icon: Icons.bedtime_outlined,
@@ -603,6 +616,174 @@ class _ReportView extends StatelessWidget {
     return null;
   }
 }
+
+class _FrequencyRecommendationSection extends StatelessWidget {
+  const _FrequencyRecommendationSection({
+    required this.recommendations,
+    required this.metrics,
+    required this.isCurrent,
+  });
+
+  final List<TrainingFrequencyRecommendation> recommendations;
+  final List<TrainingAnalysisExerciseMetrics> metrics;
+  final bool isCurrent;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _CardTitle(
+        icon: Icons.schedule_outlined,
+        title: isCurrent
+            ? 'FREQUENCY RECOMMENDATION'
+            : 'CURRENT FREQUENCY RECOMMENDATION',
+      ),
+      AppSpacing.gapSM,
+      for (final recommendation in recommendations) ...[
+        _FrequencyRecommendationCard(
+          recommendation: recommendation,
+          metrics: _metricsFor(recommendation.targetIdentity),
+        ),
+        if (recommendation != recommendations.last) AppSpacing.gapSM,
+      ],
+    ],
+  );
+
+  TrainingAnalysisExerciseMetrics? _metricsFor(
+    TrainingExerciseIdentity identity,
+  ) {
+    for (final value in metrics) {
+      if (value.identity == identity) return value;
+    }
+    return null;
+  }
+}
+
+class _FrequencyRecommendationCard extends StatelessWidget {
+  const _FrequencyRecommendationCard({
+    required this.recommendation,
+    required this.metrics,
+  });
+
+  final TrainingFrequencyRecommendation recommendation;
+  final TrainingAnalysisExerciseMetrics? metrics;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    key: ValueKey(
+      'training-analysis-frequency-${recommendation.targetIdentity.exerciseKey}|${recommendation.targetIdentity.equipmentKey}',
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          metrics?.exerciseName ?? recommendation.targetIdentity.exerciseKey,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        if (metrics?.equipmentLabel != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            metrics!.equipmentLabel!,
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+        AppSpacing.gapSM,
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.xs,
+          children: [
+            _FrequencyValue(
+              label: '推奨実施間隔',
+              value: _recommendationRange(recommendation),
+            ),
+            _FrequencyValue(
+              label: 'Recovery基準',
+              value: _hoursAtLeast(recommendation.recoveryReferenceHours),
+            ),
+            _FrequencyValue(
+              label: '観測履歴',
+              value: '${recommendation.validObservationCount}回',
+            ),
+            _FrequencyValue(
+              label: '信頼度',
+              value: _frequencyConfidenceLabel(recommendation.confidence),
+            ),
+            _FrequencyValue(
+              label: '状態',
+              value: _frequencyStatusLabel(recommendation.status),
+            ),
+            if (recommendation.latestObservedIntervalHours != null)
+              _FrequencyValue(
+                label: '直近実施間隔',
+                value: _hours(recommendation.latestObservedIntervalHours!),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _FrequencyValue extends StatelessWidget {
+  const _FrequencyValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 104,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
+    ),
+  );
+}
+
+String _recommendationRange(TrainingFrequencyRecommendation recommendation) {
+  if (recommendation.status ==
+      TrainingFrequencyRecommendationStatus.unavailable) {
+    return '算出不可';
+  }
+  final min = recommendation.recommendedMinHours;
+  if (min == null) return '算出不可';
+  final max = recommendation.recommendedMaxHours;
+  if (max == null || max == min) return '暫定 ${_hoursAtLeast(min)}';
+  if (_isNearWholeDay(min) && _isNearWholeDay(max)) {
+    return '${(min / 24).round()}〜${(max / 24).round()}日';
+  }
+  return '${_hours(min)}〜${_hours(max)}';
+}
+
+bool _isNearWholeDay(num value) =>
+    ((value / 24) - (value / 24).round()).abs() <= .125;
+
+String _hoursAtLeast(num? value) =>
+    value == null ? '算出不可' : '${_hours(value)}以上';
+String _hours(num value) => '${value.round()}時間';
+
+String _frequencyConfidenceLabel(TrainingFrequencyConfidence value) =>
+    value.name.toUpperCase();
+
+String _frequencyStatusLabel(TrainingFrequencyRecommendationStatus value) =>
+    switch (value) {
+      TrainingFrequencyRecommendationStatus.baselineOnly => 'BASELINE ONLY',
+      TrainingFrequencyRecommendationStatus.personalized => 'PERSONALIZED',
+      TrainingFrequencyRecommendationStatus.conflicting => 'CONFLICTING',
+      TrainingFrequencyRecommendationStatus.unavailable => 'UNAVAILABLE',
+    };
 
 class _StaleAnalysisWarning extends StatelessWidget {
   const _StaleAnalysisWarning();

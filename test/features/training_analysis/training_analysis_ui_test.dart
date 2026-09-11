@@ -74,6 +74,10 @@ void main() {
       expect(find.text('NEXT'), findsOneWidget);
       expect(find.text('NEXT ACTIONS'), findsOneWidget);
       expect(find.text('NEXT SESSION'), findsOneWidget);
+      expect(find.text('FREQUENCY RECOMMENDATION'), findsOneWidget);
+      expect(find.text('暫定 48時間以上'), findsOneWidget);
+      expect(find.text('INSUFFICIENT'), findsOneWidget);
+      expect(find.text('BASELINE ONLY'), findsOneWidget);
       expect(find.text('RECOVERY / FREQUENCY NOTES'), findsOneWidget);
       expect(find.text('RISK / ATTENTION'), findsOneWidget);
       expect(find.text('RESPONSE JSON'), findsNothing);
@@ -142,6 +146,7 @@ void main() {
     expect(find.text('STALE'), findsOneWidget);
     expect(find.text('ANALYSIS OUTDATED'), findsNothing);
     expect(find.text(_sessionSummary), findsOneWidget);
+    expect(find.text('CURRENT FREQUENCY RECOMMENDATION'), findsOneWidget);
   });
 
   testWidgets(
