@@ -173,7 +173,7 @@ void main() {
     expect(peak.hasAdditionalClip, isFalse);
   });
 
-  test('micro signal field has a deterministic, broad mixed peak', () {
+  test('micro signal field has a deterministic, irregular mixed peak', () {
     const viewport = Size(390, 844);
     final sparse = bootMicroSignalFieldDiagnosticsAt(
       const Duration(milliseconds: 30),
@@ -195,14 +195,16 @@ void main() {
     expect(bootMicroSignalFieldPrimitiveCount, 64);
     expect(sparse.activePrimitiveCount, lessThan(build.activePrimitiveCount));
     expect(build.activePrimitiveCount, greaterThanOrEqualTo(20));
-    expect(peak.activePrimitiveCount, inInclusiveRange(40, 100));
+    expect(peak.activePrimitiveCount, inInclusiveRange(20, 64));
     expect(peak.activeCountByType.values.where((count) => count > 0).length, 5);
     expect(peak.maximumEffectiveOpacity, greaterThan(.15));
     expect(peak.minimumLogicalWidth, greaterThanOrEqualTo(1));
     expect(peak.maximumLogicalWidth, lessThanOrEqualTo(32));
-    expect(peak.aggregateHorizontalCoverage, greaterThan(2));
+    expect(peak.aggregateHorizontalCoverage, greaterThan(.75));
     expect(peak.minimumVerticalFraction, lessThan(.15));
     expect(peak.maximumVerticalFraction, greaterThan(.80));
+    expect(peak.maximumNearColumnRun, lessThanOrEqualTo(2));
+    expect(peak.maximumNearRowRun, lessThanOrEqualTo(2));
     expect(converge.activePrimitiveCount, lessThan(peak.activePrimitiveCount));
   });
 

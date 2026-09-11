@@ -62,6 +62,97 @@ enum _BootMicroSignalPrimitiveType {
 }
 
 @immutable
+class _BootMicroSignalSeed {
+  const _BootMicroSignalSeed({
+    required this.type,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    required this.onset,
+    required this.lifetime,
+    required this.phase,
+    required this.frequency,
+  });
+
+  final _BootMicroSignalPrimitiveType type;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double onset;
+  final double lifetime;
+  final double phase;
+  final double frequency;
+}
+
+/// The source field is deterministic, but never quantized into columns or
+/// rows. It is built once per process, so rendering only reads bounded seeds.
+final List<_BootMicroSignalSeed> _bootMicroSignalSeeds =
+    _buildBootMicroSignalSeeds();
+
+double _bootNoiseUnit(int index, int salt, [int attempt = 0]) {
+  var value = index * 0x45d9f3b ^ salt * 0x27d4eb2d ^ attempt * 0x165667b1;
+  value = (value ^ (value >> 16)) * 0x45d9f3b;
+  value = (value ^ (value >> 16)) * 0x45d9f3b;
+  value ^= value >> 16;
+  return (value & 0x7fffffff) / 0x7fffffff;
+}
+
+bool _bootSeedCreatesLane(
+  List<_BootMicroSignalSeed> seeds,
+  double x,
+  double y,
+) {
+  var nearColumnCount = 0;
+  var nearRowCount = 0;
+  for (final seed in seeds) {
+    // Leave enough separation for the bounded render-time jitter as well as
+    // the fragment itself. This prevents a visually straight lane from being
+    // reintroduced after the continuous coordinates are animated.
+    if ((seed.x - x).abs() < .055 && (seed.y - y).abs() > .040) {
+      nearColumnCount += 1;
+    }
+    if ((seed.y - y).abs() < .046 && (seed.x - x).abs() > .045) {
+      nearRowCount += 1;
+    }
+  }
+  return nearColumnCount >= 1 || nearRowCount >= 1;
+}
+
+List<_BootMicroSignalSeed> _buildBootMicroSignalSeeds() {
+  final seeds = <_BootMicroSignalSeed>[];
+  for (var index = 0; index < bootMicroSignalFieldPrimitiveCount; index += 1) {
+    var attempt = 0;
+    var x = .025 + _bootNoiseUnit(index, 11) * .94;
+    var y = .09 + _bootNoiseUnit(index, 29) * .82;
+    while (_bootSeedCreatesLane(seeds, x, y) && attempt < 128) {
+      attempt += 1;
+      x = .025 + _bootNoiseUnit(index, 11, attempt) * .94;
+      y = .09 + _bootNoiseUnit(index, 29, attempt) * .82;
+    }
+    final typeIndex =
+        (_bootNoiseUnit(index, 43, attempt) *
+                _BootMicroSignalPrimitiveType.values.length)
+            .floor();
+    seeds.add(
+      _BootMicroSignalSeed(
+        type: _BootMicroSignalPrimitiveType.values[typeIndex],
+        x: x,
+        y: y,
+        width: _bootNoiseUnit(index, 61, attempt),
+        height: _bootNoiseUnit(index, 79, attempt),
+        onset: .02 + _bootNoiseUnit(index, 97, attempt) * .34,
+        lifetime: .24 + _bootNoiseUnit(index, 113, attempt) * .30,
+        phase: _bootNoiseUnit(index, 131, attempt) * math.pi * 2,
+        frequency: 17 + _bootNoiseUnit(index, 149, attempt) * 31,
+      ),
+    );
+  }
+  return List.unmodifiable(seeds);
+}
+
+@immutable
 class BootSignalAcquisitionDiagnostics {
   const BootSignalAcquisitionDiagnostics({
     required this.elapsed,
@@ -114,6 +205,8 @@ class BootMicroSignalFieldDiagnostics {
     required this.aggregateHorizontalCoverage,
     required this.minimumVerticalFraction,
     required this.maximumVerticalFraction,
+    required this.maximumNearColumnRun,
+    required this.maximumNearRowRun,
   });
 
   final Duration elapsed;
@@ -128,6 +221,8 @@ class BootMicroSignalFieldDiagnostics {
   final double aggregateHorizontalCoverage;
   final double minimumVerticalFraction;
   final double maximumVerticalFraction;
+  final int maximumNearColumnRun;
+  final int maximumNearRowRun;
 }
 
 @visibleForTesting
@@ -309,13 +404,18 @@ BootSignalAcquisitionDiagnostics bootSignalAcquisitionDiagnosticsAt(
   );
 }
 
+_BootMicroSignalSeed _bootMicroSignalSeed(int index) =>
+    _bootMicroSignalSeeds[index];
+
 _BootMicroSignalPrimitiveType _bootMicroSignalType(int index) =>
-    _BootMicroSignalPrimitiveType.values[index %
-        _BootMicroSignalPrimitiveType.values.length];
+    _bootMicroSignalSeed(index).type;
 
-double _bootMicroSignalOnset(int index) => .025 + ((index * 17) % 34) / 100;
+double _bootMicroSignalOnset(int index) => _bootMicroSignalSeed(index).onset;
 
-double _bootMicroSignalEnd(int index) => .74 + ((index * 13) % 13) / 100;
+double _bootMicroSignalEnd(int index) {
+  final seed = _bootMicroSignalSeed(index);
+  return math.min(.90, seed.onset + seed.lifetime);
+}
 
 double _bootMicroSignalEnvelope(double progress, int index) {
   final local =
@@ -330,27 +430,37 @@ double _bootMicroSignalConvergence(double progress) =>
     Curves.easeIn.transform(((progress - .72) / .22).clamp(0.0, 1.0));
 
 double _bootMicroSignalBaseX(Size size, int index) =>
-    size.width * (.025 + ((index * .371) % .92));
+    size.width * _bootMicroSignalSeed(index).x;
 
 double _bootMicroSignalBaseY(Size size, int index) =>
-    size.height * (.10 + ((index * .173) % .80));
+    size.height * _bootMicroSignalSeed(index).y;
 
 double _bootMicroSignalWidth(int index) =>
     switch (_bootMicroSignalType(index)) {
-      _BootMicroSignalPrimitiveType.horizontalFragment => 8 + (index % 7) * 3.4,
-      _BootMicroSignalPrimitiveType.microBlock => 3 + (index % 5) * 1.9,
-      _BootMicroSignalPrimitiveType.signalSpeck => 1.4 + (index % 3) * .65,
-      _BootMicroSignalPrimitiveType.offsetPair => 6 + (index % 6) * 2.8,
-      _BootMicroSignalPrimitiveType.darkInterruption => 10 + (index % 5) * 3.2,
+      _BootMicroSignalPrimitiveType.horizontalFragment =>
+        7 + _bootMicroSignalSeed(index).width * 20,
+      _BootMicroSignalPrimitiveType.microBlock =>
+        2.5 + _bootMicroSignalSeed(index).width * 8.5,
+      _BootMicroSignalPrimitiveType.signalSpeck =>
+        1 + _bootMicroSignalSeed(index).width * 2.1,
+      _BootMicroSignalPrimitiveType.offsetPair =>
+        5 + _bootMicroSignalSeed(index).width * 17,
+      _BootMicroSignalPrimitiveType.darkInterruption =>
+        8 + _bootMicroSignalSeed(index).width * 17,
     };
 
 double _bootMicroSignalHeight(int index) =>
     switch (_bootMicroSignalType(index)) {
-      _BootMicroSignalPrimitiveType.horizontalFragment => 1.15,
-      _BootMicroSignalPrimitiveType.microBlock => 1.6 + (index % 3) * .65,
-      _BootMicroSignalPrimitiveType.signalSpeck => 1.3 + (index % 2) * .7,
-      _BootMicroSignalPrimitiveType.offsetPair => 1.15,
-      _BootMicroSignalPrimitiveType.darkInterruption => 1.4,
+      _BootMicroSignalPrimitiveType.horizontalFragment =>
+        .9 + _bootMicroSignalSeed(index).height * .6,
+      _BootMicroSignalPrimitiveType.microBlock =>
+        1.3 + _bootMicroSignalSeed(index).height * 1.8,
+      _BootMicroSignalPrimitiveType.signalSpeck =>
+        .9 + _bootMicroSignalSeed(index).height * 1.2,
+      _BootMicroSignalPrimitiveType.offsetPair =>
+        .9 + _bootMicroSignalSeed(index).height * .6,
+      _BootMicroSignalPrimitiveType.darkInterruption =>
+        1 + _bootMicroSignalSeed(index).height * .9,
     };
 
 double _bootMicroSignalOpacity(double progress, int index) {
@@ -366,23 +476,34 @@ double _bootMicroSignalOpacity(double progress, int index) {
     ((progress - .10) / .34).clamp(0.0, 1.0),
   );
   final decay = 1 - _bootMicroSignalConvergence(progress);
+  final seed = _bootMicroSignalSeed(index);
+  final flicker =
+      .72 + .28 * math.sin(progress * seed.frequency + seed.phase).abs();
   return _bootMicroSignalEnvelope(progress, index) *
       build *
       decay *
-      typeIntensity;
+      typeIntensity *
+      flicker;
 }
 
 Offset _bootMicroSignalPosition(Size size, double progress, int index) {
   final convergence = _bootMicroSignalConvergence(progress);
-  final baseX = _bootMicroSignalBaseX(size, index);
-  final baseY = _bootMicroSignalBaseY(size, index);
+  final seed = _bootMicroSignalSeed(index);
+  // Apply a seed-specific continuous drift before the short-lived flicker.
+  // This keeps nearby sampled coordinates from resolving into visible lanes.
+  final baseX =
+      _bootMicroSignalBaseX(size, index) +
+      math.sin(seed.phase + seed.y * 17.3) * size.width * .035;
+  final baseY =
+      _bootMicroSignalBaseY(size, index) +
+      math.cos(seed.phase * 1.4 + seed.x * 13.7) * size.height * .018;
   final jitterX =
-      math.sin(progress * (23 + index % 7) + index) *
-      (2.5 + index % 4 * 1.2) *
+      math.sin(progress * (seed.frequency + 7) + seed.phase) *
+      (1.5 + seed.width * 4.5) *
       (1 - convergence);
   final jitterY =
-      math.cos(progress * (29 + index % 5) + index * .7) *
-      2.2 *
+      math.cos(progress * (seed.frequency + 13) + seed.phase * 1.7) *
+      (1 + seed.height * 3.2) *
       (1 - convergence);
   final lockX = size.width / 2 + (index.isEven ? -1 : 1) * (index % 5) * 3.5;
   return Offset(
@@ -410,6 +531,7 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
   var minimumY = double.infinity;
   var maximumY = 0.0;
   var aggregateWidth = 0.0;
+  final activePositions = <Offset>[];
   final byType = <String, int>{
     for (final type in _BootMicroSignalPrimitiveType.values) type.name: 0,
   };
@@ -420,6 +542,7 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
     final position = _bootMicroSignalPosition(size, progress, index);
     final width = _bootMicroSignalWidth(index);
     final height = _bootMicroSignalHeight(index);
+    activePositions.add(position);
     activeCount += 1;
     byType[_bootMicroSignalType(index).name] =
         byType[_bootMicroSignalType(index).name]! + 1;
@@ -437,6 +560,26 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
             ? 2
             : 1);
   }
+  var maximumNearColumnRun = 0;
+  var maximumNearRowRun = 0;
+  for (final position in activePositions) {
+    final columnRun = activePositions
+        .where(
+          (other) =>
+              (other.dx - position.dx).abs() < size.width * .014 &&
+              (other.dy - position.dy).abs() > size.height * .065,
+        )
+        .length;
+    final rowRun = activePositions
+        .where(
+          (other) =>
+              (other.dy - position.dy).abs() < size.height * .014 &&
+              (other.dx - position.dx).abs() > size.width * .07,
+        )
+        .length;
+    maximumNearColumnRun = math.max(maximumNearColumnRun, columnRun);
+    maximumNearRowRun = math.max(maximumNearRowRun, rowRun);
+  }
 
   return BootMicroSignalFieldDiagnostics(
     elapsed: elapsed,
@@ -451,6 +594,8 @@ BootMicroSignalFieldDiagnostics bootMicroSignalFieldDiagnosticsAt(
     aggregateHorizontalCoverage: aggregateWidth / size.width,
     minimumVerticalFraction: activeCount == 0 ? .5 : minimumY / size.height,
     maximumVerticalFraction: activeCount == 0 ? .5 : maximumY / size.height,
+    maximumNearColumnRun: maximumNearColumnRun,
+    maximumNearRowRun: maximumNearRowRun,
   );
 }
 
