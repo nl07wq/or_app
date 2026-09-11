@@ -546,11 +546,10 @@ class _ReportView extends StatelessWidget {
           values: [
             ('SESSION SUMMARY', report.analysis.sessionSummary),
             ('PERFORMANCE', report.analysis.performanceAnalysis),
-            ('RECENT HISTORY NOTES', report.analysis.previousComparison),
             ('PROGRESS', report.analysis.progressAnalysis),
           ],
         ),
-        AppSpacing.gapXL,
+        AppSpacing.gapLG,
         const _ReportSectionTitle(
           key: ValueKey('training-analysis-exercise-section'),
           icon: Icons.fitness_center,
@@ -732,7 +731,7 @@ class _ExerciseAnalysisCard extends StatelessWidget {
           AppSpacing.gapXS,
           const Text('EQUIPMENT NOT RECORDED'),
         ],
-        AppSpacing.gapLG,
+        AppSpacing.gapMD,
         if (metrics != null) ...[
           const Text('CURRENT METRICS'),
           AppSpacing.gapSM,
@@ -741,9 +740,9 @@ class _ExerciseAnalysisCard extends StatelessWidget {
             compact: true,
             keyPrefix: 'exercise',
           ),
-          AppSpacing.gapLG,
+          AppSpacing.gapMD,
           _ExerciseComparison(metrics: metrics!),
-          AppSpacing.gapLG,
+          AppSpacing.gapMD,
         ],
         _LabelText(label: 'CURRENT / ASSESSMENT', text: exercise.assessment),
         _LabelText(label: 'VS PREVIOUS', text: exercise.previousComparison),
@@ -785,13 +784,13 @@ class _ExerciseComparison extends StatelessWidget {
         '',
       ),
       _comparisonRow(
-        'RECORDED VOLUME',
+        'RECORDED\nVOLUME',
         metrics.current.recordedVolume,
         previous.recordedVolume,
         'volume',
       ),
       _comparisonRow(
-        'MAIN SET VOLUME',
+        'MAIN SET\nVOLUME',
         metrics.current.workingVolume,
         previous.workingVolume,
         'volume',
@@ -816,18 +815,18 @@ class _ExerciseComparison extends StatelessWidget {
         AppSpacing.gapSM,
         Table(
           columnWidths: const {
-            0: FlexColumnWidth(1.5),
-            1: FlexColumnWidth(),
-            2: FlexColumnWidth(),
-            3: FlexColumnWidth(),
+            0: FlexColumnWidth(1.6),
+            1: FlexColumnWidth(.95),
+            2: FlexColumnWidth(.95),
+            3: FlexColumnWidth(.95),
           },
           children: [
             const TableRow(
               children: [
                 _ComparisonHeader('METRIC'),
-                _ComparisonHeader('CURRENT'),
-                _ComparisonHeader('PREVIOUS'),
-                _ComparisonHeader('CHANGE'),
+                _ComparisonHeader('CURRENT', align: TextAlign.right),
+                _ComparisonHeader('PREVIOUS', align: TextAlign.right),
+                _ComparisonHeader('CHANGE', align: TextAlign.right),
               ],
             ),
             for (final row in rows) row.toTableRow(),
@@ -839,10 +838,18 @@ class _ExerciseComparison extends StatelessWidget {
   }
 }
 
-class _ExerciseTrendGraphs extends StatelessWidget {
+class _ExerciseTrendGraphs extends StatefulWidget {
   const _ExerciseTrendGraphs({required this.metrics});
 
   final TrainingAnalysisExerciseMetrics metrics;
+
+  @override
+  State<_ExerciseTrendGraphs> createState() => _ExerciseTrendGraphsState();
+}
+
+class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
+  String? _selectedMetricKey;
+  String? _selectedVolumeKey;
 
   @override
   Widget build(BuildContext context) {
@@ -851,38 +858,108 @@ class _ExerciseTrendGraphs extends StatelessWidget {
         key: 'max-weight',
         title: 'MAX WEIGHT',
         unit: 'kg',
+        kind: 'kg',
         valueOf: (value) => value.maxWeight,
       ),
       _TrendMetric(
         key: 'total-reps',
         title: 'TOTAL REPS',
         unit: 'reps',
+        kind: 'reps',
         valueOf: (value) => value.totalReps?.toDouble(),
       ),
       _TrendMetric(
         key: 'recorded-volume',
         title: 'RECORDED\nVOLUME',
         unit: 'kg / t',
+        kind: 'volume',
         valueOf: (value) => value.recordedVolume,
       ),
+      _TrendMetric(
+        key: 'main-set-volume',
+        title: 'MAIN SET\nVOLUME',
+        unit: 'kg / t',
+        kind: 'volume',
+        valueOf: (value) => value.workingVolume,
+      ),
+      _TrendMetric(
+        key: 'average-rpe',
+        title: 'AVERAGE RPE',
+        unit: '',
+        kind: 'rpe',
+        valueOf: (value) => value.averageRpe,
+      ),
     ];
-    final available = graphs
-        .map((metric) => _TrendGraphData.tryCreate(metric, metrics))
-        .whereType<_TrendGraphData>()
-        .toList(growable: false);
-    if (available.isEmpty) {
+    final dataByKey = {
+      for (final metric in graphs)
+        metric.key: _TrendGraphData.tryCreate(metric, widget.metrics),
+    };
+    final available = [
+      for (final metric in graphs)
+        if (dataByKey[metric.key] != null) metric,
+    ];
+    final categoryOrder = ['max-weight', 'total-reps', 'volume', 'average-rpe'];
+    final availableCategories = [
+      for (final category in categoryOrder)
+        if (category == 'volume'
+            ? dataByKey['recorded-volume'] != null ||
+                  dataByKey['main-set-volume'] != null
+            : dataByKey[category] != null)
+          category,
+    ];
+    if (available.isEmpty || availableCategories.isEmpty) {
       return const SizedBox.shrink();
     }
+    final selectedCategory = availableCategories.contains(_selectedMetricKey)
+        ? _selectedMetricKey!
+        : availableCategories.first;
+    final volumeOptions = [
+      for (final key in ['recorded-volume', 'main-set-volume'])
+        if (dataByKey[key] != null) key,
+    ];
+    final selectedKey = selectedCategory == 'volume'
+        ? volumeOptions.contains(_selectedVolumeKey)
+              ? _selectedVolumeKey!
+              : volumeOptions.first
+        : selectedCategory;
+    final graph = dataByKey[selectedKey]!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppSpacing.gapMD,
-        const Text('TREND — RECENT HISTORY'),
         AppSpacing.gapSM,
-        for (final graph in available) ...[
-          _ExerciseTrendGraph(data: graph),
-          if (graph != available.last) AppSpacing.gapSM,
+        const Text('TREND — RECENT HISTORY'),
+        AppSpacing.gapXS,
+        Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: [
+            for (final category in availableCategories)
+              ChoiceChip(
+                label: Text(_trendSelectorLabel(category)),
+                selected: selectedCategory == category,
+                onSelected: (_) =>
+                    setState(() => _selectedMetricKey = category),
+              ),
+          ],
+        ),
+        if (selectedCategory == 'volume' && volumeOptions.length > 1) ...[
+          AppSpacing.gapXS,
+          Wrap(
+            spacing: AppSpacing.xs,
+            children: [
+              for (final key in volumeOptions)
+                ChoiceChip(
+                  label: Text(
+                    key == 'recorded-volume' ? 'RECORDED' : 'MAIN SET',
+                  ),
+                  selected: selectedKey == key,
+                  onSelected: (_) => setState(() => _selectedVolumeKey = key),
+                ),
+            ],
+          ),
         ],
+        AppSpacing.gapXS,
+        _ExerciseTrendGraph(data: graph),
       ],
     );
   }
@@ -928,10 +1005,10 @@ class _ExerciseTrendGraph extends StatelessWidget {
                 ),
               ),
               Text(
-                'CURRENT',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.tertiary,
-                ),
+                'CURRENT  ${_comparisonValue(data.currentValue, data.metric.kind)}',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.tertiary),
               ),
             ],
           ),
@@ -1023,12 +1100,14 @@ class _TrendMetric {
     required this.key,
     required this.title,
     required this.unit,
+    required this.kind,
     required this.valueOf,
   });
 
   final String key;
   final String title;
   final String unit;
+  final String kind;
   final double? Function(TrainingAnalysisExerciseMetricValues) valueOf;
 }
 
@@ -1039,12 +1118,13 @@ class _TrendGraphData {
     _TrendMetric metric,
     TrainingAnalysisExerciseMetrics metrics,
   ) {
+    final currentValue = metric.valueOf(metrics.current);
+    if (currentValue == null) return null;
     final points = <_TrendPoint>[
       for (final evidence in metrics.recentHistory.reversed)
         if (metric.valueOf(evidence.metrics) case final value?)
           _TrendPoint(evidence.operationDate, value),
-      if (metric.valueOf(metrics.current) case final value?)
-        _TrendPoint(metrics.operationDate, value),
+      _TrendPoint(metrics.operationDate, currentValue),
     ];
     if (points.length < 2) return null;
     return _TrendGraphData(metric: metric, points: points);
@@ -1052,6 +1132,7 @@ class _TrendGraphData {
 
   final _TrendMetric metric;
   final List<_TrendPoint> points;
+  double get currentValue => points.last.value;
 }
 
 class _TrendPoint {
@@ -1062,12 +1143,17 @@ class _TrendPoint {
 }
 
 class _ComparisonHeader extends StatelessWidget {
-  const _ComparisonHeader(this.value);
+  const _ComparisonHeader(this.value, {this.align = TextAlign.left});
   final String value;
+  final TextAlign align;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(AppSpacing.xs),
-    child: Text(value, style: Theme.of(context).textTheme.labelSmall),
+    child: Text(
+      value,
+      textAlign: align,
+      style: Theme.of(context).textTheme.labelSmall,
+    ),
   );
 }
 
@@ -1081,24 +1167,30 @@ class _ComparisonRow {
   TableRow toTableRow() => TableRow(
     children: [
       _ComparisonCell(label),
-      _ComparisonCell(_comparisonValue(current, kind)),
-      _ComparisonCell(_comparisonValue(previous, kind)),
+      _ComparisonCell(_comparisonValue(current, kind), align: TextAlign.right),
+      _ComparisonCell(_comparisonValue(previous, kind), align: TextAlign.right),
       _ComparisonCell(
         current == null || previous == null
             ? '—'
             : _comparisonValue(current! - previous!, kind, signed: true),
+        align: TextAlign.right,
       ),
     ],
   );
 }
 
 class _ComparisonCell extends StatelessWidget {
-  const _ComparisonCell(this.value);
+  const _ComparisonCell(this.value, {this.align = TextAlign.left});
   final String value;
+  final TextAlign align;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(AppSpacing.xs),
-    child: Text(value, style: Theme.of(context).textTheme.bodySmall),
+    child: Text(
+      value,
+      textAlign: align,
+      style: Theme.of(context).textTheme.bodySmall,
+    ),
   );
 }
 
@@ -1250,6 +1342,14 @@ String _metricKey(String value) =>
     value.toLowerCase().replaceAll('\n', '-').replaceAll(' ', '-');
 
 double _trendLabelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
+
+String _trendSelectorLabel(String category) => switch (category) {
+  'max-weight' => 'WEIGHT',
+  'total-reps' => 'REPS',
+  'volume' => 'VOLUME',
+  'average-rpe' => 'RPE',
+  _ => category,
+};
 
 String _shortDate(String operationDate) => operationDate.length >= 10
     ? operationDate.substring(5, 10).replaceAll('-', '/')

@@ -79,7 +79,8 @@ void main() {
       expect(find.text('RESPONSE JSON'), findsNothing);
       expect(find.text(_sessionSummary), findsOneWidget);
       expect(find.text(_performance), findsOneWidget);
-      expect(find.text(_previous), findsOneWidget);
+      expect(find.text(_previous), findsNothing);
+      expect(find.text('RECENT HISTORY NOTES'), findsNothing);
       expect(find.text(_progress), findsOneWidget);
       expect(find.text(_assessment), findsOneWidget);
       expect(find.text(_exercisePrevious), findsOneWidget);
@@ -205,26 +206,58 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shows canonical trend graphs only when comparison data exists', (
-    tester,
-  ) async {
-    await _pumpReport(tester, width: 390);
+  testWidgets(
+    'shows one selector-driven canonical trend graph with current values',
+    (tester) async {
+      await _pumpReport(tester, width: 390);
 
-    expect(find.text('TREND — RECENT HISTORY'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('training-analysis-trend-max-weight')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('training-analysis-trend-total-reps')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('training-analysis-trend-recorded-volume')),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('TREND — RECENT HISTORY'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('training-analysis-trend-max-weight')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('training-analysis-trend-total-reps')),
+        findsNothing,
+      );
+      expect(find.text('CURRENT  80 kg'), findsOneWidget);
+
+      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'REPS'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'REPS'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('training-analysis-trend-total-reps')),
+        findsOneWidget,
+      );
+      expect(find.text('CURRENT  8 reps'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'VOLUME'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('training-analysis-trend-recorded-volume')),
+        findsOneWidget,
+      );
+      expect(find.text('CURRENT  640 kg'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'RECORDED'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'MAIN SET'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'MAIN SET'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('training-analysis-trend-main-set-volume')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'RPE'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('training-analysis-trend-average-rpe')),
+        findsOneWidget,
+      );
+      expect(find.text('CURRENT  8.0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('valid Analysis shows compact initial READY preview', (
     tester,
