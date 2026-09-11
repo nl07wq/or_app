@@ -177,8 +177,11 @@ void main() {
         tester.getTopLeft(exercises).dy,
         tester.getTopLeft(sessionSets).dy,
       );
-      expect(find.text('総\nボリューム'), findsWidgets);
-      expect(find.text('メインセット\nボリューム'), findsWidgets);
+      expect(find.text('総負荷量'), findsWidgets);
+      expect(find.text('メインセット負荷量'), findsWidgets);
+      expect(find.text('ボリューム'), findsNothing);
+      expect(find.text('総\n負荷量'), findsNothing);
+      expect(find.text('メインセット\n負荷量'), findsNothing);
       expect(find.text('実施時間'), findsOneWidget);
       expect(find.text('種目数'), findsOneWidget);
     },
@@ -238,14 +241,14 @@ void main() {
       );
       expect(find.text('現在  8 回'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(ChoiceChip, 'ボリューム'));
+      await tester.tap(find.widgetWithText(ChoiceChip, '負荷量'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('training-analysis-trend-recorded-volume')),
         findsOneWidget,
       );
       expect(find.text('現在  640 kg'), findsOneWidget);
-      expect(find.widgetWithText(ChoiceChip, '総ボリューム'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, '総'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'メインセット'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(ChoiceChip, 'メインセット'));

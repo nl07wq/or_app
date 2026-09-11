@@ -11,6 +11,7 @@ import '../../report_sync/models/report_sync_issue.dart';
 import '../../report_sync/services/report_sync_canonical_service.dart';
 import '../../training/models/training_record_read_model.dart';
 import '../../training/services/training_exercise_identity.dart';
+import '../../training/services/training_volume_formatter.dart';
 import '../models/training_analysis_report.dart';
 import 'training_analysis_metrics_adapter.dart';
 
@@ -313,7 +314,13 @@ class TrainingAnalysisService {
     'totalReps': values.totalReps,
     'recordedSetCount': values.recordedSetCount,
     'recordedVolumeKg': values.recordedVolume,
+    'recordedVolumeDisplay': values.recordedVolume == null
+        ? null
+        : TrainingVolumeFormatter.format(values.recordedVolume!),
     'workingVolumeKg': values.workingVolume,
+    'workingVolumeDisplay': values.workingVolume == null
+        ? null
+        : TrainingVolumeFormatter.format(values.workingVolume!),
     'averageRpe': values.averageRpe,
   };
 
@@ -452,6 +459,9 @@ Operation Reboot owns every Training fact and numeric comparison. Preserve all f
 
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Use schemaVersion "2.0", direction "response", exchangeType "trainingAnalysis", operationDate "$operationDate", targetRecordId "$targetRecordId", and sourceDigest "$sourceDigest" exactly. Set packageDigest to null. Create a unique exchangeId and UTC createdAt. Do not add, remove, or rename fields. Use concise natural Japanese. Return exactly one exerciseAnalyses entry for every current exercise, preserving each exerciseIdentity and exerciseName exactly.
+
+JAPANESE LOAD TERMINOLOGY
+Use "負荷量" for Volume, "総負荷量" for Recorded Volume, and "メインセット負荷量" for Working Volume or Main Set Volume. Never use "ボリューム", "記録ボリューム", or "ワーキングボリューム" in analysis prose. When a supplied metric has a *Display value, reproduce that formatter value verbatim in prose; do not restate its raw *Kg value. Missing metrics remain unavailable and must not be written as zero.
 
 COMPLETE RESPONSE SHAPE
 ${const JsonEncoder.withIndent('  ').convert(example)}

@@ -965,7 +965,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
             children: [
               for (final key in volumeOptions)
                 ChoiceChip(
-                  label: Text(key == 'recorded-volume' ? '総ボリューム' : 'メインセット'),
+                  label: Text(key == 'recorded-volume' ? '総' : 'メインセット'),
                   selected: selectedKey == key,
                   onSelected: (_) => setState(() => _selectedVolumeKey = key),
                 ),
@@ -1373,7 +1373,7 @@ double _trendLabelInterval(int count) => count <= 2 ? 1 : (count - 1) / 2;
 String _trendSelectorLabel(String category) => switch (category) {
   'max-weight' => '重量',
   'total-reps' => '回数',
-  'volume' => 'ボリューム',
+  'volume' => '負荷量',
   'average-rpe' => 'RPE',
   _ => category,
 };
@@ -1386,8 +1386,8 @@ class _AnalysisLabels {
   static const exerciseCount = '種目数';
   static const totalReps = '総回数';
   static const totalSets = '総セット数';
-  static const totalVolume = '総\nボリューム';
-  static const mainSetVolume = 'メインセット\nボリューム';
+  static const totalVolume = '総負荷量';
+  static const mainSetVolume = 'メインセット負荷量';
   static const averageRpe = '平均RPE';
 }
 

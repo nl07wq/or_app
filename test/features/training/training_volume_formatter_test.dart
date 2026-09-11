@@ -5,9 +5,15 @@ void main() {
   test('formats kg below one tonne and tonnes at or above one tonne', () {
     expect(TrainingVolumeFormatter.format(0), '0 kg');
     expect(TrainingVolumeFormatter.format(450), '450 kg');
+    expect(TrainingVolumeFormatter.format(624), '624 kg');
+    expect(TrainingVolumeFormatter.format(884), '884 kg');
     expect(TrainingVolumeFormatter.format(950), '950 kg');
     expect(TrainingVolumeFormatter.format(1000), '1 t');
     expect(TrainingVolumeFormatter.format(1250), '1.25 t');
+    expect(TrainingVolumeFormatter.format(1750), '1.75 t');
+    expect(TrainingVolumeFormatter.format(2108), '2.11 t');
+    expect(TrainingVolumeFormatter.format(2315), '2.31 t');
+    expect(TrainingVolumeFormatter.format(2776), '2.78 t');
     expect(TrainingVolumeFormatter.format(10000), '10 t');
     expect(TrainingVolumeFormatter.format(11554.4), '11.6 t');
     expect(TrainingVolumeFormatter.format(56162.5), '56.2 t');

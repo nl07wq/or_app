@@ -42,6 +42,12 @@ void main() {
       );
       expect(preparation.prompt, contains('"recentHistoryOperationDates"'));
       expect(preparation.prompt, contains('"recordedVolumeKg"'));
+      expect(preparation.prompt, contains('"recordedVolumeDisplay"'));
+      expect(preparation.prompt, contains('"workingVolumeDisplay"'));
+      expect(preparation.prompt, contains('"560 kg"'));
+      expect(preparation.prompt, contains('"総負荷量"'));
+      expect(preparation.prompt, contains('"メインセット負荷量"'));
+      expect(preparation.prompt, contains('Never use "ボリューム"'));
     },
   );
 
