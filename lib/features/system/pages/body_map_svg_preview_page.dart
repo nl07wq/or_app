@@ -61,8 +61,10 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                 onChanged: (value) => setState(() => support = value),
               ),
               DropdownButtonFormField<RecoveryStatus>(
-                key: const ValueKey('body-map-recovery-fixture'),
-                value: recoveryStatus,
+                key: ValueKey(
+                  'body-map-recovery-fixture-${recoveryStatus?.name ?? 'neutral'}',
+                ),
+                initialValue: recoveryStatus,
                 decoration: const InputDecoration(
                   labelText: 'RECOVERY FILL PREVIEW',
                 ),

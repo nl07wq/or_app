@@ -12,6 +12,8 @@ const _assets = {
   SvgBodyMapSide.back: 'assets/body_map/body_map_back.svg',
 };
 
+final _documents = <SvgBodyMapSide, Future<SvgBodyMapDocument>>{};
+
 const svgBodyMapMuscles = <SvgBodyMapSide, Map<String, MuscleGroup>>{
   SvgBodyMapSide.front: {
     'front-chest-left': MuscleGroup.chest,
@@ -50,12 +52,16 @@ class SvgBodyMapDocument {
   final Map<String, Path> paths;
 }
 
-Future<SvgBodyMapDocument> loadSvgBodyMap(SvgBodyMapSide side) async =>
-    parseSvgBodyMap(await rootBundle.loadString(_assets[side]!));
+Future<SvgBodyMapDocument> loadSvgBodyMap(SvgBodyMapSide side) =>
+    _documents.putIfAbsent(
+      side,
+      () async => parseSvgBodyMap(await rootBundle.loadString(_assets[side]!)),
+    );
 
 SvgBodyMapDocument parseSvgBodyMap(String svg) {
-  if (svg.contains('<image'))
+  if (svg.contains('<image')) {
     throw const FormatException('Raster SVG embeds are not allowed.');
+  }
   final paths = <String, Path>{};
   final matcher = RegExp(
     r'<path\s+id="([^"]+)"\s+d="([^"]+)"\s*/>',
@@ -63,7 +69,9 @@ SvgBodyMapDocument parseSvgBodyMap(String svg) {
   for (final match in matcher) {
     paths[match.group(1)!] = _SvgPathParser(match.group(2)!).parse();
   }
-  if (paths.isEmpty) throw const FormatException('No vector paths found.');
+  if (paths.isEmpty) {
+    throw const FormatException('No vector paths found.');
+  }
   return SvgBodyMapDocument(Map.unmodifiable(paths));
 }
 
@@ -97,13 +105,15 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
 
   @override
   Widget build(BuildContext context) => FutureBuilder<SvgBodyMapDocument>(
+    key: ValueKey(widget.side),
     future: _document,
     builder: (context, snapshot) {
-      if (!snapshot.hasData)
+      if (!snapshot.hasData) {
         return const SizedBox(
           key: ValueKey('svg-body-map-loading'),
           height: 300,
         );
+      }
       final document = snapshot.data!;
       return AspectRatio(
         aspectRatio: 200 / 340,
@@ -171,7 +181,7 @@ class _SvgBodyMapPainter extends CustomPainter {
         path,
         Paint()..color = color.withValues(alpha: status == null ? .36 : .78),
       );
-      if (support.contains(muscle))
+      if (support.contains(muscle)) {
         canvas.drawPath(
           path,
           Paint()
@@ -179,7 +189,8 @@ class _SvgBodyMapPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.75,
         );
-      if (selected == muscle)
+      }
+      if (selected == muscle) {
         canvas.drawPath(
           path,
           Paint()
@@ -187,6 +198,7 @@ class _SvgBodyMapPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.2,
         );
+      }
     }
   }
 
