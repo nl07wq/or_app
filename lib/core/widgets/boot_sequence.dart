@@ -143,7 +143,7 @@ List<_BootMicroSignalSeed> _buildBootMicroSignalSeeds() {
         width: _bootNoiseUnit(index, 61, attempt),
         height: _bootNoiseUnit(index, 79, attempt),
         onset: .02 + _bootNoiseUnit(index, 97, attempt) * .34,
-        lifetime: .24 + _bootNoiseUnit(index, 113, attempt) * .30,
+        lifetime: .30 + _bootNoiseUnit(index, 113, attempt) * .35,
         phase: _bootNoiseUnit(index, 131, attempt) * math.pi * 2,
         frequency: 17 + _bootNoiseUnit(index, 149, attempt) * 31,
       ),
@@ -466,11 +466,13 @@ double _bootMicroSignalHeight(int index) =>
 double _bootMicroSignalOpacity(double progress, int index) {
   final type = _bootMicroSignalType(index);
   final typeIntensity = switch (type) {
-    _BootMicroSignalPrimitiveType.horizontalFragment => .28,
-    _BootMicroSignalPrimitiveType.microBlock => .23,
-    _BootMicroSignalPrimitiveType.signalSpeck => .19,
-    _BootMicroSignalPrimitiveType.offsetPair => .26,
-    _BootMicroSignalPrimitiveType.darkInterruption => .17,
+    // The base texture remains low-luminance, while offset pairs give the
+    // field brief, visibly stronger disturbances without becoming a glow.
+    _BootMicroSignalPrimitiveType.horizontalFragment => .37,
+    _BootMicroSignalPrimitiveType.microBlock => .31,
+    _BootMicroSignalPrimitiveType.signalSpeck => .25,
+    _BootMicroSignalPrimitiveType.offsetPair => .43,
+    _BootMicroSignalPrimitiveType.darkInterruption => .20,
   };
   final build = Curves.easeOut.transform(
     ((progress - .10) / .34).clamp(0.0, 1.0),
