@@ -505,9 +505,9 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       'back-lats',
       'back-triceps',
       'back-forearm',
-      'back-glute',
-      'back-hamstring',
-      'back-calf',
+      'back-glutes',
+      'back-hamstrings',
+      'back-calves',
     ];
     int index(BodyMapGeometryDraft draft) {
       final stem = draft.regionId.replaceAll(RegExp(r'-(left|right)$'), '');

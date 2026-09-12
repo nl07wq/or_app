@@ -82,4 +82,25 @@ void main() {
     final reset = reloaded.draftFor(side, leftId)!;
     expect(reloaded.isChanged(reset, leftPath.getBounds()), isFalse);
   });
+
+  test('copy-all output follows the prescribed front then back region order', () {
+    final controller = BodyMapGeometryTunerController(baselineCommit: 'baseline');
+    const glute = 'back-glutes-left';
+    const calf = 'back-calves-left';
+    controller
+      ..pathFor(side: 'back', regionId: calf, basePath: leftPath)
+      ..pathFor(side: 'back', regionId: glute, basePath: leftPath)
+      ..pathFor(side: side, regionId: leftId, basePath: leftPath);
+    controller
+      ..update(controller.draftFor('back', calf)!.copyWith(x: 71))
+      ..update(controller.draftFor('back', glute)!.copyWith(x: 72))
+      ..update(controller.draftFor(side, leftId)!.copyWith(x: 73));
+    final output = controller.copyAllChanges({
+      BodyMapGeometryTunerController.keyFor('back', calf): leftPath.getBounds(),
+      BodyMapGeometryTunerController.keyFor('back', glute): leftPath.getBounds(),
+      BodyMapGeometryTunerController.keyFor(side, leftId): leftPath.getBounds(),
+    });
+    expect(output.indexOf(leftId), lessThan(output.indexOf(glute)));
+    expect(output.indexOf(glute), lessThan(output.indexOf(calf)));
+  });
 }
