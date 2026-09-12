@@ -1,19 +1,111 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../training/services/training_history_domain_service.dart';
 import '../../training/widgets/body_map_svg_prototype.dart';
+import '../services/body_map_geometry_tuner.dart';
 
 class BodyMapSvgPreviewPage extends StatefulWidget {
   const BodyMapSvgPreviewPage({super.key});
+
   @override
   State<BodyMapSvgPreviewPage> createState() => _BodyMapSvgPreviewPageState();
 }
 
 class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
+  static const _baselineCommit = '2fb726a7b65d9857ace84dc54c9e8e3b0db9c3e3';
+
+  final _tuner = BodyMapGeometryTunerController(
+    baselineCommit: _baselineCommit,
+  );
+  final Map<String, Rect> _baseBounds = {};
   SvgBodyMapSide side = SvgBodyMapSide.front;
   MuscleGroup? selected;
+  String? _selectedRegionId;
   bool support = false;
+  bool _editMode = false;
+  bool _showTuned = true;
+  bool _fineAdjustments = false;
   RecoveryStatus? recoveryStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _tuner.addListener(_onTunerChanged);
+    _tuner.load();
+  }
+
+  void _onTunerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _tuner
+      ..removeListener(_onTunerChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  String get _sideName => side.name;
+
+  Path _pathOverride(String id, Path basePath) {
+    final key = BodyMapGeometryTunerController.keyFor(_sideName, id);
+    _baseBounds[key] = basePath.getBounds();
+    return _tuner.pathFor(
+      side: _sideName,
+      regionId: id,
+      basePath: basePath,
+      locked: id == 'front-core',
+    );
+  }
+
+  BodyMapGeometryDraft? get _selectedDraft => _selectedRegionId == null
+      ? null
+      : _tuner.draftFor(_sideName, _selectedRegionId!);
+
+  void _updateDraft(
+    BodyMapGeometryDraft Function(BodyMapGeometryDraft) change,
+  ) {
+    final draft = _selectedDraft;
+    if (draft == null || draft.locked) return;
+    _tuner.update(change(draft));
+  }
+
+  Future<void> _copy(String content, String label) async {
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$label copied to clipboard.')));
+  }
+
+  Future<void> _confirmResetAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('RESET ALL TUNER CHANGES?'),
+        content: const Text(
+          'This clears only the locally saved geometry draft.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('RESET ALL'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      _tuner.resetAll();
+      setState(() => _selectedRegionId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('BODY MAP SVG PREVIEW')),
@@ -31,14 +123,29 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                 ],
                 selected: {side},
                 onSelectionChanged: (value) {
-                  if (value.isEmpty) return;
+                  if (value.isEmpty || value.first == side) return;
                   setState(() {
                     side = value.first;
                     selected = null;
+                    _selectedRegionId = null;
                   });
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              if (_editMode) ...[
+                const _EditModeBadge(),
+                const SizedBox(height: 8),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('BASELINE')),
+                    ButtonSegment(value: true, label: Text('TUNED')),
+                  ],
+                  selected: {_showTuned},
+                  onSelectionChanged: (value) =>
+                      setState(() => _showTuned = value.first),
+                ),
+                const SizedBox(height: 8),
+              ],
               SvgBodyMapPrototype(
                 side: side,
                 recoveryByMuscle: const {},
@@ -46,48 +153,68 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                     ? const {}
                     : {MuscleGroup.shoulders: recoveryStatus!},
                 supportMuscles: support ? {MuscleGroup.shoulders} : const {},
-                selectedMuscle: selected,
+                selectedMuscle: _editMode ? null : selected,
                 onSelected: (muscle) => setState(() => selected = muscle),
+                editMode: _editMode,
+                selectedRegionId: _selectedRegionId,
+                onRegionSelected: (id) =>
+                    setState(() => _selectedRegionId = id),
+                pathOverride: _editMode && _showTuned ? _pathOverride : null,
               ),
               const SizedBox(height: 12),
-              Text(
-                selected == null
-                    ? 'TAP A MUSCLE REGION'
-                    : 'SELECTED: ${selected!.name.toUpperCase()}',
-              ),
-              SwitchListTile(
-                title: const Text('SUPPORT OUTLINE PREVIEW'),
-                value: support,
-                onChanged: (value) => setState(() => support = value),
-              ),
-              DropdownButtonFormField<RecoveryStatus>(
-                key: ValueKey(
-                  'body-map-recovery-fixture-${recoveryStatus?.name ?? 'neutral'}',
+              if (_editMode)
+                _buildTunerPanel(context)
+              else ...[
+                Text(
+                  selected == null
+                      ? 'TAP A MUSCLE REGION'
+                      : 'SELECTED: ${selected!.name.toUpperCase()}',
                 ),
-                initialValue: recoveryStatus,
-                decoration: const InputDecoration(
-                  labelText: 'RECOVERY FILL PREVIEW',
+                SwitchListTile(
+                  title: const Text('SUPPORT OUTLINE PREVIEW'),
+                  value: support,
+                  onChanged: (value) => setState(() => support = value),
                 ),
-                items: const [
-                  DropdownMenuItem<RecoveryStatus>(
-                    value: RecoveryStatus.recovering,
-                    child: Text('回復中'),
+                DropdownButtonFormField<RecoveryStatus>(
+                  key: ValueKey(
+                    'body-map-recovery-fixture-${recoveryStatus?.name ?? 'neutral'}',
                   ),
-                  DropdownMenuItem<RecoveryStatus>(
-                    value: RecoveryStatus.nearReady,
-                    child: Text('回復目安に接近'),
+                  initialValue: recoveryStatus,
+                  decoration: const InputDecoration(
+                    labelText: 'RECOVERY FILL PREVIEW',
                   ),
-                  DropdownMenuItem<RecoveryStatus>(
-                    value: RecoveryStatus.estimatedReady,
-                    child: Text('回復目安到達'),
-                  ),
-                ],
-                onChanged: (value) => setState(() => recoveryStatus = value),
+                  items: const [
+                    DropdownMenuItem(
+                      value: RecoveryStatus.recovering,
+                      child: Text('回復中'),
+                    ),
+                    DropdownMenuItem(
+                      value: RecoveryStatus.nearReady,
+                      child: Text('回復目安に接近'),
+                    ),
+                    DropdownMenuItem(
+                      value: RecoveryStatus.estimatedReady,
+                      child: Text('回復目安到達'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => recoveryStatus = value),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => recoveryStatus = null),
+                  child: const Text('NEUTRAL / データなし'),
+                ),
+              ],
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                icon: Icon(_editMode ? Icons.close : Icons.tune),
+                label: Text(_editMode ? 'EXIT EDIT GEOMETRY' : 'EDIT GEOMETRY'),
+                onPressed: () => setState(() {
+                  _editMode = !_editMode;
+                  selected = null;
+                  _selectedRegionId = null;
+                }),
               ),
-              TextButton(
-                onPressed: () => setState(() => recoveryStatus = null),
-                child: const Text('NEUTRAL / データなし'),
-              ),
+              const SizedBox(height: 8),
               const Text(
                 'Prototype only — production Recovery Body Map is unchanged.',
               ),
@@ -95,6 +222,232 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
           ),
         ),
       ),
+    ),
+  );
+
+  Widget _buildTunerPanel(BuildContext context) {
+    final draft = _selectedDraft;
+    if (draft == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Tap a visible editable muscle region to tune it.'),
+        ),
+      );
+    }
+    final canEdit = !draft.locked;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${side.name.toUpperCase()} • ${BodyMapGeometryTunerController.regionNameFor(draft.regionId)}',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Text('SVG ID: ${draft.regionId}'),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<BodyMapGeometryShape>(
+              initialValue: draft.shape,
+              decoration: const InputDecoration(labelText: 'SHAPE'),
+              items: BodyMapGeometryShape.values
+                  .map(
+                    (shape) => DropdownMenuItem(
+                      value: shape,
+                      child: Text(shape.label),
+                    ),
+                  )
+                  .toList(),
+              onChanged: canEdit
+                  ? (shape) =>
+                        _updateDraft((value) => value.copyWith(shape: shape))
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('FINE ADJUSTMENT'),
+              subtitle: Text(
+                _fineAdjustments ? '0.5 px / 1° / 0.01' : '2 px / 5° / 0.05',
+              ),
+              value: _fineAdjustments,
+              onChanged: (value) => setState(() => _fineAdjustments = value),
+            ),
+            _controlRow(
+              'X',
+              draft.x,
+              _fineAdjustments ? .5 : 2,
+              (delta) =>
+                  _updateDraft((value) => value.copyWith(x: value.x + delta)),
+              canEdit,
+            ),
+            _controlRow(
+              'Y',
+              draft.y,
+              _fineAdjustments ? .5 : 2,
+              (delta) =>
+                  _updateDraft((value) => value.copyWith(y: value.y + delta)),
+              canEdit,
+            ),
+            _controlRow(
+              'WIDTH',
+              draft.width,
+              _fineAdjustments ? .5 : 2,
+              (delta) => _updateDraft(
+                (value) =>
+                    value.copyWith(width: (value.width + delta).clamp(.5, 200)),
+              ),
+              canEdit,
+            ),
+            _controlRow(
+              'HEIGHT',
+              draft.height,
+              _fineAdjustments ? .5 : 2,
+              (delta) => _updateDraft(
+                (value) => value.copyWith(
+                  height: (value.height + delta).clamp(.5, 340),
+                ),
+              ),
+              canEdit,
+            ),
+            _controlRow(
+              'ROTATION',
+              draft.rotationDeg,
+              _fineAdjustments ? 1 : 5,
+              (delta) => _updateDraft(
+                (value) => value.copyWith(
+                  rotationDeg: (value.rotationDeg + delta).clamp(-90, 90),
+                ),
+              ),
+              canEdit,
+              suffix: '°',
+            ),
+            _controlRow(
+              'SCALE X',
+              draft.scaleX,
+              _fineAdjustments ? .01 : .05,
+              (delta) => _updateDraft(
+                (value) =>
+                    value.copyWith(scaleX: (value.scaleX + delta).clamp(.1, 3)),
+              ),
+              canEdit,
+            ),
+            _controlRow(
+              'SCALE Y',
+              draft.scaleY,
+              _fineAdjustments ? .01 : .05,
+              (delta) => _updateDraft(
+                (value) =>
+                    value.copyWith(scaleY: (value.scaleY + delta).clamp(.1, 3)),
+              ),
+              canEdit,
+            ),
+            if (draft.shape == BodyMapGeometryShape.roundedRect)
+              _controlRow(
+                'CORNER',
+                draft.cornerRadius,
+                _fineAdjustments ? .5 : 2,
+                (delta) => _updateDraft(
+                  (value) => value.copyWith(
+                    cornerRadius: (value.cornerRadius + delta).clamp(0, 100),
+                  ),
+                ),
+                canEdit,
+              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('MIRROR / LINK LEFT-RIGHT'),
+              value: draft.mirrorLinked,
+              onChanged: canEdit
+                  ? (value) => _updateDraft(
+                      (current) => current.copyWith(mirrorLinked: value),
+                    )
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('LOCK REGION'),
+              value: draft.locked,
+              onChanged: (value) =>
+                  _tuner.update(draft.copyWith(locked: value), mirror: false),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                OutlinedButton(
+                  onPressed: () =>
+                      _tuner.resetRegion(_sideName, draft.regionId),
+                  child: const Text('RESET REGION'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () =>
+                      _copy(_tuner.copyRegion(draft), 'Region feedback'),
+                  child: const Text('COPY REGION'),
+                ),
+                OutlinedButton(
+                  onPressed: _confirmResetAll,
+                  child: const Text('RESET ALL'),
+                ),
+                FilledButton(
+                  onPressed: () => _copy(
+                    _tuner.copyAllChanges(_baseBounds),
+                    'All changed-region feedback',
+                  ),
+                  child: const Text('COPY ALL CHANGES'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _controlRow(
+    String label,
+    double value,
+    double amount,
+    ValueChanged<double> onAdjust,
+    bool enabled, {
+    String suffix = '',
+  }) => Row(
+    children: [
+      SizedBox(width: 78, child: Text(label)),
+      IconButton(
+        tooltip: 'Decrease $label',
+        onPressed: enabled ? () => onAdjust(-amount) : null,
+        icon: const Icon(Icons.remove_circle_outline),
+      ),
+      Expanded(
+        child: Text(
+          '${value.toStringAsFixed(2)}$suffix',
+          textAlign: TextAlign.center,
+        ),
+      ),
+      IconButton(
+        tooltip: 'Increase $label',
+        onPressed: enabled ? () => onAdjust(amount) : null,
+        icon: const Icon(Icons.add_circle_outline),
+      ),
+    ],
+  );
+}
+
+class _EditModeBadge extends StatelessWidget {
+  const _EditModeBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.deepPurple.withValues(alpha: .18),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: Colors.deepPurpleAccent),
+    ),
+    child: const Text(
+      'EDIT MODE — local geometry draft only',
+      textAlign: TextAlign.center,
     ),
   );
 }

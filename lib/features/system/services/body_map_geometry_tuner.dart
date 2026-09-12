@@ -1,0 +1,551 @@
+import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+enum BodyMapGeometryShape {
+  current,
+  circle,
+  ellipse,
+  capsule,
+  roundedRect,
+  rect,
+  diamond,
+  heart,
+}
+
+extension BodyMapGeometryShapeLabel on BodyMapGeometryShape {
+  String get label => switch (this) {
+    BodyMapGeometryShape.current => 'CURRENT',
+    BodyMapGeometryShape.circle => 'CIRCLE',
+    BodyMapGeometryShape.ellipse => 'ELLIPSE',
+    BodyMapGeometryShape.capsule => 'CAPSULE',
+    BodyMapGeometryShape.roundedRect => 'ROUNDED_RECT',
+    BodyMapGeometryShape.rect => 'RECT',
+    BodyMapGeometryShape.diamond => 'DIAMOND',
+    BodyMapGeometryShape.heart => 'HEART',
+  };
+}
+
+class BodyMapGeometryDraft {
+  const BodyMapGeometryDraft({
+    required this.side,
+    required this.regionId,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.shape = BodyMapGeometryShape.current,
+    this.scaleX = 1,
+    this.scaleY = 1,
+    this.rotationDeg = 0,
+    this.cornerRadius = 0,
+    this.mirrorLinked = true,
+    this.locked = false,
+  });
+
+  final String side;
+  final String regionId;
+  final BodyMapGeometryShape shape;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double scaleX;
+  final double scaleY;
+  final double rotationDeg;
+  final double cornerRadius;
+  final bool mirrorLinked;
+  final bool locked;
+
+  BodyMapGeometryDraft copyWith({
+    BodyMapGeometryShape? shape,
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+    double? scaleX,
+    double? scaleY,
+    double? rotationDeg,
+    double? cornerRadius,
+    bool? mirrorLinked,
+    bool? locked,
+  }) => BodyMapGeometryDraft(
+    side: side,
+    regionId: regionId,
+    shape: shape ?? this.shape,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    width: width ?? this.width,
+    height: height ?? this.height,
+    scaleX: scaleX ?? this.scaleX,
+    scaleY: scaleY ?? this.scaleY,
+    rotationDeg: rotationDeg ?? this.rotationDeg,
+    cornerRadius: cornerRadius ?? this.cornerRadius,
+    mirrorLinked: mirrorLinked ?? this.mirrorLinked,
+    locked: locked ?? this.locked,
+  );
+
+  Map<String, Object> toJson() => {
+    'side': side,
+    'regionId': regionId,
+    'shape': shape.name,
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+    'scaleX': scaleX,
+    'scaleY': scaleY,
+    'rotationDeg': rotationDeg,
+    'cornerRadius': cornerRadius,
+    'mirrorLinked': mirrorLinked,
+    'locked': locked,
+  };
+
+  factory BodyMapGeometryDraft.fromJson(Map<String, dynamic> json) {
+    final shapeName = json['shape'] as String? ?? 'current';
+    return BodyMapGeometryDraft(
+      side: json['side'] as String,
+      regionId: json['regionId'] as String,
+      shape: BodyMapGeometryShape.values.firstWhere(
+        (shape) => shape.name == shapeName,
+        orElse: () => BodyMapGeometryShape.current,
+      ),
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      width: (json['width'] as num).toDouble(),
+      height: (json['height'] as num).toDouble(),
+      scaleX: (json['scaleX'] as num?)?.toDouble() ?? 1,
+      scaleY: (json['scaleY'] as num?)?.toDouble() ?? 1,
+      rotationDeg: (json['rotationDeg'] as num?)?.toDouble() ?? 0,
+      cornerRadius: (json['cornerRadius'] as num?)?.toDouble() ?? 0,
+      mirrorLinked: json['mirrorLinked'] as bool? ?? true,
+      locked: json['locked'] as bool? ?? false,
+    );
+  }
+}
+
+/// Development-only, locally persisted geometry draft state for the SVG preview.
+class BodyMapGeometryTunerController extends ChangeNotifier {
+  BodyMapGeometryTunerController({
+    required this.baselineCommit,
+    Future<SharedPreferences> Function()? preferencesLoader,
+  }) : _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance;
+
+  static const _storageKey = 'or_app.body_map_geometry_tuner.v1';
+
+  final String baselineCommit;
+  final Future<SharedPreferences> Function() _preferencesLoader;
+  final Map<String, BodyMapGeometryDraft> _drafts = {};
+  Map<String, BodyMapGeometryDraft> _restoredDrafts = {};
+
+  static String keyFor(String side, String regionId) => '$side:$regionId';
+
+  Iterable<BodyMapGeometryDraft> get drafts => _drafts.values;
+
+  Future<void> load() async {
+    try {
+      final prefs = await _preferencesLoader();
+      final raw = prefs.getString(_storageKey);
+      if (raw == null) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      if (decoded['baselineCommit'] != baselineCommit) return;
+      final items = decoded['drafts'] as List<dynamic>? ?? const [];
+      _restoredDrafts = Map.fromEntries(
+        items.map((item) {
+          final draft = BodyMapGeometryDraft.fromJson(
+            item as Map<String, dynamic>,
+          );
+          return MapEntry(keyFor(draft.side, draft.regionId), draft);
+        }),
+      );
+      notifyListeners();
+    } catch (_) {
+      // Debug data is intentionally disposable if an old version is malformed.
+    }
+  }
+
+  BodyMapGeometryDraft ensureRegion({
+    required String side,
+    required String regionId,
+    required Rect baseBounds,
+    bool mirrorLinked = true,
+    bool locked = false,
+  }) {
+    final key = keyFor(side, regionId);
+    return _drafts.putIfAbsent(key, () {
+      final restored = _restoredDrafts.remove(key);
+      return restored ??
+          BodyMapGeometryDraft(
+            side: side,
+            regionId: regionId,
+            x: baseBounds.center.dx,
+            y: baseBounds.center.dy,
+            width: baseBounds.width,
+            height: baseBounds.height,
+            mirrorLinked: mirrorLinked,
+            locked: locked,
+          );
+    });
+  }
+
+  BodyMapGeometryDraft? draftFor(String side, String regionId) =>
+      _drafts[keyFor(side, regionId)] ??
+      _restoredDrafts[keyFor(side, regionId)];
+
+  Path pathFor({
+    required String side,
+    required String regionId,
+    required Path basePath,
+    bool mirrorLinked = true,
+    bool locked = false,
+  }) {
+    final draft = ensureRegion(
+      side: side,
+      regionId: regionId,
+      baseBounds: basePath.getBounds(),
+      mirrorLinked: mirrorLinked,
+      locked: locked,
+    );
+    return _pathForDraft(basePath, draft);
+  }
+
+  void update(BodyMapGeometryDraft draft, {bool mirror = true}) {
+    _drafts[keyFor(draft.side, draft.regionId)] = draft;
+    if (mirror && draft.mirrorLinked) {
+      final oppositeId = _oppositeRegionId(draft.regionId);
+      if (oppositeId != null) {
+        final opposite = _drafts[keyFor(draft.side, oppositeId)];
+        if (opposite != null && !opposite.locked) {
+          _drafts[keyFor(draft.side, oppositeId)] = opposite.copyWith(
+            shape: draft.shape,
+            x: _mirrorX(draft.x),
+            y: draft.y,
+            width: draft.width,
+            height: draft.height,
+            scaleX: draft.scaleX,
+            scaleY: draft.scaleY,
+            rotationDeg: -draft.rotationDeg,
+            cornerRadius: draft.cornerRadius,
+            mirrorLinked: true,
+          );
+        }
+      }
+    }
+    _save();
+    notifyListeners();
+  }
+
+  void resetRegion(String side, String regionId) {
+    _drafts.remove(keyFor(side, regionId));
+    final opposite = _oppositeRegionId(regionId);
+    if (opposite != null) _drafts.remove(keyFor(side, opposite));
+    _save();
+    notifyListeners();
+  }
+
+  void resetAll() {
+    _drafts.clear();
+    _restoredDrafts.clear();
+    _save();
+    notifyListeners();
+  }
+
+  bool isChanged(BodyMapGeometryDraft draft, Rect baseBounds) {
+    const epsilon = 0.0001;
+    return draft.shape != BodyMapGeometryShape.current ||
+        (draft.x - baseBounds.center.dx).abs() > epsilon ||
+        (draft.y - baseBounds.center.dy).abs() > epsilon ||
+        (draft.width - baseBounds.width).abs() > epsilon ||
+        (draft.height - baseBounds.height).abs() > epsilon ||
+        (draft.scaleX - 1).abs() > epsilon ||
+        (draft.scaleY - 1).abs() > epsilon ||
+        draft.rotationDeg.abs() > epsilon ||
+        draft.cornerRadius.abs() > epsilon ||
+        draft.locked;
+  }
+
+  String copyRegion(BodyMapGeometryDraft draft) {
+    final buffer = StringBuffer()
+      ..writeln('BODY MAP GEOMETRY FEEDBACK')
+      ..writeln()
+      ..writeln('baselineCommit: $baselineCommit')
+      ..writeln('side: ${draft.side.toUpperCase()}')
+      ..writeln('region: ${regionNameFor(draft.regionId)}')
+      ..writeln('regionId: ${draft.regionId}')
+      ..writeln()
+      ..writeln('shape: ${draft.shape.label}')
+      ..writeln('mirrorLinked: ${draft.mirrorLinked}')
+      ..writeln()
+      ..writeln('parameters:')
+      ..write(_parameterLines(draft, indent: '  '))
+      ..writeln('locked: ${draft.locked}');
+    final opposite = _oppositeRegionId(draft.regionId);
+    if (opposite != null && draft.mirrorLinked) {
+      buffer
+        ..writeln()
+        ..writeln('opposite:')
+        ..writeln('  regionId: $opposite')
+        ..writeln('  mirrorOf: ${draft.regionId}');
+    }
+    return buffer.toString().trimRight();
+  }
+
+  String copyAllChanges(Map<String, Rect> baseBoundsByKey) {
+    final changed = _drafts.values.where((draft) {
+      final bounds = baseBoundsByKey[keyFor(draft.side, draft.regionId)];
+      return bounds != null && isChanged(draft, bounds);
+    }).toList()..sort(_compareDrafts);
+    final buffer = StringBuffer()
+      ..writeln('BODY MAP GEOMETRY FEEDBACK')
+      ..writeln()
+      ..writeln('baselineCommit: $baselineCommit')
+      ..writeln()
+      ..writeln('changedRegions:');
+    if (changed.isEmpty) {
+      buffer.writeln('  []');
+    } else {
+      for (final draft in changed) {
+        buffer
+          ..writeln('- side: ${draft.side.toUpperCase()}')
+          ..writeln('  region: ${regionNameFor(draft.regionId)}')
+          ..writeln('  regionId: ${draft.regionId}')
+          ..writeln('  shape: ${draft.shape.label}')
+          ..writeln('  mirrorLinked: ${draft.mirrorLinked}')
+          ..write(_parameterLines(draft, indent: '  '))
+          ..writeln('  locked: ${draft.locked}');
+      }
+    }
+    return buffer.toString().trimRight();
+  }
+
+  static Path _pathForDraft(Path basePath, BodyMapGeometryDraft draft) {
+    if (draft.shape != BodyMapGeometryShape.current) {
+      return _primitivePath(draft);
+    }
+    final base = basePath.getBounds();
+    final scaleX = (draft.width / base.width) * draft.scaleX;
+    final scaleY = (draft.height / base.height) * draft.scaleY;
+    final radians = draft.rotationDeg * math.pi / 180;
+    final cos = math.cos(radians);
+    final sin = math.sin(radians);
+    final cx = base.center.dx;
+    final cy = base.center.dy;
+    final matrix = Float64List.fromList(<double>[
+      scaleX * cos,
+      scaleX * sin,
+      0,
+      0,
+      -scaleY * sin,
+      scaleY * cos,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      draft.x - scaleX * cos * cx + scaleY * sin * cy,
+      draft.y - scaleX * sin * cx - scaleY * cos * cy,
+      0,
+      1,
+    ]);
+    return basePath.transform(matrix);
+  }
+
+  static Path _primitivePath(BodyMapGeometryDraft draft) {
+    final width = math.max(0.1, draft.width * draft.scaleX);
+    final height = math.max(0.1, draft.height * draft.scaleY);
+    final rect = Rect.fromCenter(
+      center: Offset(draft.x, draft.y),
+      width: width,
+      height: height,
+    );
+    final path = Path();
+    switch (draft.shape) {
+      case BodyMapGeometryShape.current:
+        throw StateError('CURRENT requires a base SVG path.');
+      case BodyMapGeometryShape.circle:
+        final size = math.min(width, height);
+        path.addOval(
+          Rect.fromCenter(center: rect.center, width: size, height: size),
+        );
+      case BodyMapGeometryShape.ellipse:
+        path.addOval(rect);
+      case BodyMapGeometryShape.capsule:
+        path.addRRect(
+          RRect.fromRectAndRadius(
+            rect,
+            Radius.circular(math.min(width, height) / 2),
+          ),
+        );
+      case BodyMapGeometryShape.roundedRect:
+        path.addRRect(
+          RRect.fromRectAndRadius(
+            rect,
+            Radius.circular(
+              draft.cornerRadius > 0
+                  ? math.min(draft.cornerRadius, math.min(width, height) / 2)
+                  : math.min(width, height) * .2,
+            ),
+          ),
+        );
+      case BodyMapGeometryShape.rect:
+        path.addRect(rect);
+      case BodyMapGeometryShape.diamond:
+        path
+          ..moveTo(rect.center.dx, rect.top)
+          ..lineTo(rect.right, rect.center.dy)
+          ..lineTo(rect.center.dx, rect.bottom)
+          ..lineTo(rect.left, rect.center.dy)
+          ..close();
+      case BodyMapGeometryShape.heart:
+        final cx = rect.center.dx;
+        final cy = rect.center.dy;
+        path
+          ..moveTo(cx, rect.bottom)
+          ..cubicTo(
+            rect.left,
+            cy + height * .12,
+            rect.left,
+            rect.top + height * .28,
+            cx - width * .25,
+            rect.top + height * .22,
+          )
+          ..cubicTo(
+            cx - width * .08,
+            rect.top - height * .02,
+            cx,
+            rect.top + height * .15,
+            cx,
+            rect.top + height * .28,
+          )
+          ..cubicTo(
+            cx,
+            rect.top + height * .15,
+            cx + width * .08,
+            rect.top - height * .02,
+            cx + width * .25,
+            rect.top + height * .22,
+          )
+          ..cubicTo(
+            rect.right,
+            rect.top + height * .28,
+            rect.right,
+            cy + height * .12,
+            cx,
+            rect.bottom,
+          )
+          ..close();
+    }
+    if (draft.rotationDeg == 0) return path;
+    final radians = draft.rotationDeg * math.pi / 180;
+    final cos = math.cos(radians);
+    final sin = math.sin(radians);
+    return path.transform(
+      Float64List.fromList(<double>[
+        cos,
+        sin,
+        0,
+        0,
+        -sin,
+        cos,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        rect.center.dx - cos * rect.center.dx + sin * rect.center.dy,
+        rect.center.dy - sin * rect.center.dx - cos * rect.center.dy,
+        0,
+        1,
+      ]),
+    );
+  }
+
+  Future<void> _save() async {
+    try {
+      final prefs = await _preferencesLoader();
+      await prefs.setString(
+        _storageKey,
+        jsonEncode({
+          'baselineCommit': baselineCommit,
+          'drafts': _drafts.values.map((draft) => draft.toJson()).toList(),
+        }),
+      );
+    } catch (_) {
+      // Preview tests and unsupported platforms retain an in-memory draft.
+    }
+  }
+
+  static String? _oppositeRegionId(String regionId) {
+    if (regionId.endsWith('-left')) {
+      return '${regionId.substring(0, regionId.length - 5)}-right';
+    }
+    if (regionId.endsWith('-right')) {
+      return '${regionId.substring(0, regionId.length - 6)}-left';
+    }
+    return null;
+  }
+
+  static double _mirrorX(double x) => 200 - x;
+
+  static int _compareDrafts(BodyMapGeometryDraft a, BodyMapGeometryDraft b) {
+    const order = <String>[
+      'front-shoulder',
+      'front-chest',
+      'front-core',
+      'front-biceps',
+      'front-forearm',
+      'front-quadriceps',
+      'back-shoulder',
+      'back-trapezius',
+      'back-lats',
+      'back-triceps',
+      'back-forearm',
+      'back-glute',
+      'back-hamstring',
+      'back-calf',
+    ];
+    int index(BodyMapGeometryDraft draft) {
+      final stem = draft.regionId.replaceAll(RegExp(r'-(left|right)$'), '');
+      return order.indexOf(stem);
+    }
+
+    final compare = index(a).compareTo(index(b));
+    return compare != 0 ? compare : a.regionId.compareTo(b.regionId);
+  }
+
+  static String regionNameFor(String regionId) {
+    if (regionId.contains('shoulder')) return 'DELTOID';
+    if (regionId.contains('chest')) return 'CHEST';
+    if (regionId.contains('core')) return 'CORE';
+    if (regionId.contains('biceps')) return 'BICEPS';
+    if (regionId.contains('triceps')) return 'TRICEPS';
+    if (regionId.contains('forearm')) return 'FOREARM';
+    if (regionId.contains('quadriceps')) return 'QUADRICEPS';
+    if (regionId.contains('trapezius')) return 'TRAPEZIUS';
+    if (regionId.contains('lats')) return 'LATS';
+    if (regionId.contains('glute')) return 'GLUTES';
+    if (regionId.contains('hamstring')) return 'HAMSTRINGS';
+    if (regionId.contains('calf')) return 'CALVES';
+    return regionId.toUpperCase();
+  }
+
+  static String _parameterLines(
+    BodyMapGeometryDraft draft, {
+    required String indent,
+  }) {
+    String value(double number) => number.toStringAsFixed(2);
+    return '${indent}x: ${value(draft.x)}\n'
+        '${indent}y: ${value(draft.y)}\n'
+        '${indent}width: ${value(draft.width)}\n'
+        '${indent}height: ${value(draft.height)}\n'
+        '${indent}scaleX: ${value(draft.scaleX)}\n'
+        '${indent}scaleY: ${value(draft.scaleY)}\n'
+        '${indent}rotationDeg: ${value(draft.rotationDeg)}\n'
+        '${indent}cornerRadius: ${value(draft.cornerRadius)}\n';
+  }
+}

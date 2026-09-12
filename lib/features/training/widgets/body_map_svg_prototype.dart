@@ -14,6 +14,8 @@ const _assets = {
 
 final _documents = <SvgBodyMapSide, Future<SvgBodyMapDocument>>{};
 
+typedef SvgBodyMapPathOverride = Path Function(String id, Path basePath);
+
 const svgBodyMapMuscles = <SvgBodyMapSide, Map<String, MuscleGroup>>{
   SvgBodyMapSide.front: {
     'front-chest-left': MuscleGroup.chest,
@@ -84,6 +86,10 @@ class SvgBodyMapPrototype extends StatefulWidget {
     this.previewStatuses = const {},
     this.selectedMuscle,
     this.onSelected,
+    this.editMode = false,
+    this.selectedRegionId,
+    this.onRegionSelected,
+    this.pathOverride,
   });
   final SvgBodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> recoveryByMuscle;
@@ -91,6 +97,12 @@ class SvgBodyMapPrototype extends StatefulWidget {
   final Map<MuscleGroup, RecoveryStatus> previewStatuses;
   final MuscleGroup? selectedMuscle;
   final ValueChanged<MuscleGroup>? onSelected;
+
+  /// Development-only controls used by the SYSTEM geometry tuner.
+  final bool editMode;
+  final String? selectedRegionId;
+  final ValueChanged<String>? onRegionSelected;
+  final SvgBodyMapPathOverride? pathOverride;
   @override
   State<SvgBodyMapPrototype> createState() => _SvgBodyMapPrototypeState();
 }
@@ -126,8 +138,18 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
                 details.localPosition.dy * 340 / constraints.maxHeight,
               );
               for (final entry in svgBodyMapMuscles[widget.side]!.entries) {
-                if (document.paths[entry.key]!.contains(point)) {
-                  widget.onSelected?.call(entry.value);
+                final path =
+                    widget.pathOverride?.call(
+                      entry.key,
+                      document.paths[entry.key]!,
+                    ) ??
+                    document.paths[entry.key]!;
+                if (path.contains(point)) {
+                  if (widget.editMode) {
+                    widget.onRegionSelected?.call(entry.key);
+                  } else {
+                    widget.onSelected?.call(entry.value);
+                  }
                   return;
                 }
               }
@@ -140,6 +162,9 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
                 widget.previewStatuses,
                 widget.supportMuscles,
                 widget.selectedMuscle,
+                editMode: widget.editMode,
+                selectedRegionId: widget.selectedRegionId,
+                pathOverride: widget.pathOverride,
               ),
             ),
           ),
@@ -156,14 +181,20 @@ class _SvgBodyMapPainter extends CustomPainter {
     this.recovery,
     this.previewStatuses,
     this.support,
-    this.selected,
-  );
+    this.selected, {
+    this.editMode = false,
+    this.selectedRegionId,
+    this.pathOverride,
+  });
   final SvgBodyMapDocument document;
   final SvgBodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> recovery;
   final Map<MuscleGroup, RecoveryStatus> previewStatuses;
   final Set<MuscleGroup> support;
   final MuscleGroup? selected;
+  final bool editMode;
+  final String? selectedRegionId;
+  final SvgBodyMapPathOverride? pathOverride;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.scale(size.width / 200, size.height / 340);
@@ -173,7 +204,9 @@ class _SvgBodyMapPainter extends CustomPainter {
     );
     for (final entry in svgBodyMapMuscles[side]!.entries) {
       final muscle = entry.value;
-      final path = document.paths[entry.key]!;
+      final path =
+          pathOverride?.call(entry.key, document.paths[entry.key]!) ??
+          document.paths[entry.key]!;
       final evidence = recovery[muscle];
       final status = previewStatuses[muscle] ?? evidence?.estimate.status;
       final color = status == null ? AppColors.secondary : _color(status);
@@ -199,6 +232,15 @@ class _SvgBodyMapPainter extends CustomPainter {
             ..strokeWidth = 2.2,
         );
       }
+      if (editMode && selectedRegionId == entry.key) {
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = Colors.deepPurpleAccent
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.4,
+        );
+      }
     }
   }
 
@@ -209,7 +251,10 @@ class _SvgBodyMapPainter extends CustomPainter {
       old.recovery != recovery ||
       old.previewStatuses != previewStatuses ||
       old.support != support ||
-      old.selected != selected;
+      old.selected != selected ||
+      old.editMode != editMode ||
+      old.selectedRegionId != selectedRegionId ||
+      old.pathOverride != pathOverride;
 }
 
 Color _color(RecoveryStatus status) => switch (status) {
