@@ -255,6 +255,32 @@ void main() {
       front.paths['front-shoulder-left']!.getBounds(),
       equals(back.paths['back-shoulder-left']!.getBounds()),
     );
+    expect(
+      front.paths['front-shoulder-right']!.getBounds(),
+      equals(back.paths['back-shoulder-right']!.getBounds()),
+    );
+  });
+
+  testWidgets('keeps deltoids in shoulder territory and trapezius central', (
+    tester,
+  ) async {
+    final front = await loadSvgBodyMap(SvgBodyMapSide.front);
+    final back = await loadSvgBodyMap(SvgBodyMapSide.back);
+    final frontDeltoid = front.paths['front-shoulder-left']!;
+    final chest = front.paths['front-chest-left']!;
+    final backDeltoid = back.paths['back-shoulder-left']!;
+    final trapezius = back.paths['back-trapezius']!;
+    final deltoidBounds = frontDeltoid.getBounds();
+    final trapeziusBounds = trapezius.getBounds();
+
+    expect(deltoidBounds.width, greaterThan(10));
+    expect(deltoidBounds.top, lessThan(80));
+    expect(chest.getBounds().left, greaterThan(deltoidBounds.right));
+    expect(frontDeltoid.contains(const Offset(64, 90)), isTrue);
+    expect(backDeltoid.contains(const Offset(64, 90)), isTrue);
+    expect(trapeziusBounds.width, lessThan(50));
+    expect(trapeziusBounds.center.dx, closeTo(100, .01));
+    expect(trapezius.contains(const Offset(100, 85)), isTrue);
   });
 
   testWidgets('raises the lower-body semantic stack', (tester) async {
@@ -336,5 +362,5 @@ void _expectArmAxis(
 
   expect(upperArm.dx, lessThan(shoulder.dx), reason: upperArmId);
   expect(forearm.dx, lessThan(upperArm.dx), reason: forearmId);
-  expect(forearmSlope, closeTo(upperSlope, .08));
+  expect(forearmSlope, closeTo(upperSlope, .05));
 }
