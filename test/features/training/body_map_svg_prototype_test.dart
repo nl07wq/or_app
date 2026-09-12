@@ -356,6 +356,21 @@ void main() {
       _isContainedBy(backDeltoid, back.paths['back-body']!),
       isTrue,
     );
+    for (final (document, id) in [
+      (front, 'front-shoulder-left'),
+      (front, 'front-shoulder-right'),
+      (back, 'back-shoulder-left'),
+      (back, 'back-shoulder-right'),
+      (front, 'front-forearm-left'),
+      (front, 'front-forearm-right'),
+      (back, 'back-forearm-left'),
+      (back, 'back-forearm-right'),
+      (back, 'back-glutes-left'),
+      (back, 'back-glutes-right'),
+    ]) {
+      final region = document.paths[id]!;
+      expect(region.contains(region.getBounds().center), isTrue, reason: id);
+    }
     for (final (document, bodyId, forearmId) in [
       (front, 'front-body', 'front-forearm-left'),
       (back, 'back-body', 'back-forearm-left'),
