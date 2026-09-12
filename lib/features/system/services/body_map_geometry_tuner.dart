@@ -465,53 +465,35 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
 
   bool isChanged(BodyMapGeometryDraft draft, Rect baseBounds) {
     const epsilon = 0.0001;
+    final components = draft.effectiveComponents;
+    // A component list is authoritative when present. In particular, adding a
+    // component must remain a change even when the legacy draft fields still
+    // describe the canonical component-0.
+    if (components.length > 1) return true;
+    final component = components.single;
     return draft.shape != BodyMapGeometryShape.current ||
-        (draft.x - baseBounds.center.dx).abs() > epsilon ||
-        (draft.y - baseBounds.center.dy).abs() > epsilon ||
-        (draft.width - baseBounds.width).abs() > epsilon ||
-        (draft.height - baseBounds.height).abs() > epsilon ||
-        (draft.scaleX - 1).abs() > epsilon ||
-        (draft.scaleY - 1).abs() > epsilon ||
-        draft.rotationDeg.abs() > epsilon ||
-        draft.cornerRadius.abs() > epsilon ||
+        component.shape != BodyMapGeometryShape.current ||
+        (component.x - baseBounds.center.dx).abs() > epsilon ||
+        (component.y - baseBounds.center.dy).abs() > epsilon ||
+        (component.width - baseBounds.width).abs() > epsilon ||
+        (component.height - baseBounds.height).abs() > epsilon ||
+        (component.scaleX - 1).abs() > epsilon ||
+        (component.scaleY - 1).abs() > epsilon ||
+        component.rotationDeg.abs() > epsilon ||
+        component.cornerRadius.abs() > epsilon ||
         draft.locked;
   }
 
   String copyRegion(BodyMapGeometryDraft draft) {
-    if (draft.effectiveComponents.length > 1) {
-      final buffer = StringBuffer()
-        ..writeln('BODY MAP GEOMETRY FEEDBACK')
-        ..writeln()
-        ..writeln('baselineCommit: $baselineCommit')
-        ..writeln('side: ${draft.side.toUpperCase()}')
-        ..writeln('region: ${regionNameFor(draft.regionId)}')
-        ..writeln('regionId: ${draft.regionId}')
-        ..writeln('shape: COMPOSITE')
-        ..writeln('components:');
-      for (final component in draft.effectiveComponents) {
-        buffer
-          ..writeln('- componentId: ${component.componentId}')
-          ..writeln('  shape: ${component.shape.label}')
-          ..write(_componentLines(component, indent: '  '));
-      }
-      return '${buffer.toString().trimRight()}\nlocked: ${draft.locked}';
-    }
     final buffer = StringBuffer()
       ..writeln('BODY MAP GEOMETRY FEEDBACK')
       ..writeln()
-      ..writeln('baselineCommit: $baselineCommit')
-      ..writeln('side: ${draft.side.toUpperCase()}')
-      ..writeln('region: ${regionNameFor(draft.regionId)}')
-      ..writeln('regionId: ${draft.regionId}')
-      ..writeln()
-      ..writeln('shape: ${draft.shape.label}')
-      ..writeln('mirrorLinked: ${draft.mirrorLinked}')
-      ..writeln()
-      ..writeln('parameters:')
-      ..write(_parameterLines(draft, indent: '  '))
-      ..writeln('locked: ${draft.locked}');
+      ..writeln('baselineCommit: $baselineCommit');
+    _writeRegionFeedback(buffer, draft);
     final opposite = _oppositeRegionId(draft.regionId);
-    if (opposite != null && draft.mirrorLinked) {
+    if (draft.effectiveComponents.length == 1 &&
+        opposite != null &&
+        draft.mirrorLinked) {
       buffer
         ..writeln()
         ..writeln('opposite:')
@@ -536,17 +518,62 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       buffer.writeln('  []');
     } else {
       for (final draft in changed) {
-        buffer
-          ..writeln('- side: ${draft.side.toUpperCase()}')
-          ..writeln('  region: ${regionNameFor(draft.regionId)}')
-          ..writeln('  regionId: ${draft.regionId}')
-          ..writeln('  shape: ${draft.shape.label}')
-          ..writeln('  mirrorLinked: ${draft.mirrorLinked}')
-          ..write(_parameterLines(draft, indent: '  '))
-          ..writeln('  locked: ${draft.locked}');
+        _writeRegionFeedback(
+          buffer,
+          draft,
+          listItem: true,
+          singleParametersHeader: false,
+        );
       }
     }
     return buffer.toString().trimRight();
+  }
+
+  /// The one canonical feedback representation used by both copy actions.
+  /// Component state wins over legacy region fields, so a locked composite
+  /// cannot be collapsed back to its baseline CURRENT shape during export.
+  static void _writeRegionFeedback(
+    StringBuffer buffer,
+    BodyMapGeometryDraft draft, {
+    bool listItem = false,
+    bool singleParametersHeader = true,
+  }) {
+    final indent = listItem ? '  ' : '';
+    final components = draft.effectiveComponents;
+    final composite = components.length > 1;
+    buffer
+      ..writeln('${listItem ? '- ' : ''}side: ${draft.side.toUpperCase()}')
+      ..writeln('${indent}region: ${regionNameFor(draft.regionId)}')
+      ..writeln('${indent}regionId: ${draft.regionId}');
+    if (composite) {
+      buffer
+        ..writeln('${indent}shape: COMPOSITE')
+        ..writeln('${indent}mirrorLinked: ${draft.mirrorLinked}')
+        ..writeln('${indent}components:');
+      for (final component in components) {
+        final componentId = component.componentId;
+        final shapeLabel = component.shape.label;
+        buffer
+          ..writeln('$indent- componentId: $componentId')
+          ..writeln('$indent  shape: $shapeLabel')
+          ..write(_componentLines(component, indent: '$indent  '));
+      }
+      buffer.writeln('${indent}locked: ${draft.locked}');
+      return;
+    }
+
+    buffer
+      ..writeln('${indent}shape: ${components.single.shape.label}')
+      ..writeln('${indent}mirrorLinked: ${draft.mirrorLinked}');
+    if (singleParametersHeader) buffer.writeln('${indent}parameters:');
+    buffer
+      ..write(
+        _componentLines(
+          components.single,
+          indent: singleParametersHeader ? '$indent  ' : indent,
+        ),
+      )
+      ..writeln('${indent}locked: ${draft.locked}');
   }
 
   String copyStaleDraft() {
@@ -560,12 +587,7 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       ..writeln('changedRegions:');
     final stale = _staleDrafts.values.toList()..sort(_compareDrafts);
     for (final draft in stale) {
-      buffer
-        ..writeln('- side: ${draft.side.toUpperCase()}')
-        ..writeln('  region: ${regionNameFor(draft.regionId)}')
-        ..writeln('  regionId: ${draft.regionId}')
-        ..writeln('  shape: ${draft.shape.label}')
-        ..write(_parameterLines(draft, indent: '  '));
+      _writeRegionFeedback(buffer, draft, listItem: true);
     }
     return buffer.toString().trimRight();
   }
@@ -822,21 +844,6 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     if (regionId.contains('hamstring')) return 'HAMSTRINGS';
     if (regionId.contains('calf')) return 'CALVES';
     return regionId.toUpperCase();
-  }
-
-  static String _parameterLines(
-    BodyMapGeometryDraft draft, {
-    required String indent,
-  }) {
-    String value(double number) => number.toStringAsFixed(2);
-    return '${indent}x: ${value(draft.x)}\n'
-        '${indent}y: ${value(draft.y)}\n'
-        '${indent}width: ${value(draft.width)}\n'
-        '${indent}height: ${value(draft.height)}\n'
-        '${indent}scaleX: ${value(draft.scaleX)}\n'
-        '${indent}scaleY: ${value(draft.scaleY)}\n'
-        '${indent}rotationDeg: ${value(draft.rotationDeg)}\n'
-        '${indent}cornerRadius: ${value(draft.cornerRadius)}\n';
   }
 
   static String _componentLines(

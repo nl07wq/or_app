@@ -190,4 +190,121 @@ void main() {
       expect(controller.deleteComponent('back', id, 0), isFalse);
     },
   );
+
+  test(
+    'exports a locked composite region through copy-region and copy-all',
+    () {
+      final controller = BodyMapGeometryTunerController(
+        baselineCommit: 'composite-export',
+      );
+      const id = 'back-trapezius';
+      final diamond = Path()
+        ..moveTo(100, 62)
+        ..lineTo(115, 86)
+        ..lineTo(100, 110)
+        ..lineTo(85, 86)
+        ..close();
+      controller.pathFor(side: 'back', regionId: id, basePath: diamond);
+      expect(
+        controller.addComponent('back', id, BodyMapGeometryShape.rect),
+        isTrue,
+      );
+      final composite = controller.draftFor('back', id)!;
+      controller.update(composite.copyWith(locked: true));
+      final locked = controller.draftFor('back', id)!;
+
+      final region = controller.copyRegion(locked);
+      final all = controller.copyAllChanges({
+        BodyMapGeometryTunerController.keyFor('back', id): diamond.getBounds(),
+      });
+      for (final output in <String>[region, all]) {
+        expect(output, contains('shape: COMPOSITE'));
+        expect(output, contains('mirrorLinked: true'));
+        expect(output, contains('componentId: component-0'));
+        expect(output, contains('componentId: component-1'));
+        expect(output, contains('shape: RECT'));
+        expect(output, contains('locked: true'));
+      }
+      expect(all.split('regionId: $id').length - 1, 1);
+    },
+  );
+
+  test('copy-all preserves mixed locked single and composite drafts', () {
+    final controller = BodyMapGeometryTunerController(
+      baselineCommit: 'mixed-export',
+    );
+    const singleId = 'front-shoulder-left';
+    const compositeId = 'back-trapezius';
+    final diamond = Path()
+      ..moveTo(100, 62)
+      ..lineTo(115, 86)
+      ..lineTo(100, 110)
+      ..lineTo(85, 86)
+      ..close();
+    controller
+      ..pathFor(side: 'front', regionId: singleId, basePath: leftPath)
+      ..pathFor(side: 'back', regionId: compositeId, basePath: diamond);
+    controller.update(
+      controller
+          .draftFor('front', singleId)!
+          .copyWith(shape: BodyMapGeometryShape.ellipse, locked: true),
+    );
+    expect(
+      controller.addComponent(
+        'back',
+        compositeId,
+        BodyMapGeometryShape.roundedRect,
+      ),
+      isTrue,
+    );
+    controller.update(
+      controller.draftFor('back', compositeId)!.copyWith(locked: true),
+    );
+
+    final output = controller.copyAllChanges({
+      BodyMapGeometryTunerController.keyFor('front', singleId): leftPath
+          .getBounds(),
+      BodyMapGeometryTunerController.keyFor('back', compositeId): diamond
+          .getBounds(),
+    });
+    expect(output.indexOf(singleId), lessThan(output.indexOf(compositeId)));
+    expect(output, contains('shape: ELLIPSE'));
+    expect(output.split('regionId: $compositeId').length - 1, 1);
+    expect(output, contains('shape: COMPOSITE'));
+    expect(output, contains('shape: ROUNDED_RECT'));
+  });
+
+  test('persists composite components without changing their export', () async {
+    final controller = BodyMapGeometryTunerController(
+      baselineCommit: 'persist-composite',
+    );
+    const id = 'back-trapezius';
+    final diamond = Path()
+      ..moveTo(100, 62)
+      ..lineTo(115, 86)
+      ..lineTo(100, 110)
+      ..lineTo(85, 86)
+      ..close();
+    controller.pathFor(side: 'back', regionId: id, basePath: diamond);
+    expect(
+      controller.addComponent('back', id, BodyMapGeometryShape.rect),
+      isTrue,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final reloaded = BodyMapGeometryTunerController(
+      baselineCommit: 'persist-composite',
+    );
+    await reloaded.load();
+    reloaded.pathFor(side: 'back', regionId: id, basePath: diamond);
+    final restored = reloaded.draftFor('back', id)!;
+    expect(restored.effectiveComponents, hasLength(2));
+    expect(restored.effectiveComponents[1].shape, BodyMapGeometryShape.rect);
+    expect(
+      reloaded.copyAllChanges({
+        BodyMapGeometryTunerController.keyFor('back', id): diamond.getBounds(),
+      }),
+      contains('shape: COMPOSITE'),
+    );
+  });
 }
