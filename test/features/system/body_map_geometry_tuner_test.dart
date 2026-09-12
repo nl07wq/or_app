@@ -150,4 +150,44 @@ void main() {
       expect(baked.copyStaleDraft(), contains('draftBaselineCommit: 2fb726a'));
     },
   );
+
+  test(
+    'composite trapezius keeps two components as one visible hit region',
+    () {
+      final controller = BodyMapGeometryTunerController(
+        baselineCommit: 'baked',
+      );
+      const id = 'back-trapezius';
+      final diamond = Path()
+        ..moveTo(100, 62)
+        ..lineTo(115, 86)
+        ..lineTo(100, 110)
+        ..lineTo(85, 86)
+        ..close();
+      controller.pathFor(side: 'back', regionId: id, basePath: diamond);
+      expect(
+        controller.addComponent('back', id, BodyMapGeometryShape.rect),
+        isTrue,
+      );
+      final draft = controller.draftFor('back', id)!;
+      controller.updateComponent(
+        'back',
+        id,
+        1,
+        draft.effectiveComponents[1].copyWith(y: 68, width: 20),
+      );
+      final path = controller.pathFor(
+        side: 'back',
+        regionId: id,
+        basePath: diamond,
+      );
+      expect(path.contains(const Offset(100, 86)), isTrue);
+      expect(path.contains(const Offset(100, 68)), isTrue);
+      final copied = controller.copyRegion(controller.draftFor('back', id)!);
+      expect(copied, contains('shape: COMPOSITE'));
+      expect(copied, contains('component-1'));
+      expect(controller.deleteComponent('back', id, 1), isTrue);
+      expect(controller.deleteComponent('back', id, 0), isFalse);
+    },
+  );
 }

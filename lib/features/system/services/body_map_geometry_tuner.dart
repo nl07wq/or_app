@@ -16,6 +16,78 @@ enum BodyMapGeometryShape {
   heart,
 }
 
+class BodyMapGeometryComponent {
+  const BodyMapGeometryComponent({
+    required this.componentId,
+    required this.shape,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.scaleX = 1,
+    this.scaleY = 1,
+    this.rotationDeg = 0,
+    this.cornerRadius = 0,
+  });
+
+  final String componentId;
+  final BodyMapGeometryShape shape;
+  final double x, y, width, height, scaleX, scaleY, rotationDeg, cornerRadius;
+
+  BodyMapGeometryComponent copyWith({
+    BodyMapGeometryShape? shape,
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+    double? scaleX,
+    double? scaleY,
+    double? rotationDeg,
+    double? cornerRadius,
+  }) => BodyMapGeometryComponent(
+    componentId: componentId,
+    shape: shape ?? this.shape,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    width: width ?? this.width,
+    height: height ?? this.height,
+    scaleX: scaleX ?? this.scaleX,
+    scaleY: scaleY ?? this.scaleY,
+    rotationDeg: rotationDeg ?? this.rotationDeg,
+    cornerRadius: cornerRadius ?? this.cornerRadius,
+  );
+
+  Map<String, Object> toJson() => {
+    'componentId': componentId,
+    'shape': shape.name,
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+    'scaleX': scaleX,
+    'scaleY': scaleY,
+    'rotationDeg': rotationDeg,
+    'cornerRadius': cornerRadius,
+  };
+
+  factory BodyMapGeometryComponent.fromJson(Map<String, dynamic> json) =>
+      BodyMapGeometryComponent(
+        componentId: json['componentId'] as String,
+        shape: BodyMapGeometryShape.values.firstWhere(
+          (shape) => shape.name == json['shape'],
+          orElse: () => BodyMapGeometryShape.current,
+        ),
+        x: (json['x'] as num).toDouble(),
+        y: (json['y'] as num).toDouble(),
+        width: (json['width'] as num).toDouble(),
+        height: (json['height'] as num).toDouble(),
+        scaleX: (json['scaleX'] as num?)?.toDouble() ?? 1,
+        scaleY: (json['scaleY'] as num?)?.toDouble() ?? 1,
+        rotationDeg: (json['rotationDeg'] as num?)?.toDouble() ?? 0,
+        cornerRadius: (json['cornerRadius'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 extension BodyMapGeometryShapeLabel on BodyMapGeometryShape {
   String get label => switch (this) {
     BodyMapGeometryShape.current => 'CURRENT',
@@ -44,6 +116,7 @@ class BodyMapGeometryDraft {
     this.cornerRadius = 0,
     this.mirrorLinked = true,
     this.locked = false,
+    this.components = const [],
   });
 
   final String side;
@@ -59,6 +132,23 @@ class BodyMapGeometryDraft {
   final double cornerRadius;
   final bool mirrorLinked;
   final bool locked;
+  final List<BodyMapGeometryComponent> components;
+  List<BodyMapGeometryComponent> get effectiveComponents => components.isEmpty
+      ? [
+          BodyMapGeometryComponent(
+            componentId: 'component-0',
+            shape: shape,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            scaleX: scaleX,
+            scaleY: scaleY,
+            rotationDeg: rotationDeg,
+            cornerRadius: cornerRadius,
+          ),
+        ]
+      : components;
 
   BodyMapGeometryDraft copyWith({
     BodyMapGeometryShape? shape,
@@ -72,6 +162,7 @@ class BodyMapGeometryDraft {
     double? cornerRadius,
     bool? mirrorLinked,
     bool? locked,
+    List<BodyMapGeometryComponent>? components,
   }) => BodyMapGeometryDraft(
     side: side,
     regionId: regionId,
@@ -86,6 +177,7 @@ class BodyMapGeometryDraft {
     cornerRadius: cornerRadius ?? this.cornerRadius,
     mirrorLinked: mirrorLinked ?? this.mirrorLinked,
     locked: locked ?? this.locked,
+    components: components ?? this.components,
   );
 
   Map<String, Object> toJson() => {
@@ -102,6 +194,8 @@ class BodyMapGeometryDraft {
     'cornerRadius': cornerRadius,
     'mirrorLinked': mirrorLinked,
     'locked': locked,
+    if (components.isNotEmpty)
+      'components': components.map((item) => item.toJson()).toList(),
   };
 
   factory BodyMapGeometryDraft.fromJson(Map<String, dynamic> json) {
@@ -123,12 +217,19 @@ class BodyMapGeometryDraft {
       cornerRadius: (json['cornerRadius'] as num?)?.toDouble() ?? 0,
       mirrorLinked: json['mirrorLinked'] as bool? ?? true,
       locked: json['locked'] as bool? ?? false,
+      components: (json['components'] as List<dynamic>? ?? const [])
+          .map(
+            (item) =>
+                BodyMapGeometryComponent.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
     );
   }
 }
 
 /// Development-only, locally persisted geometry draft state for the SVG preview.
 class BodyMapGeometryTunerController extends ChangeNotifier {
+  static const maxComponents = 4;
   BodyMapGeometryTunerController({
     required this.baselineCommit,
     Future<SharedPreferences> Function()? preferencesLoader,
@@ -214,7 +315,92 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       mirrorLinked: mirrorLinked,
       locked: locked,
     );
-    return _pathForDraft(basePath, draft);
+    final components = draft.effectiveComponents;
+    var composite = _pathForComponent(basePath, components.first);
+    for (final component in components.skip(1)) {
+      final next = _pathForComponent(basePath, component);
+      try {
+        composite = Path.combine(PathOperation.union, composite, next);
+      } catch (_) {
+        composite.addPath(next, Offset.zero);
+      }
+    }
+    return composite;
+  }
+
+  bool addComponent(String side, String regionId, BodyMapGeometryShape shape) {
+    final draft = _drafts[keyFor(side, regionId)];
+    if (draft == null ||
+        draft.locked ||
+        draft.effectiveComponents.length >= maxComponents) {
+      return false;
+    }
+    final components = [...draft.effectiveComponents];
+    final base = components.first;
+    components.add(
+      BodyMapGeometryComponent(
+        componentId: 'component-${components.length}',
+        shape: shape,
+        x: base.x,
+        y: base.y - 8,
+        width: math.max(8, base.width * .6),
+        height: math.max(8, base.height * .3),
+        rotationDeg: base.rotationDeg,
+      ),
+    );
+    update(draft.copyWith(components: components), mirror: true);
+    return true;
+  }
+
+  bool duplicateComponent(String side, String regionId, int index) {
+    final draft = _drafts[keyFor(side, regionId)];
+    if (draft == null ||
+        draft.locked ||
+        draft.effectiveComponents.length >= maxComponents) {
+      return false;
+    }
+    final components = [...draft.effectiveComponents];
+    final source = components[index];
+    components.add(source);
+    components[components.length - 1] = BodyMapGeometryComponent(
+      componentId: 'component-${components.length - 1}',
+      shape: source.shape,
+      x: source.x + 3,
+      y: source.y - 3,
+      width: source.width,
+      height: source.height,
+      scaleX: source.scaleX,
+      scaleY: source.scaleY,
+      rotationDeg: source.rotationDeg,
+      cornerRadius: source.cornerRadius,
+    );
+    update(draft.copyWith(components: components), mirror: true);
+    return true;
+  }
+
+  bool deleteComponent(String side, String regionId, int index) {
+    final draft = _drafts[keyFor(side, regionId)];
+    if (draft == null ||
+        draft.locked ||
+        draft.effectiveComponents.length <= 1) {
+      return false;
+    }
+    final components = [...draft.effectiveComponents]..removeAt(index);
+    update(draft.copyWith(components: _renumber(components)), mirror: true);
+    return true;
+  }
+
+  void updateComponent(
+    String side,
+    String regionId,
+    int index,
+    BodyMapGeometryComponent component,
+  ) {
+    final draft = _drafts[keyFor(side, regionId)];
+    if (draft == null || draft.locked) return;
+    final components = [...draft.effectiveComponents];
+    components[index] = component;
+    update(draft.copyWith(components: components), mirror: true);
   }
 
   void update(BodyMapGeometryDraft draft, {bool mirror = true}) {
@@ -235,6 +421,22 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
             rotationDeg: -draft.rotationDeg,
             cornerRadius: draft.cornerRadius,
             mirrorLinked: true,
+            components: draft.effectiveComponents
+                .map(
+                  (component) => BodyMapGeometryComponent(
+                    componentId: component.componentId,
+                    shape: component.shape,
+                    x: _mirrorX(component.x),
+                    y: component.y,
+                    width: component.width,
+                    height: component.height,
+                    scaleX: component.scaleX,
+                    scaleY: component.scaleY,
+                    rotationDeg: -component.rotationDeg,
+                    cornerRadius: component.cornerRadius,
+                  ),
+                )
+                .toList(),
           );
         }
       }
@@ -276,6 +478,24 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   }
 
   String copyRegion(BodyMapGeometryDraft draft) {
+    if (draft.effectiveComponents.length > 1) {
+      final buffer = StringBuffer()
+        ..writeln('BODY MAP GEOMETRY FEEDBACK')
+        ..writeln()
+        ..writeln('baselineCommit: $baselineCommit')
+        ..writeln('side: ${draft.side.toUpperCase()}')
+        ..writeln('region: ${regionNameFor(draft.regionId)}')
+        ..writeln('regionId: ${draft.regionId}')
+        ..writeln('shape: COMPOSITE')
+        ..writeln('components:');
+      for (final component in draft.effectiveComponents) {
+        buffer
+          ..writeln('- componentId: ${component.componentId}')
+          ..writeln('  shape: ${component.shape.label}')
+          ..write(_componentLines(component, indent: '  '));
+      }
+      return '${buffer.toString().trimRight()}\nlocked: ${draft.locked}';
+    }
     final buffer = StringBuffer()
       ..writeln('BODY MAP GEOMETRY FEEDBACK')
       ..writeln()
@@ -350,14 +570,17 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     return buffer.toString().trimRight();
   }
 
-  static Path _pathForDraft(Path basePath, BodyMapGeometryDraft draft) {
-    if (draft.shape != BodyMapGeometryShape.current) {
-      return _primitivePath(draft);
+  static Path _pathForComponent(
+    Path basePath,
+    BodyMapGeometryComponent component,
+  ) {
+    if (component.shape != BodyMapGeometryShape.current) {
+      return _primitivePath(component);
     }
     final base = basePath.getBounds();
-    final scaleX = (draft.width / base.width) * draft.scaleX;
-    final scaleY = (draft.height / base.height) * draft.scaleY;
-    final radians = draft.rotationDeg * math.pi / 180;
+    final scaleX = (component.width / base.width) * component.scaleX;
+    final scaleY = (component.height / base.height) * component.scaleY;
+    final radians = component.rotationDeg * math.pi / 180;
     final cos = math.cos(radians);
     final sin = math.sin(radians);
     final cx = base.center.dx;
@@ -375,15 +598,15 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       0,
       1,
       0,
-      draft.x - scaleX * cos * cx + scaleY * sin * cy,
-      draft.y - scaleX * sin * cx - scaleY * cos * cy,
+      component.x - scaleX * cos * cx + scaleY * sin * cy,
+      component.y - scaleX * sin * cx - scaleY * cos * cy,
       0,
       1,
     ]);
     return basePath.transform(matrix);
   }
 
-  static Path _primitivePath(BodyMapGeometryDraft draft) {
+  static Path _primitivePath(BodyMapGeometryComponent draft) {
     final width = math.max(0.1, draft.width * draft.scaleX);
     final height = math.max(0.1, draft.height * draft.scaleY);
     final rect = Rect.fromCenter(
@@ -494,6 +717,24 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     );
   }
 
+  static List<BodyMapGeometryComponent> _renumber(
+    List<BodyMapGeometryComponent> items,
+  ) => [
+    for (var i = 0; i < items.length; i++)
+      BodyMapGeometryComponent(
+        componentId: 'component-$i',
+        shape: items[i].shape,
+        x: items[i].x,
+        y: items[i].y,
+        width: items[i].width,
+        height: items[i].height,
+        scaleX: items[i].scaleX,
+        scaleY: items[i].scaleY,
+        rotationDeg: items[i].rotationDeg,
+        cornerRadius: items[i].cornerRadius,
+      ),
+  ];
+
   Future<void> _save() async {
     try {
       final prefs = await _preferencesLoader();
@@ -596,5 +837,16 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
         '${indent}scaleY: ${value(draft.scaleY)}\n'
         '${indent}rotationDeg: ${value(draft.rotationDeg)}\n'
         '${indent}cornerRadius: ${value(draft.cornerRadius)}\n';
+  }
+
+  static String _componentLines(
+    BodyMapGeometryComponent component, {
+    required String indent,
+  }) {
+    String value(double number) => number.toStringAsFixed(2);
+    return '${indent}x: ${value(component.x)}\n${indent}y: ${value(component.y)}\n'
+        '${indent}width: ${value(component.width)}\n${indent}height: ${value(component.height)}\n'
+        '${indent}scaleX: ${value(component.scaleX)}\n${indent}scaleY: ${value(component.scaleY)}\n'
+        '${indent}rotationDeg: ${value(component.rotationDeg)}\n${indent}cornerRadius: ${value(component.cornerRadius)}\n';
   }
 }

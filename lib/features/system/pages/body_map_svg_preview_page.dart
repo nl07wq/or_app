@@ -29,6 +29,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   bool _editMode = false;
   bool _showTuned = true;
   bool _fineAdjustments = false;
+  int _activeComponentIndex = 0;
   RecoveryStatus? recoveryStatus;
 
   @override
@@ -73,6 +74,40 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
     final draft = _selectedDraft;
     if (draft == null || draft.locked) return;
     _tuner.update(change(draft));
+  }
+
+  void _updateComponent(BodyMapGeometryComponent component) {
+    if (_selectedRegionId == null) return;
+    _tuner.updateComponent(
+      _sideName,
+      _selectedRegionId!,
+      _activeComponentIndex,
+      component,
+    );
+  }
+
+  Future<void> _showAddShape(BodyMapGeometryDraft draft) async {
+    final shape = await showModalBottomSheet<BodyMapGeometryShape>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final item in BodyMapGeometryShape.values.where(
+              (item) => item != BodyMapGeometryShape.current,
+            ))
+              ListTile(
+                title: Text(item.label),
+                onTap: () => Navigator.pop(context, item),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (shape != null &&
+        _tuner.addComponent(_sideName, draft.regionId, shape)) {
+      setState(() => _activeComponentIndex = draft.effectiveComponents.length);
+    }
   }
 
   Future<void> _copy(String content, String label) async {
@@ -170,8 +205,10 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                 onSelected: (muscle) => setState(() => selected = muscle),
                 editMode: _editMode,
                 selectedRegionId: _selectedRegionId,
-                onRegionSelected: (id) =>
-                    setState(() => _selectedRegionId = id),
+                onRegionSelected: (id) => setState(() {
+                  _selectedRegionId = id;
+                  _activeComponentIndex = 0;
+                }),
                 pathOverride: _editMode && _showTuned ? _pathOverride : null,
               ),
               const SizedBox(height: 12),
@@ -249,6 +286,9 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
       );
     }
     final canEdit = !draft.locked;
+    final components = draft.effectiveComponents;
+    final activeIndex = _activeComponentIndex.clamp(0, components.length - 1);
+    final component = components[activeIndex];
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -260,9 +300,32 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
               style: Theme.of(context).textTheme.titleSmall,
             ),
             Text('SVG ID: ${draft.regionId}'),
+            Text('COMPONENT ${activeIndex + 1} / ${components.length}'),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (var i = 0; i < components.length; i++)
+                  ChoiceChip(
+                    label: Text('${i + 1} ${components[i].shape.label}'),
+                    selected: i == activeIndex,
+                    onSelected: (_) =>
+                        setState(() => _activeComponentIndex = i),
+                  ),
+                OutlinedButton.icon(
+                  onPressed:
+                      canEdit &&
+                          components.length <
+                              BodyMapGeometryTunerController.maxComponents
+                      ? () => _showAddShape(draft)
+                      : null,
+                  icon: const Icon(Icons.add),
+                  label: const Text('ADD SHAPE'),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<BodyMapGeometryShape>(
-              initialValue: draft.shape,
+              initialValue: component.shape,
               decoration: const InputDecoration(labelText: 'SHAPE'),
               items: BodyMapGeometryShape.values
                   .map(
@@ -274,7 +337,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                   .toList(),
               onChanged: canEdit
                   ? (shape) =>
-                        _updateDraft((value) => value.copyWith(shape: shape))
+                        _updateComponent(component.copyWith(shape: shape!))
                   : null,
             ),
             SwitchListTile(
@@ -288,48 +351,51 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
             ),
             _controlRow(
               'X',
-              draft.x,
+              component.x,
               _fineAdjustments ? .5 : 2,
               (delta) =>
-                  _updateDraft((value) => value.copyWith(x: value.x + delta)),
+                  _updateComponent(component.copyWith(x: component.x + delta)),
               canEdit,
             ),
             _controlRow(
               'Y',
-              draft.y,
+              component.y,
               _fineAdjustments ? .5 : 2,
               (delta) =>
-                  _updateDraft((value) => value.copyWith(y: value.y + delta)),
+                  _updateComponent(component.copyWith(y: component.y + delta)),
               canEdit,
             ),
             _controlRow(
               'WIDTH',
-              draft.width,
+              component.width,
               _fineAdjustments ? .5 : 2,
-              (delta) => _updateDraft(
-                (value) =>
-                    value.copyWith(width: (value.width + delta).clamp(.5, 200)),
+              (delta) => _updateComponent(
+                component.copyWith(
+                  width: (component.width + delta).clamp(.5, 200).toDouble(),
+                ),
               ),
               canEdit,
             ),
             _controlRow(
               'HEIGHT',
-              draft.height,
+              component.height,
               _fineAdjustments ? .5 : 2,
-              (delta) => _updateDraft(
-                (value) => value.copyWith(
-                  height: (value.height + delta).clamp(.5, 340),
+              (delta) => _updateComponent(
+                component.copyWith(
+                  height: (component.height + delta).clamp(.5, 340).toDouble(),
                 ),
               ),
               canEdit,
             ),
             _controlRow(
               'ROTATION',
-              draft.rotationDeg,
+              component.rotationDeg,
               _fineAdjustments ? 1 : 5,
-              (delta) => _updateDraft(
-                (value) => value.copyWith(
-                  rotationDeg: (value.rotationDeg + delta).clamp(-90, 90),
+              (delta) => _updateComponent(
+                component.copyWith(
+                  rotationDeg: (component.rotationDeg + delta)
+                      .clamp(-90, 90)
+                      .toDouble(),
                 ),
               ),
               canEdit,
@@ -337,32 +403,36 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
             ),
             _controlRow(
               'SCALE X',
-              draft.scaleX,
+              component.scaleX,
               _fineAdjustments ? .01 : .05,
-              (delta) => _updateDraft(
-                (value) =>
-                    value.copyWith(scaleX: (value.scaleX + delta).clamp(.1, 3)),
+              (delta) => _updateComponent(
+                component.copyWith(
+                  scaleX: (component.scaleX + delta).clamp(.1, 3).toDouble(),
+                ),
               ),
               canEdit,
             ),
             _controlRow(
               'SCALE Y',
-              draft.scaleY,
+              component.scaleY,
               _fineAdjustments ? .01 : .05,
-              (delta) => _updateDraft(
-                (value) =>
-                    value.copyWith(scaleY: (value.scaleY + delta).clamp(.1, 3)),
+              (delta) => _updateComponent(
+                component.copyWith(
+                  scaleY: (component.scaleY + delta).clamp(.1, 3).toDouble(),
+                ),
               ),
               canEdit,
             ),
-            if (draft.shape == BodyMapGeometryShape.roundedRect)
+            if (component.shape == BodyMapGeometryShape.roundedRect)
               _controlRow(
                 'CORNER',
-                draft.cornerRadius,
+                component.cornerRadius,
                 _fineAdjustments ? .5 : 2,
-                (delta) => _updateDraft(
-                  (value) => value.copyWith(
-                    cornerRadius: (value.cornerRadius + delta).clamp(0, 100),
+                (delta) => _updateComponent(
+                  component.copyWith(
+                    cornerRadius: (component.cornerRadius + delta)
+                        .clamp(0, 100)
+                        .toDouble(),
                   ),
                 ),
                 canEdit,
@@ -392,6 +462,39 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                   onPressed: () =>
                       _tuner.resetRegion(_sideName, draft.regionId),
                   child: const Text('RESET REGION'),
+                ),
+                OutlinedButton(
+                  onPressed:
+                      canEdit &&
+                          components.length <
+                              BodyMapGeometryTunerController.maxComponents
+                      ? () {
+                          if (_tuner.duplicateComponent(
+                            _sideName,
+                            draft.regionId,
+                            activeIndex,
+                          )) {
+                            setState(
+                              () => _activeComponentIndex = components.length,
+                            );
+                          }
+                        }
+                      : null,
+                  child: const Text('DUPLICATE COMPONENT'),
+                ),
+                OutlinedButton(
+                  onPressed: canEdit && components.length > 1
+                      ? () {
+                          if (_tuner.deleteComponent(
+                            _sideName,
+                            draft.regionId,
+                            activeIndex,
+                          )) {
+                            setState(() => _activeComponentIndex = 0);
+                          }
+                        }
+                      : null,
+                  child: const Text('DELETE COMPONENT'),
                 ),
                 FilledButton.tonal(
                   onPressed: () =>
