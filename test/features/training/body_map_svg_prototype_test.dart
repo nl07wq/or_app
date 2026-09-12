@@ -1,3 +1,5 @@
+import 'dart:ui' show Path, PathOperation;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:or_app/features/training/services/training_history_domain_service.dart';
@@ -52,6 +54,34 @@ void main() {
     );
   });
 
+  testWidgets('keeps six visual core panels as one logical core path', (
+    tester,
+  ) async {
+    const corePanels = [
+      Offset(90, 132),
+      Offset(110, 132),
+      Offset(90, 153),
+      Offset(110, 153),
+      Offset(90, 174),
+      Offset(110, 174),
+    ];
+    final core = (await loadSvgBodyMap(
+      SvgBodyMapSide.front,
+    )).paths['front-core']!;
+
+    final components = core.computeMetrics().toList();
+    expect(components, hasLength(6));
+    expect(components.every((component) => component.length > 0), isTrue);
+    for (final point in corePanels) {
+      expect(core.contains(point), isTrue, reason: '$point is a core panel');
+    }
+    expect(core.contains(const Offset(100, 132)), isFalse);
+    expect(
+      svgBodyMapMuscles[SvgBodyMapSide.front]!['front-core'],
+      MuscleGroup.core,
+    );
+  });
+
   testWidgets('loads both shipped body-map assets with their stable regions', (
     tester,
   ) async {
@@ -67,6 +97,7 @@ void main() {
     );
     expect(frontDocument.paths['front-body'], isNotNull);
     expect(backDocument.paths['back-body'], isNotNull);
+    expect(frontDocument.paths['front-core']!.computeMetrics(), hasLength(6));
   });
 
   testWidgets(
@@ -126,6 +157,54 @@ void main() {
     },
   );
 
+  testWidgets('keeps adjacent torso regions visibly separate', (tester) async {
+    final front = await loadSvgBodyMap(SvgBodyMapSide.front);
+    final back = await loadSvgBodyMap(SvgBodyMapSide.back);
+
+    expect(
+      _hasNoOverlap(
+        front.paths['front-chest-left']!,
+        front.paths['front-shoulder-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        front.paths['front-chest-right']!,
+        front.paths['front-shoulder-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-trapezius']!,
+        back.paths['back-shoulder-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-trapezius']!,
+        back.paths['back-shoulder-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-trapezius']!,
+        back.paths['back-lats-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-lats-left']!,
+        back.paths['back-lats-right']!,
+      ),
+      isTrue,
+    );
+  });
+
   testWidgets('raises the lower-body semantic stack', (tester) async {
     final front = await loadSvgBodyMap(SvgBodyMapSide.front);
     final back = await loadSvgBodyMap(SvgBodyMapSide.back);
@@ -138,19 +217,22 @@ void main() {
     final leftHamstrings = back.paths['back-hamstrings-left']!.getBounds();
 
     expect(body.contains(const Offset(71, 150)), isFalse);
-    expect(body.contains(const Offset(74, 202)), isTrue);
-    expect(body.contains(const Offset(94, 218)), isTrue);
+    expect(body.contains(const Offset(74, 188)), isTrue);
+    expect(body.contains(const Offset(100, 188)), isTrue);
+    expect(body.contains(const Offset(100, 192)), isFalse);
     expect(leftLats.top, lessThan(102));
     expect((leftLats.top - trapezius.bottom).abs(), lessThan(12));
     expect(leftLats.height, greaterThan(30));
     expect(leftLats.height, lessThan(65));
     expect(rightLats.height, closeTo(leftLats.height, .01));
     expect(leftLats.bottom, lessThan(160));
-    expect(leftQuadriceps.top, lessThan(205));
+    expect(leftQuadriceps.top, lessThan(198));
     expect(leftGlutes.top, lessThan(162));
-    expect(leftHamstrings.top, lessThan(204));
+    expect(leftHamstrings.top, lessThan(200));
     expect(leftGlutes.top - leftLats.bottom, lessThan(8));
     expect(leftHamstrings.top - leftGlutes.bottom, lessThan(14));
+    expect(leftGlutes.bottom, closeTo(190, 3));
+    expect(body.contains(Offset(100, leftGlutes.bottom + 2)), isFalse);
   });
 }
 
@@ -181,3 +263,9 @@ void _expectMirrorPairs(
     );
   }
 }
+
+bool _hasNoOverlap(Path first, Path second) => Path.combine(
+  PathOperation.intersect,
+  first,
+  second,
+).computeMetrics().isEmpty;

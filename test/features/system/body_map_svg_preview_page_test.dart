@@ -8,15 +8,26 @@ void main() {
     tester,
   ) async {
     await _pump(tester, 390);
+    await _tapRegion(tester, 'svg-body-map-front', 65, 90);
+    expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-front', 75, 112);
     expect(find.text('SELECTED: CHEST'), findsOneWidget);
-    await _tapRegion(tester, 'svg-body-map-front', 100, 150);
-    expect(find.text('SELECTED: CORE'), findsOneWidget);
+    for (final point in const [
+      Offset(90, 132),
+      Offset(110, 132),
+      Offset(90, 153),
+      Offset(110, 153),
+      Offset(90, 174),
+      Offset(110, 174),
+    ]) {
+      await _tapRegion(tester, 'svg-body-map-front', point.dx, point.dy);
+      expect(find.text('SELECTED: CORE'), findsOneWidget);
+    }
+    await _setRecovery(tester, '回復中');
+    await _setSupport(tester, true);
     await _tapRegion(tester, 'svg-body-map-front', 82, 220);
     expect(find.text('SELECTED: QUADRICEPS'), findsOneWidget);
 
-    await _setRecovery(tester, '回復中');
-    await _setSupport(tester, true);
     expect(tester.takeException(), isNull);
 
     await _scrollToTop(tester);
@@ -27,6 +38,8 @@ void main() {
 
     await _tapRegion(tester, 'svg-body-map-back', 80, 130);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-back', 65, 90);
+    expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 100, 90);
     expect(find.text('SELECTED: TRAPEZIUS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 80, 175);
