@@ -177,6 +177,20 @@ void main() {
     );
     expect(
       _hasNoOverlap(
+        front.paths['front-shoulder-left']!,
+        front.paths['front-biceps-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        front.paths['front-shoulder-right']!,
+        front.paths['front-biceps-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
         back.paths['back-trapezius']!,
         back.paths['back-shoulder-left']!,
       ),
@@ -186,6 +200,20 @@ void main() {
       _hasNoOverlap(
         back.paths['back-trapezius']!,
         back.paths['back-shoulder-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-shoulder-left']!,
+        back.paths['back-triceps-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-shoulder-right']!,
+        back.paths['back-triceps-right']!,
       ),
       isTrue,
     );
@@ -202,6 +230,30 @@ void main() {
         back.paths['back-lats-right']!,
       ),
       isTrue,
+    );
+  });
+
+  testWidgets('keeps arm regions aligned to the shared limb axis', (
+    tester,
+  ) async {
+    final front = await loadSvgBodyMap(SvgBodyMapSide.front);
+    final back = await loadSvgBodyMap(SvgBodyMapSide.back);
+
+    _expectArmAxis(
+      front,
+      'front-shoulder-left',
+      'front-biceps-left',
+      'front-forearm-left',
+    );
+    _expectArmAxis(
+      back,
+      'back-shoulder-left',
+      'back-triceps-left',
+      'back-forearm-left',
+    );
+    expect(
+      front.paths['front-shoulder-left']!.getBounds(),
+      equals(back.paths['back-shoulder-left']!.getBounds()),
     );
   });
 
@@ -269,3 +321,20 @@ bool _hasNoOverlap(Path first, Path second) => Path.combine(
   first,
   second,
 ).computeMetrics().isEmpty;
+
+void _expectArmAxis(
+  SvgBodyMapDocument document,
+  String shoulderId,
+  String upperArmId,
+  String forearmId,
+) {
+  final shoulder = document.paths[shoulderId]!.getBounds().center;
+  final upperArm = document.paths[upperArmId]!.getBounds().center;
+  final forearm = document.paths[forearmId]!.getBounds().center;
+  final upperSlope = (shoulder.dx - upperArm.dx) / (upperArm.dy - shoulder.dy);
+  final forearmSlope = (upperArm.dx - forearm.dx) / (forearm.dy - upperArm.dy);
+
+  expect(upperArm.dx, lessThan(shoulder.dx), reason: upperArmId);
+  expect(forearm.dx, lessThan(upperArm.dx), reason: forearmId);
+  expect(forearmSlope, closeTo(upperSlope, .08));
+}

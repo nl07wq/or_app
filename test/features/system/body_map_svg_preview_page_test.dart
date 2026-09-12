@@ -10,6 +10,10 @@ void main() {
     await _pump(tester, 390);
     await _tapRegion(tester, 'svg-body-map-front', 65, 90);
     expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-front', 60, 125);
+    expect(find.text('SELECTED: BICEPS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-front', 55, 165);
+    expect(find.text('SELECTED: FOREARMS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-front', 75, 112);
     expect(find.text('SELECTED: CHEST'), findsOneWidget);
     for (final point in const [
@@ -40,6 +44,10 @@ void main() {
     expect(find.text('SELECTED: LATS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 65, 90);
     expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-back', 60, 125);
+    expect(find.text('SELECTED: TRICEPS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-back', 55, 165);
+    expect(find.text('SELECTED: FOREARMS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 100, 90);
     expect(find.text('SELECTED: TRAPEZIUS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 80, 175);
