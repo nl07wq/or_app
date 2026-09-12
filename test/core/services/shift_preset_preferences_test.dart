@@ -53,6 +53,24 @@ void main() {
     );
   });
 
+  test('reloads presets in their persisted order', () async {
+    final reordered = [
+      ShiftPresetPreferences.defaults[2].copyWith(order: 0),
+      ShiftPresetPreferences.defaults[0].copyWith(order: 1),
+      ShiftPresetPreferences.defaults[1].copyWith(order: 2),
+    ];
+
+    await ShiftPresetPreferences.save(reordered);
+
+    final loaded = await ShiftPresetPreferences.load();
+    expect(loaded.map((preset) => preset.id), [
+      'shift_late',
+      'shift_early',
+      'shift_middle',
+    ]);
+    expect(loaded.map((preset) => preset.order), [0, 1, 2]);
+  });
+
   test('allows overnight times and rejects equal start and end times', () {
     expect(
       ShiftPresetPreferences.isValidEditablePreset(

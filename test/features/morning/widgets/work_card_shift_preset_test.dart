@@ -120,26 +120,135 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders safely at mobile and wider widths', (tester) async {
+  testWidgets('reorder persists normalized order and updates shift buttons', (
+    tester,
+  ) async {
+    await ShiftPresetPreferences.save([
+      ...ShiftPresetPreferences.defaults,
+      const ShiftPreset(
+        id: 'shift_morning',
+        name: '朝番',
+        startTime: '09:00',
+        endTime: '18:00',
+        breakTime: '01:00',
+        order: 3,
+      ),
+    ]);
+    final start = TextEditingController();
+    final end = TextEditingController();
+    final workBreak = TextEditingController();
+    addTearDown(start.dispose);
+    addTearDown(end.dispose);
+    addTearDown(workBreak.dispose);
+
+    await _pump(tester, start: start, end: end, workBreak: workBreak);
+    await tester.pumpAndSettle();
+    expect(_shiftChipNames(tester), ['早番', '中番', '遅番', '朝番']);
+
+    await tester.tap(find.byTooltip('EDIT SHIFT PRESETS'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReorderableDragStartListener), findsNWidgets(4));
+    final list = tester.widget<ReorderableListView>(
+      find.byType(ReorderableListView),
+    );
+    list.onReorderItem!(3, 0);
+    await tester.pumpAndSettle();
+
+    expect((await ShiftPresetPreferences.load()).map((preset) => preset.id), [
+      'shift_morning',
+      'shift_early',
+      'shift_middle',
+      'shift_late',
+    ]);
+    expect(
+      (await ShiftPresetPreferences.load()).map((preset) => preset.order),
+      [0, 1, 2, 3],
+    );
+
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(_shiftChipNames(tester), ['朝番', '早番', '中番', '遅番']);
+
+    await tester.tap(find.byTooltip('EDIT SHIFT PRESETS'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('DELETE PRESET').first);
+    await tester.pumpAndSettle();
+    expect((await ShiftPresetPreferences.load()).map((preset) => preset.id), [
+      'shift_early',
+      'shift_middle',
+      'shift_late',
+    ]);
+    expect(
+      (await ShiftPresetPreferences.load()).map((preset) => preset.order),
+      [0, 1, 2],
+    );
+  });
+
+  testWidgets('renders one horizontal preset row at mobile and wider widths', (
+    tester,
+  ) async {
     for (final width in [320.0, 390.0, 900.0]) {
-      final start = TextEditingController();
-      final end = TextEditingController();
-      final workBreak = TextEditingController();
-      await _pump(
-        tester,
-        start: start,
-        end: end,
-        workBreak: workBreak,
-        width: width,
-      );
-      await tester.pumpAndSettle();
-      expect(find.byTooltip('EDIT SHIFT PRESETS'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      start.dispose();
-      end.dispose();
-      workBreak.dispose();
+      for (var count = 1; count <= 4; count++) {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await ShiftPresetPreferences.save(_presetsForCount(count));
+        final start = TextEditingController();
+        final end = TextEditingController();
+        final workBreak = TextEditingController();
+        await _pump(
+          tester,
+          start: start,
+          end: end,
+          workBreak: workBreak,
+          width: width,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('EDIT SHIFT PRESETS'), findsOneWidget);
+        final chips = _shiftChips(tester);
+        expect(chips, hasLength(count));
+        expect(
+          chips.map((chip) => tester.getTopLeft(chip).dy).toSet(),
+          hasLength(1),
+        );
+        expect(tester.takeException(), isNull);
+        start.dispose();
+        end.dispose();
+        workBreak.dispose();
+      }
     }
   });
+}
+
+List<Finder> _shiftChips(WidgetTester tester) {
+  return [
+    for (final name in _shiftChipNames(tester))
+      find.widgetWithText(ChoiceChip, name),
+  ];
+}
+
+List<String> _shiftChipNames(WidgetTester tester) {
+  return tester
+      .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+      .map((chip) => chip.label)
+      .whereType<Text>()
+      .map((label) => label.data)
+      .whereType<String>()
+      .toList();
+}
+
+List<ShiftPreset> _presetsForCount(int count) {
+  const fourthPreset = ShiftPreset(
+    id: 'shift_morning',
+    name: '朝番',
+    startTime: '09:00',
+    endTime: '18:00',
+    breakTime: '01:00',
+    order: 3,
+  );
+  return [
+    ...ShiftPresetPreferences.defaults,
+    fourthPreset,
+  ].take(count).toList();
 }
 
 Future<void> _pump(

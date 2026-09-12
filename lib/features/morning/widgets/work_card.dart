@@ -101,37 +101,66 @@ class _WorkCardState extends State<WorkCard> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      for (final preset in _presets)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(preset.name),
-                          subtitle: Text(
-                            '${preset.startTime} → ${preset.endTime}',
-                          ),
-                          onTap: () async {
-                            final result = await _showPresetEditor(
-                              context,
-                              preset: preset,
-                            );
-                            if (result == null) return;
-                            final next = [
-                              for (final value in _presets)
-                                if (value.id == preset.id) result else value,
-                            ];
-                            await refresh(next);
-                          },
-                          trailing: IconButton(
-                            tooltip: 'DELETE PRESET',
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () async {
-                              await refresh(
-                                _presets
-                                    .where((value) => value.id != preset.id)
-                                    .toList(),
+                      ReorderableListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        buildDefaultDragHandles: false,
+                        itemCount: _presets.length,
+                        onReorderItem: (oldIndex, newIndex) async {
+                          final next = List<ShiftPreset>.of(_presets);
+                          final preset = next.removeAt(oldIndex);
+                          next.insert(newIndex, preset);
+                          await refresh(next);
+                        },
+                        itemBuilder: (context, index) {
+                          final preset = _presets[index];
+                          return ListTile(
+                            key: ValueKey(preset.id),
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(preset.name),
+                            subtitle: Text(
+                              '${preset.startTime} → ${preset.endTime}',
+                            ),
+                            onTap: () async {
+                              final result = await _showPresetEditor(
+                                context,
+                                preset: preset,
                               );
+                              if (result == null) return;
+                              final next = [
+                                for (final value in _presets)
+                                  if (value.id == preset.id) result else value,
+                              ];
+                              await refresh(next);
                             },
-                          ),
-                        ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'DELETE PRESET',
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () async {
+                                    await refresh(
+                                      _presets
+                                          .where(
+                                            (value) => value.id != preset.id,
+                                          )
+                                          .toList(),
+                                    );
+                                  },
+                                ),
+                                ReorderableDragStartListener(
+                                  index: index,
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Icon(Icons.drag_handle),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                       if (_presets.length < ShiftPresetPreferences.maxPresets)
                         TextButton.icon(
                           onPressed: () async {
@@ -209,31 +238,24 @@ class _WorkCardState extends State<WorkCard> {
 
             const SizedBox(height: 12),
 
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final twoColumns = constraints.maxWidth >= 280;
-                final itemWidth = twoColumns
-                    ? (constraints.maxWidth - 8) / 2
-                    : constraints.maxWidth;
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final preset in _presets)
-                      SizedBox(
-                        width: itemWidth,
-                        child: ChoiceChip(
-                          label: Text(
-                            preset.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          selected: false,
-                          onSelected: (_) => _applyPreset(preset),
-                        ),
+            Row(
+              children: [
+                for (var index = 0; index < _presets.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 4),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text(
+                        _presets[index].name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                  ],
-                );
-              },
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      selected: false,
+                      onSelected: (_) => _applyPreset(_presets[index]),
+                    ),
+                  ),
+                ],
+              ],
             ),
 
             const SizedBox(height: 20),
