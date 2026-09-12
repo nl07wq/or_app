@@ -126,23 +126,31 @@ void main() {
     },
   );
 
-  testWidgets('compresses the torso and back semantic stack', (tester) async {
+  testWidgets('raises the lower-body semantic stack', (tester) async {
     final front = await loadSvgBodyMap(SvgBodyMapSide.front);
     final back = await loadSvgBodyMap(SvgBodyMapSide.back);
     final body = front.paths['front-body']!;
     final trapezius = back.paths['back-trapezius']!.getBounds();
     final leftLats = back.paths['back-lats-left']!.getBounds();
     final rightLats = back.paths['back-lats-right']!.getBounds();
+    final leftQuadriceps = front.paths['front-quadriceps-left']!.getBounds();
+    final leftGlutes = back.paths['back-glutes-left']!.getBounds();
+    final leftHamstrings = back.paths['back-hamstrings-left']!.getBounds();
 
     expect(body.contains(const Offset(71, 150)), isFalse);
-    expect(body.contains(const Offset(74, 210)), isTrue);
-    expect(body.contains(const Offset(94, 226)), isTrue);
+    expect(body.contains(const Offset(74, 202)), isTrue);
+    expect(body.contains(const Offset(94, 218)), isTrue);
     expect(leftLats.top, lessThan(102));
     expect((leftLats.top - trapezius.bottom).abs(), lessThan(12));
     expect(leftLats.height, greaterThan(30));
     expect(leftLats.height, lessThan(65));
     expect(rightLats.height, closeTo(leftLats.height, .01));
     expect(leftLats.bottom, lessThan(160));
+    expect(leftQuadriceps.top, lessThan(205));
+    expect(leftGlutes.top, lessThan(162));
+    expect(leftHamstrings.top, lessThan(204));
+    expect(leftGlutes.top - leftLats.bottom, lessThan(8));
+    expect(leftHamstrings.top - leftGlutes.bottom, lessThan(14));
   });
 }
 
