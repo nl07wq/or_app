@@ -60,10 +60,10 @@ void main() {
     const corePanels = [
       Offset(90, 132),
       Offset(110, 132),
-      Offset(90, 153),
-      Offset(110, 153),
-      Offset(90, 174),
-      Offset(110, 174),
+      Offset(90, 151),
+      Offset(110, 151),
+      Offset(90, 170),
+      Offset(110, 170),
     ];
     final core = (await loadSvgBodyMap(
       SvgBodyMapSide.front,
@@ -231,6 +231,41 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      _hasNoOverlap(
+        front.paths['front-core']!,
+        front.paths['front-quadriceps-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        front.paths['front-core']!,
+        front.paths['front-quadriceps-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-lats-left']!,
+        back.paths['back-glutes-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-glutes-left']!,
+        back.paths['back-hamstrings-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-hamstrings-left']!,
+        back.paths['back-calves-left']!,
+      ),
+      isTrue,
+    );
   });
 
   testWidgets('keeps arm regions aligned to the shared limb axis', (
@@ -273,11 +308,19 @@ void main() {
     final deltoidBounds = frontDeltoid.getBounds();
     final trapeziusBounds = trapezius.getBounds();
 
-    expect(deltoidBounds.width, greaterThan(10));
+    expect(deltoidBounds.width, greaterThan(5));
     expect(deltoidBounds.top, lessThan(80));
     expect(chest.getBounds().left, greaterThan(deltoidBounds.right));
-    expect(frontDeltoid.contains(const Offset(64, 90)), isTrue);
-    expect(backDeltoid.contains(const Offset(64, 90)), isTrue);
+    expect(frontDeltoid.contains(const Offset(67, 88)), isTrue);
+    expect(backDeltoid.contains(const Offset(67, 88)), isTrue);
+    expect(
+      _isContainedBy(frontDeltoid, front.paths['front-body']!),
+      isTrue,
+    );
+    expect(
+      _isContainedBy(backDeltoid, back.paths['back-body']!),
+      isTrue,
+    );
     expect(trapeziusBounds.width, lessThan(50));
     expect(trapeziusBounds.center.dx, closeTo(100, .01));
     expect(trapezius.contains(const Offset(100, 85)), isTrue);
@@ -293,6 +336,7 @@ void main() {
     final leftQuadriceps = front.paths['front-quadriceps-left']!.getBounds();
     final leftGlutes = back.paths['back-glutes-left']!.getBounds();
     final leftHamstrings = back.paths['back-hamstrings-left']!.getBounds();
+    final leftCalves = back.paths['back-calves-left']!.getBounds();
 
     expect(body.contains(const Offset(71, 150)), isFalse);
     expect(body.contains(const Offset(74, 188)), isTrue);
@@ -304,14 +348,21 @@ void main() {
     expect(leftLats.height, lessThan(65));
     expect(rightLats.height, closeTo(leftLats.height, .01));
     expect(leftLats.bottom, lessThan(160));
-    expect(leftQuadriceps.top, lessThan(198));
+    expect(leftQuadriceps.top, lessThan(193));
     expect(leftGlutes.top, lessThan(162));
     expect(leftHamstrings.top, lessThan(200));
     expect(leftGlutes.top - leftLats.bottom, lessThan(8));
     expect(leftHamstrings.top - leftGlutes.bottom, lessThan(14));
+    expect(leftCalves.top - leftHamstrings.bottom, lessThan(7));
     expect(leftGlutes.bottom, closeTo(190, 3));
     expect(body.contains(Offset(100, leftGlutes.bottom + 2)), isFalse);
   });
+}
+
+bool _isContainedBy(Path region, Path body) {
+  return Path.combine(PathOperation.difference, region, body)
+      .computeMetrics()
+      .isEmpty;
 }
 
 String _bodyPathData(String svg, String id) {

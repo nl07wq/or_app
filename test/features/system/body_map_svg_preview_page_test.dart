@@ -8,7 +8,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester, 390);
-    await _tapRegion(tester, 'svg-body-map-front', 65, 90);
+    await _tapRegion(tester, 'svg-body-map-front', 68, 88);
     expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-front', 60, 125);
     expect(find.text('SELECTED: BICEPS'), findsOneWidget);
@@ -21,8 +21,8 @@ void main() {
       Offset(110, 132),
       Offset(90, 153),
       Offset(110, 153),
-      Offset(90, 174),
-      Offset(110, 174),
+      Offset(90, 170),
+      Offset(110, 170),
     ]) {
       await _tapRegion(tester, 'svg-body-map-front', point.dx, point.dy);
       expect(find.text('SELECTED: CORE'), findsOneWidget);
@@ -42,7 +42,7 @@ void main() {
 
     await _tapRegion(tester, 'svg-body-map-back', 80, 130);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
-    await _tapRegion(tester, 'svg-body-map-back', 65, 90);
+    await _tapRegion(tester, 'svg-body-map-back', 68, 88);
     expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 60, 125);
     expect(find.text('SELECTED: TRICEPS'), findsOneWidget);
