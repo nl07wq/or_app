@@ -14,6 +14,7 @@ enum BodyReferenceSourceType {
   measuredToday,
   sevenDayMean,
   fourteenDayMean,
+  latestRecordedFallback,
   notAvailable,
 }
 

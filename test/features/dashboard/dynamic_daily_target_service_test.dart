@@ -177,7 +177,7 @@ void main() {
     );
 
     test(
-      'stays unavailable without a formal STATUS for that operation date',
+      'uses the latest valid formal STATUS when the operation date is missing',
       () async {
         final container = AppRepositoryContainer.indexedDb(
           FakeIndexedDbDatabase(),
@@ -204,9 +204,85 @@ void main() {
               training: null,
             );
 
-        expect(target.nutritionTargetsAvailable, isFalse);
+        expect(target.nutritionTargetsAvailable, isTrue);
+        expect(target.referenceBody.weight.value, 90);
+        expect(
+          target.referenceBody.weight.sourceType,
+          BodyReferenceSourceType.latestRecordedFallback,
+        );
+        expect(target.estimatedBaseBurnKcal, 1980);
       },
     );
+
+    test('skips invalid status weight and never reads future STATUS', () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(
+        _status('2026-08-08', weight: 80, bodyFat: 20),
+      );
+      await container.status.save(
+        _status('2026-08-09', weight: null, bodyFat: null),
+      );
+      await container.status.save(
+        _status('2026-08-11', weight: 120, bodyFat: 30),
+      );
+
+      final target =
+          await DynamicDailyTargetService(
+            statusRepository: container.status,
+            trainingRepository: container.training,
+          ).loadForOperationDate(
+            operationDate: '2026-08-10',
+            food: const FoodSummary(
+              calories: 1600,
+              protein: 100,
+              fat: 45,
+              carbohydrates: 180,
+              hydrationMl: 0,
+              mealCount: 1,
+            ),
+            activity: const ActivitySummary.empty(),
+            training: null,
+          );
+
+      expect(target.nutritionTargetsAvailable, isTrue);
+      expect(target.referenceBody.weight.value, 80);
+      expect(target.estimatedBaseBurnKcal, 1760);
+    });
+
+    test('remains unavailable when no valid STATUS exists', () async {
+      final container = AppRepositoryContainer.indexedDb(
+        FakeIndexedDbDatabase(),
+      );
+      await container.status.save(
+        _status('2026-08-09', weight: 0, bodyFat: 20),
+      );
+
+      final target =
+          await DynamicDailyTargetService(
+            statusRepository: container.status,
+            trainingRepository: container.training,
+          ).loadForOperationDate(
+            operationDate: '2026-08-10',
+            food: const FoodSummary(
+              calories: 1600,
+              protein: 100,
+              fat: 45,
+              carbohydrates: 180,
+              hydrationMl: 0,
+              mealCount: 1,
+            ),
+            activity: const ActivitySummary.empty(),
+            training: null,
+          );
+
+      expect(target.nutritionTargetsAvailable, isFalse);
+      expect(
+        target.calories.availability,
+        DynamicTargetAvailability.notAvailable,
+      );
+    });
 
     test(
       're-resolves target-relevant STATUS updates without stale values',
@@ -214,7 +290,10 @@ void main() {
         final container = AppRepositoryContainer.indexedDb(
           FakeIndexedDbDatabase(),
         );
-        for (final record in _referenceHistory(weight: 90, bodyFat: 20)) {
+        for (final record in _referenceHistory(
+          weight: 90,
+          bodyFat: 20,
+        ).take(2)) {
           await container.status.save(record);
         }
         final service = DynamicDailyTargetService(
@@ -244,6 +323,10 @@ void main() {
         final after = await resolve();
 
         expect(before.nutritionTargetsAvailable, isTrue);
+        expect(
+          before.referenceBody.weight.sourceType,
+          BodyReferenceSourceType.latestRecordedFallback,
+        );
         expect(after.nutritionTargetsAvailable, isTrue);
         expect(
           after.estimatedBaseBurnKcal,

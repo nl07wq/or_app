@@ -21,19 +21,28 @@ class DynamicDailyTargetService {
 
   /// Resolves a date-bound target from the canonical formal STATUS record.
   ///
-  /// Analysis surfaces must not reconstruct the current STATUS through a
-  /// separate read path: target availability depends on the formal record for
-  /// the same operation date.
+  /// Analysis surfaces use canonical formal STATUS data only. A valid
+  /// same-day record takes precedence; otherwise the latest valid record at
+  /// or before [operationDate] supplies the reference STATUS. This keeps the
+  /// baseline target available before today's STATUS has been entered without
+  /// treating a draft as formal data.
   Future<DynamicDailyTargetResult> loadForOperationDate({
     required String operationDate,
     required FoodSummary? food,
     required ActivitySummary activity,
     required TrainingSummary? training,
   }) async {
-    final status = await statusRepository.findByLocalDate(operationDate);
-    return load(
+    final statusRecords = await statusRepository.findAllCanonical();
+    final referenceStatus = _referenceStatus(
+      operationDate,
+      statusRecords.values,
+    );
+    return _load(
       operationDate: operationDate,
-      currentStatus: status == null ? null : _toMorningFact(status),
+      statusHistory: statusRecords.values,
+      currentStatus: referenceStatus == null
+          ? null
+          : _toMorningFact(referenceStatus),
       food: food,
       activity: activity,
       training: training,
@@ -47,12 +56,25 @@ class DynamicDailyTargetService {
     required ActivitySummary activity,
     required TrainingSummary? training,
   }) async {
-    final date = DateTime.parse(operationDate);
-    final start = DateTime(date.year, date.month, date.day - 13);
-    final statusRecords = await statusRepository.getRange(
-      _formatDate(start),
-      operationDate,
+    final statusRecords = await statusRepository.findAllCanonical();
+    return _load(
+      operationDate: operationDate,
+      statusHistory: statusRecords.values,
+      currentStatus: currentStatus,
+      food: food,
+      activity: activity,
+      training: training,
     );
+  }
+
+  Future<DynamicDailyTargetResult> _load({
+    required String operationDate,
+    required Iterable<MorningData> statusHistory,
+    required MorningFact? currentStatus,
+    required FoodSummary? food,
+    required ActivitySummary activity,
+    required TrainingSummary? training,
+  }) async {
     final trainingRecords = await trainingRepository.findRecordsByLocalDate(
       operationDate,
     );
@@ -71,7 +93,7 @@ class DynamicDailyTargetService {
 
     return DynamicDailyTargetEngine.evaluate(
       operationDate: operationDate,
-      statusHistory: statusRecords.values,
+      statusHistory: statusHistory,
       currentStatus: currentStatus,
       currentCaloriesKcal: food == null || food.mealCount == 0
           ? null
@@ -88,6 +110,20 @@ class DynamicDailyTargetService {
       formalCardioAtLeast30Minutes: trainingRecords.any(_hasThirtyMinuteCardio),
       trainingEnergyKcal: energyAvailable ? trainingEnergy ?? 0 : null,
     );
+  }
+
+  static MorningData? _referenceStatus(
+    String operationDate,
+    Iterable<MorningData> records,
+  ) {
+    final candidates = <MorningData>[
+      for (final record in records)
+        if (_localDate(record) case final String localDate)
+          if (localDate.compareTo(operationDate) <= 0)
+            if (record.weight case final double weight)
+              if (weight.isFinite && weight > 0) record,
+    ]..sort((first, second) => second.date.compareTo(first.date));
+    return candidates.isEmpty ? null : candidates.first;
   }
 
   static bool _hasThirtyMinuteCardio(TrainingRecordReadModel record) {
@@ -116,10 +152,12 @@ class DynamicDailyTargetService {
     freeNotes: status.memo.isEmpty ? null : status.memo,
   );
 
-  static String _formatDate(DateTime value) =>
-      '${value.year.toString().padLeft(4, '0')}-'
-      '${value.month.toString().padLeft(2, '0')}-'
-      '${value.day.toString().padLeft(2, '0')}';
+  static String? _localDate(MorningData record) {
+    if (record.date.length < 10 || DateTime.tryParse(record.date) == null) {
+      return null;
+    }
+    return record.date.substring(0, 10);
+  }
 }
 
 abstract final class DynamicDailyTargetEngine {
@@ -136,7 +174,11 @@ abstract final class DynamicDailyTargetEngine {
     required bool formalCardioAtLeast30Minutes,
     required double? trainingEnergyKcal,
   }) {
-    final referenceBody = _referenceBody(operationDate, statusHistory);
+    final referenceBody = _referenceBody(
+      operationDate,
+      statusHistory,
+      referenceStatus: currentStatus,
+    );
     final weight = referenceBody.weight.value;
     final estimatedBaseBurn = currentStatus == null || weight == null
         ? null
@@ -177,8 +219,9 @@ abstract final class DynamicDailyTargetEngine {
 
   static ReferenceBodyState _referenceBody(
     String operationDate,
-    Iterable<MorningData> history,
-  ) {
+    Iterable<MorningData> history, {
+    required MorningFact? referenceStatus,
+  }) {
     final weight = _reference(
       operationDate,
       history,
@@ -191,13 +234,41 @@ abstract final class DynamicDailyTargetEngine {
       (record) => record.bodyFat,
       (value) => value >= 0 && value <= 100,
     );
-    final leanMass = weight.value == null || bodyFat.value == null
+    final fallbackIsHistorical =
+        referenceStatus != null &&
+        _localDate(referenceStatus.date) != operationDate;
+    final resolvedWeight = weight.value == null && fallbackIsHistorical
+        ? _fallbackReference(referenceStatus.weight, (value) => value > 0)
+        : weight;
+    final resolvedBodyFat = bodyFat.value == null && fallbackIsHistorical
+        ? _fallbackReference(
+            referenceStatus.bodyFat,
+            (value) => value >= 0 && value <= 100,
+          )
+        : bodyFat;
+    final leanMass =
+        resolvedWeight.value == null || resolvedBodyFat.value == null
         ? null
-        : weight.value! * (1 - bodyFat.value! / 100);
+        : resolvedWeight.value! * (1 - resolvedBodyFat.value! / 100);
     return ReferenceBodyState(
-      weight: weight,
-      bodyFat: bodyFat,
+      weight: resolvedWeight,
+      bodyFat: resolvedBodyFat,
       leanMassKg: leanMass,
+    );
+  }
+
+  static DerivedBodyReference _fallbackReference(
+    double? value,
+    bool Function(double value) valid,
+  ) {
+    if (value == null || !value.isFinite || !valid(value)) {
+      return const DerivedBodyReference.notAvailable();
+    }
+    return DerivedBodyReference(
+      value: value,
+      sourceType: BodyReferenceSourceType.latestRecordedFallback,
+      sampleCount: 1,
+      windowDays: 1,
     );
   }
 

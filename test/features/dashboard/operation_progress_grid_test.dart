@@ -752,6 +752,30 @@ void main() {
     }
   });
 
+  testWidgets('uses prior formal STATUS targets before today is entered', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _installDdtStatus(includeToday: false);
+      foodSummaryNotifier.value = const FoodSummary(
+        calories: 1100,
+        protein: 50,
+        fat: 30,
+        carbohydrates: 120,
+        hydrationMl: 0,
+        mealCount: 2,
+      );
+
+      await _pumpDashboard(tester, width: width);
+      await tester.pumpAndSettle();
+
+      _expectTileText('STATUS', '未完了');
+      _expectTileText('CALORIES', '1,100 / 2,200 kcal');
+      _expectTileText('PROTEIN', '50 / 135 g');
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets(
     'summary uses label-first accent values and goal cards use green',
     (tester) async {
@@ -1694,13 +1718,13 @@ Future<void> _pumpDashboard(
   await tester.pump();
 }
 
-Future<void> _installDdtStatus() async {
+Future<void> _installDdtStatus({bool includeToday = true}) async {
   final database = FakeIndexedDbDatabase();
   seedOperationState(database, '2026-07-28');
   final container = AppRepositoryContainer.indexedDb(database);
   AppRepositoryRegistry.install(container);
   addTearDown(AppRepositoryRegistry.resetForTesting);
-  for (final day in [26, 27, 28]) {
+  for (final day in includeToday ? [26, 27, 28] : [26, 27]) {
     await container.status.save(
       MorningData(
         date: '2026-07-${day.toString().padLeft(2, '0')}T00:00:00.000',

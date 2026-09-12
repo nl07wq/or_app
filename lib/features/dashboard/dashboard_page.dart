@@ -706,9 +706,8 @@ class _ProgressCardState extends State<_ProgressCard> {
     return DynamicDailyTargetService(
       statusRepository: repositories.status,
       trainingRepository: repositories.training,
-    ).load(
+    ).loadForOperationDate(
       operationDate: operationDate.value,
-      currentStatus: widget.morningFact,
       food: widget.foodSummary,
       activity: widget.activitySummary,
       training: widget.trainingSummary,
