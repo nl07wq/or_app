@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:or_app/features/training/services/training_history_domain_service.dart';
 import 'package:or_app/features/training/widgets/body_map_svg_prototype.dart';
 
@@ -107,6 +108,29 @@ void main() {
       ]);
     },
   );
+
+  testWidgets(
+    'uses one mechanically equivalent body silhouette on both sides',
+    (tester) async {
+      final frontSvg = await rootBundle.loadString(
+        'assets/body_map/body_map_front.svg',
+      );
+      final backSvg = await rootBundle.loadString(
+        'assets/body_map/body_map_back.svg',
+      );
+
+      expect(
+        _bodyPathData(frontSvg, 'front-body'),
+        _bodyPathData(backSvg, 'back-body'),
+      );
+    },
+  );
+}
+
+String _bodyPathData(String svg, String id) {
+  final match = RegExp('<path id="$id" d="([^"]+)"/>').firstMatch(svg);
+  expect(match, isNotNull, reason: '$id is required');
+  return match!.group(1)!;
 }
 
 void _expectMirrorPairs(
