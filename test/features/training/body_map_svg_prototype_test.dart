@@ -126,9 +126,7 @@ void main() {
     },
   );
 
-  testWidgets('keeps the neck compact and lifts lats toward trapezius', (
-    tester,
-  ) async {
+  testWidgets('compresses the torso and back semantic stack', (tester) async {
     final front = await loadSvgBodyMap(SvgBodyMapSide.front);
     final back = await loadSvgBodyMap(SvgBodyMapSide.back);
     final body = front.paths['front-body']!;
@@ -136,12 +134,15 @@ void main() {
     final leftLats = back.paths['back-lats-left']!.getBounds();
     final rightLats = back.paths['back-lats-right']!.getBounds();
 
-    expect(body.contains(const Offset(84, 62)), isFalse);
-    expect(body.contains(const Offset(84, 68)), isTrue);
-    expect(leftLats.top, lessThan(110));
+    expect(body.contains(const Offset(71, 150)), isFalse);
+    expect(body.contains(const Offset(74, 210)), isTrue);
+    expect(body.contains(const Offset(94, 226)), isTrue);
+    expect(leftLats.top, lessThan(102));
     expect((leftLats.top - trapezius.bottom).abs(), lessThan(12));
     expect(leftLats.height, greaterThan(30));
-    expect(rightLats.height, greaterThan(30));
+    expect(leftLats.height, lessThan(65));
+    expect(rightLats.height, closeTo(leftLats.height, .01));
+    expect(leftLats.bottom, lessThan(160));
   });
 }
 

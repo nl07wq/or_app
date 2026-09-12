@@ -10,6 +10,8 @@ void main() {
     await _pump(tester, 390);
     await _tapRegion(tester, 'svg-body-map-front', 75, 112);
     expect(find.text('SELECTED: CHEST'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-front', 100, 150);
+    expect(find.text('SELECTED: CORE'), findsOneWidget);
 
     await _setRecovery(tester, '回復中');
     await _setSupport(tester, true);
@@ -21,11 +23,13 @@ void main() {
     expect(find.byKey(const ValueKey('svg-body-map-back')), findsOneWidget);
     expect(find.text('TAP A MUSCLE REGION'), findsOneWidget);
 
-    await _tapRegion(tester, 'svg-body-map-back', 72, 140);
+    await _tapRegion(tester, 'svg-body-map-back', 80, 130);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 100, 90);
     expect(find.text('SELECTED: TRAPEZIUS'), findsOneWidget);
-    await _tapRegion(tester, 'svg-body-map-back', 72, 140);
+    await _tapRegion(tester, 'svg-body-map-back', 80, 180);
+    expect(find.text('SELECTED: GLUTES'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-back', 80, 130);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
     await _setRecovery(tester, '回復目安に接近');
     await _setSupport(tester, false);
