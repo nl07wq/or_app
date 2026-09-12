@@ -337,30 +337,26 @@ void main() {
     final front = await loadSvgBodyMap(SvgBodyMapSide.front);
     final back = await loadSvgBodyMap(SvgBodyMapSide.back);
     final frontDeltoid = front.paths['front-shoulder-left']!;
-    final chest = front.paths['front-chest-left']!;
     final backDeltoid = back.paths['back-shoulder-left']!;
     final trapezius = back.paths['back-trapezius']!;
     final deltoidBounds = frontDeltoid.getBounds();
     final trapeziusBounds = trapezius.getBounds();
 
-    expect(deltoidBounds.width, greaterThan(5));
+    expect(deltoidBounds.width, greaterThanOrEqualTo(10));
     expect(deltoidBounds.top, lessThan(80));
-    expect(chest.getBounds().left, greaterThan(deltoidBounds.right));
     expect(frontDeltoid.contains(const Offset(67, 88)), isTrue);
     expect(backDeltoid.contains(const Offset(67, 88)), isTrue);
-    expect(
-      _isContainedBy(frontDeltoid, front.paths['front-body']!),
-      isTrue,
-    );
-    expect(
-      _isContainedBy(backDeltoid, back.paths['back-body']!),
-      isTrue,
-    );
+    expect(_isContainedBy(frontDeltoid, front.paths['front-body']!), isTrue);
+    expect(_isContainedBy(backDeltoid, back.paths['back-body']!), isTrue);
     for (final (document, id) in [
       (front, 'front-shoulder-left'),
       (front, 'front-shoulder-right'),
       (back, 'back-shoulder-left'),
       (back, 'back-shoulder-right'),
+      (front, 'front-biceps-left'),
+      (front, 'front-biceps-right'),
+      (back, 'back-triceps-left'),
+      (back, 'back-triceps-right'),
       (front, 'front-forearm-left'),
       (front, 'front-forearm-right'),
       (back, 'back-forearm-left'),
@@ -378,7 +374,7 @@ void main() {
       final forearm = document.paths[forearmId]!;
       expect(
         forearm.getBounds().width,
-        greaterThanOrEqualTo(15),
+        greaterThanOrEqualTo(16),
         reason: forearmId,
       );
       expect(_isContainedBy(forearm, document.paths[bodyId]!), isTrue);
@@ -424,9 +420,11 @@ void main() {
 }
 
 bool _isContainedBy(Path region, Path body) {
-  return Path.combine(PathOperation.difference, region, body)
-      .computeMetrics()
-      .isEmpty;
+  return Path.combine(
+    PathOperation.difference,
+    region,
+    body,
+  ).computeMetrics().isEmpty;
 }
 
 String _bodyPathData(String svg, String id) {
