@@ -13,7 +13,10 @@ class BodyMapSvgPreviewPage extends StatefulWidget {
 }
 
 class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
-  static const _baselineCommit = '2fb726a7b65d9857ace84dc54c9e8e3b0db9c3e3';
+  static const _baselineCommit = String.fromEnvironment(
+    'OR_APP_RELEASE_COMMIT',
+    defaultValue: 'BODY_MAP_SVG_V1_BAKED',
+  );
 
   final _tuner = BodyMapGeometryTunerController(
     baselineCommit: _baselineCommit,
@@ -135,6 +138,16 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
               if (_editMode) ...[
                 const _EditModeBadge(),
                 const SizedBox(height: 8),
+                if (_tuner.hasStaleDraft) ...[
+                  _StaleDraftWarning(
+                    draftBaseline: _tuner.staleBaselineCommit ?? 'UNKNOWN',
+                    currentBaseline: _baselineCommit,
+                    onCopy: () =>
+                        _copy(_tuner.copyStaleDraft(), 'Stale draft feedback'),
+                    onReset: _confirmResetAll,
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 SegmentedButton<bool>(
                   segments: const [
                     ButtonSegment(value: false, label: Text('BASELINE')),
@@ -448,6 +461,45 @@ class _EditModeBadge extends StatelessWidget {
     child: const Text(
       'EDIT MODE — local geometry draft only',
       textAlign: TextAlign.center,
+    ),
+  );
+}
+
+class _StaleDraftWarning extends StatelessWidget {
+  const _StaleDraftWarning({
+    required this.draftBaseline,
+    required this.currentBaseline,
+    required this.onCopy,
+    required this.onReset,
+  });
+
+  final String draftBaseline;
+  final String currentBaseline;
+  final VoidCallback onCopy;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: Colors.amber.withValues(alpha: .12),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('STALE DRAFT — BASELINE MISMATCH'),
+          Text('Draft: $draftBaseline'),
+          Text('Current: $currentBaseline'),
+          const SizedBox(height: 6),
+          const Text('The old transforms are preserved but never applied.'),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(onPressed: onCopy, child: const Text('COPY STALE')),
+              TextButton(onPressed: onReset, child: const Text('RESET DRAFT')),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }

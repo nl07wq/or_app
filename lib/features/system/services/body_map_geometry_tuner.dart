@@ -140,10 +140,16 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   final Future<SharedPreferences> Function() _preferencesLoader;
   final Map<String, BodyMapGeometryDraft> _drafts = {};
   Map<String, BodyMapGeometryDraft> _restoredDrafts = {};
+  Map<String, BodyMapGeometryDraft> _staleDrafts = {};
+  Map<String, dynamic>? _staleSerialized;
+  String? _staleBaselineCommit;
 
   static String keyFor(String side, String regionId) => '$side:$regionId';
 
   Iterable<BodyMapGeometryDraft> get drafts => _drafts.values;
+  bool get hasStaleDraft => _staleSerialized != null;
+  String? get staleBaselineCommit => _staleBaselineCommit;
+  Iterable<BodyMapGeometryDraft> get staleDrafts => _staleDrafts.values;
 
   Future<void> load() async {
     try {
@@ -151,16 +157,15 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       final raw = prefs.getString(_storageKey);
       if (raw == null) return;
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      if (decoded['baselineCommit'] != baselineCommit) return;
-      final items = decoded['drafts'] as List<dynamic>? ?? const [];
-      _restoredDrafts = Map.fromEntries(
-        items.map((item) {
-          final draft = BodyMapGeometryDraft.fromJson(
-            item as Map<String, dynamic>,
-          );
-          return MapEntry(keyFor(draft.side, draft.regionId), draft);
-        }),
-      );
+      _restoreStaleDraft(decoded['staleDraft'] as Map<String, dynamic>?);
+      if (decoded['baselineCommit'] != baselineCommit) {
+        _staleSerialized = decoded;
+        _staleBaselineCommit = decoded['baselineCommit'] as String?;
+        _staleDrafts = _decodeDrafts(decoded);
+        notifyListeners();
+        return;
+      }
+      _restoredDrafts = _decodeDrafts(decoded);
       notifyListeners();
     } catch (_) {
       // Debug data is intentionally disposable if an old version is malformed.
@@ -249,6 +254,9 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   void resetAll() {
     _drafts.clear();
     _restoredDrafts.clear();
+    _staleDrafts = {};
+    _staleSerialized = null;
+    _staleBaselineCommit = null;
     _save();
     notifyListeners();
   }
@@ -317,6 +325,27 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
           ..write(_parameterLines(draft, indent: '  '))
           ..writeln('  locked: ${draft.locked}');
       }
+    }
+    return buffer.toString().trimRight();
+  }
+
+  String copyStaleDraft() {
+    final baseline = _staleBaselineCommit ?? 'UNKNOWN';
+    final buffer = StringBuffer()
+      ..writeln('BODY MAP GEOMETRY FEEDBACK — STALE DRAFT')
+      ..writeln()
+      ..writeln('draftBaselineCommit: $baseline')
+      ..writeln('currentBaselineCommit: $baselineCommit')
+      ..writeln()
+      ..writeln('changedRegions:');
+    final stale = _staleDrafts.values.toList()..sort(_compareDrafts);
+    for (final draft in stale) {
+      buffer
+        ..writeln('- side: ${draft.side.toUpperCase()}')
+        ..writeln('  region: ${regionNameFor(draft.regionId)}')
+        ..writeln('  regionId: ${draft.regionId}')
+        ..writeln('  shape: ${draft.shape.label}')
+        ..write(_parameterLines(draft, indent: '  '));
     }
     return buffer.toString().trimRight();
   }
@@ -473,11 +502,31 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
         jsonEncode({
           'baselineCommit': baselineCommit,
           'drafts': _drafts.values.map((draft) => draft.toJson()).toList(),
+          if (_staleSerialized != null) 'staleDraft': _staleSerialized,
         }),
       );
     } catch (_) {
       // Preview tests and unsupported platforms retain an in-memory draft.
     }
+  }
+
+  Map<String, BodyMapGeometryDraft> _decodeDrafts(Map<String, dynamic> json) {
+    final items = json['drafts'] as List<dynamic>? ?? const [];
+    return Map.fromEntries(
+      items.map((item) {
+        final draft = BodyMapGeometryDraft.fromJson(
+          item as Map<String, dynamic>,
+        );
+        return MapEntry(keyFor(draft.side, draft.regionId), draft);
+      }),
+    );
+  }
+
+  void _restoreStaleDraft(Map<String, dynamic>? stale) {
+    if (stale == null) return;
+    _staleSerialized = stale;
+    _staleBaselineCommit = stale['baselineCommit'] as String?;
+    _staleDrafts = _decodeDrafts(stale);
   }
 
   static String? _oppositeRegionId(String regionId) {
