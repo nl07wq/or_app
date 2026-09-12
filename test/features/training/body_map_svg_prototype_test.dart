@@ -191,6 +191,20 @@ void main() {
     );
     expect(
       _hasNoOverlap(
+        front.paths['front-biceps-left']!,
+        front.paths['front-forearm-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        front.paths['front-biceps-right']!,
+        front.paths['front-forearm-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
         back.paths['back-trapezius']!,
         back.paths['back-shoulder-left']!,
       ),
@@ -214,6 +228,20 @@ void main() {
       _hasNoOverlap(
         back.paths['back-shoulder-right']!,
         back.paths['back-triceps-right']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-triceps-left']!,
+        back.paths['back-forearm-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-triceps-right']!,
+        back.paths['back-forearm-right']!,
       ),
       isTrue,
     );
@@ -256,6 +284,13 @@ void main() {
       _hasNoOverlap(
         back.paths['back-glutes-left']!,
         back.paths['back-hamstrings-left']!,
+      ),
+      isTrue,
+    );
+    expect(
+      _hasNoOverlap(
+        back.paths['back-glutes-left']!,
+        back.paths['back-glutes-right']!,
       ),
       isTrue,
     );
@@ -321,6 +356,18 @@ void main() {
       _isContainedBy(backDeltoid, back.paths['back-body']!),
       isTrue,
     );
+    for (final (document, bodyId, forearmId) in [
+      (front, 'front-body', 'front-forearm-left'),
+      (back, 'back-body', 'back-forearm-left'),
+    ]) {
+      final forearm = document.paths[forearmId]!;
+      expect(
+        forearm.getBounds().width,
+        greaterThanOrEqualTo(15),
+        reason: forearmId,
+      );
+      expect(_isContainedBy(forearm, document.paths[bodyId]!), isTrue);
+    }
     expect(trapeziusBounds.width, lessThan(50));
     expect(trapeziusBounds.center.dx, closeTo(100, .01));
     expect(trapezius.contains(const Offset(100, 85)), isTrue);
@@ -337,6 +384,7 @@ void main() {
     final leftGlutes = back.paths['back-glutes-left']!.getBounds();
     final leftHamstrings = back.paths['back-hamstrings-left']!.getBounds();
     final leftCalves = back.paths['back-calves-left']!.getBounds();
+    final rightGlutes = back.paths['back-glutes-right']!.getBounds();
 
     expect(body.contains(const Offset(71, 150)), isFalse);
     expect(body.contains(const Offset(74, 188)), isTrue);
@@ -354,6 +402,7 @@ void main() {
     expect(leftGlutes.top - leftLats.bottom, lessThan(8));
     expect(leftHamstrings.top - leftGlutes.bottom, lessThan(14));
     expect(leftCalves.top - leftHamstrings.bottom, lessThan(7));
+    expect(rightGlutes.left - leftGlutes.right, lessThan(3));
     expect(leftGlutes.bottom, closeTo(190, 3));
     expect(body.contains(Offset(100, leftGlutes.bottom + 2)), isFalse);
   });
