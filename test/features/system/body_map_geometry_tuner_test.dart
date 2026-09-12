@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -306,5 +307,312 @@ void main() {
       }),
       contains('shape: COMPOSITE'),
     );
+  });
+
+  test('migrates a legacy single-shape schema to component-0', () async {
+    SharedPreferences.setMockInitialValues({
+      BodyMapGeometryTunerController.storageKey: jsonEncode({
+        'baselineCommit': 'legacy',
+        'drafts': [
+          {
+            'side': 'front',
+            'regionId': leftId,
+            'shape': 'ellipse',
+            'x': 68,
+            'y': 87,
+            'width': 18,
+            'height': 24,
+            'mirrorLinked': true,
+            'locked': true,
+          },
+        ],
+      }),
+    });
+    final controller = BodyMapGeometryTunerController(baselineCommit: 'legacy');
+    await controller.load();
+    final draft = controller.draftFor(side, leftId)!;
+    expect(draft.effectiveComponents, hasLength(1));
+    expect(draft.effectiveComponents.single.componentId, 'component-0');
+    expect(
+      draft.effectiveComponents.single.shape,
+      BodyMapGeometryShape.ellipse,
+    );
+    expect(draft.locked, isTrue);
+  });
+
+  test('loads a composite schema without losing component values', () async {
+    SharedPreferences.setMockInitialValues({
+      BodyMapGeometryTunerController.storageKey: jsonEncode({
+        'schemaVersion': 2,
+        'baselineCommit': 'composite-schema',
+        'drafts': [
+          {
+            'side': 'back',
+            'regionId': 'back-trapezius',
+            'shape': 'current',
+            'x': 100,
+            'y': 77,
+            'width': 35,
+            'height': 29.5,
+            'locked': true,
+            'components': [
+              {
+                'componentId': 'component-0',
+                'shape': 'current',
+                'x': 100,
+                'y': 77,
+                'width': 35,
+                'height': 29.5,
+                'scaleX': 1.4,
+                'scaleY': 1,
+                'rotationDeg': 0,
+                'cornerRadius': 0,
+              },
+              {
+                'componentId': 'component-1',
+                'shape': 'roundedRect',
+                'x': 100,
+                'y': 72.5,
+                'width': 18,
+                'height': 13.55,
+                'scaleX': 1.01,
+                'scaleY': 1.5,
+                'rotationDeg': 0,
+                'cornerRadius': 0,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    final controller = BodyMapGeometryTunerController(
+      baselineCommit: 'composite-schema',
+    );
+    await controller.load();
+    final trapezius = controller.draftFor('back', 'back-trapezius')!;
+    expect(trapezius.locked, isTrue);
+    expect(trapezius.effectiveComponents, hasLength(2));
+    expect(trapezius.effectiveComponents[0].scaleX, 1.4);
+    expect(
+      trapezius.effectiveComponents[1].shape,
+      BodyMapGeometryShape.roundedRect,
+    );
+    expect(trapezius.effectiveComponents[1].scaleY, 1.5);
+  });
+
+  test(
+    'promotes a compatible draft wrapped as stale by an app SHA change',
+    () async {
+      final original = {
+        'baselineCommit': '58bf2859ef511e6c1ce577afc9e48b64a1de895a',
+        'drafts': [
+          {
+            'side': 'back',
+            'regionId': 'back-trapezius',
+            'shape': 'current',
+            'x': 100,
+            'y': 77,
+            'width': 35,
+            'height': 29.5,
+            'locked': true,
+            'components': [
+              {
+                'componentId': 'component-0',
+                'shape': 'current',
+                'x': 100,
+                'y': 77,
+                'width': 35,
+                'height': 29.5,
+              },
+              {
+                'componentId': 'component-1',
+                'shape': 'roundedRect',
+                'x': 100,
+                'y': 72.5,
+                'width': 18,
+                'height': 13.55,
+                'scaleX': 1.01,
+                'scaleY': 1.5,
+              },
+            ],
+          },
+        ],
+      };
+      SharedPreferences.setMockInitialValues({
+        BodyMapGeometryTunerController.storageKey: jsonEncode({
+          'schemaVersion': 2,
+          'baselineCommit': 'a734cf1d0a60c82c7beb0bfbbd061d5c2267e523',
+          'drafts': const [],
+          'staleDraft': original,
+        }),
+      });
+      final controller = BodyMapGeometryTunerController(
+        baselineCommit:
+            BodyMapGeometryTunerController.productOwnerRecoveryBaseline,
+      );
+      await controller.load();
+      final trapezius = controller.draftFor('back', 'back-trapezius')!;
+      expect(controller.hasStaleDraft, isFalse);
+      expect(trapezius.effectiveComponents, hasLength(2));
+      expect(controller.copyAllChanges({}), contains('shape: COMPOSITE'));
+    },
+  );
+
+  test('keeps malformed current payload and exposes a valid backup', () async {
+    final backup = jsonEncode({
+      'schemaVersion': 2,
+      'baselineCommit': 'backup',
+      'drafts': [
+        {
+          'side': 'front',
+          'regionId': leftId,
+          'shape': 'current',
+          'x': 64,
+          'y': 87,
+          'width': 18,
+          'height': 24,
+        },
+      ],
+    });
+    SharedPreferences.setMockInitialValues({
+      BodyMapGeometryTunerController.storageKey: '{not-json',
+      BodyMapGeometryTunerController.backupStorageKey: backup,
+    });
+    final controller = BodyMapGeometryTunerController(baselineCommit: 'backup');
+    await controller.load();
+    expect(controller.loadError, isNotNull);
+    expect(controller.hasRecoverableBackup, isTrue);
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getString(BodyMapGeometryTunerController.storageKey),
+      '{not-json',
+    );
+    expect(controller.restoreBackupDraft(), isTrue);
+    expect(controller.draftFor(side, leftId), isNotNull);
+  });
+
+  test(
+    'load wins over startup placeholders and retains all restored drafts',
+    () async {
+      final saved = jsonEncode({
+        'schemaVersion': 2,
+        'baselineCommit': 'startup',
+        'drafts': [
+          {
+            'side': 'front',
+            'regionId': leftId,
+            'shape': 'ellipse',
+            'x': 70,
+            'y': 87,
+            'width': 18,
+            'height': 24,
+          },
+          {
+            'side': 'back',
+            'regionId': 'back-trapezius',
+            'shape': 'current',
+            'x': 100,
+            'y': 77,
+            'width': 35,
+            'height': 29.5,
+          },
+        ],
+      });
+      SharedPreferences.setMockInitialValues({
+        BodyMapGeometryTunerController.storageKey: saved,
+      });
+      final controller = BodyMapGeometryTunerController(
+        baselineCommit: 'startup',
+      );
+      final loading = controller.load();
+      controller.pathFor(side: side, regionId: leftId, basePath: leftPath);
+      await loading;
+      expect(
+        controller.draftFor(side, leftId)!.shape,
+        BodyMapGeometryShape.ellipse,
+      );
+      expect(controller.draftFor('back', 'back-trapezius'), isNotNull);
+
+      controller.update(controller.draftFor(side, leftId)!.copyWith(x: 72));
+      await Future<void>.delayed(Duration.zero);
+      final prefs = await SharedPreferences.getInstance();
+      final persisted =
+          jsonDecode(
+                prefs.getString(BodyMapGeometryTunerController.storageKey)!,
+              )
+              as Map<String, dynamic>;
+      expect((persisted['drafts'] as List<dynamic>), hasLength(2));
+    },
+  );
+
+  test(
+    'restores the product owner fixture with a locked composite trapezius',
+    () async {
+      final controller = BodyMapGeometryTunerController(
+        baselineCommit:
+            BodyMapGeometryTunerController.productOwnerRecoveryBaseline,
+      );
+      expect(controller.restoreProductOwnerRecoveryDraft(), isTrue);
+      expect(controller.drafts, hasLength(26));
+      final trapezius = controller.draftFor('back', 'back-trapezius')!;
+      expect(trapezius.locked, isTrue);
+      expect(trapezius.effectiveComponents, hasLength(2));
+      expect(
+        trapezius.effectiveComponents[0].shape,
+        BodyMapGeometryShape.current,
+      );
+      expect(
+        trapezius.effectiveComponents[1].shape,
+        BodyMapGeometryShape.roundedRect,
+      );
+      expect(trapezius.effectiveComponents[1].height, 13.55);
+      final output = controller.copyAllChanges({});
+      for (final regionId in <String>[
+        'front-shoulder-left',
+        'front-chest-left',
+        'front-core',
+        'front-biceps-left',
+        'front-forearm-left',
+        'front-quadriceps-right',
+        'back-shoulder-left',
+        'back-trapezius',
+        'back-lats-left',
+        'back-triceps-right',
+        'back-forearm-left',
+        'back-glutes-left',
+        'back-hamstrings-left',
+        'back-calves-left',
+      ]) {
+        expect(output, contains('regionId: $regionId'));
+      }
+      expect(output, contains('shape: COMPOSITE'));
+      expect(output, contains('componentId: component-1'));
+      await Future<void>.delayed(Duration.zero);
+      final reloaded = BodyMapGeometryTunerController(
+        baselineCommit:
+            BodyMapGeometryTunerController.productOwnerRecoveryBaseline,
+      );
+      await reloaded.load();
+      expect(reloaded.drafts, hasLength(26));
+      expect(
+        reloaded.draftFor('back', 'back-trapezius')!.effectiveComponents,
+        hasLength(2),
+      );
+    },
+  );
+
+  test('only an explicit reset persists an empty tuner draft', () async {
+    final controller = BodyMapGeometryTunerController(baselineCommit: 'reset');
+    controller.pathFor(side: side, regionId: leftId, basePath: leftPath);
+    controller.update(controller.draftFor(side, leftId)!.copyWith(x: 70));
+    await Future<void>.delayed(Duration.zero);
+    controller.resetAll();
+    await Future<void>.delayed(Duration.zero);
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(BodyMapGeometryTunerController.storageKey)!;
+    final payload = jsonDecode(raw) as Map<String, dynamic>;
+    expect(payload['schemaVersion'], 2);
+    expect(payload['drafts'], isEmpty);
   });
 }

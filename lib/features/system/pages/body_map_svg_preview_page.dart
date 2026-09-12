@@ -13,10 +13,10 @@ class BodyMapSvgPreviewPage extends StatefulWidget {
 }
 
 class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
-  static const _baselineCommit = String.fromEnvironment(
-    'OR_APP_RELEASE_COMMIT',
-    defaultValue: 'BODY_MAP_SVG_V1_BAKED',
-  );
+  // This is a geometry identity, intentionally independent of the app release
+  // SHA. Export-only deployments must not hide a valid local tuner draft.
+  static const _baselineCommit =
+      BodyMapGeometryTunerController.productOwnerRecoveryBaseline;
 
   final _tuner = BodyMapGeometryTunerController(
     baselineCommit: _baselineCommit,
@@ -144,6 +144,66 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
     }
   }
 
+  Future<void> _confirmRestoreRecoveryDraft() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('RESTORE PRODUCT OWNER RECOVERY DRAFT?'),
+        content: Text(
+          'This restores ${_tuner.recoveryFixtureFrontCount} FRONT and '
+          '${_tuner.recoveryFixtureBackCount} BACK regions, including one '
+          'two-component TRAPEZIUS. Existing valid drafts are not overwritten '
+          'automatically.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('RESTORE DRAFT'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && _tuner.restoreProductOwnerRecoveryDraft()) {
+      setState(() {
+        _showTuned = true;
+        _selectedRegionId = null;
+      });
+    }
+  }
+
+  Future<void> _confirmRestoreBackupDraft() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('RESTORE PREVIOUS TUNER BACKUP?'),
+        content: const Text(
+          'This replaces the unavailable current draft with the last valid '
+          'local backup.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('RESTORE BACKUP'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && _tuner.restoreBackupDraft()) {
+      setState(() {
+        _showTuned = true;
+        _selectedRegionId = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('BODY MAP SVG PREVIEW')),
@@ -180,6 +240,16 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                     onCopy: () =>
                         _copy(_tuner.copyStaleDraft(), 'Stale draft feedback'),
                     onReset: _confirmResetAll,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (_tuner.canRestoreProductOwnerRecovery) ...[
+                  _RecoveryDraftAction(
+                    onRestore: _confirmRestoreRecoveryDraft,
+                    onRestoreBackup: _tuner.canRestoreBackup
+                        ? _confirmRestoreBackupDraft
+                        : null,
+                    loadError: _tuner.loadError,
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -258,11 +328,13 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
               OutlinedButton.icon(
                 icon: Icon(_editMode ? Icons.close : Icons.tune),
                 label: Text(_editMode ? 'EXIT EDIT GEOMETRY' : 'EDIT GEOMETRY'),
-                onPressed: () => setState(() {
-                  _editMode = !_editMode;
-                  selected = null;
-                  _selectedRegionId = null;
-                }),
+                onPressed: _tuner.isLoaded
+                    ? () => setState(() {
+                        _editMode = !_editMode;
+                        selected = null;
+                        _selectedRegionId = null;
+                      })
+                    : null,
               ),
               const SizedBox(height: 8),
               const Text(
@@ -599,6 +671,52 @@ class _StaleDraftWarning extends StatelessWidget {
             children: [
               TextButton(onPressed: onCopy, child: const Text('COPY STALE')),
               TextButton(onPressed: onReset, child: const Text('RESET DRAFT')),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _RecoveryDraftAction extends StatelessWidget {
+  const _RecoveryDraftAction({
+    required this.onRestore,
+    this.onRestoreBackup,
+    this.loadError,
+  });
+
+  final VoidCallback onRestore;
+  final VoidCallback? onRestoreBackup;
+  final String? loadError;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: Colors.blue.withValues(alpha: .12),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('PRODUCT OWNER RECOVERY DRAFT AVAILABLE'),
+          const Text(
+            'Restores the supplied full-body draft only after confirmation.',
+          ),
+          if (loadError != null) Text(loadError!),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (onRestoreBackup != null)
+                OutlinedButton(
+                  onPressed: onRestoreBackup,
+                  child: const Text('RESTORE PREVIOUS BACKUP'),
+                ),
+              FilledButton.tonal(
+                onPressed: onRestore,
+                child: const Text('RESTORE PRODUCT OWNER RECOVERY DRAFT'),
+              ),
             ],
           ),
         ],

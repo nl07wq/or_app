@@ -88,6 +88,13 @@ class BodyMapGeometryComponent {
       );
 }
 
+class _TunerEnvelope {
+  const _TunerEnvelope({required this.json, required this.isLegacy});
+
+  final Map<String, dynamic> json;
+  final bool isLegacy;
+}
+
 extension BodyMapGeometryShapeLabel on BodyMapGeometryShape {
   String get label => switch (this) {
     BodyMapGeometryShape.current => 'CURRENT',
@@ -151,6 +158,7 @@ class BodyMapGeometryDraft {
       : components;
 
   BodyMapGeometryDraft copyWith({
+    String? regionId,
     BodyMapGeometryShape? shape,
     double? x,
     double? y,
@@ -165,7 +173,7 @@ class BodyMapGeometryDraft {
     List<BodyMapGeometryComponent>? components,
   }) => BodyMapGeometryDraft(
     side: side,
-    regionId: regionId,
+    regionId: regionId ?? this.regionId,
     shape: shape ?? this.shape,
     x: x ?? this.x,
     y: y ?? this.y,
@@ -230,12 +238,14 @@ class BodyMapGeometryDraft {
 /// Development-only, locally persisted geometry draft state for the SVG preview.
 class BodyMapGeometryTunerController extends ChangeNotifier {
   static const maxComponents = 4;
+  static const currentSchemaVersion = 2;
+  static const storageKey = 'or_app.body_map_geometry_tuner.v1';
+  static const backupStorageKey = 'or_app.body_map_geometry_tuner.backup.v1';
+  static const productOwnerRecoveryBaseline = '58bf285';
   BodyMapGeometryTunerController({
     required this.baselineCommit,
     Future<SharedPreferences> Function()? preferencesLoader,
   }) : _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance;
-
-  static const _storageKey = 'or_app.body_map_geometry_tuner.v1';
 
   final String baselineCommit;
   final Future<SharedPreferences> Function() _preferencesLoader;
@@ -244,32 +254,91 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   Map<String, BodyMapGeometryDraft> _staleDrafts = {};
   Map<String, dynamic>? _staleSerialized;
   String? _staleBaselineCommit;
+  String? _loadError;
+  String? _unreadablePayload;
+  Map<String, dynamic>? _backupSerialized;
+  bool _loaded = false;
+  bool _loadingStarted = false;
+  bool _savePending = false;
+  bool _hasPersistedValidDraft = false;
 
   static String keyFor(String side, String regionId) => '$side:$regionId';
 
-  Iterable<BodyMapGeometryDraft> get drafts => _drafts.values;
+  Iterable<BodyMapGeometryDraft> get drafts => _allDrafts.values;
   bool get hasStaleDraft => _staleSerialized != null;
   String? get staleBaselineCommit => _staleBaselineCommit;
   Iterable<BodyMapGeometryDraft> get staleDrafts => _staleDrafts.values;
+  bool get isLoaded => _loaded;
+  String? get loadError => _loadError;
+  bool get hasRecoverableBackup => _backupSerialized != null;
+  bool get canRestoreBackup => hasRecoverableBackup && !_hasPersistedValidDraft;
+  bool get canRestoreProductOwnerRecovery =>
+      !_hasPersistedValidDraft || hasStaleDraft || _unreadablePayload != null;
+  int get recoveryFixtureFrontCount => 11;
+  int get recoveryFixtureBackCount => 15;
 
   Future<void> load() async {
+    _loadingStarted = true;
     try {
       final prefs = await _preferencesLoader();
-      final raw = prefs.getString(_storageKey);
-      if (raw == null) return;
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      _restoreStaleDraft(decoded['staleDraft'] as Map<String, dynamic>?);
-      if (decoded['baselineCommit'] != baselineCommit) {
-        _staleSerialized = decoded;
-        _staleBaselineCommit = decoded['baselineCommit'] as String?;
-        _staleDrafts = _decodeDrafts(decoded);
-        notifyListeners();
-        return;
+      final raw = prefs.getString(storageKey);
+      final backupRaw = prefs.getString(backupStorageKey);
+      if (backupRaw != null) {
+        try {
+          _backupSerialized = _decodeEnvelope(backupRaw).json;
+        } catch (_) {
+          // A bad backup must not prevent reading the current payload.
+        }
       }
-      _restoredDrafts = _decodeDrafts(decoded);
+      if (raw != null) {
+        try {
+          final envelope = _decodeEnvelope(raw);
+          final decoded = envelope.json;
+          final restored = _decodeDrafts(
+            decoded,
+            migrateLegacy: envelope.isLegacy,
+          );
+          if (!_baselinesCompatible(decoded['baselineCommit'] as String?)) {
+            final nestedStale = decoded['staleDraft'] as Map<String, dynamic>?;
+            if (nestedStale != null &&
+                _baselinesCompatible(
+                  nestedStale['baselineCommit'] as String?,
+                )) {
+              // A prior release wrapped the real draft as stale after an
+              // unrelated app-SHA change. Promote that compatible payload
+              // instead of showing a neutral tuner.
+              _drafts.clear();
+              _restoredDrafts = _decodeDrafts(nestedStale, migrateLegacy: true);
+              _hasPersistedValidDraft = _restoredDrafts.isNotEmpty;
+              _savePending = true;
+            } else {
+              _staleSerialized = decoded;
+              _staleBaselineCommit = decoded['baselineCommit'] as String?;
+              _staleDrafts = restored;
+            }
+          } else {
+            _restoreStaleDraft(decoded['staleDraft'] as Map<String, dynamic>?);
+            // Any draft created before asynchronous storage finished is only a
+            // neutral render placeholder. Never let it override valid saved
+            // authoring data when load completes.
+            if (restored.isNotEmpty) _drafts.clear();
+            _restoredDrafts = restored;
+            _hasPersistedValidDraft = restored.isNotEmpty;
+            if (envelope.isLegacy) _savePending = true;
+          }
+        } catch (error) {
+          // Keep the malformed source payload untouched. A later save must not
+          // replace it with neutral startup state.
+          _loadError = 'Unable to read saved tuner draft: $error';
+          _unreadablePayload = raw;
+        }
+      }
+    } catch (error) {
+      _loadError = 'Unable to access tuner storage: $error';
+    } finally {
+      _loaded = true;
+      if (_savePending) _save();
       notifyListeners();
-    } catch (_) {
-      // Debug data is intentionally disposable if an old version is malformed.
     }
   }
 
@@ -459,8 +528,47 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     _staleDrafts = {};
     _staleSerialized = null;
     _staleBaselineCommit = null;
+    _hasPersistedValidDraft = false;
+    _save(allowEmpty: true);
+    notifyListeners();
+  }
+
+  bool restoreProductOwnerRecoveryDraft() {
+    if (!canRestoreProductOwnerRecovery) return false;
+    _drafts
+      ..clear()
+      ..addEntries(
+        _productOwnerRecoveryDrafts().map(
+          (draft) => MapEntry(keyFor(draft.side, draft.regionId), draft),
+        ),
+      );
+    _restoredDrafts = {};
+    _staleDrafts = {};
+    _staleSerialized = null;
+    _staleBaselineCommit = null;
+    _unreadablePayload = null;
+    _loadError = null;
+    _hasPersistedValidDraft = true;
     _save();
     notifyListeners();
+    return true;
+  }
+
+  bool restoreBackupDraft() {
+    final backup = _backupSerialized;
+    if (backup == null) return false;
+    final restored = _decodeDrafts(backup, migrateLegacy: true);
+    if (restored.isEmpty) return false;
+    _drafts
+      ..clear()
+      ..addAll(restored);
+    _restoredDrafts = {};
+    _hasPersistedValidDraft = true;
+    _loadError = null;
+    _unreadablePayload = null;
+    _save();
+    notifyListeners();
+    return true;
   }
 
   bool isChanged(BodyMapGeometryDraft draft, Rect baseBounds) {
@@ -504,9 +612,14 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   }
 
   String copyAllChanges(Map<String, Rect> baseBoundsByKey) {
-    final changed = _drafts.values.where((draft) {
+    final changed = _allDrafts.values.where((draft) {
       final bounds = baseBoundsByKey[keyFor(draft.side, draft.regionId)];
-      return bounds != null && isChanged(draft, bounds);
+      // Restored locked regions may belong to the opposite side, whose SVG has
+      // not been visited in this Preview session yet. They are still explicit
+      // authored changes and must not disappear from COPY ALL.
+      return bounds == null
+          ? draft.locked || draft.effectiveComponents.length > 1
+          : isChanged(draft, bounds);
     }).toList()..sort(_compareDrafts);
     final buffer = StringBuffer()
       ..writeln('BODY MAP GEOMETRY FEEDBACK')
@@ -757,29 +870,83 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       ),
   ];
 
-  Future<void> _save() async {
+  Future<void> _save({bool allowEmpty = false}) async {
+    if (_loadingStarted && !_loaded) {
+      _savePending = true;
+      return;
+    }
+    final allDrafts = _allDrafts;
+    if (allDrafts.isEmpty && !allowEmpty) return;
+    SharedPreferences? prefs;
+    String? previousRaw;
     try {
-      final prefs = await _preferencesLoader();
-      await prefs.setString(
-        _storageKey,
-        jsonEncode({
-          'baselineCommit': baselineCommit,
-          'drafts': _drafts.values.map((draft) => draft.toJson()).toList(),
-          if (_staleSerialized != null) 'staleDraft': _staleSerialized,
-        }),
-      );
-    } catch (_) {
-      // Preview tests and unsupported platforms retain an in-memory draft.
+      prefs = await _preferencesLoader();
+      previousRaw = prefs.getString(storageKey);
+      if (previousRaw != null && _isValidNonEmptyPayload(previousRaw)) {
+        await prefs.setString(backupStorageKey, previousRaw);
+      }
+      final encoded = jsonEncode({
+        'schemaVersion': currentSchemaVersion,
+        'baselineCommit': baselineCommit,
+        'drafts': allDrafts.values.map((draft) => draft.toJson()).toList(),
+        if (_staleSerialized != null) 'staleDraft': _staleSerialized,
+      });
+      final wrote = await prefs.setString(storageKey, encoded);
+      final verified = prefs.getString(storageKey);
+      if (!wrote || verified == null) {
+        throw StateError('Tuner draft write was not retained.');
+      }
+      _decodeDrafts(_decodeEnvelope(verified).json);
+      _hasPersistedValidDraft = allDrafts.isNotEmpty;
+    } catch (error) {
+      if (prefs != null && previousRaw != null) {
+        await prefs.setString(storageKey, previousRaw);
+      }
+      _loadError = 'Unable to save tuner draft: $error';
+      // Keep in-memory state available and never replace a known-good payload
+      // with an empty fallback after a failed write.
     }
   }
 
-  Map<String, BodyMapGeometryDraft> _decodeDrafts(Map<String, dynamic> json) {
+  Map<String, BodyMapGeometryDraft> get _allDrafts => {
+    ..._restoredDrafts,
+    ..._drafts,
+  };
+
+  _TunerEnvelope _decodeEnvelope(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Tuner draft must be a JSON object.');
+    }
+    final version = decoded['schemaVersion'] as int? ?? 1;
+    if (version > currentSchemaVersion || version < 1) {
+      throw FormatException('Unsupported tuner draft schema: $version');
+    }
+    if (decoded['drafts'] is! List<dynamic>) {
+      throw const FormatException('Tuner draft is missing its region list.');
+    }
+    return _TunerEnvelope(json: decoded, isLegacy: version == 1);
+  }
+
+  bool _isValidNonEmptyPayload(String raw) {
+    try {
+      return _decodeDrafts(_decodeEnvelope(raw).json).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Map<String, BodyMapGeometryDraft> _decodeDrafts(
+    Map<String, dynamic> json, {
+    bool migrateLegacy = false,
+  }) {
     final items = json['drafts'] as List<dynamic>? ?? const [];
     return Map.fromEntries(
       items.map((item) {
-        final draft = BodyMapGeometryDraft.fromJson(
-          item as Map<String, dynamic>,
-        );
+        var draft = BodyMapGeometryDraft.fromJson(item as Map<String, dynamic>);
+        if (migrateLegacy && draft.components.isEmpty) {
+          draft = draft.copyWith(components: draft.effectiveComponents);
+        }
         return MapEntry(keyFor(draft.side, draft.regionId), draft);
       }),
     );
@@ -791,6 +958,114 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     _staleBaselineCommit = stale['baselineCommit'] as String?;
     _staleDrafts = _decodeDrafts(stale);
   }
+
+  bool _baselinesCompatible(String? storedBaseline) {
+    if (storedBaseline == null || storedBaseline.isEmpty) return false;
+    return storedBaseline == baselineCommit ||
+        storedBaseline.startsWith(baselineCommit) ||
+        baselineCommit.startsWith(storedBaseline);
+  }
+
+  List<BodyMapGeometryDraft> _productOwnerRecoveryDrafts() {
+    BodyMapGeometryDraft single(
+      String side,
+      String regionId,
+      double x,
+      double y,
+      double width,
+      double height,
+    ) => BodyMapGeometryDraft(
+      side: side,
+      regionId: regionId,
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+      locked: true,
+    );
+
+    final seed = <BodyMapGeometryDraft>[
+      single('front', 'front-shoulder-left', 77, 79.5, 24.9, 23.94),
+      single('front', 'front-chest-left', 84.5, 104.5, 28, 30.1),
+      single('front', 'front-core', 100, 151.5, 40, 53),
+      single('front', 'front-biceps-left', 62.5, 114, 16.58, 42.58),
+      single('front', 'front-forearm-left', 55, 161, 16.89, 45.11),
+      single('front', 'front-quadriceps-right', 116, 218.49, 20.55, 55.22),
+      single('back', 'back-shoulder-left', 77, 79.5, 24.9, 23.94),
+      single('back', 'back-lats-left', 84.48, 125.5, 29.04, 57),
+      single('back', 'back-triceps-right', 137.5, 114, 16.63, 43.08),
+      single('back', 'back-forearm-left', 55, 161, 16.89, 45.11),
+      single('back', 'back-glutes-left', 86, 169.5, 24.5, 34.5),
+      single('back', 'back-hamstrings-left', 83.5, 218.5, 20, 55),
+      single('back', 'back-calves-left', 83, 275, 18, 51.5),
+      BodyMapGeometryDraft(
+        side: 'back',
+        regionId: 'back-trapezius',
+        x: 100,
+        y: 77,
+        width: 35,
+        height: 29.5,
+        scaleX: 1.4,
+        locked: true,
+        components: const [
+          BodyMapGeometryComponent(
+            componentId: 'component-0',
+            shape: BodyMapGeometryShape.current,
+            x: 100,
+            y: 77,
+            width: 35,
+            height: 29.5,
+            scaleX: 1.4,
+          ),
+          BodyMapGeometryComponent(
+            componentId: 'component-1',
+            shape: BodyMapGeometryShape.roundedRect,
+            x: 100,
+            y: 72.5,
+            width: 18,
+            height: 13.55,
+            scaleX: 1.01,
+            scaleY: 1.5,
+          ),
+        ],
+      ),
+    ];
+    final byKey = <String, BodyMapGeometryDraft>{
+      for (final draft in seed) keyFor(draft.side, draft.regionId): draft,
+    };
+    for (final draft in seed) {
+      final oppositeId = _oppositeRegionId(draft.regionId);
+      if (oppositeId == null) continue;
+      final oppositeKey = keyFor(draft.side, oppositeId);
+      byKey.putIfAbsent(oppositeKey, () => _mirroredDraft(draft, oppositeId));
+    }
+    return byKey.values.toList();
+  }
+
+  static BodyMapGeometryDraft _mirroredDraft(
+    BodyMapGeometryDraft draft,
+    String oppositeRegionId,
+  ) => draft.copyWith(
+    x: _mirrorX(draft.x),
+    rotationDeg: -draft.rotationDeg,
+    components: draft.effectiveComponents
+        .map(
+          (component) => BodyMapGeometryComponent(
+            componentId: component.componentId,
+            shape: component.shape,
+            x: _mirrorX(component.x),
+            y: component.y,
+            width: component.width,
+            height: component.height,
+            scaleX: component.scaleX,
+            scaleY: component.scaleY,
+            rotationDeg: -component.rotationDeg,
+            cornerRadius: component.cornerRadius,
+          ),
+        )
+        .toList(),
+    regionId: oppositeRegionId,
+  );
 
   static String? _oppositeRegionId(String regionId) {
     if (regionId.endsWith('-left')) {
