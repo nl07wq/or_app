@@ -125,6 +125,24 @@ void main() {
       );
     },
   );
+
+  testWidgets('keeps the neck compact and lifts lats toward trapezius', (
+    tester,
+  ) async {
+    final front = await loadSvgBodyMap(SvgBodyMapSide.front);
+    final back = await loadSvgBodyMap(SvgBodyMapSide.back);
+    final body = front.paths['front-body']!;
+    final trapezius = back.paths['back-trapezius']!.getBounds();
+    final leftLats = back.paths['back-lats-left']!.getBounds();
+    final rightLats = back.paths['back-lats-right']!.getBounds();
+
+    expect(body.contains(const Offset(84, 62)), isFalse);
+    expect(body.contains(const Offset(84, 68)), isTrue);
+    expect(leftLats.top, lessThan(110));
+    expect((leftLats.top - trapezius.bottom).abs(), lessThan(12));
+    expect(leftLats.height, greaterThan(30));
+    expect(rightLats.height, greaterThan(30));
+  });
 }
 
 String _bodyPathData(String svg, String id) {

@@ -23,6 +23,10 @@ void main() {
 
     await _tapRegion(tester, 'svg-body-map-back', 72, 140);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-back', 100, 90);
+    expect(find.text('SELECTED: TRAPEZIUS'), findsOneWidget);
+    await _tapRegion(tester, 'svg-body-map-back', 72, 140);
+    expect(find.text('SELECTED: LATS'), findsOneWidget);
     await _setRecovery(tester, '回復目安に接近');
     await _setSupport(tester, false);
     await _scrollToTop(tester);
