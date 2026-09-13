@@ -12,104 +12,148 @@ import 'package:or_app/features/daily_aggregate/repository/daily_aggregate_repos
 import 'package:or_app/features/digestive_history/pages/digestive_history_page.dart';
 import 'package:or_app/features/digestive_history/services/digestive_history_source_resolver.dart';
 
+import '../operation_date/operation_date_test_fixture.dart';
+
 void main() {
-  testWidgets('restores daily Trend bars and aligns expanded event detail', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    tester.view
-      ..physicalSize = const Size(390, 844)
-      ..devicePixelRatio = 1;
-    SharedPreferences.setMockInitialValues({
-      DataCenterHistoryRangePreference.storageKey: jsonEncode({
-        'version': 1,
-        'period': 'oneWeek',
-      }),
-    });
+  testWidgets(
+    'anchors Digestive Trend to Operation Date and aligns event detail',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view
+        ..physicalSize = const Size(390, 844)
+        ..devicePixelRatio = 1;
+      SharedPreferences.setMockInitialValues({
+        DataCenterHistoryRangePreference.storageKey: jsonEncode({
+          'version': 1,
+          'period': 'oneWeek',
+        }),
+      });
 
-    final resolver = DigestiveHistorySourceResolver(
-      activityRepository: _ActivityRepository([
-        ActivityData(
-          date: DateTime(2026, 9, 10),
-          digestiveEvents: [
-            DigestiveEvent(
-              id: 'event-1',
-              sequence: 1,
-              amount: 3,
-              shape: 2,
-              relief: 2,
-              recordedAt: DateTime(2026, 9, 10, 8),
-            ),
-          ],
+      final resolver = DigestiveHistorySourceResolver(
+        activityRepository: _ActivityRepository([
+          ActivityData(
+            date: DateTime(2026, 9, 10),
+            digestiveEvents: [
+              DigestiveEvent(
+                id: 'event-1',
+                sequence: 1,
+                amount: 3,
+                shape: 2,
+                relief: 2,
+                recordedAt: DateTime(2026, 9, 10, 8),
+              ),
+            ],
+          ),
+          ActivityData(date: DateTime(2026, 9, 12), digestiveEvents: const []),
+        ]),
+        dailyAggregateRepository: _AggregateRepository(),
+      );
+
+      final operationDateService = await operationDateServiceFor('2026-09-12');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DigestiveHistoryPage(
+            resolver: resolver,
+            operationDateService: operationDateService,
+          ),
         ),
-        ActivityData(date: DateTime(2026, 9, 12), digestiveEvents: const []),
-      ]),
-      dailyAggregateRepository: _AggregateRepository(),
-    );
+      );
+      for (var index = 0; index < 5; index += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: DigestiveHistoryPage(
-          resolver: resolver,
-          clock: () => DateTime(2026, 9, 13),
-        ),
-      ),
-    );
-    for (var index = 0; index < 5; index += 1) {
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-
-    expect(find.textContaining('検索期間:'), findsOneWidget);
-    for (var index = 0; index < 3; index += 1) {
-      await tester.drag(find.byType(ListView), const Offset(0, -300));
+      expect(find.textContaining('検索期間:'), findsOneWidget);
+      tester.view.physicalSize = const Size(390, 3000);
       await tester.pump();
-    }
-    await tester.pump();
-    expect(find.textContaining('集計対象 7日 ・ 排便あり'), findsNothing);
-    for (final date in const [
-      '2026-09-07',
-      '2026-09-08',
-      '2026-09-09',
-      '2026-09-10',
-      '2026-09-11',
-      '2026-09-12',
-      '2026-09-13',
-    ]) {
-      expect(find.byKey(ValueKey('digestive-trend-$date')), findsOneWidget);
-    }
+      expect(
+        tester.getTopLeft(find.text('OVERVIEW')).dy,
+        lessThan(tester.getTopLeft(find.text('排便回数の推移')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('排便回数の推移')).dy,
+        lessThan(tester.getTopLeft(find.text('TREND')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('TREND')).dy,
+        lessThan(tester.getTopLeft(find.text('DISTRIBUTION')).dy),
+      );
+      final chart = find.byKey(const ValueKey('digestive-daily-count-chart'));
+      expect(
+        find.descendant(of: chart, matching: find.text('9/12')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: chart, matching: find.text('9/13')),
+        findsNothing,
+      );
+      expect(find.textContaining('集計対象 7日 ・ 排便あり'), findsNothing);
+      for (final date in const ['2026-09-10', '2026-09-11', '2026-09-12']) {
+        expect(find.byKey(ValueKey('digestive-trend-$date')), findsOneWidget);
+      }
+      expect(
+        find.byKey(const ValueKey('digestive-trend-2026-09-13')),
+        findsNothing,
+      );
 
-    final outside = tester.widget<LinearProgressIndicator>(
-      find.byKey(const ValueKey('digestive-trend-bar-2026-09-07')),
-    );
-    final unresolved = tester.widget<LinearProgressIndicator>(
-      find.byKey(const ValueKey('digestive-trend-bar-2026-09-11')),
-    );
-    final confirmedZero = tester.widget<LinearProgressIndicator>(
-      find.byKey(const ValueKey('digestive-trend-bar-2026-09-12')),
-    );
-    expect(outside.value, 0);
-    expect(unresolved.value, isNull);
-    expect(confirmedZero.value, 0);
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(tester.takeException(), isNull);
+      final outside = tester.widget<LinearProgressIndicator>(
+        find.byKey(const ValueKey('digestive-trend-bar-2026-09-06')),
+      );
+      final unresolved = tester.widget<LinearProgressIndicator>(
+        find.byKey(const ValueKey('digestive-trend-bar-2026-09-11')),
+      );
+      final confirmedZero = tester.widget<LinearProgressIndicator>(
+        find.byKey(const ValueKey('digestive-trend-bar-2026-09-12')),
+      );
+      expect(outside.value, 0);
+      expect(unresolved.value, isNull);
+      expect(confirmedZero.value, 0);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
 
-    tester.view.physicalSize = const Size(390, 3000);
-    await tester.pump();
-    final status = find.byKey(
-      const ValueKey('digestive-daily-status-2026-09-10'),
-    );
-    await tester.tap(status);
-    await tester.pump();
-    final event = find.byKey(
-      const ValueKey('digestive-daily-event-2026-09-10-1'),
-    );
-    expect(event, findsOneWidget);
-    expect(tester.getTopLeft(event).dx, tester.getTopLeft(status).dx);
-    expect(find.textContaining('残便感:スッキリ'), findsOneWidget);
-    expect(find.textContaining('残便:'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      tester.view.physicalSize = const Size(390, 3000);
+      await tester.pump();
+      final status = find.byKey(
+        const ValueKey('digestive-daily-status-2026-09-10'),
+      );
+      await tester.tap(status);
+      await tester.pump();
+      final event = find.byKey(
+        const ValueKey('digestive-daily-event-2026-09-10-1'),
+      );
+      expect(event, findsOneWidget);
+      expect(tester.getTopLeft(event).dx, tester.getTopLeft(status).dx);
+      expect(find.textContaining('残便感:スッキリ'), findsOneWidget);
+      expect(find.textContaining('残便:'), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DigestiveHistoryPage(
+            key: const ValueKey('operation-date-advanced'),
+            resolver: resolver,
+            operationDateService: await operationDateServiceFor('2026-09-13'),
+          ),
+        ),
+      );
+      for (var index = 0; index < 5; index += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        find.byKey(const ValueKey('digestive-trend-2026-09-13')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byKey(const ValueKey('digestive-trend-bar-2026-09-13')),
+            )
+            .value,
+        isNull,
+      );
+    },
+  );
 }
 
 class _ActivityRepository implements ActivityRepository {

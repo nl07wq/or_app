@@ -9,16 +9,21 @@ import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
 import '../../body_history/services/history_period_range.dart';
+import '../../operation_date/services/operation_date_service.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/digestive_history_models.dart';
 import '../services/digestive_history_analytics.dart';
 import '../services/digestive_history_source_resolver.dart';
 
 class DigestiveHistoryPage extends StatefulWidget {
-  const DigestiveHistoryPage({super.key, this.resolver, this.clock});
+  const DigestiveHistoryPage({
+    super.key,
+    this.resolver,
+    this.operationDateService,
+  });
 
   final DigestiveHistorySourceResolver? resolver;
-  final DateTime Function()? clock;
+  final OperationDateService? operationDateService;
 
   @override
   State<DigestiveHistoryPage> createState() => _DigestiveHistoryPageState();
@@ -27,7 +32,7 @@ class DigestiveHistoryPage extends StatefulWidget {
 class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   static const _analytics = DigestiveHistoryAnalytics();
   late final DigestiveHistorySourceResolver _resolver;
-  late final DateTime Function() _clock;
+  late final OperationDateService _operationDateService;
   late final DataCenterHistoryRangePreference _rangePreference;
   BodyHistoryPeriod _period = BodyHistoryPeriod.oneWeek;
   DateTimeRange? _customRange;
@@ -44,7 +49,9 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
           dailyAggregateRepository:
               AppRepositoryRegistry.container.dailyAggregates,
         );
-    _clock = widget.clock ?? DateTime.now;
+    _operationDateService =
+        widget.operationDateService ??
+        OperationDateService(AppRepositoryRegistry.container.operationState);
     _rangePreference = DataCenterHistoryRangePreference();
     _model = _restoreAndLoad();
   }
@@ -57,9 +64,10 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   }
 
   Future<_ViewModel> _load() async {
+    final operationDate = await _operationDateService.current();
     final range = resolveDataCenterHistoryRange(
       _period,
-      _clock(),
+      DateTime.parse(operationDate.value),
       customRange: _customRange,
     );
     final days = _period == BodyHistoryPeriod.allTime
@@ -84,7 +92,9 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
 
   Future<void> _select(BodyHistoryPeriod period) async {
     if (period == BodyHistoryPeriod.custom) {
-      final now = _clock();
+      final operationDate = await _operationDateService.current();
+      if (!mounted) return;
+      final now = DateTime.parse(operationDate.value);
       final selected = await showDateRangePicker(
         context: context,
         firstDate: DateTime(2000),
@@ -160,16 +170,16 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
             AppSpacing.gapSM,
             _Overview(summary: model.summary),
             AppSpacing.gapXL,
-            const SectionHeader(icon: Icons.insights_outlined, title: 'TREND'),
-            AppSpacing.gapSM,
-            _DailyStatusTrend(days: model.summary.days),
-            AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.show_chart_outlined,
               title: '排便回数の推移',
             ),
             AppSpacing.gapSM,
             _DailyCountLineChart(days: model.summary.days),
+            AppSpacing.gapXL,
+            const SectionHeader(icon: Icons.insights_outlined, title: 'TREND'),
+            AppSpacing.gapSM,
+            _DailyStatusTrend(days: model.summary.days),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.equalizer_outlined,
@@ -419,6 +429,7 @@ class _DailyCountLineChart extends StatelessWidget {
   final List<DigestiveDaySummary> days;
   @override
   Widget build(BuildContext context) => OperationCard(
+    key: const ValueKey('digestive-daily-count-chart'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
