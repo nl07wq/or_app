@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
@@ -933,6 +934,44 @@ void main() {
       }
     },
   );
+
+  testWidgets('brand lockup and Daily Command headings fit at 390px', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
+      35,
+    );
+    final dailyCommandCard = find.ancestor(
+      of: find.text('OPERATION STATUS'),
+      matching: find.byType(OperationCard),
+    );
+    expect(dailyCommandCard, findsOneWidget);
+    for (final label in ['OPERATION STATUS', 'CYCLE STATE']) {
+      final heading = find.descendant(
+        of: dailyCommandCard,
+        matching: find.text(label),
+      );
+      expect(heading, findsOneWidget);
+      expect(tester.getSize(heading).height, lessThan(24));
+    }
+    expect(
+      find.descendant(
+        of: dailyCommandCard,
+        matching: find.byIcon(Symbols.page_info),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('DAILY COMMAND uses same-date MB and refreshes without restart', (
     tester,

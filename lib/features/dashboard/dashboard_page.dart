@@ -105,7 +105,8 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Image.asset(
                                   'assets/icons/orlo_logo_1024_transparent.png',
-                                  height: 28,
+                                  key: const ValueKey('dashboard-brand-logo'),
+                                  height: 35,
                                   fit: BoxFit.contain,
                                 ),
                                 const SizedBox(width: AppSpacing.xs),
@@ -537,6 +538,7 @@ class _DailyCommandSummary extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 6,
                     child: DailyCommandItem(
                       icon: model.operationStatus == null
                           ? Icons.cancel_outlined
@@ -548,8 +550,9 @@ class _DailyCommandSummary extends StatelessWidget {
                       status: model.operationStatus,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.xl),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
+                    flex: 5,
                     child: _DailyCommandCycleState(
                       cycleState: model.cycleState,
                     ),
@@ -597,17 +600,21 @@ class _DailyCommandCycleState extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Symbols.page_info,
-            size: 18,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
-        ],
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Symbols.page_info,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
+          ],
+        ),
       ),
       AppSpacing.gapXS,
       SemanticHelpPopover(

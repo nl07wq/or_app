@@ -13,6 +13,20 @@ import 'package:or_app/features/training/services/training_recovery_evidence_ada
 void main() {
   const adapter = TrainingRecoveryEvidenceAdapter();
 
+  test(
+    'uses the canonical Body Map display names without changing identities',
+    () {
+      expect(muscleGroupDisplayName(MuscleGroup.core), '腹直筋');
+      expect(muscleGroupDisplayName(MuscleGroup.chest), '大胸筋');
+      expect(muscleGroupDisplayName(MuscleGroup.shoulders), '三角筋');
+      expect(muscleGroupDisplayName(MuscleGroup.glutes), '大臀筋');
+      expect(muscleGroupDisplayName(MuscleGroup.calves), '下腿三頭筋');
+      expect(muscleGroupDisplayName(MuscleGroup.forearms), '前腕筋');
+      expect(muscleGroupDisplayName(MuscleGroup.lats), '広背筋');
+      expect(muscleGroupDisplayName(MuscleGroup.quadriceps), '大腿四頭筋');
+    },
+  );
+
   test('uses the latest formal PRIMARY exposure and its exact end time', () {
     final evidence = adapter.evidence(
       [

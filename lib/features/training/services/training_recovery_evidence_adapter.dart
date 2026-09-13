@@ -150,17 +150,17 @@ class TrainingSupportInvolvement {
 }
 
 String muscleGroupDisplayName(MuscleGroup muscle) => switch (muscle) {
-  MuscleGroup.chest => '胸',
+  MuscleGroup.chest => '大胸筋',
   MuscleGroup.back => '背中（旧分類）',
   MuscleGroup.trapezius => '僧帽筋',
   MuscleGroup.lats => '広背筋',
-  MuscleGroup.shoulders => '肩',
+  MuscleGroup.shoulders => '三角筋',
   MuscleGroup.biceps => '上腕二頭筋',
   MuscleGroup.triceps => '上腕三頭筋',
-  MuscleGroup.forearms => '前腕',
-  MuscleGroup.core => '体幹',
+  MuscleGroup.forearms => '前腕筋',
+  MuscleGroup.core => '腹直筋',
   MuscleGroup.quadriceps => '大腿四頭筋',
   MuscleGroup.hamstrings => 'ハムストリングス',
-  MuscleGroup.glutes => '臀部',
-  MuscleGroup.calves => 'ふくらはぎ',
+  MuscleGroup.glutes => '大臀筋',
+  MuscleGroup.calves => '下腿三頭筋',
 };

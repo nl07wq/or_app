@@ -23,14 +23,17 @@ class DailyCommandItem extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-            ),
-          ],
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              SizedBox(width: AppSpacing.sm),
+              Text(label, style: Theme.of(context).textTheme.labelLarge),
+            ],
+          ),
         ),
         AppSpacing.gapXS,
         Row(
