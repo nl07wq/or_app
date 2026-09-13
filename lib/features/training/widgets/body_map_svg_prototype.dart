@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -15,6 +16,7 @@ const _assets = {
 final _documents = <SvgBodyMapSide, Future<SvgBodyMapDocument>>{};
 
 typedef SvgBodyMapPathOverride = Path Function(String id, Path basePath);
+typedef SvgBodyMapSemanticLabel = String Function(MuscleGroup muscle);
 
 const svgBodyMapMuscles = <SvgBodyMapSide, Map<String, MuscleGroup>>{
   SvgBodyMapSide.front: {
@@ -77,8 +79,9 @@ SvgBodyMapDocument parseSvgBodyMap(String svg) {
   return SvgBodyMapDocument(Map.unmodifiable(paths));
 }
 
-class SvgBodyMapPrototype extends StatefulWidget {
-  const SvgBodyMapPrototype({
+/// Canonical SVG body-map renderer shared by SYSTEM Preview and Production.
+class SvgBodyMap extends StatefulWidget {
+  const SvgBodyMap({
     super.key,
     required this.side,
     required this.recoveryByMuscle,
@@ -90,6 +93,8 @@ class SvgBodyMapPrototype extends StatefulWidget {
     this.selectedRegionId,
     this.onRegionSelected,
     this.pathOverride,
+    this.canvasKey,
+    this.semanticLabelForMuscle,
   });
   final SvgBodyMapSide side;
   final Map<MuscleGroup, TrainingRecoveryEvidence> recoveryByMuscle;
@@ -103,14 +108,35 @@ class SvgBodyMapPrototype extends StatefulWidget {
   final String? selectedRegionId;
   final ValueChanged<String>? onRegionSelected;
   final SvgBodyMapPathOverride? pathOverride;
+  final Key? canvasKey;
+  final SvgBodyMapSemanticLabel? semanticLabelForMuscle;
   @override
-  State<SvgBodyMapPrototype> createState() => _SvgBodyMapPrototypeState();
+  State<SvgBodyMap> createState() => _SvgBodyMapState();
 }
 
-class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
+/// Compatibility entry point for the existing SYSTEM Preview/Tuner tooling.
+class SvgBodyMapPrototype extends SvgBodyMap {
+  const SvgBodyMapPrototype({
+    super.key,
+    required super.side,
+    required super.recoveryByMuscle,
+    required super.supportMuscles,
+    super.previewStatuses,
+    super.selectedMuscle,
+    super.onSelected,
+    super.editMode,
+    super.selectedRegionId,
+    super.onRegionSelected,
+    super.pathOverride,
+    super.canvasKey,
+    super.semanticLabelForMuscle,
+  });
+}
+
+class _SvgBodyMapState extends State<SvgBodyMap> {
   late Future<SvgBodyMapDocument> _document = loadSvgBodyMap(widget.side);
   @override
-  void didUpdateWidget(covariant SvgBodyMapPrototype old) {
+  void didUpdateWidget(covariant SvgBodyMap old) {
     super.didUpdateWidget(old);
     if (old.side != widget.side) _document = loadSvgBodyMap(widget.side);
   }
@@ -120,10 +146,28 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
     key: ValueKey(widget.side),
     future: _document,
     builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return const AspectRatio(
+          aspectRatio: 200 / 340,
+          child: Center(
+            child: Text(
+              'BODY MAP UNAVAILABLE',
+              key: ValueKey('svg-body-map-error'),
+            ),
+          ),
+        );
+      }
       if (!snapshot.hasData) {
-        return const SizedBox(
-          key: ValueKey('svg-body-map-loading'),
-          height: 300,
+        return const AspectRatio(
+          aspectRatio: 200 / 340,
+          child: Center(
+            child: SizedBox(
+              key: ValueKey('svg-body-map-loading'),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(value: .5, strokeWidth: 2),
+            ),
+          ),
         );
       }
       final document = snapshot.data!;
@@ -131,7 +175,9 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
         aspectRatio: 200 / 340,
         child: LayoutBuilder(
           builder: (context, constraints) => GestureDetector(
-            key: ValueKey('svg-body-map-${widget.side.name}'),
+            key:
+                widget.canvasKey ??
+                ValueKey('svg-body-map-${widget.side.name}'),
             onTapUp: (details) {
               final point = Offset(
                 details.localPosition.dx * 200 / constraints.maxWidth,
@@ -165,6 +211,8 @@ class _SvgBodyMapPrototypeState extends State<SvgBodyMapPrototype> {
                 editMode: widget.editMode,
                 selectedRegionId: widget.selectedRegionId,
                 pathOverride: widget.pathOverride,
+                semanticLabelForMuscle: widget.semanticLabelForMuscle,
+                onSelected: widget.onSelected,
               ),
             ),
           ),
@@ -185,6 +233,8 @@ class _SvgBodyMapPainter extends CustomPainter {
     this.editMode = false,
     this.selectedRegionId,
     this.pathOverride,
+    this.semanticLabelForMuscle,
+    this.onSelected,
   });
   final SvgBodyMapDocument document;
   final SvgBodyMapSide side;
@@ -195,6 +245,8 @@ class _SvgBodyMapPainter extends CustomPainter {
   final bool editMode;
   final String? selectedRegionId;
   final SvgBodyMapPathOverride? pathOverride;
+  final SvgBodyMapSemanticLabel? semanticLabelForMuscle;
+  final ValueChanged<MuscleGroup>? onSelected;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.scale(size.width / 200, size.height / 340);
@@ -255,6 +307,39 @@ class _SvgBodyMapPainter extends CustomPainter {
       old.editMode != editMode ||
       old.selectedRegionId != selectedRegionId ||
       old.pathOverride != pathOverride;
+
+  @override
+  SemanticsBuilderCallback? get semanticsBuilder {
+    if (semanticLabelForMuscle == null) return null;
+    return (size) => [
+      for (final entry in svgBodyMapMuscles[side]!.entries)
+        CustomPainterSemantics(
+          rect: _scaledRect(document.paths[entry.key]!.getBounds(), size),
+          properties: SemanticsProperties(
+            label: semanticLabelForMuscle!(entry.value),
+            textDirection: TextDirection.ltr,
+            button: true,
+            selected: selected == entry.value,
+            onTap: onSelected == null ? null : () => onSelected!(entry.value),
+          ),
+        ),
+    ];
+  }
+
+  @override
+  bool shouldRebuildSemantics(covariant _SvgBodyMapPainter old) =>
+      old.document != document ||
+      old.side != side ||
+      old.selected != selected ||
+      old.semanticLabelForMuscle != semanticLabelForMuscle ||
+      old.onSelected != onSelected;
+
+  Rect _scaledRect(Rect rect, Size size) => Rect.fromLTRB(
+    rect.left * size.width / 200,
+    rect.top * size.height / 340,
+    rect.right * size.width / 200,
+    rect.bottom * size.height / 340,
+  );
 }
 
 Color _color(RecoveryStatus status) => switch (status) {

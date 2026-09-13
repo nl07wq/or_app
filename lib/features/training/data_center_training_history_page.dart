@@ -16,6 +16,7 @@ import 'services/training_exercise_history_adapter.dart';
 import 'services/training_exercise_identity.dart';
 import 'services/training_history_domain_service.dart';
 import 'services/training_recovery_evidence_adapter.dart';
+import 'widgets/body_map_svg_prototype.dart';
 
 /// Data Center analytics. The existing TrainingHistoryPage remains the raw
 /// formal-record list and is intentionally not reused as this page.
@@ -477,43 +478,20 @@ class _RecoveryBodyMapCanvas extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final width = math.min(constraints.maxWidth, 224.0);
-      final height = width * _bodyMapBaseHeight / _bodyMapBaseWidth;
-      final size = Size(width, height);
-      final regions = _bodyMapRegions(side, size);
       return Center(
         child: SizedBox(
           width: width,
-          height: height,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CustomPaint(
-                key: ValueKey('body-map-${side.name}-canvas'),
-                painter: _RecoveryBodyMapPainter(
-                  side: side,
-                  evidenceByMuscle: evidenceByMuscle,
-                  supportByMuscle: supportByMuscle,
-                  selectedMuscle: selectedMuscle,
-                ),
-              ),
-              for (var index = 0; index < regions.length; index++)
-                Positioned.fromRect(
-                  rect: regions[index].hitBounds.intersect(Offset.zero & size),
-                  child: Semantics(
-                    button: true,
-                    selected: selectedMuscle == regions[index].muscle,
-                    label:
-                        '${muscleGroupDisplayName(regions[index].muscle)} ${_bodyMapStatusLabel(evidenceByMuscle[regions[index].muscle], supportByMuscle.containsKey(regions[index].muscle))}',
-                    child: GestureDetector(
-                      key: ValueKey(
-                        'body-map-region-${side.name}-${regions[index].muscle.name}-$index',
-                      ),
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onMuscleSelected(regions[index].muscle),
-                    ),
-                  ),
-                ),
-            ],
+          child: SvgBodyMap(
+            canvasKey: ValueKey('body-map-${side.name}-canvas'),
+            side: side == _BodyMapSide.front
+                ? SvgBodyMapSide.front
+                : SvgBodyMapSide.back,
+            recoveryByMuscle: evidenceByMuscle,
+            supportMuscles: supportByMuscle.keys.toSet(),
+            selectedMuscle: selectedMuscle,
+            onSelected: onMuscleSelected,
+            semanticLabelForMuscle: (muscle) =>
+                '${muscleGroupDisplayName(muscle)} ${_bodyMapStatusLabel(evidenceByMuscle[muscle], supportByMuscle.containsKey(muscle))}',
           ),
         ),
       );
@@ -596,6 +574,9 @@ class _RecoveryBodyMapLegendItem extends StatelessWidget {
   );
 }
 
+// Retained as the legacy implementation for safe follow-up cleanup; it is no
+// longer part of the active production rendering path.
+// ignore: unused_element
 class _RecoveryBodyMapPainter extends CustomPainter {
   const _RecoveryBodyMapPainter({
     required this.side,
