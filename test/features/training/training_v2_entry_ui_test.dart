@@ -65,6 +65,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('active title is viewport centered and uses a fixed envelope', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390, disableAnimations: false);
+    final title = find.byKey(const ValueKey('training-appbar-title'));
+    expect(tester.getCenter(title).dx, closeTo(195, 0.5));
+
+    await tester.tap(find.text('START TRAINING'));
+    await tester.pump();
+    expect(find.text('ACTIVE'), findsWidgets);
+
+    // T is immediately visible; subsequent characters build into the same
+    // fixed title envelope rather than re-centering the growing prefix.
+    expect(find.byKey(const ValueKey('training-title-character-0')), findsOne);
+    for (final duration in const [
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 140),
+      Duration(milliseconds: 220),
+    ]) {
+      await tester.pump(duration);
+      expect(tester.getCenter(title).dx, closeTo(195, 0.5));
+    }
+
+    await tester.tap(find.text('PAUSE TRAINING'));
+    await tester.pump();
+    expect(find.text('PAUSED'), findsWidgets);
+    expect(tester.getCenter(title).dx, closeTo(195, 0.5));
+  });
+
   for (final width in <double>[390, 900, 1280]) {
     testWidgets('new v2 entry has no overflow at ${width.toInt()}px', (
       tester,
@@ -1165,6 +1199,7 @@ Future<FakeIndexedDbDatabase> _pump(
   TrainingRecordReadModel? existingRecord,
   FakeIndexedDbDatabase? database,
   ActiveTrainingDraftRepository? activeTrainingDraftRepository,
+  bool disableAnimations = true,
   bool settle = true,
 }) async {
   tester.view.physicalSize = Size(width, 2400);
@@ -1183,6 +1218,12 @@ Future<FakeIndexedDbDatabase> _pump(
       theme: brightness == Brightness.dark
           ? ThemeData.dark()
           : ThemeData.light(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(disableAnimations: disableAnimations),
+        child: child!,
+      ),
       home: TrainingEntryPage(
         existingRecord: existingRecord,
         activeTrainingDraftRepository: activeTrainingDraftRepository,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
@@ -600,7 +601,7 @@ class _DailyCommandCycleState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.page_info,
+            Symbols.page_info,
             size: 18,
             color: Theme.of(context).colorScheme.primary,
           ),

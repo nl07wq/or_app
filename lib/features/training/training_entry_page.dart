@@ -511,7 +511,21 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TRAINING'),
+        // The title is deliberately in the full-width flexible space instead
+        // of AppBar.title.  AppBar lays its title out between leading and
+        // trailing controls, which shifts it when the recording badge is
+        // present.  This overlay keeps the title locked to the viewport
+        // center while leaving the controls independently tappable.
+        flexibleSpace: SafeArea(
+          bottom: false,
+          child: IgnorePointer(
+            child: Center(
+              child: _TrainingAppBarTitle(
+                active: presentationState == TrainingPresentationState.active,
+              ),
+            ),
+          ),
+        ),
         actions: [
           if (presentationState == TrainingPresentationState.active ||
               presentationState == TrainingPresentationState.paused)
@@ -690,6 +704,132 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       mets: double.tryParse(cardio.mets.text.trim()),
       durationSeconds: duration,
       weightKg: cardio.weightSnapshotKg ?? _statusWeight?.weightKg,
+    );
+  }
+}
+
+class _TrainingAppBarTitle extends StatefulWidget {
+  const _TrainingAppBarTitle({required this.active});
+
+  final bool active;
+
+  @override
+  State<_TrainingAppBarTitle> createState() => _TrainingAppBarTitleState();
+}
+
+class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
+    with SingleTickerProviderStateMixin {
+  static const _word = 'TRAINING';
+  static const _characterInterval = Duration(milliseconds: 140);
+  static const _fullWordHold = Duration(milliseconds: 220);
+  static const _arrivalOffset = 7.0;
+
+  late final AnimationController _controller;
+  bool? _animationEnabled;
+
+  Duration get _cycleDuration => Duration(
+    milliseconds:
+        _characterInterval.inMilliseconds * (_word.length - 1) +
+        _fullWordHold.inMilliseconds,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _cycleDuration);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TrainingAppBarTitle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active != widget.active) _syncAnimation();
+  }
+
+  void _syncAnimation() {
+    final enabled =
+        widget.active &&
+        !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+    if (_animationEnabled == enabled) return;
+    _animationEnabled = enabled;
+    _controller
+      ..stop()
+      ..reset();
+    if (enabled) _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double _arrivalProgress(int characterIndex) {
+    if (characterIndex == 0) return 1;
+    final start =
+        _characterInterval.inMilliseconds *
+        characterIndex /
+        _cycleDuration.inMilliseconds;
+    final end =
+        _characterInterval.inMilliseconds *
+        (characterIndex + 1) /
+        _cycleDuration.inMilliseconds;
+    return Curves.easeOut.transform(
+      ((_controller.value - start) / (end - start)).clamp(0.0, 1.0),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style =
+        Theme.of(context).appBarTheme.titleTextStyle ??
+        Theme.of(context).textTheme.titleLarge!;
+    final staticTitle = !(_animationEnabled ?? false);
+
+    return Semantics(
+      header: true,
+      label: 'TRAINING',
+      child: ExcludeSemantics(
+        child: SizedBox(
+          key: const ValueKey('training-appbar-title'),
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              // This invisible full word establishes a stable envelope. The
+              // growing prefix therefore never re-centers as it gains letters.
+              Opacity(opacity: 0, child: Text(_word, style: style)),
+              if (staticTitle)
+                Text(_word, style: style)
+              else
+                AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(_word.length, (index) {
+                      final progress = _arrivalProgress(index);
+                      return Transform.translate(
+                        offset: Offset(_arrivalOffset * (1 - progress), 0),
+                        child: Opacity(
+                          opacity: progress,
+                          child: Text(
+                            _word[index],
+                            key: ValueKey('training-title-character-$index'),
+                            style: style,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
