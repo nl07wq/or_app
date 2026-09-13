@@ -104,7 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Image.asset(
                                   'assets/icons/orlo_logo_1024_transparent.png',
-                                  height: 24,
+                                  height: 28,
                                   fit: BoxFit.contain,
                                 ),
                                 const SizedBox(width: AppSpacing.xs),
@@ -547,7 +547,7 @@ class _DailyCommandSummary extends StatelessWidget {
                       status: model.operationStatus,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
+                  const SizedBox(width: AppSpacing.xl),
                   Expanded(
                     child: _DailyCommandCycleState(
                       cycleState: model.cycleState,
@@ -596,7 +596,18 @@ class _DailyCommandCycleState extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.page_info,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
+        ],
+      ),
       AppSpacing.gapXS,
       SemanticHelpPopover(
         id: 'cycle-${cycleState.name}',
