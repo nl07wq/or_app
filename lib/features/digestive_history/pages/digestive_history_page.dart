@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/models/digestive_event.dart';
 import '../../../core/models/operation_calendar_period.dart';
@@ -30,6 +31,7 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   BodyHistoryPeriod _period = BodyHistoryPeriod.oneWeek;
   DateTimeRange? _customRange;
   Future<_ViewModel>? _model;
+  DateTime? _dailyWindowEnd;
 
   @override
   void initState() {
@@ -66,7 +68,14 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
     final summary = _analytics.summarize(days);
     final actualRange = days.isEmpty
         ? range
-        : DateTimeRange(start: DateTime.parse(days.first.operationDate), end: range.end);
+        : DateTimeRange(
+            start: DateTime.parse(days.first.operationDate),
+            end: range.end,
+          );
+    _dailyWindowEnd ??= actualRange.end;
+    if (_dailyWindowEnd!.isAfter(actualRange.end)) {
+      _dailyWindowEnd = actualRange.end;
+    }
     return _ViewModel(range: actualRange, summary: summary);
   }
 
@@ -87,9 +96,18 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
     if (!mounted) return;
     setState(() {
       _period = period;
+      _dailyWindowEnd = null;
       _model = _load();
     });
     await _rangePreference.save(period, customRange: _customRange);
+  }
+
+  void _moveDailyWindow(DateTimeRange range, int days) {
+    final current = _dailyWindowEnd ?? range.end;
+    final candidate = current.add(Duration(days: days));
+    final earliestEnd = range.start.add(const Duration(days: 6));
+    if (candidate.isBefore(earliestEnd) || candidate.isAfter(range.end)) return;
+    setState(() => _dailyWindowEnd = candidate);
   }
 
   @override
@@ -133,9 +151,12 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
             AppSpacing.gapSM,
             _Overview(summary: model.summary),
             AppSpacing.gapXL,
-            const SectionHeader(icon: Icons.bar_chart_outlined, title: 'TREND'),
+            const SectionHeader(
+              icon: Icons.show_chart_outlined,
+              title: '排便回数の推移',
+            ),
             AppSpacing.gapSM,
-            _DailyCountTrend(days: model.summary.days),
+            _DailyCountLineChart(days: model.summary.days),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.equalizer_outlined,
@@ -149,21 +170,26 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
               title: 'WEEKLY',
             ),
             AppSpacing.gapSM,
-            _BucketList(days: model.summary.days, weekly: true),
+            _BucketSection(days: model.summary.days, weekly: true),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.calendar_month_outlined,
               title: 'MONTHLY',
             ),
             AppSpacing.gapSM,
-            _BucketList(days: model.summary.days, weekly: false),
+            _BucketSection(days: model.summary.days, weekly: false),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.history_outlined,
               title: 'DAILY HISTORY',
             ),
             AppSpacing.gapSM,
-            _DailyHistory(days: model.summary.days.reversed.toList()),
+            _DailyHistoryWindow(
+              days: model.summary.days,
+              range: model.range,
+              windowEnd: _dailyWindowEnd ?? model.range.end,
+              onMove: (days) => _moveDailyWindow(model.range, days),
+            ),
             AppSpacing.gapLG,
           ],
         );
@@ -260,42 +286,42 @@ class _Overview extends StatelessWidget {
   const _Overview({required this.summary});
   final DigestivePeriodSummary summary;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: AppSpacing.sm,
-    runSpacing: AppSpacing.sm,
-    children: [
-      _Metric(
-        'RECORDING COVERAGE',
-        '${summary.knownDays} / ${summary.calendarDays} DAYS',
-        '${(summary.recordingCoverage * 100).round()}%',
-      ),
-      _Metric('BM DAYS', '${summary.yesDays}', 'CONFIRMED'),
-      _Metric(
-        'CONFIRMED NO DAYS',
-        '${summary.confirmedNoDays}',
-        'UNKNOWN ${summary.unknownDays}',
-      ),
-      _Metric(
-        'TOTAL BM',
-        '${summary.totalExactEvents}',
-        'EXACT COUNT: ${summary.exactCountDays} DAYS',
-      ),
-      _Metric(
-        'BM / RECORDED DAY',
-        _decimal(summary.averagePerExactCountDay),
-        'EXACT-COUNT DAYS',
-      ),
-      _Metric(
-        'NO CONTINUITY',
-        '${summary.currentConfirmedNoStreak} DAYS',
-        'LONGEST ${summary.longestConfirmedNoStreak}',
-      ),
-      _Metric(
-        'DAYS SINCE LAST RECORDED BM DAY',
-        summary.daysSinceLatestConfirmedBmDate?.toString() ?? '—',
-        summary.latestConfirmedBmDate ?? 'UNAVAILABLE',
-      ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = constraints.maxWidth >= 720 ? 3 : 2;
+      return GridView.count(
+        crossAxisCount: columns,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: AppSpacing.sm,
+        crossAxisSpacing: AppSpacing.sm,
+        childAspectRatio: constraints.maxWidth < 350 ? 1.12 : 1.35,
+        children: [
+          _Metric(
+            '記録率',
+            '${summary.knownDays} / ${summary.calendarDays}日',
+            '${(summary.recordingCoverage * 100).round()}%・未記録 ${summary.unknownDays}日',
+          ),
+          _Metric('排便あり日', '${summary.yesDays}日', '確認済み'),
+          _Metric('排便なし日', '${summary.confirmedNoDays}日', ''),
+          _Metric(
+            '排便回数',
+            '${summary.totalExactEvents}回',
+            '集計対象 ${summary.exactCountDays}日',
+          ),
+          _Metric(
+            '1記録日あたり',
+            '${_decimal(summary.averagePerExactCountDay)}回',
+            '集計対象 ${summary.exactCountDays}日',
+          ),
+          _Metric(
+            '連続排便なし',
+            '${summary.currentConfirmedNoStreak}日',
+            '最長 ${summary.longestConfirmedNoStreak}日',
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -305,64 +331,128 @@ class _Metric extends StatelessWidget {
   final String value;
   final String detail;
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 210,
-    child: OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
-          AppSpacing.gapSM,
-          Text(value, style: Theme.of(context).textTheme.titleLarge),
-          AppSpacing.gapXS,
-          Text(detail),
-        ],
-      ),
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        const Spacer(),
+        Text(value, style: Theme.of(context).textTheme.titleLarge),
+        if (detail.isNotEmpty) ...[AppSpacing.gapXS, Text(detail)],
+      ],
     ),
   );
 }
 
-class _DailyCountTrend extends StatelessWidget {
-  const _DailyCountTrend({required this.days});
+class _DailyCountLineChart extends StatelessWidget {
+  const _DailyCountLineChart({required this.days});
   final List<DigestiveDaySummary> days;
   @override
   Widget build(BuildContext context) => OperationCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('DAILY BM COUNT'),
+        const Text('日別の正確な回数のみを表示します。未記録・回数不明は線をつなぎません。'),
         AppSpacing.gapSM,
-        for (final day in days)
-          Semantics(
-          label:
-              '${day.operationDate} ${_displayState(day)} ${day.countKnown ? 'COUNT ${day.exactCount}' : 'COUNT UNAVAILABLE'}',
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                children: [
-                  SizedBox(width: 92, child: Text(day.operationDate)),
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: day.countKnown
-                          ? ((day.exactCount ?? 0) / 4).clamp(0, 1)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    day.countKnown
-                        ? '${day.exactCount}'
-                        : day.state == DigestiveDayState.yes
-                        ? 'PARTIAL'
-                      : _displayState(day),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        SizedBox(height: 190, child: _CountChart(days: days)),
       ],
     ),
   );
+}
+
+class _CountChart extends StatelessWidget {
+  const _CountChart({required this.days});
+  final List<DigestiveDaySummary> days;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxCount = days
+        .where((day) => day.countKnown)
+        .fold<int>(
+          0,
+          (max, day) => (day.exactCount ?? 0) > max ? day.exactCount! : max,
+        );
+    final segments = <List<FlSpot>>[];
+    var active = <FlSpot>[];
+    for (var index = 0; index < days.length; index++) {
+      final day = days[index];
+      if (day.countKnown) {
+        active.add(FlSpot(index.toDouble(), (day.exactCount ?? 0).toDouble()));
+      } else if (active.isNotEmpty) {
+        segments.add(active);
+        active = <FlSpot>[];
+      }
+    }
+    if (active.isNotEmpty) segments.add(active);
+    return Semantics(
+      label: '排便回数の推移。未記録と回数不明は表示しません。',
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: (maxCount + 1).toDouble(),
+          gridData: const FlGridData(show: true),
+          borderData: FlBorderData(show: false),
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (spots) => [
+                for (final spot in spots)
+                  LineTooltipItem(
+                    '${days[spot.x.toInt()].operationDate}\n${spot.y.toInt()}回',
+                    Theme.of(context).textTheme.labelMedium!,
+                  ),
+              ],
+            ),
+          ),
+          lineBarsData: [
+            for (final segment in segments)
+              LineChartBarData(
+                spots: segment,
+                isCurved: false,
+                barWidth: 2,
+                dotData: const FlDotData(show: true),
+                belowBarData: BarAreaData(show: false),
+              ),
+          ],
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 26,
+                interval: 1,
+                getTitlesWidget: (value, _) => Text(value.toInt().toString()),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                interval: days.length <= 8
+                    ? 1
+                    : (days.length / 6).ceilToDouble(),
+                getTitlesWidget: (value, _) {
+                  final index = value.round();
+                  if (index < 0 || index >= days.length) {
+                    return const SizedBox();
+                  }
+                  final date = DateTime.parse(days[index].operationDate);
+                  return Text(
+                    '${date.month}/${date.day}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Distributions extends StatelessWidget {
@@ -374,17 +464,17 @@ class _Distributions extends StatelessWidget {
     runSpacing: AppSpacing.sm,
     children: [
       _DistributionCard(
-        'AMOUNT',
+        '量',
         summary.amountDistribution,
         DigestiveEvent.amountLabel,
       ),
       _DistributionCard(
-        'FORM',
+        '便の形',
         summary.formDistribution,
         DigestiveEvent.shapeLabel,
       ),
       _DistributionCard(
-        'RELIEF',
+        '残便感',
         summary.reliefDistribution,
         DigestiveEvent.reliefLabel,
       ),
@@ -399,23 +489,38 @@ class _DistributionCard extends StatelessWidget {
   final String Function(int) label;
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 260,
+    width: 360,
     child: OperationCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title),
-          AppSpacing.gapSM,
-          if (distribution.knownTotal == 0) const Text('NO KNOWN EVENT DATA'),
-          for (final entry in distribution.knownCounts.entries)
-            _DistributionRow(
-              label(entry.key),
-              entry.value,
-              distribution.knownTotal,
-            ),
-          if (distribution.missingCount > 0)
-            Text('UNKNOWN: ${distribution.missingCount}'),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final vertical = constraints.maxWidth < 270;
+          final rows = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (distribution.knownTotal == 0) const Text('利用可能な記録なし'),
+              for (final entry in distribution.knownCounts.entries)
+                _DistributionRow(
+                  label(entry.key),
+                  entry.value,
+                  distribution.knownTotal,
+                ),
+              if (distribution.missingCount > 0)
+                Text('未記録: ${distribution.missingCount}件'),
+            ],
+          );
+          return vertical
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [Text(title), AppSpacing.gapSM, rows],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 68, child: Text(title)),
+                    Expanded(child: rows),
+                  ],
+                );
+        },
       ),
     ),
   );
@@ -442,8 +547,8 @@ class _DistributionRow extends StatelessWidget {
   );
 }
 
-class _BucketList extends StatelessWidget {
-  const _BucketList({required this.days, required this.weekly});
+class _BucketSection extends StatelessWidget {
+  const _BucketSection({required this.days, required this.weekly});
   final List<DigestiveDaySummary> days;
   final bool weekly;
   @override
@@ -456,85 +561,284 @@ class _BucketList extends StatelessWidget {
           : OperationCalendarPeriod.month(date);
       groups.putIfAbsent(period.id, () => []).add(day);
     }
+    final buckets = groups.entries
+        .map(
+          (entry) => _BucketDisplay(
+            days: entry.value,
+            weekly: weekly,
+            start: weekly
+                ? OperationCalendarPeriod.week(
+                    DateTime.parse(entry.value.first.operationDate),
+                  ).start
+                : OperationCalendarPeriod.month(
+                    DateTime.parse(entry.value.first.operationDate),
+                  ).start,
+          ),
+        )
+        .toList()
+        .reversed
+        .toList();
     return Column(
       children: [
-        for (final entry in groups.entries)
-          _BucketCard(keyLabel: entry.key, days: entry.value),
+        if (buckets.length > 1) _BucketTrend(buckets: buckets.take(6).toList()),
+        for (final bucket in buckets.take(3)) _BucketCard(bucket: bucket),
+        if (buckets.length > 3)
+          const Padding(
+            padding: EdgeInsets.only(top: AppSpacing.xs),
+            child: Text('直近3件を表示'),
+          ),
       ],
     );
   }
 }
 
 class _BucketCard extends StatelessWidget {
-  const _BucketCard({required this.keyLabel, required this.days});
-  final String keyLabel;
-  final List<DigestiveDaySummary> days;
+  const _BucketCard({required this.bucket});
+  final _BucketDisplay bucket;
   @override
   Widget build(BuildContext context) {
-    final summary = const DigestiveHistoryAnalytics().summarize(days);
+    final summary = bucket.summary;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: OperationCard(
-        child: Text(
-          '$keyLabel  •  COVERAGE ${summary.knownDays}/${summary.calendarDays}  •  BM ${summary.totalExactEvents}  •  ${_decimal(summary.averagePerExactCountDay)} / RECORDED DAY',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(bucket.title, style: Theme.of(context).textTheme.titleMedium),
+            AppSpacing.gapSM,
+            Wrap(
+              spacing: AppSpacing.lg,
+              runSpacing: AppSpacing.xs,
+              children: [
+                _BucketMetric(
+                  '記録率',
+                  '${summary.knownDays}/${summary.calendarDays}日',
+                ),
+                _BucketMetric('排便あり', '${summary.yesDays}日'),
+                if (!bucket.weekly)
+                  _BucketMetric('排便なし', '${summary.confirmedNoDays}日'),
+                _BucketMetric('排便回数', '${summary.totalExactEvents}回'),
+                _BucketMetric(
+                  '1記録日あたり',
+                  '${_decimal(summary.averagePerExactCountDay)}回',
+                ),
+                _BucketMetric('最長排便なし', '${summary.longestConfirmedNoStreak}日'),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _DailyHistory extends StatelessWidget {
-  const _DailyHistory({required this.days});
+class _BucketDisplay {
+  _BucketDisplay({
+    required this.days,
+    required this.weekly,
+    required this.start,
+  }) : summary = const DigestiveHistoryAnalytics().summarize(days);
   final List<DigestiveDaySummary> days;
+  final bool weekly;
+  final DateTime start;
+  final DigestivePeriodSummary summary;
+  String get title {
+    if (!weekly) return '${start.year}年${start.month}月';
+    final end = start.add(const Duration(days: 6));
+    return '${start.month}/${start.day} - ${end.month}/${end.day}';
+  }
+}
+
+class _BucketMetric extends StatelessWidget {
+  const _BucketMetric(this.label, this.value);
+  final String label;
+  final String value;
   @override
   Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
     children: [
-      for (final day in days)
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: OperationCard(
+      Text(label, style: Theme.of(context).textTheme.labelSmall),
+      Text(value),
+    ],
+  );
+}
+
+class _BucketTrend extends StatelessWidget {
+  const _BucketTrend({required this.buckets});
+  final List<_BucketDisplay> buckets;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 100,
+    child: BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        borderData: FlBorderData(show: false),
+        gridData: const FlGridData(show: false),
+        titlesData: const FlTitlesData(show: false),
+        barGroups: [
+          for (var index = 0; index < buckets.length; index++)
+            BarChartGroupData(
+              x: index,
+              barRods: [
+                BarChartRodData(
+                  toY: buckets[index].summary.totalExactEvents.toDouble(),
+                ),
+              ],
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _DailyHistoryWindow extends StatefulWidget {
+  const _DailyHistoryWindow({
+    required this.days,
+    required this.range,
+    required this.windowEnd,
+    required this.onMove,
+  });
+  final List<DigestiveDaySummary> days;
+  final DateTimeRange range;
+  final DateTime windowEnd;
+  final ValueChanged<int> onMove;
+  @override
+  State<_DailyHistoryWindow> createState() => _DailyHistoryWindowState();
+}
+
+class _DailyHistoryWindowState extends State<_DailyHistoryWindow> {
+  final _expanded = <String>{};
+  @override
+  Widget build(BuildContext context) {
+    final end = DateTime(
+      widget.windowEnd.year,
+      widget.windowEnd.month,
+      widget.windowEnd.day,
+    );
+    final start = end.subtract(const Duration(days: 6));
+    final byDate = {for (final day in widget.days) day.operationDate: day};
+    final dates = List.generate(
+      7,
+      (index) => start.add(Duration(days: index)),
+    ).reversed.toList();
+    final canBack = start.isAfter(widget.range.start);
+    final canForward = end.isBefore(widget.range.end);
+    return OperationCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${start.month}/${start.day} - ${end.month}/${end.day}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                onPressed: canBack ? () => widget.onMove(-7) : null,
+                icon: const Icon(Icons.chevron_left),
+                tooltip: '前の7日間',
+              ),
+              IconButton(
+                onPressed: canForward ? () => widget.onMove(7) : null,
+                icon: const Icon(Icons.chevron_right),
+                tooltip: '次の7日間',
+              ),
+            ],
+          ),
+          for (final date in dates)
+            _DailyHistoryRow(
+              day:
+                  byDate[_formatDigestiveDate(date)] ??
+                  DigestiveDaySummary(
+                    operationDate: _formatDigestiveDate(date),
+                    state: DigestiveDayState.unknown,
+                    source: DigestiveHistorySource.none,
+                    quality: DigestiveDataQuality.unknown,
+                    countKnown: false,
+                    events: const [],
+                  ),
+              expanded: _expanded.contains(_formatDigestiveDate(date)),
+              onToggle: () => setState(() {
+                final key = _formatDigestiveDate(date);
+                if (!_expanded.add(key)) _expanded.remove(key);
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyHistoryRow extends StatelessWidget {
+  const _DailyHistoryRow({
+    required this.day,
+    required this.expanded,
+    required this.onToggle,
+  });
+  final DigestiveDaySummary day;
+  final bool expanded;
+  final VoidCallback onToggle;
+  @override
+  Widget build(BuildContext context) {
+    final date = DateTime.parse(day.operationDate);
+    final hasEvents = day.events.isNotEmpty;
+    return Column(
+      children: [
+        InkWell(
+          onTap: hasEvents ? onToggle : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Row(
+              children: [
+                SizedBox(width: 52, child: Text('${date.month}/${date.day}')),
+                Expanded(child: Text(_dailyStateLabel(day))),
+                Text(_dailyCountLabel(day)),
+                if (hasEvents)
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more),
+              ],
+            ),
+          ),
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 52, bottom: AppSpacing.sm),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  day.operationDate,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                  Text('BM: ${_displayState(day)}'),
-                Text(
-                  day.countKnown
-                      ? 'COUNT: ${day.exactCount}'
-                      : day.state == DigestiveDayState.yes
-                      ? 'COUNT: NOT AVAILABLE'
-                      : 'COUNT: —',
-                ),
-                if (day.quality == DigestiveDataQuality.partial)
-                  const Text('PARTIAL FORMAL DATA'),
                 for (final event in day.events)
                   Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                     child: Text(
-                      '${event.sequence == null ? 'EVENT' : '#${event.sequence}'}  Amount: ${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  Form: ${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  Relief: ${event.relief == null ? '—' : DigestiveEvent.reliefLabel(event.relief!)}',
+                      '#${event.sequence ?? '—'}  量: ${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  便の形: ${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  残便感: ${event.relief == null ? '—' : DigestiveEvent.reliefLabel(event.relief!)}',
                     ),
                   ),
               ],
             ),
           ),
-        ),
-    ],
-  );
+        const Divider(height: 1),
+      ],
+    );
+  }
 }
 
-String _stateLabel(DigestiveDayState state) => switch (state) {
-  DigestiveDayState.yes => 'YES',
-  DigestiveDayState.confirmedNo => 'NO',
-  DigestiveDayState.unknown => 'NOT RECORDED',
-};
+String _formatDigestiveDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
-String _displayState(DigestiveDaySummary day) =>
-    day.quality == DigestiveDataQuality.invalid
-    ? 'UNAVAILABLE'
-    : _stateLabel(day.state);
+String _dailyStateLabel(DigestiveDaySummary day) {
+  if (day.quality == DigestiveDataQuality.invalid) return '利用不可';
+  return switch (day.state) {
+    DigestiveDayState.yes => '排便あり',
+    DigestiveDayState.confirmedNo => '排便なし',
+    DigestiveDayState.unknown => '未記録',
+  };
+}
+
+String _dailyCountLabel(DigestiveDaySummary day) {
+  if (day.countKnown) return '${day.exactCount}回';
+  return day.state == DigestiveDayState.yes ? '回数不明' : '—';
+}
 
 String _decimal(double? value) =>
     value == null ? '—' : value.toStringAsFixed(1);
