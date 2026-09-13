@@ -963,10 +963,7 @@ class _DailyHistoryWindowState extends State<_DailyHistoryWindow> {
     );
     final start = end.subtract(const Duration(days: 6));
     final byDate = {for (final day in widget.days) day.operationDate: day};
-    final dates = List.generate(
-      7,
-      (index) => start.add(Duration(days: index)),
-    ).reversed.toList();
+    final dates = List.generate(7, (index) => start.add(Duration(days: index)));
     final canBack = start.isAfter(widget.range.start);
     final canForward = end.isBefore(widget.range.end);
     return OperationCard(
@@ -993,22 +990,27 @@ class _DailyHistoryWindowState extends State<_DailyHistoryWindow> {
             ],
           ),
           for (final date in dates)
-            _DailyHistoryRow(
-              day:
-                  byDate[_formatDigestiveDate(date)] ??
-                  DigestiveDaySummary(
-                    operationDate: _formatDigestiveDate(date),
-                    state: DigestiveDayState.unknown,
-                    source: DigestiveHistorySource.none,
-                    quality: DigestiveDataQuality.unknown,
-                    countKnown: false,
-                    events: const [],
-                  ),
-              expanded: _expanded.contains(_formatDigestiveDate(date)),
-              onToggle: () => setState(() {
-                final key = _formatDigestiveDate(date);
-                if (!_expanded.add(key)) _expanded.remove(key);
-              }),
+            KeyedSubtree(
+              key: ValueKey(
+                'digestive-daily-history-${_formatDigestiveDate(date)}',
+              ),
+              child: _DailyHistoryRow(
+                day:
+                    byDate[_formatDigestiveDate(date)] ??
+                    DigestiveDaySummary(
+                      operationDate: _formatDigestiveDate(date),
+                      state: DigestiveDayState.unknown,
+                      source: DigestiveHistorySource.none,
+                      quality: DigestiveDataQuality.unknown,
+                      countKnown: false,
+                      events: const [],
+                    ),
+                expanded: _expanded.contains(_formatDigestiveDate(date)),
+                onToggle: () => setState(() {
+                  final key = _formatDigestiveDate(date);
+                  if (!_expanded.add(key)) _expanded.remove(key);
+                }),
+              ),
             ),
         ],
       ),

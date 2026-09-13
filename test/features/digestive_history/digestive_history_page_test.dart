@@ -210,6 +210,22 @@ void main() {
             .value,
         isNull,
       );
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey('digestive-daily-history-2026-09-07')),
+            )
+            .dy,
+        lessThan(
+          tester
+              .getTopLeft(
+                find.byKey(
+                  const ValueKey('digestive-daily-history-2026-09-13'),
+                ),
+              )
+              .dy,
+        ),
+      );
     },
   );
 }

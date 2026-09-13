@@ -37,16 +37,22 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
   @override
   void initState() {
     super.initState();
-    final container = AppRepositoryRegistry.container;
-    _resolver =
-        widget.resolver ??
-        SleepHistorySourceResolver(
-          statusRepository: container.status,
-          dailyAggregateRepository: container.dailyAggregates,
-        );
-    _operationDateService =
-        widget.operationDateService ??
-        OperationDateService(container.operationState);
+    if (widget.resolver case final resolver?) {
+      _resolver = resolver;
+    } else {
+      final container = AppRepositoryRegistry.container;
+      _resolver = SleepHistorySourceResolver(
+        statusRepository: container.status,
+        dailyAggregateRepository: container.dailyAggregates,
+      );
+    }
+    if (widget.operationDateService case final service?) {
+      _operationDateService = service;
+    } else {
+      _operationDateService = OperationDateService(
+        AppRepositoryRegistry.container.operationState,
+      );
+    }
     _model = _restoreAndLoad();
   }
 
@@ -273,9 +279,9 @@ class _Overview extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppSpacing.sm,
         crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: constraints.maxWidth < 350 ? 1.2 : 1.22,
+        childAspectRatio: constraints.maxWidth < 350 ? 0.94 : 0.94,
         children: [
-          _Metric('記録日数', '${summary.observedDays}日', '睡眠またはスコア'),
+          _Metric('記録日数', '${summary.observedDays}日', ''),
           _Metric(
             '平均睡眠',
             _duration(summary.averageDurationMinutes?.round()),
@@ -287,8 +293,12 @@ class _Overview extends StatelessWidget {
             '記録 ${summary.scoreDays}日',
           ),
           _Metric('最長睡眠', _duration(summary.longestDurationMinutes), ''),
-          _Metric('最高スコア', _score(summary.highestScore), ''),
-          _Metric('記録日数', '${summary.observedDays}日', ''),
+          _Metric('最短睡眠', _duration(summary.shortestDurationMinutes), ''),
+          _Metric(
+            '最高/最低スコア',
+            '${_score(summary.highestScore)} / ${_score(summary.lowestScore)}',
+            '',
+          ),
         ],
       );
     },
@@ -504,7 +514,23 @@ class _BucketChart extends StatelessWidget {
             maxY: maximum == 0 ? 1 : maximum * 1.1,
             borderData: FlBorderData(show: false),
             gridData: const FlGridData(show: false),
-            barTouchData: BarTouchData(enabled: false),
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                fitInsideHorizontally: true,
+                fitInsideVertically: true,
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  final bucket = measured[group.x];
+                  if (bucket == null) return null;
+                  final value = metric == SleepHistoryMetric.duration
+                      ? _duration(bucket.value)
+                      : _score(bucket.value);
+                  return BarTooltipItem(
+                    '${bucket.title}\n$value',
+                    Theme.of(context).textTheme.labelMedium!,
+                  );
+                },
+              ),
+            ),
             barGroups: [
               for (final entry in measured.entries)
                 BarChartGroupData(
@@ -622,7 +648,7 @@ class _DailyHistory extends StatelessWidget {
               ),
             ],
           ),
-          for (var i = 6; i >= 0; i--)
+          for (var i = 0; i < 7; i++)
             if (map[_date(start.add(Duration(days: i)))] case final day?)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
@@ -670,9 +696,13 @@ SleepHistorySummary _summarize(List<SleepHistoryDay> days) {
     longestDurationMinutes: durations.isEmpty
         ? null
         : durations.reduce((a, b) => a > b ? a : b),
+    shortestDurationMinutes: durations.isEmpty
+        ? null
+        : durations.reduce((a, b) => a < b ? a : b),
     highestScore: scores.isEmpty
         ? null
         : scores.reduce((a, b) => a > b ? a : b),
+    lowestScore: scores.isEmpty ? null : scores.reduce((a, b) => a < b ? a : b),
     latestDurationMinutes: durations.isEmpty ? null : durations.last,
     latestScore: scores.isEmpty ? null : scores.last,
   );

@@ -41,7 +41,9 @@ class SleepHistorySummary {
     required this.averageDurationMinutes,
     required this.averageScore,
     required this.longestDurationMinutes,
+    required this.shortestDurationMinutes,
     required this.highestScore,
+    required this.lowestScore,
     required this.latestDurationMinutes,
     required this.latestScore,
   });
@@ -52,7 +54,9 @@ class SleepHistorySummary {
   final double? averageDurationMinutes;
   final double? averageScore;
   final int? longestDurationMinutes;
+  final int? shortestDurationMinutes;
   final int? highestScore;
+  final int? lowestScore;
   final int? latestDurationMinutes;
   final int? latestScore;
 

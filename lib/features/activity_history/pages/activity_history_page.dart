@@ -829,7 +829,7 @@ class _ActivityDailyHistory extends StatelessWidget {
     final window = [
       for (var i = 0; i < 7; i++)
         DateTime(start.year, start.month, start.day + i),
-    ].reversed;
+    ];
     return OperationCard(
       child: Column(
         children: [
@@ -862,16 +862,19 @@ class _ActivityDailyHistory extends StatelessWidget {
             ],
           ),
           for (final date in window)
-            _ActivityDayRow(
-              day:
-                  map[_date(date)] ??
-                  ActivityHistoryDaySummary(
-                    operationDate: _date(date),
-                    state: ActivityHistoryDayState.outsideObservation,
-                    source: ActivityHistorySource.none,
-                    quality: ActivityHistoryQuality.unknown,
-                    observationEligible: false,
-                  ),
+            KeyedSubtree(
+              key: ValueKey('activity-daily-history-${_date(date)}'),
+              child: _ActivityDayRow(
+                day:
+                    map[_date(date)] ??
+                    ActivityHistoryDaySummary(
+                      operationDate: _date(date),
+                      state: ActivityHistoryDayState.outsideObservation,
+                      source: ActivityHistorySource.none,
+                      quality: ActivityHistoryQuality.unknown,
+                      observationEligible: false,
+                    ),
+              ),
             ),
         ],
       ),

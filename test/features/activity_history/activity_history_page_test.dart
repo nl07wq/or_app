@@ -89,6 +89,20 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('折りたたむ'), findsOneWidget);
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey('activity-daily-history-2026-09-09')),
+            )
+            .dy,
+        lessThan(
+          tester
+              .getTopLeft(
+                find.byKey(const ValueKey('activity-daily-history-2026-09-15')),
+              )
+              .dy,
+        ),
+      );
     },
   );
 }
