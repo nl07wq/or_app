@@ -7,11 +7,20 @@ import 'package:or_app/core/models/training_session_v2.dart';
 import 'package:or_app/core/models/training_set.dart';
 import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
+import 'package:or_app/features/training_analysis/services/training_analysis_presentation.dart';
 import 'package:or_app/features/training_analysis/services/training_frequency_recommendation_service.dart';
 
 void main() {
   const service = TrainingFrequencyRecommendationService();
   final now = DateTime.parse('2026-06-01T00:00:00Z');
+
+  test('defines no high or established confidence state', () {
+    expect(TrainingFrequencyConfidence.values, const [
+      TrainingFrequencyConfidence.insufficient,
+      TrainingFrequencyConfidence.low,
+      TrainingFrequencyConfidence.medium,
+    ]);
+  });
 
   test('uses the TARGET recovery maximum and never SUPPORT muscles', () {
     final records = _records(
@@ -57,6 +66,17 @@ void main() {
     expect(recommendation.recoveryReferenceHours, 48);
     expect(recommendation.recommendedMinHours, 71);
     expect(recommendation.recommendedMaxHours, 119);
+    expect(
+      TrainingAnalysisPresentation.recommendationBasis(recommendation),
+      '実績から推定',
+    );
+    expect(
+      TrainingAnalysisPresentation.frequencyNote(
+        exerciseName: 'Bench Press',
+        recommendation: recommendation,
+      ),
+      contains('観測3件のうち3件が条件を満たしているため'),
+    );
     expect(
       recommendation.evidence.every((value) => value.intervalHours >= 48),
       isTrue,
@@ -150,6 +170,17 @@ void main() {
     );
     expect(recommendation.confidence, TrainingFrequencyConfidence.low);
     expect(recommendation.recommendedMaxHours, isNull);
+    expect(
+      TrainingAnalysisPresentation.recommendationBasis(recommendation),
+      'データ不足',
+    );
+    expect(
+      TrainingAnalysisPresentation.frequencyNote(
+        exerciseName: 'Bench Press',
+        recommendation: recommendation,
+      ),
+      contains('実績に一貫性がないため'),
+    );
   });
 
   test('does not treat load progression with lower reps as a regression', () {
@@ -284,6 +315,20 @@ void main() {
     );
     expect(recommendation.recommendedMinHours, isNull);
     expect(recommendation.recoveryReferenceHours, isNull);
+    expect(
+      TrainingAnalysisPresentation.recommendationBasis(recommendation),
+      '判定不可',
+    );
+  });
+
+  test('formats RPE and removes only machine-precision narrative decimals', () {
+    expect(TrainingAnalysisPresentation.rpe(9.333333333333334), '9.3');
+    expect(
+      TrainingAnalysisPresentation.cleanNarrativeNumbers(
+        '平均RPEは9.333333333333334です。負荷は72.5 kgです。',
+      ),
+      '平均RPEは9.3です。負荷は72.5 kgです。',
+    );
   });
 }
 

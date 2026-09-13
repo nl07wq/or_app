@@ -14,6 +14,7 @@ import '../../training/services/training_exercise_identity.dart';
 import '../../training/services/training_volume_formatter.dart';
 import '../models/training_analysis_report.dart';
 import 'training_analysis_metrics_adapter.dart';
+import 'training_analysis_presentation.dart';
 import 'training_frequency_recommendation_service.dart';
 
 class TrainingAnalysisPreparation {
@@ -354,6 +355,7 @@ class TrainingAnalysisService {
         ? null
         : TrainingVolumeFormatter.format(values.workingVolume!),
     'averageRpe': values.averageRpe,
+    'averageRpeDisplay': TrainingAnalysisPresentation.rpe(values.averageRpe),
   };
 
   Future<TrainingRecordReadModel> _requireTarget(String id) async {
@@ -495,8 +497,11 @@ Return exactly one fenced Plain Text code block using ```text. Put one JSON obje
 JAPANESE LOAD TERMINOLOGY
 Use "負荷量" for Volume, "総負荷量" for Recorded Volume, and "メインセット負荷量" for Working Volume or Main Set Volume. Never use "ボリューム", "記録ボリューム", or "ワーキングボリューム" in analysis prose. When a supplied metric has a *Display value, reproduce that formatter value verbatim in prose; do not restate its raw *Kg value. Missing metrics remain unavailable and must not be written as zero.
 
+NUMERIC PRESENTATION
+For RPE in prose, use averageRpeDisplay exactly. Never expose a raw averageRpe floating-point value. Use supplied *Display values when present, and never emit machine-precision decimal strings.
+
 FREQUENCY RECOMMENDATION RESPONSIBILITY
-frequencyRecommendations is a current, app-derived structured result. Do not choose, widen, narrow, or override its recommended range. Explain its supplied baseline, observation count, confidence, and status only. It is a recommendation supported by current Formal History, never a scientifically proven "optimal" frequency. When status is unavailable or baselineOnly, state the supplied limitation concisely rather than inventing a personalized range.
+frequencyRecommendations is a current, app-derived structured result. Do not choose, widen, narrow, or override its recommended range. The app owns its user-facing frequency explanation; do not expose or explain raw confidence/status values in generated prose. It is a recommendation supported by current Formal History, never a scientifically proven "optimal" frequency.
 
 COMPLETE RESPONSE SHAPE
 ${const JsonEncoder.withIndent('  ').convert(example)}

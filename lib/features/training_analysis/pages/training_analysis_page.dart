@@ -15,6 +15,7 @@ import '../../report_sync/widgets/report_sync_action_bar.dart';
 import '../models/training_analysis_report.dart';
 import '../services/training_analysis_service.dart';
 import '../services/training_analysis_metrics_adapter.dart';
+import '../services/training_analysis_presentation.dart';
 import '../services/training_frequency_recommendation_service.dart';
 
 class TrainingAnalysisPage extends StatefulWidget {
@@ -593,7 +594,7 @@ class _ReportView extends StatelessWidget {
           key: const ValueKey('training-analysis-recovery'),
           icon: Icons.bedtime_outlined,
           title: 'RECOVERY / FREQUENCY NOTES',
-          text: report.analysis.recoveryFrequencyComment,
+          text: _frequencyNotes(frequencyRecommendations, metrics.exercises),
         ),
         AppSpacing.gapMD,
         _AnalysisCard(
@@ -707,12 +708,10 @@ class _FrequencyRecommendationCard extends StatelessWidget {
               value: '${recommendation.validObservationCount}回',
             ),
             _FrequencyValue(
-              label: '信頼度',
-              value: _frequencyConfidenceLabel(recommendation.confidence),
-            ),
-            _FrequencyValue(
-              label: '状態',
-              value: _frequencyStatusLabel(recommendation.status),
+              label: '判定根拠',
+              value: TrainingAnalysisPresentation.recommendationBasis(
+                recommendation,
+              ),
             ),
             if (recommendation.latestObservedIntervalHours != null)
               _FrequencyValue(
@@ -724,6 +723,30 @@ class _FrequencyRecommendationCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+String _frequencyNotes(
+  List<TrainingFrequencyRecommendation> recommendations,
+  List<TrainingAnalysisExerciseMetrics> metrics,
+) {
+  final notes = <String>[];
+  for (final recommendation in recommendations) {
+    TrainingAnalysisExerciseMetrics? metric;
+    for (final value in metrics) {
+      if (value.identity == recommendation.targetIdentity) {
+        metric = value;
+        break;
+      }
+    }
+    notes.add(
+      TrainingAnalysisPresentation.frequencyNote(
+        exerciseName:
+            metric?.exerciseName ?? recommendation.targetIdentity.exerciseKey,
+        recommendation: recommendation,
+      ),
+    );
+  }
+  return notes.join('\n\n');
 }
 
 class _FrequencyValue extends StatelessWidget {
@@ -753,41 +776,12 @@ class _FrequencyValue extends StatelessWidget {
 }
 
 String _recommendationRange(TrainingFrequencyRecommendation recommendation) {
-  if (recommendation.status ==
-      TrainingFrequencyRecommendationStatus.unavailable) {
-    return '算出不可';
-  }
-  final min = recommendation.recommendedMinHours;
-  if (min == null) return '算出不可';
-  final max = recommendation.recommendedMaxHours;
-  if (max == null || max == min) return '暫定 ${_hoursAtLeast(min)}';
-  if (_isNearWholeDay(min) && _isNearWholeDay(max)) {
-    return '${(min / 24).round()}〜${(max / 24).round()}日';
-  }
-  return '${_hours(min)}〜${_hours(max)}';
+  return TrainingAnalysisPresentation.recommendationRange(recommendation);
 }
 
-bool _isNearWholeDay(num value) =>
-    ((value / 24) - (value / 24).round()).abs() <= .125;
-
 String _hoursAtLeast(num? value) =>
-    value == null ? '算出不可' : '${_hours(value)}以上';
-String _hours(num value) => '${value.round()}時間';
-
-String _frequencyConfidenceLabel(TrainingFrequencyConfidence value) =>
-    switch (value) {
-      TrainingFrequencyConfidence.insufficient => '低',
-      TrainingFrequencyConfidence.low => '低',
-      TrainingFrequencyConfidence.medium => '中',
-    };
-
-String _frequencyStatusLabel(TrainingFrequencyRecommendationStatus value) =>
-    switch (value) {
-      TrainingFrequencyRecommendationStatus.baselineOnly => '傾向未確定',
-      TrainingFrequencyRecommendationStatus.personalized => '個別履歴反映',
-      TrainingFrequencyRecommendationStatus.conflicting => '履歴不一致',
-      TrainingFrequencyRecommendationStatus.unavailable => '算出不可',
-    };
+    TrainingAnalysisPresentation.hoursAtLeast(value);
+String _hours(num value) => TrainingAnalysisPresentation.hours(value);
 
 class _StaleAnalysisWarning extends StatelessWidget {
   const _StaleAnalysisWarning();
@@ -1534,7 +1528,7 @@ String _weightValue(double? value) => value == null
     : value == value.roundToDouble()
     ? value.round().toString()
     : value.toStringAsFixed(1);
-String _rpeValue(double? value) => value?.toStringAsFixed(1) ?? '—';
+String _rpeValue(double? value) => TrainingAnalysisPresentation.rpe(value);
 String _durationValue(Duration? value) => value == null
     ? '—'
     : '${value.inHours.toString().padLeft(2, '0')}:'
@@ -1634,7 +1628,7 @@ class _ReadableAnalysisText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text,
+    TrainingAnalysisPresentation.cleanNarrativeNumbers(text),
     style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
   );
 }

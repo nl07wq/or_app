@@ -76,13 +76,16 @@ void main() {
       expect(find.text('NEXT SESSION'), findsOneWidget);
       expect(find.text('FREQUENCY RECOMMENDATION'), findsOneWidget);
       expect(find.text('暫定 48時間以上'), findsOneWidget);
-      expect(find.text('INSUFFICIENT'), findsOneWidget);
-      expect(find.text('BASELINE ONLY'), findsOneWidget);
+      expect(find.text('判定根拠'), findsOneWidget);
+      expect(find.text('データ不足'), findsOneWidget);
+      expect(find.text('信頼度'), findsNothing);
+      expect(find.text('状態'), findsNothing);
       expect(find.text('RECOVERY / FREQUENCY NOTES'), findsOneWidget);
       expect(find.text('RISK / ATTENTION'), findsOneWidget);
       expect(find.text('RESPONSE JSON'), findsNothing);
       expect(find.text(_sessionSummary), findsOneWidget);
-      expect(find.text(_performance), findsOneWidget);
+      expect(find.text(_performanceDisplay), findsOneWidget);
+      expect(find.text(_performance), findsNothing);
       expect(find.text(_previous), findsNothing);
       expect(find.text('RECENT HISTORY NOTES'), findsNothing);
       expect(find.text(_progress), findsOneWidget);
@@ -91,7 +94,10 @@ void main() {
       expect(find.text(_exerciseProgress), findsOneWidget);
       expect(find.text(_exerciseNext), findsOneWidget);
       expect(find.text(_nextSession), findsOneWidget);
-      expect(find.text(_recovery), findsOneWidget);
+      expect(
+        find.textContaining('個人の実施間隔を十分に推定できないため'),
+        findsOneWidget,
+      );
       expect(find.text(_risk), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('CREATE ANALYSIS REPORT'),
@@ -472,7 +478,8 @@ TrainingAnalysis _analysis(String revision) => TrainingAnalysis(
 String _digest(String value) => value * 64;
 
 const _sessionSummary = '今回のTraining全体を示すSession Summaryです。';
-const _performance = '既存Performance本文を変更せず表示します。';
+const _performance = '平均RPEは9.333333333333334です。';
+const _performanceDisplay = '平均RPEは9.3です。';
 const _previous = '既存Previous Comparison本文をそのまま表示します。';
 const _progress = '既存Progress本文をそのまま表示します。';
 const _assessment = '種目のAssessment本文です。';
