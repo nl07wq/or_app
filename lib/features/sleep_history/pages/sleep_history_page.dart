@@ -525,7 +525,7 @@ class _BucketChart extends StatelessWidget {
                       ? _duration(bucket.value)
                       : _score(bucket.value);
                   return BarTooltipItem(
-                    '${bucket.title}\n$value',
+                    value,
                     Theme.of(context).textTheme.labelMedium!,
                   );
                 },

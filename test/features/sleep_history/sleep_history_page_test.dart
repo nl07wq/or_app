@@ -47,7 +47,7 @@ void main() {
     expect(find.text('記録 3日'), findsNWidgets(2));
   });
 
-  testWidgets('Sleep bucket charts expose metric-aware tap tooltips', (
+  testWidgets('Sleep bucket chart tooltips expose only the selected value', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -64,22 +64,42 @@ void main() {
     await tester.pumpWidget(await _page());
     await tester.pumpAndSettle();
 
-    final durationChart = tester.widget<BarChart>(find.byType(BarChart).at(0));
-    expect(durationChart.data.barTouchData.enabled, isTrue);
-    expect(
-      durationChart.data.barTouchData.touchTooltipData.getTooltipItem,
-      isNotNull,
-    );
+    final durationCharts = tester
+        .widgetList<BarChart>(find.byType(BarChart))
+        .toList();
+    expect(durationCharts, hasLength(2));
+    for (final chart in durationCharts) {
+      expect(chart.data.barTouchData.enabled, isTrue);
+      expect(_tooltipText(chart), '7:42');
+      expect(_tooltipText(chart), isNot(contains('9/7')));
+      expect(_tooltipText(chart), isNot(contains('2026年')));
+    }
 
     await tester.tap(find.text('スコア'));
     await tester.pump();
-    final scoreChart = tester.widget<BarChart>(find.byType(BarChart).at(0));
-    expect(scoreChart.data.barTouchData.enabled, isTrue);
-    expect(
-      scoreChart.data.barTouchData.touchTooltipData.getTooltipItem,
-      isNotNull,
-    );
+    final scoreCharts = tester
+        .widgetList<BarChart>(find.byType(BarChart))
+        .toList();
+    expect(scoreCharts, hasLength(2));
+    for (final chart in scoreCharts) {
+      expect(chart.data.barTouchData.enabled, isTrue);
+      expect(_tooltipText(chart), '73');
+      expect(_tooltipText(chart), isNot(contains('9/7')));
+      expect(_tooltipText(chart), isNot(contains('2026年')));
+    }
   });
+}
+
+String _tooltipText(BarChart chart) {
+  final group = chart.data.barGroups.first;
+  final tooltip = chart.data.barTouchData.touchTooltipData.getTooltipItem(
+    group,
+    0,
+    group.barRods.first,
+    0,
+  );
+  if (tooltip == null) fail('Expected a tooltip item for the rendered bar.');
+  return tooltip.text;
 }
 
 Future<Widget> _page() async => MaterialApp(
