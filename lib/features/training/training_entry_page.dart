@@ -720,16 +720,24 @@ class _TrainingAppBarTitle extends StatefulWidget {
 class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
     with SingleTickerProviderStateMixin {
   static const _word = 'TRAINING';
-  static const _characterInterval = Duration(milliseconds: 140);
-  static const _fullWordHold = Duration(milliseconds: 220);
-  static const _arrivalOffset = 7.0;
+  static const _characterTravel = Duration(milliseconds: 420);
+  static const _characterSettle = Duration(milliseconds: 120);
+  static const _fullWordHold = Duration(milliseconds: 900);
+  static const _travelLead = 24.0;
 
   late final AnimationController _controller;
   bool? _animationEnabled;
+  TextStyle? _slotStyle;
+  TextDirection? _slotTextDirection;
+  List<double> _slotOffsets = const [];
+  List<double> _glyphWidths = const [];
+  double _wordWidth = 0;
+  double _wordHeight = 0;
 
   Duration get _cycleDuration => Duration(
     milliseconds:
-        _characterInterval.inMilliseconds * (_word.length - 1) +
+        (_characterTravel.inMilliseconds + _characterSettle.inMilliseconds) *
+            _word.length +
         _fullWordHold.inMilliseconds,
   );
 
@@ -769,18 +777,50 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
     super.dispose();
   }
 
-  double _arrivalProgress(int characterIndex) {
-    if (characterIndex == 0) return 1;
-    final start =
-        _characterInterval.inMilliseconds *
-        characterIndex /
-        _cycleDuration.inMilliseconds;
-    final end =
-        _characterInterval.inMilliseconds *
-        (characterIndex + 1) /
-        _cycleDuration.inMilliseconds;
-    return Curves.easeOut.transform(
-      ((_controller.value - start) / (end - start)).clamp(0.0, 1.0),
+  void _ensureSlots(TextStyle style, TextDirection textDirection) {
+    if (_slotStyle == style && _slotTextDirection == textDirection) return;
+    _slotStyle = style;
+    _slotTextDirection = textDirection;
+    final widths = <double>[];
+    final offsets = <double>[];
+    for (var index = 0; index < _word.length; index++) {
+      final prefixPainter = TextPainter(
+        text: TextSpan(text: _word.substring(0, index), style: style),
+        textDirection: textDirection,
+      )..layout();
+      offsets.add(prefixPainter.width);
+      final glyphPainter = TextPainter(
+        text: TextSpan(text: _word[index], style: style),
+        textDirection: textDirection,
+      )..layout();
+      widths.add(glyphPainter.width);
+    }
+    final wordPainter = TextPainter(
+      text: TextSpan(text: _word, style: style),
+      textDirection: textDirection,
+    )..layout();
+    _wordWidth = wordPainter.width;
+    _wordHeight = wordPainter.height;
+    _slotOffsets = offsets;
+    _glyphWidths = widths;
+  }
+
+  _TrainingTitleFrame _frameFor(double value) {
+    final elapsed = value * _cycleDuration.inMilliseconds;
+    final phaseDuration =
+        _characterTravel.inMilliseconds + _characterSettle.inMilliseconds;
+    final phase = elapsed ~/ phaseDuration;
+    if (phase >= _word.length) {
+      return const _TrainingTitleFrame(settledCount: _word.length);
+    }
+    final phaseElapsed = elapsed - phase * phaseDuration;
+    if (phaseElapsed >= _characterTravel.inMilliseconds) {
+      return _TrainingTitleFrame(settledCount: phase + 1);
+    }
+    return _TrainingTitleFrame(
+      settledCount: phase,
+      travellingIndex: phase,
+      travelProgress: phaseElapsed / _characterTravel.inMilliseconds,
     );
   }
 
@@ -789,6 +829,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
     final style =
         Theme.of(context).appBarTheme.titleTextStyle ??
         Theme.of(context).textTheme.titleLarge!;
+    _ensureSlots(style, Directionality.of(context));
     final staticTitle = !(_animationEnabled ?? false);
 
     return Semantics(
@@ -798,33 +839,70 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
         child: SizedBox(
           key: const ValueKey('training-appbar-title'),
           child: Stack(
+            clipBehavior: Clip.none,
             alignment: Alignment.centerLeft,
             children: [
-              // This invisible full word establishes a stable envelope. The
-              // growing prefix therefore never re-centers as it gains letters.
+              // The full word fixes the final title envelope at the viewport
+              // center. Travelling glyphs can extend rightward without ever
+              // re-centering the settled characters.
               Opacity(opacity: 0, child: Text(_word, style: style)),
               if (staticTitle)
                 Text(_word, style: style)
               else
                 AnimatedBuilder(
                   animation: _controller,
-                  builder: (context, child) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(_word.length, (index) {
-                      final progress = _arrivalProgress(index);
-                      return Transform.translate(
-                        offset: Offset(_arrivalOffset * (1 - progress), 0),
-                        child: Opacity(
-                          opacity: progress,
-                          child: Text(
-                            _word[index],
-                            key: ValueKey('training-title-character-$index'),
-                            style: style,
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
+                  builder: (context, child) {
+                    final frame = _frameFor(_controller.value);
+                    final travelling = frame.travellingIndex;
+                    return SizedBox(
+                      width: _wordWidth,
+                      height: _wordHeight,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          for (var index = 0; index < _word.length; index++)
+                            Positioned(
+                              key: ValueKey('training-title-slot-$index'),
+                              left: _slotOffsets[index],
+                              top: 0,
+                              child: IgnorePointer(
+                                child: Opacity(
+                                  opacity: 0,
+                                  child: SizedBox(
+                                    width: _glyphWidths[index],
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (frame.settledCount > 0)
+                            Positioned(
+                              key: ValueKey(
+                                'training-title-settled-${frame.settledCount}',
+                              ),
+                              left: 0,
+                              top: 0,
+                              child: Text(
+                                _word.substring(0, frame.settledCount),
+                                style: style,
+                              ),
+                            ),
+                          if (travelling != null)
+                            Positioned(
+                              key: ValueKey(
+                                'training-title-travelling-$travelling',
+                              ),
+                              left: _travelLeft(
+                                travelling,
+                                frame.travelProgress,
+                              ),
+                              top: 0,
+                              child: Text(_word[travelling], style: style),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
             ],
           ),
@@ -832,6 +910,24 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
       ),
     );
   }
+
+  double _travelLeft(int index, double progress) {
+    final destination = _slotOffsets[index];
+    final start = _wordWidth + _travelLead - _glyphWidths[index];
+    return start + (destination - start) * Curves.linear.transform(progress);
+  }
+}
+
+class _TrainingTitleFrame {
+  const _TrainingTitleFrame({
+    required this.settledCount,
+    this.travellingIndex,
+    this.travelProgress = 0,
+  });
+
+  final int settledCount;
+  final int? travellingIndex;
+  final double travelProgress;
 }
 
 class _TrainingAppBarStateBadge extends StatelessWidget {

@@ -65,39 +65,70 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('active title is viewport centered and uses a fixed envelope', (
-    tester,
-  ) async {
-    await _pump(tester, width: 390, disableAnimations: false);
-    final title = find.byKey(const ValueKey('training-appbar-title'));
-    expect(tester.getCenter(title).dx, closeTo(195, 0.5));
-
-    await tester.tap(find.text('START TRAINING'));
-    await tester.pump();
-    expect(find.text('ACTIVE'), findsWidgets);
-
-    // T is immediately visible; subsequent characters build into the same
-    // fixed title envelope rather than re-centering the growing prefix.
-    expect(find.byKey(const ValueKey('training-title-character-0')), findsOne);
-    for (final duration in const [
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 140),
-      Duration(milliseconds: 220),
-    ]) {
-      await tester.pump(duration);
+  testWidgets(
+    'active title keeps its center while each glyph travels to its slot',
+    (tester) async {
+      await _pump(tester, width: 390, disableAnimations: false);
+      final title = find.byKey(const ValueKey('training-appbar-title'));
       expect(tester.getCenter(title).dx, closeTo(195, 0.5));
-    }
 
-    await tester.tap(find.text('PAUSE TRAINING'));
-    await tester.pump();
-    expect(find.text('PAUSED'), findsWidgets);
-    expect(tester.getCenter(title).dx, closeTo(195, 0.5));
-  });
+      await tester.tap(find.text('START TRAINING'));
+      await tester.pump();
+      expect(find.text('ACTIVE'), findsWidgets);
+
+      final travellingT = find.byKey(
+        const ValueKey('training-title-travelling-0'),
+      );
+      final tSlot = find.byKey(const ValueKey('training-title-slot-0'));
+      expect(travellingT, findsOneWidget);
+      expect(
+        tester.getTopLeft(travellingT).dx,
+        greaterThan(tester.getTopLeft(tSlot).dx + 40),
+      );
+
+      // T lands after its 420ms travel, then R starts only after the 120ms
+      // settle. The R glyph is independently translated rather than faded in.
+      await tester.pump(const Duration(milliseconds: 540));
+      final travellingR = find.byKey(
+        const ValueKey('training-title-travelling-1'),
+      );
+      final rSlot = find.byKey(const ValueKey('training-title-slot-1'));
+      expect(find.byKey(const ValueKey('training-title-settled-1')), findsOne);
+      expect(travellingR, findsOneWidget);
+      final rStart = tester.getTopLeft(travellingR).dx;
+      final rDestination = tester.getTopLeft(rSlot).dx;
+      expect(rStart, greaterThan(rDestination + 40));
+
+      await tester.pump(const Duration(milliseconds: 210));
+      final rMidpoint = tester.getTopLeft(travellingR).dx;
+      expect(rMidpoint, lessThan(rStart));
+      expect(rMidpoint, greaterThan(rDestination + 1));
+
+      await tester.pump(const Duration(milliseconds: 210));
+      expect(
+        find.byKey(const ValueKey('training-title-travelling-1')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('training-title-settled-2')), findsOne);
+      expect(tester.getCenter(title).dx, closeTo(195, 0.5));
+
+      // The complete word is held for 900ms before the loop resets.
+      await tester.pump(const Duration(milliseconds: 3360));
+      expect(find.byKey(const ValueKey('training-title-settled-8')), findsOne);
+      await tester.pump(const Duration(milliseconds: 899));
+      expect(find.byKey(const ValueKey('training-title-settled-8')), findsOne);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(
+        find.byKey(const ValueKey('training-title-travelling-0')),
+        findsOne,
+      );
+
+      await tester.tap(find.text('PAUSE TRAINING'));
+      await tester.pump();
+      expect(find.text('PAUSED'), findsWidgets);
+      expect(tester.getCenter(title).dx, closeTo(195, 0.5));
+    },
+  );
 
   for (final width in <double>[390, 900, 1280]) {
     testWidgets('new v2 entry has no overflow at ${width.toInt()}px', (
@@ -1063,9 +1094,9 @@ void main() {
     testWidgets('active training base has no overflow at ${width.toInt()}px', (
       tester,
     ) async {
-      await _pump(tester, width: width);
+      await _pump(tester, width: width, disableAnimations: false);
       await tester.tap(find.text('START TRAINING'));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 210));
 
       expect(
         _trainingTheme(tester, active: true).colorScheme.primary,
