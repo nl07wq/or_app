@@ -1177,112 +1177,122 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                     _tryBeginLogoFade();
                   },
                 ),
-                _BootInterfaceCollapse(
-                  progress: _interfaceCollapseProgress(
-                    phase,
-                    collapseProgress,
-                  ),
+                _BootCrtShutdown(
+                  progress: _interfaceCollapseProgress(phase, collapseProgress),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                if (phase.index >= _BootVisualPhase.identityTyping.index) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'O.R.L.O.'.substring(0, widget.typedLength),
-                    key: includeKeys
-                        ? const ValueKey('boot-brand-identity')
-                        : null,
-                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                      color: colorScheme.primary,
-                      fontFamily: _bootTerminalFontFamily,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 2.8,
-                    ),
-                  ),
-                ],
-                if (phase.index >= _BootVisualPhase.identityName.index)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: FittedBox(
-                      alignment: Alignment.centerLeft,
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _fullName.substring(0, widget.typedNameLength),
-                        key: includeKeys
-                            ? const ValueKey('boot-brand-full-name')
-                            : null,
-                        style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                          color: colorScheme.primary.withValues(alpha: .7),
-                          fontFamily: _bootTerminalFontFamily,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: .55,
+                      if (phase.index >=
+                          _BootVisualPhase.identityTyping.index) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'O.R.L.O.'.substring(0, widget.typedLength),
+                          key: includeKeys
+                              ? const ValueKey('boot-brand-identity')
+                              : null,
+                          style: Theme.of(context).textTheme.titleLarge!
+                              .copyWith(
+                                color: colorScheme.primary,
+                                fontFamily: _bootTerminalFontFamily,
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: 2.8,
+                              ),
                         ),
-                      ),
-                    ),
-                  ),
-                if (phase.index >= _BootVisualPhase.axisIdentity.index)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      OperationSystemMetadata.version.substring(
-                        0,
-                        typedAxisLength,
-                      ),
-                      key: includeKeys
-                          ? const ValueKey('boot-operation-system-version')
-                          : null,
-                      style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                        color: colorScheme.primary.withValues(alpha: .48),
-                        fontFamily: _bootTerminalFontFamily,
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 1.15,
-                      ),
-                    ),
-                  ),
-                if (phase == _BootVisualPhase.identityTyping)
-                  FadeTransition(
-                    opacity: _cursorController,
-                    child: Text(
-                      '▌',
-                      key: includeKeys
-                          ? const ValueKey('boot-typing-cursor')
-                          : null,
-                      style: TextStyle(color: colorScheme.primary),
-                    ),
-                  ),
-                if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'SYSTEM BOOT',
-                    style: Theme.of(context).textTheme.labelMedium!.copyWith(
-                      color: colorScheme.primary.withValues(alpha: .82),
-                      fontFamily: _bootTerminalFontFamily,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _BootProgressBar(value: widget.progress),
-                ],
-                if (rows.isNotEmpty) const SizedBox(height: 28),
-                ...rows,
-                if (hasActiveRow) const SizedBox(height: 8),
-                if (phase == _BootVisualPhase.systemReady ||
-                    phase == _BootVisualPhase.uiCollapse) ...[
-                  const SizedBox(height: 28),
-                  Text(
-                    'SYSTEM READY',
-                    key: includeKeys
-                        ? const ValueKey('boot-system-ready')
-                        : null,
-                    style: TextStyle(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
+                      ],
+                      if (phase.index >= _BootVisualPhase.identityName.index)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: FittedBox(
+                            alignment: Alignment.centerLeft,
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              _fullName.substring(0, widget.typedNameLength),
+                              key: includeKeys
+                                  ? const ValueKey('boot-brand-full-name')
+                                  : null,
+                              style: Theme.of(context).textTheme.labelSmall!
+                                  .copyWith(
+                                    color: colorScheme.primary.withValues(
+                                      alpha: .7,
+                                    ),
+                                    fontFamily: _bootTerminalFontFamily,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: .55,
+                                  ),
+                            ),
+                          ),
+                        ),
+                      if (phase.index >= _BootVisualPhase.axisIdentity.index)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            OperationSystemMetadata.version.substring(
+                              0,
+                              typedAxisLength,
+                            ),
+                            key: includeKeys
+                                ? const ValueKey(
+                                    'boot-operation-system-version',
+                                  )
+                                : null,
+                            style: Theme.of(context).textTheme.labelSmall!
+                                .copyWith(
+                                  color: colorScheme.primary.withValues(
+                                    alpha: .48,
+                                  ),
+                                  fontFamily: _bootTerminalFontFamily,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 1.15,
+                                ),
+                          ),
+                        ),
+                      if (phase == _BootVisualPhase.identityTyping)
+                        FadeTransition(
+                          opacity: _cursorController,
+                          child: Text(
+                            '▌',
+                            key: includeKeys
+                                ? const ValueKey('boot-typing-cursor')
+                                : null,
+                            style: TextStyle(color: colorScheme.primary),
+                          ),
+                        ),
+                      if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'SYSTEM BOOT',
+                          style: Theme.of(context).textTheme.labelMedium!
+                              .copyWith(
+                                color: colorScheme.primary.withValues(
+                                  alpha: .82,
+                                ),
+                                fontFamily: _bootTerminalFontFamily,
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: 1.4,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        _BootProgressBar(value: widget.progress),
+                      ],
+                      if (rows.isNotEmpty) const SizedBox(height: 28),
+                      ...rows,
+                      if (hasActiveRow) const SizedBox(height: 8),
+                      if (phase == _BootVisualPhase.systemReady ||
+                          phase == _BootVisualPhase.uiCollapse) ...[
+                        const SizedBox(height: 28),
+                        Text(
+                          'SYSTEM READY',
+                          key: includeKeys
+                              ? const ValueKey('boot-system-ready')
+                              : null,
+                          style: TextStyle(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1320,11 +1330,11 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
   };
 }
 
-/// Compresses the temporary Boot interface into the logo's axis. Its layout
-/// height shrinks as well as its paint, so the surrounding [Center] carries
-/// the unchanged logo into the true viewport center without a second asset.
-class _BootInterfaceCollapse extends StatelessWidget {
-  const _BootInterfaceCollapse({required this.progress, required this.child});
+/// Shuts down only the temporary CRT interface. The logo is deliberately a
+/// sibling of this widget, so it remains undistorted while the display image
+/// compresses into a line, contracts, and leaves a brief central remnant.
+class _BootCrtShutdown extends StatelessWidget {
+  const _BootCrtShutdown({required this.progress, required this.child});
 
   final double progress;
   final Widget child;
@@ -1332,20 +1342,69 @@ class _BootInterfaceCollapse extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = progress.clamp(0.0, 1.0).toDouble();
-    return ClipRect(
-      child: Align(
-        alignment: Alignment.topCenter,
-        heightFactor: 1 - value,
-        child: Opacity(
-          key: const ValueKey('boot-collapse-opacity'),
-          opacity: 1 - value * .88,
-          child: Transform.scale(
-            key: const ValueKey('boot-collapse-scale'),
-            alignment: Alignment.topCenter,
-            scaleY: 1 - value * .55,
-            child: child,
+    if (value == 0) return child;
+    if (value == 1) return const SizedBox.shrink();
+
+    // First flatten the screen image vertically. Once it is a visible line,
+    // contract both ends electrically toward the stable centerline.
+    final vertical = Curves.easeInCubic.transform((value / .56).clamp(0, 1));
+    final horizontal = Curves.easeInCubic.transform(
+      ((value - .56) / .29).clamp(0, 1),
+    );
+    final remnant = Curves.easeOut.transform(((value - .85) / .15).clamp(0, 1));
+    final contentOpacity = 1 - horizontal;
+    final lineOpacity = value < .35
+        ? 0.0
+        : value < .85
+        ? 1.0
+        : 1 - remnant;
+    final lineScale = 1 - horizontal * .94;
+    final color = Theme.of(context).colorScheme.primary;
+
+    return Align(
+      alignment: Alignment.center,
+      heightFactor: 1 - vertical,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          Opacity(
+            key: const ValueKey('boot-crt-content-opacity'),
+            opacity: contentOpacity,
+            child: Transform.scale(
+              key: const ValueKey('boot-crt-content-transform'),
+              alignment: Alignment.center,
+              scaleX: 1 - horizontal,
+              scaleY: 1 - vertical,
+              child: child,
+            ),
           ),
-        ),
+          if (lineOpacity > 0)
+            Opacity(
+              opacity: lineOpacity,
+              child: Transform.scale(
+                key: const ValueKey('boot-crt-line-transform'),
+                alignment: Alignment.center,
+                scaleX: lineScale,
+                child: SizedBox(
+                  key: const ValueKey('boot-crt-line'),
+                  width: double.infinity,
+                  height: 1.5,
+                  child: ColoredBox(color: color),
+                ),
+              ),
+            ),
+          if (remnant > 0)
+            Opacity(
+              opacity: remnant,
+              child: Container(
+                key: const ValueKey('boot-crt-remnant'),
+                width: 10 - remnant * 6,
+                height: 2,
+                color: color,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1408,22 +1467,22 @@ class _BootLogoSlot extends StatelessWidget {
             alignment: Alignment.center,
             scale: bootLogoRushScale(logoRushProgress),
             child: FadeTransition(
-            key: includeKeys ? const ValueKey('boot-brand-logo-fade') : null,
-            opacity: CurvedAnimation(
-              parent: officialFade,
-              curve: Curves.easeOut,
-            ),
-            child: Image(
-              image: logoProvider,
-              key: includeKeys ? const ValueKey('boot-brand-logo') : null,
-              height: 128,
-              width: 220,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) {
-                onOfficialLogoError();
-                return const SizedBox(height: 72);
-              },
-            ),
+              key: includeKeys ? const ValueKey('boot-brand-logo-fade') : null,
+              opacity: CurvedAnimation(
+                parent: officialFade,
+                curve: Curves.easeOut,
+              ),
+              child: Image(
+                image: logoProvider,
+                key: includeKeys ? const ValueKey('boot-brand-logo') : null,
+                height: 128,
+                width: 220,
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) {
+                  onOfficialLogoError();
+                  return const SizedBox(height: 72);
+                },
+              ),
             ),
           ),
         ),
@@ -2252,7 +2311,10 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     _transition(BootPresentationState.systemReadyPresentation, 'system_ready');
-    _schedule(widget.timing.postLogo(widget.timing.readyHold), _startUiCollapse);
+    _schedule(
+      widget.timing.postLogo(widget.timing.readyHold),
+      _startUiCollapse,
+    );
   }
 
   void _startUiCollapse() {
@@ -2278,7 +2340,10 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       'BOOT_PHASE_LOGO_CENTER',
       presentation: 'BOOT',
     );
-    _schedule(widget.timing.postLogo(widget.timing.logoCenter), _startCenterSettle);
+    _schedule(
+      widget.timing.postLogo(widget.timing.logoCenter),
+      _startCenterSettle,
+    );
   }
 
   void _startCenterSettle() {
@@ -2289,7 +2354,10 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       'BOOT_PHASE_CENTER_SETTLE',
       presentation: 'BOOT',
     );
-    _schedule(widget.timing.postLogo(widget.timing.centerSettle), _startLogoRush);
+    _schedule(
+      widget.timing.postLogo(widget.timing.centerSettle),
+      _startLogoRush,
+    );
   }
 
   void _startLogoRush() {

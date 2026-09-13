@@ -822,13 +822,19 @@ void main() {
     ]);
 
     await _elapse(tester, _timing.readyHold);
-    expect(find.byKey(const ValueKey('boot-collapse-opacity')), findsOneWidget);
     expect(find.text('SYSTEM READY'), findsOneWidget);
     await _elapse(tester, _timing.uiCollapse ~/ 2);
     expect(
+      find.byKey(const ValueKey('boot-crt-content-opacity')),
+      findsOneWidget,
+    );
+    expect(
       tester
-          .widget<Opacity>(find.byKey(const ValueKey('boot-collapse-opacity')))
-          .opacity,
+          .widget<Transform>(
+            find.byKey(const ValueKey('boot-crt-content-transform')),
+          )
+          .transform
+          .storage[5],
       lessThan(1),
     );
     await _elapse(tester, _timing.uiCollapse ~/ 2);
@@ -853,40 +859,127 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('logo convergence reaches final noise at supported viewport widths', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'logo convergence reaches final noise at supported viewport widths',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    for (final size in const [Size(320, 700), Size(390, 844), Size(900, 900)]) {
-      tester.view
-        ..physicalSize = size
-        ..devicePixelRatio = 1;
-      final controller = AppInitializationController()..markReady();
-      await tester.pumpWidget(_gate(controller));
-      await _advanceRows(tester);
+      for (final size in const [
+        Size(320, 700),
+        Size(390, 844),
+        Size(900, 900),
+      ]) {
+        tester.view
+          ..physicalSize = size
+          ..devicePixelRatio = 1;
+        final controller = AppInitializationController()..markReady();
+        await tester.pumpWidget(_gate(controller));
+        await _advanceRows(tester);
+        await _elapse(
+          tester,
+          _timing.readyDelay + const Duration(milliseconds: 1),
+        );
+        await _elapse(tester, _timing.readyHold);
+        await _elapse(tester, _timing.uiCollapse ~/ 2);
+        final line = find.byKey(const ValueKey('boot-crt-line'));
+        expect(line, findsOneWidget);
+        expect(tester.getCenter(line).dx, closeTo(size.width / 2, 1));
+        await _elapse(tester, _timing.uiCollapse ~/ 2);
+        final centeredLogo = find.byKey(const ValueKey('boot-logo-centered'));
+        expect(centeredLogo, findsOneWidget);
+        final logoCenter = tester.getCenter(centeredLogo);
+        expect(logoCenter.dx, closeTo(size.width / 2, 1));
+        expect(logoCenter.dy, closeTo(size.height / 2, 1));
+        await _elapse(tester, _timing.logoCenter);
+        expect(
+          find.byKey(const ValueKey('boot-logo-centered')),
+          findsOneWidget,
+        );
+        await _elapse(tester, _timing.centerSettle);
+        expect(find.byKey(const ValueKey('boot-logo-rush')), findsOneWidget);
+        await _elapse(tester, _timing.logoRush);
+        expect(
+          find.byKey(const ValueKey('boot-signal-handoff')),
+          findsOneWidget,
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      }
+    },
+  );
+
+  testWidgets(
+    'CRT shutdown preserves the logo while collapsing the interface',
+    (tester) async {
+      const crtTiming = BootSequenceTiming(
+        signalAcquisitionIntro: Duration.zero,
+        preBootSignalIntro: Duration.zero,
+        logoIntro: Duration(milliseconds: 10),
+        waitForLogoDrawable: false,
+        postLogoTimingFactor: 1,
+        typingCharacter: Duration(milliseconds: 10),
+        fullNameCharacter: Duration(milliseconds: 10),
+        identityHold: Duration(milliseconds: 10),
+        systemBootTransition: Duration(milliseconds: 10),
+        row: Duration(milliseconds: 10),
+        readyDelay: Duration(milliseconds: 10),
+        readyHold: Duration(milliseconds: 10),
+        uiCollapse: Duration(milliseconds: 240),
+        logoCenter: Duration(milliseconds: 10),
+        centerSettle: Duration(milliseconds: 10),
+        logoRush: Duration(milliseconds: 10),
+      );
+      await tester.pumpWidget(
+        _gate(AppInitializationController()..markReady(), timing: crtTiming),
+      );
+      await _advanceRows(tester, crtTiming);
       await _elapse(
         tester,
-        _timing.readyDelay + const Duration(milliseconds: 1),
+        crtTiming.readyDelay + const Duration(milliseconds: 1),
       );
-      await _elapse(tester, _timing.readyHold);
-      await _elapse(tester, _timing.uiCollapse);
-      final centeredLogo = find.byKey(const ValueKey('boot-logo-centered'));
-      expect(centeredLogo, findsOneWidget);
-      final logoCenter = tester.getCenter(centeredLogo);
-      expect(logoCenter.dx, closeTo(size.width / 2, 1));
-      expect(logoCenter.dy, closeTo(size.height / 2, 1));
-      await _elapse(tester, _timing.logoCenter);
+      final logo = find.byKey(const ValueKey('boot-brand-logo'));
+      final logoSize = tester.getSize(logo);
+
+      await _elapse(tester, crtTiming.readyHold);
+      await _elapse(tester, const Duration(milliseconds: 115));
+      final vertical = tester.widget<Transform>(
+        find.byKey(const ValueKey('boot-crt-content-transform')),
+      );
+      expect(vertical.transform.storage[0], closeTo(1, .01));
+      expect(vertical.transform.storage[5], lessThan(.5));
+      expect(
+        find.ancestor(
+          of: logo,
+          matching: find.byKey(const ValueKey('boot-crt-content-transform')),
+        ),
+        findsNothing,
+      );
+      expect(tester.getSize(logo), logoSize);
+
+      await _elapse(tester, const Duration(milliseconds: 20));
+      final lineAtFormation = tester.widget<Transform>(
+        find.byKey(const ValueKey('boot-crt-line-transform')),
+      );
+      final widthAtFormation = lineAtFormation.transform.storage[0];
+      expect(widthAtFormation, greaterThan(.9));
+
+      await _elapse(tester, const Duration(milliseconds: 50));
+      final lineDuringContraction = tester.widget<Transform>(
+        find.byKey(const ValueKey('boot-crt-line-transform')),
+      );
+      expect(
+        lineDuringContraction.transform.storage[0],
+        lessThan(widthAtFormation),
+      );
+
+      await _elapse(tester, const Duration(milliseconds: 45));
+      expect(find.byKey(const ValueKey('boot-crt-remnant')), findsOneWidget);
+      await _elapse(tester, const Duration(milliseconds: 10));
+      expect(find.byKey(const ValueKey('boot-crt-line')), findsNothing);
       expect(find.byKey(const ValueKey('boot-logo-centered')), findsOneWidget);
-      await _elapse(tester, _timing.centerSettle);
-      expect(find.byKey(const ValueKey('boot-logo-rush')), findsOneWidget);
-      await _elapse(tester, _timing.logoRush);
-      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
-    }
-  });
+    },
+  );
 
   testWidgets('initialization failure never shows ready or main UI', (
     tester,
@@ -1401,14 +1494,17 @@ AppInitializationController _activeSessionReentryController() {
   );
 }
 
-Future<void> _advanceRows(WidgetTester tester) async {
-  await _advanceLogoFade(tester, _timing);
-  await _advanceTyping(tester, _timing);
-  await _elapse(tester, _timing.identityHold);
-  await _elapse(tester, _timing.systemBootTransition);
-  await _elapse(tester, _timing.row * 2);
-  await _elapse(tester, _timing.row);
-  await _elapse(tester, _timing.row);
+Future<void> _advanceRows(
+  WidgetTester tester, [
+  BootSequenceTiming timing = _timing,
+]) async {
+  await _advanceLogoFade(tester, timing);
+  await _advanceTyping(tester, timing);
+  await _elapse(tester, timing.identityHold);
+  await _elapse(tester, timing.systemBootTransition);
+  await _elapse(tester, timing.row * 2);
+  await _elapse(tester, timing.row);
+  await _elapse(tester, timing.row);
 }
 
 Future<void> _advanceLogoConvergence(
