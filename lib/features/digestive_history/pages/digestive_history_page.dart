@@ -8,6 +8,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
+import '../../body_history/services/history_period_range.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/digestive_history_models.dart';
 import '../services/digestive_history_analytics.dart';
@@ -56,9 +57,11 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   }
 
   Future<_ViewModel> _load() async {
-    final range = _period == BodyHistoryPeriod.custom && _customRange != null
-        ? _customRange!
-        : _rangeFor(_period, _clock());
+    final range = resolveDataCenterHistoryRange(
+      _period,
+      _clock(),
+      customRange: _customRange,
+    );
     final days = _period == BodyHistoryPeriod.allTime
         ? await _resolver.resolveAvailableThrough(_format(range.end))
         : await _resolver.resolve(
@@ -197,35 +200,8 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
     ),
   );
 
-  static DateTimeRange _rangeFor(BodyHistoryPeriod period, DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    final start = switch (period) {
-      BodyHistoryPeriod.oneWeek => today.subtract(const Duration(days: 6)),
-      BodyHistoryPeriod.fifteenDays => today.subtract(const Duration(days: 14)),
-      BodyHistoryPeriod.oneMonth => _monthsBefore(today, 1),
-      BodyHistoryPeriod.threeMonths => _monthsBefore(today, 3),
-      BodyHistoryPeriod.sixMonths => _monthsBefore(today, 6),
-      BodyHistoryPeriod.oneYear => _yearsBefore(today, 1),
-      BodyHistoryPeriod.allTime => DateTime(1),
-      BodyHistoryPeriod.custom => today.subtract(const Duration(days: 6)),
-    };
-    return DateTimeRange(start: start, end: today);
-  }
-
   static String _format(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
-
-  static DateTime _monthsBefore(DateTime date, int months) {
-    final month = date.month - months;
-    final lastDay = DateTime(date.year, month + 1, 0).day;
-    return DateTime(date.year, month, date.day.clamp(1, lastDay));
-  }
-
-  static DateTime _yearsBefore(DateTime date, int years) {
-    final year = date.year - years;
-    final lastDay = DateTime(year, date.month + 1, 0).day;
-    return DateTime(year, date.month, date.day.clamp(1, lastDay));
-  }
 }
 
 class _ViewModel {

@@ -7,6 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
+import '../../body_history/services/history_period_range.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/nutrition_history_models.dart';
 import '../services/nutrition_history_chart_engine.dart';
@@ -71,22 +72,11 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
   }
 
   DateTimeRange _selectedRange() {
-    final value = _clock();
-    final today = DateTime(value.year, value.month, value.day);
-    if (_period == BodyHistoryPeriod.custom && _customRange != null) {
-      return _customRange!;
-    }
-    final start = switch (_period) {
-      BodyHistoryPeriod.oneWeek => today.subtract(const Duration(days: 6)),
-      BodyHistoryPeriod.fifteenDays => today.subtract(const Duration(days: 14)),
-      BodyHistoryPeriod.oneMonth => _monthsBefore(today, 1),
-      BodyHistoryPeriod.threeMonths => _monthsBefore(today, 3),
-      BodyHistoryPeriod.sixMonths => _monthsBefore(today, 6),
-      BodyHistoryPeriod.oneYear => _yearsBefore(today, 1),
-      BodyHistoryPeriod.allTime => DateTime(1),
-      BodyHistoryPeriod.custom => today,
-    };
-    return DateTimeRange(start: start, end: today);
+    return resolveDataCenterHistoryRange(
+      _period,
+      _clock(),
+      customRange: _customRange,
+    );
   }
 
   Future<void> _selectPeriod(BodyHistoryPeriod period) async {
@@ -152,19 +142,6 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
       },
     ),
   );
-
-  static DateTime _monthsBefore(DateTime date, int months) {
-    final targetMonth = date.month - months;
-    final firstOfFollowingMonth = DateTime(date.year, targetMonth + 1, 1);
-    final lastDay = firstOfFollowingMonth.subtract(const Duration(days: 1)).day;
-    return DateTime(date.year, targetMonth, date.day.clamp(1, lastDay));
-  }
-
-  static DateTime _yearsBefore(DateTime date, int years) {
-    final year = date.year - years;
-    final lastDay = DateTime(year, date.month + 1, 0).day;
-    return DateTime(year, date.month, date.day.clamp(1, lastDay));
-  }
 }
 
 class _PeriodSelector extends StatelessWidget {

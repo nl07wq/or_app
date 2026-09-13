@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/models/operation_date_range.dart';
 import '../models/training_record_read_model.dart';
 import 'training_history_domain_service.dart';
 
@@ -99,7 +100,7 @@ class TrainingHistoryOverviewAdapter {
     if (period == TrainingHistoryOverviewPeriod.custom && customRange != null) {
       return customRange;
     }
-    return DateTimeRange(start: _startFor(period, end), end: end);
+    return _rangeFor(period, end);
   }
 
   TrainingHistoryOverview build(
@@ -178,20 +179,28 @@ class TrainingHistoryOverviewAdapter {
     recordedReps: 0,
   );
 
-  DateTime _startFor(TrainingHistoryOverviewPeriod period, DateTime end) =>
+  DateTimeRange _rangeFor(TrainingHistoryOverviewPeriod period, DateTime end) =>
       switch (period) {
-        TrainingHistoryOverviewPeriod.oneWeek => end.subtract(
-          const Duration(days: 6),
+        TrainingHistoryOverviewPeriod.oneWeek =>
+          OperationDateRange.trailingFixedDays(end, 7).toDateTimeRange(),
+        TrainingHistoryOverviewPeriod.fifteenDays =>
+          OperationDateRange.trailingFixedDays(end, 15).toDateTimeRange(),
+        TrainingHistoryOverviewPeriod.oneMonth =>
+          OperationDateRange.trailingCalendarMonths(end, 1).toDateTimeRange(),
+        TrainingHistoryOverviewPeriod.threeMonths =>
+          OperationDateRange.trailingCalendarMonths(end, 3).toDateTimeRange(),
+        TrainingHistoryOverviewPeriod.sixMonths =>
+          OperationDateRange.trailingCalendarMonths(end, 6).toDateTimeRange(),
+        TrainingHistoryOverviewPeriod.oneYear =>
+          OperationDateRange.trailingCalendarYears(end, 1).toDateTimeRange(),
+        TrainingHistoryOverviewPeriod.all => DateTimeRange(
+          start: DateTime(1),
+          end: end,
         ),
-        TrainingHistoryOverviewPeriod.fifteenDays => end.subtract(
-          const Duration(days: 14),
+        TrainingHistoryOverviewPeriod.custom => DateTimeRange(
+          start: end,
+          end: end,
         ),
-        TrainingHistoryOverviewPeriod.oneMonth => _monthsBefore(end, 1),
-        TrainingHistoryOverviewPeriod.threeMonths => _monthsBefore(end, 3),
-        TrainingHistoryOverviewPeriod.sixMonths => _monthsBefore(end, 6),
-        TrainingHistoryOverviewPeriod.oneYear => _yearsBefore(end, 1),
-        TrainingHistoryOverviewPeriod.all => DateTime(1),
-        TrainingHistoryOverviewPeriod.custom => end,
       };
 
   List<TrainingHistoryFrequencyPoint> _frequency(
@@ -225,18 +234,6 @@ class TrainingHistoryOverviewAdapter {
 
   DateTime _mondayFor(DateTime date) =>
       date.subtract(Duration(days: date.weekday - DateTime.monday));
-
-  DateTime _monthsBefore(DateTime date, int months) {
-    final firstOfFollowingMonth = DateTime(date.year, date.month - months + 1);
-    final lastDay = firstOfFollowingMonth.subtract(const Duration(days: 1)).day;
-    return DateTime(date.year, date.month - months, date.day.clamp(1, lastDay));
-  }
-
-  DateTime _yearsBefore(DateTime date, int years) {
-    final year = date.year - years;
-    final lastDay = DateTime(year, date.month + 1, 0).day;
-    return DateTime(year, date.month, date.day.clamp(1, lastDay));
-  }
 
   DateTime _parseLocalDate(String value) {
     final parsed = DateTime.parse(value);
