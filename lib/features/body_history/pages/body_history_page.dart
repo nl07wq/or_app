@@ -253,9 +253,13 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Wrap(
-      spacing: 24,
-      runSpacing: 16,
+    child: GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.sm,
+      crossAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 1.65,
       children: [
         _SummaryValue(label: 'START', value: _value(summary.first)),
         _SummaryValue(label: 'LATEST', value: _value(summary.latest)),
@@ -290,16 +294,18 @@ class _SummaryValue extends StatelessWidget {
   const _SummaryValue({required this.label, required this.value});
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 112,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-        AppSpacing.gapXS,
-        Text(value, style: Theme.of(context).textTheme.titleMedium),
-      ],
-    ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      SizedBox(
+        height: 22,
+        child: Center(
+          child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+        ),
+      ),
+      const Spacer(),
+      Text(value, style: Theme.of(context).textTheme.titleMedium, maxLines: 1),
+    ],
   );
 }
 

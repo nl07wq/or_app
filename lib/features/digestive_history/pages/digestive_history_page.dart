@@ -478,10 +478,29 @@ class _Metric extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        SizedBox(
+          height: 28,
+          child: Center(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+            ),
+          ),
+        ),
         const Spacer(),
-        Text(value, style: Theme.of(context).textTheme.titleLarge),
-        if (detail.isNotEmpty) ...[AppSpacing.gapXS, Text(detail)],
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleLarge,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.fade,
+        ),
+        if (detail.isNotEmpty) ...[
+          AppSpacing.gapXS,
+          Text(detail, maxLines: 1, overflow: TextOverflow.fade),
+        ],
       ],
     ),
   );
@@ -712,31 +731,34 @@ class _BucketSection extends StatelessWidget {
           : OperationCalendarPeriod.month(date);
       groups.putIfAbsent(period.id, () => []).add(day);
     }
-    final buckets = groups.entries
-        .map(
-          (entry) => _BucketDisplay(
-            days: entry.value,
-            weekly: weekly,
-            start: weekly
-                ? OperationCalendarPeriod.week(
-                    DateTime.parse(entry.value.first.operationDate),
-                  ).start
-                : OperationCalendarPeriod.month(
-                    DateTime.parse(entry.value.first.operationDate),
-                  ).start,
-          ),
-        )
-        .toList()
-        .reversed
-        .toList();
+    final buckets =
+        groups.entries
+            .map(
+              (entry) => _BucketDisplay(
+                days: entry.value,
+                weekly: weekly,
+                start: weekly
+                    ? OperationCalendarPeriod.week(
+                        DateTime.parse(entry.value.first.operationDate),
+                      ).start
+                    : OperationCalendarPeriod.month(
+                        DateTime.parse(entry.value.first.operationDate),
+                      ).start,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
     return Column(
       children: [
         if (buckets.length > 1) _BucketTrend(buckets: buckets),
-        for (final bucket in expanded ? buckets : buckets.take(3))
+        for (final bucket
+            in expanded || buckets.length <= 3
+                ? buckets
+                : buckets.sublist(buckets.length - 3))
           _BucketCard(bucket: bucket),
         if (buckets.length > 3)
           Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.center,
             child: TextButton(
               key: ValueKey(
                 weekly ? 'digestive-weekly-toggle' : 'digestive-monthly-toggle',
@@ -764,24 +786,30 @@ class _BucketCard extends StatelessWidget {
           children: [
             Text(bucket.title, style: Theme.of(context).textTheme.titleMedium),
             AppSpacing.gapSM,
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _BucketMetric(
-                  '記録率',
-                  '${summary.knownDays}/${summary.observationDays}日',
-                ),
-                _BucketMetric('排便あり', '${summary.yesDays}日'),
-                if (!bucket.weekly)
-                  _BucketMetric('排便なし', '${summary.confirmedNoDays}日'),
-                _BucketMetric('排便回数', '${summary.totalExactEvents}回'),
-                _BucketMetric(
-                  '記録日平均',
-                  '${_decimal(summary.averagePerExactCountDay)}回',
-                ),
-                _BucketMetric('最長排便なし', '${summary.longestConfirmedNoStreak}日'),
-              ],
-            ),
+            if (summary.knownDays == 0)
+              Text(summary.observationDays == 0 ? '観測対象外' : 'データなし')
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _BucketMetric(
+                    '記録率',
+                    '${summary.knownDays}/${summary.observationDays}日',
+                  ),
+                  _BucketMetric('排便あり', '${summary.yesDays}日'),
+                  if (!bucket.weekly)
+                    _BucketMetric('排便なし', '${summary.confirmedNoDays}日'),
+                  _BucketMetric('排便回数', '${summary.totalExactEvents}回'),
+                  _BucketMetric(
+                    '記録日平均',
+                    '${_decimal(summary.averagePerExactCountDay)}回',
+                  ),
+                  _BucketMetric(
+                    '最長排便なし',
+                    '${summary.longestConfirmedNoStreak}日',
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -844,8 +872,12 @@ class _BucketTrend extends StatelessWidget {
   final List<_BucketDisplay> buckets;
   @override
   Widget build(BuildContext context) {
+    final plotted = buckets
+        .where((bucket) => bucket.summary.knownDays > 0)
+        .toList();
+    if (plotted.isEmpty) return const SizedBox.shrink();
     final showYear =
-        buckets.map((bucket) => bucket.start.year).toSet().length > 1;
+        plotted.map((bucket) => bucket.start.year).toSet().length > 1;
     return SizedBox(
       height: 126,
       child: BarChart(
@@ -869,11 +901,11 @@ class _BucketTrend extends StatelessWidget {
                 reservedSize: 30,
                 getTitlesWidget: (value, _) {
                   final index = value.toInt();
-                  if (index < 0 || index >= buckets.length) {
+                  if (index < 0 || index >= plotted.length) {
                     return const SizedBox();
                   }
                   return Text(
-                    _digestiveBucketLabel(buckets[index], showYear: showYear),
+                    _digestiveBucketLabel(plotted[index], showYear: showYear),
                     style: Theme.of(context).textTheme.labelSmall,
                   );
                 },
@@ -881,12 +913,12 @@ class _BucketTrend extends StatelessWidget {
             ),
           ),
           barGroups: [
-            for (var index = 0; index < buckets.length; index++)
+            for (var index = 0; index < plotted.length; index++)
               BarChartGroupData(
                 x: index,
                 barRods: [
                   BarChartRodData(
-                    toY: buckets[index].summary.totalExactEvents.toDouble(),
+                    toY: plotted[index].summary.totalExactEvents.toDouble(),
                   ),
                 ],
               ),

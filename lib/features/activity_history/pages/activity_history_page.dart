@@ -339,12 +339,23 @@ class _ActivityMetric extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        SizedBox(
+          height: 28,
+          child: Center(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+            ),
+          ),
+        ),
         const Spacer(),
         Text(
           value,
           style: Theme.of(context).textTheme.titleLarge,
           maxLines: 1,
+          softWrap: false,
           overflow: TextOverflow.fade,
         ),
         if (detail.isNotEmpty) ...[
@@ -594,22 +605,25 @@ class _ActivityBuckets extends StatelessWidget {
           : OperationCalendarPeriod.month(date);
       groups.putIfAbsent(period.id, () => []).add(day);
     }
-    final buckets = groups.values
-        .map((days) => _ActivityBucket(days: days, weekly: weekly))
-        .toList()
-        .reversed
-        .toList();
+    final buckets =
+        groups.values
+            .map((days) => _ActivityBucket(days: days, weekly: weekly))
+            .toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
     return Column(
       children: [
         if (buckets.length > 1) _BucketChart(buckets: buckets),
-        for (final bucket in expanded ? buckets : buckets.take(3))
+        for (final bucket
+            in expanded || buckets.length <= 3
+                ? buckets
+                : buckets.sublist(buckets.length - 3))
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _ActivityBucketCard(bucket: bucket),
           ),
         if (buckets.length > 3)
           Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.center,
             child: TextButton(
               key: ValueKey(
                 weekly ? 'activity-weekly-toggle' : 'activity-monthly-toggle',

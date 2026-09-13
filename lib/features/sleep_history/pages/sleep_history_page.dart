@@ -432,16 +432,17 @@ class _Buckets extends StatelessWidget {
           : OperationCalendarPeriod.month(date);
       groups.putIfAbsent(period.id, () => []).add(day);
     }
-    final buckets = groups.values
-        .map((value) => _Bucket(value, weekly, metric))
-        .toList()
-        .reversed
-        .toList();
+    final buckets =
+        groups.values.map((value) => _Bucket(value, weekly, metric)).toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
     return Column(
       children: [
         _BucketChart(buckets: buckets, metric: metric, weekly: weekly),
         AppSpacing.gapSM,
-        for (final bucket in expanded ? buckets : buckets.take(3))
+        for (final bucket
+            in expanded || buckets.length <= 3
+                ? buckets
+                : buckets.sublist(buckets.length - 3))
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: OperationCard(
@@ -461,7 +462,7 @@ class _Buckets extends StatelessWidget {
           ),
         if (buckets.length > 3)
           Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.center,
             child: TextButton(
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
