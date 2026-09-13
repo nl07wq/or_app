@@ -15,6 +15,64 @@ import 'package:or_app/features/digestive_history/services/digestive_history_sou
 import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
+  testWidgets('limits a long Trend to seven latest rows until expanded', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view
+      ..physicalSize = const Size(900, 3000)
+      ..devicePixelRatio = 1;
+    SharedPreferences.setMockInitialValues({
+      DataCenterHistoryRangePreference.storageKey: jsonEncode({
+        'version': 1,
+        'period': 'fifteenDays',
+      }),
+    });
+    final records = [
+      for (var day = 1; day <= 15; day++)
+        ActivityData(date: DateTime(2026, 9, day), digestiveEvents: const []),
+    ];
+    final operationDateService = await operationDateServiceFor('2026-09-15');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DigestiveHistoryPage(
+          resolver: DigestiveHistorySourceResolver(
+            activityRepository: _ActivityRepository(records),
+            dailyAggregateRepository: _AggregateRepository(),
+          ),
+          operationDateService: operationDateService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('digestive-trend-2026-09-09')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('digestive-trend-2026-09-08')),
+      findsNothing,
+    );
+    expect(find.text('さらに表示'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('digestive-trend-toggle')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('digestive-trend-2026-09-01')),
+      findsOneWidget,
+    );
+    expect(find.text('折りたたむ'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('digestive-trend-toggle')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('digestive-trend-2026-09-01')),
+      findsNothing,
+    );
+  });
+
   testWidgets(
     'anchors Digestive Trend to Operation Date and aligns event detail',
     (tester) async {

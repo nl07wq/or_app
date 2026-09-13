@@ -5,7 +5,12 @@ enum ActivityHistoryDayState {
   outsideObservation,
 }
 
-enum ActivityHistorySource { currentActivity, dailyAggregate, none }
+enum ActivityHistorySource {
+  currentActivity,
+  aggregateRecords,
+  aggregateLegacyDns,
+  none,
+}
 
 enum ActivityHistoryQuality { full, partial, unknown, invalid }
 

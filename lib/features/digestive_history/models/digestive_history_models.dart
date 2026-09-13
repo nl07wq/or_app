@@ -3,7 +3,8 @@ enum DigestiveDayState { yes, confirmedNo, unknown }
 enum DigestiveHistorySource {
   currentActivity,
   legacyActivity,
-  dailyAggregate,
+  aggregateRecords,
+  aggregateLegacyDns,
   none,
 }
 

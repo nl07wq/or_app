@@ -80,7 +80,9 @@ class ActivityHistorySourceResolver {
     };
     // stepsEntered is the current Formal recording contract. Its first
     // available Activity record establishes when continuous measurement can
-    // legitimately be evaluated; sparse aggregate imports do not.
+    // legitimately be evaluated. Historical DNS aggregates are direct,
+    // date-specific formal facts: they are eligible on their own dates, but
+    // do not turn unrepresented dates between sparse imports into misses.
     final observationStarts = activityByDate.keys.toList()..sort();
     final observationStart = observationStarts.isEmpty
         ? null
@@ -96,7 +98,9 @@ class ActivityHistorySourceResolver {
               )],
           aggregate: aggregateByDate[date],
           observationEligible:
-              observationStart != null && date.compareTo(observationStart) >= 0,
+              (observationStart != null &&
+                  date.compareTo(observationStart) >= 0) ||
+              aggregateByDate[date]?.officialSteps != null,
         ),
     ]);
   }
@@ -108,21 +112,10 @@ class ActivityHistorySourceResolver {
     required DailyAggregateV1? aggregate,
     required bool observationEligible,
   }) {
-    if (activity != null) {
-      if (!activity.stepsEntered) {
-        return ActivityHistoryDaySummary(
-          operationDate: date,
-          state: observationEligible
-              ? ActivityHistoryDayState.notMeasured
-              : ActivityHistoryDayState.outsideObservation,
-          source: ActivityHistorySource.currentActivity,
-          quality: ActivityHistoryQuality.unknown,
-          observationEligible: observationEligible,
-        );
-      }
+    if (activity?.stepsEntered == true) {
       try {
         final steps =
-            activity.officialSteps ??
+            activity!.officialSteps ??
             activity.officialStepsFor(
               previousActivity?.carryOverEntered == true
                   ? previousActivity!.carryOver
@@ -156,7 +149,9 @@ class ActivityHistorySourceResolver {
         state: steps == 0
             ? ActivityHistoryDayState.measuredZero
             : ActivityHistoryDayState.measured,
-        source: ActivityHistorySource.dailyAggregate,
+        source: aggregate!.sourceType == DailyAggregateSourceType.legacyDns
+            ? ActivityHistorySource.aggregateLegacyDns
+            : ActivityHistorySource.aggregateRecords,
         quality: ActivityHistoryQuality.partial,
         observationEligible: observationEligible,
         steps: steps,
@@ -167,7 +162,9 @@ class ActivityHistorySourceResolver {
       state: observationEligible
           ? ActivityHistoryDayState.notMeasured
           : ActivityHistoryDayState.outsideObservation,
-      source: ActivityHistorySource.none,
+      source: activity == null
+          ? ActivityHistorySource.none
+          : ActivityHistorySource.currentActivity,
       quality: ActivityHistoryQuality.unknown,
       observationEligible: observationEligible,
     );

@@ -277,7 +277,7 @@ class _ActivityOverview extends StatelessWidget {
           ),
           _ActivityMetric(
             '合計歩数',
-            '${_number(summary.totalSteps)}歩',
+            summary.measuredDays == 0 ? '—' : '${_number(summary.totalSteps)}歩',
             '計測対象 ${summary.measuredDays}日',
           ),
           _ActivityMetric(
@@ -486,27 +486,34 @@ class _ActivityBucketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = bucket.summary;
+    final unavailable = summary.measuredDays == 0;
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(bucket.title, style: Theme.of(context).textTheme.titleMedium),
           AppSpacing.gapSM,
-          Row(
-            children: [
-              _BucketMetric(
-                '計測率',
-                '${summary.measuredDays}/${summary.observationDays}日',
-              ),
-              _BucketMetric('合計歩数', '${_compactNumber(summary.totalSteps)}歩'),
-              _BucketMetric(
-                '計測日平均',
-                '${_compactNumber(summary.averageMeasuredSteps?.round())}歩',
-              ),
-              _BucketMetric('最大歩数', '${_compactNumber(summary.maximumSteps)}歩'),
-              _BucketMetric('計測日数', '${summary.measuredDays}日'),
-            ],
-          ),
+          if (unavailable)
+            Text(summary.observationDays == 0 ? '観測対象外' : 'データなし')
+          else
+            Row(
+              children: [
+                _BucketMetric(
+                  '計測率',
+                  '${summary.measuredDays}/${summary.observationDays}日',
+                ),
+                _BucketMetric('合計歩数', '${_compactNumber(summary.totalSteps)}歩'),
+                _BucketMetric(
+                  '計測日平均',
+                  '${_compactNumber(summary.averageMeasuredSteps?.round())}歩',
+                ),
+                _BucketMetric(
+                  '最大歩数',
+                  '${_compactNumber(summary.maximumSteps)}歩',
+                ),
+                _BucketMetric('計測日数', '${summary.measuredDays}日'),
+              ],
+            ),
         ],
       ),
     );
@@ -541,43 +548,90 @@ class _BucketMetric extends StatelessWidget {
 class _BucketChart extends StatelessWidget {
   const _BucketChart({required this.buckets});
   final List<_ActivityBucket> buckets;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-    child: OperationCard(
-      child: SizedBox(
-        height: 100,
-        child: BarChart(
-          BarChartData(
-            maxY:
-                buckets
-                    .fold<int>(
-                      0,
-                      (max, bucket) => bucket.summary.totalSteps > max
-                          ? bucket.summary.totalSteps
-                          : max,
-                    )
-                    .toDouble() +
-                1,
-            borderData: FlBorderData(show: false),
-            gridData: const FlGridData(show: false),
-            titlesData: const FlTitlesData(show: false),
-            barGroups: [
-              for (var i = 0; i < buckets.length; i++)
-                BarChartGroupData(
-                  x: i,
-                  barRods: [
-                    BarChartRodData(
-                      toY: buckets[i].summary.totalSteps.toDouble(),
-                    ),
-                  ],
+  Widget build(BuildContext context) {
+    final measured = buckets
+        .where((bucket) => bucket.summary.measuredDays > 0)
+        .toList();
+    if (measured.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.sm),
+        child: OperationCard(child: Text('比較できる計測データはありません。')),
+      );
+    }
+    final showYear =
+        measured.map((bucket) => bucket.start.year).toSet().length > 1;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: OperationCard(
+        child: SizedBox(
+          height: 126,
+          child: BarChart(
+            BarChartData(
+              maxY:
+                  measured
+                      .fold<int>(
+                        0,
+                        (max, bucket) => bucket.summary.totalSteps > max
+                            ? bucket.summary.totalSteps
+                            : max,
+                      )
+                      .toDouble() +
+                  1,
+              borderData: FlBorderData(show: false),
+              gridData: const FlGridData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
                 ),
-            ],
+                leftTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    getTitlesWidget: (value, _) {
+                      final index = value.toInt();
+                      if (index < 0 || index >= measured.length) {
+                        return const SizedBox();
+                      }
+                      return Text(
+                        _bucketLabel(measured[index], showYear: showYear),
+                        style: Theme.of(context).textTheme.labelSmall,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              barGroups: [
+                for (var i = 0; i < measured.length; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: measured[i].summary.totalSteps.toDouble(),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+String _bucketLabel(_ActivityBucket bucket, {required bool showYear}) {
+  if (bucket.weekly) return '${bucket.start.month}/${bucket.start.day}';
+  return showYear
+      ? '${bucket.start.year % 100}/${bucket.start.month}'
+      : '${bucket.start.month}月';
 }
 
 class _ActivityDailyHistory extends StatelessWidget {

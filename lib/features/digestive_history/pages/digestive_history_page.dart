@@ -38,6 +38,7 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   DateTimeRange? _customRange;
   Future<_ViewModel>? _model;
   DateTime? _dailyWindowEnd;
+  bool _trendExpanded = false;
 
   @override
   void initState() {
@@ -110,6 +111,7 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
     setState(() {
       _period = period;
       _dailyWindowEnd = null;
+      _trendExpanded = false;
       _model = _load();
     });
     await _rangePreference.save(period, customRange: _customRange);
@@ -179,7 +181,11 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
             AppSpacing.gapXL,
             const SectionHeader(icon: Icons.insights_outlined, title: 'TREND'),
             AppSpacing.gapSM,
-            _DailyStatusTrend(days: model.summary.days),
+            _DailyStatusTrend(
+              days: model.summary.days,
+              expanded: _trendExpanded,
+              onToggle: () => setState(() => _trendExpanded = !_trendExpanded),
+            ),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.equalizer_outlined,
@@ -333,56 +339,75 @@ class _Overview extends StatelessWidget {
 /// progress value intentionally uses Flutter's lightweight indeterminate
 /// animation for unresolved days; it never represents a bowel-movement count.
 class _DailyStatusTrend extends StatelessWidget {
-  const _DailyStatusTrend({required this.days});
+  const _DailyStatusTrend({
+    required this.days,
+    required this.expanded,
+    required this.onToggle,
+  });
 
   final List<DigestiveDaySummary> days;
+  final bool expanded;
+  final VoidCallback onToggle;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Column(
-      children: [
-        for (final day in days)
-          Semantics(
-            label:
-                '${day.operationDate} ${_dailyStateLabel(day)} ${day.countKnown ? '${day.exactCount}回' : _trendDetail(day)}',
-            child: Padding(
-              key: ValueKey('digestive-trend-${day.operationDate}'),
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 48,
-                    child: Text(_trendDateLabel(day.operationDate)),
-                  ),
-                  SizedBox(
-                    width: 58,
-                    child: Text(
-                      _dailyStateLabel(day),
-                      style: Theme.of(context).textTheme.labelSmall,
+  Widget build(BuildContext context) {
+    final visibleDays = expanded || days.length <= 7
+        ? days
+        : days.reversed.take(7).toList().reversed.toList();
+    return OperationCard(
+      child: Column(
+        children: [
+          for (final day in visibleDays)
+            Semantics(
+              label:
+                  '${day.operationDate} ${_dailyStateLabel(day)} ${day.countKnown ? '${day.exactCount}回' : _trendDetail(day)}',
+              child: Padding(
+                key: ValueKey('digestive-trend-${day.operationDate}'),
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 48,
+                      child: Text(_trendDateLabel(day.operationDate)),
                     ),
-                  ),
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      key: ValueKey('digestive-trend-bar-${day.operationDate}'),
-                      value: _trendProgress(day),
+                    SizedBox(
+                      width: 58,
+                      child: Text(
+                        _dailyStateLabel(day),
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 42,
-                    child: Text(
-                      _trendDetail(day),
-                      textAlign: TextAlign.end,
-                      style: Theme.of(context).textTheme.labelSmall,
+                    Expanded(
+                      child: LinearProgressIndicator(
+                        key: ValueKey(
+                          'digestive-trend-bar-${day.operationDate}',
+                        ),
+                        value: _trendProgress(day),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 42,
+                      child: Text(
+                        _trendDetail(day),
+                        textAlign: TextAlign.end,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-      ],
-    ),
-  );
+          if (days.length > 7)
+            TextButton(
+              key: const ValueKey('digestive-trend-toggle'),
+              onPressed: onToggle,
+              child: Text(expanded ? '折りたたむ' : 'さらに表示'),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 double? _trendProgress(DigestiveDaySummary day) {

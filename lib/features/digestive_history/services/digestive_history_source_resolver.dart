@@ -57,8 +57,11 @@ class DigestiveHistorySourceResolver {
       final activities = results[0] as List<ActivityData>;
       final aggregates = results[1] as List<DailyAggregateV1>;
       final dates = <String>[
-        for (final activity in activities) _date(activity.date),
-        for (final aggregate in aggregates) aggregate.operationDate,
+        for (final activity in activities)
+          if (_hasDigestiveFact(activity)) _date(activity.date),
+        for (final aggregate in aggregates)
+          if (_hasDigestiveFactFromAggregate(aggregate))
+            aggregate.operationDate,
       ].where((date) => date.compareTo(endDate) <= 0).toList()..sort();
       if (dates.isEmpty) return const [];
       return _resolveLoaded(dates.first, endDate, activities, aggregates);
@@ -93,7 +96,12 @@ class DigestiveHistorySourceResolver {
           activity: activityByDate[date],
           aggregate: aggregateByDate[date],
           observationEligible:
-              observationStart != null && date.compareTo(observationStart) >= 0,
+              (observationStart != null &&
+                  date.compareTo(observationStart) >= 0) ||
+              _hasLegacyDigestiveFact(
+                activityByDate[date],
+                aggregateByDate[date],
+              ),
         ),
     ]);
   }
@@ -162,7 +170,9 @@ class DigestiveHistorySourceResolver {
         state: count == 0
             ? DigestiveDayState.confirmedNo
             : DigestiveDayState.yes,
-        source: DigestiveHistorySource.dailyAggregate,
+        source: aggregate.sourceType == DailyAggregateSourceType.legacyDns
+            ? DigestiveHistorySource.aggregateLegacyDns
+            : DigestiveHistorySource.aggregateRecords,
         quality: DigestiveDataQuality.partial,
         countKnown: true,
         observationEligible: observationEligible,
@@ -199,4 +209,19 @@ class DigestiveHistorySourceResolver {
 
   static String _date(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+  static bool _hasDigestiveFact(ActivityData activity) =>
+      activity.digestiveEvents != null ||
+      activity.bowelMovement.status == BowelMovementStatus.none ||
+      activity.bowelMovement.status == BowelMovementStatus.recorded;
+
+  static bool _hasDigestiveFactFromAggregate(DailyAggregateV1 aggregate) =>
+      aggregate.digestiveCount != null || aggregate.digestiveEvents.isNotEmpty;
+
+  static bool _hasLegacyDigestiveFact(
+    ActivityData? activity,
+    DailyAggregateV1? aggregate,
+  ) =>
+      (activity != null && _hasDigestiveFact(activity)) ||
+      (aggregate != null && _hasDigestiveFactFromAggregate(aggregate));
 }

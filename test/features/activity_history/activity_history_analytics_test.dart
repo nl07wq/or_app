@@ -10,6 +10,29 @@ import 'package:or_app/features/daily_aggregate/repository/daily_aggregate_repos
 void main() {
   group('ActivityHistorySourceResolver', () {
     test(
+      'uses a Legacy DNS official total directly without making gaps zero',
+      () async {
+        final resolver = ActivityHistorySourceResolver(
+          activityRepository: _ActivityRepository(const []),
+          dailyAggregateRepository: _AggregateRepository([
+            _aggregate('2026-07-15', 6420),
+          ]),
+        );
+
+        final days = await resolver.resolve(
+          startDate: '2026-07-14',
+          endDate: '2026-07-16',
+        );
+
+        expect(days[0].state, ActivityHistoryDayState.outsideObservation);
+        expect(days[1].state, ActivityHistoryDayState.measured);
+        expect(days[1].steps, 6420);
+        expect(days[1].source, ActivityHistorySource.aggregateLegacyDns);
+        expect(days[2].state, ActivityHistoryDayState.outsideObservation);
+      },
+    );
+
+    test(
       'keeps measured zero, missing, and outside observation distinct',
       () async {
         final resolver = ActivityHistorySourceResolver(
@@ -61,6 +84,26 @@ void main() {
           endDate: '2026-09-12',
         )).single;
         expect(day.source, ActivityHistorySource.currentActivity);
+        expect(day.steps, 1200);
+      },
+    );
+
+    test(
+      'uses a compatible aggregate when current Activity has no Steps fact',
+      () async {
+        final resolver = ActivityHistorySourceResolver(
+          activityRepository: _ActivityRepository([
+            ActivityData(date: DateTime(2026, 9, 12), stepsEntered: false),
+          ]),
+          dailyAggregateRepository: _AggregateRepository([
+            _aggregate('2026-09-12', 1200),
+          ]),
+        );
+        final day = (await resolver.resolve(
+          startDate: '2026-09-12',
+          endDate: '2026-09-12',
+        )).single;
+        expect(day.source, ActivityHistorySource.aggregateLegacyDns);
         expect(day.steps, 1200);
       },
     );
@@ -139,7 +182,8 @@ class _ActivityRepository implements ActivityRepository {
 }
 
 class _AggregateRepository implements DailyAggregateRepository {
-  const _AggregateRepository();
+  const _AggregateRepository([this.records = const []]);
+  final List<DailyAggregateV1> records;
   @override
   Future<void> deleteByDate(String operationDate) async {}
   @override
@@ -148,7 +192,7 @@ class _AggregateRepository implements DailyAggregateRepository {
   Future<List<DailyAggregateV1>> getRange(
     String startDate,
     String endDate,
-  ) async => const [];
+  ) async => records;
   @override
   Future<DailyAggregateV1> put(DailyAggregateV1 aggregate) async => aggregate;
   @override
@@ -162,3 +206,27 @@ class _AggregateRepository implements DailyAggregateRepository {
     String operationDate,
   ) async {}
 }
+
+DailyAggregateV1 _aggregate(String date, int officialSteps) => DailyAggregateV1(
+  operationDate: date,
+  weightKg: null,
+  bodyFatPercent: null,
+  sleepDurationMinutes: null,
+  sleepScore: null,
+  sleepType: null,
+  plantarFasciitisLevel: null,
+  workStartTime: null,
+  workEndTime: null,
+  workBreakMinutes: null,
+  actualWorkMinutes: null,
+  intakeCaloriesKcal: null,
+  proteinG: null,
+  fatG: null,
+  carbsG: null,
+  hydrationMl: null,
+  officialSteps: officialSteps,
+  measuredSteps: null,
+  trainingPerformed: null,
+  digestiveCount: null,
+  sourceType: DailyAggregateSourceType.legacyDns,
+);

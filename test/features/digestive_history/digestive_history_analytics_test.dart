@@ -138,8 +138,30 @@ void main() {
       expect(days[0].exactCount, 1);
       expect(days[1].source, DigestiveHistorySource.legacyActivity);
       expect(days[1].state, DigestiveDayState.confirmedNo);
-      expect(days[2].source, DigestiveHistorySource.dailyAggregate);
+      expect(days[2].source, DigestiveHistorySource.aggregateLegacyDns);
       expect(days[2].exactCount, 2);
+      expect(days[2].observationEligible, isTrue);
+    },
+  );
+
+  test(
+    'sparse Legacy Digestive facts do not make adjacent days missing',
+    () async {
+      final resolver = DigestiveHistorySourceResolver(
+        activityRepository: _ActivityRepository(const []),
+        dailyAggregateRepository: _AggregateRepository([
+          _aggregate('2026-07-15', count: 0),
+        ]),
+      );
+      final days = await resolver.resolve(
+        startDate: '2026-07-14',
+        endDate: '2026-07-16',
+      );
+      expect(days[0].observationEligible, isFalse);
+      expect(days[1].state, DigestiveDayState.confirmedNo);
+      expect(days[1].observationEligible, isTrue);
+      expect(days[1].exactCount, 0);
+      expect(days[2].observationEligible, isFalse);
     },
   );
 
