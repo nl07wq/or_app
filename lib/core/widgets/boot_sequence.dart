@@ -25,7 +25,7 @@ const _bootSignalHandoffDuration = Duration(milliseconds: 120);
 
 /// Applies only after the logo Fade. These base durations are deliberately
 /// chosen as a timeline, rather than derived from another global multiplier:
-/// the deterministic Boot visible → Main UI path is about 4.49 seconds.
+/// the deterministic Boot visible → Main UI path is about 5.76 seconds.
 const postLogoBootTimingFactor = 1.0;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
@@ -458,6 +458,32 @@ double bootMicroSignalAccentEnvelope(double progress) {
   return rise * decay;
 }
 
+/// A bounded authored intensity pattern for the initial signal field.
+/// Individual fragments remain asynchronous, but the shared rhythm adds
+/// deliberate bursts and brief near-cuts without runtime randomness.
+@visibleForTesting
+double bootInitialNoiseIntensity(double progress) {
+  final frame = progress.clamp(0.0, 1.0).toDouble();
+  if (frame < .08) return .22;
+  if (frame < .18) return .92;
+  if (frame < .27) return .38;
+  if (frame < .40) return .78;
+  if (frame < .47) return .12;
+  if (frame < .63) return 1;
+  if (frame < .72) return .58;
+  if (frame < .83) return .88;
+  return .70;
+}
+
+/// The logo holds briefly, then accelerates past the viewport before the
+/// final signal handoff. Keeping the curve here makes the visual timing
+/// deterministic and independently testable.
+@visibleForTesting
+double bootLogoRushScale(double progress) {
+  final accelerated = Curves.easeInCubic.transform(progress.clamp(0.0, 1.0));
+  return 1 + accelerated * 4.6;
+}
+
 double _bootMicroSignalBaseX(Size size, int index) =>
     size.width * _bootMicroSignalSeed(index).x;
 
@@ -512,7 +538,8 @@ double _bootMicroSignalOpacity(double progress, int index) {
   return _bootMicroSignalEnvelope(progress, index) *
       globalEnvelope *
       typeIntensity *
-      flicker;
+      flicker *
+      bootInitialNoiseIntensity(progress);
 }
 
 Offset _bootMicroSignalPosition(Size size, double progress, int index) {
@@ -701,6 +728,7 @@ class BootSequenceTiming {
   final Duration row;
   final Duration readyDelay;
   final Duration readyHold;
+  final Duration logoRush;
   final double postLogoTimingFactor;
 
   const BootSequenceTiming({
@@ -717,6 +745,7 @@ class BootSequenceTiming {
     this.row = const Duration(milliseconds: 280),
     this.readyDelay = const Duration(milliseconds: 210),
     this.readyHold = const Duration(milliseconds: 400),
+    this.logoRush = const Duration(milliseconds: 320),
     this.postLogoTimingFactor = postLogoBootTimingFactor,
   }) : signalAcquisitionIntro =
            signalAcquisitionIntro ??
@@ -741,6 +770,7 @@ enum _BootVisualPhase {
   waitingForInitialization,
   finalizing,
   systemReady,
+  logoRush,
 }
 
 enum BootPresentationState {
@@ -787,6 +817,7 @@ class _BootSequenceVisual extends StatefulWidget {
   final int typedNameLength;
   final int typedAxisLength;
   final double progress;
+  final double logoRushProgress;
   final Duration logoFadeDuration;
   final Duration signalAcquisitionIntroDuration;
   final BootSignalMode signalMode;
@@ -801,6 +832,7 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.typedNameLength,
     required this.typedAxisLength,
     required this.progress,
+    required this.logoRushProgress,
     required this.logoFadeDuration,
     required this.signalAcquisitionIntroDuration,
     required this.signalMode,
@@ -996,6 +1028,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       includeKeys,
                       introProgress,
                       widget.typedAxisLength,
+                      widget.logoRushProgress,
                     ),
               ),
             ),
@@ -1066,6 +1099,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     bool includeKeys,
     double introProgress,
     int typedAxisLength,
+    double logoRushProgress,
   ) {
     final rows = <Widget>[
       if (phase.index >= _BootVisualPhase.coreInitializing.index)
@@ -1114,6 +1148,10 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                 _BootLogoSlot(
                   logoProvider: _logoProvider,
                   officialFade: _logoFadeController,
+                  logoRushProgress: phase == _BootVisualPhase.logoRush
+                      ? logoRushProgress
+                      : 0,
+                  logoRushActive: phase == _BootVisualPhase.logoRush,
                   introSilhouetteOpacity: bootIntroSilhouetteOpacity(
                     introProgress,
                   ),
@@ -1246,6 +1284,8 @@ class _BootLogoSlot extends StatelessWidget {
   const _BootLogoSlot({
     required this.logoProvider,
     required this.officialFade,
+    required this.logoRushProgress,
+    required this.logoRushActive,
     required this.introSilhouetteOpacity,
     required this.includeKeys,
     required this.onOfficialLogoError,
@@ -1253,6 +1293,8 @@ class _BootLogoSlot extends StatelessWidget {
 
   final ImageProvider<Object> logoProvider;
   final Animation<double> officialFade;
+  final double logoRushProgress;
+  final bool logoRushActive;
   final double introSilhouetteOpacity;
   final bool includeKeys;
   final VoidCallback onOfficialLogoError;
@@ -1262,6 +1304,7 @@ class _BootLogoSlot extends StatelessWidget {
     height: 128,
     width: 220,
     child: Stack(
+      clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
         if (introSilhouetteOpacity > 0)
@@ -1285,19 +1328,27 @@ class _BootLogoSlot extends StatelessWidget {
               ),
             ),
           ),
-        FadeTransition(
-          key: includeKeys ? const ValueKey('boot-brand-logo-fade') : null,
-          opacity: CurvedAnimation(parent: officialFade, curve: Curves.easeOut),
-          child: Image(
-            image: logoProvider,
-            key: includeKeys ? const ValueKey('boot-brand-logo') : null,
-            height: 128,
-            width: 220,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) {
-              onOfficialLogoError();
-              return const SizedBox(height: 72);
-            },
+        Transform.scale(
+          key: logoRushActive ? const ValueKey('boot-logo-rush') : null,
+          alignment: Alignment.center,
+          scale: bootLogoRushScale(logoRushProgress),
+          child: FadeTransition(
+            key: includeKeys ? const ValueKey('boot-brand-logo-fade') : null,
+            opacity: CurvedAnimation(
+              parent: officialFade,
+              curve: Curves.easeOut,
+            ),
+            child: Image(
+              image: logoProvider,
+              key: includeKeys ? const ValueKey('boot-brand-logo') : null,
+              height: 128,
+              width: 220,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) {
+                onOfficialLogoError();
+                return const SizedBox(height: 72);
+              },
+            ),
           ),
         ),
       ],
@@ -1793,10 +1844,11 @@ class BootSequenceGate extends StatefulWidget {
 }
 
 class _BootSequenceGateState extends State<BootSequenceGate>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const _axisTypingCharacter = Duration(milliseconds: 27);
   Timer? _timelineTimer;
   late final AnimationController _progressController;
+  late final AnimationController _logoRushController;
   int _session = 0;
   bool _systemInitialized = false;
   bool _visualRowsComplete = false;
@@ -1826,6 +1878,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       },
     );
     _progressController = AnimationController(vsync: this);
+    _logoRushController = AnimationController(vsync: this);
     widget.initialization.addListener(_onInitializationChanged);
     if (!widget.isInitialBootPresentation) {
       _transition(
@@ -1850,6 +1903,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     widget.initialization.removeListener(_onInitializationChanged);
     _invalidateSession('gate_disposed');
     _progressController.dispose();
+    _logoRushController.dispose();
     super.dispose();
   }
 
@@ -1869,6 +1923,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     _timelineTimer?.cancel();
     _timelineTimer = null;
     _progressController.stop();
+    _logoRushController.stop();
     _session += 1;
     _trace(event);
   }
@@ -2117,30 +2172,44 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     _transition(BootPresentationState.systemReadyPresentation, 'system_ready');
-    _schedule(widget.timing.postLogo(widget.timing.readyHold), () {
-      if (!_isPresentationActive || _skipRequested) return;
-      _transition(
-        BootPresentationState.bootHandoffSignal,
-        'signal_handoff_started',
-      );
+    _schedule(widget.timing.postLogo(widget.timing.readyHold), _startLogoRush);
+  }
+
+  void _startLogoRush() {
+    if (!_isPresentationActive || _skipRequested) return;
+    setState(() => _phase = _BootVisualPhase.logoRush);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_LOGO_RUSH',
+      presentation: 'BOOT',
+    );
+    final duration = widget.timing.postLogo(widget.timing.logoRush);
+    _logoRushController
+      ..duration = duration
+      ..forward(from: 0);
+    _schedule(duration, _startFinalNoise);
+  }
+
+  void _startFinalNoise() {
+    if (!_isPresentationActive || _skipRequested) return;
+    _transition(BootPresentationState.bootHandoffSignal, 'final_noise_started');
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_FINAL_NOISE',
+      presentation: 'BOOT',
+    );
+    setState(() {});
+    _schedule(widget.timing.postLogo(_bootSignalHandoffDuration), () {
+      if (_presentation != BootPresentationState.bootHandoffSignal) return;
+      _transition(BootPresentationState.mainUi, 'final_noise_finished');
       StartupDiagnostic.instance.record(
         'FLUTTER',
-        'BOOT_PHASE_HANDOFF',
-        presentation: 'BOOT',
+        'BOOT_PHASE_MAIN_UI',
+        presentation: 'MAIN_UI',
       );
       setState(() {});
-      _schedule(widget.timing.postLogo(_bootSignalHandoffDuration), () {
-        if (_presentation != BootPresentationState.bootHandoffSignal) return;
-        _transition(BootPresentationState.mainUi, 'signal_handoff_finished');
-        StartupDiagnostic.instance.record(
-          'FLUTTER',
-          'BOOT_PHASE_MAIN_UI',
-          presentation: 'MAIN_UI',
-        );
-        setState(() {});
-        _emit(BootSequenceEventType.bootComplete);
-        _releasePresentation('normal_boot_presentation_released');
-      });
+      _emit(BootSequenceEventType.bootComplete);
+      _releasePresentation('normal_boot_presentation_released');
     });
   }
 
@@ -2255,13 +2324,14 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       );
     }
     return AnimatedBuilder(
-      animation: _progressController,
+      animation: Listenable.merge([_progressController, _logoRushController]),
       builder: (context, _) => _BootSequenceVisual(
         phase: _phase,
         typedLength: _typedLength,
         typedNameLength: _typedNameLength,
         typedAxisLength: _typedAxisLength,
         progress: _progressController.value,
+        logoRushProgress: _logoRushController.value,
         logoFadeDuration: widget.timing.logoIntro,
         signalAcquisitionIntroDuration: widget.timing.signalAcquisitionIntro,
         signalMode: widget.timing.signalMode,

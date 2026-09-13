@@ -26,6 +26,7 @@ const _timing = BootSequenceTiming(
   row: Duration(milliseconds: 10),
   readyDelay: Duration(milliseconds: 10),
   readyHold: Duration(milliseconds: 10),
+  logoRush: Duration(milliseconds: 10),
 );
 
 void main() {
@@ -50,6 +51,7 @@ void main() {
         timing.postLogo(timing.readyHold),
         const Duration(milliseconds: 400),
       );
+      expect(timing.logoRush, const Duration(milliseconds: 320));
       expect(
         timing.postLogo(const Duration(milliseconds: 120)),
         const Duration(milliseconds: 120),
@@ -66,12 +68,13 @@ void main() {
           timing.row * 4 +
           timing.readyDelay +
           timing.readyHold +
+          timing.logoRush +
           const Duration(milliseconds: 120);
       expect(
         timing.signalAcquisitionIntro +
             timing.preBootSignalIntro +
             deterministicTotal,
-        const Duration(milliseconds: 5442),
+        const Duration(milliseconds: 5762),
       );
     },
   );
@@ -133,6 +136,13 @@ void main() {
       bootMicroSignalBaseEnvelope(.88),
       greaterThan(bootMicroSignalAccentEnvelope(.88)),
     );
+    expect(bootInitialNoiseIntensity(.12), greaterThan(.80));
+    expect(bootInitialNoiseIntensity(.32), greaterThan(.70));
+    expect(bootInitialNoiseIntensity(.44), lessThan(.20));
+    expect(bootInitialNoiseIntensity(.55), 1);
+    expect(bootLogoRushScale(0), 1);
+    expect(bootLogoRushScale(.5), greaterThan(1));
+    expect(bootLogoRushScale(1), greaterThan(5));
   });
 
   test('signal acquisition diagnostics sample the actual painter geometry', () {
@@ -803,6 +813,10 @@ void main() {
     ]);
 
     await _elapse(tester, _timing.readyHold);
+    expect(find.byKey(const ValueKey('boot-logo-rush')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
+    expect(find.text('MAIN UI'), findsNothing);
+    await _elapse(tester, _timing.logoRush);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     expect(find.text('MAIN UI'), findsNothing);
     await _elapse(tester, const Duration(milliseconds: 120));
@@ -813,6 +827,32 @@ void main() {
       BootSequenceEventType.bootComplete,
     ]);
     semantics.dispose();
+  });
+
+  testWidgets('logo rush reaches final noise at supported viewport widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final size in const [Size(320, 700), Size(390, 844), Size(900, 900)]) {
+      tester.view
+        ..physicalSize = size
+        ..devicePixelRatio = 1;
+      final controller = AppInitializationController()..markReady();
+      await tester.pumpWidget(_gate(controller));
+      await _advanceRows(tester);
+      await _elapse(
+        tester,
+        _timing.readyDelay + const Duration(milliseconds: 1),
+      );
+      await _elapse(tester, _timing.readyHold);
+      expect(find.byKey(const ValueKey('boot-logo-rush')), findsOneWidget);
+      await _elapse(tester, _timing.logoRush);
+      expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    }
   });
 
   testWidgets('initialization failure never shows ready or main UI', (
@@ -872,6 +912,7 @@ void main() {
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
+    await _elapse(tester, _timing.logoRush);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     await _elapse(tester, const Duration(milliseconds: 120));
     await tester.pumpWidget(
@@ -897,6 +938,7 @@ void main() {
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
+    await _elapse(tester, _timing.logoRush);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     await _elapse(tester, const Duration(milliseconds: 120));
 
@@ -946,6 +988,7 @@ void main() {
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
       await _elapse(tester, _timing.readyHold);
+      await _elapse(tester, _timing.logoRush);
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
 
       controller.updateStage(InitializationStage.openingDatabase);
@@ -1082,6 +1125,7 @@ void main() {
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
     await _elapse(tester, _timing.readyHold);
+    await _elapse(tester, _timing.logoRush);
 
     final start = tester.widget<CustomPaint>(
       find.byKey(const ValueKey('boot-signal-sync-sweep')),
@@ -1111,6 +1155,7 @@ void main() {
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
       await _elapse(tester, _timing.readyHold);
+      await _elapse(tester, _timing.logoRush);
       await _elapse(tester, const Duration(milliseconds: 120));
       expect(find.text('MAIN UI'), findsOneWidget);
 
@@ -1228,6 +1273,7 @@ void main() {
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
       await _elapse(tester, _timing.readyHold);
+      await _elapse(tester, _timing.logoRush);
       await _elapse(tester, const Duration(milliseconds: 120));
       expect(find.text('MAIN UI'), findsOneWidget);
 
