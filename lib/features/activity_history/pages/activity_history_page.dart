@@ -37,6 +37,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   DateTimeRange? _customRange;
   Future<_ActivityViewModel>? _model;
   DateTime? _dailyWindowEnd;
+  bool _trendExpanded = false;
+  bool _weeklyExpanded = false;
+  bool _monthlyExpanded = false;
 
   @override
   void initState() {
@@ -88,6 +91,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     return _ActivityViewModel(
       range: actualRange,
       summary: _analytics.summarize(days),
+      operationDate: DateTime.parse(operationDate.value),
     );
   }
 
@@ -110,6 +114,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     setState(() {
       _period = period;
       _dailyWindowEnd = null;
+      _trendExpanded = false;
+      _weeklyExpanded = false;
+      _monthlyExpanded = false;
       _model = _load();
     });
     await _rangePreference.save(period, customRange: _customRange);
@@ -172,19 +179,42 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
             AppSpacing.gapSM,
             _ActivityLineChart(days: model.summary.days),
             AppSpacing.gapXL,
+            const SectionHeader(icon: Icons.insights_outlined, title: 'TREND'),
+            AppSpacing.gapSM,
+            _ActivityDailyTrend(
+              days: model.summary.days,
+              currentOperationDate: model.operationDate,
+              expanded: _trendExpanded,
+              onToggle: () => setState(() => _trendExpanded = !_trendExpanded),
+            ),
+            AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.date_range_outlined,
               title: 'WEEKLY',
             ),
             AppSpacing.gapSM,
-            _ActivityBuckets(days: model.summary.days, weekly: true),
-            AppSpacing.gapXL,
-            const SectionHeader(
-              icon: Icons.calendar_month_outlined,
-              title: 'MONTHLY',
+            _ActivityBuckets(
+              days: model.summary.days,
+              weekly: true,
+              expanded: _weeklyExpanded,
+              onToggle: () =>
+                  setState(() => _weeklyExpanded = !_weeklyExpanded),
             ),
-            AppSpacing.gapSM,
-            _ActivityBuckets(days: model.summary.days, weekly: false),
+            if (_showsMonthly(_period, model.range)) ...[
+              AppSpacing.gapXL,
+              const SectionHeader(
+                icon: Icons.calendar_month_outlined,
+                title: 'MONTHLY',
+              ),
+              AppSpacing.gapSM,
+              _ActivityBuckets(
+                days: model.summary.days,
+                weekly: false,
+                expanded: _monthlyExpanded,
+                onToggle: () =>
+                    setState(() => _monthlyExpanded = !_monthlyExpanded),
+              ),
+            ],
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.history_outlined,
@@ -206,9 +236,14 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 }
 
 class _ActivityViewModel {
-  const _ActivityViewModel({required this.range, required this.summary});
+  const _ActivityViewModel({
+    required this.range,
+    required this.summary,
+    required this.operationDate,
+  });
   final DateTimeRange range;
   final ActivityHistoryPeriodSummary summary;
+  final DateTime operationDate;
 }
 
 class _ActivityPeriodSelector extends StatelessWidget {
@@ -428,10 +463,127 @@ class _StepsChart extends StatelessWidget {
   }
 }
 
+class _ActivityDailyTrend extends StatelessWidget {
+  const _ActivityDailyTrend({
+    required this.days,
+    required this.currentOperationDate,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final List<ActivityHistoryDaySummary> days;
+  final DateTime currentOperationDate;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleDays = expanded || days.length <= 7
+        ? days
+        : days.reversed.take(7).toList().reversed.toList();
+    final maximum = days
+        .where((day) => day.isMeasured && day.steps != null)
+        .fold<int>(0, (value, day) => day.steps! > value ? day.steps! : value);
+    return OperationCard(
+      child: Column(
+        children: [
+          for (final day in visibleDays)
+            _ActivityTrendRow(
+              day: day,
+              maximum: maximum,
+              isCurrentOperationDate: _sameDate(
+                DateTime.parse(day.operationDate),
+                currentOperationDate,
+              ),
+            ),
+          if (days.length > 7)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const ValueKey('activity-trend-toggle'),
+                onPressed: onToggle,
+                child: Text(expanded ? '折りたたむ' : 'さらに表示'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityTrendRow extends StatelessWidget {
+  const _ActivityTrendRow({
+    required this.day,
+    required this.maximum,
+    required this.isCurrentOperationDate,
+  });
+
+  final ActivityHistoryDaySummary day;
+  final int maximum;
+  final bool isCurrentOperationDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final measured = day.isMeasured && day.steps != null;
+    final unresolved =
+        day.state == ActivityHistoryDayState.notMeasured &&
+        day.quality != ActivityHistoryQuality.invalid &&
+        isCurrentOperationDate;
+    final progress = measured
+        ? (maximum == 0 ? 0.0 : day.steps! / maximum)
+        : (unresolved ? null : 0.0);
+    return Semantics(
+      label: '${day.operationDate} ${_activityTrendLabel(day)}',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 48,
+              child: Text(_shortDate(DateTime.parse(day.operationDate))),
+            ),
+            SizedBox(width: 58, child: Text(_activityTrendLabel(day))),
+            Expanded(
+              child: LinearProgressIndicator(
+                key: ValueKey('activity-trend-bar-${day.operationDate}'),
+                value: progress,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            SizedBox(
+              width: 64,
+              child: Text(
+                measured ? '${_number(day.steps)}歩' : '—',
+                textAlign: TextAlign.end,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _activityTrendLabel(ActivityHistoryDaySummary day) =>
+    switch (day.state) {
+      ActivityHistoryDayState.measured => '計測済',
+      ActivityHistoryDayState.measuredZero => '計測済',
+      ActivityHistoryDayState.notMeasured =>
+        day.quality == ActivityHistoryQuality.invalid ? '利用不可' : '未計測',
+      ActivityHistoryDayState.outsideObservation => '観測対象外',
+    };
+
 class _ActivityBuckets extends StatelessWidget {
-  const _ActivityBuckets({required this.days, required this.weekly});
+  const _ActivityBuckets({
+    required this.days,
+    required this.weekly,
+    required this.expanded,
+    required this.onToggle,
+  });
   final List<ActivityHistoryDaySummary> days;
   final bool weekly;
+  final bool expanded;
+  final VoidCallback onToggle;
   @override
   Widget build(BuildContext context) {
     final groups = <String, List<ActivityHistoryDaySummary>>{};
@@ -449,13 +601,23 @@ class _ActivityBuckets extends StatelessWidget {
         .toList();
     return Column(
       children: [
-        if (buckets.length > 1) _BucketChart(buckets: buckets.take(6).toList()),
-        for (final bucket in buckets.take(3))
+        if (buckets.length > 1) _BucketChart(buckets: buckets),
+        for (final bucket in expanded ? buckets : buckets.take(3))
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _ActivityBucketCard(bucket: bucket),
           ),
-        if (buckets.length > 3) const Text('直近3件を表示'),
+        if (buckets.length > 3)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: ValueKey(
+                weekly ? 'activity-weekly-toggle' : 'activity-monthly-toggle',
+              ),
+              onPressed: onToggle,
+              child: Text(expanded ? '折りたたむ' : 'さらに表示'),
+            ),
+          ),
       ],
     );
   }
@@ -735,6 +897,31 @@ String _observationRange(ActivityHistoryPeriodSummary summary) {
   if (dates.isEmpty) return '対象なし';
   return '${dates.first.operationDate} – ${dates.last.operationDate}';
 }
+
+bool _showsMonthly(BodyHistoryPeriod period, DateTimeRange range) {
+  switch (period) {
+    case BodyHistoryPeriod.oneWeek:
+    case BodyHistoryPeriod.fifteenDays:
+      return false;
+    case BodyHistoryPeriod.oneMonth:
+    case BodyHistoryPeriod.threeMonths:
+    case BodyHistoryPeriod.sixMonths:
+    case BodyHistoryPeriod.oneYear:
+      return true;
+    case BodyHistoryPeriod.allTime:
+    case BodyHistoryPeriod.custom:
+      final oneMonth = resolveDataCenterHistoryRange(
+        BodyHistoryPeriod.oneMonth,
+        range.end,
+      );
+      return !range.start.isAfter(oneMonth.start);
+  }
+}
+
+bool _sameDate(DateTime left, DateTime right) =>
+    left.year == right.year &&
+    left.month == right.month &&
+    left.day == right.day;
 
 String _date(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';

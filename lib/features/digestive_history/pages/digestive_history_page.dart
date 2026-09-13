@@ -39,6 +39,8 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   Future<_ViewModel>? _model;
   DateTime? _dailyWindowEnd;
   bool _trendExpanded = false;
+  bool _weeklyExpanded = false;
+  bool _monthlyExpanded = false;
 
   @override
   void initState() {
@@ -112,6 +114,8 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
       _period = period;
       _dailyWindowEnd = null;
       _trendExpanded = false;
+      _weeklyExpanded = false;
+      _monthlyExpanded = false;
       _model = _load();
     });
     await _rangePreference.save(period, customRange: _customRange);
@@ -199,14 +203,28 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
               title: 'WEEKLY',
             ),
             AppSpacing.gapSM,
-            _BucketSection(days: model.summary.days, weekly: true),
-            AppSpacing.gapXL,
-            const SectionHeader(
-              icon: Icons.calendar_month_outlined,
-              title: 'MONTHLY',
+            _BucketSection(
+              days: model.summary.days,
+              weekly: true,
+              expanded: _weeklyExpanded,
+              onToggle: () =>
+                  setState(() => _weeklyExpanded = !_weeklyExpanded),
             ),
-            AppSpacing.gapSM,
-            _BucketSection(days: model.summary.days, weekly: false),
+            if (_showsDigestiveMonthly(_period, model.range)) ...[
+              AppSpacing.gapXL,
+              const SectionHeader(
+                icon: Icons.calendar_month_outlined,
+                title: 'MONTHLY',
+              ),
+              AppSpacing.gapSM,
+              _BucketSection(
+                days: model.summary.days,
+                weekly: false,
+                expanded: _monthlyExpanded,
+                onToggle: () =>
+                    setState(() => _monthlyExpanded = !_monthlyExpanded),
+              ),
+            ],
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.history_outlined,
@@ -236,6 +254,26 @@ String _observationRange(DigestivePeriodSummary summary) {
       .toList();
   if (eligible.isEmpty) return '対象なし';
   return '${eligible.first.operationDate} – ${eligible.last.operationDate}';
+}
+
+bool _showsDigestiveMonthly(BodyHistoryPeriod period, DateTimeRange range) {
+  switch (period) {
+    case BodyHistoryPeriod.oneWeek:
+    case BodyHistoryPeriod.fifteenDays:
+      return false;
+    case BodyHistoryPeriod.oneMonth:
+    case BodyHistoryPeriod.threeMonths:
+    case BodyHistoryPeriod.sixMonths:
+    case BodyHistoryPeriod.oneYear:
+      return true;
+    case BodyHistoryPeriod.allTime:
+    case BodyHistoryPeriod.custom:
+      final oneMonth = resolveDataCenterHistoryRange(
+        BodyHistoryPeriod.oneMonth,
+        range.end,
+      );
+      return !range.start.isAfter(oneMonth.start);
+  }
 }
 
 class _ViewModel {
@@ -654,9 +692,16 @@ class _DistributionRow extends StatelessWidget {
 }
 
 class _BucketSection extends StatelessWidget {
-  const _BucketSection({required this.days, required this.weekly});
+  const _BucketSection({
+    required this.days,
+    required this.weekly,
+    required this.expanded,
+    required this.onToggle,
+  });
   final List<DigestiveDaySummary> days;
   final bool weekly;
+  final bool expanded;
+  final VoidCallback onToggle;
   @override
   Widget build(BuildContext context) {
     final groups = <String, List<DigestiveDaySummary>>{};
@@ -686,12 +731,19 @@ class _BucketSection extends StatelessWidget {
         .toList();
     return Column(
       children: [
-        if (buckets.length > 1) _BucketTrend(buckets: buckets.take(6).toList()),
-        for (final bucket in buckets.take(3)) _BucketCard(bucket: bucket),
+        if (buckets.length > 1) _BucketTrend(buckets: buckets),
+        for (final bucket in expanded ? buckets : buckets.take(3))
+          _BucketCard(bucket: bucket),
         if (buckets.length > 3)
-          const Padding(
-            padding: EdgeInsets.only(top: AppSpacing.xs),
-            child: Text('直近3件を表示'),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: ValueKey(
+                weekly ? 'digestive-weekly-toggle' : 'digestive-monthly-toggle',
+              ),
+              onPressed: onToggle,
+              child: Text(expanded ? '折りたたむ' : 'さらに表示'),
+            ),
           ),
       ],
     );
@@ -791,28 +843,65 @@ class _BucketTrend extends StatelessWidget {
   const _BucketTrend({required this.buckets});
   final List<_BucketDisplay> buckets;
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 100,
-    child: BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        borderData: FlBorderData(show: false),
-        gridData: const FlGridData(show: false),
-        titlesData: const FlTitlesData(show: false),
-        barGroups: [
-          for (var index = 0; index < buckets.length; index++)
-            BarChartGroupData(
-              x: index,
-              barRods: [
-                BarChartRodData(
-                  toY: buckets[index].summary.totalExactEvents.toDouble(),
-                ),
-              ],
+  Widget build(BuildContext context) {
+    final showYear =
+        buckets.map((bucket) => bucket.start.year).toSet().length > 1;
+    return SizedBox(
+      height: 126,
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          borderData: FlBorderData(show: false),
+          gridData: const FlGridData(show: false),
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
             ),
-        ],
+            leftTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 30,
+                getTitlesWidget: (value, _) {
+                  final index = value.toInt();
+                  if (index < 0 || index >= buckets.length) {
+                    return const SizedBox();
+                  }
+                  return Text(
+                    _digestiveBucketLabel(buckets[index], showYear: showYear),
+                    style: Theme.of(context).textTheme.labelSmall,
+                  );
+                },
+              ),
+            ),
+          ),
+          barGroups: [
+            for (var index = 0; index < buckets.length; index++)
+              BarChartGroupData(
+                x: index,
+                barRods: [
+                  BarChartRodData(
+                    toY: buckets[index].summary.totalExactEvents.toDouble(),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+String _digestiveBucketLabel(_BucketDisplay bucket, {required bool showYear}) {
+  if (bucket.weekly) return '${bucket.start.month}/${bucket.start.day}';
+  return showYear
+      ? '${bucket.start.year % 100}/${bucket.start.month}'
+      : '${bucket.start.month}月';
 }
 
 class _DailyHistoryWindow extends StatefulWidget {
