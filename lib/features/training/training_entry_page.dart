@@ -529,12 +529,12 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
             items: [
               OperationMenuItem(
                 icon: Icons.delete_sweep_outlined,
-                title: 'Discard Session',
+                title: 'DISCARD SESSION',
                 onTap: () => unawaited(_discardOrClearSession()),
               ),
               OperationMenuItem(
                 icon: Icons.library_books_outlined,
-                title: 'Training Plan',
+                title: 'TRAINING PLAN',
                 onTap: () {
                   Navigator.push(
                     context,

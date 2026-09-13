@@ -1000,7 +1000,7 @@ void main() {
     );
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Discard Session'));
+    await tester.tap(find.text('DISCARD SESSION'));
     await tester.pumpAndSettle();
     expect(find.text('トレーニングセッションを破棄しますか？'), findsOneWidget);
     await tester.tap(find.text('破棄'));

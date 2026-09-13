@@ -23,7 +23,19 @@ class TrainingDetailPage extends StatelessWidget {
     if (record.readModel.v2Data != null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('TRAINING'),
+          // Keep the visual title centered in the viewport rather than in
+          // AppBar's remaining slot beside the analysis/edit actions.
+          flexibleSpace: const SafeArea(
+            bottom: false,
+            child: IgnorePointer(
+              child: Center(
+                child: Text(
+                  'TRAINING',
+                  key: ValueKey('training-detail-appbar-title'),
+                ),
+              ),
+            ),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.analytics_outlined),
@@ -84,7 +96,19 @@ class TrainingDetailPage extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('TRAINING')),
+      appBar: AppBar(
+        flexibleSpace: const SafeArea(
+          bottom: false,
+          child: IgnorePointer(
+            child: Center(
+              child: Text(
+                'TRAINING',
+                key: ValueKey('training-detail-appbar-title'),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: ListView(
         children: [
           TrainingSummaryCard(
