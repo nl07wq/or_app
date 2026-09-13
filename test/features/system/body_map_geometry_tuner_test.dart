@@ -557,17 +557,17 @@ void main() {
       final trapezius = controller.draftFor('back', 'back-trapezius')!;
       expect(trapezius.locked, isFalse);
       expect(trapezius.width, 43);
-      expect(trapezius.height, 55.5);
+      expect(trapezius.height, 53.5);
       expect(trapezius.effectiveComponents, hasLength(2));
       expect(
         trapezius.effectiveComponents[0].shape,
-        BodyMapGeometryShape.current,
+        BodyMapGeometryShape.diamond,
       );
       expect(
         trapezius.effectiveComponents[1].shape,
         BodyMapGeometryShape.roundedRect,
       );
-      expect(trapezius.effectiveComponents[1].height, 25.49322034);
+      expect(trapezius.effectiveComponents[1].height, 16.05);
       final output = controller.copyAllChanges({});
       for (final regionId in <String>[
         'front-shoulder-left',
@@ -603,16 +603,16 @@ void main() {
     },
   );
 
-  test('uses the canonical V2 trapezius composite for a fresh default', () {
+  test('uses the canonical V3 trapezius composite for a fresh default', () {
     final controller = BodyMapGeometryTunerController(
       baselineCommit:
           BodyMapGeometryTunerController.productOwnerRecoveryBaseline,
     );
     final productionPath = Path()
-      ..moveTo(100, 49.25)
-      ..lineTo(121.5, 77)
-      ..lineTo(100, 104.75)
-      ..lineTo(78.5, 77)
+      ..moveTo(100, 56.25)
+      ..lineTo(121.5, 83)
+      ..lineTo(100, 109.75)
+      ..lineTo(78.5, 83)
       ..close();
     controller.pathFor(
       side: 'back',
@@ -621,11 +621,19 @@ void main() {
     );
     final trapezius = controller.draftFor('back', 'back-trapezius')!;
     expect(trapezius.locked, isFalse);
-    expect((trapezius.x, trapezius.y), (100, 77));
-    expect((trapezius.width, trapezius.height), (43, 55.5));
+    expect((trapezius.x, trapezius.y), (100, 83));
+    expect((trapezius.width, trapezius.height), (43, 53.5));
     expect(
       trapezius.effectiveComponents.map((component) => component.componentId),
       ['component-0', 'component-1'],
+    );
+    expect(
+      trapezius.effectiveComponents[0].shape,
+      BodyMapGeometryShape.diamond,
+    );
+    expect(
+      (trapezius.effectiveComponents[1].x, trapezius.effectiveComponents[1].y),
+      (100, 63),
     );
     controller.updateComponent(
       'back',

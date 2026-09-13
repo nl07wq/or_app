@@ -18,7 +18,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   // This geometry identity changes only when canonical preview SVG geometry is
   // baked. It makes pre-bake tuner drafts stale rather than double-applying
   // them to their own baked result.
-  static const _baselineCommit = 'body-map-svg-v2-trapezius-lats';
+  static const _baselineCommit = 'body-map-svg-v3-core-trapezius-lats';
 
   final _tuner = BodyMapGeometryTunerController(
     baselineCommit: _baselineCommit,
@@ -55,9 +55,20 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
 
   String get _sideName => side.name;
 
-  Path _pathOverride(String id, Path basePath) {
+  Path _previewPath(String id, Path basePath) {
     final key = BodyMapGeometryTunerController.keyFor(_sideName, id);
     _baseBounds[key] = basePath.getBounds();
+    if (!_showTuned) {
+      // Baseline and Tuned share the same editable topology. Baseline renders
+      // the canonical path; Tuned renders that baseline plus local overrides.
+      _tuner.ensureRegion(
+        side: _sideName,
+        regionId: id,
+        baseBounds: basePath.getBounds(),
+        locked: id == 'front-core',
+      );
+      return basePath;
+    }
     return _tuner.pathFor(
       side: _sideName,
       regionId: id,
@@ -281,7 +292,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                   _selectedRegionId = id;
                   _activeComponentIndex = 0;
                 }),
-                pathOverride: _editMode && _showTuned ? _pathOverride : null,
+                pathOverride: _editMode ? _previewPath : null,
               ),
               const SizedBox(height: 12),
               if (_editMode)

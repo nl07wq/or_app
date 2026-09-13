@@ -106,6 +106,14 @@ String _roundedRect(GeometrySpec spec) {
       'L ${_format(left)} ${_format(top + radius)} C ${_format(left)} ${_format(top + radius - control)} ${_format(left + radius - control)} ${_format(top)} ${_format(left + radius)} ${_format(top)} Z';
 }
 
+String _diamond(GeometrySpec spec) {
+  final width = spec.width * spec.scaleX, height = spec.height * spec.scaleY;
+  final left = spec.x - width / 2, right = spec.x + width / 2;
+  final top = spec.y - height / 2, bottom = spec.y + height / 2;
+  return 'M ${_format(spec.x)} ${_format(top)} L ${_format(right)} ${_format(spec.y)} '
+      'L ${_format(spec.x)} ${_format(bottom)} L ${_format(left)} ${_format(spec.y)} Z';
+}
+
 Map<String, String> _paths(String svg) => {
   for (final match in RegExp(r'<path id="([^"]+)" d="([^"]+)"').allMatches(svg))
     match.group(1)!: match.group(2)!,
@@ -146,8 +154,8 @@ final _frontCurrent = <String, GeometrySpec>{
   'front-quadriceps-right': const GeometrySpec(116.5, 217.49, 20.55, 63.72),
 };
 final _backCurrent = <String, GeometrySpec>{
-  'back-lats-left': const GeometrySpec(85.98, 126, 27.04, 53),
-  'back-lats-right': const GeometrySpec(114.02, 126, 27.04, 53),
+  'back-lats-left': const GeometrySpec(85.98, 126, 25.04, 53),
+  'back-lats-right': const GeometrySpec(114.02, 126, 25.04, 53),
   'back-triceps-left': const GeometrySpec(
     62.5,
     114,
@@ -236,23 +244,14 @@ String _bake(String side) {
   if (side == 'back') {
     final base = baselinePaths['back-trapezius'];
     if (base == null) throw StateError('Missing stable ID back-trapezius');
-    // Historical component topology rebased from its 49 x 29.5 envelope to
-    // the approved 43 x 55.5 envelope. The component relationship is affine;
-    // no internal split was invented.
-    const lower = GeometrySpec(100, 77, 30.71428571, 55.5, scaleX: 1.4);
-    const upper = GeometrySpec(
-      100,
-      68.53389831,
-      15.79591837,
-      25.49322034,
-      scaleX: 1.01,
-      scaleY: 1.5,
-    );
-    // Tuner's deterministic compound-path fallback: one stable semantic Path.
+    // The Product Owner supplied the two editable components directly. They
+    // remain one stable semantic SVG path and are unioned by the renderer.
+    const lower = GeometrySpec(100, 83, 43, 53.5);
+    const upper = GeometrySpec(100, 63, 14.6, 16.05);
     svg = _replacePath(
       svg,
       base,
-      '${_roundedRect(upper)} ${_transformCurrent(base, lower)}',
+      '${_roundedRect(upper)} ${_diamond(lower)}',
       'back-trapezius',
     );
   }

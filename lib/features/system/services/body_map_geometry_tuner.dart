@@ -241,7 +241,7 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   static const currentSchemaVersion = 2;
   static const storageKey = 'or_app.body_map_geometry_tuner.v1';
   static const backupStorageKey = 'or_app.body_map_geometry_tuner.backup.v1';
-  static const productOwnerRecoveryBaseline = 'body-map-svg-v2-trapezius-lats';
+  static const productOwnerRecoveryBaseline = 'body-map-svg-v3-core-trapezius-lats';
   BodyMapGeometryTunerController({
     required this.baselineCommit,
     Future<SharedPreferences> Function()? preferencesLoader,
@@ -990,12 +990,12 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     final seed = <BodyMapGeometryDraft>[
       single('front', 'front-shoulder-left', 77, 79.5, 24.9, 23.94),
       single('front', 'front-chest-left', 84.5, 104.5, 28, 30.1),
-      single('front', 'front-core', 100, 151.5, 40, 53),
+      single('front', 'front-core', 100, 149, 40, 53),
       single('front', 'front-biceps-left', 62.5, 114, 16.58, 42.58),
       single('front', 'front-forearm-left', 55, 161, 16.89, 45.11),
       single('front', 'front-quadriceps-right', 116, 218.49, 20.55, 55.22),
       single('back', 'back-shoulder-left', 77, 79.5, 24.9, 23.94),
-      single('back', 'back-lats-left', 85.98, 126, 27.04, 53),
+      single('back', 'back-lats-left', 85.98, 126, 25.04, 53),
       single('back', 'back-triceps-right', 137.5, 114, 16.63, 43.08),
       single('back', 'back-forearm-left', 55, 161, 16.89, 45.11),
       single('back', 'back-glutes-left', 86, 169.5, 24.5, 34.5),
@@ -1016,36 +1016,31 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   }
 
   /// The production SVG is one unioned semantic path, while the tuner keeps
-  /// the recovered historical components independently editable. The parent
-  /// fields describe the approved V2 envelope; component transforms retain
-  /// the historical topology rebased by 43/49 × 55.5/29.5.
+  /// the Product Owner's two independently editable V3 components.
   static BodyMapGeometryDraft _defaultTrapeziusComposite() =>
       const BodyMapGeometryDraft(
         side: 'back',
         regionId: 'back-trapezius',
         x: 100,
-        y: 77,
+        y: 83,
         width: 43,
-        height: 55.5,
+        height: 53.5,
         components: [
           BodyMapGeometryComponent(
             componentId: 'component-0',
-            shape: BodyMapGeometryShape.current,
+            shape: BodyMapGeometryShape.diamond,
             x: 100,
-            y: 77,
-            width: 30.71428571,
-            height: 55.5,
-            scaleX: 1.4,
+            y: 83,
+            width: 43,
+            height: 53.5,
           ),
           BodyMapGeometryComponent(
             componentId: 'component-1',
             shape: BodyMapGeometryShape.roundedRect,
             x: 100,
-            y: 68.53389831,
-            width: 15.79591837,
-            height: 25.49322034,
-            scaleX: 1.01,
-            scaleY: 1.5,
+            y: 63,
+            width: 14.6,
+            height: 16.05,
           ),
         ],
       );
