@@ -626,6 +626,66 @@ void main() {
     expect(find.text('MAIN UI'), findsNothing);
   });
 
+  testWidgets('typing cursor stays inline with each active terminal string', (
+    tester,
+  ) async {
+    const timing = BootSequenceTiming(
+      signalAcquisitionIntro: Duration.zero,
+      preBootSignalIntro: Duration.zero,
+      logoIntro: Duration(milliseconds: 1),
+      waitForLogoDrawable: false,
+      typingCharacter: Duration(milliseconds: 80),
+      fullNameCharacter: Duration(milliseconds: 11),
+      identityHold: Duration(milliseconds: 230),
+      systemBootTransition: Duration(milliseconds: 1),
+      row: Duration(milliseconds: 1),
+      readyDelay: Duration(milliseconds: 1),
+      readyHold: Duration(milliseconds: 1),
+    );
+    await tester.pumpWidget(
+      _gate(AppInitializationController(), timing: timing),
+    );
+    await _advanceLogoFade(tester, timing);
+
+    final identity = find.byKey(const ValueKey('boot-brand-identity'));
+    final cursor = find.byKey(const ValueKey('boot-typing-cursor'));
+    expect(identity, findsOneWidget);
+    expect(cursor, findsOneWidget);
+    _expectInlineCursor(tester, identity, cursor);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    _expectInlineCursor(tester, identity, cursor);
+
+    final beforeAdvance = tester.getTopLeft(cursor).dx;
+    await _elapse(tester, timing.typingCharacter);
+    final firstCursorX = tester.getTopLeft(cursor).dx;
+    expect(firstCursorX, greaterThan(beforeAdvance));
+    _expectInlineCursor(tester, identity, cursor);
+
+    await _elapse(tester, timing.typingCharacter);
+    expect(tester.getTopLeft(cursor).dx, greaterThan(firstCursorX));
+    _expectInlineCursor(tester, identity, cursor);
+
+    await _advanceTyping(tester, timing, count: 5);
+    await _elapse(tester, timing.fullNameCharacter);
+    final fullName = find.byKey(const ValueKey('boot-brand-full-name'));
+    expect(fullName, findsOneWidget);
+    expect(cursor, findsOneWidget);
+    _expectInlineCursor(tester, fullName, cursor);
+    expect(find.byKey(const ValueKey('boot-typing-cursor')), findsOneWidget);
+
+    await _elapse(
+      tester,
+      timing.fullNameCharacter *
+          ('Operation Reasoning Lifesystem Orchestrator'.length - 1),
+    );
+    final axis = find.byKey(const ValueKey('boot-operation-system-version'));
+    expect(axis, findsOneWidget);
+    expect(cursor, findsOneWidget);
+    _expectInlineCursor(tester, axis, cursor);
+    expect(find.byKey(const ValueKey('boot-typing-cursor')), findsOneWidget);
+  });
+
   testWidgets('full name types before system boot at the configured rate', (
     tester,
   ) async {
@@ -1591,6 +1651,15 @@ Future<void> _advanceTyping(
   for (var index = 0; index < count; index += 1) {
     await _elapse(tester, timing.typingCharacter);
   }
+}
+
+void _expectInlineCursor(WidgetTester tester, Finder text, Finder cursor) {
+  final textRect = tester.getRect(text);
+  final cursorRect = tester.getRect(cursor);
+  // The terminal block glyph has a small intrinsic left side bearing, but the
+  // Row itself inserts no spacing between the active text and cursor.
+  expect(cursorRect.left, closeTo(textRect.right, 2));
+  expect(cursorRect.bottom, closeTo(textRect.bottom, 2));
 }
 
 Future<void> _elapse(WidgetTester tester, Duration duration) async {

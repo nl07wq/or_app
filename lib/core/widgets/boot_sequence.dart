@@ -1200,9 +1200,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       if (phase.index >=
                           _BootVisualPhase.identityTyping.index) ...[
                         const SizedBox(height: 16),
-                        Text(
-                          'O.R.L.O.'.substring(0, widget.typedLength),
-                          key: includeKeys
+                        _buildTypedLine(
+                          text: 'O.R.L.O.'.substring(0, widget.typedLength),
+                          textKey: includeKeys
                               ? const ValueKey('boot-brand-identity')
                               : null,
                           style: Theme.of(context).textTheme.titleLarge!
@@ -1212,6 +1212,8 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                                 fontWeight: FontWeight.w400,
                                 letterSpacing: 2.8,
                               ),
+                          active: phase == _BootVisualPhase.identityTyping,
+                          includeKeys: includeKeys,
                         ),
                       ],
                       if (phase.index >= _BootVisualPhase.identityName.index)
@@ -1220,9 +1222,12 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                           child: FittedBox(
                             alignment: Alignment.centerLeft,
                             fit: BoxFit.scaleDown,
-                            child: Text(
-                              _fullName.substring(0, widget.typedNameLength),
-                              key: includeKeys
+                            child: _buildTypedLine(
+                              text: _fullName.substring(
+                                0,
+                                widget.typedNameLength,
+                              ),
+                              textKey: includeKeys
                                   ? const ValueKey('boot-brand-full-name')
                                   : null,
                               style: Theme.of(context).textTheme.labelSmall!
@@ -1234,18 +1239,20 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                                     fontWeight: FontWeight.w400,
                                     letterSpacing: .55,
                                   ),
+                              active: phase == _BootVisualPhase.identityName,
+                              includeKeys: includeKeys,
                             ),
                           ),
                         ),
                       if (phase.index >= _BootVisualPhase.axisIdentity.index)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            OperationSystemMetadata.version.substring(
+                          child: _buildTypedLine(
+                            text: OperationSystemMetadata.version.substring(
                               0,
                               typedAxisLength,
                             ),
-                            key: includeKeys
+                            textKey: includeKeys
                                 ? const ValueKey(
                                     'boot-operation-system-version',
                                   )
@@ -1259,17 +1266,8 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                                   fontWeight: FontWeight.w400,
                                   letterSpacing: 1.15,
                                 ),
-                          ),
-                        ),
-                      if (phase == _BootVisualPhase.identityTyping)
-                        FadeTransition(
-                          opacity: _cursorController,
-                          child: Text(
-                            '▌',
-                            key: includeKeys
-                                ? const ValueKey('boot-typing-cursor')
-                                : null,
-                            style: TextStyle(color: colorScheme.primary),
+                            active: phase == _BootVisualPhase.axisIdentity,
+                            includeKeys: includeKeys,
                           ),
                         ),
                       if (phase.index >= _BootVisualPhase.systemBoot.index) ...[
@@ -1315,6 +1313,33 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTypedLine({
+    required String text,
+    required Key? textKey,
+    required TextStyle style,
+    required bool active,
+    required bool includeKeys,
+  }) {
+    final typedText = Text(text, key: textKey, style: style);
+    if (!active) return typedText;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        typedText,
+        FadeTransition(
+          opacity: _cursorController,
+          child: Text(
+            '▌',
+            key: includeKeys ? const ValueKey('boot-typing-cursor') : null,
+            style: style.copyWith(letterSpacing: 0),
+          ),
+        ),
+      ],
     );
   }
 
