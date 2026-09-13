@@ -146,6 +146,12 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
             Text(
               '検索期間: ${_format(model.range.start)} – ${_format(model.range.end)}',
             ),
+            if (model.summary.outsideObservationDays > 0) ...[
+              AppSpacing.gapXS,
+              Text(
+                '観測期間: ${_observationRange(model.summary)}（${model.summary.observationDays}日）',
+              ),
+            ],
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.analytics_outlined,
@@ -153,6 +159,10 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
             ),
             AppSpacing.gapSM,
             _Overview(summary: model.summary),
+            AppSpacing.gapXL,
+            const SectionHeader(icon: Icons.insights_outlined, title: 'TREND'),
+            AppSpacing.gapSM,
+            _TrendSummary(summary: model.summary),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.show_chart_outlined,
@@ -202,6 +212,14 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
 
   static String _format(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+}
+
+String _observationRange(DigestivePeriodSummary summary) {
+  final eligible = summary.days
+      .where((day) => day.observationEligible)
+      .toList();
+  if (eligible.isEmpty) return '対象なし';
+  return '${eligible.first.operationDate} – ${eligible.last.operationDate}';
 }
 
 class _ViewModel {
@@ -298,6 +316,18 @@ class _Overview extends StatelessWidget {
         ],
       );
     },
+  );
+}
+
+class _TrendSummary extends StatelessWidget {
+  const _TrendSummary({required this.summary});
+  final DigestivePeriodSummary summary;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Text(
+      '集計対象 ${summary.observationDays}日 ・ 排便あり ${summary.yesDays}日 ・ 排便なし ${summary.confirmedNoDays}日 ・ 未記録 ${summary.unknownDays}日',
+    ),
   );
 }
 
@@ -634,17 +664,28 @@ class _BucketMetric extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall,
-          maxLines: 2,
-          textAlign: TextAlign.center,
+        SizedBox(
+          height: 30,
+          child: Center(
+            child: Text(
+              _metricLabel(label),
+              style: Theme.of(context).textTheme.labelSmall,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+            ),
+          ),
         ),
         Text(value, maxLines: 1, overflow: TextOverflow.clip),
       ],
     ),
   );
 }
+
+String _metricLabel(String label) => switch (label) {
+  '記録日平均' => '記録日\n平均',
+  '最長排便なし' => '最長排便\nなし',
+  _ => label,
+};
 
 class _BucketTrend extends StatelessWidget {
   const _BucketTrend({required this.buckets});
@@ -785,7 +826,7 @@ class _DailyHistoryRow extends StatelessWidget {
         ),
         if (expanded)
           Padding(
-            padding: const EdgeInsets.only(left: 52, bottom: AppSpacing.sm),
+            padding: const EdgeInsets.only(left: 40, bottom: AppSpacing.sm),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -795,8 +836,8 @@ class _DailyHistoryRow extends StatelessWidget {
                     child: Text(
                       '#${event.sequence ?? '—'} 量:${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  形:${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  残便:${_compactRelief(event.relief)}',
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall,
+                      overflow: TextOverflow.clip,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
               ],
