@@ -124,7 +124,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   Future<bool> _deleteRecord(MealData data) async {
     final result = await showHistoryDeleteDialog(
       context,
-      title: data.isWaterEntry ? 'Water Record' : 'Meal Record',
+      title: data.isWaterEntry ? '水分記録' : '食事記録',
     );
 
     if (!result) return false;
@@ -141,10 +141,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   }
 
   Future<bool> _deleteV2Record(DailyMealV2 meal) async {
-    final confirmed = await showHistoryDeleteDialog(
-      context,
-      title: 'Meal Record',
-    );
+    final confirmed = await showHistoryDeleteDialog(context, title: '食事記録');
     if (!confirmed) return false;
     try {
       await FoodSubmitService.deleteV2(meal);

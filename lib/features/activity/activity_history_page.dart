@@ -31,7 +31,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   Future<void> _delete(ActivityData data) async {
     final confirmed = await showHistoryDeleteDialog(
       context,
-      title: 'Activity Record',
+      title: 'アクティビティ記録',
     );
     if (!confirmed) return;
     try {

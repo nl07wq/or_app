@@ -1002,8 +1002,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Discard Session'));
     await tester.pumpAndSettle();
-    expect(find.text('DISCARD TRAINING?'), findsOneWidget);
-    await tester.tap(find.text('DISCARD'));
+    expect(find.text('トレーニングセッションを破棄しますか？'), findsOneWidget);
+    await tester.tap(find.text('破棄'));
     await tester.pumpAndSettle();
 
     expect(

@@ -57,6 +57,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Future<void> _draftWriteQueue = Future.value();
   bool _draftWritesEnabled = true;
   bool _hasPersistedDraft = false;
+  bool _confirmationOpen = false;
 
   bool get _isEditing => widget.existingRecord != null;
 
@@ -319,26 +320,10 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Future<void> _confirmDeleteExercise(
     TrainingV2ExerciseFormController exercise,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('このEXERCISEを削除しますか？'),
-        content: const Text('このEXERCISEと入力中のSETを削除します。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            key: const ValueKey('confirm-delete-exercise'),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('DELETE'),
-          ),
-        ],
-      ),
+    final confirmed = await _showTrainingConfirmation(
+      title: 'この種目を削除しますか？',
+      content: 'この種目と入力中のセットを削除します。\n\nこの操作は取り消せません。',
+      confirmKey: const ValueKey('confirm-delete-exercise'),
     );
     if (confirmed != true || !_form.exercises.contains(exercise)) return;
     if (identical(_expandedItem, exercise)) _expandedItem = null;
@@ -349,26 +334,10 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   Future<void> _confirmDeleteCardio(
     TrainingV2CardioFormController cardio,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('このCARDIOを削除しますか？'),
-        content: const Text('このCARDIOの入力内容を削除します。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            key: const ValueKey('confirm-delete-cardio'),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('DELETE'),
-          ),
-        ],
-      ),
+    final confirmed = await _showTrainingConfirmation(
+      title: 'この有酸素運動を削除しますか？',
+      content: 'この有酸素運動の入力内容を削除します。\n\nこの操作は取り消せません。',
+      confirmKey: const ValueKey('confirm-delete-cardio'),
     );
     if (confirmed != true || !_form.cardioEntries.contains(cardio)) return;
     if (identical(_expandedItem, cardio)) _expandedItem = null;
@@ -448,29 +417,53 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     _loadStatusWeight();
   }
 
+  Future<bool> _showTrainingConfirmation({
+    required String title,
+    required String content,
+    required Key confirmKey,
+    String confirmLabel = '削除',
+  }) async {
+    if (mounted) setState(() => _confirmationOpen = true);
+    try {
+      return (await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(title),
+              content: Text(content),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('キャンセル'),
+                ),
+                TextButton(
+                  key: confirmKey,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(dialogContext).colorScheme.error,
+                  ),
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(confirmLabel),
+                ),
+              ],
+            ),
+          )) ??
+          false;
+    } finally {
+      if (mounted) setState(() => _confirmationOpen = false);
+    }
+  }
+
   Future<void> _discardOrClearSession() async {
+    final confirmed = await _showTrainingConfirmation(
+      title: 'トレーニングセッションを破棄しますか？',
+      content: '現在のトレーニングセッションを破棄します。入力した内容はすべて失われます。',
+      confirmKey: const ValueKey('confirm-discard-training'),
+      confirmLabel: '破棄',
+    );
+    if (confirmed != true || !mounted) return;
     if (_isEditing || (_form.startTime == null && !_hasPersistedDraft)) {
       _resetSession();
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('DISCARD TRAINING?'),
-        content: const Text('記録中のTraining Sessionと入力内容を破棄します。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('DISCARD'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
     final operationDate = _form.date.substring(0, 10);
     try {
       _draftWritesEnabled = false;
@@ -521,7 +514,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           child: IgnorePointer(
             child: Center(
               child: _TrainingAppBarTitle(
-                active: presentationState == TrainingPresentationState.active,
+                active:
+                    presentationState == TrainingPresentationState.active &&
+                    !_confirmationOpen,
               ),
             ),
           ),
@@ -534,9 +529,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
             items: [
               OperationMenuItem(
                 icon: Icons.delete_sweep_outlined,
-                title: _form.startTime == null
-                    ? 'Clear Session'
-                    : 'Discard Session',
+                title: 'Discard Session',
                 onTap: () => unawaited(_discardOrClearSession()),
               ),
               OperationMenuItem(

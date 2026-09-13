@@ -38,10 +38,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
 
   Future<void> _deleteRecord(TrainingRecord record) async {
     if (!record.isEditable) return;
-    final result = await showHistoryDeleteDialog(
-      context,
-      title: 'Training Session',
-    );
+    final result = await showHistoryDeleteDialog(context, title: 'トレーニング記録');
 
     if (!result) return;
 

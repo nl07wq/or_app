@@ -57,19 +57,21 @@ class TrainingSetV2Editor extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('このSETを削除しますか？'),
-        content: const Text('このSETの実施入力を削除します。\n元のTRAINING PLANは保持されます。'),
+        title: const Text('このセットを削除しますか？'),
+        content: const Text(
+          'このセットの実施入力を削除します。\n元のトレーニングプランは保持されます。\n\nこの操作は取り消せません。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('CANCEL'),
+            child: const Text('キャンセル'),
           ),
           TextButton(
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('DELETE'),
+            child: const Text('削除'),
           ),
         ],
       ),

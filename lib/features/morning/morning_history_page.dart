@@ -41,10 +41,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
   }
 
   Future<void> _deleteRecord(MorningData data) async {
-    final result = await showHistoryDeleteDialog(
-      context,
-      title: 'Morning Fact',
-    );
+    final result = await showHistoryDeleteDialog(context, title: 'ステータス記録');
 
     if (!result) return;
 

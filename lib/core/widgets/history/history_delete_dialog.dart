@@ -8,11 +8,8 @@ Future<bool> showHistoryDeleteDialog(
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: Text('$titleを削除'),
-        content: Text(
-          'この$titleを削除しますか？\n\n'
-          'この操作は取り消せません。',
-        ),
+        title: Text('この$titleを削除しますか？'),
+        content: const Text('この操作は取り消せません。'),
         actions: [
           TextButton(
             onPressed: () {

@@ -98,11 +98,11 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('v2-set-2-delete')));
     await tester.tap(find.byKey(const Key('v2-set-2-delete')));
     await tester.pumpAndSettle();
-    expect(find.text('このSETを削除しますか？'), findsOneWidget);
-    expect(find.textContaining('元のTRAINING PLANは保持されます。'), findsOneWidget);
+    expect(find.text('このセットを削除しますか？'), findsOneWidget);
+    expect(find.textContaining('元のトレーニングプランは保持されます。'), findsOneWidget);
     expect(exercise.sets, hasLength(4));
 
-    await tester.tap(find.text('CANCEL'));
+    await tester.tap(find.text('キャンセル'));
     await tester.pumpAndSettle();
     expect(exercise.sets.map((set) => set.planSlotIndex), [0, 1, 2, 3]);
     expect(changes, 0);
@@ -137,7 +137,7 @@ void main() {
     await tester.tap(find.byKey(const Key('v2-set-2-delete')));
     await tester.pumpAndSettle();
     expect(exercise.sets, hasLength(4));
-    await tester.tap(find.text('DELETE'));
+    await tester.tap(find.text('削除'));
     await tester.pumpAndSettle();
     expect(exercise.sets.map((set) => set.planSlotIndex), [0, 1, 3]);
     expect(exercise.planSlots, hasLength(4));
@@ -182,7 +182,7 @@ void main() {
         await tester.tap(find.byKey(const Key('v2-set-0-delete')));
         await tester.pumpAndSettle();
 
-        expect(find.text('このSETを削除しますか？'), findsOneWidget);
+        expect(find.text('このセットを削除しますか？'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
