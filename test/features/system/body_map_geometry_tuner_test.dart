@@ -187,6 +187,7 @@ void main() {
       final copied = controller.copyRegion(controller.draftFor('back', id)!);
       expect(copied, contains('shape: COMPOSITE'));
       expect(copied, contains('component-1'));
+      expect(controller.deleteComponent('back', id, 2), isTrue);
       expect(controller.deleteComponent('back', id, 1), isTrue);
       expect(controller.deleteComponent('back', id, 0), isFalse);
     },
@@ -299,8 +300,8 @@ void main() {
     await reloaded.load();
     reloaded.pathFor(side: 'back', regionId: id, basePath: diamond);
     final restored = reloaded.draftFor('back', id)!;
-    expect(restored.effectiveComponents, hasLength(2));
-    expect(restored.effectiveComponents[1].shape, BodyMapGeometryShape.rect);
+    expect(restored.effectiveComponents, hasLength(3));
+    expect(restored.effectiveComponents[2].shape, BodyMapGeometryShape.rect);
     expect(
       reloaded.copyAllChanges({
         BodyMapGeometryTunerController.keyFor('back', id): diamond.getBounds(),
@@ -401,7 +402,7 @@ void main() {
   });
 
   test(
-    'promotes a compatible draft wrapped as stale by an app SHA change',
+    'keeps a V1 trapezius draft stale after the V2 geometry revision',
     () async {
       final original = {
         'baselineCommit': '58bf2859ef511e6c1ce577afc9e48b64a1de895a',
@@ -451,10 +452,9 @@ void main() {
             BodyMapGeometryTunerController.productOwnerRecoveryBaseline,
       );
       await controller.load();
-      final trapezius = controller.draftFor('back', 'back-trapezius')!;
-      expect(controller.hasStaleDraft, isFalse);
-      expect(trapezius.effectiveComponents, hasLength(2));
-      expect(controller.copyAllChanges({}), contains('shape: COMPOSITE'));
+      expect(controller.hasStaleDraft, isTrue);
+      expect(controller.draftFor('back', 'back-trapezius'), isNull);
+      expect(controller.copyStaleDraft(), contains('a734cf1d'));
     },
   );
 
@@ -546,7 +546,7 @@ void main() {
   );
 
   test(
-    'restores the product owner fixture with a locked composite trapezius',
+    'restores the product owner fixture with an editable composite trapezius',
     () async {
       final controller = BodyMapGeometryTunerController(
         baselineCommit:
@@ -555,7 +555,9 @@ void main() {
       expect(controller.restoreProductOwnerRecoveryDraft(), isTrue);
       expect(controller.drafts, hasLength(26));
       final trapezius = controller.draftFor('back', 'back-trapezius')!;
-      expect(trapezius.locked, isTrue);
+      expect(trapezius.locked, isFalse);
+      expect(trapezius.width, 43);
+      expect(trapezius.height, 55.5);
       expect(trapezius.effectiveComponents, hasLength(2));
       expect(
         trapezius.effectiveComponents[0].shape,
@@ -565,7 +567,7 @@ void main() {
         trapezius.effectiveComponents[1].shape,
         BodyMapGeometryShape.roundedRect,
       );
-      expect(trapezius.effectiveComponents[1].height, 13.55);
+      expect(trapezius.effectiveComponents[1].height, 25.49322034);
       final output = controller.copyAllChanges({});
       for (final regionId in <String>[
         'front-shoulder-left',
@@ -600,6 +602,46 @@ void main() {
       );
     },
   );
+
+  test('uses the canonical V2 trapezius composite for a fresh default', () {
+    final controller = BodyMapGeometryTunerController(
+      baselineCommit:
+          BodyMapGeometryTunerController.productOwnerRecoveryBaseline,
+    );
+    final productionPath = Path()
+      ..moveTo(100, 49.25)
+      ..lineTo(121.5, 77)
+      ..lineTo(100, 104.75)
+      ..lineTo(78.5, 77)
+      ..close();
+    controller.pathFor(
+      side: 'back',
+      regionId: 'back-trapezius',
+      basePath: productionPath,
+    );
+    final trapezius = controller.draftFor('back', 'back-trapezius')!;
+    expect(trapezius.locked, isFalse);
+    expect((trapezius.x, trapezius.y), (100, 77));
+    expect((trapezius.width, trapezius.height), (43, 55.5));
+    expect(
+      trapezius.effectiveComponents.map((component) => component.componentId),
+      ['component-0', 'component-1'],
+    );
+    controller.updateComponent(
+      'back',
+      'back-trapezius',
+      1,
+      trapezius.effectiveComponents[1].copyWith(y: 69),
+    );
+    expect(
+      controller.draftFor('back', 'back-trapezius')!.effectiveComponents[1].y,
+      69,
+    );
+    expect(
+      controller.copyRegion(controller.draftFor('back', 'back-trapezius')!),
+      allOf(contains('shape: COMPOSITE'), contains('componentId: component-1')),
+    );
+  });
 
   test('only an explicit reset persists an empty tuner draft', () async {
     final controller = BodyMapGeometryTunerController(baselineCommit: 'reset');

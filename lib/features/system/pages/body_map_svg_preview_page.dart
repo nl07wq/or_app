@@ -18,7 +18,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   // This geometry identity changes only when canonical preview SVG geometry is
   // baked. It makes pre-bake tuner drafts stale rather than double-applying
   // them to their own baked result.
-  static const _baselineCommit = 'body-map-svg-v1-final-geometry-58bf285';
+  static const _baselineCommit = 'body-map-svg-v2-trapezius-lats';
 
   final _tuner = BodyMapGeometryTunerController(
     baselineCommit: _baselineCommit,

@@ -85,7 +85,7 @@ void main() {
       );
       expect(trapezius.contains(const Offset(100, 70)), isTrue);
       expect(trapezius.contains(const Offset(100, 87)), isTrue);
-      expect(trapezius.contains(const Offset(100, 55)), isFalse);
+      expect(trapezius.contains(const Offset(100, 45)), isFalse);
     },
   );
 
@@ -446,7 +446,7 @@ void main() {
     expect(leftLats.top, lessThan(102));
     expect((leftLats.top - trapezius.bottom).abs(), lessThan(12));
     expect(leftLats.height, greaterThan(30));
-    expect(leftLats.height, closeTo(67, .02));
+    expect(leftLats.height, closeTo(53, .02));
     expect(rightLats.height, closeTo(leftLats.height, .01));
     expect(leftLats.bottom, lessThan(160));
     expect(leftQuadriceps.top, lessThan(193));

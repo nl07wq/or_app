@@ -146,8 +146,8 @@ final _frontCurrent = <String, GeometrySpec>{
   'front-quadriceps-right': const GeometrySpec(116.5, 217.49, 20.55, 63.72),
 };
 final _backCurrent = <String, GeometrySpec>{
-  'back-lats-left': const GeometrySpec(85.98, 116, 27.04, 67),
-  'back-lats-right': const GeometrySpec(114.02, 116, 27.04, 67),
+  'back-lats-left': const GeometrySpec(85.98, 126, 27.04, 53),
+  'back-lats-right': const GeometrySpec(114.02, 126, 27.04, 53),
   'back-triceps-left': const GeometrySpec(
     62.5,
     114,
@@ -236,8 +236,18 @@ String _bake(String side) {
   if (side == 'back') {
     final base = baselinePaths['back-trapezius'];
     if (base == null) throw StateError('Missing stable ID back-trapezius');
-    const lower = GeometrySpec(100, 77, 35, 29.5, scaleX: 1.4);
-    const upper = GeometrySpec(100, 72.5, 18, 13.55, scaleX: 1.01, scaleY: 1.5);
+    // Historical component topology rebased from its 49 x 29.5 envelope to
+    // the approved 43 x 55.5 envelope. The component relationship is affine;
+    // no internal split was invented.
+    const lower = GeometrySpec(100, 77, 30.71428571, 55.5, scaleX: 1.4);
+    const upper = GeometrySpec(
+      100,
+      68.53389831,
+      15.79591837,
+      25.49322034,
+      scaleX: 1.01,
+      scaleY: 1.5,
+    );
     // Tuner's deterministic compound-path fallback: one stable semantic Path.
     svg = _replacePath(
       svg,

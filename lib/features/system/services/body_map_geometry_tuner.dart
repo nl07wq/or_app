@@ -241,7 +241,7 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   static const currentSchemaVersion = 2;
   static const storageKey = 'or_app.body_map_geometry_tuner.v1';
   static const backupStorageKey = 'or_app.body_map_geometry_tuner.backup.v1';
-  static const productOwnerRecoveryBaseline = '58bf285';
+  static const productOwnerRecoveryBaseline = 'body-map-svg-v2-trapezius-lats';
   BodyMapGeometryTunerController({
     required this.baselineCommit,
     Future<SharedPreferences> Function()? preferencesLoader,
@@ -352,17 +352,20 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     final key = keyFor(side, regionId);
     return _drafts.putIfAbsent(key, () {
       final restored = _restoredDrafts.remove(key);
-      return restored ??
-          BodyMapGeometryDraft(
-            side: side,
-            regionId: regionId,
-            x: baseBounds.center.dx,
-            y: baseBounds.center.dy,
-            width: baseBounds.width,
-            height: baseBounds.height,
-            mirrorLinked: mirrorLinked,
-            locked: locked,
-          );
+      if (restored != null) return restored;
+      if (side == 'back' && regionId == 'back-trapezius') {
+        return _defaultTrapeziusComposite();
+      }
+      return BodyMapGeometryDraft(
+        side: side,
+        regionId: regionId,
+        x: baseBounds.center.dx,
+        y: baseBounds.center.dy,
+        width: baseBounds.width,
+        height: baseBounds.height,
+        mirrorLinked: mirrorLinked,
+        locked: locked,
+      );
     });
   }
 
@@ -992,43 +995,13 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
       single('front', 'front-forearm-left', 55, 161, 16.89, 45.11),
       single('front', 'front-quadriceps-right', 116, 218.49, 20.55, 55.22),
       single('back', 'back-shoulder-left', 77, 79.5, 24.9, 23.94),
-      single('back', 'back-lats-left', 84.48, 125.5, 29.04, 57),
+      single('back', 'back-lats-left', 85.98, 126, 27.04, 53),
       single('back', 'back-triceps-right', 137.5, 114, 16.63, 43.08),
       single('back', 'back-forearm-left', 55, 161, 16.89, 45.11),
       single('back', 'back-glutes-left', 86, 169.5, 24.5, 34.5),
       single('back', 'back-hamstrings-left', 83.5, 218.5, 20, 55),
       single('back', 'back-calves-left', 83, 275, 18, 51.5),
-      BodyMapGeometryDraft(
-        side: 'back',
-        regionId: 'back-trapezius',
-        x: 100,
-        y: 77,
-        width: 35,
-        height: 29.5,
-        scaleX: 1.4,
-        locked: true,
-        components: const [
-          BodyMapGeometryComponent(
-            componentId: 'component-0',
-            shape: BodyMapGeometryShape.current,
-            x: 100,
-            y: 77,
-            width: 35,
-            height: 29.5,
-            scaleX: 1.4,
-          ),
-          BodyMapGeometryComponent(
-            componentId: 'component-1',
-            shape: BodyMapGeometryShape.roundedRect,
-            x: 100,
-            y: 72.5,
-            width: 18,
-            height: 13.55,
-            scaleX: 1.01,
-            scaleY: 1.5,
-          ),
-        ],
-      ),
+      _defaultTrapeziusComposite(),
     ];
     final byKey = <String, BodyMapGeometryDraft>{
       for (final draft in seed) keyFor(draft.side, draft.regionId): draft,
@@ -1041,6 +1014,41 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
     }
     return byKey.values.toList();
   }
+
+  /// The production SVG is one unioned semantic path, while the tuner keeps
+  /// the recovered historical components independently editable. The parent
+  /// fields describe the approved V2 envelope; component transforms retain
+  /// the historical topology rebased by 43/49 × 55.5/29.5.
+  static BodyMapGeometryDraft _defaultTrapeziusComposite() =>
+      const BodyMapGeometryDraft(
+        side: 'back',
+        regionId: 'back-trapezius',
+        x: 100,
+        y: 77,
+        width: 43,
+        height: 55.5,
+        components: [
+          BodyMapGeometryComponent(
+            componentId: 'component-0',
+            shape: BodyMapGeometryShape.current,
+            x: 100,
+            y: 77,
+            width: 30.71428571,
+            height: 55.5,
+            scaleX: 1.4,
+          ),
+          BodyMapGeometryComponent(
+            componentId: 'component-1',
+            shape: BodyMapGeometryShape.roundedRect,
+            x: 100,
+            y: 68.53389831,
+            width: 15.79591837,
+            height: 25.49322034,
+            scaleX: 1.01,
+            scaleY: 1.5,
+          ),
+        ],
+      );
 
   static BodyMapGeometryDraft _mirroredDraft(
     BodyMapGeometryDraft draft,

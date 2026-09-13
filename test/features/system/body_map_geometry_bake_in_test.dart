@@ -45,8 +45,9 @@ void main() {
       93.78,
       249.35,
     );
-    _expectBounds(back.paths, 'back-trapezius', 75.5, 62.25, 124.5, 91.75);
-    _expectBounds(back.paths, 'back-lats-left', 72.46, 82.5, 99.5, 149.5);
+    _expectBounds(back.paths, 'back-trapezius', 78.5, 49.25, 121.5, 104.75);
+    _expectBounds(back.paths, 'back-lats-left', 72.46, 99.5, 99.5, 152.5);
+    _expectBounds(back.paths, 'back-lats-right', 100.5, 99.5, 127.54, 152.5);
     _expectBounds(back.paths, 'back-glutes-left', 73.8, 152.3, 98.3, 186.8);
     _expectBounds(back.paths, 'back-hamstrings-left', 73.5, 191, 93.5, 246);
     _expectBounds(back.paths, 'back-calves-left', 74, 249.3, 92, 300.8);
