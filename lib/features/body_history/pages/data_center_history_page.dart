@@ -106,6 +106,28 @@ class DataCenterHistoryPage extends StatelessWidget {
             ],
           ),
         ),
+        AppSpacing.gapMD,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ACTIVITY HISTORY',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みの正式データから、歩数の計測状況と日次推移を確認します。'),
+              AppSpacing.gapMD,
+              OperationButton(
+                role: OperationActionRole.primary,
+                text: 'OPEN ACTIVITY HISTORY',
+                icon: Icons.directions_walk_outlined,
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.activityHistory),
+              ),
+            ],
+          ),
+        ),
       ],
     ),
   );

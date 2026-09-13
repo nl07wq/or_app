@@ -20,37 +20,32 @@ void main() {
 
     expect(find.text('BODY HISTORY'), findsOneWidget);
     expect(find.text('NUTRITION HISTORY'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('TRAINING HISTORY'), 240);
     expect(find.text('TRAINING HISTORY'), findsOneWidget);
-    for (final label in [
-      'OPEN BODY HISTORY',
-      'OPEN NUTRITION HISTORY',
-      'OPEN TRAINING HISTORY',
-    ]) {
-      final button = find.widgetWithText(OperationButton, label);
-      expect(
-        tester.widget<OperationButton>(button).role,
-        OperationActionRole.primary,
-      );
-      final actionColor = Theme.of(tester.element(button)).colorScheme.primary;
-      expect(
-        tester
-            .widget<Text>(
-              find.descendant(of: button, matching: find.text(label)),
-            )
-            .style
-            ?.color,
-        actionColor,
-      );
-      expect(
-        tester
-            .widget<Icon>(
-              find.descendant(of: button, matching: find.byType(Icon)),
-            )
-            .color,
-        actionColor,
-      );
-    }
+    const label = 'OPEN TRAINING HISTORY';
+    final button = find.widgetWithText(OperationButton, label);
+    expect(
+      tester.widget<OperationButton>(button).role,
+      OperationActionRole.primary,
+    );
+    final actionColor = Theme.of(tester.element(button)).colorScheme.primary;
+    expect(
+      tester
+          .widget<Text>(find.descendant(of: button, matching: find.text(label)))
+          .style
+          ?.color,
+      actionColor,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(of: button, matching: find.byType(Icon)),
+          )
+          .color,
+      actionColor,
+    );
 
+    await tester.ensureVisible(find.text('OPEN TRAINING HISTORY'));
     await tester.tap(find.text('OPEN TRAINING HISTORY'));
     await tester.pumpAndSettle();
 

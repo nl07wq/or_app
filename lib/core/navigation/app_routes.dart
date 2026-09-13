@@ -25,6 +25,8 @@ class AppRoutes {
 
   static const digestiveHistory = '/data-center/history/digestive';
 
+  static const activityHistory = '/data-center/history/activity';
+
   static const trainingAnalyticsHistory = '/data-center/history/training';
 
   static const dailyAggregateRecords = '/data-center/daily-aggregate-records';
