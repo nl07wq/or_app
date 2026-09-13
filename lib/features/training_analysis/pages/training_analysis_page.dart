@@ -699,7 +699,7 @@ class _FrequencyRecommendationCard extends StatelessWidget {
               value: _recommendationRange(recommendation),
             ),
             _FrequencyValue(
-              label: 'Recovery基準',
+              label: '回復基準',
               value: _hoursAtLeast(recommendation.recoveryReferenceHours),
             ),
             _FrequencyValue(
@@ -775,14 +775,18 @@ String _hoursAtLeast(num? value) =>
 String _hours(num value) => '${value.round()}時間';
 
 String _frequencyConfidenceLabel(TrainingFrequencyConfidence value) =>
-    value.name.toUpperCase();
+    switch (value) {
+      TrainingFrequencyConfidence.insufficient => '低',
+      TrainingFrequencyConfidence.low => '低',
+      TrainingFrequencyConfidence.medium => '中',
+    };
 
 String _frequencyStatusLabel(TrainingFrequencyRecommendationStatus value) =>
     switch (value) {
-      TrainingFrequencyRecommendationStatus.baselineOnly => 'BASELINE ONLY',
-      TrainingFrequencyRecommendationStatus.personalized => 'PERSONALIZED',
-      TrainingFrequencyRecommendationStatus.conflicting => 'CONFLICTING',
-      TrainingFrequencyRecommendationStatus.unavailable => 'UNAVAILABLE',
+      TrainingFrequencyRecommendationStatus.baselineOnly => '傾向未確定',
+      TrainingFrequencyRecommendationStatus.personalized => '個別履歴反映',
+      TrainingFrequencyRecommendationStatus.conflicting => '履歴不一致',
+      TrainingFrequencyRecommendationStatus.unavailable => '算出不可',
     };
 
 class _StaleAnalysisWarning extends StatelessWidget {

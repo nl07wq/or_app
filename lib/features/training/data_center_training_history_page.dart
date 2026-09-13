@@ -212,7 +212,7 @@ class _DataCenterTrainingHistoryPageState
                     period: _period,
                     referenceDate: referenceDate,
                     customRange: _customRange,
-                    now: referenceDate,
+                now: widget.clock?.call() ?? DateTime.now(),
                     adapter: _recoveryAdapter,
                   )
                 else ...[
