@@ -29,10 +29,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   void _reload() => _records = _repository.getAll();
 
   Future<void> _delete(ActivityData data) async {
-    final confirmed = await showHistoryDeleteDialog(
-      context,
-      title: 'アクティビティ記録',
-    );
+    final confirmed = await showHistoryDeleteDialog(context, title: '活動記録');
     if (!confirmed) return;
     try {
       await deleteActivity(data.date);
