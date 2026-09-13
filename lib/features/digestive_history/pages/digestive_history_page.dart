@@ -334,8 +334,8 @@ class _DailyCountTrend extends StatelessWidget {
         AppSpacing.gapSM,
         for (final day in days)
           Semantics(
-            label:
-                '${day.operationDate} ${_stateLabel(day.state)} ${day.countKnown ? 'COUNT ${day.exactCount}' : 'COUNT UNAVAILABLE'}',
+          label:
+              '${day.operationDate} ${_displayState(day)} ${day.countKnown ? 'COUNT ${day.exactCount}' : 'COUNT UNAVAILABLE'}',
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
@@ -354,7 +354,7 @@ class _DailyCountTrend extends StatelessWidget {
                         ? '${day.exactCount}'
                         : day.state == DigestiveDayState.yes
                         ? 'PARTIAL'
-                        : _stateLabel(day.state),
+                      : _displayState(day),
                   ),
                 ],
               ),
@@ -500,7 +500,7 @@ class _DailyHistory extends StatelessWidget {
                   day.operationDate,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                Text('BM: ${_stateLabel(day.state)}'),
+                  Text('BM: ${_displayState(day)}'),
                 Text(
                   day.countKnown
                       ? 'COUNT: ${day.exactCount}'
@@ -530,6 +530,11 @@ String _stateLabel(DigestiveDayState state) => switch (state) {
   DigestiveDayState.confirmedNo => 'NO',
   DigestiveDayState.unknown => 'NOT RECORDED',
 };
+
+String _displayState(DigestiveDaySummary day) =>
+    day.quality == DigestiveDataQuality.invalid
+    ? 'UNAVAILABLE'
+    : _stateLabel(day.state);
 
 String _decimal(double? value) =>
     value == null ? '—' : value.toStringAsFixed(1);
