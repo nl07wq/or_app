@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../operation_date/services/operation_date_service.dart';
+import '../repositories/app_repository_container.dart';
 import 'models/training_record_read_model.dart';
 import 'services/training_history_overview_adapter.dart';
 import 'services/training_history_range_preference.dart';
@@ -26,6 +29,7 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
     this.recordsLoader,
     this.overviewAdapter = const TrainingHistoryOverviewAdapter(),
     this.clock,
+    this.operationDateService,
     this.rangePreference,
     this.recoveryAdapter,
   });
@@ -33,6 +37,7 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
   final Future<List<TrainingRecordReadModel>> Function()? recordsLoader;
   final TrainingHistoryOverviewAdapter overviewAdapter;
   final DateTime Function()? clock;
+  final OperationDateService? operationDateService;
   final TrainingHistoryRangePreference? rangePreference;
   final TrainingRecoveryEvidenceAdapter? recoveryAdapter;
 
@@ -44,6 +49,7 @@ class DataCenterTrainingHistoryPage extends StatefulWidget {
 class _DataCenterTrainingHistoryPageState
     extends State<DataCenterTrainingHistoryPage> {
   late final Future<List<TrainingRecordReadModel>> _records;
+  late final Future<DateTime> _referenceDate;
   late final TrainingHistoryRangePreference _rangePreference;
   var _period = TrainingHistoryOverviewPeriod.oneWeek;
   DateTimeRange? _customRange;
@@ -63,7 +69,21 @@ class _DataCenterTrainingHistoryPageState
         widget.rangePreference ?? TrainingHistoryRangePreference();
     _recoveryAdapter =
         widget.recoveryAdapter ?? const TrainingRecoveryEvidenceAdapter();
+    _referenceDate = _resolveReferenceDate();
     _records = _restoreAndLoad();
+  }
+
+  Future<DateTime> _resolveReferenceDate() {
+    if (widget.clock case final clock?) return SynchronousFuture(clock());
+    // Test/read-model callers do not initialize the production repository
+    // registry. Production rendering always resolves the Operation Date below.
+    if (widget.recordsLoader != null) return SynchronousFuture(DateTime.now());
+    final service =
+        widget.operationDateService ??
+        OperationDateService(AppRepositoryRegistry.container.operationState);
+    return service.current().then(
+      (operationDate) => DateTime.parse(operationDate.value),
+    );
   }
 
   Future<List<TrainingRecordReadModel>> _restoreAndLoad() async {
@@ -77,7 +97,8 @@ class _DataCenterTrainingHistoryPageState
 
   Future<void> _selectPeriod(TrainingHistoryOverviewPeriod period) async {
     if (period == TrainingHistoryOverviewPeriod.custom) {
-      final now = widget.clock?.call() ?? DateTime.now();
+      final now = await _referenceDate;
+      if (!mounted) return;
       final selected = await showDateRangePicker(
         context: context,
         firstDate: DateTime(2000),
@@ -97,145 +118,162 @@ class _DataCenterTrainingHistoryPageState
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('TRAINING HISTORY')),
-    body: FutureBuilder<List<TrainingRecordReadModel>>(
-      future: _records,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+    body: FutureBuilder<DateTime>(
+      future: _referenceDate,
+      builder: (context, referenceSnapshot) {
+        if (referenceSnapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError || !snapshot.hasData) {
+        if (referenceSnapshot.hasError || !referenceSnapshot.hasData) {
           return const Center(child: Text('TRAINING HISTORYを読み込めませんでした。'));
         }
-        final all = widget.overviewAdapter.build(
-          snapshot.requireData,
-          period: TrainingHistoryOverviewPeriod.all,
-          referenceDate: widget.clock?.call(),
-        );
-        final overview = widget.overviewAdapter.build(
-          snapshot.requireData,
-          period: _period,
-          referenceDate: widget.clock?.call(),
-          customRange: _customRange,
-        );
-        final displayRange = widget.overviewAdapter.selectedRange(
-          period: _period,
-          referenceDate: widget.clock?.call(),
-          customRange: _customRange,
-        );
-        return ListView(
-          padding: AppSpacing.cardPadding,
-          children: [
-            const SectionHeader(
-              icon: Icons.query_stats_outlined,
-              title: 'TRAINING HISTORY',
-            ),
-            AppSpacing.gapSM,
-            _PeriodSelector(selected: _period, onSelected: _selectPeriod),
-            AppSpacing.gapSM,
-            Text(
-              '表示期間: ${_formatDate(displayRange.start)} – '
-              '${_formatDate(displayRange.end)}',
-            ),
-            AppSpacing.gapSM,
-            _ViewSelector(
-              selected: _view,
-              onSelected: (value) => setState(() => _view = value),
-            ),
-            AppSpacing.gapLG,
-            if (all.isEmpty)
-              const _EmptyHistoryState()
-            else if (_view == _TrainingHistoryView.overview && overview.isEmpty)
-              const _EmptyPeriodState()
-            else if (_view == _TrainingHistoryView.exercise)
-              _ExerciseView(
-                records: snapshot.requireData,
-                period: _period,
-                referenceDate: widget.clock?.call(),
-                customRange: _customRange,
-                selectedCategory: _selectedCategory,
-                selectedEquipment: _selectedEquipment,
-                allEquipment: _allEquipment,
-                metric: _exerciseMetric,
-                volumeMetric: _volumeMetric,
-                onCategorySelected: (category) => setState(() {
-                  _selectedCategory = category;
-                  _selectedEquipment = null;
-                  _allEquipment = false;
-                }),
-                onEquipmentSelected: (identity) => setState(() {
-                  _selectedEquipment = identity;
-                  _allEquipment = false;
-                }),
-                onAllEquipmentSelected: () =>
-                    setState(() => _allEquipment = true),
-                onMetricSelected: (metric) =>
-                    setState(() => _exerciseMetric = metric),
-                onVolumeMetricSelected: (metric) =>
-                    setState(() => _volumeMetric = metric),
-                adapter: _exerciseAdapter,
-              )
-            else if (_view == _TrainingHistoryView.recovery)
-              _RecoveryView(
-                records: snapshot.requireData,
-                period: _period,
-                referenceDate: widget.clock?.call(),
-                customRange: _customRange,
-                now: widget.clock?.call() ?? DateTime.now(),
-                adapter: _recoveryAdapter,
-              )
-            else ...[
-              const SectionHeader(
-                icon: Icons.summarize_outlined,
-                title: 'STRENGTH OVERVIEW',
-              ),
-              AppSpacing.gapSM,
-              _SummaryGrid(overview: overview),
-              AppSpacing.gapXL,
-              _MetricSection(
-                title: 'RECORDED VOLUME',
-                note: '正式に記録された全セットを含みます。',
-                points: [
-                  for (final point in overview.points)
-                    _ChartPoint(point.date, point.recordedVolume),
+        final referenceDate = referenceSnapshot.requireData;
+        return FutureBuilder<List<TrainingRecordReadModel>>(
+          future: _records,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError || !snapshot.hasData) {
+              return const Center(child: Text('TRAINING HISTORYを読み込めませんでした。'));
+            }
+            final all = widget.overviewAdapter.build(
+              snapshot.requireData,
+              period: TrainingHistoryOverviewPeriod.all,
+              referenceDate: referenceDate,
+            );
+            final overview = widget.overviewAdapter.build(
+              snapshot.requireData,
+              period: _period,
+              referenceDate: referenceDate,
+              customRange: _customRange,
+            );
+            final displayRange = widget.overviewAdapter.selectedRange(
+              period: _period,
+              referenceDate: referenceDate,
+              customRange: _customRange,
+            );
+            return ListView(
+              padding: AppSpacing.cardPadding,
+              children: [
+                const SectionHeader(
+                  icon: Icons.query_stats_outlined,
+                  title: 'TRAINING HISTORY',
+                ),
+                AppSpacing.gapSM,
+                _PeriodSelector(selected: _period, onSelected: _selectPeriod),
+                AppSpacing.gapSM,
+                Text(
+                  '検索期間: ${_formatDate(displayRange.start)} – '
+                  '${_formatDate(displayRange.end)}',
+                ),
+                AppSpacing.gapSM,
+                _ViewSelector(
+                  selected: _view,
+                  onSelected: (value) => setState(() => _view = value),
+                ),
+                AppSpacing.gapLG,
+                if (all.isEmpty)
+                  const _EmptyHistoryState()
+                else if (_view == _TrainingHistoryView.overview &&
+                    overview.isEmpty)
+                  const _EmptyPeriodState()
+                else if (_view == _TrainingHistoryView.exercise)
+                  _ExerciseView(
+                    records: snapshot.requireData,
+                    period: _period,
+                    referenceDate: referenceDate,
+                    customRange: _customRange,
+                    selectedCategory: _selectedCategory,
+                    selectedEquipment: _selectedEquipment,
+                    allEquipment: _allEquipment,
+                    metric: _exerciseMetric,
+                    volumeMetric: _volumeMetric,
+                    onCategorySelected: (category) => setState(() {
+                      _selectedCategory = category;
+                      _selectedEquipment = null;
+                      _allEquipment = false;
+                    }),
+                    onEquipmentSelected: (identity) => setState(() {
+                      _selectedEquipment = identity;
+                      _allEquipment = false;
+                    }),
+                    onAllEquipmentSelected: () =>
+                        setState(() => _allEquipment = true),
+                    onMetricSelected: (metric) =>
+                        setState(() => _exerciseMetric = metric),
+                    onVolumeMetricSelected: (metric) =>
+                        setState(() => _volumeMetric = metric),
+                    adapter: _exerciseAdapter,
+                  )
+                else if (_view == _TrainingHistoryView.recovery)
+                  _RecoveryView(
+                    records: snapshot.requireData,
+                    period: _period,
+                    referenceDate: referenceDate,
+                    customRange: _customRange,
+                    now: referenceDate,
+                    adapter: _recoveryAdapter,
+                  )
+                else ...[
+                  const SectionHeader(
+                    icon: Icons.summarize_outlined,
+                    title: 'STRENGTH OVERVIEW',
+                  ),
+                  AppSpacing.gapSM,
+                  _SummaryGrid(overview: overview),
+                  AppSpacing.gapXL,
+                  _MetricSection(
+                    title: 'RECORDED VOLUME',
+                    note: '正式に記録された全セットを含みます。',
+                    points: [
+                      for (final point in overview.points)
+                        _ChartPoint(point.date, point.recordedVolume),
+                    ],
+                    axisFormatter: TrainingVolumeFormatter.axisLabel,
+                    detailFormatter: TrainingVolumeFormatter.format,
+                  ),
+                  AppSpacing.gapXL,
+                  _MetricSection(
+                    title: 'REPS',
+                    points: [
+                      for (final point in overview.points)
+                        _ChartPoint(point.date, point.recordedReps.toDouble()),
+                    ],
+                    axisFormatter: _formatInteger,
+                    detailFormatter: (value) => '${_formatInteger(value)} reps',
+                  ),
+                  AppSpacing.gapXL,
+                  _MetricSection(
+                    title: 'RECORDED SETS',
+                    points: [
+                      for (final point in overview.points)
+                        _ChartPoint(
+                          point.date,
+                          point.recordedSetCount.toDouble(),
+                        ),
+                    ],
+                    axisFormatter: _formatInteger,
+                    detailFormatter: (value) => '${_formatInteger(value)} sets',
+                  ),
+                  AppSpacing.gapXL,
+                  _MetricSection(
+                    title: 'STRENGTH FREQUENCY',
+                    note: '月曜開始・週あたりのストレングスセッション数',
+                    weeklyBars: true,
+                    points: [
+                      for (final point in overview.frequencyPoints)
+                        _ChartPoint(point.weekStart, point.sessions.toDouble()),
+                    ],
+                    axisFormatter: _formatInteger,
+                    detailFormatter: (value) =>
+                        '${_formatInteger(value)} sessions',
+                  ),
                 ],
-                axisFormatter: TrainingVolumeFormatter.axisLabel,
-                detailFormatter: TrainingVolumeFormatter.format,
-              ),
-              AppSpacing.gapXL,
-              _MetricSection(
-                title: 'REPS',
-                points: [
-                  for (final point in overview.points)
-                    _ChartPoint(point.date, point.recordedReps.toDouble()),
-                ],
-                axisFormatter: _formatInteger,
-                detailFormatter: (value) => '${_formatInteger(value)} reps',
-              ),
-              AppSpacing.gapXL,
-              _MetricSection(
-                title: 'RECORDED SETS',
-                points: [
-                  for (final point in overview.points)
-                    _ChartPoint(point.date, point.recordedSetCount.toDouble()),
-                ],
-                axisFormatter: _formatInteger,
-                detailFormatter: (value) => '${_formatInteger(value)} sets',
-              ),
-              AppSpacing.gapXL,
-              _MetricSection(
-                title: 'STRENGTH FREQUENCY',
-                note: '月曜開始・週あたりのストレングスセッション数',
-                weeklyBars: true,
-                points: [
-                  for (final point in overview.frequencyPoints)
-                    _ChartPoint(point.weekStart, point.sessions.toDouble()),
-                ],
-                axisFormatter: _formatInteger,
-                detailFormatter: (value) => '${_formatInteger(value)} sessions',
-              ),
-            ],
-            AppSpacing.gapLG,
-          ],
+                AppSpacing.gapLG,
+              ],
+            );
+          },
         );
       },
     ),

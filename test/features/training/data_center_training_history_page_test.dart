@@ -56,7 +56,7 @@ void main() {
     expect(find.widgetWithText(ChoiceChip, '種目'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'OVERVIEW'), findsNothing);
     expect(find.widgetWithText(ChoiceChip, 'EXERCISE'), findsNothing);
-    expect(find.textContaining('表示期間:'), findsOneWidget);
+    expect(find.textContaining('検索期間:'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('月曜開始・週あたりのストレングスセッション数'), 300);
     expect(find.text('月曜開始・週あたりのストレングスセッション数'), findsOneWidget);
     expect(

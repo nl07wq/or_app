@@ -296,14 +296,14 @@ class _ActivityOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 720 ? 3 : 2;
+      final columns = constraints.maxWidth < 350 ? 2 : 3;
       return GridView.count(
         crossAxisCount: columns,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppSpacing.sm,
         crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: constraints.maxWidth < 350 ? 1.1 : 1.35,
+        childAspectRatio: constraints.maxWidth < 350 ? 1.1 : 0.65,
         children: [
           _ActivityMetric(
             '計測率',

@@ -25,6 +25,8 @@ void main() {
               const Scaffold(body: Text('TRAINING ROUTE')),
           AppRoutes.activityHistory: (_) =>
               const Scaffold(body: Text('ACTIVITY ROUTE')),
+          AppRoutes.sleepHistory: (_) =>
+              const Scaffold(body: Text('SLEEP ROUTE')),
           AppRoutes.digestiveHistory: (_) =>
               const Scaffold(body: Text('DIGESTIVE ROUTE')),
         },
@@ -37,6 +39,7 @@ void main() {
       'NUTRITION HISTORY',
       'TRAINING HISTORY',
       'ACTIVITY HISTORY',
+      'SLEEP HISTORY',
       'DIGESTIVE HISTORY',
     ];
     for (var index = 1; index < titles.length; index += 1) {
@@ -51,6 +54,7 @@ void main() {
       ('OPEN NUTRITION HISTORY', 'NUTRITION ROUTE'),
       ('OPEN TRAINING HISTORY', 'TRAINING ROUTE'),
       ('OPEN ACTIVITY HISTORY', 'ACTIVITY ROUTE'),
+      ('OPEN SLEEP HISTORY', 'SLEEP ROUTE'),
       ('OPEN DIGESTIVE HISTORY', 'DIGESTIVE ROUTE'),
     ]) {
       final button = find.widgetWithText(OperationButton, route.$1);

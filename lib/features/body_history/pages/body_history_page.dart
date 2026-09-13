@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../operation_date/services/operation_date_service.dart';
 import '../models/body_history_models.dart';
 import '../services/body_history_chart_engine.dart';
 import '../services/data_center_history_range_preference.dart';
@@ -16,12 +17,14 @@ import '../widgets/body_history_chart.dart';
 class BodyHistoryPage extends StatefulWidget {
   final BodyHistorySourceResolver? resolver;
   final DateTime Function()? clock;
+  final OperationDateService? operationDateService;
   final DataCenterHistoryRangePreference? rangePreference;
 
   const BodyHistoryPage({
     super.key,
     this.resolver,
     this.clock,
+    this.operationDateService,
     this.rangePreference,
   });
 
@@ -32,6 +35,7 @@ class BodyHistoryPage extends StatefulWidget {
 class _BodyHistoryPageState extends State<BodyHistoryPage> {
   late final BodyHistorySourceResolver _resolver;
   late final DateTime Function() _clock;
+  late final OperationDateService _operationDateService;
   late final DataCenterHistoryRangePreference _rangePreference;
   BodyHistoryPeriod _period = BodyHistoryPeriod.oneWeek;
   DateTimeRange? _customRange;
@@ -48,6 +52,9 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
           dailyAggregateRepository: container.dailyAggregates,
         );
     _clock = widget.clock ?? DateTime.now;
+    _operationDateService =
+        widget.operationDateService ??
+        OperationDateService(container.operationState);
     _rangePreference =
         widget.rangePreference ?? DataCenterHistoryRangePreference();
     _model = _restoreAndLoad();
@@ -63,7 +70,14 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
   void _reload() => _model = _load();
 
   Future<_BodyHistoryViewModel> _load() async {
-    final range = _selectedRange();
+    final anchor = widget.clock != null
+        ? _clock()
+        : DateTime.parse((await _operationDateService.current()).value);
+    final range = resolveDataCenterHistoryRange(
+      _period,
+      anchor,
+      customRange: _customRange,
+    );
     final points = await _resolver.resolve(
       startDate: _format(range.start),
       endDate: _format(range.end),
@@ -71,17 +85,12 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
     return _BodyHistoryViewModel(range: range, points: points);
   }
 
-  DateTimeRange _selectedRange() {
-    return resolveDataCenterHistoryRange(
-      _period,
-      _clock(),
-      customRange: _customRange,
-    );
-  }
-
   Future<void> _selectPeriod(BodyHistoryPeriod period) async {
     if (period == BodyHistoryPeriod.custom) {
-      final now = _clock();
+      final now = widget.clock != null
+          ? _clock()
+          : DateTime.parse((await _operationDateService.current()).value);
+      if (!mounted) return;
       final selected = await showDateRangePicker(
         context: context,
         firstDate: DateTime(2000),
@@ -125,8 +134,13 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
             _PeriodSelector(selected: _period, onSelected: _selectPeriod),
             AppSpacing.gapSM,
             Text(
-              '表示期間: ${_format(model.range.start)} – ${_format(model.range.end)}',
+              '検索期間: ${_format(model.range.start)} – ${_format(model.range.end)}',
             ),
+            if (_bodyObservationRange(model.points, model.range)
+                case final observation?) ...[
+              AppSpacing.gapXS,
+              Text('観測期間: $observation'),
+            ],
             AppSpacing.gapXL,
             _MetricSection(
               source: model.points,
@@ -300,3 +314,17 @@ String _format(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+String? _bodyObservationRange(
+  List<BodyHistoryDataPoint> points,
+  DateTimeRange range,
+) {
+  final observed = points
+      .where((point) => point.weightKg != null || point.bodyFatPercent != null)
+      .toList();
+  if (observed.isEmpty) return null;
+  final first = observed.first.operationDate;
+  final last = observed.last.operationDate;
+  if (first == _format(range.start) && last == _format(range.end)) return null;
+  return '$first – $last（${observed.length}日）';
+}

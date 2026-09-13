@@ -336,22 +336,22 @@ class _Overview extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 720 ? 3 : 2;
+      final columns = constraints.maxWidth < 350 ? 2 : 3;
       return GridView.count(
         crossAxisCount: columns,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppSpacing.sm,
         crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: constraints.maxWidth < 350 ? 1.12 : 1.35,
+        childAspectRatio: constraints.maxWidth < 350 ? 1.12 : 0.65,
         children: [
           _Metric(
             '記録率',
             '${summary.knownDays} / ${summary.observationDays}日',
             '${(summary.recordingCoverage * 100).round()}%・観測 ${summary.observationDays}日',
           ),
-          _Metric('排便あり日', '${summary.yesDays}日', '確認済み'),
-          _Metric('排便なし日', '${summary.confirmedNoDays}日', ''),
+          _Metric('排便あり', '${summary.yesDays}日', '確認済み'),
+          _Metric('排便なし', '${summary.confirmedNoDays}日', ''),
           _Metric(
             '排便回数',
             '${summary.totalExactEvents}回',

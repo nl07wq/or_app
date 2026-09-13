@@ -23,6 +23,7 @@ import 'features/body_history/pages/data_center_history_page.dart';
 import 'features/nutrition_history/pages/nutrition_history_page.dart';
 import 'features/digestive_history/pages/digestive_history_page.dart';
 import 'features/activity_history/pages/activity_history_page.dart';
+import 'features/sleep_history/pages/sleep_history_page.dart';
 import 'features/daily_aggregate/pages/daily_aggregate_records_page.dart';
 import 'features/import_export/backup_restore_page.dart';
 import 'features/sync/pages/orlo_sync_page.dart';
@@ -147,6 +148,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.nutritionHistory: (_) => const NutritionHistoryPage(),
         AppRoutes.digestiveHistory: (_) => const DigestiveHistoryPage(),
         AppRoutes.activityHistory: (_) => const ActivityHistoryPage(),
+        AppRoutes.sleepHistory: (_) => const SleepHistoryPage(),
         AppRoutes.trainingAnalyticsHistory: (_) =>
             const DataCenterTrainingHistoryPage(),
         AppRoutes.dailyAggregateRecords: (_) =>

@@ -9,6 +9,7 @@ import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
 import '../../body_history/services/history_period_range.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../operation_date/services/operation_date_service.dart';
 import '../models/nutrition_history_models.dart';
 import '../services/nutrition_history_chart_engine.dart';
 import '../services/nutrition_history_source_resolver.dart';
@@ -17,12 +18,14 @@ import '../widgets/nutrition_history_chart.dart';
 class NutritionHistoryPage extends StatefulWidget {
   final NutritionHistorySourceResolver? resolver;
   final DateTime Function()? clock;
+  final OperationDateService? operationDateService;
   final DataCenterHistoryRangePreference? rangePreference;
 
   const NutritionHistoryPage({
     super.key,
     this.resolver,
     this.clock,
+    this.operationDateService,
     this.rangePreference,
   });
 
@@ -33,6 +36,7 @@ class NutritionHistoryPage extends StatefulWidget {
 class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
   late final NutritionHistorySourceResolver _resolver;
   late final DateTime Function() _clock;
+  OperationDateService? _operationDateService;
   late final DataCenterHistoryRangePreference _rangePreference;
   BodyHistoryPeriod _period = BodyHistoryPeriod.oneWeek;
   DateTimeRange? _customRange;
@@ -48,6 +52,11 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
               AppRepositoryRegistry.container.dailyAggregates,
         );
     _clock = widget.clock ?? DateTime.now;
+    if (widget.clock == null) {
+      _operationDateService =
+          widget.operationDateService ??
+          OperationDateService(AppRepositoryRegistry.container.operationState);
+    }
     _rangePreference =
         widget.rangePreference ?? DataCenterHistoryRangePreference();
     _model = _restoreAndLoad();
@@ -63,7 +72,14 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
   void _reload() => _model = _load();
 
   Future<_NutritionHistoryViewModel> _load() async {
-    final range = _selectedRange();
+    final anchor = widget.clock != null
+        ? _clock()
+        : DateTime.parse((await _operationDateService!.current()).value);
+    final range = resolveDataCenterHistoryRange(
+      _period,
+      anchor,
+      customRange: _customRange,
+    );
     final points = await _resolver.resolve(
       startDate: _format(range.start),
       endDate: _format(range.end),
@@ -71,17 +87,12 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
     return _NutritionHistoryViewModel(range: range, points: points);
   }
 
-  DateTimeRange _selectedRange() {
-    return resolveDataCenterHistoryRange(
-      _period,
-      _clock(),
-      customRange: _customRange,
-    );
-  }
-
   Future<void> _selectPeriod(BodyHistoryPeriod period) async {
     if (period == BodyHistoryPeriod.custom) {
-      final now = _clock();
+      final now = widget.clock != null
+          ? _clock()
+          : DateTime.parse((await _operationDateService!.current()).value);
+      if (!mounted) return;
       final selected = await showDateRangePicker(
         context: context,
         firstDate: DateTime(2000),
@@ -127,6 +138,11 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
             Text(
               '検索期間: ${_format(model.range.start)} – ${_format(model.range.end)}',
             ),
+            if (_nutritionObservationRange(model.points, model.range)
+                case final observation?) ...[
+              AppSpacing.gapXS,
+              Text('観測期間: $observation'),
+            ],
             for (final metric in NutritionHistoryMetric.values) ...[
               AppSpacing.gapXL,
               _MetricSection(
@@ -304,3 +320,21 @@ String _format(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+String? _nutritionObservationRange(
+  List<NutritionHistoryDataPoint> points,
+  DateTimeRange range,
+) {
+  final observed = points
+      .where(
+        (point) => NutritionHistoryMetric.values.any(
+          (metric) => point.valueFor(metric) != null,
+        ),
+      )
+      .toList();
+  if (observed.isEmpty) return null;
+  final first = observed.first.operationDate;
+  final last = observed.last.operationDate;
+  if (first == _format(range.start) && last == _format(range.end)) return null;
+  return '$first – $last（${observed.length}日）';
+}

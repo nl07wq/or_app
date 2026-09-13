@@ -112,6 +112,28 @@ class DataCenterHistoryPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                'SLEEP HISTORY',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みの正式データから、睡眠時間とスコアの履歴を確認します。'),
+              AppSpacing.gapMD,
+              OperationButton(
+                role: OperationActionRole.primary,
+                text: 'OPEN SLEEP HISTORY',
+                icon: Icons.bedtime_outlined,
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.sleepHistory),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapMD,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 'DIGESTIVE HISTORY',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
