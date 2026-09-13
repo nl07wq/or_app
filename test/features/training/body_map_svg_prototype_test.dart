@@ -66,6 +66,29 @@ void main() {
     expect(bodyMapRecoveryColor(RecoveryStatus.noData), AppColors.secondary);
   });
 
+  test(
+    'unions connected trapezius subpaths but preserves core panels',
+    () async {
+      final back = await loadSvgBodyMap(SvgBodyMapSide.back);
+      final trapezius = back.paths['back-trapezius']!;
+      expect(svgConnectedCompositeRegionIds, contains('back-trapezius'));
+      expect(trapezius.contains(const Offset(100, 70)), isTrue);
+      expect(trapezius.contains(const Offset(100, 87)), isTrue);
+      expect(trapezius.contains(const Offset(100, 55)), isFalse);
+    },
+  );
+
+  test('connected composite parsing removes the internal overlap contour', () {
+    final document = parseSvgBodyMap(
+      '<svg><path id="back-trapezius" d="M0 0 L10 0 L10 10 L0 10 Z M5 5 L15 5 L15 15 L5 15 Z"/></svg>',
+    );
+    final path = document.paths['back-trapezius']!;
+    expect(path.computeMetrics(), hasLength(1));
+    expect(path.contains(const Offset(2, 2)), isTrue);
+    expect(path.contains(const Offset(12, 12)), isTrue);
+    expect(path.contains(const Offset(20, 20)), isFalse);
+  });
+
   testWidgets('keeps six visual core panels as one logical core path', (
     tester,
   ) async {

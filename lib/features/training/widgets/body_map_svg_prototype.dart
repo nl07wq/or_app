@@ -13,6 +13,11 @@ const _assets = {
   SvgBodyMapSide.back: 'assets/body_map/body_map_back.svg',
 };
 
+/// Connected composites are authored as multiple SVG subpaths but represent
+/// one continuous semantic silhouette. Intentionally disconnected regions
+/// such as front-core are deliberately absent.
+const svgConnectedCompositeRegionIds = {'back-trapezius'};
+
 final _documents = <SvgBodyMapSide, Future<SvgBodyMapDocument>>{};
 
 typedef SvgBodyMapPathOverride = Path Function(String id, Path basePath);
@@ -71,12 +76,39 @@ SvgBodyMapDocument parseSvgBodyMap(String svg) {
     r'<path\s+id="([^"]+)"\s+d="([^"]+)"\s*/>',
   ).allMatches(svg);
   for (final match in matcher) {
-    paths[match.group(1)!] = _SvgPathParser(match.group(2)!).parse();
+    final id = match.group(1)!;
+    final data = match.group(2)!;
+    paths[id] = svgConnectedCompositeRegionIds.contains(id)
+        ? _unionSvgSubpaths(data)
+        : _SvgPathParser(data).parse();
   }
   if (paths.isEmpty) {
     throw const FormatException('No vector paths found.');
   }
   return SvgBodyMapDocument(Map.unmodifiable(paths));
+}
+
+/// Converts connected composite SVG subpaths into one semantic [Path]. A
+/// single exterior union is consequently used for fill, outlines, and hits.
+Path _unionSvgSubpaths(String data) {
+  final parts = data.trim().split(RegExp(r'(?=[Mm]\s*[-+]?\d)'));
+  if (parts.length < 2) return _SvgPathParser(data).parse();
+  var union = _SvgPathParser(parts.first).parse();
+  for (final part in parts.skip(1)) {
+    try {
+      union = Path.combine(
+        PathOperation.union,
+        union,
+        _SvgPathParser(part).parse(),
+      );
+    } catch (error) {
+      throw FormatException(
+        'Unable to union connected composite SVG path.',
+        error,
+      );
+    }
+  }
+  return union;
 }
 
 /// Canonical SVG body-map renderer shared by SYSTEM Preview and Production.
