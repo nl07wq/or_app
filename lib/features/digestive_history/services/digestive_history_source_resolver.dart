@@ -59,8 +59,7 @@ class DigestiveHistorySourceResolver {
       final dates = <String>[
         for (final activity in activities) _date(activity.date),
         for (final aggregate in aggregates) aggregate.operationDate,
-      ].where((date) => date.compareTo(endDate) <= 0).toList()
-        ..sort();
+      ].where((date) => date.compareTo(endDate) <= 0).toList()..sort();
       if (dates.isEmpty) return const [];
       return _resolveLoaded(dates.first, endDate, activities, aggregates);
     } catch (_) {
@@ -80,17 +79,31 @@ class DigestiveHistorySourceResolver {
     final aggregateByDate = <String, DailyAggregateV1>{
       for (final aggregate in aggregates) aggregate.operationDate: aggregate,
     };
+    final observationStarts = [
+      for (final activity in activities)
+        if (activity.digestiveEvents != null) _date(activity.date),
+    ]..sort();
+    final observationStart = observationStarts.isEmpty
+        ? null
+        : observationStarts.first;
     return List.unmodifiable([
       for (final date in _dates(startDate, endDate))
-        _resolveDate(date, activityByDate[date], aggregateByDate[date]),
+        _resolveDate(
+          date,
+          activity: activityByDate[date],
+          aggregate: aggregateByDate[date],
+          observationEligible:
+              observationStart != null && date.compareTo(observationStart) >= 0,
+        ),
     ]);
   }
 
   DigestiveDaySummary _resolveDate(
-    String date,
+    String date, {
     ActivityData? activity,
     DailyAggregateV1? aggregate,
-  ) {
+    required bool observationEligible,
+  }) {
     if (activity?.digestiveEvents case final events?) {
       final movements = events.where((event) => event.amount > 0).toList();
       return DigestiveDaySummary(
@@ -101,6 +114,7 @@ class DigestiveHistorySourceResolver {
         source: DigestiveHistorySource.currentActivity,
         quality: DigestiveDataQuality.full,
         countKnown: true,
+        observationEligible: observationEligible,
         exactCount: movements.length,
         events: List.unmodifiable([
           for (final event in movements)
@@ -122,6 +136,7 @@ class DigestiveHistorySourceResolver {
         source: DigestiveHistorySource.legacyActivity,
         quality: DigestiveDataQuality.partial,
         countKnown: false,
+        observationEligible: observationEligible,
       );
     }
     if (legacyBowel?.status == BowelMovementStatus.recorded) {
@@ -131,6 +146,7 @@ class DigestiveHistorySourceResolver {
         source: DigestiveHistorySource.legacyActivity,
         quality: DigestiveDataQuality.partial,
         countKnown: false,
+        observationEligible: observationEligible,
       );
     }
 
@@ -149,6 +165,7 @@ class DigestiveHistorySourceResolver {
         source: DigestiveHistorySource.dailyAggregate,
         quality: DigestiveDataQuality.partial,
         countKnown: true,
+        observationEligible: observationEligible,
         exactCount: count,
         events: List.unmodifiable([
           for (final event in movements)
@@ -167,6 +184,7 @@ class DigestiveHistorySourceResolver {
       source: DigestiveHistorySource.none,
       quality: DigestiveDataQuality.unknown,
       countKnown: false,
+      observationEligible: observationEligible,
     );
   }
 

@@ -52,6 +52,34 @@ void main() {
     expect(summary.totalExactEvents, 0);
   });
 
+  test('outside observation is excluded from coverage but unknown is not', () {
+    final summary = analytics.summarize([
+      _day(
+        '2026-09-01',
+        DigestiveDayState.unknown,
+        null,
+        known: false,
+        quality: DigestiveDataQuality.unknown,
+        observationEligible: false,
+      ),
+      _day('2026-09-02', DigestiveDayState.confirmedNo, 0),
+      _day(
+        '2026-09-03',
+        DigestiveDayState.unknown,
+        null,
+        known: false,
+        quality: DigestiveDataQuality.unknown,
+      ),
+    ]);
+
+    expect(summary.calendarDays, 3);
+    expect(summary.observationDays, 2);
+    expect(summary.outsideObservationDays, 1);
+    expect(summary.knownDays, 1);
+    expect(summary.unknownDays, 1);
+    expect(summary.recordingCoverage, .5);
+  });
+
   test('uses exact-count denominator and preserves missing attributes', () {
     final summary = analytics.summarize([
       _day(
@@ -135,6 +163,7 @@ DigestiveDaySummary _day(
   int? count, {
   bool known = true,
   DigestiveDataQuality quality = DigestiveDataQuality.full,
+  bool observationEligible = true,
   List<DigestiveEventSummary> events = const [],
 }) => DigestiveDaySummary(
   operationDate: date,
@@ -142,6 +171,7 @@ DigestiveDaySummary _day(
   source: DigestiveHistorySource.currentActivity,
   quality: quality,
   countKnown: known,
+  observationEligible: observationEligible,
   exactCount: count,
   events: events,
 );

@@ -6,8 +6,9 @@ class DigestiveHistoryAnalytics {
   DigestivePeriodSummary summarize(List<DigestiveDaySummary> days) {
     final ordered = [...days]
       ..sort((a, b) => a.operationDate.compareTo(b.operationDate));
-    final known = ordered.where((day) => day.isKnown).toList();
-    final exact = ordered.where((day) => day.countKnown).toList();
+    final eligible = ordered.where((day) => day.observationEligible).toList();
+    final known = eligible.where((day) => day.isKnown).toList();
+    final exact = eligible.where((day) => day.countKnown).toList();
     final exactYes = exact
         .where((day) => day.state == DigestiveDayState.yes)
         .toList();
@@ -28,16 +29,26 @@ class DigestiveHistoryAnalytics {
     return DigestivePeriodSummary(
       days: List.unmodifiable(ordered),
       calendarDays: ordered.length,
+      observationDays: eligible.length,
+      outsideObservationDays: ordered.length - eligible.length,
       knownDays: known.length,
       yesDays: known.where((day) => day.state == DigestiveDayState.yes).length,
       confirmedNoDays: known
           .where((day) => day.state == DigestiveDayState.confirmedNo)
           .length,
       unknownDays: ordered
-          .where((day) => day.quality == DigestiveDataQuality.unknown)
+          .where(
+            (day) =>
+                day.observationEligible &&
+                day.quality == DigestiveDataQuality.unknown,
+          )
           .length,
       invalidDays: ordered
-          .where((day) => day.quality == DigestiveDataQuality.invalid)
+          .where(
+            (day) =>
+                day.observationEligible &&
+                day.quality == DigestiveDataQuality.invalid,
+          )
           .length,
       exactCountDays: exact.length,
       totalExactEvents: total,

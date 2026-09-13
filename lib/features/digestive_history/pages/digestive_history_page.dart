@@ -275,8 +275,8 @@ class _Overview extends StatelessWidget {
         children: [
           _Metric(
             '記録率',
-            '${summary.knownDays} / ${summary.calendarDays}日',
-            '${(summary.recordingCoverage * 100).round()}%・未記録 ${summary.unknownDays}日',
+            '${summary.knownDays} / ${summary.observationDays}日',
+            '${(summary.recordingCoverage * 100).round()}%・観測 ${summary.observationDays}日',
           ),
           _Metric('排便あり日', '${summary.yesDays}日', '確認済み'),
           _Metric('排便なし日', '${summary.confirmedNoDays}日', ''),
@@ -286,7 +286,7 @@ class _Overview extends StatelessWidget {
             '集計対象 ${summary.exactCountDays}日',
           ),
           _Metric(
-            '1記録日あたり',
+            '記録日平均',
             '${_decimal(summary.averagePerExactCountDay)}回',
             '集計対象 ${summary.exactCountDays}日',
           ),
@@ -352,7 +352,7 @@ class _CountChart extends StatelessWidget {
     var active = <FlSpot>[];
     for (var index = 0; index < days.length; index++) {
       final day = days[index];
-      if (day.countKnown) {
+      if (day.observationEligible && day.countKnown) {
         active.add(FlSpot(index.toDouble(), (day.exactCount ?? 0).toDouble()));
       } else if (active.isNotEmpty) {
         segments.add(active);
@@ -582,20 +582,19 @@ class _BucketCard extends StatelessWidget {
           children: [
             Text(bucket.title, style: Theme.of(context).textTheme.titleMedium),
             AppSpacing.gapSM,
-            Wrap(
-              spacing: AppSpacing.lg,
-              runSpacing: AppSpacing.xs,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _BucketMetric(
                   '記録率',
-                  '${summary.knownDays}/${summary.calendarDays}日',
+                  '${summary.knownDays}/${summary.observationDays}日',
                 ),
                 _BucketMetric('排便あり', '${summary.yesDays}日'),
                 if (!bucket.weekly)
                   _BucketMetric('排便なし', '${summary.confirmedNoDays}日'),
                 _BucketMetric('排便回数', '${summary.totalExactEvents}回'),
                 _BucketMetric(
-                  '1記録日あたり',
+                  '記録日平均',
                   '${_decimal(summary.averagePerExactCountDay)}回',
                 ),
                 _BucketMetric('最長排便なし', '${summary.longestConfirmedNoStreak}日'),
@@ -630,13 +629,20 @@ class _BucketMetric extends StatelessWidget {
   final String label;
   final String value;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(label, style: Theme.of(context).textTheme.labelSmall),
-      Text(value),
-    ],
+  Widget build(BuildContext context) => Expanded(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall,
+          maxLines: 2,
+          textAlign: TextAlign.center,
+        ),
+        Text(value, maxLines: 1, overflow: TextOverflow.clip),
+      ],
+    ),
   );
 }
 
@@ -787,7 +793,10 @@ class _DailyHistoryRow extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                     child: Text(
-                      '#${event.sequence ?? '—'}  量: ${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  便の形: ${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  残便感: ${event.relief == null ? '—' : DigestiveEvent.reliefLabel(event.relief!)}',
+                      '#${event.sequence ?? '—'} 量:${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  形:${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  残便:${_compactRelief(event.relief)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall,
                     ),
                   ),
               ],
@@ -803,6 +812,7 @@ String _formatDigestiveDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
 String _dailyStateLabel(DigestiveDaySummary day) {
+  if (!day.observationEligible) return '観測対象外';
   if (day.quality == DigestiveDataQuality.invalid) return '利用不可';
   return switch (day.state) {
     DigestiveDayState.yes => '排便あり',
@@ -812,9 +822,17 @@ String _dailyStateLabel(DigestiveDaySummary day) {
 }
 
 String _dailyCountLabel(DigestiveDaySummary day) {
+  if (!day.observationEligible) return '—';
   if (day.countKnown) return '${day.exactCount}回';
   return day.state == DigestiveDayState.yes ? '回数不明' : '—';
 }
+
+String _compactRelief(int? value) => switch (value) {
+  0 => 'あり',
+  1 => '普通',
+  2 => 'スッキリ',
+  _ => '—',
+};
 
 String _decimal(double? value) =>
     value == null ? '—' : value.toStringAsFixed(1);

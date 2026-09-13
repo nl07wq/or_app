@@ -31,6 +31,7 @@ class DigestiveDaySummary {
     required this.source,
     required this.quality,
     required this.countKnown,
+    this.observationEligible = true,
     this.exactCount,
     this.events = const [],
   });
@@ -40,6 +41,11 @@ class DigestiveDaySummary {
   final DigestiveHistorySource source;
   final DigestiveDataQuality quality;
   final bool countKnown;
+
+  /// Whether this date is inside the continuous current Digestive contract.
+  /// A legacy fact before that boundary remains readable but does not make
+  /// sparse earlier dates a recording-coverage obligation.
+  final bool observationEligible;
   final int? exactCount;
   final List<DigestiveEventSummary> events;
 
@@ -62,6 +68,8 @@ class DigestivePeriodSummary {
   const DigestivePeriodSummary({
     required this.days,
     required this.calendarDays,
+    required this.observationDays,
+    required this.outsideObservationDays,
     required this.knownDays,
     required this.yesDays,
     required this.confirmedNoDays,
@@ -83,6 +91,8 @@ class DigestivePeriodSummary {
 
   final List<DigestiveDaySummary> days;
   final int calendarDays;
+  final int observationDays;
+  final int outsideObservationDays;
   final int knownDays;
   final int yesDays;
   final int confirmedNoDays;
@@ -102,7 +112,7 @@ class DigestivePeriodSummary {
   final DigestiveDistribution reliefDistribution;
 
   double get recordingCoverage =>
-      calendarDays == 0 ? 0 : knownDays / calendarDays;
+      observationDays == 0 ? 0 : knownDays / observationDays;
 }
 
 class DigestiveHistoryBucket {
