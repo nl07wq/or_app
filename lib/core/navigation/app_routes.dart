@@ -23,6 +23,8 @@ class AppRoutes {
 
   static const nutritionHistory = '/data-center/history/nutrition';
 
+  static const digestiveHistory = '/data-center/history/digestive';
+
   static const trainingAnalyticsHistory = '/data-center/history/training';
 
   static const dailyAggregateRecords = '/data-center/daily-aggregate-records';

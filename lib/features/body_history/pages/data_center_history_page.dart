@@ -44,6 +44,28 @@ class DataCenterHistoryPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                'DIGESTIVE HISTORY',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みの正式データから、排便の記録状況と日次推移を確認します。'),
+              AppSpacing.gapMD,
+              OperationButton(
+                role: OperationActionRole.primary,
+                text: 'OPEN DIGESTIVE HISTORY',
+                icon: Icons.monitor_heart_outlined,
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.digestiveHistory),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapMD,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 'NUTRITION HISTORY',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
