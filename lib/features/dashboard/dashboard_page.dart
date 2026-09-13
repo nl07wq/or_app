@@ -35,6 +35,9 @@ import '../training/services/training_status_weight_resolver.dart';
 import '../command_center/models/daily_command_read_model.dart';
 import '../command_center/services/daily_command_read_model_builder.dart';
 import '../command_center/widgets/daily_command_item.dart';
+import '../command_center/widgets/semantic_help_popover.dart';
+import '../command_center/pages/command_center_page.dart'
+    show cycleStateHelp, cycleStateIconFor, cycleStateShortLabelFor;
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/services/operation_date_service.dart';
@@ -96,7 +99,18 @@ class _DashboardPageState extends State<DashboardPage> {
 
                         return Scaffold(
                           appBar: AppBar(
-                            title: const Text('O.R.L.O.'),
+                            title: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset(
+                                  'assets/icons/orlo_logo_1024_transparent.png',
+                                  height: 24,
+                                  fit: BoxFit.contain,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                const Text('O.R.L.O.'),
+                              ],
+                            ),
                             actions: const [SystemMenuButton()],
                           ),
                           body: LayoutBuilder(
@@ -518,13 +532,28 @@ class _DailyCommandSummary extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DailyCommandItem(
-                icon: model.operationStatus == null
-                    ? Icons.cancel_outlined
-                    : Icons.check_circle_outline,
-                label: 'OPERATION STATUS',
-                value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
-                status: model.operationStatus,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: DailyCommandItem(
+                      icon: model.operationStatus == null
+                          ? Icons.cancel_outlined
+                          : Icons.check_circle_outline,
+                      label: 'OPERATION STATUS',
+                      value:
+                          model.operationStatus?.name.toUpperCase() ??
+                          'STANDBY',
+                      status: model.operationStatus,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _DailyCommandCycleState(
+                      cycleState: model.cycleState,
+                    ),
+                  ),
+                ],
               ),
               AppSpacing.gapMD,
               DailyCommandItem(
@@ -557,6 +586,37 @@ class _DailyCommandSummary extends StatelessWidget {
       burnWeightKg: burnWeight,
     );
   }
+}
+
+class _DailyCommandCycleState extends StatelessWidget {
+  const _DailyCommandCycleState({required this.cycleState});
+  final DailyCommandCycleState cycleState;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('CYCLE STATE', style: Theme.of(context).textTheme.labelLarge),
+      AppSpacing.gapXS,
+      SemanticHelpPopover(
+        id: 'cycle-${cycleState.name}',
+        title: cycleStateShortLabelFor(cycleState),
+        description: cycleStateHelp(cycleState),
+        child: Semantics(
+          button: true,
+          label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(cycleStateIconFor(cycleState)),
+              const SizedBox(width: AppSpacing.sm),
+              Text(cycleStateShortLabelFor(cycleState)),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _ProgressCard extends StatefulWidget {

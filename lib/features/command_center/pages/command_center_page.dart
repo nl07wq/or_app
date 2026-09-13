@@ -70,7 +70,6 @@ Future<void> runPeriodicReportWorkflowForFinalizedDate({
   }
 }
 
-@visibleForTesting
 String cycleStateHelp(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.standby =>
     '有効なSTATUSがまだありません。STATUSが確定すると当日の運用を開始します。',
