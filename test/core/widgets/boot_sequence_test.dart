@@ -27,6 +27,7 @@ const _timing = BootSequenceTiming(
   readyDelay: Duration(milliseconds: 10),
   readyHold: Duration(milliseconds: 10),
   uiCollapse: Duration(milliseconds: 10),
+  crtLineHold: Duration(milliseconds: 10),
   logoCenter: Duration(milliseconds: 10),
   centerSettle: Duration(milliseconds: 10),
   logoRush: Duration(milliseconds: 10),
@@ -55,6 +56,7 @@ void main() {
         const Duration(milliseconds: 100),
       );
       expect(timing.uiCollapse, const Duration(milliseconds: 260));
+      expect(timing.crtLineHold, const Duration(milliseconds: 140));
       expect(timing.logoCenter, const Duration(milliseconds: 20));
       expect(timing.centerSettle, const Duration(milliseconds: 70));
       expect(timing.logoRush, const Duration(milliseconds: 320));
@@ -75,6 +77,7 @@ void main() {
           timing.readyDelay +
           timing.readyHold +
           timing.uiCollapse +
+          timing.crtLineHold +
           timing.logoCenter +
           timing.centerSettle +
           timing.logoRush +
@@ -83,7 +86,7 @@ void main() {
         timing.signalAcquisitionIntro +
             timing.preBootSignalIntro +
             deterministicTotal,
-        const Duration(milliseconds: 5812),
+        const Duration(milliseconds: 5952),
       );
     },
   );
@@ -823,7 +826,10 @@ void main() {
 
     await _elapse(tester, _timing.readyHold);
     expect(find.text('SYSTEM READY'), findsOneWidget);
-    await _elapse(tester, _timing.uiCollapse ~/ 2);
+    await _elapse(
+      tester,
+      bootCrtVerticalCollapseDuration(_timing.uiCollapse) ~/ 2,
+    );
     expect(
       find.byKey(const ValueKey('boot-crt-content-opacity')),
       findsOneWidget,
@@ -837,7 +843,15 @@ void main() {
           .storage[5],
       lessThan(1),
     );
-    await _elapse(tester, _timing.uiCollapse ~/ 2);
+    await _elapse(
+      tester,
+      bootCrtVerticalCollapseDuration(_timing.uiCollapse) ~/ 2,
+    );
+    await _elapse(tester, _timing.crtLineHold);
+    await _elapse(
+      tester,
+      bootCrtHorizontalShutdownDuration(_timing.uiCollapse),
+    );
     expect(find.text('SYSTEM READY'), findsNothing);
     expect(find.byKey(const ValueKey('boot-logo-centered')), findsOneWidget);
     await _elapse(tester, _timing.logoCenter);
@@ -881,11 +895,18 @@ void main() {
           _timing.readyDelay + const Duration(milliseconds: 1),
         );
         await _elapse(tester, _timing.readyHold);
-        await _elapse(tester, _timing.uiCollapse ~/ 2);
+        await _elapse(
+          tester,
+          bootCrtVerticalCollapseDuration(_timing.uiCollapse),
+        );
         final line = find.byKey(const ValueKey('boot-crt-line'));
         expect(line, findsOneWidget);
         expect(tester.getCenter(line).dx, closeTo(size.width / 2, 1));
-        await _elapse(tester, _timing.uiCollapse ~/ 2);
+        await _elapse(tester, _timing.crtLineHold);
+        await _elapse(
+          tester,
+          bootCrtHorizontalShutdownDuration(_timing.uiCollapse),
+        );
         final centeredLogo = find.byKey(const ValueKey('boot-logo-centered'));
         expect(centeredLogo, findsOneWidget);
         final logoCenter = tester.getCenter(centeredLogo);
@@ -926,6 +947,7 @@ void main() {
         readyDelay: Duration(milliseconds: 10),
         readyHold: Duration(milliseconds: 10),
         uiCollapse: Duration(milliseconds: 240),
+        crtLineHold: Duration(milliseconds: 140),
         logoCenter: Duration(milliseconds: 10),
         centerSettle: Duration(milliseconds: 10),
         logoRush: Duration(milliseconds: 10),
@@ -964,6 +986,23 @@ void main() {
       final widthAtFormation = lineAtFormation.transform.storage[0];
       expect(widthAtFormation, greaterThan(.9));
 
+      await _elapse(tester, crtTiming.crtLineHold ~/ 2);
+      final lineDuringHold = tester.widget<Transform>(
+        find.byKey(const ValueKey('boot-crt-line-transform')),
+      );
+      expect(
+        lineDuringHold.transform.storage[0],
+        closeTo(widthAtFormation, .01),
+      );
+
+      await _elapse(tester, crtTiming.crtLineHold ~/ 2);
+      final lineAtHoldEnd = tester.widget<Transform>(
+        find.byKey(const ValueKey('boot-crt-line-transform')),
+      );
+      expect(
+        lineAtHoldEnd.transform.storage[0],
+        closeTo(widthAtFormation, .01),
+      );
       await _elapse(tester, const Duration(milliseconds: 50));
       final lineDuringContraction = tester.widget<Transform>(
         find.byKey(const ValueKey('boot-crt-line-transform')),
@@ -1512,7 +1551,10 @@ Future<void> _advanceLogoConvergence(
   BootSequenceTiming timing,
 ) async {
   await _elapse(tester, timing.readyHold);
-  await _elapse(tester, timing.uiCollapse);
+  final collapseDuration = timing.postLogo(timing.uiCollapse);
+  await _elapse(tester, bootCrtVerticalCollapseDuration(collapseDuration));
+  await _elapse(tester, timing.postLogo(timing.crtLineHold));
+  await _elapse(tester, bootCrtHorizontalShutdownDuration(collapseDuration));
   await _elapse(tester, timing.logoCenter);
   await _elapse(tester, timing.centerSettle);
 }

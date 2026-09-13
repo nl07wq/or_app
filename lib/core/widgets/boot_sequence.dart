@@ -22,16 +22,26 @@ typedef BootSequenceEventListener = void Function(BootSequenceEvent event);
 
 const _fullName = 'Operation Reasoning Lifesystem Orchestrator';
 const _bootSignalHandoffDuration = Duration(milliseconds: 120);
+const _crtVerticalCollapseFraction = .56;
 
 /// Applies only after the logo Fade. These base durations are deliberately
 /// chosen as a timeline, rather than derived from another global multiplier:
-/// the deterministic Boot visible → Main UI path is about 5.81 seconds.
+/// the deterministic Boot visible → Main UI path is about 5.95 seconds.
 const postLogoBootTimingFactor = 1.0;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
 const _bootTerminalFontFamily = 'ShareTechMono';
+
+@visibleForTesting
+Duration bootCrtVerticalCollapseDuration(Duration total) => Duration(
+  microseconds: (total.inMicroseconds * _crtVerticalCollapseFraction).round(),
+);
+
+@visibleForTesting
+Duration bootCrtHorizontalShutdownDuration(Duration total) =>
+    total - bootCrtVerticalCollapseDuration(total);
 
 /// The acquisition renderer is deliberately selectable at one point so a
 /// real-device rollback never requires reconstructing a prior visual model.
@@ -729,6 +739,7 @@ class BootSequenceTiming {
   final Duration readyDelay;
   final Duration readyHold;
   final Duration uiCollapse;
+  final Duration crtLineHold;
   final Duration logoCenter;
   final Duration centerSettle;
   final Duration logoRush;
@@ -749,6 +760,7 @@ class BootSequenceTiming {
     this.readyDelay = const Duration(milliseconds: 210),
     this.readyHold = const Duration(milliseconds: 100),
     this.uiCollapse = const Duration(milliseconds: 260),
+    this.crtLineHold = const Duration(milliseconds: 140),
     this.logoCenter = const Duration(milliseconds: 20),
     this.centerSettle = const Duration(milliseconds: 70),
     this.logoRush = const Duration(milliseconds: 320),
@@ -777,6 +789,8 @@ enum _BootVisualPhase {
   finalizing,
   systemReady,
   uiCollapse,
+  crtLineHold,
+  crtHorizontalCollapse,
   logoCenter,
   centerSettle,
   logoRush,
@@ -1323,6 +1337,8 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     double collapseProgress,
   ) => switch (phase) {
     _BootVisualPhase.uiCollapse => collapseProgress,
+    _BootVisualPhase.crtLineHold => _crtVerticalCollapseFraction,
+    _BootVisualPhase.crtHorizontalCollapse => collapseProgress,
     _BootVisualPhase.logoCenter ||
     _BootVisualPhase.centerSettle ||
     _BootVisualPhase.logoRush => 1,
@@ -1347,9 +1363,11 @@ class _BootCrtShutdown extends StatelessWidget {
 
     // First flatten the screen image vertically. Once it is a visible line,
     // contract both ends electrically toward the stable centerline.
-    final vertical = Curves.easeInCubic.transform((value / .56).clamp(0, 1));
+    final vertical = Curves.easeInCubic.transform(
+      (value / _crtVerticalCollapseFraction).clamp(0, 1),
+    );
     final horizontal = Curves.easeInCubic.transform(
-      ((value - .56) / .29).clamp(0, 1),
+      ((value - _crtVerticalCollapseFraction) / .29).clamp(0, 1),
     );
     final remnant = Curves.easeOut.transform(((value - .85) / .15).clamp(0, 1));
     final contentOpacity = 1 - horizontal;
@@ -2326,9 +2344,43 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     final duration = widget.timing.postLogo(widget.timing.uiCollapse);
+    final verticalDuration = bootCrtVerticalCollapseDuration(duration);
     _uiCollapseController
-      ..duration = duration
-      ..forward(from: 0);
+      ..value = 0
+      ..animateTo(.56, duration: verticalDuration, curve: Curves.linear);
+    _schedule(verticalDuration, _startCrtLineHold);
+  }
+
+  void _startCrtLineHold() {
+    if (!_isPresentationActive || _skipRequested) return;
+    setState(() => _phase = _BootVisualPhase.crtLineHold);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_CRT_LINE_HOLD',
+      presentation: 'BOOT',
+    );
+    _schedule(
+      widget.timing.postLogo(widget.timing.crtLineHold),
+      _startCrtHorizontalCollapse,
+    );
+  }
+
+  void _startCrtHorizontalCollapse() {
+    if (!_isPresentationActive || _skipRequested) return;
+    setState(() => _phase = _BootVisualPhase.crtHorizontalCollapse);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_CRT_HORIZONTAL_CONTRACTION',
+      presentation: 'BOOT',
+    );
+    final duration = bootCrtHorizontalShutdownDuration(
+      widget.timing.postLogo(widget.timing.uiCollapse),
+    );
+    _uiCollapseController.animateTo(
+      1,
+      duration: duration,
+      curve: Curves.linear,
+    );
     _schedule(duration, _showLogoCenter);
   }
 
