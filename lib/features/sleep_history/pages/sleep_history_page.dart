@@ -273,7 +273,7 @@ class _Overview extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppSpacing.sm,
         crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: constraints.maxWidth < 350 ? 1.15 : 1.0,
+        childAspectRatio: constraints.maxWidth < 350 ? 1.2 : 1.22,
         children: [
           _Metric('記録日数', '${summary.observedDays}日', '睡眠またはスコア'),
           _Metric(
@@ -303,7 +303,7 @@ class _Metric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OperationCard(
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
           height: 32,
@@ -315,11 +315,12 @@ class _Metric extends StatelessWidget {
             ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium,
           maxLines: 1,
+          textAlign: TextAlign.center,
         ),
         SizedBox(
           height: 18,
@@ -328,6 +329,7 @@ class _Metric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.fade,
             style: Theme.of(context).textTheme.labelSmall,
+            textAlign: TextAlign.center,
           ),
         ),
       ],

@@ -343,7 +343,7 @@ class _Overview extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppSpacing.sm,
         crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: constraints.maxWidth < 350 ? 1.12 : 0.65,
+        childAspectRatio: constraints.maxWidth < 350 ? 1.08 : 0.9,
         children: [
           _Metric(
             '記録率',
@@ -476,7 +476,7 @@ class _Metric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OperationCard(
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
           height: 28,
@@ -489,17 +489,18 @@ class _Metric extends StatelessWidget {
             ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleLarge,
+          style: Theme.of(context).textTheme.titleMedium,
           maxLines: 1,
           softWrap: false,
-          overflow: TextOverflow.fade,
+          overflow: TextOverflow.visible,
+          textAlign: TextAlign.center,
         ),
         if (detail.isNotEmpty) ...[
           AppSpacing.gapXS,
-          Text(detail, maxLines: 1, overflow: TextOverflow.fade),
+          Text(detail, maxLines: 1, overflow: TextOverflow.fade, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall),
         ],
       ],
     ),

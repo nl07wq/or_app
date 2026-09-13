@@ -259,7 +259,7 @@ class _SummaryCard extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppSpacing.sm,
       crossAxisSpacing: AppSpacing.sm,
-      childAspectRatio: 1.65,
+      childAspectRatio: 2.15,
       children: [
         _SummaryValue(label: 'START', value: _value(summary.first)),
         _SummaryValue(label: 'LATEST', value: _value(summary.latest)),
@@ -303,7 +303,7 @@ class _SummaryValue extends StatelessWidget {
           child: Text(label, style: Theme.of(context).textTheme.labelMedium),
         ),
       ),
-      const Spacer(),
+        const SizedBox(height: AppSpacing.xs),
       Text(value, style: Theme.of(context).textTheme.titleMedium, maxLines: 1),
     ],
   );

@@ -303,7 +303,7 @@ class _ActivityOverview extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppSpacing.sm,
         crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: constraints.maxWidth < 350 ? 1.1 : 0.65,
+        childAspectRatio: constraints.maxWidth < 350 ? 1.05 : 0.9,
         children: [
           _ActivityMetric(
             '計測率',
@@ -337,7 +337,7 @@ class _ActivityMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OperationCard(
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
           height: 28,
@@ -350,17 +350,18 @@ class _ActivityMetric extends StatelessWidget {
             ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleLarge,
+          style: Theme.of(context).textTheme.titleMedium,
           maxLines: 1,
           softWrap: false,
-          overflow: TextOverflow.fade,
+          overflow: TextOverflow.visible,
+          textAlign: TextAlign.center,
         ),
         if (detail.isNotEmpty) ...[
           AppSpacing.gapXS,
-          Text(detail, maxLines: 1, overflow: TextOverflow.fade),
+          Text(detail, maxLines: 1, overflow: TextOverflow.fade, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall),
         ],
       ],
     ),
@@ -509,7 +510,7 @@ class _ActivityDailyTrend extends StatelessWidget {
             ),
           if (days.length > 7)
             Align(
-              alignment: Alignment.centerRight,
+              alignment: Alignment.center,
               child: TextButton(
                 key: const ValueKey('activity-trend-toggle'),
                 onPressed: onToggle,
