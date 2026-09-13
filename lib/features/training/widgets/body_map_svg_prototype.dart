@@ -13,10 +13,30 @@ const _assets = {
   SvgBodyMapSide.back: 'assets/body_map/body_map_back.svg',
 };
 
-/// Connected composites are authored as multiple SVG subpaths but represent
-/// one continuous semantic silhouette. Intentionally disconnected regions
-/// such as front-core are deliberately absent.
-const svgConnectedCompositeRegionIds = {'back-trapezius'};
+enum SvgBodyMapPathComposition {
+  single,
+  connectedComposite,
+  disconnectedMultiPanel,
+}
+
+class SvgBodyMapRegionMetadata {
+  const SvgBodyMapRegionMetadata(this.composition);
+  final SvgBodyMapPathComposition composition;
+}
+
+/// Canonical composition intent; CORE is intentionally not a connected blob.
+const svgBodyMapRegionMetadata = <String, SvgBodyMapRegionMetadata>{
+  'back-trapezius': SvgBodyMapRegionMetadata(
+    SvgBodyMapPathComposition.connectedComposite,
+  ),
+  'front-core': SvgBodyMapRegionMetadata(
+    SvgBodyMapPathComposition.disconnectedMultiPanel,
+  ),
+};
+
+SvgBodyMapPathComposition svgBodyMapPathCompositionFor(String id) =>
+    svgBodyMapRegionMetadata[id]?.composition ??
+    SvgBodyMapPathComposition.single;
 
 final _documents = <SvgBodyMapSide, Future<SvgBodyMapDocument>>{};
 
@@ -78,7 +98,9 @@ SvgBodyMapDocument parseSvgBodyMap(String svg) {
   for (final match in matcher) {
     final id = match.group(1)!;
     final data = match.group(2)!;
-    paths[id] = svgConnectedCompositeRegionIds.contains(id)
+    paths[id] =
+        svgBodyMapPathCompositionFor(id) ==
+            SvgBodyMapPathComposition.connectedComposite
         ? _unionSvgSubpaths(data)
         : _SvgPathParser(data).parse();
   }
@@ -95,13 +117,20 @@ Path _unionSvgSubpaths(String data) {
   if (parts.length < 2) return _SvgPathParser(data).parse();
   var union = _SvgPathParser(parts.first).parse();
   for (final part in parts.skip(1)) {
+    final component = _SvgPathParser(part).parse();
     try {
-      union = Path.combine(
-        PathOperation.union,
-        union,
-        _SvgPathParser(part).parse(),
-      );
+      final next = Path.combine(PathOperation.union, union, component);
+      final bounds = next.getBounds();
+      if (next.computeMetrics().isEmpty ||
+          !bounds.left.isFinite ||
+          !bounds.top.isFinite ||
+          !bounds.right.isFinite ||
+          !bounds.bottom.isFinite) {
+        throw const FormatException('Union returned an invalid semantic path.');
+      }
+      union = next;
     } catch (error) {
+      debugPrint('BODY MAP composite union failed: back-trapezius ($error)');
       throw FormatException(
         'Unable to union connected composite SVG path.',
         error,

@@ -71,7 +71,18 @@ void main() {
     () async {
       final back = await loadSvgBodyMap(SvgBodyMapSide.back);
       final trapezius = back.paths['back-trapezius']!;
-      expect(svgConnectedCompositeRegionIds, contains('back-trapezius'));
+      expect(
+        svgBodyMapPathCompositionFor('back-trapezius'),
+        SvgBodyMapPathComposition.connectedComposite,
+      );
+      expect(
+        svgBodyMapPathCompositionFor('front-core'),
+        SvgBodyMapPathComposition.disconnectedMultiPanel,
+      );
+      expect(
+        svgBodyMapPathCompositionFor('front-chest-left'),
+        SvgBodyMapPathComposition.single,
+      );
       expect(trapezius.contains(const Offset(100, 70)), isTrue);
       expect(trapezius.contains(const Offset(100, 87)), isTrue);
       expect(trapezius.contains(const Offset(100, 55)), isFalse);
