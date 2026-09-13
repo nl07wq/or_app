@@ -15,8 +15,10 @@ class BodyMapSvgPreviewPage extends StatefulWidget {
 class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   // This is a geometry identity, intentionally independent of the app release
   // SHA. Export-only deployments must not hide a valid local tuner draft.
-  static const _baselineCommit =
-      BodyMapGeometryTunerController.productOwnerRecoveryBaseline;
+  // This geometry identity changes only when canonical preview SVG geometry is
+  // baked. It makes pre-bake tuner drafts stale rather than double-applying
+  // them to their own baked result.
+  static const _baselineCommit = 'body-map-svg-v1-final-geometry-58bf285';
 
   final _tuner = BodyMapGeometryTunerController(
     baselineCommit: _baselineCommit,

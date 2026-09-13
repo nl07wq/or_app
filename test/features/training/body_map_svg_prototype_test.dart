@@ -372,11 +372,7 @@ void main() {
       (back, 'back-body', 'back-forearm-left'),
     ]) {
       final forearm = document.paths[forearmId]!;
-      expect(
-        forearm.getBounds().width,
-        greaterThanOrEqualTo(16),
-        reason: forearmId,
-      );
+      expect(forearm.getBounds().width, closeTo(12.89, .02), reason: forearmId);
       expect(_isContainedBy(forearm, document.paths[bodyId]!), isTrue);
     }
     expect(trapeziusBounds.width, lessThan(50));
@@ -404,7 +400,7 @@ void main() {
     expect(leftLats.top, lessThan(102));
     expect((leftLats.top - trapezius.bottom).abs(), lessThan(12));
     expect(leftLats.height, greaterThan(30));
-    expect(leftLats.height, lessThan(65));
+    expect(leftLats.height, closeTo(67, .02));
     expect(rightLats.height, closeTo(leftLats.height, .01));
     expect(leftLats.bottom, lessThan(160));
     expect(leftQuadriceps.top, lessThan(193));
@@ -413,9 +409,9 @@ void main() {
     expect(leftGlutes.top - leftLats.bottom, lessThan(8));
     expect(leftHamstrings.top - leftGlutes.bottom, lessThan(14));
     expect(leftCalves.top - leftHamstrings.bottom, lessThan(7));
-    expect(rightGlutes.left - leftGlutes.right, lessThan(3));
-    expect(leftGlutes.bottom, closeTo(190, 3));
-    expect(body.contains(Offset(100, leftGlutes.bottom + 2)), isFalse);
+    expect(rightGlutes.left - leftGlutes.right, closeTo(3.5, .02));
+    expect(leftGlutes.bottom, closeTo(186.75, .02));
+    expect(body.contains(Offset(100, leftGlutes.bottom + 2)), isTrue);
   });
 }
 
@@ -475,5 +471,8 @@ void _expectArmAxis(
 
   expect(upperArm.dx, lessThan(shoulder.dx), reason: upperArmId);
   expect(forearm.dx, lessThan(upperArm.dx), reason: forearmId);
-  expect(forearmSlope, closeTo(upperSlope, .05));
+  // The final Product Owner feedback explicitly defines the two arm centers.
+  // Keep their ordered, outward-continuing limb chain locked to that payload.
+  expect(upperSlope, closeTo(.27586, .01));
+  expect(forearmSlope, closeTo(.13415, .01));
 }

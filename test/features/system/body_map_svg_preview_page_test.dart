@@ -40,7 +40,7 @@ void main() {
     expect(find.byKey(const ValueKey('svg-body-map-back')), findsOneWidget);
     expect(find.text('TAP A MUSCLE REGION'), findsOneWidget);
 
-    await _tapRegion(tester, 'svg-body-map-back', 80, 130);
+    await _tapRegion(tester, 'svg-body-map-back', 85, 125);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 68, 88);
     expect(find.text('SELECTED: SHOULDERS'), findsOneWidget);
@@ -56,7 +56,7 @@ void main() {
     expect(find.text('SELECTED: HAMSTRINGS'), findsOneWidget);
     await _tapRegion(tester, 'svg-body-map-back', 82, 285);
     expect(find.text('SELECTED: CALVES'), findsOneWidget);
-    await _tapRegion(tester, 'svg-body-map-back', 80, 130);
+    await _tapRegion(tester, 'svg-body-map-back', 85, 125);
     expect(find.text('SELECTED: LATS'), findsOneWidget);
     await _setRecovery(tester, '回復目安に接近');
     await _setSupport(tester, false);

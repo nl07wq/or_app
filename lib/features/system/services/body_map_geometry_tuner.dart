@@ -273,7 +273,7 @@ class BodyMapGeometryTunerController extends ChangeNotifier {
   bool get hasRecoverableBackup => _backupSerialized != null;
   bool get canRestoreBackup => hasRecoverableBackup && !_hasPersistedValidDraft;
   bool get canRestoreProductOwnerRecovery =>
-      !_hasPersistedValidDraft || hasStaleDraft || _unreadablePayload != null;
+      !_hasPersistedValidDraft || _unreadablePayload != null;
   int get recoveryFixtureFrontCount => 11;
   int get recoveryFixtureBackCount => 15;
 
