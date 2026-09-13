@@ -2,6 +2,7 @@ import 'dart:ui' show Path, PathOperation;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/training/services/training_history_domain_service.dart';
 import 'package:or_app/features/training/widgets/body_map_svg_prototype.dart';
 
@@ -52,6 +53,17 @@ void main() {
         'back-calves-left',
       ]),
     );
+  });
+
+  test('uses one canonical visual color for every recovery state', () {
+    expect(bodyMapRecoveryColor(RecoveryStatus.loaded), AppColors.danger);
+    expect(bodyMapRecoveryColor(RecoveryStatus.recovering), AppColors.warning);
+    expect(bodyMapRecoveryColor(RecoveryStatus.nearReady), AppColors.primary);
+    expect(
+      bodyMapRecoveryColor(RecoveryStatus.estimatedReady),
+      AppColors.success,
+    );
+    expect(bodyMapRecoveryColor(RecoveryStatus.noData), AppColors.secondary);
   });
 
   testWidgets('keeps six visual core panels as one logical core path', (

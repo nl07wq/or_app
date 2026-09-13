@@ -261,7 +261,9 @@ class _SvgBodyMapPainter extends CustomPainter {
           document.paths[entry.key]!;
       final evidence = recovery[muscle];
       final status = previewStatuses[muscle] ?? evidence?.estimate.status;
-      final color = status == null ? AppColors.secondary : _color(status);
+      final color = status == null
+          ? AppColors.secondary
+          : bodyMapRecoveryColor(status);
       canvas.drawPath(
         path,
         Paint()..color = color.withValues(alpha: status == null ? .36 : .78),
@@ -342,10 +344,12 @@ class _SvgBodyMapPainter extends CustomPainter {
   );
 }
 
-Color _color(RecoveryStatus status) => switch (status) {
+/// Shared visual contract for canonical recovery states in Preview and
+/// Production. SUPPORT is an independent outline overlay.
+Color bodyMapRecoveryColor(RecoveryStatus status) => switch (status) {
   RecoveryStatus.loaded => AppColors.danger,
   RecoveryStatus.recovering => AppColors.warning,
-  RecoveryStatus.nearReady => AppColors.information,
+  RecoveryStatus.nearReady => AppColors.primary,
   RecoveryStatus.estimatedReady => AppColors.success,
   RecoveryStatus.noData => AppColors.secondary,
 };

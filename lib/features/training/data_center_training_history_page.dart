@@ -3047,13 +3047,8 @@ String _recoveryStatusLabel(RecoveryStatus status) => switch (status) {
   RecoveryStatus.noData => '算出不可',
 };
 
-Color _recoveryStatusColor(RecoveryStatus status) => switch (status) {
-  RecoveryStatus.loaded => AppColors.danger,
-  RecoveryStatus.recovering => AppColors.warning,
-  RecoveryStatus.nearReady => AppColors.primary,
-  RecoveryStatus.estimatedReady => AppColors.success,
-  RecoveryStatus.noData => AppColors.secondary,
-};
+Color _recoveryStatusColor(RecoveryStatus status) =>
+    bodyMapRecoveryColor(status);
 
 String _formatInteger(double value) => value.round().toString();
 
