@@ -41,6 +41,15 @@ void main() {
         expect(
           _date(
             OperationDateRange.trailingCalendarMonths(
+              DateTime(2026, 1, 31),
+              1,
+            ).start,
+          ),
+          '2026-01-01',
+        );
+        expect(
+          _date(
+            OperationDateRange.trailingCalendarMonths(
               DateTime(2026, 3, 31),
               1,
             ).start,
