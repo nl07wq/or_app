@@ -162,7 +162,7 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
             AppSpacing.gapXL,
             const SectionHeader(icon: Icons.insights_outlined, title: 'TREND'),
             AppSpacing.gapSM,
-            _TrendSummary(summary: model.summary),
+            _DailyStatusTrend(days: model.summary.days),
             AppSpacing.gapXL,
             const SectionHeader(
               icon: Icons.show_chart_outlined,
@@ -319,16 +319,80 @@ class _Overview extends StatelessWidget {
   );
 }
 
-class _TrendSummary extends StatelessWidget {
-  const _TrendSummary({required this.summary});
-  final DigestivePeriodSummary summary;
+/// Restores the original per-day status-bar Trend from 4c6da78. A null
+/// progress value intentionally uses Flutter's lightweight indeterminate
+/// animation for unresolved days; it never represents a bowel-movement count.
+class _DailyStatusTrend extends StatelessWidget {
+  const _DailyStatusTrend({required this.days});
+
+  final List<DigestiveDaySummary> days;
 
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Text(
-      '集計対象 ${summary.observationDays}日 ・ 排便あり ${summary.yesDays}日 ・ 排便なし ${summary.confirmedNoDays}日 ・ 未記録 ${summary.unknownDays}日',
+    child: Column(
+      children: [
+        for (final day in days)
+          Semantics(
+            label:
+                '${day.operationDate} ${_dailyStateLabel(day)} ${day.countKnown ? '${day.exactCount}回' : _trendDetail(day)}',
+            child: Padding(
+              key: ValueKey('digestive-trend-${day.operationDate}'),
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 48,
+                    child: Text(_trendDateLabel(day.operationDate)),
+                  ),
+                  SizedBox(
+                    width: 58,
+                    child: Text(
+                      _dailyStateLabel(day),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      key: ValueKey('digestive-trend-bar-${day.operationDate}'),
+                      value: _trendProgress(day),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 42,
+                    child: Text(
+                      _trendDetail(day),
+                      textAlign: TextAlign.end,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     ),
   );
+}
+
+double? _trendProgress(DigestiveDaySummary day) {
+  if (!day.observationEligible || day.quality == DigestiveDataQuality.invalid) {
+    return 0;
+  }
+  if (day.countKnown) return ((day.exactCount ?? 0) / 4).clamp(0, 1);
+  return null;
+}
+
+String _trendDetail(DigestiveDaySummary day) {
+  if (!day.observationEligible) return '—';
+  if (day.quality == DigestiveDataQuality.invalid) return '利用不可';
+  if (day.countKnown) return '${day.exactCount}回';
+  return day.state == DigestiveDayState.yes ? '回数不明' : '未記録';
+}
+
+String _trendDateLabel(String operationDate) {
+  final date = DateTime.parse(operationDate);
+  return '${date.month}/${date.day}';
 }
 
 class _Metric extends StatelessWidget {
@@ -795,6 +859,8 @@ class _DailyHistoryWindowState extends State<_DailyHistoryWindow> {
 }
 
 class _DailyHistoryRow extends StatelessWidget {
+  static const _dateColumnWidth = 52.0;
+
   const _DailyHistoryRow({
     required this.day,
     required this.expanded,
@@ -815,8 +881,18 @@ class _DailyHistoryRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: Row(
               children: [
-                SizedBox(width: 52, child: Text('${date.month}/${date.day}')),
-                Expanded(child: Text(_dailyStateLabel(day))),
+                SizedBox(
+                  width: _dateColumnWidth,
+                  child: Text('${date.month}/${date.day}'),
+                ),
+                Expanded(
+                  child: Text(
+                    _dailyStateLabel(day),
+                    key: ValueKey(
+                      'digestive-daily-status-${day.operationDate}',
+                    ),
+                  ),
+                ),
                 Text(_dailyCountLabel(day)),
                 if (hasEvents)
                   Icon(expanded ? Icons.expand_less : Icons.expand_more),
@@ -826,18 +902,29 @@ class _DailyHistoryRow extends StatelessWidget {
         ),
         if (expanded)
           Padding(
-            padding: const EdgeInsets.only(left: 40, bottom: AppSpacing.sm),
+            padding: const EdgeInsets.only(
+              left: _dateColumnWidth,
+              bottom: AppSpacing.sm,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final event in day.events)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                    child: Text(
-                      '#${event.sequence ?? '—'} 量:${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  形:${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  残便:${_compactRelief(event.relief)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    child: FittedBox(
+                      alignment: Alignment.centerLeft,
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        key: ValueKey(
+                          'digestive-daily-event-${day.operationDate}-${event.sequence ?? 'unknown'}',
+                        ),
+                        '#${event.sequence ?? '—'} 量:${event.amount == null ? '—' : DigestiveEvent.amountLabel(event.amount!)}  形:${event.shape == null ? '—' : DigestiveEvent.shapeLabel(event.shape!)}  残便感:${_compactRelief(event.relief)}',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                   ),
               ],
