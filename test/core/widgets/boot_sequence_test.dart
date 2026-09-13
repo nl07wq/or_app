@@ -26,6 +26,9 @@ const _timing = BootSequenceTiming(
   row: Duration(milliseconds: 10),
   readyDelay: Duration(milliseconds: 10),
   readyHold: Duration(milliseconds: 10),
+  uiCollapse: Duration(milliseconds: 10),
+  logoCenter: Duration(milliseconds: 10),
+  centerSettle: Duration(milliseconds: 10),
   logoRush: Duration(milliseconds: 10),
 );
 
@@ -49,8 +52,11 @@ void main() {
       );
       expect(
         timing.postLogo(timing.readyHold),
-        const Duration(milliseconds: 400),
+        const Duration(milliseconds: 100),
       );
+      expect(timing.uiCollapse, const Duration(milliseconds: 260));
+      expect(timing.logoCenter, const Duration(milliseconds: 20));
+      expect(timing.centerSettle, const Duration(milliseconds: 70));
       expect(timing.logoRush, const Duration(milliseconds: 320));
       expect(
         timing.postLogo(const Duration(milliseconds: 120)),
@@ -68,13 +74,16 @@ void main() {
           timing.row * 4 +
           timing.readyDelay +
           timing.readyHold +
+          timing.uiCollapse +
+          timing.logoCenter +
+          timing.centerSettle +
           timing.logoRush +
           const Duration(milliseconds: 120);
       expect(
         timing.signalAcquisitionIntro +
             timing.preBootSignalIntro +
             deterministicTotal,
-        const Duration(milliseconds: 5762),
+        const Duration(milliseconds: 5812),
       );
     },
   );
@@ -813,6 +822,21 @@ void main() {
     ]);
 
     await _elapse(tester, _timing.readyHold);
+    expect(find.byKey(const ValueKey('boot-collapse-opacity')), findsOneWidget);
+    expect(find.text('SYSTEM READY'), findsOneWidget);
+    await _elapse(tester, _timing.uiCollapse ~/ 2);
+    expect(
+      tester
+          .widget<Opacity>(find.byKey(const ValueKey('boot-collapse-opacity')))
+          .opacity,
+      lessThan(1),
+    );
+    await _elapse(tester, _timing.uiCollapse ~/ 2);
+    expect(find.text('SYSTEM READY'), findsNothing);
+    expect(find.byKey(const ValueKey('boot-logo-centered')), findsOneWidget);
+    await _elapse(tester, _timing.logoCenter);
+    expect(find.byKey(const ValueKey('boot-logo-centered')), findsOneWidget);
+    await _elapse(tester, _timing.centerSettle);
     expect(find.byKey(const ValueKey('boot-logo-rush')), findsOneWidget);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsNothing);
     expect(find.text('MAIN UI'), findsNothing);
@@ -829,7 +853,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('logo rush reaches final noise at supported viewport widths', (
+  testWidgets('logo convergence reaches final noise at supported viewport widths', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -847,6 +871,15 @@ void main() {
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
       await _elapse(tester, _timing.readyHold);
+      await _elapse(tester, _timing.uiCollapse);
+      final centeredLogo = find.byKey(const ValueKey('boot-logo-centered'));
+      expect(centeredLogo, findsOneWidget);
+      final logoCenter = tester.getCenter(centeredLogo);
+      expect(logoCenter.dx, closeTo(size.width / 2, 1));
+      expect(logoCenter.dy, closeTo(size.height / 2, 1));
+      await _elapse(tester, _timing.logoCenter);
+      expect(find.byKey(const ValueKey('boot-logo-centered')), findsOneWidget);
+      await _elapse(tester, _timing.centerSettle);
       expect(find.byKey(const ValueKey('boot-logo-rush')), findsOneWidget);
       await _elapse(tester, _timing.logoRush);
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
@@ -911,7 +944,7 @@ void main() {
     );
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
-    await _elapse(tester, _timing.readyHold);
+    await _advanceLogoConvergence(tester, _timing);
     await _elapse(tester, _timing.logoRush);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     await _elapse(tester, const Duration(milliseconds: 120));
@@ -937,7 +970,7 @@ void main() {
     );
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
-    await _elapse(tester, _timing.readyHold);
+    await _advanceLogoConvergence(tester, _timing);
     await _elapse(tester, _timing.logoRush);
     expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
     await _elapse(tester, const Duration(milliseconds: 120));
@@ -987,7 +1020,7 @@ void main() {
         tester,
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
-      await _elapse(tester, _timing.readyHold);
+      await _advanceLogoConvergence(tester, _timing);
       await _elapse(tester, _timing.logoRush);
       expect(find.byKey(const ValueKey('boot-signal-handoff')), findsOneWidget);
 
@@ -1124,7 +1157,7 @@ void main() {
     await tester.pumpWidget(_gate(controller));
     await _advanceRows(tester);
     await _elapse(tester, _timing.readyDelay + const Duration(milliseconds: 1));
-    await _elapse(tester, _timing.readyHold);
+    await _advanceLogoConvergence(tester, _timing);
     await _elapse(tester, _timing.logoRush);
 
     final start = tester.widget<CustomPaint>(
@@ -1154,7 +1187,7 @@ void main() {
         tester,
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
-      await _elapse(tester, _timing.readyHold);
+      await _advanceLogoConvergence(tester, _timing);
       await _elapse(tester, _timing.logoRush);
       await _elapse(tester, const Duration(milliseconds: 120));
       expect(find.text('MAIN UI'), findsOneWidget);
@@ -1272,7 +1305,7 @@ void main() {
         tester,
         _timing.readyDelay + const Duration(milliseconds: 1),
       );
-      await _elapse(tester, _timing.readyHold);
+      await _advanceLogoConvergence(tester, _timing);
       await _elapse(tester, _timing.logoRush);
       await _elapse(tester, const Duration(milliseconds: 120));
       expect(find.text('MAIN UI'), findsOneWidget);
@@ -1376,6 +1409,16 @@ Future<void> _advanceRows(WidgetTester tester) async {
   await _elapse(tester, _timing.row * 2);
   await _elapse(tester, _timing.row);
   await _elapse(tester, _timing.row);
+}
+
+Future<void> _advanceLogoConvergence(
+  WidgetTester tester,
+  BootSequenceTiming timing,
+) async {
+  await _elapse(tester, timing.readyHold);
+  await _elapse(tester, timing.uiCollapse);
+  await _elapse(tester, timing.logoCenter);
+  await _elapse(tester, timing.centerSettle);
 }
 
 Future<void> _advanceLogoFade(

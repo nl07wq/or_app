@@ -25,7 +25,7 @@ const _bootSignalHandoffDuration = Duration(milliseconds: 120);
 
 /// Applies only after the logo Fade. These base durations are deliberately
 /// chosen as a timeline, rather than derived from another global multiplier:
-/// the deterministic Boot visible → Main UI path is about 5.76 seconds.
+/// the deterministic Boot visible → Main UI path is about 5.81 seconds.
 const postLogoBootTimingFactor = 1.0;
 const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
@@ -728,6 +728,9 @@ class BootSequenceTiming {
   final Duration row;
   final Duration readyDelay;
   final Duration readyHold;
+  final Duration uiCollapse;
+  final Duration logoCenter;
+  final Duration centerSettle;
   final Duration logoRush;
   final double postLogoTimingFactor;
 
@@ -744,7 +747,10 @@ class BootSequenceTiming {
     this.header = const Duration(milliseconds: 180),
     this.row = const Duration(milliseconds: 280),
     this.readyDelay = const Duration(milliseconds: 210),
-    this.readyHold = const Duration(milliseconds: 400),
+    this.readyHold = const Duration(milliseconds: 100),
+    this.uiCollapse = const Duration(milliseconds: 260),
+    this.logoCenter = const Duration(milliseconds: 20),
+    this.centerSettle = const Duration(milliseconds: 70),
     this.logoRush = const Duration(milliseconds: 320),
     this.postLogoTimingFactor = postLogoBootTimingFactor,
   }) : signalAcquisitionIntro =
@@ -770,6 +776,9 @@ enum _BootVisualPhase {
   waitingForInitialization,
   finalizing,
   systemReady,
+  uiCollapse,
+  logoCenter,
+  centerSettle,
   logoRush,
 }
 
@@ -817,6 +826,7 @@ class _BootSequenceVisual extends StatefulWidget {
   final int typedNameLength;
   final int typedAxisLength;
   final double progress;
+  final double collapseProgress;
   final double logoRushProgress;
   final Duration logoFadeDuration;
   final Duration signalAcquisitionIntroDuration;
@@ -832,6 +842,7 @@ class _BootSequenceVisual extends StatefulWidget {
     required this.typedNameLength,
     required this.typedAxisLength,
     required this.progress,
+    required this.collapseProgress,
     required this.logoRushProgress,
     required this.logoFadeDuration,
     required this.signalAcquisitionIntroDuration,
@@ -1029,6 +1040,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       introProgress,
                       widget.typedAxisLength,
                       widget.logoRushProgress,
+                      widget.collapseProgress,
                     ),
               ),
             ),
@@ -1100,6 +1112,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
     double introProgress,
     int typedAxisLength,
     double logoRushProgress,
+    double collapseProgress,
   ) {
     final rows = <Widget>[
       if (phase.index >= _BootVisualPhase.coreInitializing.index)
@@ -1152,6 +1165,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                       ? logoRushProgress
                       : 0,
                   logoRushActive: phase == _BootVisualPhase.logoRush,
+                  logoCentered:
+                      phase == _BootVisualPhase.logoCenter ||
+                      phase == _BootVisualPhase.centerSettle,
                   introSilhouetteOpacity: bootIntroSilhouetteOpacity(
                     introProgress,
                   ),
@@ -1161,6 +1177,15 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                     _tryBeginLogoFade();
                   },
                 ),
+                _BootInterfaceCollapse(
+                  progress: _interfaceCollapseProgress(
+                    phase,
+                    collapseProgress,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                 if (phase.index >= _BootVisualPhase.identityTyping.index) ...[
                   const SizedBox(height: 16),
                   Text(
@@ -1243,7 +1268,8 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                 if (rows.isNotEmpty) const SizedBox(height: 28),
                 ...rows,
                 if (hasActiveRow) const SizedBox(height: 8),
-                if (phase == _BootVisualPhase.systemReady) ...[
+                if (phase == _BootVisualPhase.systemReady ||
+                    phase == _BootVisualPhase.uiCollapse) ...[
                   const SizedBox(height: 28),
                   Text(
                     'SYSTEM READY',
@@ -1257,6 +1283,9 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                     ),
                   ),
                 ],
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1278,6 +1307,48 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
       phase == _BootVisualPhase.coreInitializing ||
       phase == _BootVisualPhase.dataInitializing ||
       phase == _BootVisualPhase.operationInitializing;
+
+  double _interfaceCollapseProgress(
+    _BootVisualPhase phase,
+    double collapseProgress,
+  ) => switch (phase) {
+    _BootVisualPhase.uiCollapse => collapseProgress,
+    _BootVisualPhase.logoCenter ||
+    _BootVisualPhase.centerSettle ||
+    _BootVisualPhase.logoRush => 1,
+    _ => 0,
+  };
+}
+
+/// Compresses the temporary Boot interface into the logo's axis. Its layout
+/// height shrinks as well as its paint, so the surrounding [Center] carries
+/// the unchanged logo into the true viewport center without a second asset.
+class _BootInterfaceCollapse extends StatelessWidget {
+  const _BootInterfaceCollapse({required this.progress, required this.child});
+
+  final double progress;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = progress.clamp(0.0, 1.0).toDouble();
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.topCenter,
+        heightFactor: 1 - value,
+        child: Opacity(
+          key: const ValueKey('boot-collapse-opacity'),
+          opacity: 1 - value * .88,
+          child: Transform.scale(
+            key: const ValueKey('boot-collapse-scale'),
+            alignment: Alignment.topCenter,
+            scaleY: 1 - value * .55,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _BootLogoSlot extends StatelessWidget {
@@ -1286,6 +1357,7 @@ class _BootLogoSlot extends StatelessWidget {
     required this.officialFade,
     required this.logoRushProgress,
     required this.logoRushActive,
+    required this.logoCentered,
     required this.introSilhouetteOpacity,
     required this.includeKeys,
     required this.onOfficialLogoError,
@@ -1295,6 +1367,7 @@ class _BootLogoSlot extends StatelessWidget {
   final Animation<double> officialFade;
   final double logoRushProgress;
   final bool logoRushActive;
+  final bool logoCentered;
   final double introSilhouetteOpacity;
   final bool includeKeys;
   final VoidCallback onOfficialLogoError;
@@ -1328,11 +1401,13 @@ class _BootLogoSlot extends StatelessWidget {
               ),
             ),
           ),
-        Transform.scale(
-          key: logoRushActive ? const ValueKey('boot-logo-rush') : null,
-          alignment: Alignment.center,
-          scale: bootLogoRushScale(logoRushProgress),
-          child: FadeTransition(
+        KeyedSubtree(
+          key: logoCentered ? const ValueKey('boot-logo-centered') : null,
+          child: Transform.scale(
+            key: logoRushActive ? const ValueKey('boot-logo-rush') : null,
+            alignment: Alignment.center,
+            scale: bootLogoRushScale(logoRushProgress),
+            child: FadeTransition(
             key: includeKeys ? const ValueKey('boot-brand-logo-fade') : null,
             opacity: CurvedAnimation(
               parent: officialFade,
@@ -1348,6 +1423,7 @@ class _BootLogoSlot extends StatelessWidget {
                 onOfficialLogoError();
                 return const SizedBox(height: 72);
               },
+            ),
             ),
           ),
         ),
@@ -1848,6 +1924,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
   static const _axisTypingCharacter = Duration(milliseconds: 27);
   Timer? _timelineTimer;
   late final AnimationController _progressController;
+  late final AnimationController _uiCollapseController;
   late final AnimationController _logoRushController;
   int _session = 0;
   bool _systemInitialized = false;
@@ -1878,6 +1955,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       },
     );
     _progressController = AnimationController(vsync: this);
+    _uiCollapseController = AnimationController(vsync: this);
     _logoRushController = AnimationController(vsync: this);
     widget.initialization.addListener(_onInitializationChanged);
     if (!widget.isInitialBootPresentation) {
@@ -1903,6 +1981,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     widget.initialization.removeListener(_onInitializationChanged);
     _invalidateSession('gate_disposed');
     _progressController.dispose();
+    _uiCollapseController.dispose();
     _logoRushController.dispose();
     super.dispose();
   }
@@ -1923,6 +2002,7 @@ class _BootSequenceGateState extends State<BootSequenceGate>
     _timelineTimer?.cancel();
     _timelineTimer = null;
     _progressController.stop();
+    _uiCollapseController.stop();
     _logoRushController.stop();
     _session += 1;
     _trace(event);
@@ -2172,7 +2252,44 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       presentation: 'BOOT',
     );
     _transition(BootPresentationState.systemReadyPresentation, 'system_ready');
-    _schedule(widget.timing.postLogo(widget.timing.readyHold), _startLogoRush);
+    _schedule(widget.timing.postLogo(widget.timing.readyHold), _startUiCollapse);
+  }
+
+  void _startUiCollapse() {
+    if (!_isPresentationActive || _skipRequested) return;
+    setState(() => _phase = _BootVisualPhase.uiCollapse);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_UI_COLLAPSE',
+      presentation: 'BOOT',
+    );
+    final duration = widget.timing.postLogo(widget.timing.uiCollapse);
+    _uiCollapseController
+      ..duration = duration
+      ..forward(from: 0);
+    _schedule(duration, _showLogoCenter);
+  }
+
+  void _showLogoCenter() {
+    if (!_isPresentationActive || _skipRequested) return;
+    setState(() => _phase = _BootVisualPhase.logoCenter);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_LOGO_CENTER',
+      presentation: 'BOOT',
+    );
+    _schedule(widget.timing.postLogo(widget.timing.logoCenter), _startCenterSettle);
+  }
+
+  void _startCenterSettle() {
+    if (!_isPresentationActive || _skipRequested) return;
+    setState(() => _phase = _BootVisualPhase.centerSettle);
+    StartupDiagnostic.instance.record(
+      'FLUTTER',
+      'BOOT_PHASE_CENTER_SETTLE',
+      presentation: 'BOOT',
+    );
+    _schedule(widget.timing.postLogo(widget.timing.centerSettle), _startLogoRush);
   }
 
   void _startLogoRush() {
@@ -2324,13 +2441,18 @@ class _BootSequenceGateState extends State<BootSequenceGate>
       );
     }
     return AnimatedBuilder(
-      animation: Listenable.merge([_progressController, _logoRushController]),
+      animation: Listenable.merge([
+        _progressController,
+        _uiCollapseController,
+        _logoRushController,
+      ]),
       builder: (context, _) => _BootSequenceVisual(
         phase: _phase,
         typedLength: _typedLength,
         typedNameLength: _typedNameLength,
         typedAxisLength: _typedAxisLength,
         progress: _progressController.value,
+        collapseProgress: _uiCollapseController.value,
         logoRushProgress: _logoRushController.value,
         logoFadeDuration: widget.timing.logoIntro,
         signalAcquisitionIntroDuration: widget.timing.signalAcquisitionIntro,
