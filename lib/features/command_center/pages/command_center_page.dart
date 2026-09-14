@@ -431,17 +431,18 @@ class _DailyCommandContent extends StatelessWidget {
 }
 
 class _CurrentOperationCard extends StatelessWidget {
-  const _CurrentOperationCard({
+  _CurrentOperationCard({
     required this.operationDateFuture,
     required this.operationDateTransitionToken,
     required this.cycleState,
     required this.onOperationDateDisplayed,
-  });
+  }) : _visibleAnchorKey = GlobalKey();
 
   final Future<OperationLocalDate> operationDateFuture;
   final int operationDateTransitionToken;
   final DailyCommandCycleState cycleState;
   final ValueChanged<OperationLocalDate> onOperationDateDisplayed;
+  final GlobalKey _visibleAnchorKey;
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -511,6 +512,7 @@ class _CurrentOperationCard extends StatelessWidget {
                 id: 'cycle-${cycleState.name}',
                 title: cycleStateShortLabelFor(cycleState),
                 description: cycleStateHelp(cycleState),
+                visibleAnchorKey: _visibleAnchorKey,
                 child: Semantics(
                   button: true,
                   label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
@@ -521,9 +523,12 @@ class _CurrentOperationCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          cycleStateIconFor(cycleState),
-                          key: const ValueKey('current-operation-cycle-icon'),
+                        KeyedSubtree(
+                          key: _visibleAnchorKey,
+                          child: Icon(
+                            cycleStateIconFor(cycleState),
+                            key: const ValueKey('current-operation-cycle-icon'),
+                          ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         Text(

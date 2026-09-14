@@ -99,7 +99,7 @@ class _InformationMarqueeState extends State<_InformationMarquee>
     with SingleTickerProviderStateMixin {
   static const _initialPause = Duration(milliseconds: 900);
   static const _terminalPause = Duration(milliseconds: 1300);
-  static const _exitSafetyMargin = 6.0;
+  static const _exitSafetyMargin = 12.0;
   static const _scrollSpeedPxPerSecond =
       InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond;
 

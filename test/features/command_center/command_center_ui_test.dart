@@ -319,6 +319,17 @@ void main() {
       find.byKey(const ValueKey('semantic-help-popover-cycle-standby')),
       findsOneWidget,
     );
+    final popover = find.byKey(
+      const ValueKey('semantic-help-popover-cycle-standby'),
+    );
+    final icon = find.byKey(const ValueKey('current-operation-cycle-icon'));
+    final popoverSize = tester.getSize(popover);
+    final expectedRight = tester
+        .getRect(icon)
+        .right
+        .clamp(8 + popoverSize.width, 390 - 8)
+        .toDouble();
+    expect(tester.getRect(popover).right, closeTo(expectedRight, 4));
     expect(
       find.text(cycleStateHelp(DailyCommandCycleState.standby)),
       findsOneWidget,

@@ -710,8 +710,11 @@ class _DailyCommandSummaryCard extends StatelessWidget {
 }
 
 class _DailyCommandCycleState extends StatelessWidget {
-  const _DailyCommandCycleState({required this.cycleState});
+  _DailyCommandCycleState({required this.cycleState})
+    : _visibleAnchorKey = GlobalKey();
+
   final DailyCommandCycleState cycleState;
+  final GlobalKey _visibleAnchorKey;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -738,15 +741,21 @@ class _DailyCommandCycleState extends StatelessWidget {
         id: 'cycle-${cycleState.name}',
         title: cycleStateShortLabelFor(cycleState),
         description: cycleStateHelp(cycleState),
-        offset: const Offset(36, 0),
         constraints: const BoxConstraints(minWidth: 240, maxWidth: 280),
+        visibleAnchorKey: _visibleAnchorKey,
         child: Semantics(
           button: true,
           label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(cycleStateIconFor(cycleState)),
+              KeyedSubtree(
+                key: _visibleAnchorKey,
+                child: Icon(
+                  cycleStateIconFor(cycleState),
+                  key: const ValueKey('dashboard-cycle-state-visible-icon'),
+                ),
+              ),
               const SizedBox(width: AppSpacing.sm),
               Text(cycleStateShortLabelFor(cycleState)),
             ],
@@ -1393,9 +1402,11 @@ class _ProgressRow extends StatelessWidget {
 }
 
 class _CompletionHelpButton extends StatelessWidget {
-  const _CompletionHelpButton({required this.completion});
+  _CompletionHelpButton({required this.completion})
+    : _visibleAnchorKey = GlobalKey();
 
   final DailyCommandCompletionItem completion;
+  final GlobalKey _visibleAnchorKey;
 
   @override
   Widget build(BuildContext context) {
@@ -1423,6 +1434,7 @@ class _CompletionHelpButton extends StatelessWidget {
           : 'Missing: ${completion.missingRequirements.join(', ')}',
       offset: const Offset(0, 4),
       constraints: const BoxConstraints(minWidth: 240, maxWidth: 300),
+      visibleAnchorKey: _visibleAnchorKey,
       child: Semantics(
         button: true,
         label: '${completion.label} completion details',
@@ -1433,13 +1445,16 @@ class _CompletionHelpButton extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(right: AppSpacing.sm),
             child: Center(
-              child: Icon(
-                icon,
-                key: ValueKey(
-                  'operation-progress-completion-${completion.label}',
+              child: KeyedSubtree(
+                key: _visibleAnchorKey,
+                child: Icon(
+                  icon,
+                  key: ValueKey(
+                    'operation-progress-completion-${completion.label}',
+                  ),
+                  color: color,
+                  size: 20,
                 ),
-                color: color,
-                size: 20,
               ),
             ),
           ),

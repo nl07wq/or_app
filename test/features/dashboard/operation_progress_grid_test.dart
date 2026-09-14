@@ -1149,41 +1149,106 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'Cycle State block restores start alignment while help stays right-biased',
-    (tester) async {
-      final database = FakeIndexedDbDatabase();
-      seedOperationState(database, '2026-07-28');
-      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
-      addTearDown(AppRepositoryRegistry.resetForTesting);
+  testWidgets('Cycle State help popover anchors to its visible state icon', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
 
+    await _pumpDashboard(tester, width: 390);
+    await tester.pumpAndSettle();
+    final card = find.ancestor(
+      of: find.text('CYCLE STATE'),
+      matching: find.byType(OperationCard),
+    );
+    final cycleValue = find.byKey(
+      const ValueKey('semantic-help-anchor-cycle-standby'),
+    );
+    final cardRight = tester.getTopRight(card).dx;
+    final valueRight = tester.getTopRight(cycleValue).dx;
+    expect(cardRight - valueRight, greaterThan(40));
+
+    await tester.tap(cycleValue);
+    await tester.pumpAndSettle();
+    final popover = find.byKey(
+      const ValueKey('semantic-help-popover-cycle-standby'),
+    );
+    expect(popover, findsOneWidget);
+    final popoverSize = tester.getSize(popover);
+    final icon = find.byKey(
+      const ValueKey('dashboard-cycle-state-visible-icon'),
+    );
+    final expectedRight = tester
+        .getRect(icon)
+        .right
+        .clamp(8 + popoverSize.width, 390 - 8)
+        .toDouble();
+    expect(tester.getRect(popover).right, moreOrLessEquals(expectedRight));
+    expect(
+      tester.getRect(popover).top,
+      moreOrLessEquals(tester.getRect(icon).bottom),
+    );
+    expect(popoverSize.width, greaterThan(popoverSize.height));
+    expect(popoverSize.width, greaterThanOrEqualTo(240));
+    expect(
+      find.text('有効なSTATUSがまだありません。STATUSが確定すると当日の運用を開始します。'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'completion popovers follow their visible badge anchors independently',
+    (tester) async {
+      await _installDdtStatus();
       await _pumpDashboard(tester, width: 390);
       await tester.pumpAndSettle();
-      final card = find.ancestor(
-        of: find.text('CYCLE STATE'),
-        matching: find.byType(OperationCard),
-      );
-      final cycleValue = find.byKey(
-        const ValueKey('semantic-help-anchor-cycle-standby'),
-      );
-      final cardRight = tester.getTopRight(card).dx;
-      final valueRight = tester.getTopRight(cycleValue).dx;
-      expect(cardRight - valueRight, greaterThan(40));
 
-      await tester.tap(cycleValue);
-      await tester.pumpAndSettle();
-      final popover = find.byKey(
-        const ValueKey('semantic-help-popover-cycle-standby'),
-      );
-      expect(popover, findsOneWidget);
-      expect(tester.getTopLeft(popover).dx, greaterThan(40));
-      final popoverSize = tester.getSize(popover);
-      expect(popoverSize.width, greaterThan(popoverSize.height));
-      expect(popoverSize.width, greaterThanOrEqualTo(240));
+      final results = <String, double>{};
+      for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
+        final icon = find.byKey(
+          ValueKey('operation-progress-completion-$label'),
+        );
+        await tester.tap(
+          find.byKey(ValueKey('operation-progress-status-zone-$label')),
+        );
+        await tester.pumpAndSettle();
+        final popover = find.byKey(
+          ValueKey('semantic-help-popover-completion-${label.toLowerCase()}'),
+        );
+        final popoverRect = tester.getRect(popover);
+        final expectedRight = tester
+            .getRect(icon)
+            .right
+            .clamp(8 + popoverRect.width, 390 - 8)
+            .toDouble();
+        expect(popoverRect.right, moreOrLessEquals(expectedRight));
+        results[label] = popoverRect.right;
+
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+      }
+
       expect(
-        find.text('有効なSTATUSがまだありません。STATUSが確定すると当日の運用を開始します。'),
-        findsOneWidget,
+        tester
+            .getRect(
+              find.byKey(
+                const ValueKey('operation-progress-completion-STATUS'),
+              ),
+            )
+            .right,
+        lessThan(
+          tester
+              .getRect(
+                find.byKey(
+                  const ValueKey('operation-progress-completion-FOOD'),
+                ),
+              )
+              .right,
+        ),
       );
+      expect(results['STATUS'], lessThan(results['FOOD']!));
     },
   );
 

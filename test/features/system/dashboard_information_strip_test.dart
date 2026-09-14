@@ -58,8 +58,9 @@ void main() {
     );
     final timing = _timingFor(tester, text: text, viewport: viewport);
     expect(
-      timing.travelDuration,
-      InformationMarqueeTiming.calibrationTravelDuration,
+      timing.travelDuration -
+          InformationMarqueeTiming.calibrationTravelDuration,
+      greaterThan(const Duration(milliseconds: 39)),
     );
     final initial = tester.getRect(text).left;
     expect(initial, moreOrLessEquals(tester.getRect(viewport).right));
@@ -72,7 +73,9 @@ void main() {
     expect(moving, lessThan(initial));
 
     final viewportRect = tester.getRect(viewport);
-    await tester.pump(const Duration(milliseconds: 5100));
+    await tester.pump(
+      timing.travelDuration - const Duration(milliseconds: 100),
+    );
     expect(
       tester.getRect(text).right,
       lessThanOrEqualTo(viewportRect.left - 4),
@@ -123,6 +126,11 @@ void main() {
       textLayoutWidth: 480,
       exitSafetyMargin: 6,
     );
+    const marginTwelve = InformationMarqueeGeometry(
+      viewportWidth: 320,
+      textLayoutWidth: 480,
+      exitSafetyMargin: 12,
+    );
     final positions = [
       marginSix.leftAt(0),
       marginSix.leftAt(.25),
@@ -137,6 +145,8 @@ void main() {
     expect(marginSix.startLeft, 320);
     expect(marginSix.endLeft, -486);
     expect(marginSix.endLeft, lessThan(marginOne.endLeft));
+    expect(marginTwelve.endLeft, -492);
+    expect(marginTwelve.endLeft, lessThan(marginSix.endLeft));
   });
 
   testWidgets('uses one constant speed for short, medium, and long notices', (
@@ -241,18 +251,18 @@ void main() {
     final geometry = InformationMarqueeGeometry(
       viewportWidth: viewportRect.width,
       textLayoutWidth: textRect.width,
-      exitSafetyMargin: 6,
+      exitSafetyMargin: 12,
     );
     expect(
       textRect.left - viewportRect.left,
       moreOrLessEquals(geometry.endLeft),
     );
-    expect(textRect.right, lessThanOrEqualTo(viewportRect.left - 4));
+    expect(textRect.right, lessThanOrEqualTo(viewportRect.left - 10));
 
     await tester.pump(const Duration(milliseconds: 1200));
     expect(
       tester.getRect(text).right,
-      lessThanOrEqualTo(viewportRect.left - 4),
+      lessThanOrEqualTo(viewportRect.left - 10),
     );
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pump();
@@ -274,32 +284,33 @@ void main() {
     }
   });
 
-  testWidgets('keeps the exit safety margin at supported dashboard widths', (
-    tester,
-  ) async {
-    const title =
-        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
-    for (final width in [320.0, 390.0, 900.0]) {
-      await tester.pumpWidget(
-        _app(disableAnimations: false, width: width, title: title),
-      );
-      final text = find.byKey(
-        const ValueKey('dashboard-information-marquee-text'),
-      );
-      final viewport = find.byKey(
-        const ValueKey('dashboard-information-ticker-viewport'),
-      );
-      final timing = _timingFor(tester, text: text, viewport: viewport);
-      await tester.pump(const Duration(milliseconds: 900));
-      await tester.pump();
-      await tester.pump(timing.travelDuration);
-      expect(
-        tester.getRect(text).right,
-        lessThanOrEqualTo(tester.getRect(viewport).left - 4),
-      );
-      expect(tester.takeException(), isNull);
-    }
-  });
+  testWidgets(
+    'keeps the 12px exit safety margin at supported dashboard widths',
+    (tester) async {
+      const title =
+          'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
+      for (final width in [320.0, 390.0, 900.0]) {
+        await tester.pumpWidget(
+          _app(disableAnimations: false, width: width, title: title),
+        );
+        final text = find.byKey(
+          const ValueKey('dashboard-information-marquee-text'),
+        );
+        final viewport = find.byKey(
+          const ValueKey('dashboard-information-ticker-viewport'),
+        );
+        final timing = _timingFor(tester, text: text, viewport: viewport);
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pump();
+        await tester.pump(timing.travelDuration);
+        expect(
+          tester.getRect(text).right,
+          lessThanOrEqualTo(tester.getRect(viewport).left - 10),
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 }
 
 InformationMarqueeTiming _timingFor(
@@ -310,7 +321,7 @@ InformationMarqueeTiming _timingFor(
   geometry: InformationMarqueeGeometry(
     viewportWidth: tester.getSize(viewport).width,
     textLayoutWidth: tester.getSize(text).width,
-    exitSafetyMargin: 6,
+    exitSafetyMargin: 12,
   ),
   scrollSpeedPxPerSecond:
       InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
