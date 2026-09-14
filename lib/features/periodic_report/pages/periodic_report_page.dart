@@ -731,6 +731,7 @@ class _ReportViewer extends StatelessWidget {
             ('SESSIONS', report.facts.trainingSessionCount),
             ('TRAINING DAYS', report.facts.trainingDays),
           ]),
+          _weeklyTrainingChart(),
           if (report.facts.exercisesPerformed.isNotEmpty)
             _FactLine(
               label: 'EXERCISES',
@@ -746,7 +747,10 @@ class _ReportViewer extends StatelessWidget {
         icon: Symbols.barefoot,
         title: 'CONDITION',
         text: report.analysis.condition,
-        children: [_metricSummary('conditionLevel', 'CONDITION LEVEL', '')],
+        children: [
+          _weeklyConditionChart(),
+          _metricSummary('conditionLevel', 'CONDITION LEVEL', ''),
+        ],
       ),
       _section(
         key: 'operation',
@@ -754,10 +758,7 @@ class _ReportViewer extends StatelessWidget {
         title: 'OPERATION',
         text: report.analysis.operation,
         children: [
-          _integerFacts([
-            ('AVAILABLE DAYS', report.facts.availableDailyCount),
-            ('EXPECTED DAYS', report.facts.expectedDailyCount),
-          ]),
+          _operationMetricCards(),
           if (report.facts.operationStatusCounts.isNotEmpty)
             _FactLine(
               label: 'STATUS DISTRIBUTION',
@@ -1024,6 +1025,117 @@ class _ReportViewer extends StatelessWidget {
       maximumIndex: 11,
     );
   }
+
+  Widget _weeklyTrainingChart() {
+    if (report.reportType != PeriodicReportType.weekly) {
+      return const SizedBox.shrink();
+    }
+    return PeriodicReportBarChart(
+      key: const ValueKey('periodic-report-chart-weekly-training'),
+      title: 'TRAINING DAYS',
+      maximumValue: 1,
+      semanticLabel: '週間トレーニング記録',
+      points: _weeklyPoints(
+        (fact) => fact.trainingPerformed == true ? 1 : 0,
+        (fact) => fact.trainingPerformed == true ? '記録あり' : '記録なし',
+      ),
+    );
+  }
+
+  Widget _weeklyConditionChart() {
+    if (report.reportType != PeriodicReportType.weekly) {
+      return const SizedBox.shrink();
+    }
+    return PeriodicReportBarChart(
+      key: const ValueKey('periodic-report-chart-weekly-condition'),
+      title: 'CONDITION LEVEL',
+      maximumValue: 5,
+      semanticLabel: '週間コンディションレベル',
+      points: _weeklyPoints(
+        (fact) => fact.plantarFasciitisLevel?.toDouble(),
+        (fact) => fact.plantarFasciitisLevel == null
+            ? '記録なし'
+            : 'LV.${fact.plantarFasciitisLevel}',
+      ),
+    );
+  }
+
+  List<PeriodicReportBarChartPoint> _weeklyPoints(
+    double? Function(DailyAggregateV1 fact) valueOf,
+    String Function(DailyAggregateV1 fact) tooltipOf,
+  ) {
+    final start = DateTime.parse(report.periodStart);
+    final byDate = {for (final fact in dailyFacts) fact.operationDate: fact};
+    return [
+      for (var index = 0; index < 7; index++)
+        () {
+          final date = start.add(Duration(days: index));
+          final fact = byDate[_date(date)];
+          return PeriodicReportBarChartPoint(
+            x: index,
+            label: index == 0 || date.month != start.month
+                ? '${date.month}/${date.day}'
+                : '${date.day}',
+            value: fact == null ? null : valueOf(fact),
+            tooltip: fact == null ? '記録なし' : tooltipOf(fact),
+          );
+        }(),
+    ];
+  }
+
+  Widget _operationMetricCards() {
+    final available = report.facts.availableDailyCount;
+    final expected = report.facts.expectedDailyCount;
+    final rate = expected == 0
+        ? '—'
+        : '${(available / expected * 100).round()}%';
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Row(
+        children: [
+          _OperationMetricCard(label: 'AVAILABLE DAYS', value: '$available'),
+          const SizedBox(width: AppSpacing.xs),
+          _OperationMetricCard(label: 'EXPECTED DAYS', value: '$expected'),
+          const SizedBox(width: AppSpacing.xs),
+          _OperationMetricCard(label: 'ACHIEVEMENT RATE', value: rate),
+        ],
+      ),
+    );
+  }
+}
+
+class _OperationMetricCard extends StatelessWidget {
+  const _OperationMetricCard({required this.label, required this.value});
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      height: 72,
+      padding: const EdgeInsets.all(AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(label, style: Theme.of(context).textTheme.labelSmall),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _CardTitle extends StatelessWidget {

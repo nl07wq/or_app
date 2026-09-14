@@ -19,6 +19,151 @@ class PeriodicReportChartPoint {
   final double value;
 }
 
+class PeriodicReportBarChartPoint {
+  const PeriodicReportBarChartPoint({
+    required this.x,
+    required this.label,
+    required this.value,
+    required this.tooltip,
+  });
+
+  final int x;
+  final String label;
+  final double? value;
+  final String tooltip;
+}
+
+/// Compact fixed-domain bars for discrete daily report facts.  A null value is
+/// deliberately rendered as no bar, never as a fabricated zero.
+class PeriodicReportBarChart extends StatelessWidget {
+  const PeriodicReportBarChart({
+    super.key,
+    required this.title,
+    required this.points,
+    required this.maximumValue,
+    required this.semanticLabel,
+  });
+
+  final String title;
+  final List<PeriodicReportBarChartPoint> points;
+  final double maximumValue;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    final gridColor = Theme.of(context).colorScheme.outlineVariant;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Semantics(
+        label: semanticLabel,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            AppSpacing.gapSM,
+            SizedBox(
+              height: 156,
+              child: BarChart(
+                BarChartData(
+                  minY: 0,
+                  maxY: maximumValue,
+                  alignment: BarChartAlignment.spaceAround,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maximumValue <= 1 ? 1 : 1,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: gridColor.withValues(alpha: .55),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border(bottom: BorderSide(color: gridColor)),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 26,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.round();
+                          if (index < 0 || index >= points.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return SideTitleWidget(
+                            meta: meta,
+                            child: Text(
+                              points[index].label,
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (_) =>
+                          Theme.of(context).colorScheme.inverseSurface,
+                      getTooltipItem: (group, _, rod, _) {
+                        final point = points[group.x.toInt()];
+                        return BarTooltipItem(
+                          '${point.label}\n${point.tooltip}',
+                          TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onInverseSurface,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  barGroups: [
+                    for (final point in points)
+                      BarChartGroupData(
+                        x: point.x,
+                        barRods: [
+                          BarChartRodData(
+                            toY: point.value ?? 0,
+                            width: 14,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(3),
+                            ),
+                            color: point.value == null || point.value == 0
+                                ? Colors.transparent
+                                : color,
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class PeriodicReportChart extends StatelessWidget {
   const PeriodicReportChart({
     super.key,

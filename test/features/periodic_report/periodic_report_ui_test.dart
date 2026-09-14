@@ -278,10 +278,22 @@ void main() {
     );
     _seedReport(fixture.database, report);
     await fixture.container.dailyAggregates.put(
-      _daily('2026-08-24', weight: 98.33, steps: 8000, calories: 2208.57),
+      _daily(
+        '2026-08-24',
+        weight: 98.33,
+        steps: 8000,
+        calories: 2208.57,
+        conditionLevel: 2,
+      ),
     );
     await fixture.container.dailyAggregates.put(
-      _daily('2026-08-26', weight: 97.91, steps: 9200, calories: 2100),
+      _daily(
+        '2026-08-26',
+        weight: 97.91,
+        steps: 9200,
+        calories: 2100,
+        conditionLevel: 4,
+      ),
     );
 
     await _pump(
@@ -318,10 +330,24 @@ void main() {
         findsOneWidget,
       );
     }
-    expect(
-      find.byKey(const ValueKey('periodic-report-chart-conditionLevel')),
-      findsNothing,
+    final trainingChart = tester.widget<PeriodicReportBarChart>(
+      find.byKey(const ValueKey('periodic-report-chart-weekly-training')),
     );
+    final conditionChart = tester.widget<PeriodicReportBarChart>(
+      find.byKey(const ValueKey('periodic-report-chart-weekly-condition')),
+    );
+    expect(trainingChart.points, hasLength(7));
+    expect(trainingChart.points[0].value, 1);
+    expect(trainingChart.points[1].value, isNull);
+    expect(trainingChart.points[2].tooltip, '記録あり');
+    expect(conditionChart.points[0].value, 2);
+    expect(conditionChart.points[1].value, isNull);
+    expect(conditionChart.points[2].value, 4);
+    expect(conditionChart.points[2].tooltip, 'LV.4');
+    expect(find.text('AVAILABLE DAYS'), findsOneWidget);
+    expect(find.text('EXPECTED DAYS'), findsOneWidget);
+    expect(find.text('ACHIEVEMENT RATE'), findsOneWidget);
+    expect(find.text('29%'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('periodic-report-chart-weightKg')),
       findsOneWidget,
@@ -724,6 +750,7 @@ DailyAggregateV1 _daily(
   required double weight,
   required int steps,
   required double calories,
+  int? conditionLevel,
 }) => DailyAggregateV1(
   operationDate: date,
   weightKg: weight,
@@ -731,7 +758,7 @@ DailyAggregateV1 _daily(
   sleepDurationMinutes: 420,
   sleepScore: 82,
   sleepType: null,
-  plantarFasciitisLevel: null,
+  plantarFasciitisLevel: conditionLevel,
   workStartTime: null,
   workEndTime: null,
   workBreakMinutes: null,

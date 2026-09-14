@@ -468,7 +468,7 @@ class _CurrentOperationCard extends StatelessWidget {
         Expanded(
           child: Column(
             key: const ValueKey('current-operation-cycle-group'),
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
                 'CYCLE STATE',
@@ -485,10 +485,10 @@ class _CurrentOperationCard extends StatelessWidget {
                   label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
                   child: SizedBox(
                     key: const ValueKey('current-operation-cycle-value'),
-                    width: double.infinity,
+                    width: 112,
                     height: OperationDateFlipCalendar.defaultTileHeight,
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Flexible(
                           child: FittedBox(
