@@ -26,13 +26,13 @@ enum FoodVisualKey {
   egg,
   dairy,
   grain,
-  plate,
   vegetable,
   fruit,
   snack,
   drink,
   condiment,
   protein,
+  plate,
   soup,
   surimi;
 

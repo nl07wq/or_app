@@ -7,6 +7,7 @@ void main() {
   const customAssets = <FoodVisualKey, String>{
     FoodVisualKey.meat: 'meat.png',
     FoodVisualKey.fish: 'fish.png',
+    FoodVisualKey.egg: 'egg.png',
     FoodVisualKey.dairy: 'dairy.png',
     FoodVisualKey.grain: 'grain.png',
     FoodVisualKey.vegetable: 'vegetable.png',
@@ -19,7 +20,6 @@ void main() {
   };
 
   const materialIcons = <FoodVisualKey, IconData>{
-    FoodVisualKey.egg: Icons.egg_alt_outlined,
     FoodVisualKey.snack: Icons.cookie_outlined,
     FoodVisualKey.drink: Icons.local_drink_outlined,
   };
@@ -45,6 +45,28 @@ void main() {
       }
     },
   );
+
+  test('thumbnail selector order keeps plate after protein and before soup', () {
+    expect(
+      FoodVisualKey.values.map((key) => key.stableId).toList(),
+      [
+        'meat',
+        'fish',
+        'egg',
+        'dairy',
+        'grain',
+        'vegetable',
+        'fruit',
+        'snack',
+        'drink',
+        'condiment',
+        'protein',
+        'plate',
+        'soup',
+        'surimi',
+      ],
+    );
+  });
 
   test('null and unknown stable IDs resolve to the generic fallback', () {
     expect(FoodThumbnailAssetResolver.resolve(null), isNull);

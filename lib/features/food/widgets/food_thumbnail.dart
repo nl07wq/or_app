@@ -43,6 +43,7 @@ abstract final class FoodThumbnailAssetResolver {
   static String? resolve(FoodVisualKey? key) => switch (key) {
     FoodVisualKey.meat ||
     FoodVisualKey.fish ||
+    FoodVisualKey.egg ||
     FoodVisualKey.dairy ||
     FoodVisualKey.grain ||
     FoodVisualKey.vegetable ||
