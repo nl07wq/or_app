@@ -1313,35 +1313,70 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        if (optionalRecordPresent != null)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final titleStyle = constraints.maxWidth < 140
+                  ? Theme.of(context).textTheme.labelMedium
+                  : Theme.of(context).textTheme.labelLarge;
+              final titleRow = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    key: ValueKey('operation-progress-title-$label'),
+                    style: titleStyle,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Semantics(
+                    label: optionalRecordPresent!
+                        ? 'Training recorded'
+                        : 'Training not recorded, optional',
+                    child: ExcludeSemantics(
+                      child: Icon(
+                        optionalRecordPresent!
+                            ? Icons.check_circle_outline
+                            : Icons.radio_button_unchecked,
+                        key: ValueKey(
+                          optionalRecordPresent!
+                              ? 'operation-progress-training-recorded'
+                              : 'operation-progress-training-optional',
+                        ),
+                        size: 18,
+                        color: optionalRecordPresent!
+                            ? colorScheme.primary
+                            : colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+              // The grid briefly uses two narrow columns at its responsive
+              // breakpoint. Scale this single passive title row only there,
+              // rather than restoring a far-right action slot or overflowing.
+              if (constraints.maxWidth < 125) {
+                return SizedBox(
+                  height: 20,
+                  width: double.infinity,
+                  child: FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: titleRow,
+                  ),
+                );
+              }
+              return SizedBox(height: 20, child: titleRow);
+            },
+          )
+        else
+          Text(label, style: Theme.of(context).textTheme.labelLarge),
         AppSpacing.gapXS,
         Row(
           children: [
             Expanded(child: Text(status)),
-            if (optionalRecordPresent != null) ...[
-              SizedBox(width: AppSpacing.sm),
-              Semantics(
-                label: optionalRecordPresent!
-                    ? 'Training recorded'
-                    : 'Training not recorded, optional',
-                child: ExcludeSemantics(
-                  child: Icon(
-                    optionalRecordPresent!
-                        ? Icons.check_circle_outline
-                        : Icons.radio_button_unchecked,
-                    key: ValueKey(
-                      optionalRecordPresent!
-                          ? 'operation-progress-training-recorded'
-                          : 'operation-progress-training-optional',
-                    ),
-                    size: 18,
-                    color: optionalRecordPresent!
-                        ? colorScheme.primary
-                        : colorScheme.outline,
-                  ),
-                ),
-              ),
-            ] else if (completion == null && onTap != null) ...[
+            if (optionalRecordPresent == null &&
+                completion == null &&
+                onTap != null) ...[
               SizedBox(width: AppSpacing.sm),
               Icon(
                 Icons.add_circle_outline,

@@ -14,6 +14,7 @@ import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
@@ -339,6 +340,21 @@ void main() {
       find.byKey(const ValueKey('operation-progress-status-zone-TRAINING')),
       findsNothing,
     );
+    final title = find.byKey(
+      const ValueKey('operation-progress-title-TRAINING'),
+    );
+    final indicator = find.byKey(
+      const ValueKey('operation-progress-training-optional'),
+    );
+    final titleRect = tester.getRect(title);
+    final indicatorRect = tester.getRect(indicator);
+    final cardRect = tester.getRect(training);
+    expect(indicatorRect.left, greaterThan(titleRect.right));
+    expect(
+      indicatorRect.left - titleRect.right,
+      inInclusiveRange(AppSpacing.sm - .1, AppSpacing.sm + .1),
+    );
+    expect(indicatorRect.right, lessThan(cardRect.right - 16));
     await tester.tap(training);
     await tester.pumpAndSettle();
     expect(openedRoutes.last, AppRoutes.training);
@@ -373,6 +389,32 @@ void main() {
       ),
       findsNothing,
     );
+  });
+
+  testWidgets('TRAINING title indicator stays locally aligned at all widths', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pumpDashboard(tester, width: width);
+      await tester.pumpAndSettle();
+
+      final title = find.byKey(
+        const ValueKey('operation-progress-title-TRAINING'),
+      );
+      final indicator = find.byKey(
+        const ValueKey('operation-progress-training-optional'),
+      );
+      final titleRect = tester.getRect(title);
+      final indicatorRect = tester.getRect(indicator);
+      final cardRect = tester.getRect(_tile('TRAINING'));
+      expect(indicatorRect.left, greaterThan(titleRect.right));
+      expect(
+        indicatorRect.left - titleRect.right,
+        inInclusiveRange(AppSpacing.sm - .1, AppSpacing.sm + .1),
+      );
+      expect(indicatorRect.right, lessThan(cardRect.right - 16));
+      expect(tester.takeException(), isNull);
+    }
   });
 
   for (final entry in const [
