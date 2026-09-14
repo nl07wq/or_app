@@ -305,6 +305,76 @@ void main() {
     );
   });
 
+  testWidgets('TRAINING absent is neutral, passive, and still navigates', (
+    tester,
+  ) async {
+    final openedRoutes = <String?>[];
+    await _pumpDashboard(
+      tester,
+      width: 390,
+      onGenerateRoute: (settings) {
+        openedRoutes.add(settings.name);
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => Scaffold(body: Text('ROUTE ${settings.name}')),
+        );
+      },
+    );
+    await tester.pumpAndSettle();
+
+    final training = _tile('TRAINING');
+    _expectTileText('TRAINING', 'Not recorded');
+    expect(
+      find.byKey(const ValueKey('operation-progress-training-optional')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: training,
+        matching: find.byIcon(Icons.add_circle_outline),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('operation-progress-status-zone-TRAINING')),
+      findsNothing,
+    );
+    await tester.tap(training);
+    await tester.pumpAndSettle();
+    expect(openedRoutes.last, AppRoutes.training);
+  });
+
+  testWidgets('TRAINING record uses the optional blue recorded indicator', (
+    tester,
+  ) async {
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 1,
+      setCount: 3,
+      duration: Duration(minutes: 30),
+      sessionName: 'Strength',
+    );
+    await _pumpDashboard(tester, width: 390);
+    await tester.pumpAndSettle();
+
+    _expectTileText('TRAINING', 'Recorded');
+    final indicator = find.byKey(
+      const ValueKey('operation-progress-training-recorded'),
+    );
+    expect(indicator, findsOneWidget);
+    expect(
+      tester.widget<Icon>(indicator).color,
+      Theme.of(tester.element(_tile('TRAINING'))).colorScheme.primary,
+    );
+    expect(
+      find.descendant(
+        of: _tile('TRAINING'),
+        matching: find.byIcon(Icons.add_circle_outline),
+      ),
+      findsNothing,
+    );
+  });
+
   for (final entry in const [
     ('FOOD', AppRoutes.food),
     ('ACTIVITY', AppRoutes.activity),

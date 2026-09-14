@@ -1044,6 +1044,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           List<String> details = const [],
           DynamicTargetState? targetState,
           DailyCommandCompletionItem? completion,
+          bool? optionalRecordPresent,
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
@@ -1056,6 +1057,7 @@ class _ProgressCardState extends State<_ProgressCard> {
               details: details,
               targetState: targetState,
               completion: completion,
+              optionalRecordPresent: optionalRecordPresent,
             ),
           );
         }
@@ -1137,6 +1139,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                   ? 'Recorded'
                   : 'Not recorded',
               progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
+              optionalRecordPresent: widget.trainingSummary?.completed == true,
               onTap: () => Navigator.pushNamed(context, AppRoutes.training),
             ),
             tile(
@@ -1277,6 +1280,7 @@ class _ProgressRow extends StatelessWidget {
   final List<String> details;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
+  final bool? optionalRecordPresent;
 
   const _ProgressRow({
     required this.label,
@@ -1286,6 +1290,7 @@ class _ProgressRow extends StatelessWidget {
     this.details = const [],
     this.targetState,
     this.completion,
+    this.optionalRecordPresent,
   });
 
   @override
@@ -1313,7 +1318,30 @@ class _ProgressRow extends StatelessWidget {
         Row(
           children: [
             Expanded(child: Text(status)),
-            if (completion == null && onTap != null) ...[
+            if (optionalRecordPresent != null) ...[
+              SizedBox(width: AppSpacing.sm),
+              Semantics(
+                label: optionalRecordPresent!
+                    ? 'Training recorded'
+                    : 'Training not recorded, optional',
+                child: ExcludeSemantics(
+                  child: Icon(
+                    optionalRecordPresent!
+                        ? Icons.check_circle_outline
+                        : Icons.radio_button_unchecked,
+                    key: ValueKey(
+                      optionalRecordPresent!
+                          ? 'operation-progress-training-recorded'
+                          : 'operation-progress-training-optional',
+                    ),
+                    size: 18,
+                    color: optionalRecordPresent!
+                        ? colorScheme.primary
+                        : colorScheme.outline,
+                  ),
+                ),
+              ),
+            ] else if (completion == null && onTap != null) ...[
               SizedBox(width: AppSpacing.sm),
               Icon(
                 Icons.add_circle_outline,
