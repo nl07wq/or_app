@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_provenance_models.dart';
+import 'package:or_app/features/food/models/food_quantity_models.dart';
+import 'package:or_app/features/food/models/nutrition_models.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
+
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   Widget subject() => MaterialApp(
@@ -29,16 +36,129 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('NAME'), findsOneWidget);
+    expect(find.text('ENTRY TYPE'), findsOneWidget);
+    expect(find.text('MEAL TYPE'), findsOneWidget);
 
     for (final label in ['MANUAL', 'FOOD', 'RECIPE', 'MEAL']) {
       expect(find.text(label), findsWidgets);
     }
-    await tester.tap(
-      find.byKey(const ValueKey('food-entry-tab-databaseFood')),
-    );
+    await tester.tap(find.byKey(const ValueKey('food-entry-tab-databaseFood')));
     await tester.pump();
     expect(find.text('SELECT FOOD FROM DATABASE'), findsNothing);
     expect(find.text('NAME'), findsNothing);
+  });
+
+  testWidgets('selector symbols use the app primary color and mode emphasis', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject());
+
+    final primary = Theme.of(
+      tester.element(find.byKey(const ValueKey('food-entry-type-selector'))),
+    ).colorScheme.primary;
+    final mealIcon = tester.widget<Icon>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('food-entry-type-selector')),
+            matching: find.byIcon(Icons.restaurant),
+          )
+          .first,
+    );
+    expect(mealIcon.color, primary);
+
+    await tester.tap(find.byKey(const ValueKey('food-entry-tab-databaseFood')));
+    await tester.pump();
+    final foodText = tester.widget<Text>(find.text('FOOD').first);
+    expect(foodText.style?.color, primary);
+    expect(foodText.style?.fontWeight, FontWeight.bold);
+  });
+
+  testWidgets(
+    'database search uses the full master list and supports collapse',
+    (tester) async {
+      await _installFoods(10);
+      await tester.pumpWidget(subject());
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-tab-databaseFood')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Food 0'), findsOneWidget);
+      expect(find.text('Food 4'), findsOneWidget);
+      expect(find.text('Food 5'), findsNothing);
+      expect(find.text('さらに表示'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('food-entry-search-databaseFood')),
+        'Food 9',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(9)}')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-clear-search-databaseFood')),
+      );
+      await tester.pumpAndSettle();
+      final expand = find.byKey(
+        const ValueKey('food-entry-expand-databaseFood'),
+      );
+      await tester.ensureVisible(expand);
+      await tester.tap(expand);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(9)}')),
+        findsOneWidget,
+      );
+      expect(find.text('折りたたむ'), findsOneWidget);
+
+      final collapse = find.byKey(
+        const ValueKey('food-entry-collapse-databaseFood'),
+      );
+      await tester.ensureVisible(collapse);
+      await tester.tap(collapse);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(9)}')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('successful Food add clears search and restores compact list', (
+    tester,
+  ) async {
+    await _installFoods(6);
+    await tester.pumpWidget(subject());
+    await tester.tap(find.byKey(const ValueKey('food-entry-tab-databaseFood')));
+    await tester.pumpAndSettle();
+    final expand = find.byKey(const ValueKey('food-entry-expand-databaseFood'));
+    await tester.ensureVisible(expand);
+    await tester.tap(expand);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('food-entry-search-databaseFood')),
+      'Food 5',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('food-db-add')));
+    await tester.pumpAndSettle();
+
+    final search = tester.widget<TextField>(
+      find.byKey(const ValueKey('food-entry-search-databaseFood')),
+    );
+    expect(search.controller!.text, isEmpty);
+    expect(
+      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+      findsNothing,
+    );
+    expect(find.text('さらに表示'), findsOneWidget);
   });
 
   testWidgets('water disables meal type and hides database modes', (
@@ -71,9 +191,50 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
+      await _installFoods(6);
       await tester.pumpWidget(subject());
-      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-tab-databaseFood')),
+      );
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
   }
 }
+
+Future<void> _installFoods(int count) async {
+  final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+  AppRepositoryRegistry.install(container);
+  addTearDown(AppRepositoryRegistry.resetForTesting);
+  final timestamp = DateTime.utc(2026, 9, 15);
+  for (var index = 0; index < count; index++) {
+    await container.foodCatalog.create(
+      FoodCatalogEntry(
+        foodId: _foodId(index),
+        name: 'Food $index',
+        category: FoodCatalogCategory.ingredient,
+        baseQuantity: FoodQuantityDefinition(
+          value: 100,
+          unit: FoodQuantityUnit.gram,
+        ),
+        nutrition: NutritionSnapshot(
+          calories: 100,
+          protein: 10,
+          fat: 5,
+          carbohydrate: 20,
+        ),
+        nutritionStatus: NutritionStatus.declared,
+        provenance: FoodDataProvenance(
+          sourceType: FoodProvenanceSourceType.userInput,
+          capturedAt: timestamp,
+        ),
+        isArchived: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      ),
+    );
+  }
+}
+
+String _foodId(int index) =>
+    '00000000-0000-4000-8000-${index.toString().padLeft(12, '0')}';

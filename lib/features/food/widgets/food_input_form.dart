@@ -72,7 +72,11 @@ class _SelectorOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
-    children: [Icon(icon, size: 18), const SizedBox(width: 6), Text(label)],
+    children: [
+      Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 6),
+      Text(label),
+    ],
   );
 }
 
@@ -101,6 +105,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final memoController = TextEditingController();
   final foodMemoController = TextEditingController();
   final _pendingQuantityController = TextEditingController();
+  final _foodSearchController = TextEditingController();
+  final _recipeSearchController = TextEditingController();
+  final _mealSearchController = TextEditingController();
 
   MealType mealType = MealType.breakfast;
 
@@ -137,6 +144,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   _FoodEntryInputMode _inputMode = _FoodEntryInputMode.manual;
   _DatabaseFoodSelection? _pendingDatabaseSelection;
   bool _addingDatabaseItem = false;
+  bool _foodListExpanded = false;
+  bool _recipeListExpanded = false;
+  bool _mealListExpanded = false;
 
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
@@ -228,6 +238,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     memoController.dispose();
     foodMemoController.dispose();
     _pendingQuantityController.dispose();
+    _foodSearchController.dispose();
+    _recipeSearchController.dispose();
+    _mealSearchController.dispose();
     super.dispose();
   }
 
@@ -850,6 +863,25 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
   }
 
+  void _resetDatabaseDiscovery(_FoodEntryInputMode mode) {
+    switch (mode) {
+      case _FoodEntryInputMode.databaseFood:
+        _foodSearchController.clear();
+        _foodListExpanded = false;
+        return;
+      case _FoodEntryInputMode.databaseRecipe:
+        _recipeSearchController.clear();
+        _recipeListExpanded = false;
+        return;
+      case _FoodEntryInputMode.databaseMeal:
+        _mealSearchController.clear();
+        _mealListExpanded = false;
+        return;
+      case _FoodEntryInputMode.manual:
+        return;
+    }
+  }
+
   void _addRecipeDirect(FoodRecipeDefinition recipe) {
     if (_addingDatabaseItem) return;
     final item = _databaseRecipeItem(recipe, 1);
@@ -865,6 +897,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         recipeSources: [recipe],
         units: [FoodQuantityUnit.serving],
       );
+      _resetDatabaseDiscovery(_FoodEntryInputMode.databaseRecipe);
       inputError = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -888,6 +921,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           recipeSources: expansion.recipeSources,
           units: expansion.quantityUnits,
         );
+        _resetDatabaseDiscovery(_FoodEntryInputMode.databaseMeal);
         inputError = null;
       });
     } on FoodMealMasterExpansionException catch (error) {
@@ -942,6 +976,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           );
           _pendingDatabaseSelection = null;
           _pendingQuantityController.clear();
+          _resetDatabaseDiscovery(_FoodEntryInputMode.databaseFood);
           inputError = null;
         });
       } else if (pending.value case final FoodRecipeDefinition recipe) {
@@ -1159,7 +1194,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
   Widget _entryTypeControls() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text('Entry Type', style: TextStyle(fontWeight: FontWeight.bold)),
+      Text(
+        'ENTRY TYPE',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.bold,
+          letterSpacing: .6,
+        ),
+      ),
       DropdownButtonFormField<bool>(
         key: const ValueKey('food-entry-type-selector'),
         initialValue: isWaterEntry,
@@ -1199,9 +1240,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        'Meal Type',
-        style: TextStyle(
+        'MEAL TYPE',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.bold,
+          letterSpacing: .6,
           color: isWaterEntry
               ? Theme.of(context).colorScheme.onSurfaceVariant
               : null,
@@ -1242,7 +1284,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Widget _entryAndMealTypeControls() => LayoutBuilder(
     builder: (context, constraints) {
-      final useTwoColumns = MediaQuery.sizeOf(context).width >= 320;
+      final useTwoColumns = MediaQuery.sizeOf(context).width >= 360;
       if (!useTwoColumns) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1273,47 +1315,62 @@ class _FoodInputFormState extends State<FoodInputForm> {
     MealType.training => Icons.fitness_center,
   };
 
-  Widget _inputModeTabs() => GestureDetector(
-    onHorizontalDragEnd: (details) =>
-        _swipeInputMode(details.primaryVelocity ?? 0),
-    child: Row(
-      key: const ValueKey('food-entry-input-mode-tabs'),
-      children: [
-        for (final mode in _FoodEntryInputMode.values)
-          Expanded(
-            child: InkWell(
-              key: ValueKey('food-entry-tab-${mode.name}'),
-              onTap: _isSaving ? null : () => _switchInputMode(mode),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _inputModeLabel(mode),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.clip,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: _inputMode == mode
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
+  Widget _inputModeTabs() => LayoutBuilder(
+    builder: (context, constraints) {
+      final textStyle =
+          (constraints.maxWidth >= 300
+                  ? Theme.of(context).textTheme.labelLarge
+                  : Theme.of(context).textTheme.labelMedium)
+              ?.copyWith(fontSize: constraints.maxWidth >= 300 ? 14 : 12);
+      final colors = Theme.of(context).colorScheme;
+      return GestureDetector(
+        onHorizontalDragEnd: (details) =>
+            _swipeInputMode(details.primaryVelocity ?? 0),
+        child: Row(
+          key: const ValueKey('food-entry-input-mode-tabs'),
+          children: [
+            for (final mode in _FoodEntryInputMode.values)
+              Expanded(
+                child: InkWell(
+                  key: ValueKey('food-entry-tab-${mode.name}'),
+                  onTap: _isSaving ? null : () => _switchInputMode(mode),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      height: 2,
-                      color: _inputMode == mode
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.transparent,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _inputModeLabel(mode),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.clip,
+                          style: textStyle?.copyWith(
+                            color: _inputMode == mode
+                                ? colors.primary
+                                : colors.onSurfaceVariant,
+                            fontWeight: _inputMode == mode
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: 2,
+                          color: _inputMode == mode
+                              ? colors.primary
+                              : Colors.transparent,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-      ],
-    ),
+          ],
+        ),
+      );
+    },
   );
 
   String _inputModeLabel(_FoodEntryInputMode mode) => switch (mode) {
@@ -1362,6 +1419,111 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _switchInputMode(_FoodEntryInputMode.values[index]);
   }
 
+  static const _compactMasterListLimit = 5;
+
+  TextEditingController _searchControllerFor(_FoodEntryInputMode mode) =>
+      switch (mode) {
+        _FoodEntryInputMode.databaseFood => _foodSearchController,
+        _FoodEntryInputMode.databaseRecipe => _recipeSearchController,
+        _FoodEntryInputMode.databaseMeal => _mealSearchController,
+        _FoodEntryInputMode.manual => _foodSearchController,
+      };
+
+  bool _isMasterListExpanded(_FoodEntryInputMode mode) => switch (mode) {
+    _FoodEntryInputMode.databaseFood => _foodListExpanded,
+    _FoodEntryInputMode.databaseRecipe => _recipeListExpanded,
+    _FoodEntryInputMode.databaseMeal => _mealListExpanded,
+    _FoodEntryInputMode.manual => false,
+  };
+
+  void _setMasterListExpanded(_FoodEntryInputMode mode, bool expanded) {
+    setState(() {
+      switch (mode) {
+        case _FoodEntryInputMode.databaseFood:
+          _foodListExpanded = expanded;
+          break;
+        case _FoodEntryInputMode.databaseRecipe:
+          _recipeListExpanded = expanded;
+          break;
+        case _FoodEntryInputMode.databaseMeal:
+          _mealListExpanded = expanded;
+          break;
+        case _FoodEntryInputMode.manual:
+          break;
+      }
+    });
+  }
+
+  bool _matchesSearch(String query, Iterable<String?> values) {
+    final normalizedQuery = query.trim().toLowerCase();
+    return normalizedQuery.isEmpty ||
+        values.any(
+          (value) =>
+              (value ?? '').trim().toLowerCase().contains(normalizedQuery),
+        );
+  }
+
+  Widget _masterSearch({
+    required _FoodEntryInputMode mode,
+    required String hint,
+  }) {
+    final controller = _searchControllerFor(mode);
+    return SizedBox(
+      height: 40,
+      child: TextField(
+        key: ValueKey('food-entry-search-${mode.name}'),
+        controller: controller,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          hintText: hint,
+          isDense: true,
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  key: ValueKey('food-entry-clear-search-${mode.name}'),
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'CLEAR SEARCH',
+                  onPressed: () => setState(controller.clear),
+                ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  Widget _masterListDisclosure({
+    required _FoodEntryInputMode mode,
+    required int total,
+    required bool searching,
+  }) {
+    if (searching || total <= _compactMasterListLimit) {
+      return const SizedBox.shrink();
+    }
+    final expanded = _isMasterListExpanded(mode);
+    return Center(
+      child: TextButton(
+        key: ValueKey(
+          'food-entry-${expanded ? 'collapse' : 'expand'}-${mode.name}',
+        ),
+        onPressed: () => _setMasterListExpanded(mode, !expanded),
+        child: Text(expanded ? '折りたたむ' : 'さらに表示'),
+      ),
+    );
+  }
+
+  List<T> _visibleMasterEntries<T>(
+    List<T> entries,
+    _FoodEntryInputMode mode,
+    bool searching,
+  ) => searching || _isMasterListExpanded(mode)
+      ? entries
+      : entries.take(_compactMasterListLimit).toList(growable: false);
+
   Widget _inlineFoodList() => FutureBuilder<List<FoodCatalogEntry>>(
     future: AppRepositoryRegistry.container.foodCatalog.list(),
     builder: (context, snapshot) {
@@ -1371,25 +1533,46 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final entries =
           snapshot.data
               ?.where((entry) => !entry.isArchived)
+              .where(
+                (entry) => _matchesSearch(_foodSearchController.text, [
+                  entry.name,
+                  entry.brand,
+                ]),
+              )
               .toList(growable: false) ??
           const <FoodCatalogEntry>[];
-      if (entries.isEmpty) return const Text('食品が見つかりません');
+      final searching = _foodSearchController.text.trim().isNotEmpty;
+      final visible = _visibleMasterEntries(
+        entries,
+        _FoodEntryInputMode.databaseFood,
+        searching,
+      );
       return Column(
         key: const ValueKey('food-entry-inline-food-list'),
         children: [
-          for (final entry in entries)
-            ListTile(
-              key: ValueKey('food-entry-inline-food-${entry.foodId}'),
-              leading: const Icon(Icons.restaurant_outlined),
-              title: Text(entry.name),
-              subtitle: Text(
-                FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
+          _masterSearch(mode: _FoodEntryInputMode.databaseFood, hint: '食品を検索'),
+          AppSpacing.gapSM,
+          if (entries.isEmpty)
+            const Text('食品が見つかりません')
+          else
+            for (final entry in visible)
+              ListTile(
+                key: ValueKey('food-entry-inline-food-${entry.foodId}'),
+                leading: const Icon(Icons.restaurant_outlined),
+                title: Text(entry.name),
+                subtitle: Text(
+                  FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _addingDatabaseItem
+                    ? null
+                    : () => _selectDatabaseFood(entry),
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _addingDatabaseItem
-                  ? null
-                  : () => _selectDatabaseFood(entry),
-            ),
+          _masterListDisclosure(
+            mode: _FoodEntryInputMode.databaseFood,
+            total: entries.length,
+            searching: searching,
+          ),
         ],
       );
     },
@@ -1404,22 +1587,44 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final recipes =
           snapshot.data
               ?.where((recipe) => !recipe.isArchived)
+              .where(
+                (recipe) =>
+                    _matchesSearch(_recipeSearchController.text, [recipe.name]),
+              )
               .toList(growable: false) ??
           const <FoodRecipeDefinition>[];
-      if (recipes.isEmpty) return const Text('RECIPE NOT FOUND');
+      final searching = _recipeSearchController.text.trim().isNotEmpty;
+      final visible = _visibleMasterEntries(
+        recipes,
+        _FoodEntryInputMode.databaseRecipe,
+        searching,
+      );
       return Column(
         key: const ValueKey('food-entry-inline-recipe-list'),
         children: [
-          for (final recipe in recipes)
-            ListTile(
-              key: ValueKey('food-entry-inline-recipe-${recipe.recipeId}'),
-              leading: const Icon(Icons.menu_book_outlined),
-              title: Text(recipe.name),
-              trailing: const Icon(Icons.add_circle_outline),
-              onTap: _addingDatabaseItem
-                  ? null
-                  : () => _addRecipeDirect(recipe),
-            ),
+          _masterSearch(
+            mode: _FoodEntryInputMode.databaseRecipe,
+            hint: 'レシピを検索',
+          ),
+          AppSpacing.gapSM,
+          if (recipes.isEmpty)
+            const Text('RECIPE NOT FOUND')
+          else
+            for (final recipe in visible)
+              ListTile(
+                key: ValueKey('food-entry-inline-recipe-${recipe.recipeId}'),
+                leading: const Icon(Icons.menu_book_outlined),
+                title: Text(recipe.name),
+                trailing: const Icon(Icons.add_circle_outline),
+                onTap: _addingDatabaseItem
+                    ? null
+                    : () => _addRecipeDirect(recipe),
+              ),
+          _masterListDisclosure(
+            mode: _FoodEntryInputMode.databaseRecipe,
+            total: recipes.length,
+            searching: searching,
+          ),
         ],
       );
     },
@@ -1434,21 +1639,43 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final meals =
           snapshot.data
               ?.where((meal) => !meal.isArchived)
+              .where(
+                (meal) =>
+                    _matchesSearch(_mealSearchController.text, [meal.name]),
+              )
               .toList(growable: false) ??
           const <FoodMealMaster>[];
-      if (meals.isEmpty) return const Text('MEAL NOT FOUND');
+      final searching = _mealSearchController.text.trim().isNotEmpty;
+      final visible = _visibleMasterEntries(
+        meals,
+        _FoodEntryInputMode.databaseMeal,
+        searching,
+      );
       return Column(
         key: const ValueKey('food-entry-inline-meal-list'),
         children: [
-          for (final meal in meals)
-            ListTile(
-              key: ValueKey('food-entry-inline-meal-${meal.mealMasterId}'),
-              leading: const Icon(Icons.view_list_outlined),
-              title: Text(meal.name),
-              subtitle: Text('${meal.components.length} ITEMS'),
-              trailing: const Icon(Icons.add_circle_outline),
-              onTap: _addingDatabaseItem ? null : () => _addMealDirect(meal),
-            ),
+          _masterSearch(
+            mode: _FoodEntryInputMode.databaseMeal,
+            hint: '食事セットを検索',
+          ),
+          AppSpacing.gapSM,
+          if (meals.isEmpty)
+            const Text('MEAL NOT FOUND')
+          else
+            for (final meal in visible)
+              ListTile(
+                key: ValueKey('food-entry-inline-meal-${meal.mealMasterId}'),
+                leading: const Icon(Icons.view_list_outlined),
+                title: Text(meal.name),
+                subtitle: Text('${meal.components.length} ITEMS'),
+                trailing: const Icon(Icons.add_circle_outline),
+                onTap: _addingDatabaseItem ? null : () => _addMealDirect(meal),
+              ),
+          _masterListDisclosure(
+            mode: _FoodEntryInputMode.databaseMeal,
+            total: meals.length,
+            searching: searching,
+          ),
         ],
       );
     },
