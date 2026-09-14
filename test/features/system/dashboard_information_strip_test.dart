@@ -69,21 +69,22 @@ void main() {
     expect(moving, lessThan(initial));
 
     final viewportRect = tester.getRect(viewport);
-    var fullyExited = false;
-    for (var tick = 0; tick < 70; tick++) {
-      await tester.pump(const Duration(milliseconds: 100));
-      if (tester.getRect(text).right <= viewportRect.left) {
-        fullyExited = true;
-        break;
-      }
-    }
-    expect(fullyExited, isTrue);
-    expect(tester.getRect(text).right, lessThanOrEqualTo(viewportRect.left));
+    await tester.pump(const Duration(milliseconds: 5100));
+    expect(
+      tester.getRect(text).right,
+      lessThanOrEqualTo(viewportRect.left - 4),
+    );
 
-    await tester.pump(const Duration(milliseconds: 1200));
-    expect(tester.getRect(text).right, lessThanOrEqualTo(viewportRect.left));
-
+    // Complete the travel frame before advancing the terminal pause timer.
     await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(
+      tester.getRect(text).right,
+      lessThanOrEqualTo(viewportRect.left - 4),
+    );
+
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump();
     expect(tester.getRect(text).left, greaterThanOrEqualTo(viewportRect.right));
   });
 
@@ -101,6 +102,29 @@ void main() {
       );
     }
   });
+
+  testWidgets('keeps the exit safety margin at supported dashboard widths', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await tester.pumpWidget(_app(disableAnimations: false, width: width));
+      final text = find.byKey(
+        const ValueKey('dashboard-information-marquee-text'),
+      );
+      final viewport = find.byKey(
+        const ValueKey('dashboard-information-ticker-viewport'),
+      );
+      await tester.pump(const Duration(milliseconds: 900));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 5100));
+      expect(
+        tester.getRect(text).right,
+        lessThanOrEqualTo(tester.getRect(viewport).left - 4),
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
 }
 
 Widget _app({required bool disableAnimations, double width = 390}) =>
@@ -112,6 +136,7 @@ Widget _app({required bool disableAnimations, double width = 390}) =>
         ),
         child: Scaffold(
           body: DashboardInformationStrip(
+            key: ValueKey('dashboard-information-$width'),
             notices: [
               InformationNotice(
                 id: 'recovery-v2-review-ready:v2-beta-1',

@@ -181,7 +181,7 @@ void main() {
   });
 
   testWidgets(
-    'OPERATION PROGRESS reuses canonical completion details without replacing body navigation',
+    'OPERATION PROGRESS keeps completion navigation and help as separate tap zones',
     (tester) async {
       await _installDdtStatus();
       final openedRoutes = <String?>[];
@@ -204,9 +204,24 @@ void main() {
         find.byKey(const ValueKey('operation-progress-info-STATUS')),
         findsOneWidget,
       );
+      final statusZone = find.byKey(
+        const ValueKey('operation-progress-status-zone-STATUS'),
+      );
+      expect(tester.getSize(statusZone).width, 48);
+      expect(
+        tester
+            .getTopRight(
+              find.byKey(
+                const ValueKey('operation-progress-completion-STATUS'),
+              ),
+            )
+            .dx,
+        lessThan(tester.getTopRight(_tile('STATUS')).dx - 15),
+      );
 
-      await tester.tap(
-        find.byKey(const ValueKey('operation-progress-info-STATUS')),
+      final statusZoneRect = tester.getRect(statusZone);
+      await tester.tapAt(
+        Offset(statusZoneRect.right - 2, statusZoneRect.top + 20),
       );
       await tester.pumpAndSettle();
       expect(
@@ -218,11 +233,96 @@ void main() {
       await tester.tapAt(const Offset(4, 4));
       await tester.pumpAndSettle();
 
-      await tester.tap(_tile('STATUS'));
+      await tester.tap(
+        find.byKey(const ValueKey('operation-progress-body-STATUS')),
+      );
       await tester.pumpAndSettle();
       expect(openedRoutes.last, AppRoutes.morning);
     },
   );
+
+  testWidgets('completion cards remove stray quick add controls', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    await _pumpDashboard(tester, width: 390);
+    await tester.pumpAndSettle();
+
+    for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
+      expect(
+        find.descendant(
+          of: _tile(label),
+          matching: find.byIcon(Icons.add_circle_outline),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(ValueKey('operation-progress-body-$label')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(ValueKey('operation-progress-status-zone-$label')),
+        findsOneWidget,
+      );
+    }
+    expect(tester.getSize(_tile('STATUS')).height, lessThanOrEqualTo(100));
+    expect(tester.getSize(_tile('FOOD')).height, lessThanOrEqualTo(100));
+    expect(
+      find.descendant(
+        of: _tile('WATER'),
+        matching: find.byIcon(Icons.add_circle_outline),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  for (final entry in const [
+    ('FOOD', AppRoutes.food),
+    ('ACTIVITY', AppRoutes.activity),
+  ]) {
+    testWidgets('${entry.$1} status zone opens details without navigation', (
+      tester,
+    ) async {
+      await _installDdtStatus();
+      final openedRoutes = <String?>[];
+      await _pumpDashboard(
+        tester,
+        width: 390,
+        onGenerateRoute: (settings) {
+          openedRoutes.add(settings.name);
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => Scaffold(body: Text('ROUTE ${settings.name}')),
+          );
+        },
+      );
+      await tester.pumpAndSettle();
+
+      final zone = find.byKey(
+        ValueKey('operation-progress-status-zone-${entry.$1}'),
+      );
+      final zoneRect = tester.getRect(zone);
+      await tester.tapAt(Offset(zoneRect.right - 2, zoneRect.top + 20));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(
+          ValueKey(
+            'semantic-help-popover-completion-${entry.$1.toLowerCase()}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(openedRoutes, isEmpty);
+
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('operation-progress-body-${entry.$1}')),
+      );
+      await tester.pumpAndSettle();
+      expect(openedRoutes.last, entry.$2);
+    });
+  }
 
   testWidgets('OPERATION DATE and live time use fixed flip tile dimensions', (
     tester,

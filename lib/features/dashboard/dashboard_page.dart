@@ -1297,20 +1297,12 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-            ),
-            if (completion != null)
-              _CompletionHelpButton(completion: completion!),
-          ],
-        ),
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
         AppSpacing.gapXS,
         Row(
           children: [
             Expanded(child: Text(status)),
-            if (onTap != null) ...[
+            if (completion == null && onTap != null) ...[
               SizedBox(width: AppSpacing.sm),
               Icon(
                 Icons.add_circle_outline,
@@ -1336,19 +1328,56 @@ class _ProgressRow extends StatelessWidget {
       ],
     );
 
-    return Material(
-      color: completed
-          ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
-          : Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: completed
-              ? semanticColor ?? AppColors.success
-              : semanticColor ??
-                    colorScheme.outlineVariant.withValues(alpha: 0.6),
-        ),
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(8),
+      side: BorderSide(
+        color: completed
+            ? semanticColor ?? AppColors.success
+            : semanticColor ??
+                  colorScheme.outlineVariant.withValues(alpha: 0.6),
       ),
+    );
+    final color = completed
+        ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
+        : Colors.transparent;
+    if (completion != null) {
+      return Material(
+        color: color,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: 'Open $label',
+                child: InkWell(
+                  key: ValueKey('operation-progress-body-$label'),
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.md,
+                    ),
+                    child: content,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              key: ValueKey('operation-progress-status-zone-$label'),
+              width: 48,
+              child: _CompletionHelpButton(completion: completion!),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Material(
+      color: color,
+      shape: shape,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: onTap,
@@ -1397,16 +1426,19 @@ class _CompletionHelpButton extends StatelessWidget {
         label: '${completion.label} completion details',
         child: SizedBox(
           key: ValueKey('operation-progress-info-${completion.label}'),
-          width: 40,
-          height: 40,
-          child: Center(
-            child: Icon(
-              icon,
-              key: ValueKey(
-                'operation-progress-completion-${completion.label}',
+          width: 48,
+          height: 48,
+          child: Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: Center(
+              child: Icon(
+                icon,
+                key: ValueKey(
+                  'operation-progress-completion-${completion.label}',
+                ),
+                color: color,
+                size: 20,
               ),
-              color: color,
-              size: 20,
             ),
           ),
         ),

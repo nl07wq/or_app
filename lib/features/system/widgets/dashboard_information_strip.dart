@@ -100,6 +100,7 @@ class _InformationMarqueeState extends State<_InformationMarquee>
   static const _initialPause = Duration(milliseconds: 900);
   static const _terminalPause = Duration(milliseconds: 1300);
   static const _travel = Duration(milliseconds: 5200);
+  static const _exitSafetyMargin = 6.0;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -183,29 +184,29 @@ class _InformationMarqueeState extends State<_InformationMarquee>
           maxLines: 1,
         )..layout();
         final width = painter.width;
-        // Leave one logical pixel beyond the measured glyph bounds so a
-        // sub-pixel render-width difference cannot reset while a tail is visible.
-        final travel = constraints.maxWidth + width + 1;
-      return AnimatedBuilder(
-        animation: _controller,
-        child: Text(
-          widget.text,
-          key: const ValueKey('dashboard-information-marquee-text'),
-          maxLines: 1,
-          style: style,
-        ),
-        builder: (context, child) => Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned(
-              key: const ValueKey('dashboard-information-marquee-positioned'),
-              left: constraints.maxWidth - (travel * _controller.value),
-              top: 0,
-              child: child!,
-            ),
-          ],
-        ),
-      );
+        // Keep the final glyph safely outside the ticker viewport despite
+        // antialiasing and sub-pixel raster bounds.
+        final travel = constraints.maxWidth + width + _exitSafetyMargin;
+        return AnimatedBuilder(
+          animation: _controller,
+          child: Text(
+            widget.text,
+            key: const ValueKey('dashboard-information-marquee-text'),
+            maxLines: 1,
+            style: style,
+          ),
+          builder: (context, child) => Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                key: const ValueKey('dashboard-information-marquee-positioned'),
+                left: constraints.maxWidth - (travel * _controller.value),
+                top: 0,
+                child: child!,
+              ),
+            ],
+          ),
+        );
       },
     ),
   );
