@@ -202,7 +202,7 @@ void main() {
           .widget<GridView>(find.byType(GridView))
           .childrenDelegate
           .estimatedChildCount,
-      12,
+      13,
     );
     final expectedChoiceKeys = {
       'food-thumbnail-choice-not-set',

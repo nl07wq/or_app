@@ -26,6 +26,7 @@ enum FoodVisualKey {
   egg,
   dairy,
   grain,
+  plate,
   vegetable,
   fruit,
   snack,
