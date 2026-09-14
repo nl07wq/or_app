@@ -31,23 +31,37 @@ class DashboardInformationStrip extends StatelessWidget {
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Symbols.breaking_news,
-              color: Theme.of(context).colorScheme.primary,
-              semanticLabel: 'INFORMATION',
+            Row(
+              children: [
+                Icon(
+                  Symbols.breaking_news,
+                  color: Theme.of(context).colorScheme.primary,
+                  semanticLabel: 'INFORMATION',
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'INFORMATION',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const Spacer(),
+                if (notices.length > 1) ...[
+                  _NoticeCount(count: notices.length),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                const Icon(Icons.chevron_right, size: 20),
+              ],
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Text('INFORMATION', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _InformationMarquee(text: notice.title)),
-            if (notices.length > 1) ...[
-              const SizedBox(width: AppSpacing.xs),
-              _NoticeCount(count: notices.length),
-            ],
-            const SizedBox(width: AppSpacing.xs),
-            const Icon(Icons.chevron_right, size: 20),
+            AppSpacing.gapXS,
+            SizedBox(
+              key: const ValueKey('dashboard-information-ticker-viewport'),
+              height: 20,
+              width: double.infinity,
+              child: _InformationMarquee(text: notice.title),
+            ),
           ],
         ),
       ),
@@ -126,14 +140,16 @@ class _InformationMarqueeState extends State<_InformationMarquee>
 
   void _onStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed && !_reducedMotion) {
-      _restart(after: _terminalPause);
+      _restart(after: _terminalPause, resetToStart: false);
     }
   }
 
-  void _restart({required Duration after}) {
+  void _restart({required Duration after, bool resetToStart = true}) {
     _pauseTimer?.cancel();
-    _controller.stop();
-    _controller.value = 0;
+    if (resetToStart) {
+      _controller.stop();
+      _controller.value = 0;
+    }
     _pauseTimer = Timer(after, () {
       if (mounted && !_reducedMotion && _tickerEnabled) {
         _controller.forward(from: 0);
@@ -163,10 +179,12 @@ class _InformationMarqueeState extends State<_InformationMarquee>
       final width = painter.width;
       final travel = constraints.maxWidth + width;
       return ClipRect(
+        key: const ValueKey('dashboard-information-marquee-clip'),
         child: AnimatedBuilder(
           animation: _controller,
           child: Text(widget.text, maxLines: 1, style: style),
           builder: (context, child) => Transform.translate(
+            key: const ValueKey('dashboard-information-marquee-transform'),
             offset: Offset(
               constraints.maxWidth - (travel * _controller.value),
               0,

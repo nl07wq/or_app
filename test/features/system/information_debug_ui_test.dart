@@ -60,7 +60,7 @@ void main() {
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     appInitializationController.markReady();
     await InformationNoticeService().createDebugNotice(
-      title: 'INFORMATION TEST',
+      title: 'TEST INFORMATION — RECOVERY V2 BETA VALIDATION REVIEW READY',
       message: 'Dashboard pipeline test',
       priority: InformationNoticePriority.informational,
     );
@@ -69,6 +69,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('dashboard-information-strip')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('TEST INFORMATION — RECOVERY V2 BETA VALIDATION REVIEW READY'),
       findsOneWidget,
     );
 
