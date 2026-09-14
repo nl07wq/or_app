@@ -19,11 +19,18 @@ void main() {
       expect(find.byIcon(Symbols.breaking_news), findsOneWidget);
       final heading = find.text('INFORMATION');
       final notice = find.text('RECOVERY V2 BETA — REVIEW READY');
+      final viewport = find.byKey(
+        const ValueKey('dashboard-information-ticker-viewport'),
+      );
       expect(
         tester.getTopLeft(notice).dy,
         greaterThan(tester.getBottomLeft(heading).dy),
       );
       expect(tester.widget<Text>(notice).overflow, TextOverflow.ellipsis);
+      expect(
+        tester.getBottomLeft(notice).dy,
+        lessThanOrEqualTo(tester.getBottomLeft(viewport).dy - 2),
+      );
       expect(
         find.byKey(const ValueKey('dashboard-information-marquee-transform')),
         findsNothing,
@@ -42,47 +49,42 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(_app(disableAnimations: false));
-    final text = find.text('RECOVERY V2 BETA — REVIEW READY');
+    final text = find.byKey(
+      const ValueKey('dashboard-information-marquee-text'),
+    );
     final viewport = find.byKey(
       const ValueKey('dashboard-information-ticker-viewport'),
     );
-    final transform = find.byKey(
-      const ValueKey('dashboard-information-marquee-transform'),
+    final position = find.byKey(
+      const ValueKey('dashboard-information-marquee-positioned'),
     );
-    final initial = tester
-        .widget<Transform>(transform)
-        .transform
-        .getTranslation()
-        .x;
-    expect(initial, moreOrLessEquals(tester.getSize(viewport).width));
+    final initial = tester.getRect(position).left;
+    expect(initial, moreOrLessEquals(tester.getRect(viewport).right));
 
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    final moving = tester
-        .widget<Transform>(transform)
-        .transform
-        .getTranslation()
-        .x;
+    final moving = tester.getRect(position).left;
 
     expect(moving, lessThan(initial));
 
-    await tester.pump(const Duration(milliseconds: 5100));
-    await tester.pump();
-    final end = tester
-        .widget<Transform>(transform)
-        .transform
-        .getTranslation()
-        .x;
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: 'RECOVERY V2 BETA — REVIEW READY',
-        style: tester.widget<Text>(text).style,
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout();
-    expect(end, moreOrLessEquals(-textPainter.width));
+    final viewportRect = tester.getRect(viewport);
+    var fullyExited = false;
+    for (var tick = 0; tick < 70; tick++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (tester.getRect(text).right <= viewportRect.left) {
+        fullyExited = true;
+        break;
+      }
+    }
+    expect(fullyExited, isTrue);
+    expect(tester.getRect(text).right, lessThanOrEqualTo(viewportRect.left));
+
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(tester.getRect(text).right, lessThanOrEqualTo(viewportRect.left));
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getRect(text).left, greaterThanOrEqualTo(viewportRect.right));
   });
 
   testWidgets('keeps a compact two-row strip at supported dashboard widths', (

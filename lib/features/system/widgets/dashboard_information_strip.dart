@@ -55,10 +55,9 @@ class DashboardInformationStrip extends StatelessWidget {
                 const Icon(Icons.chevron_right, size: 20),
               ],
             ),
-            AppSpacing.gapXS,
             SizedBox(
               key: const ValueKey('dashboard-information-ticker-viewport'),
-              height: 20,
+              height: 26,
               width: double.infinity,
               child: _InformationMarquee(text: notice.title),
             ),
@@ -165,34 +164,49 @@ class _InformationMarqueeState extends State<_InformationMarquee>
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final style = Theme.of(context).textTheme.bodyMedium;
-      if (_reducedMotion) {
-        return Text(widget.text, maxLines: 1, overflow: TextOverflow.ellipsis);
-      }
-      final painter = TextPainter(
-        text: TextSpan(text: widget.text, style: style),
-        textDirection: Directionality.of(context),
-        maxLines: 1,
-      )..layout();
-      final width = painter.width;
-      final travel = constraints.maxWidth + width;
-      return ClipRect(
-        key: const ValueKey('dashboard-information-marquee-clip'),
-        child: AnimatedBuilder(
-          animation: _controller,
-          child: Text(widget.text, maxLines: 1, style: style),
-          builder: (context, child) => Transform.translate(
-            key: const ValueKey('dashboard-information-marquee-transform'),
-            offset: Offset(
-              constraints.maxWidth - (travel * _controller.value),
-              0,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final style = Theme.of(context).textTheme.bodyMedium;
+        if (_reducedMotion) {
+          return Text(
+            widget.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+        }
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final width = painter.width;
+        // Leave one logical pixel beyond the measured glyph bounds so a
+        // sub-pixel render-width difference cannot reset while a tail is visible.
+        final travel = constraints.maxWidth + width + 1;
+      return AnimatedBuilder(
+        animation: _controller,
+        child: Text(
+          widget.text,
+          key: const ValueKey('dashboard-information-marquee-text'),
+          maxLines: 1,
+          style: style,
+        ),
+        builder: (context, child) => Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned(
+              key: const ValueKey('dashboard-information-marquee-positioned'),
+              left: constraints.maxWidth - (travel * _controller.value),
+              top: 0,
+              child: child!,
             ),
-            child: child,
-          ),
+          ],
         ),
       );
-    },
+      },
+    ),
   );
 }
