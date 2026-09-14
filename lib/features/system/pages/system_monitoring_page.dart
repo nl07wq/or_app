@@ -8,7 +8,9 @@ import '../../repositories/app_repository_container.dart';
 import '../../report_sync/services/daily_brief_plantar_risk_review_service.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 import '../models/information_notice.dart';
+import '../services/app_metadata.dart';
 import '../services/information_notice_service.dart';
+import '../widgets/dashboard_information_strip.dart';
 
 class SystemMonitoringPage extends StatefulWidget {
   const SystemMonitoringPage({super.key});
@@ -187,6 +189,51 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
   );
 }
 
+class _InformationMarqueeRuntimeDiagnostics extends StatelessWidget {
+  const _InformationMarqueeRuntimeDiagnostics();
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => ValueListenableBuilder<InformationMarqueeRuntimeSnapshot?>(
+    valueListenable: InformationMarqueeRuntimeDiagnostics.snapshot,
+    builder: (context, snapshot, _) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        Text(
+          'INFORMATION MARQUEE RUNTIME',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text('RUNNING BUILD  ${AppMetadata.releaseMetadata.releaseCommit}'),
+        Text(
+          'SPEED  ${InformationMarqueeConfiguration.scrollSpeedPxPerSecond.toStringAsFixed(0)} px/s',
+        ),
+        Text(
+          'EXIT MARGIN  ${InformationMarqueeConfiguration.exitSafetyMargin.toStringAsFixed(0)} px',
+        ),
+        if (snapshot == null)
+          const Text('ACTIVE TICKER  未計測')
+        else ...[
+          Text('VIEWPORT  ${_px(snapshot.viewportWidth)} px'),
+          Text('TEXT MEASURED  ${_px(snapshot.measuredTextWidth)} px'),
+          Text(
+            'TEXT RENDERED  ${snapshot.renderedTextWidth == null ? '計測中' : '${_px(snapshot.renderedTextWidth!)} px'}',
+          ),
+          Text('DISTANCE  ${_px(snapshot.travelDistance)} px'),
+          Text('DURATION  ${snapshot.travelDuration.inMilliseconds} ms'),
+          Text(
+            'START / END  ${_px(snapshot.startLeft)} / ${_px(snapshot.endLeft)} px',
+          ),
+        ],
+      ],
+    ),
+  );
+
+  String _px(double value) => value.toStringAsFixed(1);
+}
+
 class _DailyBriefV2ReviewCard extends StatelessWidget {
   const _DailyBriefV2ReviewCard({required this.summary});
 
@@ -286,6 +333,7 @@ class _InformationDebugCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           const Text('TEST通知は通常のINFORMATIONパイプラインで表示されます。'),
+          const _InformationMarqueeRuntimeDiagnostics(),
           const SizedBox(height: AppSpacing.md),
           OperationButton(
             text: 'CREATE TEST NOTICE',

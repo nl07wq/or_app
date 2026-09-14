@@ -97,16 +97,12 @@ class _InformationMarquee extends StatefulWidget {
 
 class _InformationMarqueeState extends State<_InformationMarquee>
     with SingleTickerProviderStateMixin {
-  static const _initialPause = Duration(milliseconds: 900);
-  static const _terminalPause = Duration(milliseconds: 1300);
-  static const _exitSafetyMargin = 12.0;
-  static const _scrollSpeedPxPerSecond =
-      InformationMarqueeTiming.fixedScrollSpeedPxPerSecond;
+  final _renderedTextKey = GlobalKey();
+  double? _renderedTextWidth;
+  bool _measurementScheduled = false;
 
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: InformationMarqueeTiming.calibrationTravelDuration,
-  )..addStatusListener(_onStatus);
+  late final AnimationController _controller = AnimationController(vsync: this)
+    ..addStatusListener(_onStatus);
   Timer? _pauseTimer;
   bool _reducedMotion = false;
   bool _tickerEnabled = true;
@@ -123,25 +119,31 @@ class _InformationMarqueeState extends State<_InformationMarquee>
       _pauseTimer?.cancel();
       _controller.stop();
     } else {
-      _restart(after: _initialPause);
+      _restart(after: InformationMarqueeConfiguration.initialPause);
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _restart(after: _initialPause);
+    _restart(after: InformationMarqueeConfiguration.initialPause);
   }
 
   @override
   void didUpdateWidget(covariant _InformationMarquee oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text) _restart(after: _initialPause);
+    if (oldWidget.text != widget.text) {
+      _renderedTextWidth = null;
+      _restart(after: InformationMarqueeConfiguration.initialPause);
+    }
   }
 
   void _onStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed && !_reducedMotion) {
-      _restart(after: _terminalPause, resetToStart: false);
+      _restart(
+        after: InformationMarqueeConfiguration.terminalPause,
+        resetToStart: false,
+      );
     }
   }
 
@@ -158,6 +160,19 @@ class _InformationMarqueeState extends State<_InformationMarquee>
     });
   }
 
+  void _captureRenderedTextWidth() {
+    if (_measurementScheduled) return;
+    _measurementScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measurementScheduled = false;
+      if (!mounted) return;
+      final width = _renderedTextKey.currentContext?.size?.width;
+      if (width == null || width <= 0) return;
+      if (((_renderedTextWidth ?? 0) - width).abs() <= .01) return;
+      setState(() => _renderedTextWidth = width);
+    });
+  }
+
   @override
   void dispose() {
     _pauseTimer?.cancel();
@@ -170,41 +185,74 @@ class _InformationMarqueeState extends State<_InformationMarquee>
     padding: const EdgeInsets.only(bottom: AppSpacing.xs),
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final style = Theme.of(context).textTheme.bodyMedium;
+        final textScaler = MediaQuery.textScalerOf(context);
+        final locale = Localizations.maybeLocaleOf(context);
+        // Text merges an inheritable explicit style with DefaultTextStyle. Do
+        // that merge here too, so the width used for timing/end geometry is
+        // exactly the width used by the rendered Text on web and mobile.
+        final style = DefaultTextStyle.of(
+          context,
+        ).style.merge(Theme.of(context).textTheme.bodyMedium);
         if (_reducedMotion) {
           return Text(
             widget.text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: style,
+            textScaler: textScaler,
+            locale: locale,
           );
         }
         final painter = TextPainter(
           text: TextSpan(text: widget.text, style: style),
           textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
+          textScaler: textScaler,
+          locale: locale,
           maxLines: 1,
+          textWidthBasis: TextWidthBasis.longestLine,
         )..layout();
+        _captureRenderedTextWidth();
+        final textLayoutWidth = _renderedTextWidth ?? painter.width;
         final geometry = InformationMarqueeGeometry(
           viewportWidth: constraints.maxWidth,
-          textLayoutWidth: painter.width,
-          exitSafetyMargin: _exitSafetyMargin,
+          textLayoutWidth: textLayoutWidth,
+          exitSafetyMargin: InformationMarqueeConfiguration.exitSafetyMargin,
         );
         final timing = InformationMarqueeTiming(
           geometry: geometry,
-          scrollSpeedPxPerSecond: _scrollSpeedPxPerSecond,
+          scrollSpeedPxPerSecond:
+              InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
         );
         // The same measured distance used for the exit geometry controls the
         // controller duration. Updating it here also covers ticker resizes.
         if (_controller.duration != timing.travelDuration) {
           _controller.duration = timing.travelDuration;
         }
+        InformationMarqueeRuntimeDiagnostics.publish(
+          InformationMarqueeRuntimeSnapshot(
+            viewportWidth: constraints.maxWidth,
+            measuredTextWidth: painter.width,
+            renderedTextWidth: _renderedTextWidth,
+            travelDistance: geometry.travelDistance,
+            travelDuration: timing.travelDuration,
+            startLeft: geometry.startLeft,
+            endLeft: geometry.endLeft,
+          ),
+        );
         return AnimatedBuilder(
           animation: _controller,
-          child: Text(
-            widget.text,
-            key: const ValueKey('dashboard-information-marquee-text'),
-            maxLines: 1,
-            style: style,
+          child: KeyedSubtree(
+            key: _renderedTextKey,
+            child: Text(
+              widget.text,
+              key: const ValueKey('dashboard-information-marquee-text'),
+              maxLines: 1,
+              softWrap: false,
+              style: style,
+              textScaler: textScaler,
+              locale: locale,
+              textWidthBasis: TextWidthBasis.longestLine,
+            ),
           ),
           builder: (context, child) => ClipRect(
             key: const ValueKey('dashboard-information-marquee-clip'),
@@ -225,6 +273,16 @@ class _InformationMarqueeState extends State<_InformationMarquee>
       },
     ),
   );
+}
+
+/// Production configuration shared by the Dashboard renderer and runtime
+/// diagnostics. Keeping these values public makes it impossible for a debug
+/// surface or test-only renderer to silently use different marquee settings.
+abstract final class InformationMarqueeConfiguration {
+  static const initialPause = Duration(milliseconds: 900);
+  static const terminalPause = Duration(milliseconds: 1300);
+  static const exitSafetyMargin = 12.0;
+  static const scrollSpeedPxPerSecond = 135.0;
 }
 
 /// The ticker's one local coordinate contract. It deliberately excludes the
@@ -258,8 +316,8 @@ class InformationMarqueeTiming {
     required this.scrollSpeedPxPerSecond,
   });
 
-  static const calibrationTravelDuration = Duration(milliseconds: 5200);
-  static const fixedScrollSpeedPxPerSecond = 135.0;
+  static const fixedScrollSpeedPxPerSecond =
+      InformationMarqueeConfiguration.scrollSpeedPxPerSecond;
 
   final InformationMarqueeGeometry geometry;
   final double scrollSpeedPxPerSecond;
@@ -275,4 +333,58 @@ class InformationMarqueeTiming {
   double get effectivePixelsPerSecond =>
       geometry.travelDistance /
       (travelDuration.inMicroseconds / Duration.microsecondsPerSecond);
+}
+
+/// A read-only snapshot from the active production ticker. It intentionally
+/// contains geometry only: notice content and INFORMATION state remain private
+/// to their existing service/detail flow.
+class InformationMarqueeRuntimeSnapshot {
+  const InformationMarqueeRuntimeSnapshot({
+    required this.viewportWidth,
+    required this.measuredTextWidth,
+    required this.renderedTextWidth,
+    required this.travelDistance,
+    required this.travelDuration,
+    required this.startLeft,
+    required this.endLeft,
+  });
+
+  final double viewportWidth;
+  final double measuredTextWidth;
+  final double? renderedTextWidth;
+  final double travelDistance;
+  final Duration travelDuration;
+  final double startLeft;
+  final double endLeft;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InformationMarqueeRuntimeSnapshot &&
+      viewportWidth == other.viewportWidth &&
+      measuredTextWidth == other.measuredTextWidth &&
+      renderedTextWidth == other.renderedTextWidth &&
+      travelDistance == other.travelDistance &&
+      travelDuration == other.travelDuration &&
+      startLeft == other.startLeft &&
+      endLeft == other.endLeft;
+
+  @override
+  int get hashCode => Object.hash(
+    viewportWidth,
+    measuredTextWidth,
+    renderedTextWidth,
+    travelDistance,
+    travelDuration,
+    startLeft,
+    endLeft,
+  );
+}
+
+abstract final class InformationMarqueeRuntimeDiagnostics {
+  static final ValueNotifier<InformationMarqueeRuntimeSnapshot?> snapshot =
+      ValueNotifier(null);
+
+  static void publish(InformationMarqueeRuntimeSnapshot value) {
+    if (snapshot.value != value) snapshot.value = value;
+  }
 }

@@ -58,9 +58,8 @@ void main() {
     );
     final timing = _timingFor(tester, text: text, viewport: viewport);
     expect(
-      timing.travelDuration -
-          InformationMarqueeTiming.calibrationTravelDuration,
-      greaterThan(const Duration(milliseconds: 600)),
+      timing.travelDuration,
+      greaterThan(const Duration(milliseconds: 5200)),
     );
     expect(
       timing.effectivePixelsPerSecond,
@@ -101,25 +100,85 @@ void main() {
     expect(tester.getRect(text).left, greaterThanOrEqualTo(viewportRect.right));
   });
 
-  testWidgets('long marquee text uses the measured layout width', (
+  testWidgets('long marquee text uses the exact rendered typography width', (
     tester,
   ) async {
     const title =
-        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ 1234567890';
     await tester.pumpWidget(_app(disableAnimations: false, title: title));
+    await tester.pump();
 
     final text = find.byKey(
       const ValueKey('dashboard-information-marquee-text'),
     );
-    final style = tester.widget<Text>(text).style;
+    final textWidget = tester.widget<Text>(text);
+    final context = tester.element(text);
+    final style = DefaultTextStyle.of(context).style.merge(textWidget.style);
     final painter = TextPainter(
       text: TextSpan(text: title, style: style),
       textDirection: TextDirection.ltr,
-      textScaler: MediaQuery.textScalerOf(tester.element(text)),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
       maxLines: 1,
+      textWidthBasis: TextWidthBasis.longestLine,
     )..layout();
 
     expect(tester.getSize(text).width, moreOrLessEquals(painter.width));
+    final runtime = InformationMarqueeRuntimeDiagnostics.snapshot.value;
+    expect(runtime, isNotNull);
+    expect(runtime!.renderedTextWidth, isNotNull);
+    expect(
+      runtime.measuredTextWidth,
+      moreOrLessEquals(runtime.renderedTextWidth!),
+    );
+  });
+
+  testWidgets('renders the configured linear speed, not only its duration', (
+    tester,
+  ) async {
+    const title =
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ 1234567890';
+    await tester.pumpWidget(_app(disableAnimations: false, title: title));
+    final text = find.byKey(
+      const ValueKey('dashboard-information-marquee-text'),
+    );
+
+    await tester.pump(InformationMarqueeConfiguration.initialPause);
+    await tester.pump();
+    final before = tester.getRect(text).left;
+    const sample = Duration(milliseconds: 400);
+    await tester.pump(sample);
+    final after = tester.getRect(text).left;
+    final actualPixelsPerSecond =
+        (before - after) /
+        (sample.inMicroseconds / Duration.microsecondsPerSecond);
+
+    expect(
+      actualPixelsPerSecond,
+      moreOrLessEquals(
+        InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
+        epsilon: .5,
+      ),
+    );
+  });
+
+  test('production marquee configuration is the sole timing source', () {
+    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 135);
+    expect(InformationMarqueeConfiguration.exitSafetyMargin, 12);
+    const geometry = InformationMarqueeGeometry(
+      viewportWidth: 390,
+      textLayoutWidth: 500,
+      exitSafetyMargin: InformationMarqueeConfiguration.exitSafetyMargin,
+    );
+    const timing = InformationMarqueeTiming(
+      geometry: geometry,
+      scrollSpeedPxPerSecond:
+          InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
+    );
+    expect(
+      timing.effectivePixelsPerSecond,
+      moreOrLessEquals(135, epsilon: .01),
+    );
   });
 
   test('local marquee geometry moves monotonically left', () {
