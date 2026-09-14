@@ -27,6 +27,7 @@ class FoodItemList extends StatelessWidget {
   final IconData? secondaryActionIcon;
   final String? secondaryActionText;
   final VoidCallback? onSecondaryAction;
+  final bool showPrimaryAction;
 
   const FoodItemList({
     super.key,
@@ -44,6 +45,7 @@ class FoodItemList extends StatelessWidget {
     this.secondaryActionIcon,
     this.secondaryActionText,
     this.onSecondaryAction,
+    this.showPrimaryAction = true,
   }) : assert(catalogSources.length == items.length),
        assert(recipeSources.length == items.length),
        assert(quantityUnits.length == items.length),
@@ -72,13 +74,15 @@ class FoodItemList extends StatelessWidget {
             ),
             AppSpacing.gapSM,
           ],
-          OperationButton(
-            key: const ValueKey('food-meal-item-action'),
-            icon: actionIcon,
-            text: actionText,
-            onPressed: onAction,
-          ),
-          AppSpacing.gapMD,
+          if (showPrimaryAction) ...[
+            OperationButton(
+              key: const ValueKey('food-meal-item-action'),
+              icon: actionIcon,
+              text: actionText,
+              onPressed: onAction,
+            ),
+            AppSpacing.gapMD,
+          ],
           ...List.generate(items.length, (index) {
             final item = items[index];
             final catalog = catalogSources[index];

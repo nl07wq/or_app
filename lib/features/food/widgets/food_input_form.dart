@@ -61,6 +61,15 @@ class FoodInputForm extends StatefulWidget {
   State<FoodInputForm> createState() => _FoodInputFormState();
 }
 
+enum _FoodEntryInputMode { manual, databaseFood, databaseRecipe, databaseMeal }
+
+class _DatabaseFoodSelection {
+  const _DatabaseFoodSelection(this.value, this.mode);
+
+  final Object value;
+  final _FoodEntryInputMode mode;
+}
+
 class _FoodInputFormState extends State<FoodInputForm> {
   static const double _defaultBaseAmount = 100;
   static const double _defaultAmount = 1;
@@ -78,6 +87,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final waterVolumeController = TextEditingController();
   final memoController = TextEditingController();
   final foodMemoController = TextEditingController();
+  final _pendingQuantityController = TextEditingController();
 
   MealType mealType = MealType.breakfast;
 
@@ -111,6 +121,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   bool _capturingNutrition = false;
   bool _capturingBarcode = false;
   bool _basisLinkedToPackage = true;
+  _FoodEntryInputMode _inputMode = _FoodEntryInputMode.manual;
+  _DatabaseFoodSelection? _pendingDatabaseSelection;
 
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
@@ -201,6 +213,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     waterVolumeController.dispose();
     memoController.dispose();
     foodMemoController.dispose();
+    _pendingQuantityController.dispose();
     super.dispose();
   }
 
@@ -764,113 +777,186 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
-  Future<void> _selectCatalogFood() async {
+  Future<void> _selectDatabaseItem(_FoodEntryInputMode mode) async {
     if (!AppRepositoryRegistry.hasContainer) return;
     final selection = await Navigator.push<Object>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogPage(
           repository: AppRepositoryRegistry.container.foodCatalog,
+          recipeRepository: AppRepositoryRegistry.container.foodRecipes,
+          mealRepository: AppRepositoryRegistry.container.foodMealMasters,
           selectionMode: true,
+          selectionViewLocked: true,
+          initialSelectionView: switch (mode) {
+            _FoodEntryInputMode.databaseFood => FoodCatalogSelectionView.food,
+            _FoodEntryInputMode.databaseRecipe =>
+              FoodCatalogSelectionView.recipe,
+            _FoodEntryInputMode.databaseMeal => FoodCatalogSelectionView.meal,
+            _FoodEntryInputMode.manual => FoodCatalogSelectionView.food,
+          },
         ),
       ),
     );
     if (selection == null || !mounted) return;
-    if (selection case final FoodMealMaster meal) {
-      try {
+    final isExpected = switch (mode) {
+      _FoodEntryInputMode.databaseFood => selection is FoodCatalogEntry,
+      _FoodEntryInputMode.databaseRecipe => selection is FoodRecipeDefinition,
+      _FoodEntryInputMode.databaseMeal => selection is FoodMealMaster,
+      _FoodEntryInputMode.manual => false,
+    };
+    if (!isExpected) return;
+    setState(() {
+      _pendingDatabaseSelection = _DatabaseFoodSelection(selection, mode);
+      _pendingQuantityController.text = _formatAmount(_defaultAmount);
+      inputError = null;
+    });
+  }
+
+  FoodItem? _databaseFoodItem(FoodCatalogEntry entry, double multiplier) {
+    final nutrition = entry.nutrition;
+    if ([
+      nutrition.calories,
+      nutrition.protein,
+      nutrition.fat,
+      nutrition.carbohydrate,
+    ].any((value) => value == null)) {
+      return null;
+    }
+    return FoodItem(
+      name: entry.name,
+      calories: nutrition.calories!,
+      protein: nutrition.protein!,
+      fat: nutrition.fat!,
+      carbohydrate: nutrition.carbohydrate!,
+      amount: multiplier,
+      baseAmount: entry.baseQuantity.value,
+      baseUnit: entry.baseQuantity.unit == FoodQuantityUnit.milliliter
+          ? FoodBaseUnit.ml
+          : FoodBaseUnit.g,
+      amountMode: FoodAmountMode.baseMultiplier,
+    );
+  }
+
+  FoodItem? _databaseRecipeItem(FoodRecipeDefinition recipe, double servings) {
+    final nutrition = FoodRecipeNutrition.perServing(recipe);
+    if ([
+      nutrition.calories,
+      nutrition.protein,
+      nutrition.fat,
+      nutrition.carbohydrate,
+    ].any((value) => value == null)) {
+      return null;
+    }
+    return FoodItem(
+      name: recipe.name,
+      calories: nutrition.calories!,
+      protein: nutrition.protein!,
+      fat: nutrition.fat!,
+      carbohydrate: nutrition.carbohydrate!,
+      amount: servings,
+      baseAmount: 1,
+      baseUnit: FoodBaseUnit.g,
+      amountMode: FoodAmountMode.baseMultiplier,
+    );
+  }
+
+  void _appendItems({
+    required List<FoodItem> newItems,
+    required List<FoodCatalogEntry?> foodSources,
+    required List<FoodRecipeDefinition?> recipeSources,
+    required List<FoodQuantityUnit> units,
+  }) {
+    items.addAll(newItems);
+    _catalogSources.addAll(foodSources);
+    _recipeSources.addAll(recipeSources);
+    _quantityUnits.addAll(units);
+    _foodReferenceIds.addAll(foodSources.map((value) => value?.foodId));
+    _recipeReferenceIds.addAll(recipeSources.map((value) => value?.recipeId));
+    _mealItemIds.addAll(List.filled(newItems.length, null));
+    _provenanceSnapshots.addAll(List.filled(newItems.length, null));
+    _nutritionStatuses.addAll(List.filled(newItems.length, null));
+    _brandSnapshots.addAll(foodSources.map((value) => value?.brand));
+    _categories.addAll(foodSources.map((value) => value?.category));
+    _itemMemos.addAll(List.filled(newItems.length, null));
+  }
+
+  Future<void> _addPendingDatabaseSelection() async {
+    final pending = _pendingDatabaseSelection;
+    final quantity = double.tryParse(_pendingQuantityController.text.trim());
+    if (pending == null ||
+        quantity == null ||
+        !quantity.isFinite ||
+        quantity <= 0) {
+      setState(() => inputError = 'ENTER A VALID QUANTITY.');
+      return;
+    }
+    try {
+      if (pending.value case final FoodCatalogEntry entry) {
+        final item = _databaseFoodItem(entry, quantity);
+        if (item == null) {
+          throw const FormatException('FOOD NUTRITION IS INCOMPLETE');
+        }
+        setState(() {
+          _appendItems(
+            newItems: [item],
+            foodSources: [entry],
+            recipeSources: [null],
+            units: [entry.baseQuantity.unit],
+          );
+          _pendingDatabaseSelection = null;
+          _pendingQuantityController.clear();
+          inputError = null;
+        });
+      } else if (pending.value case final FoodRecipeDefinition recipe) {
+        final item = _databaseRecipeItem(recipe, quantity);
+        if (item == null) {
+          throw const FormatException('RECIPE NUTRITION IS INCOMPLETE');
+        }
+        setState(() {
+          _appendItems(
+            newItems: [item],
+            foodSources: [null],
+            recipeSources: [recipe],
+            units: [FoodQuantityUnit.serving],
+          );
+          _pendingDatabaseSelection = null;
+          _pendingQuantityController.clear();
+          inputError = null;
+        });
+      } else if (pending.value case final FoodMealMaster meal) {
         final expansion = await FoodMealMasterExpander(
           foods: AppRepositoryRegistry.container.foodCatalog,
           recipes: AppRepositoryRegistry.container.foodRecipes,
         ).expand(meal);
         if (!mounted) return;
+        final scaled = expansion.items
+            .map((item) => item.copyWith(amount: (item.amount ?? 1) * quantity))
+            .toList(growable: false);
         setState(() {
-          items.addAll(expansion.items);
-          _catalogSources.addAll(expansion.foodSources);
-          _recipeSources.addAll(expansion.recipeSources);
-          _quantityUnits.addAll(expansion.quantityUnits);
-          _foodReferenceIds.addAll(
-            expansion.foodSources.map((value) => value?.foodId),
+          _appendItems(
+            newItems: scaled,
+            foodSources: expansion.foodSources,
+            recipeSources: expansion.recipeSources,
+            units: expansion.quantityUnits,
           );
-          _recipeReferenceIds.addAll(
-            expansion.recipeSources.map((value) => value?.recipeId),
-          );
-          _mealItemIds.addAll(List.filled(expansion.items.length, null));
-          _provenanceSnapshots.addAll(
-            List.filled(expansion.items.length, null),
-          );
-          _nutritionStatuses.addAll(List.filled(expansion.items.length, null));
-          _brandSnapshots.addAll(
-            expansion.foodSources.map((value) => value?.brand),
-          );
-          _categories.addAll(
-            expansion.foodSources.map((value) => value?.category),
-          );
-          _itemMemos.addAll(List.filled(expansion.items.length, null));
+          _pendingDatabaseSelection = null;
+          _pendingQuantityController.clear();
           inputError = null;
         });
-      } on FoodMealMasterExpansionException catch (error) {
-        if (mounted) setState(() => inputError = error.toString());
       }
-      return;
+    } on FoodMealMasterExpansionException catch (error) {
+      if (mounted) setState(() => inputError = error.toString());
+    } on FormatException catch (error) {
+      if (mounted) setState(() => inputError = error.message);
     }
-    if (selection case final FoodRecipeDefinition recipe) {
-      final nutrition = FoodRecipeNutrition.perServing(recipe);
-      if ([
-        nutrition.calories,
-        nutrition.protein,
-        nutrition.fat,
-        nutrition.carbohydrate,
-      ].any((value) => value == null)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('RECIPE NUTRITION IS INCOMPLETE')),
-        );
-        return;
-      }
-      setState(() {
-        _currentCatalogSource = null;
-        _currentRecipeSource = recipe;
-        foodNameController.text = recipe.name;
-        brandController.clear();
-        barcodeController.clear();
-        packageQuantityController.clear();
-        foodMemoController.text = recipe.memo ?? '';
-        packageUnit = null;
-        _setRawNutrition(
-          calories: nutrition.calories,
-          protein: nutrition.protein,
-          fat: nutrition.fat,
-          carbohydrate: nutrition.carbohydrate,
-        );
-        baseAmountController.text = '1';
-        amountController.text = '1';
-        baseUnit = FoodQuantityUnit.serving;
-        _lastValidBaseAmount = 1;
-        _basisLinkedToPackage = false;
-        inputError = null;
-      });
-      return;
-    }
-    final entry = selection as FoodCatalogEntry;
-    final nutrition = entry.nutrition;
-    setState(() {
-      _currentCatalogSource = entry;
-      _currentRecipeSource = null;
-      _setMasterFields(entry);
-      _setRawNutrition(
-        calories: nutrition.calories,
-        protein: nutrition.protein,
-        fat: nutrition.fat,
-        carbohydrate: nutrition.carbohydrate,
-      );
-      final quantity = entry.baseQuantity;
-      baseAmountController.text = _formatAmount(quantity.value);
-      baseUnit = quantity.unit;
-      amountController.text = '1';
-      _lastValidBaseAmount = quantity.value;
-      _basisLinkedToPackage = false;
-      inputError = null;
-    });
   }
+
+  void _cancelPendingDatabaseSelection() => setState(() {
+    _pendingDatabaseSelection = null;
+    _pendingQuantityController.clear();
+    inputError = null;
+  });
 
   Future<void> _saveCurrentToCatalog() async {
     if (!AppRepositoryRegistry.hasContainer) return;
@@ -1024,28 +1110,36 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _clearForm();
   }
 
+  void _switchInputMode(_FoodEntryInputMode mode) {
+    if (_inputMode == mode) return;
+    setState(() {
+      _inputMode = mode;
+      _pendingDatabaseSelection = null;
+      _pendingQuantityController.clear();
+      inputError = null;
+    });
+  }
+
   Widget _entryTypeControls() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const Text('Entry Type', style: TextStyle(fontWeight: FontWeight.bold)),
-      AppSpacing.gapSM,
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ChoiceChip(
-            avatar: const Icon(Icons.restaurant, size: 18),
-            label: const Text('Meal'),
-            selected: !isWaterEntry,
-            onSelected: (_) => setState(() => isWaterEntry = false),
-          ),
-          ChoiceChip(
-            avatar: const Icon(Icons.water_drop_outlined, size: 18),
-            label: const Text('Water'),
-            selected: isWaterEntry,
-            onSelected: (_) => setState(() => isWaterEntry = true),
-          ),
+      DropdownButtonFormField<bool>(
+        key: const ValueKey('food-entry-type-selector'),
+        initialValue: isWaterEntry,
+        items: const [
+          DropdownMenuItem(value: false, child: Text('MEAL')),
+          DropdownMenuItem(value: true, child: Text('WATER')),
         ],
+        onChanged: _isSaving
+            ? null
+            : (value) => setState(() {
+                isWaterEntry = value ?? false;
+                if (isWaterEntry) {
+                  _pendingDatabaseSelection = null;
+                  _pendingQuantityController.clear();
+                }
+              }),
       ),
     ],
   );
@@ -1062,20 +1156,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
               : null,
         ),
       ),
-      AppSpacing.gapSM,
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: MealType.values.map((type) {
-          return ChoiceChip(
-            avatar: Icon(type.icon, size: 18),
-            label: Text(type.label),
-            selected: !isWaterEntry && mealType == type,
-            onSelected: isWaterEntry
-                ? null
-                : (_) => setState(() => mealType = type),
-          );
-        }).toList(),
+      DropdownButtonFormField<MealType>(
+        key: const ValueKey('food-meal-type-selector'),
+        initialValue: isWaterEntry ? null : mealType,
+        hint: const Text('—'),
+        items: MealType.values
+            .map(
+              (type) => DropdownMenuItem(value: type, child: Text(type.label)),
+            )
+            .toList(growable: false),
+        onChanged: isWaterEntry || _isSaving
+            ? null
+            : (value) => setState(() => mealType = value ?? mealType),
       ),
     ],
   );
@@ -1104,6 +1196,115 @@ class _FoodInputFormState extends State<FoodInputForm> {
       );
     },
   );
+
+  Widget _inputModeTabs() => SegmentedButton<_FoodEntryInputMode>(
+    key: const ValueKey('food-entry-input-mode-tabs'),
+    segments: const [
+      ButtonSegment(value: _FoodEntryInputMode.manual, label: Text('MANUAL')),
+      ButtonSegment(
+        value: _FoodEntryInputMode.databaseFood,
+        label: Text('DB FOOD'),
+      ),
+      ButtonSegment(
+        value: _FoodEntryInputMode.databaseRecipe,
+        label: Text('DB RECIPE'),
+      ),
+      ButtonSegment(
+        value: _FoodEntryInputMode.databaseMeal,
+        label: Text('DB MEAL'),
+      ),
+    ],
+    style: const ButtonStyle(
+      visualDensity: VisualDensity.compact,
+      padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
+    ),
+    selected: {_inputMode},
+    onSelectionChanged: _isSaving
+        ? null
+        : (value) => _switchInputMode(value.single),
+  );
+
+  String _modeSelectionLabel(_FoodEntryInputMode mode) => switch (mode) {
+    _FoodEntryInputMode.databaseFood => 'SELECT FOOD FROM DATABASE',
+    _FoodEntryInputMode.databaseRecipe => 'SELECT RECIPE FROM DATABASE',
+    _FoodEntryInputMode.databaseMeal => 'SELECT MEAL FROM DATABASE',
+    _FoodEntryInputMode.manual => '',
+  };
+
+  String _pendingName(_DatabaseFoodSelection pending) =>
+      switch (pending.value) {
+        FoodCatalogEntry(:final name) => name,
+        FoodRecipeDefinition(:final name) => name,
+        FoodMealMaster(:final name) => name,
+        _ => '',
+      };
+
+  String _pendingUnit(_DatabaseFoodSelection pending) =>
+      switch (pending.value) {
+        FoodCatalogEntry(:final baseQuantity) =>
+          '× ${FoodNutritionFormatter.compactQuantity(baseQuantity)}',
+        FoodRecipeDefinition() => 'serving',
+        FoodMealMaster() => 'meal',
+        _ => '',
+      };
+
+  Widget _databaseInput() {
+    final pending = _pendingDatabaseSelection;
+    if (pending == null) {
+      return OperationButton(
+        key: ValueKey('food-db-select-${_inputMode.name}'),
+        icon: Icons.storage_outlined,
+        text: _modeSelectionLabel(_inputMode),
+        onPressed: _isSaving ? null : () => _selectDatabaseItem(_inputMode),
+      );
+    }
+    return OperationCard(
+      key: const ValueKey('food-db-quantity-confirmation'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            icon: Icons.fact_check_outlined,
+            title: 'CONFIRM QUANTITY',
+          ),
+          AppSpacing.gapSM,
+          Text(
+            _pendingName(pending),
+            key: const ValueKey('food-db-pending-name'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(_pendingUnit(pending)),
+          AppSpacing.gapMD,
+          OperationTextField(
+            key: const ValueKey('food-db-pending-quantity'),
+            controller: _pendingQuantityController,
+            label: 'Quantity',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() => inputError = null),
+          ),
+          AppSpacing.gapMD,
+          Row(
+            children: [
+              Expanded(
+                child: OperationButton(
+                  key: const ValueKey('food-db-add'),
+                  icon: Icons.add,
+                  text: 'ADD',
+                  onPressed: _isSaving ? null : _addPendingDatabaseSelection,
+                ),
+              ),
+              AppSpacing.gapSM,
+              OutlinedButton(
+                key: const ValueKey('food-db-cancel'),
+                onPressed: _isSaving ? null : _cancelPendingDatabaseSelection,
+                child: const Text('CANCEL'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1174,100 +1375,104 @@ class _FoodInputFormState extends State<FoodInputForm> {
               onPressed: _isSaving ? null : saveMeal,
             ),
           ] else ...[
-            const SectionHeader(
-              icon: Icons.restaurant_menu,
-              title: 'Add Food Item',
-            ),
-
             AppSpacing.gapMD,
-
-            FoodInputFields(
-              foodNameController: foodNameController,
-              brandController: brandController,
-              barcodeController: barcodeController,
-              packageQuantityController: packageQuantityController,
-              calorieController: calorieController,
-              proteinController: proteinController,
-              fatController: fatController,
-              carbohydrateController: carbohydrateController,
-              baseAmountController: baseAmountController,
-              amountController: amountController,
-              foodMemoController: foodMemoController,
-              category: category,
-              packageUnit: packageUnit,
-              baseUnit: baseUnit,
-              amountMode: _inputAmountMode,
-              recipeSelected: _currentRecipeSource != null,
-              onBaseAmountChanged: _onBaseAmountChanged,
-              onCategoryChanged: (value) => setState(() {
-                category = value;
-                inputError = null;
-              }),
-              onPackageQuantityChanged: _onPackageQuantityChanged,
-              onPackageUnitChanged: _onPackageUnitChanged,
-              onCaloriesChanged: () => _rawCalories = null,
-              onProteinChanged: () => _rawProtein = null,
-              onFatChanged: () => _rawFat = null,
-              onCarbohydrateChanged: () => _rawCarbohydrate = null,
-              onScanBarcode: _isSaving || _capturingBarcode
-                  ? null
-                  : _scanBarcode,
-              barcodeScanInProgress: _capturingBarcode,
-              onReadNutrition: _isSaving || _capturingNutrition
-                  ? null
-                  : _scanOcr,
-              nutritionCaptureInProgress: _capturingNutrition,
-              onRecalculateNutrition: _recalculateNutrition,
-              recalculationBlockReason: _recalculationBlockReason,
-              onChanged: (_) {
-                setState(() {
-                  inputError = null;
-                });
-              },
-              onBaseUnitChanged: (unit) {
-                setState(() {
-                  baseUnit = unit;
-                  _basisLinkedToPackage = false;
-                  inputError = null;
-                });
-              },
-            ),
-
-            if (_currentCatalogSource != null) ...[
-              AppSpacing.gapSM,
-              Text(
-                'CATALOG · ${_currentCatalogSource!.name} · '
-                '${_formatAmount(_currentCatalogSource!.baseQuantity.value)} '
-                '${_currentCatalogSource!.baseQuantity.unit.stableId}',
-                key: const ValueKey('food-catalog-selection'),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-
-            if (_currentRecipeSource != null) ...[
-              AppSpacing.gapSM,
-              Text(
-                'RECIPE · ${_currentRecipeSource!.name}',
-                key: const ValueKey('food-recipe-selection'),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-
+            _inputModeTabs(),
             AppSpacing.gapMD,
-
-            if (!_hasActiveCatalogReference)
-              OperationButton(
-                key: const ValueKey('food-save-to-catalog'),
-                icon: Icons.add_business,
-                text: 'SAVE TO FOOD DATABASE',
-                onPressed: _isSaving ? null : _saveCurrentToCatalog,
+            if (_inputMode == _FoodEntryInputMode.manual) ...[
+              const SectionHeader(
+                icon: Icons.restaurant_menu,
+                title: 'Add Food Item',
               ),
+              AppSpacing.gapMD,
+              FoodInputFields(
+                foodNameController: foodNameController,
+                brandController: brandController,
+                barcodeController: barcodeController,
+                packageQuantityController: packageQuantityController,
+                calorieController: calorieController,
+                proteinController: proteinController,
+                fatController: fatController,
+                carbohydrateController: carbohydrateController,
+                baseAmountController: baseAmountController,
+                amountController: amountController,
+                foodMemoController: foodMemoController,
+                category: category,
+                packageUnit: packageUnit,
+                baseUnit: baseUnit,
+                amountMode: _inputAmountMode,
+                recipeSelected: _currentRecipeSource != null,
+                onBaseAmountChanged: _onBaseAmountChanged,
+                onCategoryChanged: (value) => setState(() {
+                  category = value;
+                  inputError = null;
+                }),
+                onPackageQuantityChanged: _onPackageQuantityChanged,
+                onPackageUnitChanged: _onPackageUnitChanged,
+                onCaloriesChanged: () => _rawCalories = null,
+                onProteinChanged: () => _rawProtein = null,
+                onFatChanged: () => _rawFat = null,
+                onCarbohydrateChanged: () => _rawCarbohydrate = null,
+                onScanBarcode: _isSaving || _capturingBarcode
+                    ? null
+                    : _scanBarcode,
+                barcodeScanInProgress: _capturingBarcode,
+                onReadNutrition: _isSaving || _capturingNutrition
+                    ? null
+                    : _scanOcr,
+                nutritionCaptureInProgress: _capturingNutrition,
+                onRecalculateNutrition: _recalculateNutrition,
+                recalculationBlockReason: _recalculationBlockReason,
+                onChanged: (_) {
+                  setState(() {
+                    inputError = null;
+                  });
+                },
+                onBaseUnitChanged: (unit) {
+                  setState(() {
+                    baseUnit = unit;
+                    _basisLinkedToPackage = false;
+                    inputError = null;
+                  });
+                },
+              ),
+
+              if (_currentCatalogSource != null) ...[
+                AppSpacing.gapSM,
+                Text(
+                  'CATALOG · ${_currentCatalogSource!.name} · '
+                  '${_formatAmount(_currentCatalogSource!.baseQuantity.value)} '
+                  '${_currentCatalogSource!.baseQuantity.unit.stableId}',
+                  key: const ValueKey('food-catalog-selection'),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+
+              if (_currentRecipeSource != null) ...[
+                AppSpacing.gapSM,
+                Text(
+                  'RECIPE · ${_currentRecipeSource!.name}',
+                  key: const ValueKey('food-recipe-selection'),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+
+              AppSpacing.gapMD,
+
+              if (!_hasActiveCatalogReference)
+                OperationButton(
+                  key: const ValueKey('food-save-to-catalog'),
+                  icon: Icons.add_business,
+                  text: 'SAVE TO FOOD DATABASE',
+                  onPressed: _isSaving ? null : _saveCurrentToCatalog,
+                ),
+            ] else
+              _databaseInput(),
 
             if (inputError != null) ...[
               AppSpacing.gapMD,
@@ -1279,36 +1484,35 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
             AppSpacing.gapXL,
 
-            FoodItemList(
-              items: preview,
-              catalogSources: previewCatalogSources,
-              recipeSources: previewRecipeSources,
-              quantityUnits: [
-                ..._quantityUnits,
-                if (editingIndex == null && _currentFoodItem() != null)
-                  baseUnit,
-              ],
-              onDelete: (index) {
-                if (index < items.length) {
-                  removeFood(index);
-                }
-              },
-              onTap: (index) {
-                if (index < items.length) {
-                  editFood(index);
-                }
-              },
-              onQuantityChanged: updateQuantity,
-              editableItemCount: items.length,
-              actionIcon: editingIndex == null
-                  ? Icons.add_circle_outline
-                  : Icons.edit_outlined,
-              actionText: editingIndex == null ? 'ADD FOOD' : 'Update Food',
-              onAction: editingIndex == null ? addFood : updateFood,
-              secondaryActionIcon: Icons.storage_outlined,
-              secondaryActionText: 'SELECT FROM FOOD DATABASE',
-              onSecondaryAction: _isSaving ? null : _selectCatalogFood,
-            ),
+            if (_inputMode == _FoodEntryInputMode.manual || items.isNotEmpty)
+              FoodItemList(
+                items: preview,
+                catalogSources: previewCatalogSources,
+                recipeSources: previewRecipeSources,
+                quantityUnits: [
+                  ..._quantityUnits,
+                  if (editingIndex == null && _currentFoodItem() != null)
+                    baseUnit,
+                ],
+                onDelete: (index) {
+                  if (index < items.length) {
+                    removeFood(index);
+                  }
+                },
+                onTap: (index) {
+                  if (index < items.length) {
+                    editFood(index);
+                  }
+                },
+                onQuantityChanged: updateQuantity,
+                editableItemCount: items.length,
+                actionIcon: editingIndex == null
+                    ? Icons.add_circle_outline
+                    : Icons.edit_outlined,
+                actionText: editingIndex == null ? 'ADD FOOD' : 'Update Food',
+                onAction: editingIndex == null ? addFood : updateFood,
+                showPrimaryAction: _inputMode == _FoodEntryInputMode.manual,
+              ),
 
             if (preview.isNotEmpty) ...[
               AppSpacing.gapXL,

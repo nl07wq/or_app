@@ -175,19 +175,28 @@ void main() {
         ),
       ),
     );
-    final catalogSelect = find.byKey(const ValueKey('food-catalog-select'));
-    await tester.ensureVisible(catalogSelect.last);
-    await tester.tap(catalogSelect.last);
+    await tester.tap(find.text('DB MEAL'));
     await tester.pumpAndSettle();
-    expect(find.text('FOOD'), findsWidgets);
-    expect(find.text('RECIPE'), findsOneWidget);
-    expect(find.text('MEAL'), findsOneWidget);
-
-    await tester.tap(find.text('MEAL'));
+    await tester.tap(find.byKey(const ValueKey('food-db-select-databaseMeal')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('food-meal-master-$_mealId')));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const ValueKey('food-db-quantity-confirmation')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('food-db-add')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('food-db-select-databaseMeal')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('food-db-quantity-confirmation')),
+      findsNothing,
+    );
     expect(find.text('ゆで卵'), findsOneWidget);
     expect(find.text('朝食レシピ'), findsOneWidget);
   });

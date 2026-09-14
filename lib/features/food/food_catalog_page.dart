@@ -38,6 +38,8 @@ class FoodCatalogPage extends StatefulWidget {
     this.selectionMode = false,
     this.recipesEnabled = true,
     this.mealsEnabled = true,
+    this.initialSelectionView = FoodCatalogSelectionView.food,
+    this.selectionViewLocked = false,
   });
 
   final FoodCatalogRepository? repository;
@@ -46,6 +48,8 @@ class FoodCatalogPage extends StatefulWidget {
   final bool selectionMode;
   final bool recipesEnabled;
   final bool mealsEnabled;
+  final FoodCatalogSelectionView initialSelectionView;
+  final bool selectionViewLocked;
 
   @override
   State<FoodCatalogPage> createState() => _FoodCatalogPageState();
@@ -58,7 +62,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   List<FoodMealMaster> _meals = const [];
   Object? _error;
   bool _loading = true;
-  _FoodDatabaseView _view = _FoodDatabaseView.food;
+  late _FoodDatabaseView _view;
 
   FoodCatalogRepository get _repository =>
       widget.repository ?? AppRepositoryRegistry.container.foodCatalog;
@@ -70,7 +74,19 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _view = switch (widget.initialSelectionView) {
+      FoodCatalogSelectionView.food => _FoodDatabaseView.food,
+      FoodCatalogSelectionView.recipe => _FoodDatabaseView.recipe,
+      FoodCatalogSelectionView.meal => _FoodDatabaseView.meal,
+    };
+    switch (_view) {
+      case _FoodDatabaseView.food:
+        _load();
+      case _FoodDatabaseView.recipe:
+        _loadRecipes();
+      case _FoodDatabaseView.meal:
+        _loadMeals();
+    }
   }
 
   @override
@@ -294,7 +310,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       padding: AppSpacing.cardPadding,
       child: Column(
         children: [
-          if (widget.recipesEnabled) ...[
+          if (widget.recipesEnabled && !widget.selectionViewLocked) ...[
             SegmentedButton<_FoodDatabaseView>(
               key: const ValueKey('food-database-type'),
               segments: [
@@ -474,6 +490,8 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     );
   }
 }
+
+enum FoodCatalogSelectionView { food, recipe, meal }
 
 enum _FoodDatabaseView { food, recipe, meal }
 
