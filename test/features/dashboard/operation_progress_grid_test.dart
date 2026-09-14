@@ -14,7 +14,6 @@ import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/theme/app_colors.dart';
-import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
@@ -340,21 +339,6 @@ void main() {
       find.byKey(const ValueKey('operation-progress-status-zone-TRAINING')),
       findsNothing,
     );
-    final title = find.byKey(
-      const ValueKey('operation-progress-title-TRAINING'),
-    );
-    final indicator = find.byKey(
-      const ValueKey('operation-progress-training-optional'),
-    );
-    final titleRect = tester.getRect(title);
-    final indicatorRect = tester.getRect(indicator);
-    final cardRect = tester.getRect(training);
-    expect(indicatorRect.left, greaterThan(titleRect.right));
-    expect(
-      indicatorRect.left - titleRect.right,
-      inInclusiveRange(AppSpacing.sm - .1, AppSpacing.sm + .1),
-    );
-    expect(indicatorRect.right, lessThan(cardRect.right - 16));
     await tester.tap(training);
     await tester.pumpAndSettle();
     expect(openedRoutes.last, AppRoutes.training);
@@ -391,30 +375,71 @@ void main() {
     );
   });
 
-  testWidgets('TRAINING title indicator stays locally aligned at all widths', (
+  testWidgets('TRAINING shares the completion badge anchor at all widths', (
     tester,
   ) async {
+    await _installDdtStatus();
     for (final width in [320.0, 390.0, 900.0]) {
       await _pumpDashboard(tester, width: width);
       await tester.pumpAndSettle();
 
-      final title = find.byKey(
-        const ValueKey('operation-progress-title-TRAINING'),
-      );
       final indicator = find.byKey(
         const ValueKey('operation-progress-training-optional'),
       );
-      final titleRect = tester.getRect(title);
-      final indicatorRect = tester.getRect(indicator);
-      final cardRect = tester.getRect(_tile('TRAINING'));
-      expect(indicatorRect.left, greaterThan(titleRect.right));
-      expect(
-        indicatorRect.left - titleRect.right,
-        inInclusiveRange(AppSpacing.sm - .1, AppSpacing.sm + .1),
+      final status = find.byKey(
+        const ValueKey('operation-progress-completion-STATUS'),
       );
-      expect(indicatorRect.right, lessThan(cardRect.right - 16));
+      final food = find.byKey(
+        const ValueKey('operation-progress-completion-FOOD'),
+      );
+      final trainingCard = _tile('TRAINING');
+      expect(
+        _localCenterX(tester, indicator, trainingCard),
+        moreOrLessEquals(
+          _localCenterX(tester, status, _tile('STATUS')),
+          epsilon: 1,
+        ),
+      );
+      expect(
+        _localCenterX(tester, indicator, trainingCard),
+        moreOrLessEquals(
+          _localCenterX(tester, food, _tile('FOOD')),
+          epsilon: 1,
+        ),
+      );
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('TRAINING recorded indicator keeps the completion badge anchor', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 1,
+      setCount: 3,
+      duration: Duration(minutes: 30),
+      sessionName: 'Strength',
+    );
+    await _pumpDashboard(tester, width: 390);
+    await tester.pumpAndSettle();
+
+    expect(
+      _localCenterX(
+        tester,
+        find.byKey(const ValueKey('operation-progress-training-recorded')),
+        _tile('TRAINING'),
+      ),
+      moreOrLessEquals(
+        _localCenterX(
+          tester,
+          find.byKey(const ValueKey('operation-progress-completion-STATUS')),
+          _tile('STATUS'),
+        ),
+        epsilon: 1,
+      ),
+    );
   });
 
   for (final entry in const [
@@ -2101,6 +2126,9 @@ const _labels = [
 ];
 
 Finder _tile(String label) => find.byKey(ValueKey('operation-progress-$label'));
+
+double _localCenterX(WidgetTester tester, Finder child, Finder card) =>
+    tester.getRect(child).center.dx - tester.getRect(card).left;
 
 Finder _mainContent() => find.byKey(const ValueKey('dashboard-main-content'));
 

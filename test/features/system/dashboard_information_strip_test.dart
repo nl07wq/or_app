@@ -163,7 +163,7 @@ void main() {
   });
 
   test('production marquee configuration is the sole timing source', () {
-    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 120);
+    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 100);
     expect(InformationMarqueeConfiguration.exitSafetyMargin, 12);
     expect(
       InformationMarqueeConfiguration.initialPause,
@@ -185,11 +185,11 @@ void main() {
     );
     expect(
       timing.effectivePixelsPerSecond,
-      moreOrLessEquals(120, epsilon: .01),
+      moreOrLessEquals(100, epsilon: .01),
     );
   });
 
-  testWidgets('renders 120px per second for short, medium, and long notices', (
+  testWidgets('renders 100px per second for short, medium, and long notices', (
     tester,
   ) async {
     const titles = [

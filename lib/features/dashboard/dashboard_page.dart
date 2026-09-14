@@ -1272,6 +1272,22 @@ class _ProgressSummaryMetric extends StatelessWidget {
   }
 }
 
+/// Shared horizontal geometry for the completion badge column and TRAINING's
+/// passive presence indicator. Semantics remain separate; only their visual
+/// anchor is shared.
+abstract final class _ProgressStatusAnchorGeometry {
+  static const statusZoneWidth = 48.0;
+  static const statusZoneRightPadding = AppSpacing.sm;
+  static const trainingIndicatorSize = 18.0;
+  static const contentHorizontalPadding = AppSpacing.md;
+  static const statusAnchorCenterTrailingInset =
+      statusZoneWidth - ((statusZoneWidth - statusZoneRightPadding) / 2);
+  static const trainingIndicatorRightInset =
+      statusAnchorCenterTrailingInset -
+      contentHorizontalPadding -
+      (trainingIndicatorSize / 2);
+}
+
 class _ProgressRow extends StatelessWidget {
   final String label;
   final String status;
@@ -1319,53 +1335,50 @@ class _ProgressRow extends StatelessWidget {
               final titleStyle = constraints.maxWidth < 140
                   ? Theme.of(context).textTheme.labelMedium
                   : Theme.of(context).textTheme.labelLarge;
-              final titleRow = Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    key: ValueKey('operation-progress-title-$label'),
-                    style: titleStyle,
-                  ),
-                  SizedBox(width: AppSpacing.sm),
-                  Semantics(
-                    label: optionalRecordPresent!
-                        ? 'Training recorded'
-                        : 'Training not recorded, optional',
-                    child: ExcludeSemantics(
-                      child: Icon(
-                        optionalRecordPresent!
-                            ? Icons.check_circle_outline
-                            : Icons.radio_button_unchecked,
-                        key: ValueKey(
-                          optionalRecordPresent!
-                              ? 'operation-progress-training-recorded'
-                              : 'operation-progress-training-optional',
-                        ),
-                        size: 18,
-                        color: optionalRecordPresent!
-                            ? colorScheme.primary
-                            : colorScheme.outline,
+              return SizedBox(
+                height: 20,
+                width: double.infinity,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        label,
+                        key: ValueKey('operation-progress-title-$label'),
+                        style: titleStyle,
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      top: 1,
+                      right: _ProgressStatusAnchorGeometry
+                          .trainingIndicatorRightInset,
+                      child: Semantics(
+                        label: optionalRecordPresent!
+                            ? 'Training recorded'
+                            : 'Training not recorded, optional',
+                        child: ExcludeSemantics(
+                          child: Icon(
+                            optionalRecordPresent!
+                                ? Icons.check_circle_outline
+                                : Icons.radio_button_unchecked,
+                            key: ValueKey(
+                              optionalRecordPresent!
+                                  ? 'operation-progress-training-recorded'
+                                  : 'operation-progress-training-optional',
+                            ),
+                            size: _ProgressStatusAnchorGeometry
+                                .trainingIndicatorSize,
+                            color: optionalRecordPresent!
+                                ? colorScheme.primary
+                                : colorScheme.outline,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               );
-              // The grid briefly uses two narrow columns at its responsive
-              // breakpoint. Scale this single passive title row only there,
-              // rather than restoring a far-right action slot or overflowing.
-              if (constraints.maxWidth < 125) {
-                return SizedBox(
-                  height: 20,
-                  width: double.infinity,
-                  child: FittedBox(
-                    alignment: Alignment.centerLeft,
-                    fit: BoxFit.scaleDown,
-                    child: titleRow,
-                  ),
-                );
-              }
-              return SizedBox(height: 20, child: titleRow);
             },
           )
         else
@@ -1441,7 +1454,7 @@ class _ProgressRow extends StatelessWidget {
             ),
             SizedBox(
               key: ValueKey('operation-progress-status-zone-$label'),
-              width: 48,
+              width: _ProgressStatusAnchorGeometry.statusZoneWidth,
               child: _CompletionHelpButton(completion: completion!),
             ),
           ],
@@ -1503,10 +1516,12 @@ class _CompletionHelpButton extends StatelessWidget {
         label: '${completion.label} completion details',
         child: SizedBox(
           key: ValueKey('operation-progress-info-${completion.label}'),
-          width: 48,
-          height: 48,
+          width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+          height: _ProgressStatusAnchorGeometry.statusZoneWidth,
           child: Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            padding: const EdgeInsets.only(
+              right: _ProgressStatusAnchorGeometry.statusZoneRightPadding,
+            ),
             child: Center(
               child: KeyedSubtree(
                 key: _visibleAnchorKey,
