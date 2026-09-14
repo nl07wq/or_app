@@ -127,7 +127,9 @@ class _RecoveryEvidenceShadowCard extends StatelessWidget {
           Text('Overall: ${_overallLabel(snapshot.overall)}'),
           for (final progress in snapshot.progress) ...[
             const SizedBox(height: 8),
-            Text(progress.identity.exerciseKey),
+            Text(
+              '${progress.identity.exerciseKey} / ${progress.identity.equipmentKey}',
+            ),
             if (!progress.isCompatible)
               const Text('PARAMETER VERSION MISMATCH — NOT COUNTED')
             else ...[
