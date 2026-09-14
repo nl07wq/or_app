@@ -32,6 +32,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('INFORMATION DEBUG'), findsOneWidget);
+    expect(find.text('INFORMATION MARQUEE RUNTIME'), findsOneWidget);
+    expect(find.text('SPEED  120 px/s'), findsOneWidget);
     expect(find.text('DAILY BRIEF V2 REVIEW'), findsOneWidget);
     await tester.tap(find.text('CREATE TEST NOTICE'));
     await tester.pumpAndSettle();

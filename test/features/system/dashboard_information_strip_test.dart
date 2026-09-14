@@ -163,8 +163,16 @@ void main() {
   });
 
   test('production marquee configuration is the sole timing source', () {
-    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 135);
+    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 120);
     expect(InformationMarqueeConfiguration.exitSafetyMargin, 12);
+    expect(
+      InformationMarqueeConfiguration.initialPause,
+      const Duration(milliseconds: 900),
+    );
+    expect(
+      InformationMarqueeConfiguration.terminalPause,
+      const Duration(milliseconds: 1300),
+    );
     const geometry = InformationMarqueeGeometry(
       viewportWidth: 390,
       textLayoutWidth: 500,
@@ -177,8 +185,44 @@ void main() {
     );
     expect(
       timing.effectivePixelsPerSecond,
-      moreOrLessEquals(135, epsilon: .01),
+      moreOrLessEquals(120, epsilon: .01),
     );
+  });
+
+  testWidgets('renders 120px per second for short, medium, and long notices', (
+    tester,
+  ) async {
+    const titles = [
+      'TEST',
+      'TEST INFORMATION',
+      'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ',
+    ];
+    const sample = Duration(milliseconds: 400);
+
+    for (final title in titles) {
+      await tester.pumpWidget(
+        _app(disableAnimations: false, width: 390, title: title),
+      );
+      final text = find.byKey(
+        const ValueKey('dashboard-information-marquee-text'),
+      );
+      await tester.pump(InformationMarqueeConfiguration.initialPause);
+      await tester.pump();
+      final before = tester.getRect(text).left;
+      await tester.pump(sample);
+      final after = tester.getRect(text).left;
+      final actualPixelsPerSecond =
+          (before - after) /
+          (sample.inMicroseconds / Duration.microsecondsPerSecond);
+
+      expect(
+        actualPixelsPerSecond,
+        moreOrLessEquals(
+          InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
+          epsilon: .5,
+        ),
+      );
+    }
   });
 
   test('local marquee geometry moves monotonically left', () {
