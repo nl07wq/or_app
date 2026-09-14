@@ -94,10 +94,7 @@ void main() {
       expect(find.text(_exerciseProgress), findsOneWidget);
       expect(find.text(_exerciseNext), findsOneWidget);
       expect(find.text(_nextSession), findsOneWidget);
-      expect(
-        find.textContaining('個人の実施間隔を十分に推定できないため'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('個人の実施間隔を十分に推定できないため'), findsOneWidget);
       expect(find.text(_risk), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('CREATE ANALYSIS REPORT'),
@@ -229,6 +226,7 @@ void main() {
 
       expect(find.text('推移 — 直近履歴'), findsOneWidget);
       expect(find.text('前回比較 — 同一種目 / 同一器具'), findsOneWidget);
+      expect(find.text('直近履歴  8/17'), findsOneWidget);
       expect(find.text('指標'), findsOneWidget);
       expect(find.text('現在'), findsOneWidget);
       expect(find.text('前回'), findsOneWidget);

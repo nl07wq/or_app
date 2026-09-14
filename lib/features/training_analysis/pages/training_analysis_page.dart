@@ -956,6 +956,9 @@ class _ExerciseComparison extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final previous = metrics.previous;
+    final recentHistoryDates = TrainingAnalysisPresentation.recentHistoryDates(
+      metrics.recentHistory.map((value) => value.operationDate),
+    );
     if (previous == null) {
       return const Text('前回: 利用不可');
     }
@@ -1003,9 +1006,7 @@ class _ExerciseComparison extends StatelessWidget {
         const Text('前回比較 — 同一種目 / 同一器具'),
         if (metrics.recentHistory.isNotEmpty) ...[
           AppSpacing.gapXS,
-          Text(
-            '直近履歴  ${metrics.recentHistory.map((value) => value.operationDate).join(' / ')}',
-          ),
+          Text('直近履歴  $recentHistoryDates'),
         ],
         AppSpacing.gapSM,
         Table(

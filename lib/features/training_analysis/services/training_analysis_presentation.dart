@@ -5,6 +5,19 @@ import 'training_frequency_recommendation_service.dart';
 abstract final class TrainingAnalysisPresentation {
   static String rpe(double? value) => value?.toStringAsFixed(1) ?? '—';
 
+  /// Formats the supplied newest-to-oldest history without changing its order.
+  ///
+  /// The newest displayed record establishes the reference year, keeping an
+  /// older report stable when viewed in a later calendar year.
+  static String recentHistoryDates(Iterable<String> operationDates) {
+    final dates = operationDates.toList(growable: false);
+    if (dates.isEmpty) return '';
+    final referenceYear = DateTime.tryParse(dates.first)?.year;
+    return dates
+        .map((value) => _recentHistoryDate(value, referenceYear))
+        .join(' | ');
+  }
+
   static String recommendationBasis(
     TrainingFrequencyRecommendation recommendation,
   ) => switch (recommendation.status) {
@@ -69,4 +82,11 @@ abstract final class TrainingAnalysisPresentation {
 
   static bool _isNearWholeDay(num value) =>
       ((value / 24) - (value / 24).round()).abs() <= .125;
+
+  static String _recentHistoryDate(String value, int? referenceYear) {
+    final date = DateTime.tryParse(value);
+    if (date == null) return value;
+    final year = date.year == referenceYear ? '' : '${date.year}/';
+    return '$year${date.month}/${date.day}';
+  }
 }
