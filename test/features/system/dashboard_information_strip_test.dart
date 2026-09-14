@@ -25,7 +25,7 @@ void main() {
     },
   );
 
-  testWidgets('marquee begins at the left and advances toward the right', (
+  testWidgets('marquee begins at the right and advances toward the left', (
     tester,
   ) async {
     await tester.pumpWidget(_app(disableAnimations: false));
@@ -36,7 +36,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     final moving = tester.getTopLeft(text).dx;
 
-    expect(moving, greaterThan(initial));
+    expect(moving, lessThan(initial));
   });
 
   testWidgets('remains a single compact line at supported dashboard widths', (

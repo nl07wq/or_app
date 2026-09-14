@@ -72,7 +72,7 @@ class _NoticeCount extends StatelessWidget {
 }
 
 /// A self-contained ticker so animation frames never rebuild Dashboard. Text
-/// enters from the left and travels to the right, then rests before repeating.
+/// enters from the right and travels to the left, then rests before repeating.
 class _InformationMarquee extends StatefulWidget {
   const _InformationMarquee({required this.text});
 
@@ -167,7 +167,10 @@ class _InformationMarqueeState extends State<_InformationMarquee>
           animation: _controller,
           child: Text(widget.text, maxLines: 1, style: style),
           builder: (context, child) => Transform.translate(
-            offset: Offset(-width + (travel * _controller.value), 0),
+            offset: Offset(
+              constraints.maxWidth - (travel * _controller.value),
+              0,
+            ),
             child: child,
           ),
         ),
