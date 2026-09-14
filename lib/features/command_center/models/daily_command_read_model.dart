@@ -16,6 +16,30 @@ enum DailyCommandModuleState { missing, recorded, invalid, optionalMissing }
 
 enum DailyCommandBackupState { notRequired, recoveryRequired }
 
+/// Presentation-neutral completion detail sourced from the canonical Daily Log
+/// validation result. Consumers may format this for their own surface without
+/// re-evaluating completion requirements.
+class DailyCommandCompletionItem {
+  const DailyCommandCompletionItem({
+    required this.label,
+    required this.state,
+    required this.missingRequirements,
+  });
+
+  final String label;
+  final DailyCommandModuleState state;
+  final List<String> missingRequirements;
+
+  bool get isComplete => state == DailyCommandModuleState.recorded;
+
+  String get displayState => switch (state) {
+    DailyCommandModuleState.missing => 'NOT RECORDED',
+    DailyCommandModuleState.invalid => 'INCOMPLETE',
+    DailyCommandModuleState.recorded => 'COMPLETE',
+    DailyCommandModuleState.optionalMissing => 'NOT RECORDED',
+  };
+}
+
 class DailyCommandReadModel {
   final String operationDate;
   final OperationPhase persistentPhase;
@@ -62,4 +86,31 @@ class DailyCommandReadModel {
 
   bool get recoveryRequired =>
       cycleState == DailyCommandCycleState.recoveryRequired;
+
+  DailyCommandCompletionItem get statusCompletion => DailyCommandCompletionItem(
+    label: 'STATUS',
+    state: statusModuleState,
+    missingRequirements: validation.statusCompleteness.missingRequirements,
+  );
+
+  DailyCommandCompletionItem get foodCompletion => DailyCommandCompletionItem(
+    label: 'FOOD',
+    state: foodModuleState,
+    missingRequirements: validation.foodCompleteness.missingRequirements,
+  );
+
+  DailyCommandCompletionItem get activityCompletion =>
+      DailyCommandCompletionItem(
+        label: 'ACTIVITY',
+        state: activityModuleState,
+        missingRequirements:
+            validation.activityCompleteness.missingRequirements,
+      );
+
+  DailyCommandCompletionItem get trainingCompletion =>
+      DailyCommandCompletionItem(
+        label: 'TRAINING',
+        state: trainingModuleState,
+        missingRequirements: const [],
+      );
 }

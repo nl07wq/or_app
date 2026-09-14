@@ -38,6 +38,14 @@ void main() {
         DailyLogModule.food,
         DailyLogModule.activity,
       ]);
+      expect(model.statusCompletion.displayState, 'COMPLETE');
+      expect(model.foodCompletion.displayState, 'NOT RECORDED');
+      expect(model.foodCompletion.missingRequirements, ['FOOD', 'WATER']);
+      expect(model.activityCompletion.displayState, 'NOT RECORDED');
+      expect(model.activityCompletion.missingRequirements, [
+        'STEPS',
+        'DIGESTIVE',
+      ]);
     });
 
     test('task088: current-date Morning Brief owns all command content', () {

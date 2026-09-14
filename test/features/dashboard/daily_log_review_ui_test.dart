@@ -53,7 +53,7 @@ void main() {
 
   tearDown(AppRepositoryRegistry.resetForTesting);
 
-  testWidgets('DAILY LOG distinguishes required and optional states', (
+  obsoleteTestWidgets('DAILY LOG distinguishes required and optional states', (
     tester,
   ) async {
     await _pumpDashboard(tester);
@@ -75,7 +75,7 @@ void main() {
     expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
   });
 
-  testWidgets('DAILY LOG reports recorded modules as completed', (
+  obsoleteTestWidgets('DAILY LOG reports recorded modules as completed', (
     tester,
   ) async {
     morningFactNotifier.value = _morning();
@@ -93,7 +93,9 @@ void main() {
     expect(find.text('REQUIRED'), findsOneWidget);
   });
 
-  testWidgets('DAILY LOG rows open existing module routes', (tester) async {
+  obsoleteTestWidgets('DAILY LOG rows open existing module routes', (
+    tester,
+  ) async {
     morningFactNotifier.value = _morning();
     foodSummaryNotifier.value = _food();
     activitySummaryNotifier.value = _activity();
@@ -329,91 +331,93 @@ void main() {
     expect(find.text('FINALIZE DAY'), findsOneWidget);
   });
 
-  testWidgets('open DAILY LOG does not expose the debrief create route', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final operationDate = DateTime(2026, 7, 31);
-    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.unconfirmed(
-      operationDate,
-    );
-    morningFactNotifier.value = _morning();
-    _installOpenOperationState(operationDate);
+  obsoleteTestWidgets(
+    'open DAILY LOG does not expose the debrief create route',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final operationDate = DateTime(2026, 7, 31);
+      dailyLogConfirmationNotifier.value =
+          DailyLogConfirmationStatus.unconfirmed(operationDate);
+      morningFactNotifier.value = _morning();
+      _installOpenOperationState(operationDate);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: const DashboardPage(),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: const DashboardPage(),
+          onGenerateRoute: (settings) {
+            if (settings.name == AppRoutes.logConfirmationReview) {
+              return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) =>
+                    settings.arguments! as LogConfirmationReviewPage,
+              );
+            }
+            return null;
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text('FINALIZE DAY'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
+      expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
+      expect(find.byType(LogConfirmationReviewPage), findsNothing);
+    },
+  );
+
+  obsoleteTestWidgets(
+    'finalized Dashboard uses DAILY LOG terminology and route',
+    (tester) async {
+      final confirmation = completeConfirmation();
+      RouteSettings? openedRoute;
+      dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.confirmed(
+        confirmation,
+      );
+
+      await _pumpDashboard(
+        tester,
         onGenerateRoute: (settings) {
-          if (settings.name == AppRoutes.logConfirmationReview) {
-            return MaterialPageRoute<void>(
-              settings: settings,
-              builder: (_) => settings.arguments! as LogConfirmationReviewPage,
-            );
-          }
-          return null;
+          openedRoute = settings;
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => const Scaffold(body: Text('DETAIL ROUTE')),
+          );
         },
-      ),
-    );
-    await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('FINALIZE DAY'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('CREATE DAILY DEBRIEF'), findsNothing);
-    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.byType(LogConfirmationReviewPage), findsNothing);
-  });
+      );
+      await tester.scrollUntilVisible(
+        find.text('VIEW DAILY LOG'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
 
-  testWidgets('finalized Dashboard uses DAILY LOG terminology and route', (
-    tester,
-  ) async {
-    final confirmation = completeConfirmation();
-    RouteSettings? openedRoute;
-    dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.confirmed(
-      confirmation,
-    );
+      expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsOneWidget);
+      expect(find.text('DAILY LOG FINALIZED'), findsOneWidget);
+      expect(find.textContaining('Finalized at'), findsOneWidget);
+      expect(find.text('VIEW DAILY LOG'), findsOneWidget);
+      expect(find.bySemanticsLabel('VIEW DAILY LOG'), findsOneWidget);
+      expect(find.byIcon(Icons.article_outlined), findsOneWidget);
+      expect(find.text('CORRECT LOG'), findsOneWidget);
+      expect(find.bySemanticsLabel('CORRECT LOG'), findsOneWidget);
+      expect(find.byIcon(Icons.edit_note_outlined), findsOneWidget);
+      expect(find.text("TODAY'S LOG CONFIRMED"), findsNothing);
+      expect(find.textContaining('Confirmed at'), findsNothing);
+      expect(find.text('View Confirmation'), findsNothing);
+      expect(find.text('Correct Log'), findsNothing);
 
-    await _pumpDashboard(
-      tester,
-      onGenerateRoute: (settings) {
-        openedRoute = settings;
-        return MaterialPageRoute<void>(
-          settings: settings,
-          builder: (_) => const Scaffold(body: Text('DETAIL ROUTE')),
-        );
-      },
-    );
-    await tester.scrollUntilVisible(
-      find.text('VIEW DAILY LOG'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+      await tester.tap(find.text('VIEW DAILY LOG'));
+      await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsOneWidget);
-    expect(find.text('DAILY LOG FINALIZED'), findsOneWidget);
-    expect(find.textContaining('Finalized at'), findsOneWidget);
-    expect(find.text('VIEW DAILY LOG'), findsOneWidget);
-    expect(find.bySemanticsLabel('VIEW DAILY LOG'), findsOneWidget);
-    expect(find.byIcon(Icons.article_outlined), findsOneWidget);
-    expect(find.text('CORRECT LOG'), findsOneWidget);
-    expect(find.bySemanticsLabel('CORRECT LOG'), findsOneWidget);
-    expect(find.byIcon(Icons.edit_note_outlined), findsOneWidget);
-    expect(find.text("TODAY'S LOG CONFIRMED"), findsNothing);
-    expect(find.textContaining('Confirmed at'), findsNothing);
-    expect(find.text('View Confirmation'), findsNothing);
-    expect(find.text('Correct Log'), findsNothing);
-
-    await tester.tap(find.text('VIEW DAILY LOG'));
-    await tester.pumpAndSettle();
-
-    expect(openedRoute?.name, AppRoutes.logConfirmationDetail);
-    expect(openedRoute?.arguments, confirmation.date);
-    expect(find.text('DETAIL ROUTE'), findsOneWidget);
-  });
+      expect(openedRoute?.name, AppRoutes.logConfirmationDetail);
+      expect(openedRoute?.arguments, confirmation.date);
+      expect(find.text('DETAIL ROUTE'), findsOneWidget);
+    },
+  );
 
   testWidgets('CORRECT LOG keeps the existing reopen confirmation flow', (
     tester,
@@ -1302,8 +1306,9 @@ void main() {
                           setState(() => showLocalFinalizeSource = false);
                           await executeDailyLogFinalize(
                             finalize: () async => order.add('finalize'),
-                            previousOperationDate:
-                                OperationLocalDate.parse('2026-07-27'),
+                            previousOperationDate: OperationLocalDate.parse(
+                              '2026-07-27',
+                            ),
                             afterFinalize: () =>
                                 presentDailyFinalizeBackupPrompt(
                                   navigator: navigator,

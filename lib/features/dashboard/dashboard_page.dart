@@ -54,7 +54,6 @@ import '../report_sync/models/morning_brief_state.dart';
 
 import 'models/dynamic_daily_target.dart';
 import 'services/dynamic_daily_target_service.dart';
-import 'widgets/daily_log_card.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -192,58 +191,31 @@ class _DashboardPageState extends State<DashboardPage> {
                                             },
                                           ),
                                           AppSpacing.gapLG,
-                                          SectionHeader(
-                                            icon: Icons.dashboard_outlined,
-                                            title: 'DAILY COMMAND',
-                                          ),
-                                          AppSpacing.gapSM,
                                           ValueListenableBuilder<int>(
                                             valueListenable:
                                                 morningBriefRevisionNotifier,
-                                            builder: (context, _, _) =>
-                                                _DailyCommandSummary(
+                                            builder: (context, revision, _) =>
+                                                _DashboardOperationOverview(
                                                   morningFact: morningFact,
+                                                  estimatedTDEE: estimatedTDEE,
                                                   foodSummary: foodSummary,
                                                   trainingSummary:
                                                       trainingSummary,
                                                   activitySummary:
                                                       activitySummary,
+                                                  refreshToken:
+                                                      _operationDateTransitionToken,
+                                                  morningBriefRevision:
+                                                      revision,
+                                                  useLargeLayout:
+                                                      useLargeLayout,
+                                                  onWaterTap: isReadOnly
+                                                      ? null
+                                                      : () =>
+                                                            _showQuickWaterInput(
+                                                              context,
+                                                            ),
                                                 ),
-                                          ),
-                                          AppSpacing.gapXL,
-                                          SectionHeader(
-                                            icon: Icons.timeline_outlined,
-                                            title: 'OPERATION PROGRESS',
-                                          ),
-                                          AppSpacing.gapSM,
-                                          _ProgressCard(
-                                            morningFact: morningFact,
-                                            estimatedTDEE: estimatedTDEE,
-                                            foodSummary: foodSummary,
-                                            trainingSummary: trainingSummary,
-                                            activitySummary: activitySummary,
-                                            refreshToken:
-                                                _operationDateTransitionToken,
-                                            useLargeLayout: useLargeLayout,
-                                            onWaterTap: isReadOnly
-                                                ? null
-                                                : () => _showQuickWaterInput(
-                                                    context,
-                                                  ),
-                                          ),
-                                          AppSpacing.gapXL,
-                                          DailyLogSection(
-                                            morningFact: morningFact,
-                                            foodSummary: foodSummary,
-                                            activitySummary: activitySummary,
-                                            trainingSummary: trainingSummary,
-                                            estimatedTotalBurn:
-                                                _estimatedTotalBurn(
-                                                  estimatedTDEE,
-                                                  trainingSummary,
-                                                ),
-                                            onReviewCompleted:
-                                                _showFinalizeDateTransition,
                                           ),
                                           AppSpacing.gapXL,
                                           SectionHeader(
@@ -282,6 +254,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  // Retained with the hidden Dashboard Daily Log flow for rollback/comparison.
+  // ignore: unused_element
   Future<void> _showFinalizeDateTransition(
     OperationLocalDate previousOperationDate,
   ) async {
@@ -567,76 +541,93 @@ class _DashboardLiveFlipClockState extends State<_DashboardLiveFlipClock>
   }
 }
 
-class _DailyCommandSummary extends StatelessWidget {
-  const _DailyCommandSummary({
+class _DashboardOperationOverview extends StatefulWidget {
+  const _DashboardOperationOverview({
     required this.morningFact,
+    required this.estimatedTDEE,
     required this.foodSummary,
     required this.trainingSummary,
     required this.activitySummary,
+    required this.refreshToken,
+    required this.morningBriefRevision,
+    required this.useLargeLayout,
+    required this.onWaterTap,
   });
 
   final MorningFact? morningFact;
+  final double? estimatedTDEE;
   final FoodSummary? foodSummary;
   final TrainingSummary? trainingSummary;
   final ActivitySummary activitySummary;
+  final int refreshToken;
+  final int morningBriefRevision;
+  final bool useLargeLayout;
+  final VoidCallback? onWaterTap;
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<DailyCommandReadModel>(
-      future: _load(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const OperationCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError || !snapshot.hasData) {
-          return const OperationCard(
-            child: Text('Current Operationを読み込めませんでした。'),
-          );
-        }
-        final model = snapshot.requireData;
-        return OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 6,
-                    child: DailyCommandItem(
-                      icon: model.operationStatus == null
-                          ? Icons.cancel_outlined
-                          : Icons.check_circle_outline,
-                      label: 'OPERATION STATUS',
-                      value:
-                          model.operationStatus?.name.toUpperCase() ??
-                          'STANDBY',
-                      status: model.operationStatus,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    flex: 5,
-                    child: _DailyCommandCycleState(
-                      cycleState: model.cycleState,
-                    ),
-                  ),
-                ],
-              ),
-              AppSpacing.gapMD,
-              DailyCommandItem(
-                icon: Icons.flag_outlined,
-                label: 'COMMANDER INTENT',
-                value: model.commanderIntent ?? '—',
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  State<_DashboardOperationOverview> createState() =>
+      _DashboardOperationOverviewState();
+}
+
+class _DashboardOperationOverviewState
+    extends State<_DashboardOperationOverview> {
+  late Future<DailyCommandReadModel> _model = _load();
+
+  @override
+  void didUpdateWidget(covariant _DashboardOperationOverview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.morningFact != widget.morningFact ||
+        oldWidget.foodSummary != widget.foodSummary ||
+        oldWidget.trainingSummary != widget.trainingSummary ||
+        oldWidget.activitySummary != widget.activitySummary ||
+        oldWidget.refreshToken != widget.refreshToken ||
+        oldWidget.morningBriefRevision != widget.morningBriefRevision) {
+      _model = _load();
+    }
   }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<DailyCommandReadModel>(
+    future: _model,
+    builder: (context, snapshot) {
+      final model = snapshot.data;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader(
+            icon: Icons.dashboard_outlined,
+            title: 'DAILY COMMAND',
+          ),
+          AppSpacing.gapSM,
+          if (snapshot.connectionState != ConnectionState.done)
+            const OperationCard(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (snapshot.hasError || model == null)
+            const OperationCard(child: Text('Current Operationを読み込めませんでした。'))
+          else
+            _DailyCommandSummaryCard(model: model),
+          AppSpacing.gapXL,
+          const SectionHeader(
+            icon: Icons.timeline_outlined,
+            title: 'OPERATION PROGRESS',
+          ),
+          AppSpacing.gapSM,
+          _ProgressCard(
+            morningFact: widget.morningFact,
+            estimatedTDEE: widget.estimatedTDEE,
+            foodSummary: widget.foodSummary,
+            trainingSummary: widget.trainingSummary,
+            activitySummary: widget.activitySummary,
+            refreshToken: widget.refreshToken,
+            useLargeLayout: widget.useLargeLayout,
+            onWaterTap: widget.onWaterTap,
+            completionModel: model,
+          ),
+        ],
+      );
+    },
+  );
 
   Future<DailyCommandReadModel> _load() async {
     final state = await AppRepositoryRegistry.container.operationState
@@ -663,15 +654,57 @@ class _DailyCommandSummary extends StatelessWidget {
     }
     return DailyCommandReadModelBuilder.build(
       operationState: state,
-      status: morningFact,
-      food: foodSummary,
-      training: trainingSummary,
-      activity: activitySummary,
+      status: widget.morningFact,
+      food: widget.foodSummary,
+      training: widget.trainingSummary,
+      activity: widget.activitySummary,
       morningBrief: morningBrief,
       burnWeightKg: burnWeight,
       dailyDebriefFinalizeReady: dailyDebriefFinalizeReady,
     );
   }
+}
+
+class _DailyCommandSummaryCard extends StatelessWidget {
+  const _DailyCommandSummaryCard({required this.model});
+
+  final DailyCommandReadModel model;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 6,
+              child: DailyCommandItem(
+                icon: model.operationStatus == null
+                    ? Icons.cancel_outlined
+                    : Icons.check_circle_outline,
+                label: 'OPERATION STATUS',
+                value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
+                status: model.operationStatus,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              flex: 5,
+              child: _DailyCommandCycleState(cycleState: model.cycleState),
+            ),
+          ],
+        ),
+        AppSpacing.gapMD,
+        DailyCommandItem(
+          icon: Icons.flag_outlined,
+          label: 'COMMANDER INTENT',
+          value: model.commanderIntent ?? '—',
+        ),
+      ],
+    ),
+  );
 }
 
 class _DailyCommandCycleState extends StatelessWidget {
@@ -731,6 +764,7 @@ class _ProgressCard extends StatefulWidget {
   final int refreshToken;
   final bool useLargeLayout;
   final VoidCallback? onWaterTap;
+  final DailyCommandReadModel? completionModel;
 
   const _ProgressCard({
     required this.morningFact,
@@ -741,6 +775,7 @@ class _ProgressCard extends StatefulWidget {
     required this.refreshToken,
     required this.useLargeLayout,
     required this.onWaterTap,
+    required this.completionModel,
   });
 
   @override
@@ -764,7 +799,6 @@ class _ProgressCardState extends State<_ProgressCard> {
 
   @override
   Widget build(BuildContext context) {
-    final morningComplete = widget.morningFact != null;
     final mealCount = widget.foodSummary?.mealCount ?? 0;
     final calories = widget.foodSummary?.calories ?? 0;
     final protein = widget.foodSummary?.protein ?? 0;
@@ -816,13 +850,13 @@ class _ProgressCardState extends State<_ProgressCard> {
                     Expanded(
                       flex: 3,
                       child: _buildProgressTiles(
-                        morningComplete: morningComplete,
                         mealCount: mealCount,
                         calories: calories,
                         protein: protein,
                         hydrationMl: hydrationMl,
                         activityDetails: activityDetails,
                         targets: targets,
+                        completionModel: widget.completionModel,
                         forceTwoColumns: true,
                       ),
                     ),
@@ -846,13 +880,13 @@ class _ProgressCardState extends State<_ProgressCard> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 800),
                         child: _buildProgressTiles(
-                          morningComplete: morningComplete,
                           mealCount: mealCount,
                           calories: calories,
                           protein: protein,
                           hydrationMl: hydrationMl,
                           activityDetails: activityDetails,
                           targets: targets,
+                          completionModel: widget.completionModel,
                         ),
                       ),
                     ),
@@ -972,13 +1006,13 @@ class _ProgressCardState extends State<_ProgressCard> {
   }
 
   Widget _buildProgressTiles({
-    required bool morningComplete,
     required int mealCount,
     required double calories,
     required double protein,
     required double hydrationMl,
     required List<String> activityDetails,
     required DynamicDailyTargetResult? targets,
+    required DailyCommandReadModel? completionModel,
     bool forceTwoColumns = false,
   }) {
     final foodSummaryAvailable = widget.foodSummary != null && mealCount > 0;
@@ -998,6 +1032,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           bool fullWidth = false,
           List<String> details = const [],
           DynamicTargetState? targetState,
+          DailyCommandCompletionItem? completion,
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
@@ -1009,6 +1044,7 @@ class _ProgressCardState extends State<_ProgressCard> {
               onTap: onTap,
               details: details,
               targetState: targetState,
+              completion: completion,
             ),
           );
         }
@@ -1019,13 +1055,29 @@ class _ProgressCardState extends State<_ProgressCard> {
           children: [
             tile(
               label: 'STATUS',
-              status: morningComplete ? '完了' : '未完了',
-              progress: morningComplete ? 1.0 : 0.0,
+              status:
+                  completionModel?.statusCompletion.displayState ??
+                  (widget.morningFact == null ? '未完了' : '完了'),
+              progress:
+                  completionModel?.statusCompletion.isComplete == true ||
+                      (completionModel == null && widget.morningFact != null)
+                  ? 1.0
+                  : 0.0,
+              completion: completionModel?.statusCompletion,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
             ),
             tile(
               label: 'FOOD',
-              status: '$mealCount / 3',
-              progress: (mealCount / 3).clamp(0.0, 1.0).toDouble(),
+              status:
+                  completionModel?.foodCompletion.displayState ??
+                  '$mealCount / 3',
+              progress: completionModel?.foodCompletion.isComplete == true
+                  ? 1.0
+                  : completionModel == null
+                  ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
+                  : 0.0,
+              completion: completionModel?.foodCompletion,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.food),
             ),
             tile(
               label: 'CALORIES',
@@ -1074,15 +1126,24 @@ class _ProgressCardState extends State<_ProgressCard> {
                   ? 'Recorded'
                   : 'Not recorded',
               progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.training),
             ),
             tile(
               label: 'ACTIVITY',
-              status: widget.activitySummary.isRecorded
-                  ? '${_formatInteger(widget.activitySummary.steps)} steps'
-                  : 'Not recorded',
-              progress: widget.activitySummary.isRecorded ? 1.0 : 0.0,
+              status:
+                  completionModel?.activityCompletion.displayState ??
+                  (widget.activitySummary.isRecorded
+                      ? '${_formatInteger(widget.activitySummary.steps)} steps'
+                      : 'Not recorded'),
+              progress: completionModel?.activityCompletion.isComplete == true
+                  ? 1.0
+                  : completionModel == null && widget.activitySummary.isRecorded
+                  ? 1.0
+                  : 0.0,
               fullWidth: true,
               details: activityDetails,
+              completion: completionModel?.activityCompletion,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
             ),
           ],
         );
@@ -1204,6 +1265,7 @@ class _ProgressRow extends StatelessWidget {
   final VoidCallback? onTap;
   final List<String> details;
   final DynamicTargetState? targetState;
+  final DailyCommandCompletionItem? completion;
 
   const _ProgressRow({
     required this.label,
@@ -1212,6 +1274,7 @@ class _ProgressRow extends StatelessWidget {
     this.onTap,
     this.details = const [],
     this.targetState,
+    this.completion,
   });
 
   @override
@@ -1234,7 +1297,15 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        Row(
+          children: [
+            Expanded(
+              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+            ),
+            if (completion != null)
+              _CompletionHelpButton(completion: completion!),
+          ],
+        ),
         AppSpacing.gapXS,
         Row(
           children: [
@@ -1284,6 +1355,60 @@ class _ProgressRow extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: content,
+        ),
+      ),
+    );
+  }
+}
+
+class _CompletionHelpButton extends StatelessWidget {
+  const _CompletionHelpButton({required this.completion});
+
+  final DailyCommandCompletionItem completion;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final (icon, color) = switch (completion.state) {
+      DailyCommandModuleState.recorded => (
+        Icons.check_circle_outline,
+        colorScheme.primary,
+      ),
+      DailyCommandModuleState.missing || DailyCommandModuleState.invalid => (
+        Icons.error_outline,
+        colorScheme.error,
+      ),
+      DailyCommandModuleState.optionalMissing => (
+        Icons.info_outline,
+        colorScheme.onSurfaceVariant,
+      ),
+    };
+    return SemanticHelpPopover(
+      id: 'completion-${completion.label.toLowerCase()}',
+      title: completion.label,
+      description: completion.displayState,
+      secondary: completion.missingRequirements.isEmpty
+          ? null
+          : 'Missing: ${completion.missingRequirements.join(', ')}',
+      offset: const Offset(0, 4),
+      constraints: const BoxConstraints(minWidth: 240, maxWidth: 300),
+      child: Semantics(
+        button: true,
+        label: '${completion.label} completion details',
+        child: SizedBox(
+          key: ValueKey('operation-progress-info-${completion.label}'),
+          width: 40,
+          height: 40,
+          child: Center(
+            child: Icon(
+              icon,
+              key: ValueKey(
+                'operation-progress-completion-${completion.label}',
+              ),
+              color: color,
+              size: 20,
+            ),
+          ),
         ),
       ),
     );
