@@ -290,12 +290,24 @@ class MorningBriefRecord {
     'createdAt',
     'updatedAt',
   };
+  static const provenancedPreviousFields = {
+    ...previousFields,
+    'evaluationVersion',
+  };
   static const currentFields = {
     ...previousFields,
     'revision',
     'previousRevisions',
   };
+  static const provenancedCurrentFields = {
+    ...currentFields,
+    'evaluationVersion',
+  };
   static const archivedCurrentFields = {...currentFields, 'archivedRevisions'};
+  static const provenancedArchivedCurrentFields = {
+    ...provenancedCurrentFields,
+    'archivedRevisions',
+  };
 
   final String localDate;
   final int recordVersion;
@@ -305,6 +317,7 @@ class MorningBriefRecord {
   final String? sourceOperationDate;
   final String? sourceRecordId;
   final String? sourceDigest;
+  final String? evaluationVersion;
   final String responseDigest;
   final String? exchangeId;
   final DateTime generatedAt;
@@ -344,6 +357,7 @@ class MorningBriefRecord {
        sourceOperationDate = null,
        sourceRecordId = null,
        sourceDigest = null,
+       evaluationVersion = null,
        exchangeId = null,
        _legacySituationAnalysis = situationAnalysis,
        situationAnalysisV2 = null,
@@ -374,6 +388,7 @@ class MorningBriefRecord {
     required this.sourceOperationDate,
     required this.sourceRecordId,
     required this.sourceDigest,
+    this.evaluationVersion,
     required this.responseDigest,
     required this.exchangeId,
     required this.generatedAt,
@@ -406,6 +421,7 @@ class MorningBriefRecord {
     required this.sourceOperationDate,
     required this.sourceRecordId,
     required this.sourceDigest,
+    this.evaluationVersion,
     required this.responseDigest,
     required this.exchangeId,
     required this.generatedAt,
@@ -495,6 +511,7 @@ class MorningBriefRecord {
           'sourceOperationDate': sourceOperationDate,
           'sourceRecordId': sourceRecordId,
           'sourceDigest': sourceDigest,
+          if (evaluationVersion != null) 'evaluationVersion': evaluationVersion,
           'responseDigest': responseDigest,
           'exchangeId': exchangeId,
           'generatedAt': generatedAt.toUtc().toIso8601String(),
@@ -569,7 +586,12 @@ class MorningBriefRecord {
   }
 
   static MorningBriefRecord _fromPreviousRecord(Map<String, Object?> json) {
-    ReportSyncRecordUtils.exactFields(json, previousFields);
+    ReportSyncRecordUtils.exactFields(
+      json,
+      json.containsKey('evaluationVersion')
+          ? provenancedPreviousFields
+          : previousFields,
+    );
     return MorningBriefRecord.v2(
       localDate: ReportSyncRecordUtils.localDate(json, 'localDate'),
       sourceType: ReportSyncRecordUtils.string(json, 'sourceType'),
@@ -579,6 +601,10 @@ class MorningBriefRecord {
       ),
       sourceRecordId: ReportSyncRecordUtils.string(json, 'sourceRecordId'),
       sourceDigest: ReportSyncRecordUtils.digest(json, 'sourceDigest'),
+      evaluationVersion: ReportSyncRecordUtils.nullableString(
+        json,
+        'evaluationVersion',
+      ),
       responseDigest: ReportSyncRecordUtils.digest(json, 'responseDigest'),
       exchangeId: ReportSyncRecordUtils.string(json, 'exchangeId'),
       generatedAt: ReportSyncRecordUtils.date(json, 'generatedAt'),
@@ -603,8 +629,12 @@ class MorningBriefRecord {
     ReportSyncRecordUtils.exactFields(
       json,
       json.containsKey('archivedRevisions')
-          ? archivedCurrentFields
-          : currentFields,
+          ? (json.containsKey('evaluationVersion')
+                ? provenancedArchivedCurrentFields
+                : archivedCurrentFields)
+          : (json.containsKey('evaluationVersion')
+                ? provenancedCurrentFields
+                : currentFields),
     );
     final previous = json['previousRevisions'];
     if (previous is! List || previous.any((value) => value is! Map)) {
@@ -633,6 +663,7 @@ class MorningBriefRecord {
       sourceOperationDate: base.sourceOperationDate,
       sourceRecordId: base.sourceRecordId,
       sourceDigest: base.sourceDigest,
+      evaluationVersion: base.evaluationVersion,
       responseDigest: base.responseDigest,
       exchangeId: base.exchangeId,
       generatedAt: base.generatedAt,
@@ -666,6 +697,7 @@ class MorningBriefRecord {
       sourceOperationDate: sourceOperationDate,
       sourceRecordId: sourceRecordId,
       sourceDigest: sourceDigest,
+      evaluationVersion: evaluationVersion,
       responseDigest: responseDigest,
       exchangeId: exchangeId,
       generatedAt: generatedAt,
@@ -699,6 +731,7 @@ class MorningBriefRecord {
       sourceOperationDate: next.sourceOperationDate,
       sourceRecordId: next.sourceRecordId,
       sourceDigest: next.sourceDigest,
+      evaluationVersion: next.evaluationVersion,
       responseDigest: next.responseDigest,
       exchangeId: next.exchangeId,
       generatedAt: next.generatedAt,
@@ -731,6 +764,7 @@ class MorningBriefRecord {
           sourceOperationDate: sourceOperationDate,
           sourceRecordId: sourceRecordId,
           sourceDigest: sourceDigest,
+          evaluationVersion: evaluationVersion,
           responseDigest: responseDigest,
           exchangeId: exchangeId,
           generatedAt: generatedAt,

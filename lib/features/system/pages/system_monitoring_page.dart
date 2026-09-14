@@ -5,6 +5,7 @@ import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../report_sync/services/daily_brief_plantar_risk_review_service.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 import '../models/information_notice.dart';
 import '../services/information_notice_service.dart';
@@ -18,6 +19,8 @@ class SystemMonitoringPage extends StatefulWidget {
 
 class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
   late final Future<_ShadowSnapshot> _shadow = _loadShadow();
+  late final Future<DailyBriefPlantarRiskReviewSummary> _dailyBriefReview =
+      _loadDailyBriefReview();
   late final InformationNoticeService _informationService =
       InformationNoticeService();
   late Future<List<InformationNotice>> _informationHistory = _informationService
@@ -99,6 +102,11 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
     );
   }
 
+  Future<DailyBriefPlantarRiskReviewSummary> _loadDailyBriefReview() async =>
+      const DailyBriefPlantarRiskReviewService().summarize(
+        await AppRepositoryRegistry.container.morningBriefs.list(),
+      );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('SYSTEM MONITORING')),
@@ -122,6 +130,21 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
               );
             }
             return _RecoveryEvidenceShadowCard(snapshot: snapshot.data!);
+          },
+        ),
+        AppSpacing.gapSM,
+        FutureBuilder<DailyBriefPlantarRiskReviewSummary>(
+          future: _dailyBriefReview,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const OperationCard(
+                child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
+            return _DailyBriefV2ReviewCard(summary: snapshot.data!);
           },
         ),
         AppSpacing.gapSM,
@@ -162,6 +185,41 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
       ],
     ),
   );
+}
+
+class _DailyBriefV2ReviewCard extends StatelessWidget {
+  const _DailyBriefV2ReviewCard({required this.summary});
+
+  final DailyBriefPlantarRiskReviewSummary summary;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'DAILY BRIEF V2 REVIEW',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text('VERSION  ${summary.evaluationVersion}'),
+        Text(
+          'OBSERVATIONS  ${summary.observationCount} / ${DailyBriefPlantarRiskReviewService.targetObservationCount}',
+        ),
+        Text('STATE  ${_stateLabel(summary.state)}'),
+        const Divider(),
+        Text(
+          'GREEN ${summary.greenCount}  /  YELLOW ${summary.yellowCount}  /  RED ${summary.redCount}',
+        ),
+      ],
+    ),
+  );
+
+  String _stateLabel(DailyBriefPlantarRiskReviewState state) => switch (state) {
+    DailyBriefPlantarRiskReviewState.collecting => 'COLLECTING',
+    DailyBriefPlantarRiskReviewState.reviewBuilding => 'REVIEW BUILDING',
+    DailyBriefPlantarRiskReviewState.reviewReady => 'REVIEW READY',
+  };
 }
 
 class _InformationHistoryCard extends StatelessWidget {

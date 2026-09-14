@@ -198,6 +198,12 @@ void main() {
         ).readByLocalDate('2026-08-02'))?.recordVersion,
         MorningBriefRecord.currentRecordVersion,
       );
+      expect(
+        (await IndexedDbMorningBriefRepository(
+          database,
+        ).readByLocalDate('2026-08-02'))?.evaluationVersion,
+        'plantar-risk-v2',
+      );
       expect((await histories.list()).length, 1);
     },
   );

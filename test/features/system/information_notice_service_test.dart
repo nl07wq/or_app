@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/system/models/information_notice.dart';
 import 'package:or_app/features/system/services/information_notice_service.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
+import 'package:or_app/features/report_sync/services/daily_brief_plantar_risk_review_service.dart';
 import 'package:or_app/features/training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 
 void main() {
@@ -170,7 +172,71 @@ void main() {
     );
     expect(candidate?.id, 'recovery-v2-review-ready:v2-beta-1');
   });
+
+  test(
+    'Daily Brief V2 review ready is version-aware and only starts at ten',
+    () {
+      const review = DailyBriefPlantarRiskReviewService();
+      final notReady = review.summarize(_briefs(9));
+      expect(dailyBriefPlantarRiskReviewReadyCandidate(notReady), isNull);
+
+      final ready = review.summarize(_briefs(10));
+      final candidate = dailyBriefPlantarRiskReviewReadyCandidate(ready);
+      expect(candidate?.id, 'daily-brief-plantar-review-ready:plantar-risk-v2');
+      expect(candidate?.title, 'DAILY BRIEF — REVIEW READY');
+
+      final v3 = review.summarize(
+        _briefs(10, version: 'plantar-risk-v3'),
+        version: 'plantar-risk-v3',
+      );
+      expect(
+        dailyBriefPlantarRiskReviewReadyCandidate(v3)?.id,
+        'daily-brief-plantar-review-ready:plantar-risk-v3',
+      );
+    },
+  );
 }
+
+List<MorningBriefRecord> _briefs(
+  int count, {
+  String version = 'plantar-risk-v2',
+}) => [
+  for (var index = 0; index < count; index++)
+    MorningBriefRecord.v2(
+      localDate: '2026-09-${(index + 1).toString().padLeft(2, '0')}',
+      sourceType: 'status',
+      sourceOperationDate: '2026-09-${(index + 1).toString().padLeft(2, '0')}',
+      sourceRecordId: 'status:$index',
+      sourceDigest:
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      evaluationVersion: version,
+      responseDigest:
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      exchangeId: 'exchange:$index',
+      generatedAt: DateTime.utc(2026, 9, 1),
+      importedAt: DateTime.utc(2026, 9, 1),
+      situationAnalysisV2: const MorningBriefSituationAnalysis(
+        body: 'body',
+        recovery: 'recovery',
+        condition: 'condition',
+        work: 'work',
+        carryover: 'carryover',
+        overall: 'overall',
+      ),
+      operatingPolicy: 'policy',
+      strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
+        decision: 'decision',
+        targetResource: null,
+        rationale: 'rationale',
+        execution: null,
+      ),
+      operationStatus: MorningBriefOperationStatus.green,
+      commanderIntent: 'intent',
+      actions: const [],
+      createdAt: DateTime.utc(2026, 9, 1),
+      updatedAt: DateTime.utc(2026, 9, 1),
+    ),
+];
 
 InformationNoticeService _service(
   _MemoryStore store,

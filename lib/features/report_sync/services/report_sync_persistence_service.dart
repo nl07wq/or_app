@@ -17,6 +17,7 @@ import 'report_sync_canonical_service.dart';
 import 'report_sync_validator.dart';
 import 'status_report_sync_source_service.dart';
 import 'daily_debrief_source_service.dart';
+import 'daily_brief_plantar_risk_review_service.dart';
 
 class ReportSyncImportFailure implements Exception {
   const ReportSyncImportFailure({
@@ -388,6 +389,7 @@ class ReportSyncPersistenceService {
       sourceOperationDate: response.operationDate,
       sourceRecordId: currentSource.source.sourceRecordId,
       sourceDigest: currentSource.sourceDigest,
+      evaluationVersion: DailyBriefPlantarRiskReviewService.evaluationVersion,
       responseDigest: ReportSyncCanonicalService.digest(payload),
       exchangeId: response.exchangeId,
       generatedAt: response.createdAt,

@@ -24,7 +24,7 @@ void main() {
   testWidgets('creates and clears explicitly marked test notices', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(390, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -32,6 +32,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('INFORMATION DEBUG'), findsOneWidget);
+    expect(find.text('DAILY BRIEF V2 REVIEW'), findsOneWidget);
     await tester.tap(find.text('CREATE TEST NOTICE'));
     await tester.pumpAndSettle();
     expect(find.text('INFORMATION TEST'), findsOneWidget);

@@ -76,11 +76,13 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _informationNoticesFuture = _informationService.activeNotices();
     informationNoticeRevision.addListener(_refreshInformation);
+    morningBriefRevisionNotifier.addListener(_refreshInformation);
   }
 
   @override
   void dispose() {
     informationNoticeRevision.removeListener(_refreshInformation);
+    morningBriefRevisionNotifier.removeListener(_refreshInformation);
     _scrollController.dispose();
     super.dispose();
   }

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/app_repository_container.dart';
+import '../../report_sync/services/daily_brief_plantar_risk_review_service.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 import '../models/information_notice.dart';
 
@@ -79,6 +80,24 @@ class RecoveryV2ReviewReadyInformationProducer
   }
 }
 
+class DailyBriefPlantarRiskReviewInformationProducer
+    implements InformationNoticeProducer {
+  const DailyBriefPlantarRiskReviewInformationProducer({this.reviewService});
+
+  final DailyBriefPlantarRiskReviewService? reviewService;
+
+  @override
+  Future<List<InformationNoticeCandidate>> activeCandidates(
+    DateTime currentTime,
+  ) async {
+    final records = await AppRepositoryRegistry.container.morningBriefs.list();
+    final summary = (reviewService ?? const DailyBriefPlantarRiskReviewService())
+        .summarize(records);
+    final candidate = dailyBriefPlantarRiskReviewReadyCandidate(summary);
+    return candidate == null ? const [] : [candidate];
+  }
+}
+
 InformationNoticeCandidate? recoveryV2ReviewReadyCandidate(
   RecoveryEvidenceShadowValidationOverall overall,
 ) {
@@ -97,6 +116,21 @@ InformationNoticeCandidate? recoveryV2ReviewReadyCandidate(
   );
 }
 
+InformationNoticeCandidate? dailyBriefPlantarRiskReviewReadyCandidate(
+  DailyBriefPlantarRiskReviewSummary summary,
+) {
+  if (!summary.isReviewReady) return null;
+  return InformationNoticeCandidate(
+    id: 'daily-brief-plantar-review-ready:${summary.evaluationVersion}',
+    priority: InformationNoticePriority.review,
+    category: 'DAILY BRIEF V2 REVIEW',
+    title: 'DAILY BRIEF — REVIEW READY',
+    message: '足底筋膜炎リスク評価V2の運用データが10件蓄積しました。GREEN / YELLOW / REDの分布と主要判定根拠を確認し、評価モデルの継続または再調整をレビューできます。',
+    parameterVersion: summary.evaluationVersion,
+    actionLabel: '評価データを確認',
+  );
+}
+
 /// Non-Formal operational notice metadata. Candidate eligibility is always
 /// reconstructed from its producer; only read and dismiss interaction state is
 /// retained locally.
@@ -107,7 +141,10 @@ class InformationNoticeService {
     DateTime Function()? now,
   }) : _store = store ?? SharedPreferencesInformationNoticeMetadataStore(),
        _producers =
-           producers ?? const [RecoveryV2ReviewReadyInformationProducer()],
+           producers ?? const [
+             RecoveryV2ReviewReadyInformationProducer(),
+             DailyBriefPlantarRiskReviewInformationProducer(),
+           ],
        _now = now ?? DateTime.now;
 
   final InformationNoticeMetadataStore _store;
