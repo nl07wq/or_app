@@ -19,6 +19,8 @@ abstract final class FoodVisualIconResolver {
     FoodVisualKey.drink => Icons.local_drink_outlined,
     FoodVisualKey.condiment => Icons.soup_kitchen_outlined,
     FoodVisualKey.protein => Icons.fitness_center_outlined,
+    FoodVisualKey.soup => Icons.soup_kitchen_outlined,
+    FoodVisualKey.surimi => Icons.restaurant_menu,
     null => fallback,
   };
 
@@ -35,6 +37,23 @@ abstract final class FoodVisualIconResolver {
   }
 }
 
+abstract final class FoodThumbnailAssetResolver {
+  static const _directory = 'assets/images/food_category';
+
+  static String? resolve(FoodVisualKey? key) => switch (key) {
+    FoodVisualKey.meat ||
+    FoodVisualKey.fish ||
+    FoodVisualKey.dairy ||
+    FoodVisualKey.vegetable ||
+    FoodVisualKey.fruit ||
+    FoodVisualKey.protein ||
+    FoodVisualKey.condiment ||
+    FoodVisualKey.soup ||
+    FoodVisualKey.surimi => '$_directory/${key!.stableId}.png',
+    _ => null,
+  };
+}
+
 String foodVisualKeyLabel(FoodVisualKey key) => key.stableId.toUpperCase();
 
 class FoodThumbnail extends StatelessWidget {
@@ -49,22 +68,38 @@ class FoodThumbnail extends StatelessWidget {
   final double size;
   final IconData fallbackIcon;
 
+  static const double _customAssetScale = 0.68;
+
   @override
   Widget build(BuildContext context) {
     final key = visualKey;
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    final asset = FoodThumbnailAssetResolver.resolve(key);
     return SizedBox.square(
       dimension: size,
       child: Padding(
         padding: const EdgeInsets.all(3),
-        child: Icon(
-          FoodVisualIconResolver.resolve(key, fallback: fallbackIcon),
-          key: key == null
-              ? const ValueKey('food-thumbnail-fallback')
-              : ValueKey('food-thumbnail-${key.stableId}'),
-          size: size * 0.68,
-          color: color,
-        ),
+        child: asset == null
+            ? Icon(
+                FoodVisualIconResolver.resolve(key, fallback: fallbackIcon),
+                key: key == null
+                    ? const ValueKey('food-thumbnail-fallback')
+                    : ValueKey('food-thumbnail-${key.stableId}'),
+                size: size * _customAssetScale,
+                color: color,
+              )
+            : Center(
+                child: SizedBox.square(
+                  dimension: size * _customAssetScale,
+                  child: Image.asset(
+                    asset,
+                    key: ValueKey('food-thumbnail-${key!.stableId}'),
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
       ),
     );
   }

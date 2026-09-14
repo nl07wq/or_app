@@ -32,7 +32,9 @@ enum FoodVisualKey {
   snack,
   drink,
   condiment,
-  protein;
+  protein,
+  soup,
+  surimi;
 
   String get stableId => name;
 

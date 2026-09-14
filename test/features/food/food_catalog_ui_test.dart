@@ -202,7 +202,7 @@ void main() {
           .widget<GridView>(find.byType(GridView))
           .childrenDelegate
           .estimatedChildCount,
-      13,
+      15,
     );
     final expectedChoiceKeys = {
       'food-thumbnail-choice-not-set',
@@ -255,6 +255,30 @@ void main() {
     saved = (await repository.list()).single;
     expect(saved.visualKey, FoodVisualKey.fish);
     expect(saved.category, FoodCatalogCategory.beverage);
+
+    await pumpEditor(saved);
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    await _tapThumbnailChoice(tester, 'soup');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    saved = (await repository.list()).single;
+    expect(saved.visualKey, FoodVisualKey.soup);
+
+    await pumpEditor(saved);
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    await _tapThumbnailChoice(tester, 'surimi');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    saved = (await repository.list()).single;
+    expect(saved.visualKey, FoodVisualKey.surimi);
 
     await pumpEditor(saved);
     await tester.ensureVisible(change);
@@ -354,6 +378,8 @@ void main() {
     FoodVisualKey.meat,
     FoodVisualKey.condiment,
     FoodVisualKey.protein,
+    FoodVisualKey.soup,
+    FoodVisualKey.surimi,
   ]) {
     testWidgets('selected thumbnail preview stays readable at 320px for '
         '${visualKey?.stableId ?? 'not-set'}', (tester) async {
@@ -1028,6 +1054,20 @@ String _fieldText(WidgetTester tester, String label) => tester
     .widget<TextField>(find.widgetWithText(TextField, label))
     .controller!
     .text;
+
+Future<void> _tapThumbnailChoice(WidgetTester tester, String stableId) async {
+  final choice = find.byKey(ValueKey('food-thumbnail-choice-$stableId'));
+  for (var page = 0; page < 5; page++) {
+    if (choice.evaluate().isNotEmpty) {
+      await tester.ensureVisible(choice);
+      await tester.tap(choice);
+      return;
+    }
+    await tester.drag(find.byType(GridView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+  }
+  fail('Thumbnail choice was not rendered: $stableId');
+}
 
 FoodCatalogEntry _entry({
   required String id,
