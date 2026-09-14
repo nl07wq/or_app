@@ -99,12 +99,13 @@ class _InformationMarqueeState extends State<_InformationMarquee>
     with SingleTickerProviderStateMixin {
   static const _initialPause = Duration(milliseconds: 900);
   static const _terminalPause = Duration(milliseconds: 1300);
-  static const _travel = Duration(milliseconds: 5200);
   static const _exitSafetyMargin = 6.0;
+  static const _scrollSpeedPxPerSecond =
+      InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: _travel,
+    duration: InformationMarqueeTiming.calibrationTravelDuration,
   )..addStatusListener(_onStatus);
   Timer? _pauseTimer;
   bool _reducedMotion = false;
@@ -188,6 +189,15 @@ class _InformationMarqueeState extends State<_InformationMarquee>
           textLayoutWidth: painter.width,
           exitSafetyMargin: _exitSafetyMargin,
         );
+        final timing = InformationMarqueeTiming(
+          geometry: geometry,
+          scrollSpeedPxPerSecond: _scrollSpeedPxPerSecond,
+        );
+        // The same measured distance used for the exit geometry controls the
+        // controller duration. Updating it here also covers ticker resizes.
+        if (_controller.duration != timing.travelDuration) {
+          _controller.duration = timing.travelDuration;
+        }
         return AnimatedBuilder(
           animation: _controller,
           child: Text(
@@ -232,7 +242,39 @@ class InformationMarqueeGeometry {
 
   double get startLeft => viewportWidth;
   double get endLeft => -textLayoutWidth - exitSafetyMargin;
+  double get travelDistance => startLeft - endLeft;
 
   double leftAt(double progress) =>
       startLeft + ((endLeft - startLeft) * progress.clamp(0, 1));
+}
+
+/// Timing companion for [InformationMarqueeGeometry].
+///
+/// The calibrated speed preserves the prior 5200ms movement for the
+/// representative 390px Dashboard ticker (334px usable viewport) and its
+/// existing REVIEW READY title (441.75px text layout width):
+/// `(334 + 441.75 + 6) / 5.2 = 150.336538... px/s`.
+class InformationMarqueeTiming {
+  const InformationMarqueeTiming({
+    required this.geometry,
+    required this.scrollSpeedPxPerSecond,
+  });
+
+  static const calibrationTravelDuration = Duration(milliseconds: 5200);
+  static const calibratedScrollSpeedPxPerSecond = 150.33653846153845;
+
+  final InformationMarqueeGeometry geometry;
+  final double scrollSpeedPxPerSecond;
+
+  Duration get travelDuration => Duration(
+    microseconds:
+        (geometry.travelDistance /
+                scrollSpeedPxPerSecond *
+                Duration.microsecondsPerSecond)
+            .round(),
+  );
+
+  double get effectivePixelsPerSecond =>
+      geometry.travelDistance /
+      (travelDuration.inMicroseconds / Duration.microsecondsPerSecond);
 }

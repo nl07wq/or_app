@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/features/system/models/information_notice.dart';
 import 'package:or_app/features/system/widgets/dashboard_information_strip.dart';
 
@@ -54,6 +55,11 @@ void main() {
     );
     final viewport = find.byKey(
       const ValueKey('dashboard-information-ticker-viewport'),
+    );
+    final timing = _timingFor(tester, text: text, viewport: viewport);
+    expect(
+      timing.travelDuration,
+      InformationMarqueeTiming.calibrationTravelDuration,
     );
     final initial = tester.getRect(text).left;
     expect(initial, moreOrLessEquals(tester.getRect(viewport).right));
@@ -133,6 +139,83 @@ void main() {
     expect(marginSix.endLeft, lessThan(marginOne.endLeft));
   });
 
+  testWidgets('uses one constant speed for short, medium, and long notices', (
+    tester,
+  ) async {
+    const titles = [
+      'TEST',
+      'TEST INFORMATION',
+      'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ',
+    ];
+    final timings = <InformationMarqueeTiming>[];
+
+    for (final title in titles) {
+      await tester.pumpWidget(
+        _app(disableAnimations: false, width: 390, title: title),
+      );
+      timings.add(
+        _timingFor(
+          tester,
+          text: find.byKey(
+            const ValueKey('dashboard-information-marquee-text'),
+          ),
+          viewport: find.byKey(
+            const ValueKey('dashboard-information-ticker-viewport'),
+          ),
+        ),
+      );
+    }
+
+    for (final timing in timings) {
+      expect(
+        timing.effectivePixelsPerSecond,
+        moreOrLessEquals(
+          InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
+          epsilon: .001,
+        ),
+      );
+    }
+    expect(timings[0].travelDuration, lessThan(timings[1].travelDuration));
+    expect(timings[1].travelDuration, lessThan(timings[2].travelDuration));
+  });
+
+  testWidgets('keeps constant speed when the ticker viewport changes', (
+    tester,
+  ) async {
+    const title =
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
+    final timings = <InformationMarqueeTiming>[];
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await tester.pumpWidget(
+        _app(disableAnimations: false, width: width, title: title),
+      );
+      timings.add(
+        _timingFor(
+          tester,
+          text: find.byKey(
+            const ValueKey('dashboard-information-marquee-text'),
+          ),
+          viewport: find.byKey(
+            const ValueKey('dashboard-information-ticker-viewport'),
+          ),
+        ),
+      );
+    }
+
+    for (final timing in timings) {
+      expect(
+        timing.effectivePixelsPerSecond,
+        moreOrLessEquals(
+          InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
+          epsilon: .001,
+        ),
+      );
+    }
+    expect(timings[0].travelDuration, lessThan(timings[1].travelDuration));
+    expect(timings[1].travelDuration, lessThan(timings[2].travelDuration));
+  });
+
   testWidgets('long Japanese notice paints full local exit through end pause', (
     tester,
   ) async {
@@ -145,10 +228,11 @@ void main() {
     final viewport = find.byKey(
       const ValueKey('dashboard-information-ticker-viewport'),
     );
+    final timing = _timingFor(tester, text: text, viewport: viewport);
 
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 5200));
+    await tester.pump(timing.travelDuration);
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
 
@@ -205,10 +289,10 @@ void main() {
       final viewport = find.byKey(
         const ValueKey('dashboard-information-ticker-viewport'),
       );
+      final timing = _timingFor(tester, text: text, viewport: viewport);
       await tester.pump(const Duration(milliseconds: 900));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.pump(const Duration(milliseconds: 5100));
+      await tester.pump(timing.travelDuration);
       expect(
         tester.getRect(text).right,
         lessThanOrEqualTo(tester.getRect(viewport).left - 4),
@@ -218,32 +302,56 @@ void main() {
   });
 }
 
+InformationMarqueeTiming _timingFor(
+  WidgetTester tester, {
+  required Finder text,
+  required Finder viewport,
+}) => InformationMarqueeTiming(
+  geometry: InformationMarqueeGeometry(
+    viewportWidth: tester.getSize(viewport).width,
+    textLayoutWidth: tester.getSize(text).width,
+    exitSafetyMargin: 6,
+  ),
+  scrollSpeedPxPerSecond:
+      InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
+);
+
 Widget _app({
   required bool disableAnimations,
   double width = 390,
   String title = 'RECOVERY V2 BETA — REVIEW READY',
 }) => MaterialApp(
-  home: MediaQuery(
-    data: MediaQueryData(
-      size: Size(width, 844),
-      disableAnimations: disableAnimations,
-    ),
-    child: Scaffold(
-      body: DashboardInformationStrip(
-        key: ValueKey('dashboard-information-$width'),
-        notices: [
-          InformationNotice(
-            id: 'recovery-v2-review-ready:v2-beta-1',
-            priority: InformationNoticePriority.review,
-            category: 'RECOVERY V2 SHADOW',
-            title: title,
-            message: 'review',
-            parameterVersion: 'v2-beta-1',
-            createdAt: DateTime(2026, 9, 20),
-            state: InformationNoticeState.unread,
+  home: Align(
+    alignment: Alignment.topLeft,
+    child: SizedBox(
+      width: width,
+      height: 844,
+      child: MediaQuery(
+        data: MediaQueryData(
+          size: Size(width, 844),
+          disableAnimations: disableAnimations,
+        ),
+        child: Scaffold(
+          body: Padding(
+            padding: AppSpacing.cardPadding,
+            child: DashboardInformationStrip(
+              key: ValueKey('dashboard-information-$width'),
+              notices: [
+                InformationNotice(
+                  id: 'recovery-v2-review-ready:v2-beta-1',
+                  priority: InformationNoticePriority.review,
+                  category: 'RECOVERY V2 SHADOW',
+                  title: title,
+                  message: 'review',
+                  parameterVersion: 'v2-beta-1',
+                  createdAt: DateTime(2026, 9, 20),
+                  state: InformationNoticeState.unread,
+                ),
+              ],
+              onTap: _noop,
+            ),
           ),
-        ],
-        onTap: _noop,
+        ),
       ),
     ),
   ),
