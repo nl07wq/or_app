@@ -108,11 +108,21 @@ void main() {
         ),
       );
       await container.dailyAggregates.put(_aggregate(date));
-      final currentValidation = DailyLogConfirmationValidation.validate(
-        morning: completeConfirmation(date: DateTime(2026, 8, 10)).morning,
-        food: completeConfirmation(date: DateTime(2026, 8, 10)).food,
-        activity: completeConfirmation(date: DateTime(2026, 8, 10)).activity!,
-        training: completeConfirmation(date: DateTime(2026, 8, 10)).training,
+      const currentValidation = DailyLogValidationResult(
+        statusValid: true,
+        foodValid: true,
+        activityValid: true,
+        trainingValid: true,
+        trainingRecorded: false,
+        statusCompleteness: DailyLogModuleCompleteness(
+          state: DailyLogCompletenessState.complete,
+        ),
+        foodCompleteness: DailyLogModuleCompleteness(
+          state: DailyLogCompletenessState.complete,
+        ),
+        activityCompleteness: DailyLogModuleCompleteness(
+          state: DailyLogCompletenessState.complete,
+        ),
       );
 
       expect(await container.dailyDebriefSources.eligibleDates(), [date]);
@@ -128,7 +138,127 @@ void main() {
         ),
         currentDate,
       );
-      expect(await container.dailyDebriefSources.defaultEligibleDate(), date);
+      expect(
+        await container.dailyDebriefSources.defaultEligibleDate(),
+        currentDate,
+      );
+    },
+  );
+
+  test(
+    'active operation date stays the default when only a prior aggregate is eligible',
+    () async {
+      const activeDate = '2026-09-14';
+      const historicalDate = '2026-09-13';
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      await container.operationState.createInitial(
+        OperationLocalDate.parse(activeDate),
+      );
+      await container.confirmationLifecycle.createV2(
+        PersistedDailyLogConfirmationRecord.initialFinalizedV2(
+          id: 'confirmation:$historicalDate',
+          localDate: historicalDate,
+          data: completeConfirmation(date: DateTime(2026, 9, 13)),
+          timestamp: timestamp,
+        ),
+      );
+      await container.dailyAggregates.put(_aggregate(historicalDate));
+
+      expect(await container.dailyDebriefSources.eligibleDates(), [
+        historicalDate,
+      ]);
+      expect(
+        await container.dailyDebriefSources.defaultEligibleDate(),
+        activeDate,
+      );
+
+      final gateway = ProductionReportSyncExchangeGateway(
+        container: container,
+        clock: () => timestamp,
+      );
+      final preparation = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+      );
+      expect(preparation.operationDate, activeDate);
+      expect(preparation.dailyDebriefSource, isNull);
+      expect(preparation.statusLabel, 'SOURCE NOT READY');
+      expect(preparation.blockingReason, contains('DAILY AGGREGATE'));
+    },
+  );
+
+  test(
+    'operation-date ISO values preserve the local calendar day at midnight',
+    () {
+      expect(OperationLocalDate.parse('2026-09-14').value, '2026-09-14');
+      expect(
+        OperationLocalDate.fromDateTime(DateTime(2026, 9, 14, 0, 1)).value,
+        '2026-09-14',
+      );
+      expect(
+        OperationLocalDate.fromDateTime(DateTime(2026, 9, 14, 23, 59)).value,
+        '2026-09-14',
+      );
+    },
+  );
+
+  test(
+    'active daily debrief source, prompt, and import retain its exact date',
+    () async {
+      const activeDate = '2026-09-14';
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      final operationDate = OperationLocalDate.parse(activeDate);
+      await container.operationState.createInitial(operationDate);
+      final state = await container.operationState.requireCurrent();
+      await container.operationState.save(
+        state.copyWith(
+          phase: OperationPhase.awaitingDebrief,
+          activeAttempt: OperationActiveAttempt(
+            idempotencyKey: 'daily-close:$activeDate',
+            targetLocalDate: operationDate,
+            startedAt: timestamp,
+            confirmationId: 'confirmation:$activeDate',
+            confirmationDigest: _digest('confirmation'),
+          ),
+          updatedAt: state.updatedAt.add(const Duration(seconds: 1)),
+        ),
+        expectedRevision: state.revision,
+      );
+      await container.confirmationLifecycle.createV2(
+        PersistedDailyLogConfirmationRecord.initialFinalizedV2(
+          id: 'confirmation:$activeDate',
+          localDate: activeDate,
+          data: completeConfirmation(date: DateTime(2026, 9, 14)),
+          timestamp: timestamp,
+        ),
+      );
+      await container.dailyAggregates.put(_aggregate(activeDate));
+
+      final gateway = ProductionReportSyncExchangeGateway(
+        container: container,
+        clock: () => timestamp,
+      );
+      final preparation = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+      );
+      expect(preparation.operationDate, activeDate);
+      expect(preparation.dailyDebriefSource?.operationDate, activeDate);
+      expect(
+        gateway.instruction(ReportSyncExchangeType.dailyDebrief, preparation),
+        contains(activeDate),
+      );
+      final preview = await gateway.previewResponse(
+        ReportSyncExchangeType.dailyDebrief,
+        jsonEncode(_analysis().toJson()),
+        targetDate: activeDate,
+      );
+      expect(preview.operationDate, activeDate);
+      await gateway.apply(preview);
+      expect(
+        (await container.dailyDebriefs.readByLocalDate(activeDate))?.localDate,
+        activeDate,
+      );
     },
   );
 
@@ -299,7 +429,10 @@ void main() {
       );
       await container.dailyAggregates.put(_aggregate(date));
       final source = await container.dailyDebriefSources.requireEligible(date);
-      expect(await container.dailyDebriefSources.defaultEligibleDate(), date);
+      expect(
+        await container.dailyDebriefSources.defaultEligibleDate(),
+        '2026-08-10',
+      );
       expect(source.references.morningBrief, isNull);
 
       final gateway = ProductionReportSyncExchangeGateway(

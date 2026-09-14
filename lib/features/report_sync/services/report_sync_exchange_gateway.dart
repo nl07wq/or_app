@@ -259,21 +259,31 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
         final selected =
             targetDate ??
             await _container.dailyDebriefSources.defaultEligibleDate();
-        if (selected == null || !eligible.contains(selected)) {
+        if (selected == null) {
           return ReportSyncRequestPreparation(
             eligibleDates: eligible,
-            blockingReason: 'DAILY DEBRIEFを生成できる確定済み日付がありません。',
+            statusLabel: 'SOURCE NOT READY',
+            blockingReason: 'DAILY DEBRIEFの対象日を解決できません。',
           );
         }
-        final source = await _container.dailyDebriefSources.requireEligible(
-          selected,
-        );
-        return ReportSyncRequestPreparation(
-          operationDate: selected,
-          dailyDebriefSource: source,
-          eligibleDates: eligible,
-          statusLabel: 'READY',
-        );
+        try {
+          final source = await _container.dailyDebriefSources.requireEligible(
+            selected,
+          );
+          return ReportSyncRequestPreparation(
+            operationDate: selected,
+            dailyDebriefSource: source,
+            eligibleDates: eligible,
+            statusLabel: 'READY',
+          );
+        } on DailyDebriefSourceException catch (error) {
+          return ReportSyncRequestPreparation(
+            operationDate: selected,
+            eligibleDates: eligible,
+            statusLabel: 'SOURCE NOT READY',
+            blockingReason: error.message,
+          );
+        }
       case ReportSyncExchangeType.periodicReport:
         throw StateError('Periodic Report uses its dedicated report flow.');
     }

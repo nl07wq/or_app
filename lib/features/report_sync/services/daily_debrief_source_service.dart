@@ -160,22 +160,7 @@ class DailyDebriefSourceService {
 
   Future<String?> defaultEligibleDate({
     DailyLogValidationResult? currentOperationDateValidation,
-  }) async {
-    final eligible = await eligibleDates(
-      currentOperationDateValidation: currentOperationDateValidation,
-    );
-    final state = await operationState.requireCurrent();
-    if ((state.phase == OperationPhase.awaitingDebrief ||
-            currentOperationDateValidation?.canFinalize == true) &&
-        eligible.contains(state.operationDate.value)) {
-      return state.operationDate.value;
-    }
-    final lastFinalized = state.lastFinalizedDate?.value;
-    if (lastFinalized != null && eligible.contains(lastFinalized)) {
-      return lastFinalized;
-    }
-    return eligible.isEmpty ? null : eligible.first;
-  }
+  }) async => (await operationState.requireCurrent()).operationDate.value;
 
   Future<DailyDebriefLifecycleStatus> projectLifecycle(
     DailyDebriefRecord record,

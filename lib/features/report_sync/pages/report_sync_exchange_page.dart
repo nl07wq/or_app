@@ -156,6 +156,12 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
   }
 
   bool get _hasValidTargetDate {
+    if (widget.exchangeType == ReportSyncExchangeType.dailyDebrief) {
+      final request = _request;
+      return request?.dailyDebriefSource != null ||
+          (request?.isReady == true &&
+              request?.statusLabel != 'SOURCE NOT READY');
+    }
     if (!_isImportOnly) return _request?.isReady ?? false;
     return _hasValidSelectedDate;
   }
@@ -621,7 +627,18 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                   if (request?.blockingReason != null)
                     Text(request!.blockingReason!),
                 ] else
-                  Text(ready ? 'IMPORT READY' : '対象日をYYYY-MM-DD形式で入力してください。'),
+                  Text(
+                    ready
+                        ? 'IMPORT READY'
+                        : widget.exchangeType ==
+                              ReportSyncExchangeType.dailyDebrief
+                        ? request?.statusLabel ?? 'SOURCE NOT READY'
+                        : '対象日をYYYY-MM-DD形式で入力してください。',
+                  ),
+                if (widget.exchangeType ==
+                        ReportSyncExchangeType.dailyDebrief &&
+                    request?.blockingReason != null)
+                  Text(request!.blockingReason!),
               ],
             ),
           )

@@ -47,6 +47,36 @@ void main() {
     expect(selectedDates, ['2026-08-01']);
   });
 
+  testWidgets('daily debrief keeps an unavailable active target visible', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+          gateway: _FakeExchangeGateway(
+            preparation: const ReportSyncRequestPreparation(
+              operationDate: '2026-09-14',
+              eligibleDates: ['2026-09-13'],
+              statusLabel: 'SOURCE NOT READY',
+              blockingReason: 'DAILY AGGREGATEが存在しません。',
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final targetDate = tester.widget<TextField>(
+      find.byKey(const ValueKey('report-sync-target-date')),
+    );
+    expect(targetDate.controller?.text, '2026-09-14');
+    expect(find.text('SOURCE NOT READY'), findsOneWidget);
+    expect(find.text('DAILY AGGREGATEが存在しません。'), findsOneWidget);
+  });
+
   testWidgets('successful DD import returns to the existing top page', (
     tester,
   ) async {

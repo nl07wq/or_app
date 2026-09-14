@@ -359,7 +359,7 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
 
   Future<void> _openCreateFlow() async {
     final data = _loadedData;
-    if (data == null || data.eligibleDates.isEmpty) return;
+    if (data == null) return;
     final selected = _selectedTargetDate;
     if (selected == null) return;
     if ((data.operationState.phase == OperationPhase.open ||
