@@ -8,12 +8,16 @@ class SemanticHelpPopover extends StatelessWidget {
     required this.description,
     required this.child,
     this.secondary,
+    this.offset = Offset.zero,
+    this.constraints = const BoxConstraints(minWidth: 220, maxWidth: 300),
   });
 
   final String id;
   final String title;
   final String description;
   final String? secondary;
+  final Offset offset;
+  final BoxConstraints constraints;
   final Widget child;
 
   @override
@@ -21,7 +25,8 @@ class SemanticHelpPopover extends StatelessWidget {
     key: ValueKey('semantic-help-anchor-$id'),
     tooltip: '$titleの説明',
     position: PopupMenuPosition.under,
-    constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
+    offset: offset,
+    constraints: constraints,
     itemBuilder: (context) => [
       PopupMenuItem<void>(
         key: ValueKey('semantic-help-popover-$id'),

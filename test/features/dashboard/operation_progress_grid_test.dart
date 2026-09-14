@@ -1000,6 +1000,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'Cycle State block restores start alignment while help stays right-biased',
+    (tester) async {
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-28');
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+
+      await _pumpDashboard(tester, width: 390);
+      await tester.pumpAndSettle();
+      final card = find.ancestor(
+        of: find.text('CYCLE STATE'),
+        matching: find.byType(OperationCard),
+      );
+      final cycleValue = find.byKey(
+        const ValueKey('semantic-help-anchor-cycle-standby'),
+      );
+      final cardRight = tester.getTopRight(card).dx;
+      final valueRight = tester.getTopRight(cycleValue).dx;
+      expect(cardRight - valueRight, greaterThan(40));
+
+      await tester.tap(cycleValue);
+      await tester.pumpAndSettle();
+      final popover = find.byKey(
+        const ValueKey('semantic-help-popover-cycle-standby'),
+      );
+      expect(popover, findsOneWidget);
+      expect(tester.getTopLeft(popover).dx, greaterThan(80));
+    },
+  );
+
   testWidgets('DAILY COMMAND uses same-date MB and refreshes without restart', (
     tester,
   ) async {

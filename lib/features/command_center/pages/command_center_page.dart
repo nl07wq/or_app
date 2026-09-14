@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/models/operation_calendar_period.dart';
@@ -452,9 +453,21 @@ class _CurrentOperationCard extends StatelessWidget {
           key: const ValueKey('current-operation-date-group'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'OPERATION DATE',
-              style: Theme.of(context).textTheme.labelLarge,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Symbols.calendar_today,
+                  key: const ValueKey('current-operation-date-heading-icon'),
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'OPERATION DATE',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ],
             ),
             AppSpacing.gapSM,
             OperationDateFlipCalendar(
@@ -470,10 +483,31 @@ class _CurrentOperationCard extends StatelessWidget {
             key: const ValueKey('current-operation-cycle-group'),
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'CYCLE STATE',
-                maxLines: 1,
-                style: Theme.of(context).textTheme.labelLarge,
+              SizedBox(
+                height: OperationDateFlipCalendar.defaultTileHeight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Symbols.page_info,
+                        key: const ValueKey(
+                          'current-operation-cycle-heading-icon',
+                        ),
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'CYCLE STATE',
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               AppSpacing.gapSM,
               SemanticHelpPopover(

@@ -161,6 +161,16 @@ void main() {
     expect(find.text('SAT'), findsOneWidget);
     expect(find.text('OPERATION DATE'), findsOneWidget);
     expect(find.text('CYCLE STATE'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('current-operation-date-heading-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('current-operation-cycle-heading-icon')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Symbols.calendar_today), findsOneWidget);
+    expect(find.byIcon(Symbols.page_info), findsOneWidget);
     expect(find.text('DAILY ASSESSMENT'), findsOneWidget);
     expect(find.text('NOT AVAILABLE'), findsWidgets);
     expect(find.textContaining('STATUSを入力'), findsNothing);
@@ -200,6 +210,14 @@ void main() {
     expect(find.text('CYCLE STATE'), findsOneWidget);
     expect(find.text('IDLE'), findsOneWidget);
     expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('current-operation-cycle-heading-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('current-operation-cycle-icon')),
+      findsOneWidget,
+    );
     expect(tester.getSize(row).width, 168);
     for (var index = 0; index < 3; index++) {
       expect(
@@ -208,7 +226,6 @@ void main() {
       );
     }
     expect(tester.getTopLeft(dateGroup).dy, tester.getTopLeft(cycleGroup).dy);
-    expect(tester.getTopLeft(row).dy, tester.getTopLeft(cycleValue).dy);
     expect(tester.getSize(cycleValue).height, 36);
     expect(
       tester.getTopLeft(cycleGroup).dx,

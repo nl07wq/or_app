@@ -673,11 +673,11 @@ class _DailyCommandCycleState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.end,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       FittedBox(
         fit: BoxFit.scaleDown,
-        alignment: Alignment.centerRight,
+        alignment: Alignment.centerLeft,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -696,6 +696,8 @@ class _DailyCommandCycleState extends StatelessWidget {
         id: 'cycle-${cycleState.name}',
         title: cycleStateShortLabelFor(cycleState),
         description: cycleStateHelp(cycleState),
+        offset: const Offset(36, 0),
+        constraints: const BoxConstraints(minWidth: 168, maxWidth: 200),
         child: Semantics(
           button: true,
           label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
