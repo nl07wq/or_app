@@ -68,6 +68,10 @@ void main() {
       Icons.pending_actions,
     );
     expect(
+      cycleStateIconFor(DailyCommandCycleState.finalizeReady),
+      Icons.task_alt,
+    );
+    expect(
       cycleStateIconFor(DailyCommandCycleState.finalizing),
       Icons.autorenew,
     );
@@ -224,6 +228,10 @@ void main() {
       cycleStateShortLabelFor(DailyCommandCycleState.awaitingDebrief),
       'WAIT',
     );
+    expect(
+      cycleStateShortLabelFor(DailyCommandCycleState.finalizeReady),
+      'READY',
+    );
     expect(cycleStateShortLabelFor(DailyCommandCycleState.reviewReady), 'DONE');
     expect(cycleStateShortLabelFor(DailyCommandCycleState.finalizing), 'LOAD');
     expect(
@@ -239,6 +247,10 @@ void main() {
     expect(
       cycleStateHelp(DailyCommandCycleState.awaitingDebrief),
       contains('DAILY DEBRIEF'),
+    );
+    expect(
+      cycleStateHelp(DailyCommandCycleState.finalizeReady),
+      contains('FINALIZE DAY'),
     );
     expect(cycleStateHelp(DailyCommandCycleState.active), contains('日次項目'));
   });

@@ -19,6 +19,7 @@ abstract final class DailyCommandReadModelBuilder {
     required ActivitySummary activity,
     double? burnWeightKg,
     MorningBriefRecord? morningBrief,
+    bool dailyDebriefFinalizeReady = false,
     bool isHistoricalView = false,
   }) {
     final validation = DailyLogConfirmationValidation.validate(
@@ -45,7 +46,7 @@ abstract final class DailyCommandReadModelBuilder {
     return DailyCommandReadModel(
       operationDate: operationState.operationDate.value,
       persistentPhase: phase,
-      cycleState: _cycleState(phase, validation),
+      cycleState: _cycleState(phase, validation, dailyDebriefFinalizeReady),
       operationStatus: currentMorningBrief == null
           ? null
           : OperationStatus.values.byName(
@@ -85,11 +86,15 @@ abstract final class DailyCommandReadModelBuilder {
   static DailyCommandCycleState _cycleState(
     OperationPhase phase,
     DailyLogValidationResult validation,
+    bool dailyDebriefFinalizeReady,
   ) {
     if (phase == OperationPhase.finalizing) {
       return DailyCommandCycleState.finalizing;
     }
     if (phase == OperationPhase.awaitingDebrief) {
+      if (dailyDebriefFinalizeReady) {
+        return DailyCommandCycleState.finalizeReady;
+      }
       return DailyCommandCycleState.awaitingDebrief;
     }
     if (phase == OperationPhase.finalizedPendingBackup ||

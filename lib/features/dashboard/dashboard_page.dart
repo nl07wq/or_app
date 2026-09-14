@@ -41,8 +41,11 @@ import '../command_center/pages/command_center_page.dart'
     show cycleStateHelp, cycleStateIconFor, cycleStateShortLabelFor;
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
+import '../operation_date/models/operation_state.dart';
+import '../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../operation_date/widgets/operation_date_flip_calendar.dart';
+import '../report_sync/models/daily_debrief_record.dart';
 import '../report_sync/models/morning_brief_state.dart';
 
 import 'models/dynamic_daily_target.dart';
@@ -580,6 +583,21 @@ class _DailyCommandSummary extends StatelessWidget {
     final burnWeight = await TrainingStatusWeightResolver(
       repository: AppRepositoryRegistry.container.status,
     ).resolve(state.operationDate.value);
+    var dailyDebriefFinalizeReady = false;
+    if (state.phase == OperationPhase.awaitingDebrief) {
+      final debrief = await AppRepositoryRegistry.container.dailyDebriefs
+          .readByLocalDate(state.operationDate.value);
+      if (debrief != null &&
+          await AppRepositoryRegistry.container.dailyDebriefSources
+                  .projectLifecycle(debrief) ==
+              DailyDebriefLifecycleStatus.active) {
+        try {
+          await DailyFinalizeCoordinatorFactory.production()
+              .validateCurrentSourceSnapshot(state);
+          dailyDebriefFinalizeReady = true;
+        } catch (_) {}
+      }
+    }
     return DailyCommandReadModelBuilder.build(
       operationState: state,
       status: morningFact,
@@ -588,6 +606,7 @@ class _DailyCommandSummary extends StatelessWidget {
       activity: activitySummary,
       morningBrief: morningBrief,
       burnWeightKg: burnWeight,
+      dailyDebriefFinalizeReady: dailyDebriefFinalizeReady,
     );
   }
 }

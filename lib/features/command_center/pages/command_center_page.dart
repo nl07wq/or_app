@@ -12,6 +12,8 @@ import '../../dashboard/widgets/daily_log_card.dart';
 import '../../food/models/food_summary_state.dart';
 import '../../morning/models/morning_fact_state.dart';
 import '../../operation_date/models/operation_local_date.dart';
+import '../../operation_date/models/operation_state.dart';
+import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../../repositories/app_repository_container.dart';
@@ -27,6 +29,7 @@ import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
 import '../widgets/semantic_help_popover.dart';
 import '../../report_sync/models/morning_brief_state.dart';
+import '../../report_sync/models/daily_debrief_record.dart';
 import '../../periodic_report/models/periodic_report.dart';
 import '../../periodic_report/pages/periodic_report_page.dart';
 
@@ -77,7 +80,9 @@ String cycleStateHelp(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.reviewReady =>
     '必要な日次項目が揃いました。DAILY DEBRIEFを作成して日次確定へ進めます。',
   DailyCommandCycleState.awaitingDebrief =>
-    '日次集計の準備が完了し、DAILY DEBRIEFの確定を待っています。確定後にFINALIZEできます。',
+    'DAILY DEBRIEFの作成または更新が必要です。内容が最新になるとFINALIZEできます。',
+  DailyCommandCycleState.finalizeReady =>
+    'DAILY DEBRIEFは最新です。FINALIZE DAYで当日の記録を確定できます。',
   DailyCommandCycleState.finalizing =>
     '日次確認とDAILY AGGREGATEを作成・保存しています。完了するとDAILY DEBRIEF待ちへ進みます。',
   DailyCommandCycleState.recoveryRequired =>
@@ -269,6 +274,7 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     final burnWeight = await TrainingStatusWeightResolver(
       repository: AppRepositoryRegistry.container.status,
     ).resolve(state.operationDate.value);
+    final dailyDebriefFinalizeReady = await _dailyDebriefFinalizeReady(state);
     final model = DailyCommandReadModelBuilder.build(
       operationState: state,
       status: status,
@@ -277,6 +283,7 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
       activity: activitySummaryNotifier.value,
       morningBrief: morningBrief,
       burnWeightKg: burnWeight,
+      dailyDebriefFinalizeReady: dailyDebriefFinalizeReady,
     );
     final facts = await DailyAssessmentFactLoader(
       AppRepositoryRegistry.container,
@@ -285,6 +292,26 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
       model: model,
       assessment: const DailyAssessmentRuleEngine().evaluate(facts),
     );
+  }
+
+  Future<bool> _dailyDebriefFinalizeReady(OperationState state) async {
+    if (state.phase != OperationPhase.awaitingDebrief) return false;
+    final container = AppRepositoryRegistry.container;
+    final debrief = await container.dailyDebriefs.readByLocalDate(
+      state.operationDate.value,
+    );
+    if (debrief == null ||
+        await container.dailyDebriefSources.projectLifecycle(debrief) !=
+            DailyDebriefLifecycleStatus.active) {
+      return false;
+    }
+    try {
+      await DailyFinalizeCoordinatorFactory.production()
+          .validateCurrentSourceSnapshot(state);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _showFinalizeDateTransition(
@@ -312,28 +339,7 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     await Future<void>.delayed(
       OperationDateFlipCalendar.maximumTransitionDuration,
     );
-    if (mounted) await _offerPeriodicReports(previousOperationDate);
     if (mounted) widget.onRefresh();
-  }
-
-  Future<void> _offerPeriodicReports(OperationLocalDate finalizedDate) async {
-    final date = DateTime.parse(finalizedDate.value);
-    await runPeriodicReportWorkflowForFinalizedDate(
-      finalizedDate: date,
-      openReport: (type) async {
-        if (!mounted) return false;
-        return await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                builder: (routeContext) => PeriodicReportPage(
-                  initialType: type,
-                  initialAnchor: date,
-                  onImported: () => Navigator.pop(routeContext, true),
-                ),
-              ),
-            ) ==
-            true;
-      },
-    );
   }
 
   void _handleOperationDateDisplayed(OperationLocalDate date) {
@@ -677,6 +683,7 @@ String cycleStateShortLabelFor(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.active => 'RUN',
   DailyCommandCycleState.reviewReady => 'DONE',
   DailyCommandCycleState.awaitingDebrief => 'WAIT',
+  DailyCommandCycleState.finalizeReady => 'READY',
   DailyCommandCycleState.finalizing => 'LOAD',
   DailyCommandCycleState.recoveryRequired => 'ERROR',
 };
@@ -686,6 +693,7 @@ IconData cycleStateIconFor(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.active => Icons.change_circle,
   DailyCommandCycleState.reviewReady => Icons.task_alt,
   DailyCommandCycleState.awaitingDebrief => Icons.pending_actions,
+  DailyCommandCycleState.finalizeReady => Icons.task_alt,
   DailyCommandCycleState.finalizing => Icons.autorenew,
   DailyCommandCycleState.recoveryRequired => Icons.build_circle,
 };

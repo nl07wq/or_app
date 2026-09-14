@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
+import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/state/app_initialization_state.dart';
@@ -16,6 +17,8 @@ import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
+import '../../periodic_report/models/periodic_report.dart';
+import '../../periodic_report/pages/periodic_report_page.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/daily_debrief_state.dart';
 import '../../repositories/app_repository_container.dart';
@@ -44,6 +47,64 @@ Future<void> presentDailyFinalizeBackupPrompt({
     barrierDismissible: true,
     builder: (_) => BackupPromptDialog(exportService: exportService),
   );
+}
+
+/// Sunday finalization is the only weekly invitation trigger. It runs before
+/// the origin surface advances its Operation Date so the finalized date stays
+/// the report anchor and Dashboard navigation remains a fallback.
+@visibleForTesting
+bool shouldOfferWeeklyReportForFinalizedDate({
+  required DateTime finalizedDate,
+  required bool reportAlreadyExists,
+}) => finalizedDate.weekday == DateTime.sunday && !reportAlreadyExists;
+
+@visibleForTesting
+Future<bool> presentWeeklyReportInvitationForFinalizedDate({
+  required NavigatorState navigator,
+  required OperationLocalDate finalizedDate,
+  required Future<bool> Function(String periodId) reportExists,
+}) async {
+  final date = DateTime.parse(finalizedDate.value);
+  final period = OperationCalendarPeriod.week(date);
+  final exists = await reportExists(period.id);
+  if (!shouldOfferWeeklyReportForFinalizedDate(
+    finalizedDate: date,
+    reportAlreadyExists: exists,
+  )) {
+    return false;
+  }
+  if (!navigator.mounted) {
+    throw StateError('Weekly report navigator is unavailable.');
+  }
+  final approved = await showDialog<bool>(
+    context: navigator.context,
+    useRootNavigator: false,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: const Text('WEEKLY REPORTを作成しますか？'),
+      content: const Text('確定した週のWEEKLY REPORT作成へ進みます。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('NO'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('YES'),
+        ),
+      ],
+    ),
+  );
+  if (approved != true || !navigator.mounted) return false;
+  await navigator.push<void>(
+    MaterialPageRoute(
+      builder: (_) => PeriodicReportPage(
+        initialType: PeriodicReportType.weekly,
+        initialAnchor: date,
+      ),
+    ),
+  );
+  return true;
 }
 
 @visibleForTesting
@@ -197,6 +258,15 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           await presentDailyFinalizeBackupPrompt(
             navigator: promptNavigator,
             exportService: backupExportService,
+          );
+          await presentWeeklyReportInvitationForFinalizedDate(
+            navigator: promptNavigator,
+            finalizedDate: previousDate,
+            reportExists: (periodId) async =>
+                await AppRepositoryRegistry.container.periodicReports.read(
+                  periodId,
+                ) !=
+                null,
           );
         },
         onReviewCompleted: onReviewCompleted,

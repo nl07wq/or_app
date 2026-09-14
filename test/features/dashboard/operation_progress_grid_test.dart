@@ -98,6 +98,33 @@ void main() {
     expect(consumed, 0);
   });
 
+  test(
+    'Sunday weekly invitation eligibility uses the finalized date and key',
+    () {
+      expect(
+        shouldOfferWeeklyReportForFinalizedDate(
+          finalizedDate: DateTime(2026, 9, 13),
+          reportAlreadyExists: false,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldOfferWeeklyReportForFinalizedDate(
+          finalizedDate: DateTime(2026, 9, 13),
+          reportAlreadyExists: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldOfferWeeklyReportForFinalizedDate(
+          finalizedDate: DateTime(2026, 9, 14),
+          reportAlreadyExists: false,
+        ),
+        isFalse,
+      );
+    },
+  );
+
   testWidgets('uses the approved two-column order and full-width ACTIVITY', (
     tester,
   ) async {

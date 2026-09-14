@@ -7,6 +7,7 @@ enum DailyCommandCycleState {
   active,
   reviewReady,
   awaitingDebrief,
+  finalizeReady,
   finalizing,
   recoveryRequired,
 }

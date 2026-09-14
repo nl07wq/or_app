@@ -113,6 +113,16 @@ void main() {
       expect(model.recoveryRequired, isFalse);
     });
 
+    test('maps an active, source-current Daily Debrief to FINALIZE READY', () {
+      final model = _build(
+        phase: OperationPhase.awaitingDebrief,
+        dailyDebriefFinalizeReady: true,
+      );
+
+      expect(model.cycleState, DailyCommandCycleState.finalizeReady);
+      expect(model.canPrepareDailyDebrief, isFalse);
+    });
+
     for (final phase in [
       OperationPhase.finalizedPendingBackup,
       OperationPhase.advancing,
@@ -144,6 +154,7 @@ DailyCommandReadModel _build({
   ActivitySummary activity = const ActivitySummary.empty(),
   OperationPhase phase = OperationPhase.open,
   bool isHistoricalView = false,
+  bool dailyDebriefFinalizeReady = false,
   MorningBriefRecord? morningBrief,
 }) {
   final date = OperationLocalDate.parse('2026-08-01');
@@ -173,6 +184,7 @@ DailyCommandReadModel _build({
     activity: activity,
     morningBrief: morningBrief,
     isHistoricalView: isHistoricalView,
+    dailyDebriefFinalizeReady: dailyDebriefFinalizeReady,
   );
 }
 
