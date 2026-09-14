@@ -481,35 +481,32 @@ class _CurrentOperationCard extends StatelessWidget {
         Expanded(
           child: Column(
             key: const ValueKey('current-operation-cycle-group'),
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                height: OperationDateFlipCalendar.defaultTileHeight,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Symbols.page_info,
-                        key: const ValueKey(
-                          'current-operation-cycle-heading-icon',
-                        ),
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Symbols.page_info,
+                      key: const ValueKey(
+                        'current-operation-cycle-heading-icon',
                       ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        'CYCLE STATE',
-                        maxLines: 1,
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                    ],
-                  ),
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'CYCLE STATE',
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ],
                 ),
               ),
-              AppSpacing.gapSM,
+              AppSpacing.gapXS,
               SemanticHelpPopover(
                 id: 'cycle-${cycleState.name}',
                 title: cycleStateShortLabelFor(cycleState),
@@ -517,40 +514,23 @@ class _CurrentOperationCard extends StatelessWidget {
                 child: Semantics(
                   button: true,
                   label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
-                  child: SizedBox(
+                  child: FittedBox(
                     key: const ValueKey('current-operation-cycle-value'),
-                    width: 112,
-                    height: OperationDateFlipCalendar.defaultTileHeight,
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  cycleStateIconFor(cycleState),
-                                  key: const ValueKey(
-                                    'current-operation-cycle-icon',
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Text(
-                                  cycleStateShortLabelFor(cycleState),
-                                  key: const ValueKey(
-                                    'current-operation-cycle-label',
-                                  ),
-                                  maxLines: 1,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
-                                ),
-                              ],
-                            ),
-                          ),
+                        Icon(
+                          cycleStateIconFor(cycleState),
+                          key: const ValueKey('current-operation-cycle-icon'),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          cycleStateShortLabelFor(cycleState),
+                          key: const ValueKey('current-operation-cycle-label'),
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
                     ),

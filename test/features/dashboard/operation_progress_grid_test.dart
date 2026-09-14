@@ -1027,9 +1027,47 @@ void main() {
         const ValueKey('semantic-help-popover-cycle-standby'),
       );
       expect(popover, findsOneWidget);
-      expect(tester.getTopLeft(popover).dx, greaterThan(80));
+      expect(tester.getTopLeft(popover).dx, greaterThan(40));
+      final popoverSize = tester.getSize(popover);
+      expect(popoverSize.width, greaterThan(popoverSize.height));
+      expect(popoverSize.width, greaterThanOrEqualTo(240));
+      expect(
+        find.text('有効なSTATUSがまだありません。STATUSが確定すると当日の運用を開始します。'),
+        findsOneWidget,
+      );
     },
   );
+
+  testWidgets('Cycle State help popover stays rectangular at target widths', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pumpDashboard(tester, width: width);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('semantic-help-anchor-cycle-standby')),
+      );
+      await tester.pumpAndSettle();
+
+      final popover = find.byKey(
+        const ValueKey('semantic-help-popover-cycle-standby'),
+      );
+      final size = tester.getSize(popover);
+      final topLeft = tester.getTopLeft(popover);
+      expect(size.width, greaterThan(size.height));
+      expect(topLeft.dx, greaterThanOrEqualTo(0));
+      expect(topLeft.dx + size.width, lessThanOrEqualTo(width));
+      expect(tester.takeException(), isNull);
+
+      await tester.tapAt(const Offset(1, 1));
+      await tester.pumpAndSettle();
+    }
+  });
 
   testWidgets('DAILY COMMAND uses same-date MB and refreshes without restart', (
     tester,

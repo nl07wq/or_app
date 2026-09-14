@@ -704,7 +704,7 @@ class _DailyCommandCycleState extends StatelessWidget {
         title: cycleStateShortLabelFor(cycleState),
         description: cycleStateHelp(cycleState),
         offset: const Offset(36, 0),
-        constraints: const BoxConstraints(minWidth: 168, maxWidth: 200),
+        constraints: const BoxConstraints(minWidth: 240, maxWidth: 280),
         child: Semantics(
           button: true,
           label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',

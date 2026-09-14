@@ -226,7 +226,22 @@ void main() {
       );
     }
     expect(tester.getTopLeft(dateGroup).dy, tester.getTopLeft(cycleGroup).dy);
-    expect(tester.getSize(cycleValue).height, 36);
+    final cycleHeadingIcon = find.byKey(
+      const ValueKey('current-operation-cycle-heading-icon'),
+    );
+    final cycleValueIcon = find.byKey(
+      const ValueKey('current-operation-cycle-icon'),
+    );
+    expect(
+      tester.getTopLeft(cycleHeadingIcon).dx,
+      tester.getTopLeft(cycleValueIcon).dx,
+    );
+    expect(
+      tester.getTopLeft(cycleValueIcon).dy -
+          tester.getBottomLeft(cycleHeadingIcon).dy,
+      lessThanOrEqualTo(8),
+    );
+    expect(tester.getSize(cycleValue).height, lessThan(36));
     expect(
       tester.getTopLeft(cycleGroup).dx,
       greaterThanOrEqualTo(tester.getTopRight(dateGroup).dx),
