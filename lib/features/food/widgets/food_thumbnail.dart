@@ -34,6 +34,22 @@ abstract final class FoodVisualIconResolver {
   }
 }
 
+abstract final class FoodThumbnailAssetResolver {
+  static const _directory = 'assets/images/food_category';
+
+  static String? resolve(FoodVisualKey? key) =>
+      key == null ? null : '$_directory/${key.stableId}.png';
+
+  static String? resolveStableId(String? stableId) {
+    if (stableId == null) return null;
+    try {
+      return resolve(FoodVisualKey.fromStableId(stableId));
+    } on FormatException {
+      return null;
+    }
+  }
+}
+
 String foodVisualKeyLabel(FoodVisualKey key) => key.stableId.toUpperCase();
 
 class FoodThumbnail extends StatelessWidget {
@@ -48,23 +64,47 @@ class FoodThumbnail extends StatelessWidget {
   final double size;
   final IconData fallbackIcon;
 
+  static const double _outerPadding = 3;
+  static const double _symbolScale = 0.68;
+
   @override
   Widget build(BuildContext context) {
     final key = visualKey;
-    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    final asset = FoodThumbnailAssetResolver.resolve(key);
+    final thumbnailKey = key == null
+        ? const ValueKey('food-thumbnail-fallback')
+        : ValueKey('food-thumbnail-${key.stableId}');
     return SizedBox.square(
+      key: key == null
+          ? const ValueKey('food-thumbnail-box-fallback')
+          : ValueKey('food-thumbnail-box-${key.stableId}'),
       dimension: size,
       child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: Icon(
-          FoodVisualIconResolver.resolve(key, fallback: fallbackIcon),
-          key: key == null
-              ? const ValueKey('food-thumbnail-fallback')
-              : ValueKey('food-thumbnail-${key.stableId}'),
-          size: size * 0.68,
-          color: color,
+        padding: const EdgeInsets.all(_outerPadding),
+        child: Center(
+          child: SizedBox.square(
+            dimension: size * _symbolScale,
+            child: asset == null
+                ? _fallbackIcon(context, thumbnailKey)
+                : Image.asset(
+                    asset,
+                    key: thumbnailKey,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    filterQuality: FilterQuality.high,
+                    errorBuilder: (_, _, _) =>
+                        _fallbackIcon(context, thumbnailKey),
+                  ),
+          ),
         ),
       ),
     );
   }
+
+  Widget _fallbackIcon(BuildContext context, Key key) => Icon(
+    FoodVisualIconResolver.resolve(visualKey, fallback: fallbackIcon),
+    key: key,
+    size: size * _symbolScale,
+    color: Theme.of(context).colorScheme.onSurfaceVariant,
+  );
 }

@@ -38,27 +38,62 @@ void main() {
     );
   });
 
-  testWidgets('all visual keys render icons and null uses food fallback', (
-    tester,
-  ) async {
+  test('asset resolver maintains the visual key and unknown-key contracts', () {
+    for (final key in FoodVisualKey.values) {
+      expect(
+        FoodThumbnailAssetResolver.resolve(key),
+        'assets/images/food_category/${key.stableId}.png',
+      );
+      expect(
+        FoodThumbnailAssetResolver.resolveStableId(key.stableId),
+        'assets/images/food_category/${key.stableId}.png',
+      );
+    }
+    expect(FoodThumbnailAssetResolver.resolve(null), isNull);
+    expect(FoodThumbnailAssetResolver.resolveStableId('unsupported'), isNull);
+  });
+
+  testWidgets('all visual keys render normalized custom assets and null uses '
+      'the Material fallback', (tester) async {
     for (final key in FoodVisualKey.values) {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData.dark(),
-          home: FoodThumbnail(visualKey: key),
+          home: Scaffold(
+            body: Center(child: FoodThumbnail(visualKey: key)),
+          ),
         ),
       );
-      final icon = tester.widget<Icon>(
-        find.byKey(ValueKey('food-thumbnail-${key.stableId}')),
+      final thumbnail = find.byKey(ValueKey('food-thumbnail-${key.stableId}'));
+      final image = tester.widget<Image>(thumbnail);
+      expect(
+        (image.image as AssetImage).assetName,
+        'assets/images/food_category/${key.stableId}.png',
       );
-      expect(icon.icon, FoodVisualIconResolver.resolve(key));
-      expect(find.byType(Image), findsNothing);
+      expect(tester.getSize(thumbnail).width, moreOrLessEquals(27.2));
+      expect(tester.getSize(thumbnail).height, moreOrLessEquals(27.2));
+      expect(
+        tester
+            .getSize(find.byKey(ValueKey('food-thumbnail-box-${key.stableId}')))
+            .width,
+        40,
+      );
+      expect(
+        tester
+            .widget<Padding>(
+              find.ancestor(of: thumbnail, matching: find.byType(Padding)),
+            )
+            .padding,
+        const EdgeInsets.all(3),
+      );
     }
 
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.dark(),
-        home: const FoodThumbnail(visualKey: null),
+        home: const Scaffold(
+          body: Center(child: FoodThumbnail(visualKey: null)),
+        ),
       ),
     );
     expect(
@@ -67,11 +102,38 @@ void main() {
     );
     expect(
       tester
-          .widget<Icon>(
-            find.byKey(const ValueKey('food-thumbnail-fallback')),
-          )
+          .widget<Icon>(find.byKey(const ValueKey('food-thumbnail-fallback')))
           .icon,
       Icons.restaurant_menu,
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('food-thumbnail-fallback')))
+          .width,
+      moreOrLessEquals(27.2),
+    );
+  });
+
+  testWidgets('SELECT THUMBNAIL uses the established 52px display box', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: FoodThumbnail(visualKey: FoodVisualKey.meat, size: 52),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('food-thumbnail-box-meat'))),
+      const Size(52, 52),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('food-thumbnail-meat'))).width,
+      moreOrLessEquals(35.36),
     );
   });
 }

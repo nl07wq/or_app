@@ -322,6 +322,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('thumbnail selector uses its established three-column layout at '
+      '390px', (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: _MemoryCatalogRepository(const []),
+        ),
+      ),
+    );
+    final change = find.byKey(const ValueKey('food-catalog-thumbnail-change'));
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    expect(grid.gridDelegate, isA<SliverGridDelegateWithFixedCrossAxisCount>());
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 3);
+    expect(delegate.childAspectRatio, 1.18);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final visualKey in <FoodVisualKey?>[
     null,
     FoodVisualKey.meat,
