@@ -9,16 +9,18 @@ import 'package:or_app/features/import_export/models/backup_audit_package.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_import_service.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
+import 'package:or_app/features/import_export/services/backup_store_registry.dart';
 import 'package:or_app/features/import_export/services/backup_v14_transform.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
+import 'package:or_app/features/system/models/profile_model.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   test(
-    'schema 15 Normal round-trip preserves Meal Master and existing stores',
+    'schema 15 Normal plus Audit round-trips every current store without loss',
     () async {
       final timestamp = DateTime.utc(2026, 9, 1);
       final source = FakeIndexedDbDatabase();
@@ -36,19 +38,27 @@ void main() {
         _mealId,
         _meal(timestamp).toJson(),
       );
+      final history = _history(timestamp, 0);
+      source.seed(
+        IndexedDbStoreNames.operationSyncHistory,
+        history.operationId,
+        history.toRecord(),
+      );
 
-      final package = await BackupExportService(
+      final bundle = await BackupExportService(
         database: source,
         controller: AppInitializationController()..markReady(),
         clock: () => timestamp,
-      ).create();
-      expect(package.schemaVersion, 15);
-      expect(package.databaseVersion, IndexedDbSchema.databaseVersion);
-      expect(package.data[BackupSections.foodMealMasters], hasLength(1));
+      ).createCurrentBundle();
+      expect(bundle.normal.schemaVersion, 15);
+      expect(bundle.normal.databaseVersion, IndexedDbSchema.databaseVersion);
+      expect(bundle.normal.data[BackupSections.foodMealMasters], hasLength(1));
 
       final decoded = const BackupPackageCodec().decode(
-        BackupExportService.encode(package),
+        BackupExportService.encode(bundle.normal),
       );
+      final package = BackupV14Transform.hydratePackage(decoded, bundle.audit);
+      expect(package.data[BackupSections.operationSyncHistory], hasLength(1));
       final target = FakeIndexedDbDatabase();
       final controller = AppInitializationController()..markReady();
       final service = BackupImportService(
@@ -56,8 +66,12 @@ void main() {
         controller: controller,
         restore: () async {},
       );
-      final plan = await service.dryRun(decoded, BackupImportMode.replaceAll);
-      final result = await service.execute(plan);
+      // Intentionally use the hydrated package for a complete V15 restore.
+      final hydratedPlan = await service.dryRun(
+        package,
+        BackupImportMode.replaceAll,
+      );
+      final result = await service.execute(hydratedPlan);
       expect(result.success, isTrue);
       expect(
         (await target.findAll(
@@ -69,6 +83,22 @@ void main() {
         await target.findAll(IndexedDbStoreNames.operationState),
         hasLength(1),
       );
+      for (final section in BackupSections.allCurrent) {
+        final stored = await target.findAll(
+          BackupStoreRegistry.stores[section]!,
+        );
+        final comparable = section == BackupSections.profile
+            ? [
+                for (final record in stored)
+                  ProfileModel.fromRecord(record).toBackupRecord(),
+              ]
+            : stored;
+        expect(
+          BackupStoreRegistry.validateAndSort(section, comparable),
+          package.data[section],
+          reason: section,
+        );
+      }
     },
   );
 

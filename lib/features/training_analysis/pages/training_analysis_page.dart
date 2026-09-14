@@ -1446,10 +1446,20 @@ class _MetricTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          value.label,
-          style: Theme.of(context).textTheme.labelSmall,
-          maxLines: 2,
+        SizedBox(
+          height: value.label == _AnalysisLabels.mainSetVolume ? 16 : null,
+          child: Text(
+            value.label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: value.label == _AnalysisLabels.mainSetVolume
+                  ? 10
+                  : null,
+            ),
+            maxLines: value.label == _AnalysisLabels.mainSetVolume ? 1 : 2,
+            overflow: value.label == _AnalysisLabels.mainSetVolume
+                ? TextOverflow.ellipsis
+                : null,
+          ),
         ),
         SizedBox(height: compact ? 2 : AppSpacing.xs),
         Row(

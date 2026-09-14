@@ -151,6 +151,121 @@ void main() {
         .single;
     expect(result.observations, isEmpty);
   });
+
+  test('derives validation milestones from forward informative evidence', () {
+    final start = DateTime.utc(2025);
+    final two = service.validationProgress(
+      service
+          .build(
+            target: _records(weights: const [70, 70, 70, 70, 70, 70]).last,
+            records: _records(weights: const [70, 70, 70, 70, 70, 70]),
+            now: now,
+          )
+          .single,
+      betaStart: start,
+    );
+    final threeRecords = _records(weights: const [70, 70, 70, 70, 70, 70, 70]);
+    final three = service.validationProgress(
+      service
+          .build(target: threeRecords.last, records: threeRecords, now: now)
+          .single,
+      betaStart: start,
+    );
+    final fiveRecords = _records(
+      weights: const [70, 70, 70, 70, 70, 70, 70, 70, 70],
+    );
+    final five = service.validationProgress(
+      service
+          .build(target: fiveRecords.last, records: fiveRecords, now: now)
+          .single,
+      betaStart: start,
+    );
+    expect(two.newBetaInformativeCount, 2);
+    expect(two.milestone, RecoveryEvidenceShadowValidationMilestone.collecting);
+    expect(three.newBetaInformativeCount, 3);
+    expect(
+      three.milestone,
+      RecoveryEvidenceShadowValidationMilestone.firstReview,
+    );
+    expect(five.newBetaInformativeCount, 5);
+    expect(
+      five.milestone,
+      RecoveryEvidenceShadowValidationMilestone.reviewReady,
+    );
+    expect(
+      service.validationOverall([three, five]),
+      RecoveryEvidenceShadowValidationOverall.firstReviewAvailable,
+    );
+  });
+
+  test(
+    'does not count extended, excluded, or transition evidence for validation',
+    () {
+      final start = DateTime.utc(2025);
+      final extended = _records(days: const [0, 3, 6, 9, 16]);
+      final excluded = _records(days: const [0, 3, 6, 9, 22]);
+      final transition = _records(weights: const [203, 203, 203, 203, 253]);
+      for (final records in [extended, excluded, transition]) {
+        final progress = service.validationProgress(
+          service
+              .build(target: records.last, records: records, now: now)
+              .single,
+          betaStart: start,
+        );
+        expect(progress.newBetaInformativeCount, 0);
+      }
+    },
+  );
+
+  test('does not reuse validation counts for another parameter version', () {
+    final records = _records(weights: const [70, 70, 70, 70, 70, 70]);
+    final result = service
+        .build(target: records.last, records: records, now: now)
+        .single;
+    final incompatible = RecoveryEvidenceShadowV2Result(
+      parameterVersion: 'v2-beta-2',
+      identity: result.identity,
+      recoveryReferenceHours: result.recoveryReferenceHours,
+      baseline: result.baseline,
+      latestObservation: result.latestObservation,
+      observations: result.observations,
+      estimate: result.estimate,
+      v1EligibleCount: result.v1EligibleCount,
+      v1SupportedCount: result.v1SupportedCount,
+      v1Status: result.v1Status,
+    );
+    final progress = service.validationProgress(
+      incompatible,
+      betaStart: DateTime.utc(2025),
+    );
+    expect(progress.isCompatible, isFalse);
+    expect(progress.newBetaInformativeCount, 0);
+  });
+
+  test('tracks recurring exercise and equipment identities independently', () {
+    final records = [
+      ..._records(weights: const [70, 70, 70, 70, 70, 70], idPrefix: 'barbell'),
+      ..._records(
+        weights: const [70, 70, 70, 70, 70, 70],
+        equipment: const ['Rack', 'Rack', 'Rack', 'Rack', 'Rack', 'Rack'],
+        idPrefix: 'rack',
+      ),
+    ];
+    final results = service.buildRecurring(records: records, now: now);
+    final progress = [
+      for (final result in results)
+        service.validationProgress(result, betaStart: DateTime.utc(2025)),
+    ];
+    expect(results, hasLength(2));
+    expect(progress.map((value) => value.identity.equipmentKey).toSet(), {
+      'none',
+      'name:rack',
+    });
+    expect(
+      progress.every((value) => value.newBetaInformativeCount == 2),
+      isTrue,
+    );
+  });
 }
 
 List<TrainingRecordReadModel> _records({
@@ -158,10 +273,11 @@ List<TrainingRecordReadModel> _records({
   List<int>? reps,
   List<int>? days,
   List<String?>? equipment,
+  String idPrefix = 'record',
 }) => [
   for (var index = 0; index < weights.length; index++)
     _record(
-      'record:$index',
+      '$idPrefix:$index',
       DateTime.parse(
         '2026-01-01T09:00:00+09:00',
       ).add(Duration(days: days?[index] ?? index * 3)),

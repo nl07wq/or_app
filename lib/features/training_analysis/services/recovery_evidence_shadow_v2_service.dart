@@ -12,6 +12,10 @@ class RecoveryEvidenceShadowV2Service {
   });
 
   static const parameterVersion = 'v2-beta-1';
+
+  /// The v2-beta-1 activation commit.  Forward validation deliberately starts
+  /// here rather than re-labelling historical observations as Beta evidence.
+  static final betaStartedAt = DateTime.utc(2026, 9, 14, 2, 22, 17);
   static const baselineWindowSize = 5;
   static const baselineMinimumSessions = 3;
   static const loadTransitionRatio = .10;
@@ -23,6 +27,104 @@ class RecoveryEvidenceShadowV2Service {
 
   final TrainingHistoryDomainService domain;
   final TrainingFrequencyRecommendationService v1;
+
+  /// Counts only forward, normal-context evidence which is already eligible
+  /// for the shadow personal-estimate algorithm.  The result is derived from
+  /// formal Training facts and the parameter version; no mutable counter is
+  /// persisted.
+  RecoveryEvidenceShadowValidationProgress validationProgress(
+    RecoveryEvidenceShadowV2Result result, {
+    DateTime? betaStart,
+    String expectedParameterVersion = parameterVersion,
+  }) {
+    final start = betaStart ?? betaStartedAt;
+    if (result.parameterVersion != expectedParameterVersion) {
+      return RecoveryEvidenceShadowValidationProgress.incompatible(
+        identity: result.identity,
+        parameterVersion: result.parameterVersion,
+        expectedParameterVersion: expectedParameterVersion,
+        betaStartedAt: start,
+      );
+    }
+    final qualifying = result.observations.where(
+      (value) =>
+          value.loadContext == RecoveryEvidenceShadowLoadContext.normal &&
+          value.intervalZone ==
+              RecoveryEvidenceShadowIntervalZone.informative &&
+          value.recoveryEvidence ==
+              RecoveryEvidenceShadowClassification.supported,
+    );
+    final historical = qualifying
+        .where((value) => value.currentStartTime.isBefore(start))
+        .length;
+    final forward = qualifying
+        .where((value) => !value.currentStartTime.isBefore(start))
+        .length;
+    return RecoveryEvidenceShadowValidationProgress(
+      identity: result.identity,
+      parameterVersion: result.parameterVersion,
+      expectedParameterVersion: expectedParameterVersion,
+      betaStartedAt: start,
+      historicalInformativeCount: historical,
+      newBetaInformativeCount: forward,
+    );
+  }
+
+  RecoveryEvidenceShadowValidationOverall validationOverall(
+    Iterable<RecoveryEvidenceShadowValidationProgress> values,
+  ) {
+    final compatible = values.where((value) => value.isCompatible).toList();
+    if (compatible.isEmpty ||
+        compatible.any((value) => value.newBetaInformativeCount < 3)) {
+      return RecoveryEvidenceShadowValidationOverall.collecting;
+    }
+    if (compatible.any((value) => value.newBetaInformativeCount < 5)) {
+      return RecoveryEvidenceShadowValidationOverall.firstReviewAvailable;
+    }
+    return RecoveryEvidenceShadowValidationOverall.reviewReady;
+  }
+
+  /// Returns the latest result for each recurring exact identity.  This keeps
+  /// the diagnostic dynamic as the current program changes without using
+  /// display-name allowlists.
+  List<RecoveryEvidenceShadowV2Result> buildRecurring({
+    required Iterable<TrainingRecordReadModel> records,
+    required DateTime now,
+  }) {
+    final values = records.toList(growable: false);
+    final recordsById = {for (final value in values) value.id: value};
+    final points = domain.exerciseHistory(values);
+    final latestByIdentity = <TrainingExerciseIdentity, ExerciseHistoryPoint>{};
+    final countByIdentity = <TrainingExerciseIdentity, int>{};
+    for (final point in points) {
+      countByIdentity[point.identity] =
+          (countByIdentity[point.identity] ?? 0) + 1;
+      final existing = latestByIdentity[point.identity];
+      final candidate = recordsById[point.recordId];
+      final previous = existing == null ? null : recordsById[existing.recordId];
+      if (candidate != null &&
+          (previous == null ||
+              candidate.sortDateTime.isAfter(previous.sortDateTime))) {
+        latestByIdentity[point.identity] = point;
+      }
+    }
+    final results = <RecoveryEvidenceShadowV2Result>[];
+    for (final entry in latestByIdentity.entries) {
+      if ((countByIdentity[entry.key] ?? 0) < 2) continue;
+      final target = recordsById[entry.value.recordId];
+      if (target == null) continue;
+      final candidates = build(
+        target: target,
+        records: values,
+        now: now,
+      ).where((value) => value.identity == entry.key);
+      if (candidates.isNotEmpty) results.add(candidates.first);
+    }
+    results.sort(
+      (a, b) => a.identity.exerciseKey.compareTo(b.identity.exerciseKey),
+    );
+    return results;
+  }
 
   List<RecoveryEvidenceShadowV2Result> build({
     required TrainingRecordReadModel target,
@@ -468,6 +570,53 @@ class RecoveryEvidenceShadowV2Result {
   final int v1EligibleCount;
   final int v1SupportedCount;
   final TrainingFrequencyRecommendationStatus? v1Status;
+}
+
+enum RecoveryEvidenceShadowValidationMilestone {
+  collecting,
+  firstReview,
+  reviewReady,
+}
+
+enum RecoveryEvidenceShadowValidationOverall {
+  collecting,
+  firstReviewAvailable,
+  reviewReady,
+}
+
+class RecoveryEvidenceShadowValidationProgress {
+  const RecoveryEvidenceShadowValidationProgress({
+    required this.identity,
+    required this.parameterVersion,
+    required this.expectedParameterVersion,
+    required this.betaStartedAt,
+    required this.historicalInformativeCount,
+    required this.newBetaInformativeCount,
+  }) : isCompatible = true;
+
+  const RecoveryEvidenceShadowValidationProgress.incompatible({
+    required this.identity,
+    required this.parameterVersion,
+    required this.expectedParameterVersion,
+    required this.betaStartedAt,
+  }) : isCompatible = false,
+       historicalInformativeCount = 0,
+       newBetaInformativeCount = 0;
+
+  final TrainingExerciseIdentity identity;
+  final String parameterVersion;
+  final String expectedParameterVersion;
+  final DateTime betaStartedAt;
+  final int historicalInformativeCount;
+  final int newBetaInformativeCount;
+  final bool isCompatible;
+
+  RecoveryEvidenceShadowValidationMilestone get milestone =>
+      newBetaInformativeCount >= 5
+      ? RecoveryEvidenceShadowValidationMilestone.reviewReady
+      : newBetaInformativeCount >= 3
+      ? RecoveryEvidenceShadowValidationMilestone.firstReview
+      : RecoveryEvidenceShadowValidationMilestone.collecting;
 }
 
 class _ShadowOccurrence {

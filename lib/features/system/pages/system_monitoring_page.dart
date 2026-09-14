@@ -20,16 +20,18 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
     final records = await AppRepositoryRegistry.container.training
         .findAllRecords();
     if (records.isEmpty) return const _ShadowSnapshot.empty();
-    final target = records.reduce(
-      (latest, value) =>
-          value.sortDateTime.isAfter(latest.sortDateTime) ? value : latest,
+    const shadow = RecoveryEvidenceShadowV2Service();
+    final results = shadow.buildRecurring(
+      records: records,
+      now: DateTime.now(),
     );
+    final progress = [
+      for (final result in results) shadow.validationProgress(result),
+    ];
     return _ShadowSnapshot.results(
-      RecoveryEvidenceShadowV2Service().build(
-        target: target,
-        records: records,
-        now: DateTime.now(),
-      ),
+      results,
+      progress,
+      shadow.validationOverall(progress),
     );
   }
 
@@ -114,6 +116,29 @@ class _RecoveryEvidenceShadowCard extends StatelessWidget {
             'Evidence: ${result.latestObservation?.recoveryEvidence.name ?? 'unavailable'}  Estimate: ${_estimate(result)}',
           ),
         ],
+        if (snapshot.progress.isNotEmpty) ...[
+          const Divider(),
+          Text(
+            'RECOVERY V2 SHADOW VALIDATION',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text('v2-beta-1 / BETA / SHADOW — NOT OFFICIAL'),
+          Text('Overall: ${_overallLabel(snapshot.overall)}'),
+          for (final progress in snapshot.progress) ...[
+            const SizedBox(height: 8),
+            Text(progress.identity.exerciseKey),
+            if (!progress.isCompatible)
+              const Text('PARAMETER VERSION MISMATCH — NOT COUNTED')
+            else ...[
+              Text('${progress.newBetaInformativeCount} / 5'),
+              Text(_milestoneLabel(progress.milestone)),
+              Text(
+                'Historical shadow evidence: ${progress.historicalInformativeCount}',
+              ),
+            ],
+          ],
+        ],
       ],
     ),
   );
@@ -123,12 +148,32 @@ class _RecoveryEvidenceShadowCard extends StatelessWidget {
     if (!estimate.available) return 'INSUFFICIENT';
     return '${estimate.lowerHours!.round()}–${estimate.upperHours!.round()}h';
   }
+
+  String _milestoneLabel(RecoveryEvidenceShadowValidationMilestone value) =>
+      switch (value) {
+        RecoveryEvidenceShadowValidationMilestone.collecting => 'COLLECTING',
+        RecoveryEvidenceShadowValidationMilestone.firstReview => 'FIRST REVIEW',
+        RecoveryEvidenceShadowValidationMilestone.reviewReady => 'REVIEW READY',
+      };
+
+  String _overallLabel(RecoveryEvidenceShadowValidationOverall value) =>
+      switch (value) {
+        RecoveryEvidenceShadowValidationOverall.collecting => 'COLLECTING',
+        RecoveryEvidenceShadowValidationOverall.firstReviewAvailable =>
+          'FIRST REVIEW AVAILABLE',
+        RecoveryEvidenceShadowValidationOverall.reviewReady => 'REVIEW READY',
+      };
 }
 
 class _ShadowSnapshot {
-  const _ShadowSnapshot.empty() : results = const [];
-  const _ShadowSnapshot.results(this.results);
+  const _ShadowSnapshot.empty()
+    : results = const [],
+      progress = const [],
+      overall = RecoveryEvidenceShadowValidationOverall.collecting;
+  const _ShadowSnapshot.results(this.results, this.progress, this.overall);
   final List<RecoveryEvidenceShadowV2Result> results;
+  final List<RecoveryEvidenceShadowValidationProgress> progress;
+  final RecoveryEvidenceShadowValidationOverall overall;
   bool get isEmpty => results.isEmpty;
 }
 

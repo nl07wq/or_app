@@ -187,6 +187,19 @@ void main() {
       );
       expect(find.text('総負荷量'), findsWidgets);
       expect(find.text('メインセット負荷量'), findsWidgets);
+      final mainSetLabel = tester.widget<Text>(find.text('メインセット負荷量').first);
+      expect(mainSetLabel.maxLines, 1);
+      expect(mainSetLabel.style?.fontSize, 10);
+      final totalVolume = find.byKey(
+        const ValueKey('training-analysis-exercise-metric-recorded-volume'),
+      );
+      final mainSetVolume = find.byKey(
+        const ValueKey('training-analysis-exercise-metric-main-set-volume'),
+      );
+      expect(
+        tester.getSize(mainSetVolume).height,
+        tester.getSize(totalVolume).height,
+      );
       expect(find.text('ボリューム'), findsNothing);
       expect(find.text('総\n負荷量'), findsNothing);
       expect(find.text('メインセット\n負荷量'), findsNothing);
