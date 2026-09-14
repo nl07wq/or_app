@@ -5,6 +5,8 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
+import '../models/information_notice.dart';
+import '../services/information_notice_service.dart';
 
 class SystemMonitoringPage extends StatefulWidget {
   const SystemMonitoringPage({super.key});
@@ -15,6 +17,8 @@ class SystemMonitoringPage extends StatefulWidget {
 
 class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
   late final Future<_ShadowSnapshot> _shadow = _loadShadow();
+  late final Future<List<InformationNotice>> _informationHistory =
+      InformationNoticeService().history();
 
   Future<_ShadowSnapshot> _loadShadow() async {
     final records = await AppRepositoryRegistry.container.training
@@ -61,6 +65,15 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
           },
         ),
         AppSpacing.gapSM,
+        FutureBuilder<List<InformationNotice>>(
+          future: _informationHistory,
+          builder: (context, snapshot) {
+            final notices = snapshot.data ?? const [];
+            if (notices.isEmpty) return const SizedBox.shrink();
+            return _InformationHistoryCard(notices: notices);
+          },
+        ),
+        AppSpacing.gapSM,
         const OperationCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,6 +92,44 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
       ],
     ),
   );
+}
+
+class _InformationHistoryCard extends StatelessWidget {
+  const _InformationHistoryCard({required this.notices});
+
+  final List<InformationNotice> notices;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'INFORMATION HISTORY',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        for (final notice in notices) ...[
+          const Divider(),
+          Text(notice.title),
+          Text('${notice.category} / ${notice.parameterVersion}'),
+          Text('状態: ${_stateLabel(notice.state)}'),
+          Text('発生: ${_format(notice.createdAt)}'),
+          if (notice.readAt != null) Text('既読: ${_format(notice.readAt!)}'),
+          if (notice.dismissedAt != null)
+            Text('表示から消去: ${_format(notice.dismissedAt!)}'),
+        ],
+      ],
+    ),
+  );
+
+  String _stateLabel(InformationNoticeState state) => switch (state) {
+    InformationNoticeState.unread => '未読',
+    InformationNoticeState.read => '既読',
+    InformationNoticeState.dismissed => '表示から消去',
+  };
+
+  String _format(DateTime value) =>
+      '${value.year}/${value.month}/${value.day} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 }
 
 class _RecoveryEvidenceShadowCard extends StatelessWidget {

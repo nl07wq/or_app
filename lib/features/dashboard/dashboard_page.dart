@@ -18,6 +18,10 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_flip_tile.dart';
 import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
+import '../system/models/information_notice.dart';
+import '../system/services/information_notice_service.dart';
+import '../system/widgets/dashboard_information_strip.dart';
+import '../system/widgets/information_detail_sheet.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
@@ -62,8 +66,17 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late Future<OperationLocalDate> _operationDateFuture =
       const OperationDateService().current();
+  late final InformationNoticeService _informationService =
+      InformationNoticeService();
+  late Future<List<InformationNotice>> _informationNoticesFuture;
   int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _informationNoticesFuture = _informationService.activeNotices();
+  }
 
   @override
   void dispose() {
@@ -144,6 +157,30 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 _operationDateFuture,
                                             transitionToken:
                                                 _operationDateTransitionToken,
+                                          ),
+                                          FutureBuilder<
+                                            List<InformationNotice>
+                                          >(
+                                            future: _informationNoticesFuture,
+                                            builder: (context, snapshot) {
+                                              final notices =
+                                                  snapshot.data ?? const [];
+                                              if (notices.isEmpty) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return Column(
+                                                children: [
+                                                  AppSpacing.gapSM,
+                                                  DashboardInformationStrip(
+                                                    notices: notices,
+                                                    onTap: () =>
+                                                        _showInformation(
+                                                          notices,
+                                                        ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
                                           ),
                                           AppSpacing.gapLG,
                                           SectionHeader(
@@ -282,6 +319,25 @@ class _DashboardPageState extends State<DashboardPage> {
       isScrollControlled: true,
       builder: (_) => _QuickWaterSheet(dashboardContext: context),
     );
+  }
+
+  Future<void> _showInformation(List<InformationNotice> notices) async {
+    final result = await showModalBottomSheet<InformationDetailResult>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => InformationDetailSheet(
+        notices: notices,
+        onRead: _informationService.markRead,
+        onDismiss: _informationService.dismiss,
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _informationNoticesFuture = _informationService.activeNotices();
+    });
+    if (result == InformationDetailResult.systemMonitoring) {
+      await Navigator.of(context).pushNamed(AppRoutes.systemMonitoring);
+    }
   }
 }
 
