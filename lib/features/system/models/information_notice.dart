@@ -2,6 +2,8 @@ enum InformationNoticeState { unread, read, dismissed }
 
 enum InformationNoticePriority { informational, review, actionRequired, safety }
 
+enum InformationNoticeProvenance { producer, debug }
+
 class InformationNoticeCandidate {
   const InformationNoticeCandidate({
     required this.id,
@@ -11,6 +13,7 @@ class InformationNoticeCandidate {
     required this.message,
     required this.parameterVersion,
     this.actionLabel,
+    this.provenance = InformationNoticeProvenance.producer,
   });
 
   final String id;
@@ -20,6 +23,7 @@ class InformationNoticeCandidate {
   final String message;
   final String parameterVersion;
   final String? actionLabel;
+  final InformationNoticeProvenance provenance;
 }
 
 class InformationNotice {
@@ -35,6 +39,7 @@ class InformationNotice {
     this.readAt,
     this.dismissedAt,
     this.actionLabel,
+    this.provenance = InformationNoticeProvenance.producer,
   });
 
   final String id;
@@ -48,6 +53,9 @@ class InformationNotice {
   final DateTime? readAt;
   final DateTime? dismissedAt;
   final String? actionLabel;
+  final InformationNoticeProvenance provenance;
+
+  bool get isDebug => provenance == InformationNoticeProvenance.debug;
 
   bool get isActive => state != InformationNoticeState.dismissed;
 
@@ -67,6 +75,7 @@ class InformationNotice {
     readAt: readAt ?? this.readAt,
     dismissedAt: dismissedAt ?? this.dismissedAt,
     actionLabel: actionLabel,
+    provenance: provenance,
   );
 
   Map<String, Object?> toJson() => {
@@ -81,6 +90,7 @@ class InformationNotice {
     'readAt': readAt?.toUtc().toIso8601String(),
     'dismissedAt': dismissedAt?.toUtc().toIso8601String(),
     'actionLabel': actionLabel,
+    'provenance': provenance.name,
   };
 
   static InformationNotice? fromJson(Map<String, dynamic> json) {
@@ -100,6 +110,7 @@ class InformationNotice {
         readAt: _date(json['readAt']),
         dismissedAt: _date(json['dismissedAt']),
         actionLabel: json['actionLabel'] as String?,
+        provenance: _provenance(json['provenance']),
       );
     } catch (_) {
       return null;
@@ -108,4 +119,12 @@ class InformationNotice {
 
   static DateTime? _date(Object? value) =>
       value is String ? DateTime.tryParse(value)?.toLocal() : null;
+
+  static InformationNoticeProvenance _provenance(Object? value) =>
+      value is String
+      ? InformationNoticeProvenance.values.firstWhere(
+          (candidate) => candidate.name == value,
+          orElse: () => InformationNoticeProvenance.producer,
+        )
+      : InformationNoticeProvenance.producer;
 }

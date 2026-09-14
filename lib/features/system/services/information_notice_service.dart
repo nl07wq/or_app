@@ -1,10 +1,14 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/app_repository_container.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 import '../models/information_notice.dart';
+
+final ValueNotifier<int> informationNoticeRevision = ValueNotifier(0);
 
 abstract class InformationNoticeMetadataStore {
   Future<List<InformationNotice>> load();
@@ -130,6 +134,43 @@ class InformationNoticeService {
     ),
   );
 
+  Future<InformationNotice> createDebugNotice({
+    required String title,
+    required String message,
+    required InformationNoticePriority priority,
+  }) async {
+    final notices = await _store.load();
+    final now = _now();
+    final notice = InformationNotice(
+      id: 'debug:${now.toUtc().microsecondsSinceEpoch}:${notices.length}',
+      priority: priority,
+      category: 'DEBUG / TEST',
+      title: title.trim(),
+      message: message.trim(),
+      parameterVersion: 'debug-v1',
+      createdAt: now,
+      state: InformationNoticeState.unread,
+      provenance: InformationNoticeProvenance.debug,
+    );
+    await _save([...notices, notice]);
+    return notice;
+  }
+
+  Future<void> deleteDebugNotice(String id) async {
+    final notices = await _store.load();
+    final updated = [
+      for (final value in notices)
+        if (!(value.id == id && value.isDebug)) value,
+    ];
+    if (updated.length != notices.length) await _save(updated);
+  }
+
+  Future<void> clearDebugNotices() async {
+    final notices = await _store.load();
+    final updated = notices.where((value) => !value.isDebug).toList();
+    if (updated.length != notices.length) await _save(updated);
+  }
+
   Future<void> _update(
     String id,
     InformationNotice Function(InformationNotice value, DateTime now) update,
@@ -140,7 +181,7 @@ class InformationNoticeService {
       for (final value in notices)
         if (value.id == id) update(value, now) else value,
     ];
-    await _store.save(updated);
+    await _save(updated);
   }
 
   Future<List<InformationNotice>> _synchronize() async {
@@ -157,7 +198,7 @@ class InformationNoticeService {
     ];
     if (additions.isNotEmpty) {
       final updated = [...existing, ...additions];
-      await _store.save(updated);
+      await _save(updated);
       return _sorted(updated);
     }
     return _sorted(existing);
@@ -176,7 +217,13 @@ class InformationNoticeService {
     createdAt: now,
     state: InformationNoticeState.unread,
     actionLabel: candidate.actionLabel,
+    provenance: candidate.provenance,
   );
+
+  Future<void> _save(List<InformationNotice> notices) async {
+    await _store.save(notices);
+    informationNoticeRevision.value++;
+  }
 
   List<InformationNotice> _sorted(List<InformationNotice> notices) {
     final sorted = [...notices];

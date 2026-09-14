@@ -98,6 +98,58 @@ void main() {
         expect(active.map((value) => value.title), ['SAFETY', 'ORDINARY']);
       },
     );
+
+    test(
+      'debug notices use the production store and persist across reload',
+      () async {
+        final service = _service(store, now, const []);
+
+        final created = await service.createDebugNotice(
+          title: 'INFORMATION TEST',
+          message: 'test message',
+          priority: InformationNoticePriority.informational,
+        );
+
+        expect(created.isDebug, isTrue);
+        expect((await service.activeNotices()).single.id, created.id);
+        final reloaded = _service(store, now, const []);
+        expect(
+          (await reloaded.history()).single.provenance,
+          InformationNoticeProvenance.debug,
+        );
+      },
+    );
+
+    test(
+      'clearing debug notices never removes a real producer notice',
+      () async {
+        final real = _candidate('v2-beta-1');
+        final service = _service(store, now, [real]);
+        final realId = (await service.activeNotices()).single.id;
+        final debug = await service.createDebugNotice(
+          title: 'TEST',
+          message: 'test',
+          priority: InformationNoticePriority.safety,
+        );
+
+        await service.clearDebugNotices();
+
+        final history = await service.history();
+        expect(history.map((value) => value.id), contains(realId));
+        expect(history.map((value) => value.id), isNot(contains(debug.id)));
+        expect((await service.activeNotices()).single.id, realId);
+      },
+    );
+
+    test('individual debug deletion cannot delete a real notice', () async {
+      final real = _candidate('v2-beta-1');
+      final service = _service(store, now, [real]);
+      final realId = (await service.activeNotices()).single.id;
+
+      await service.deleteDebugNotice(realId);
+
+      expect((await service.history()).single.id, realId);
+    });
   });
 
   test('only Recovery V2 review ready produces the initial candidate', () {

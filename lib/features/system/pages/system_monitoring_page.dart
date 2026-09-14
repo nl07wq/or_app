@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
@@ -17,8 +18,67 @@ class SystemMonitoringPage extends StatefulWidget {
 
 class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
   late final Future<_ShadowSnapshot> _shadow = _loadShadow();
-  late final Future<List<InformationNotice>> _informationHistory =
-      InformationNoticeService().history();
+  late final InformationNoticeService _informationService =
+      InformationNoticeService();
+  late Future<List<InformationNotice>> _informationHistory = _informationService
+      .history();
+
+  void _refreshInformation() => setState(() {
+    _informationHistory = _informationService.history();
+  });
+
+  Future<void> _createTestNotice() async {
+    final draft = await showDialog<_InformationDebugDraft>(
+      context: context,
+      builder: (_) => const _InformationDebugEditor(),
+    );
+    if (draft == null) return;
+    await _informationService.createDebugNotice(
+      title: draft.title,
+      message: draft.message,
+      priority: draft.priority,
+    );
+    if (mounted) _refreshInformation();
+  }
+
+  Future<void> _deleteTestNotice(InformationNotice notice) async {
+    final confirmed = await _confirm(
+      title: 'このテスト通知を削除しますか？',
+      body: 'この操作は取り消せません。',
+    );
+    if (confirmed != true) return;
+    await _informationService.deleteDebugNotice(notice.id);
+    if (mounted) _refreshInformation();
+  }
+
+  Future<void> _clearTestNotices() async {
+    final confirmed = await _confirm(
+      title: 'テスト通知をすべて削除しますか？',
+      body: '作成したテスト通知をすべて削除します。この操作は取り消せません。',
+    );
+    if (confirmed != true) return;
+    await _informationService.clearDebugNotices();
+    if (mounted) _refreshInformation();
+  }
+
+  Future<bool?> _confirm({required String title, required String body}) =>
+      showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('削除'),
+            ),
+          ],
+        ),
+      );
 
   Future<_ShadowSnapshot> _loadShadow() async {
     final records = await AppRepositoryRegistry.container.training
@@ -74,6 +134,16 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
           },
         ),
         AppSpacing.gapSM,
+        FutureBuilder<List<InformationNotice>>(
+          future: _informationHistory,
+          builder: (context, snapshot) => _InformationDebugCard(
+            notices: snapshot.data ?? const [],
+            onCreate: _createTestNotice,
+            onDelete: _deleteTestNotice,
+            onClear: _clearTestNotices,
+          ),
+        ),
+        AppSpacing.gapSM,
         const OperationCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,7 +180,7 @@ class _InformationHistoryCard extends StatelessWidget {
         ),
         for (final notice in notices) ...[
           const Divider(),
-          Text(notice.title),
+          Text('${notice.isDebug ? 'TEST  ' : ''}${notice.title}'),
           Text('${notice.category} / ${notice.parameterVersion}'),
           Text('状態: ${_stateLabel(notice.state)}'),
           Text('発生: ${_format(notice.createdAt)}'),
@@ -130,6 +200,190 @@ class _InformationHistoryCard extends StatelessWidget {
 
   String _format(DateTime value) =>
       '${value.year}/${value.month}/${value.day} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+}
+
+class _InformationDebugCard extends StatelessWidget {
+  const _InformationDebugCard({
+    required this.notices,
+    required this.onCreate,
+    required this.onDelete,
+    required this.onClear,
+  });
+
+  final List<InformationNotice> notices;
+  final VoidCallback onCreate;
+  final ValueChanged<InformationNotice> onDelete;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final testNotices = notices.where((notice) => notice.isDebug).toList();
+    return OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'INFORMATION DEBUG',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          const Text('TEST通知は通常のINFORMATIONパイプラインで表示されます。'),
+          const SizedBox(height: AppSpacing.md),
+          OperationButton(
+            text: 'CREATE TEST NOTICE',
+            onPressed: onCreate,
+            role: OperationActionRole.primary,
+          ),
+          if (testNotices.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton(
+              onPressed: onClear,
+              child: const Text('CLEAR TEST NOTICES'),
+            ),
+            for (final notice in testNotices) ...[
+              const Divider(),
+              Row(
+                children: [
+                  const Text('TEST'),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      notice.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'テスト通知を削除',
+                    onPressed: () => onDelete(notice),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+              Text(
+                '${_priorityLabel(notice.priority)} / ${notice.state.name.toUpperCase()}',
+              ),
+              Text(
+                'ID: ${notice.id}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              Text(
+                '作成: ${_format(notice.createdAt)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _priorityLabel(InformationNoticePriority priority) =>
+      switch (priority) {
+        InformationNoticePriority.safety => '安全・整合性',
+        InformationNoticePriority.actionRequired => '対応が必要',
+        InformationNoticePriority.review => 'レビュー',
+        InformationNoticePriority.informational => '情報',
+      };
+
+  String _format(DateTime value) =>
+      '${value.year}/${value.month}/${value.day} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+}
+
+class _InformationDebugDraft {
+  const _InformationDebugDraft({
+    required this.title,
+    required this.message,
+    required this.priority,
+  });
+
+  final String title;
+  final String message;
+  final InformationNoticePriority priority;
+}
+
+class _InformationDebugEditor extends StatefulWidget {
+  const _InformationDebugEditor();
+
+  @override
+  State<_InformationDebugEditor> createState() =>
+      _InformationDebugEditorState();
+}
+
+class _InformationDebugEditorState extends State<_InformationDebugEditor> {
+  final _title = TextEditingController(text: 'INFORMATION TEST');
+  final _message = TextEditingController(
+    text: 'Dashboard INFORMATION表示確認用のテスト通知です。',
+  );
+  var _priority = InformationNoticePriority.informational;
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _message.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('CREATE TEST NOTICE'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _title,
+            decoration: const InputDecoration(labelText: 'TITLE'),
+          ),
+          TextField(
+            controller: _message,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(labelText: 'MESSAGE'),
+          ),
+          DropdownButtonFormField<InformationNoticePriority>(
+            initialValue: _priority,
+            decoration: const InputDecoration(labelText: 'PRIORITY'),
+            items: [
+              for (final priority in InformationNoticePriority.values)
+                DropdownMenuItem(
+                  value: priority,
+                  child: Text(_priorityLabel(priority)),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _priority = value);
+            },
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('キャンセル'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(
+          context,
+          _InformationDebugDraft(
+            title: _title.text,
+            message: _message.text,
+            priority: _priority,
+          ),
+        ),
+        child: const Text('作成'),
+      ),
+    ],
+  );
+
+  String _priorityLabel(InformationNoticePriority priority) =>
+      switch (priority) {
+        InformationNoticePriority.safety => '安全・整合性',
+        InformationNoticePriority.actionRequired => '対応が必要',
+        InformationNoticePriority.review => 'レビュー',
+        InformationNoticePriority.informational => '情報',
+      };
 }
 
 class _RecoveryEvidenceShadowCard extends StatelessWidget {

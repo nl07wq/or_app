@@ -76,12 +76,21 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _informationNoticesFuture = _informationService.activeNotices();
+    informationNoticeRevision.addListener(_refreshInformation);
   }
 
   @override
   void dispose() {
+    informationNoticeRevision.removeListener(_refreshInformation);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _refreshInformation() {
+    if (!mounted) return;
+    setState(() {
+      _informationNoticesFuture = _informationService.activeNotices();
+    });
   }
 
   @override
@@ -332,9 +341,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
     if (!mounted) return;
-    setState(() {
-      _informationNoticesFuture = _informationService.activeNotices();
-    });
+    _refreshInformation();
     if (result == InformationDetailResult.systemMonitoring) {
       await Navigator.of(context).pushNamed(AppRoutes.systemMonitoring);
     }
