@@ -101,7 +101,7 @@ class _InformationMarqueeState extends State<_InformationMarquee>
   static const _terminalPause = Duration(milliseconds: 1300);
   static const _exitSafetyMargin = 12.0;
   static const _scrollSpeedPxPerSecond =
-      InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond;
+      InformationMarqueeTiming.fixedScrollSpeedPxPerSecond;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -250,10 +250,8 @@ class InformationMarqueeGeometry {
 
 /// Timing companion for [InformationMarqueeGeometry].
 ///
-/// The calibrated speed preserves the prior 5200ms movement for the
-/// representative 390px Dashboard ticker (334px usable viewport) and its
-/// existing REVIEW READY title (441.75px text layout width):
-/// `(334 + 441.75 + 6) / 5.2 = 150.336538... px/s`.
+/// The fixed visual speed applies to every notice regardless of its rendered
+/// width. Geometry supplies the distance and this class derives the duration.
 class InformationMarqueeTiming {
   const InformationMarqueeTiming({
     required this.geometry,
@@ -261,7 +259,7 @@ class InformationMarqueeTiming {
   });
 
   static const calibrationTravelDuration = Duration(milliseconds: 5200);
-  static const calibratedScrollSpeedPxPerSecond = 150.33653846153845;
+  static const fixedScrollSpeedPxPerSecond = 135.0;
 
   final InformationMarqueeGeometry geometry;
   final double scrollSpeedPxPerSecond;

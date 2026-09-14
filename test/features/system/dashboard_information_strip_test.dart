@@ -60,7 +60,14 @@ void main() {
     expect(
       timing.travelDuration -
           InformationMarqueeTiming.calibrationTravelDuration,
-      greaterThan(const Duration(milliseconds: 39)),
+      greaterThan(const Duration(milliseconds: 600)),
+    );
+    expect(
+      timing.effectivePixelsPerSecond,
+      moreOrLessEquals(
+        InformationMarqueeTiming.fixedScrollSpeedPxPerSecond,
+        epsilon: .001,
+      ),
     );
     final initial = tester.getRect(text).left;
     expect(initial, moreOrLessEquals(tester.getRect(viewport).right));
@@ -180,7 +187,7 @@ void main() {
       expect(
         timing.effectivePixelsPerSecond,
         moreOrLessEquals(
-          InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
+          InformationMarqueeTiming.fixedScrollSpeedPxPerSecond,
           epsilon: .001,
         ),
       );
@@ -217,7 +224,7 @@ void main() {
       expect(
         timing.effectivePixelsPerSecond,
         moreOrLessEquals(
-          InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
+          InformationMarqueeTiming.fixedScrollSpeedPxPerSecond,
           epsilon: .001,
         ),
       );
@@ -323,8 +330,7 @@ InformationMarqueeTiming _timingFor(
     textLayoutWidth: tester.getSize(text).width,
     exitSafetyMargin: 12,
   ),
-  scrollSpeedPxPerSecond:
-      InformationMarqueeTiming.calibratedScrollSpeedPxPerSecond,
+  scrollSpeedPxPerSecond: InformationMarqueeTiming.fixedScrollSpeedPxPerSecond,
 );
 
 Widget _app({

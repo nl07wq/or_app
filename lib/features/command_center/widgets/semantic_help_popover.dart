@@ -2,6 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
 
+enum ContextPopoverEdge { left, right }
+
+ContextPopoverEdge contextPopoverEdgeFor({
+  required Rect triggerRect,
+  required Size viewportSize,
+}) => triggerRect.center.dx < viewportSize.width / 2
+    ? ContextPopoverEdge.left
+    : ContextPopoverEdge.right;
+
 class SemanticHelpPopover extends StatefulWidget {
   const SemanticHelpPopover({
     super.key,
@@ -61,9 +70,14 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
     final popoverWidth = widget.constraints.minWidth
         .clamp(0.0, availableWidth)
         .toDouble();
-    final popoverRight = anchorRect.right
-        .clamp(safeInset + popoverWidth, overlaySize.width - safeInset)
-        .toDouble();
+    final edge = contextPopoverEdgeFor(
+      triggerRect: anchorRect,
+      viewportSize: overlaySize,
+    );
+    final popoverLeft = switch (edge) {
+      ContextPopoverEdge.left => safeInset,
+      ContextPopoverEdge.right => overlaySize.width - safeInset - popoverWidth,
+    };
 
     _dismiss();
     _entry = OverlayEntry(
@@ -76,7 +90,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
             ),
           ),
           Positioned(
-            left: popoverRight - popoverWidth,
+            left: popoverLeft,
             top: anchorRect.bottom + widget.offset.dy,
             width: popoverWidth,
             child: Material(

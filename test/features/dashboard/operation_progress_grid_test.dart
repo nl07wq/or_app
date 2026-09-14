@@ -19,6 +19,7 @@ import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
+import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/data/water_quick_presets.dart';
@@ -36,6 +37,34 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
+  test('context popover edge selection uses the actual viewport center', () {
+    for (final width in [320.0, 390.0, 900.0]) {
+      final viewport = Size(width, 844);
+      expect(
+        contextPopoverEdgeFor(
+          triggerRect: Rect.fromCenter(
+            center: Offset(width / 2 - .1, 20),
+            width: 20,
+            height: 20,
+          ),
+          viewportSize: viewport,
+        ),
+        ContextPopoverEdge.left,
+      );
+      expect(
+        contextPopoverEdgeFor(
+          triggerRect: Rect.fromCenter(
+            center: Offset(width / 2, 20),
+            width: 20,
+            height: 20,
+          ),
+          viewportSize: viewport,
+        ),
+        ContextPopoverEdge.right,
+      );
+    }
+  });
+
   setUp(() {
     appInitializationController.markReady();
     dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.unconfirmed(
@@ -1149,7 +1178,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Cycle State help popover anchors to its visible state icon', (
+  testWidgets('Cycle State help popover uses its binary edge mode', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -1180,12 +1209,12 @@ void main() {
     final icon = find.byKey(
       const ValueKey('dashboard-cycle-state-visible-icon'),
     );
-    final expectedRight = tester
-        .getRect(icon)
-        .right
-        .clamp(8 + popoverSize.width, 390 - 8)
-        .toDouble();
-    expect(tester.getRect(popover).right, moreOrLessEquals(expectedRight));
+    final edge = contextPopoverEdgeFor(
+      triggerRect: tester.getRect(icon),
+      viewportSize: const Size(390, 844),
+    );
+    expect(edge, ContextPopoverEdge.right);
+    expect(tester.getRect(popover).right, moreOrLessEquals(390 - 8));
     expect(
       tester.getRect(popover).top,
       moreOrLessEquals(tester.getRect(icon).bottom),
@@ -1205,7 +1234,7 @@ void main() {
       await _pumpDashboard(tester, width: 390);
       await tester.pumpAndSettle();
 
-      final results = <String, double>{};
+      final results = <String, ContextPopoverEdge>{};
       for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
         final icon = find.byKey(
           ValueKey('operation-progress-completion-$label'),
@@ -1217,38 +1246,24 @@ void main() {
         final popover = find.byKey(
           ValueKey('semantic-help-popover-completion-${label.toLowerCase()}'),
         );
-        final popoverRect = tester.getRect(popover);
-        final expectedRight = tester
-            .getRect(icon)
-            .right
-            .clamp(8 + popoverRect.width, 390 - 8)
-            .toDouble();
-        expect(popoverRect.right, moreOrLessEquals(expectedRight));
-        results[label] = popoverRect.right;
+        final edge = contextPopoverEdgeFor(
+          triggerRect: tester.getRect(icon),
+          viewportSize: const Size(390, 844),
+        );
+        results[label] = edge;
+        if (edge == ContextPopoverEdge.left) {
+          expect(tester.getRect(popover).left, moreOrLessEquals(8));
+        } else {
+          expect(tester.getRect(popover).right, moreOrLessEquals(390 - 8));
+        }
 
         await tester.tapAt(const Offset(1, 1));
         await tester.pumpAndSettle();
       }
 
-      expect(
-        tester
-            .getRect(
-              find.byKey(
-                const ValueKey('operation-progress-completion-STATUS'),
-              ),
-            )
-            .right,
-        lessThan(
-          tester
-              .getRect(
-                find.byKey(
-                  const ValueKey('operation-progress-completion-FOOD'),
-                ),
-              )
-              .right,
-        ),
-      );
-      expect(results['STATUS'], lessThan(results['FOOD']!));
+      expect(results['STATUS'], ContextPopoverEdge.left);
+      expect(results['FOOD'], ContextPopoverEdge.right);
+      expect(results['ACTIVITY'], ContextPopoverEdge.right);
     },
   );
 
@@ -1273,9 +1288,19 @@ void main() {
       );
       final size = tester.getSize(popover);
       final topLeft = tester.getTopLeft(popover);
+      final icon = find.byKey(
+        const ValueKey('dashboard-cycle-state-visible-icon'),
+      );
+      final edge = contextPopoverEdgeFor(
+        triggerRect: tester.getRect(icon),
+        viewportSize: Size(width, 844),
+      );
       expect(size.width, greaterThan(size.height));
-      expect(topLeft.dx, greaterThanOrEqualTo(0));
-      expect(topLeft.dx + size.width, lessThanOrEqualTo(width));
+      if (edge == ContextPopoverEdge.left) {
+        expect(topLeft.dx, moreOrLessEquals(8));
+      } else {
+        expect(topLeft.dx + size.width, moreOrLessEquals(width - 8));
+      }
       expect(tester.takeException(), isNull);
 
       await tester.tapAt(const Offset(1, 1));

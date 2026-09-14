@@ -12,6 +12,7 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
+import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
@@ -323,13 +324,12 @@ void main() {
       const ValueKey('semantic-help-popover-cycle-standby'),
     );
     final icon = find.byKey(const ValueKey('current-operation-cycle-icon'));
-    final popoverSize = tester.getSize(popover);
-    final expectedRight = tester
-        .getRect(icon)
-        .right
-        .clamp(8 + popoverSize.width, 390 - 8)
-        .toDouble();
-    expect(tester.getRect(popover).right, closeTo(expectedRight, 4));
+    final edge = contextPopoverEdgeFor(
+      triggerRect: tester.getRect(icon),
+      viewportSize: const Size(390, 900),
+    );
+    expect(edge, ContextPopoverEdge.right);
+    expect(tester.getRect(popover).right, closeTo(390 - 8, 4));
     expect(
       find.text(cycleStateHelp(DailyCommandCycleState.standby)),
       findsOneWidget,
