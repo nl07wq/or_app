@@ -44,12 +44,14 @@ abstract final class FoodThumbnailAssetResolver {
     FoodVisualKey.meat ||
     FoodVisualKey.fish ||
     FoodVisualKey.dairy ||
+    FoodVisualKey.grain ||
     FoodVisualKey.vegetable ||
     FoodVisualKey.fruit ||
     FoodVisualKey.protein ||
     FoodVisualKey.condiment ||
     FoodVisualKey.soup ||
-    FoodVisualKey.surimi => '$_directory/${key!.stableId}.png',
+    FoodVisualKey.surimi ||
+    FoodVisualKey.plate => '$_directory/${key!.stableId}.png',
     _ => null,
   };
 }

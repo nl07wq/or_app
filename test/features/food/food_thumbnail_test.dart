@@ -8,18 +8,18 @@ void main() {
     FoodVisualKey.meat: 'meat.png',
     FoodVisualKey.fish: 'fish.png',
     FoodVisualKey.dairy: 'dairy.png',
+    FoodVisualKey.grain: 'grain.png',
     FoodVisualKey.vegetable: 'vegetable.png',
     FoodVisualKey.fruit: 'fruit.png',
     FoodVisualKey.protein: 'protein.png',
     FoodVisualKey.condiment: 'condiment.png',
     FoodVisualKey.soup: 'soup.png',
     FoodVisualKey.surimi: 'surimi.png',
+    FoodVisualKey.plate: 'plate.png',
   };
 
   const materialIcons = <FoodVisualKey, IconData>{
     FoodVisualKey.egg: Icons.egg_alt_outlined,
-    FoodVisualKey.grain: Icons.ramen_dining_outlined,
-    FoodVisualKey.plate: Icons.lunch_dining_outlined,
     FoodVisualKey.snack: Icons.cookie_outlined,
     FoodVisualKey.drink: Icons.local_drink_outlined,
   };
