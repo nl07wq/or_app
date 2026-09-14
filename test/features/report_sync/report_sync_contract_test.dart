@@ -387,6 +387,31 @@ void main() {
     expect(morning, contains('単一のPlain Textコードブロック'));
   });
 
+  test('daily brief instruction recalibrates plantar risk and actions', () {
+    final morning = ReportSyncInstructionProviderRegistry.standard()
+        .forType(ReportSyncExchangeType.morningBrief)
+        .buildInstruction(
+          operationDate: '2026-08-02',
+          sourceRecordId: 'status:2026-08-02',
+          sourceDigest:
+              'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        );
+
+    expect(morning, contains('DAILY BRIEF PLANTAR RISK CALIBRATION V2'));
+    expect(morning, contains('Preserve that number exactly'));
+    expect(morning, contains('LV0–2 is a mild'));
+    expect(morning, contains('LV3–4 is a watch-level concern'));
+    expect(morning, contains('LV5–6 is an elevated concern'));
+    expect(morning, contains('LV7 or above is a HIGH-action candidate'));
+    expect(
+      morning,
+      contains('must not independently make operationStatus yellow'),
+    );
+    expect(morning, contains('planned Training, lower-body Training'));
+    expect(morning, contains('ACTION ROOT-CAUSE DE-DUPLICATION'));
+    expect(morning, contains('multiple HIGH actions'));
+  });
+
   test(
     'training instruction documents the formal cardio snapshot contract',
     () {
