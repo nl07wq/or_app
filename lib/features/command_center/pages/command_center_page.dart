@@ -477,7 +477,7 @@ class _CurrentOperationCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(width: AppSpacing.xs),
+        const SizedBox(width: AppSpacing.xl),
         Expanded(
           child: Column(
             key: const ValueKey('current-operation-cycle-group'),
