@@ -183,10 +183,11 @@ class _InformationMarqueeState extends State<_InformationMarquee>
           textScaler: MediaQuery.textScalerOf(context),
           maxLines: 1,
         )..layout();
-        final width = painter.width;
-        // Keep the final glyph safely outside the ticker viewport despite
-        // antialiasing and sub-pixel raster bounds.
-        final travel = constraints.maxWidth + width + _exitSafetyMargin;
+        final geometry = InformationMarqueeGeometry(
+          viewportWidth: constraints.maxWidth,
+          textLayoutWidth: painter.width,
+          exitSafetyMargin: _exitSafetyMargin,
+        );
         return AnimatedBuilder(
           animation: _controller,
           child: Text(
@@ -195,19 +196,43 @@ class _InformationMarqueeState extends State<_InformationMarquee>
             maxLines: 1,
             style: style,
           ),
-          builder: (context, child) => Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned(
-                key: const ValueKey('dashboard-information-marquee-positioned'),
-                left: constraints.maxWidth - (travel * _controller.value),
-                top: 0,
-                child: child!,
+          builder: (context, child) => ClipRect(
+            key: const ValueKey('dashboard-information-marquee-clip'),
+            child: Transform.translate(
+              key: const ValueKey('dashboard-information-marquee-transform'),
+              offset: Offset(geometry.leftAt(_controller.value), 0),
+              // Keep the text's paint box unconstrained. The ClipRect above,
+              // not an inherited Text width constraint, owns all clipping.
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: 0,
+                maxWidth: double.infinity,
+                child: child,
               ),
-            ],
+            ),
           ),
         );
       },
     ),
   );
+}
+
+/// The ticker's one local coordinate contract. It deliberately excludes the
+/// heading, card, and any global/render-tree offsets.
+class InformationMarqueeGeometry {
+  const InformationMarqueeGeometry({
+    required this.viewportWidth,
+    required this.textLayoutWidth,
+    required this.exitSafetyMargin,
+  });
+
+  final double viewportWidth;
+  final double textLayoutWidth;
+  final double exitSafetyMargin;
+
+  double get startLeft => viewportWidth;
+  double get endLeft => -textLayoutWidth - exitSafetyMargin;
+
+  double leftAt(double progress) =>
+      startLeft + ((endLeft - startLeft) * progress.clamp(0, 1));
 }

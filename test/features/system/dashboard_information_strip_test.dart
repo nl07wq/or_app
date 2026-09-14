@@ -55,16 +55,13 @@ void main() {
     final viewport = find.byKey(
       const ValueKey('dashboard-information-ticker-viewport'),
     );
-    final position = find.byKey(
-      const ValueKey('dashboard-information-marquee-positioned'),
-    );
-    final initial = tester.getRect(position).left;
+    final initial = tester.getRect(text).left;
     expect(initial, moreOrLessEquals(tester.getRect(viewport).right));
 
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    final moving = tester.getRect(position).left;
+    final moving = tester.getRect(text).left;
 
     expect(moving, lessThan(initial));
 
@@ -88,6 +85,96 @@ void main() {
     expect(tester.getRect(text).left, greaterThanOrEqualTo(viewportRect.right));
   });
 
+  testWidgets('long marquee text uses the measured layout width', (
+    tester,
+  ) async {
+    const title =
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
+    await tester.pumpWidget(_app(disableAnimations: false, title: title));
+
+    final text = find.byKey(
+      const ValueKey('dashboard-information-marquee-text'),
+    );
+    final style = tester.widget<Text>(text).style;
+    final painter = TextPainter(
+      text: TextSpan(text: title, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(tester.element(text)),
+      maxLines: 1,
+    )..layout();
+
+    expect(tester.getSize(text).width, moreOrLessEquals(painter.width));
+  });
+
+  test('local marquee geometry moves monotonically left', () {
+    const marginOne = InformationMarqueeGeometry(
+      viewportWidth: 320,
+      textLayoutWidth: 480,
+      exitSafetyMargin: 1,
+    );
+    const marginSix = InformationMarqueeGeometry(
+      viewportWidth: 320,
+      textLayoutWidth: 480,
+      exitSafetyMargin: 6,
+    );
+    final positions = [
+      marginSix.leftAt(0),
+      marginSix.leftAt(.25),
+      marginSix.leftAt(.5),
+      marginSix.leftAt(.75),
+      marginSix.leftAt(1),
+    ];
+
+    for (var index = 1; index < positions.length; index++) {
+      expect(positions[index], lessThan(positions[index - 1]));
+    }
+    expect(marginSix.startLeft, 320);
+    expect(marginSix.endLeft, -486);
+    expect(marginSix.endLeft, lessThan(marginOne.endLeft));
+  });
+
+  testWidgets('long Japanese notice paints full local exit through end pause', (
+    tester,
+  ) async {
+    const title =
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
+    await tester.pumpWidget(_app(disableAnimations: false, title: title));
+    final text = find.byKey(
+      const ValueKey('dashboard-information-marquee-text'),
+    );
+    final viewport = find.byKey(
+      const ValueKey('dashboard-information-ticker-viewport'),
+    );
+
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 5200));
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+
+    final viewportRect = tester.getRect(viewport);
+    final textRect = tester.getRect(text);
+    final geometry = InformationMarqueeGeometry(
+      viewportWidth: viewportRect.width,
+      textLayoutWidth: textRect.width,
+      exitSafetyMargin: 6,
+    );
+    expect(
+      textRect.left - viewportRect.left,
+      moreOrLessEquals(geometry.endLeft),
+    );
+    expect(textRect.right, lessThanOrEqualTo(viewportRect.left - 4));
+
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(
+      tester.getRect(text).right,
+      lessThanOrEqualTo(viewportRect.left - 4),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump();
+    expect(tester.getRect(text).left, greaterThanOrEqualTo(viewportRect.right));
+  });
+
   testWidgets('keeps a compact two-row strip at supported dashboard widths', (
     tester,
   ) async {
@@ -106,8 +193,12 @@ void main() {
   testWidgets('keeps the exit safety margin at supported dashboard widths', (
     tester,
   ) async {
+    const title =
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
     for (final width in [320.0, 390.0, 900.0]) {
-      await tester.pumpWidget(_app(disableAnimations: false, width: width));
+      await tester.pumpWidget(
+        _app(disableAnimations: false, width: width, title: title),
+      );
       final text = find.byKey(
         const ValueKey('dashboard-information-marquee-text'),
       );
@@ -127,32 +218,35 @@ void main() {
   });
 }
 
-Widget _app({required bool disableAnimations, double width = 390}) =>
-    MaterialApp(
-      home: MediaQuery(
-        data: MediaQueryData(
-          size: Size(width, 844),
-          disableAnimations: disableAnimations,
-        ),
-        child: Scaffold(
-          body: DashboardInformationStrip(
-            key: ValueKey('dashboard-information-$width'),
-            notices: [
-              InformationNotice(
-                id: 'recovery-v2-review-ready:v2-beta-1',
-                priority: InformationNoticePriority.review,
-                category: 'RECOVERY V2 SHADOW',
-                title: 'RECOVERY V2 BETA — REVIEW READY',
-                message: 'review',
-                parameterVersion: 'v2-beta-1',
-                createdAt: DateTime(2026, 9, 20),
-                state: InformationNoticeState.unread,
-              ),
-            ],
-            onTap: _noop,
+Widget _app({
+  required bool disableAnimations,
+  double width = 390,
+  String title = 'RECOVERY V2 BETA — REVIEW READY',
+}) => MaterialApp(
+  home: MediaQuery(
+    data: MediaQueryData(
+      size: Size(width, 844),
+      disableAnimations: disableAnimations,
+    ),
+    child: Scaffold(
+      body: DashboardInformationStrip(
+        key: ValueKey('dashboard-information-$width'),
+        notices: [
+          InformationNotice(
+            id: 'recovery-v2-review-ready:v2-beta-1',
+            priority: InformationNoticePriority.review,
+            category: 'RECOVERY V2 SHADOW',
+            title: title,
+            message: 'review',
+            parameterVersion: 'v2-beta-1',
+            createdAt: DateTime(2026, 9, 20),
+            state: InformationNoticeState.unread,
           ),
-        ),
+        ],
+        onTap: _noop,
       ),
-    );
+    ),
+  ),
+);
 
 void _noop() {}
