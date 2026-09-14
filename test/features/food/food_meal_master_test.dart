@@ -175,24 +175,15 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('DB MEAL'));
+    await tester.tap(
+      find.byKey(const ValueKey('food-entry-tab-databaseMeal')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('food-db-select-databaseMeal')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('food-meal-master-$_mealId')));
+    await tester.tap(
+      find.byKey(const ValueKey('food-entry-inline-meal-$_mealId')),
+    );
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey('food-db-quantity-confirmation')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('food-db-add')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.byKey(const ValueKey('food-db-select-databaseMeal')),
-      findsOneWidget,
-    );
     expect(
       find.byKey(const ValueKey('food-db-quantity-confirmation')),
       findsNothing,

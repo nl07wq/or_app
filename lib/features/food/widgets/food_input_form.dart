@@ -63,6 +63,19 @@ class FoodInputForm extends StatefulWidget {
 
 enum _FoodEntryInputMode { manual, databaseFood, databaseRecipe, databaseMeal }
 
+class _SelectorOption extends StatelessWidget {
+  const _SelectorOption({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [Icon(icon, size: 18), const SizedBox(width: 6), Text(label)],
+  );
+}
+
 class _DatabaseFoodSelection {
   const _DatabaseFoodSelection(this.value, this.mode);
 
@@ -123,6 +136,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   bool _basisLinkedToPackage = true;
   _FoodEntryInputMode _inputMode = _FoodEntryInputMode.manual;
   _DatabaseFoodSelection? _pendingDatabaseSelection;
+  bool _addingDatabaseItem = false;
 
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
@@ -777,37 +791,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
-  Future<void> _selectDatabaseItem(_FoodEntryInputMode mode) async {
-    if (!AppRepositoryRegistry.hasContainer) return;
-    final selection = await Navigator.push<Object>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FoodCatalogPage(
-          repository: AppRepositoryRegistry.container.foodCatalog,
-          recipeRepository: AppRepositoryRegistry.container.foodRecipes,
-          mealRepository: AppRepositoryRegistry.container.foodMealMasters,
-          selectionMode: true,
-          selectionViewLocked: true,
-          initialSelectionView: switch (mode) {
-            _FoodEntryInputMode.databaseFood => FoodCatalogSelectionView.food,
-            _FoodEntryInputMode.databaseRecipe =>
-              FoodCatalogSelectionView.recipe,
-            _FoodEntryInputMode.databaseMeal => FoodCatalogSelectionView.meal,
-            _FoodEntryInputMode.manual => FoodCatalogSelectionView.food,
-          },
-        ),
-      ),
-    );
-    if (selection == null || !mounted) return;
-    final isExpected = switch (mode) {
-      _FoodEntryInputMode.databaseFood => selection is FoodCatalogEntry,
-      _FoodEntryInputMode.databaseRecipe => selection is FoodRecipeDefinition,
-      _FoodEntryInputMode.databaseMeal => selection is FoodMealMaster,
-      _FoodEntryInputMode.manual => false,
-    };
-    if (!isExpected) return;
+  void _selectDatabaseFood(FoodCatalogEntry selection) {
     setState(() {
-      _pendingDatabaseSelection = _DatabaseFoodSelection(selection, mode);
+      _pendingDatabaseSelection = _DatabaseFoodSelection(
+        selection,
+        _FoodEntryInputMode.databaseFood,
+      );
       _pendingQuantityController.text = _formatAmount(_defaultAmount);
       inputError = null;
     });
@@ -859,6 +848,53 @@ class _FoodInputFormState extends State<FoodInputForm> {
       baseUnit: FoodBaseUnit.g,
       amountMode: FoodAmountMode.baseMultiplier,
     );
+  }
+
+  void _addRecipeDirect(FoodRecipeDefinition recipe) {
+    if (_addingDatabaseItem) return;
+    final item = _databaseRecipeItem(recipe, 1);
+    if (item == null) {
+      setState(() => inputError = 'RECIPE NUTRITION IS INCOMPLETE');
+      return;
+    }
+    setState(() {
+      _addingDatabaseItem = true;
+      _appendItems(
+        newItems: [item],
+        foodSources: [null],
+        recipeSources: [recipe],
+        units: [FoodQuantityUnit.serving],
+      );
+      inputError = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _addingDatabaseItem = false);
+    });
+  }
+
+  Future<void> _addMealDirect(FoodMealMaster meal) async {
+    if (_addingDatabaseItem) return;
+    setState(() => _addingDatabaseItem = true);
+    try {
+      final expansion = await FoodMealMasterExpander(
+        foods: AppRepositoryRegistry.container.foodCatalog,
+        recipes: AppRepositoryRegistry.container.foodRecipes,
+      ).expand(meal);
+      if (!mounted) return;
+      setState(() {
+        _appendItems(
+          newItems: expansion.items,
+          foodSources: expansion.foodSources,
+          recipeSources: expansion.recipeSources,
+          units: expansion.quantityUnits,
+        );
+        inputError = null;
+      });
+    } on FoodMealMasterExpansionException catch (error) {
+      if (mounted) setState(() => inputError = error.toString());
+    } finally {
+      if (mounted) setState(() => _addingDatabaseItem = false);
+    }
   }
 
   void _appendItems({
@@ -1128,9 +1164,24 @@ class _FoodInputFormState extends State<FoodInputForm> {
         key: const ValueKey('food-entry-type-selector'),
         initialValue: isWaterEntry,
         items: const [
-          DropdownMenuItem(value: false, child: Text('MEAL')),
-          DropdownMenuItem(value: true, child: Text('WATER')),
+          DropdownMenuItem(
+            value: false,
+            child: _SelectorOption(icon: Icons.restaurant, label: 'MEAL'),
+          ),
+          DropdownMenuItem(
+            value: true,
+            child: _SelectorOption(icon: Icons.water_drop, label: 'WATER'),
+          ),
         ],
+        selectedItemBuilder: (_) => const [
+          _SelectorOption(icon: Icons.restaurant, label: 'MEAL'),
+          _SelectorOption(icon: Icons.water_drop, label: 'WATER'),
+        ],
+        isDense: true,
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
         onChanged: _isSaving
             ? null
             : (value) => setState(() {
@@ -1162,9 +1213,26 @@ class _FoodInputFormState extends State<FoodInputForm> {
         hint: const Text('—'),
         items: MealType.values
             .map(
-              (type) => DropdownMenuItem(value: type, child: Text(type.label)),
+              (type) => DropdownMenuItem(
+                value: type,
+                child: _SelectorOption(
+                  icon: _mealTypeIcon(type),
+                  label: type.label,
+                ),
+              ),
             )
             .toList(growable: false),
+        selectedItemBuilder: (_) => MealType.values
+            .map(
+              (type) =>
+                  _SelectorOption(icon: _mealTypeIcon(type), label: type.label),
+            )
+            .toList(growable: false),
+        isDense: true,
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
         onChanged: isWaterEntry || _isSaving
             ? null
             : (value) => setState(() => mealType = value ?? mealType),
@@ -1174,7 +1242,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Widget _entryAndMealTypeControls() => LayoutBuilder(
     builder: (context, constraints) {
-      final useTwoColumns = MediaQuery.sizeOf(context).width >= 390;
+      final useTwoColumns = MediaQuery.sizeOf(context).width >= 320;
       if (!useTwoColumns) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1197,38 +1265,62 @@ class _FoodInputFormState extends State<FoodInputForm> {
     },
   );
 
-  Widget _inputModeTabs() => SegmentedButton<_FoodEntryInputMode>(
-    key: const ValueKey('food-entry-input-mode-tabs'),
-    segments: const [
-      ButtonSegment(value: _FoodEntryInputMode.manual, label: Text('MANUAL')),
-      ButtonSegment(
-        value: _FoodEntryInputMode.databaseFood,
-        label: Text('DB FOOD'),
-      ),
-      ButtonSegment(
-        value: _FoodEntryInputMode.databaseRecipe,
-        label: Text('DB RECIPE'),
-      ),
-      ButtonSegment(
-        value: _FoodEntryInputMode.databaseMeal,
-        label: Text('DB MEAL'),
-      ),
-    ],
-    style: const ButtonStyle(
-      visualDensity: VisualDensity.compact,
-      padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
+  IconData _mealTypeIcon(MealType type) => switch (type) {
+    MealType.breakfast => Icons.breakfast_dining,
+    MealType.lunch => Icons.lunch_dining,
+    MealType.dinner => Icons.dinner_dining,
+    MealType.snack => Icons.cookie,
+    MealType.training => Icons.fitness_center,
+  };
+
+  Widget _inputModeTabs() => GestureDetector(
+    onHorizontalDragEnd: (details) =>
+        _swipeInputMode(details.primaryVelocity ?? 0),
+    child: Row(
+      key: const ValueKey('food-entry-input-mode-tabs'),
+      children: [
+        for (final mode in _FoodEntryInputMode.values)
+          Expanded(
+            child: InkWell(
+              key: ValueKey('food-entry-tab-${mode.name}'),
+              onTap: _isSaving ? null : () => _switchInputMode(mode),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _inputModeLabel(mode),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.clip,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: _inputMode == mode
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 2,
+                      color: _inputMode == mode
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     ),
-    selected: {_inputMode},
-    onSelectionChanged: _isSaving
-        ? null
-        : (value) => _switchInputMode(value.single),
   );
 
-  String _modeSelectionLabel(_FoodEntryInputMode mode) => switch (mode) {
-    _FoodEntryInputMode.databaseFood => 'SELECT FOOD FROM DATABASE',
-    _FoodEntryInputMode.databaseRecipe => 'SELECT RECIPE FROM DATABASE',
-    _FoodEntryInputMode.databaseMeal => 'SELECT MEAL FROM DATABASE',
-    _FoodEntryInputMode.manual => '',
+  String _inputModeLabel(_FoodEntryInputMode mode) => switch (mode) {
+    _FoodEntryInputMode.manual => 'MANUAL',
+    _FoodEntryInputMode.databaseFood => 'FOOD',
+    _FoodEntryInputMode.databaseRecipe => 'RECIPE',
+    _FoodEntryInputMode.databaseMeal => 'MEAL',
   };
 
   String _pendingName(_DatabaseFoodSelection pending) =>
@@ -1248,63 +1340,196 @@ class _FoodInputFormState extends State<FoodInputForm> {
         _ => '',
       };
 
+  void _adjustPendingQuantity(double delta) {
+    final current =
+        double.tryParse(_pendingQuantityController.text.trim()) ??
+        _defaultAmount;
+    final next = current + delta;
+    if (next <= 0) return;
+    setState(() {
+      _pendingQuantityController.text = _formatAmount(next);
+      inputError = null;
+    });
+  }
+
+  void _swipeInputMode(double velocity) {
+    final index = _inputMode.index + (velocity < 0 ? 1 : -1);
+    if (velocity == 0 ||
+        index < 0 ||
+        index >= _FoodEntryInputMode.values.length) {
+      return;
+    }
+    _switchInputMode(_FoodEntryInputMode.values[index]);
+  }
+
+  Widget _inlineFoodList() => FutureBuilder<List<FoodCatalogEntry>>(
+    future: AppRepositoryRegistry.container.foodCatalog.list(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final entries =
+          snapshot.data
+              ?.where((entry) => !entry.isArchived)
+              .toList(growable: false) ??
+          const <FoodCatalogEntry>[];
+      if (entries.isEmpty) return const Text('食品が見つかりません');
+      return Column(
+        key: const ValueKey('food-entry-inline-food-list'),
+        children: [
+          for (final entry in entries)
+            ListTile(
+              key: ValueKey('food-entry-inline-food-${entry.foodId}'),
+              leading: const Icon(Icons.restaurant_outlined),
+              title: Text(entry.name),
+              subtitle: Text(
+                FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _addingDatabaseItem
+                  ? null
+                  : () => _selectDatabaseFood(entry),
+            ),
+        ],
+      );
+    },
+  );
+
+  Widget _inlineRecipeList() => FutureBuilder<List<FoodRecipeDefinition>>(
+    future: AppRepositoryRegistry.container.foodRecipes.list(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final recipes =
+          snapshot.data
+              ?.where((recipe) => !recipe.isArchived)
+              .toList(growable: false) ??
+          const <FoodRecipeDefinition>[];
+      if (recipes.isEmpty) return const Text('RECIPE NOT FOUND');
+      return Column(
+        key: const ValueKey('food-entry-inline-recipe-list'),
+        children: [
+          for (final recipe in recipes)
+            ListTile(
+              key: ValueKey('food-entry-inline-recipe-${recipe.recipeId}'),
+              leading: const Icon(Icons.menu_book_outlined),
+              title: Text(recipe.name),
+              trailing: const Icon(Icons.add_circle_outline),
+              onTap: _addingDatabaseItem
+                  ? null
+                  : () => _addRecipeDirect(recipe),
+            ),
+        ],
+      );
+    },
+  );
+
+  Widget _inlineMealList() => FutureBuilder<List<FoodMealMaster>>(
+    future: AppRepositoryRegistry.container.foodMealMasters.list(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final meals =
+          snapshot.data
+              ?.where((meal) => !meal.isArchived)
+              .toList(growable: false) ??
+          const <FoodMealMaster>[];
+      if (meals.isEmpty) return const Text('MEAL NOT FOUND');
+      return Column(
+        key: const ValueKey('food-entry-inline-meal-list'),
+        children: [
+          for (final meal in meals)
+            ListTile(
+              key: ValueKey('food-entry-inline-meal-${meal.mealMasterId}'),
+              leading: const Icon(Icons.view_list_outlined),
+              title: Text(meal.name),
+              subtitle: Text('${meal.components.length} ITEMS'),
+              trailing: const Icon(Icons.add_circle_outline),
+              onTap: _addingDatabaseItem ? null : () => _addMealDirect(meal),
+            ),
+        ],
+      );
+    },
+  );
+
   Widget _databaseInput() {
     final pending = _pendingDatabaseSelection;
-    if (pending == null) {
-      return OperationButton(
-        key: ValueKey('food-db-select-${_inputMode.name}'),
-        icon: Icons.storage_outlined,
-        text: _modeSelectionLabel(_inputMode),
-        onPressed: _isSaving ? null : () => _selectDatabaseItem(_inputMode),
-      );
-    }
-    return OperationCard(
-      key: const ValueKey('food-db-quantity-confirmation'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader(
-            icon: Icons.fact_check_outlined,
-            title: 'CONFIRM QUANTITY',
-          ),
-          AppSpacing.gapSM,
-          Text(
-            _pendingName(pending),
-            key: const ValueKey('food-db-pending-name'),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text(_pendingUnit(pending)),
-          AppSpacing.gapMD,
-          OperationTextField(
-            key: const ValueKey('food-db-pending-quantity'),
-            controller: _pendingQuantityController,
-            label: 'Quantity',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) => setState(() => inputError = null),
-          ),
-          AppSpacing.gapMD,
-          Row(
-            children: [
-              Expanded(
-                child: OperationButton(
-                  key: const ValueKey('food-db-add'),
-                  icon: Icons.add,
-                  text: 'ADD',
-                  onPressed: _isSaving ? null : _addPendingDatabaseSelection,
-                ),
-              ),
-              AppSpacing.gapSM,
-              OutlinedButton(
-                key: const ValueKey('food-db-cancel'),
-                onPressed: _isSaving ? null : _cancelPendingDatabaseSelection,
-                child: const Text('CANCEL'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    if (pending != null) return _foodQuantityConfirmation(pending);
+    if (!AppRepositoryRegistry.hasContainer) return const SizedBox.shrink();
+    return switch (_inputMode) {
+      _FoodEntryInputMode.databaseFood => _inlineFoodList(),
+      _FoodEntryInputMode.databaseRecipe => _inlineRecipeList(),
+      _FoodEntryInputMode.databaseMeal => _inlineMealList(),
+      _FoodEntryInputMode.manual => const SizedBox.shrink(),
+    };
   }
+
+  Widget _foodQuantityConfirmation(_DatabaseFoodSelection pending) =>
+      OperationCard(
+        key: const ValueKey('food-db-quantity-confirmation'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(
+              icon: Icons.fact_check_outlined,
+              title: 'CONFIRM QUANTITY',
+            ),
+            AppSpacing.gapSM,
+            Text(
+              _pendingName(pending),
+              key: const ValueKey('food-db-pending-name'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(_pendingUnit(pending)),
+            AppSpacing.gapMD,
+            OperationTextField(
+              key: const ValueKey('food-db-pending-quantity'),
+              controller: _pendingQuantityController,
+              label: 'Quantity',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() => inputError = null),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  key: const ValueKey('food-db-quantity-decrement'),
+                  onPressed: () => _adjustPendingQuantity(-1),
+                  icon: const Icon(Icons.arrow_drop_down),
+                ),
+                IconButton(
+                  key: const ValueKey('food-db-quantity-increment'),
+                  onPressed: () => _adjustPendingQuantity(1),
+                  icon: const Icon(Icons.arrow_drop_up),
+                ),
+              ],
+            ),
+            AppSpacing.gapMD,
+            Row(
+              children: [
+                Expanded(
+                  child: OperationButton(
+                    key: const ValueKey('food-db-add'),
+                    icon: Icons.add,
+                    text: 'ADD',
+                    onPressed: _isSaving ? null : _addPendingDatabaseSelection,
+                  ),
+                ),
+                AppSpacing.gapSM,
+                OutlinedButton(
+                  key: const ValueKey('food-db-cancel'),
+                  onPressed: _isSaving ? null : _cancelPendingDatabaseSelection,
+                  child: const Text('CANCEL'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {

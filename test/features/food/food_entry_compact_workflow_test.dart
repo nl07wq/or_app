@@ -30,12 +30,14 @@ void main() {
     );
     expect(find.text('NAME'), findsOneWidget);
 
-    await tester.tap(find.text('DB FOOD'));
-    await tester.pump();
-    expect(
-      find.byKey(const ValueKey('food-db-select-databaseFood')),
-      findsOneWidget,
+    for (final label in ['MANUAL', 'FOOD', 'RECIPE', 'MEAL']) {
+      expect(find.text(label), findsWidgets);
+    }
+    await tester.tap(
+      find.byKey(const ValueKey('food-entry-tab-databaseFood')),
     );
+    await tester.pump();
+    expect(find.text('SELECT FOOD FROM DATABASE'), findsNothing);
     expect(find.text('NAME'), findsNothing);
   });
 
