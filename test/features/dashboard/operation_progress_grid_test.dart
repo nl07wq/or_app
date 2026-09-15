@@ -305,9 +305,73 @@ void main() {
     );
   });
 
-  testWidgets('TRAINING absent is neutral, passive, and still navigates', (
+  testWidgets(
+    'TRAINING absent has an optional status popover and body navigation',
+    (tester) async {
+      final openedRoutes = <String?>[];
+      await _pumpDashboard(
+        tester,
+        width: 390,
+        onGenerateRoute: (settings) {
+          openedRoutes.add(settings.name);
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => Scaffold(body: Text('ROUTE ${settings.name}')),
+          );
+        },
+      );
+      await _settleDashboard(tester);
+
+      final training = _tile('TRAINING');
+      _expectTileText('TRAINING', 'Not recorded');
+      expect(
+        find.byKey(const ValueKey('operation-progress-training-optional')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: training,
+          matching: find.byIcon(Icons.add_circle_outline),
+        ),
+        findsNothing,
+      );
+      final statusZone = find.byKey(
+        const ValueKey('operation-progress-status-zone-TRAINING'),
+      );
+      expect(statusZone, findsOneWidget);
+      expect(tester.getSize(statusZone), const Size(48, 48));
+      await tester.tapAt(tester.getCenter(statusZone));
+      await _settleDashboard(tester);
+      final popover = find.byKey(
+        const ValueKey('semantic-help-popover-completion-training'),
+      );
+      expect(popover, findsOneWidget);
+      expect(
+        _popoverDescriptionColor(tester, popover, 'NOT RECORDED'),
+        Theme.of(tester.element(training)).colorScheme.onSurfaceVariant,
+      );
+      expect(openedRoutes, isEmpty);
+
+      await tester.tapAt(const Offset(4, 4));
+      await _settleDashboard(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('operation-progress-body-TRAINING')),
+      );
+      await _settleDashboard(tester);
+      expect(openedRoutes.last, AppRoutes.training);
+    },
+  );
+
+  testWidgets('TRAINING record uses the optional blue recorded status zone', (
     tester,
   ) async {
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 1,
+      setCount: 3,
+      duration: Duration(minutes: 30),
+      sessionName: 'Strength',
+    );
     final openedRoutes = <String?>[];
     await _pumpDashboard(
       tester,
@@ -320,41 +384,6 @@ void main() {
         );
       },
     );
-    await _settleDashboard(tester);
-
-    final training = _tile('TRAINING');
-    _expectTileText('TRAINING', 'Not recorded');
-    expect(
-      find.byKey(const ValueKey('operation-progress-training-optional')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: training,
-        matching: find.byIcon(Icons.add_circle_outline),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const ValueKey('operation-progress-status-zone-TRAINING')),
-      findsNothing,
-    );
-    await tester.tap(training);
-    await _settleDashboard(tester);
-    expect(openedRoutes.last, AppRoutes.training);
-  });
-
-  testWidgets('TRAINING record uses the optional blue recorded indicator', (
-    tester,
-  ) async {
-    trainingSummaryNotifier.value = const TrainingSummary(
-      completed: true,
-      exerciseCount: 1,
-      setCount: 3,
-      duration: Duration(minutes: 30),
-      sessionName: 'Strength',
-    );
-    await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
 
     _expectTileText('TRAINING', 'Recorded');
@@ -373,6 +402,26 @@ void main() {
       ),
       findsNothing,
     );
+    await tester.tap(
+      find.byKey(const ValueKey('operation-progress-status-zone-TRAINING')),
+    );
+    await _settleDashboard(tester);
+    final popover = find.byKey(
+      const ValueKey('semantic-help-popover-completion-training'),
+    );
+    expect(popover, findsOneWidget);
+    expect(
+      _popoverDescriptionColor(tester, popover, 'COMPLETE'),
+      Theme.of(tester.element(_tile('TRAINING'))).colorScheme.primary,
+    );
+    expect(openedRoutes, isEmpty);
+    await tester.tapAt(const Offset(4, 4));
+    await _settleDashboard(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('operation-progress-body-TRAINING')),
+    );
+    await _settleDashboard(tester);
+    expect(openedRoutes.last, AppRoutes.training);
   });
 
   testWidgets('TRAINING shares the completion badge anchor at all widths', (
@@ -1383,6 +1432,10 @@ void main() {
         final popover = find.byKey(
           ValueKey('semantic-help-popover-completion-${label.toLowerCase()}'),
         );
+        expect(
+          _popoverDescriptionColor(tester, popover, 'NOT RECORDED'),
+          Theme.of(tester.element(_tile(label))).colorScheme.error,
+        );
         final edge = contextPopoverEdgeFor(
           triggerRect: tester.getRect(icon),
           viewportSize: const Size(390, 844),
@@ -1403,6 +1456,52 @@ void main() {
       expect(results['ACTIVITY'], ContextPopoverEdge.right);
     },
   );
+
+  testWidgets('complete required-module popovers use the shared blue accent', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    morningFactNotifier.value = _morning();
+    foodSummaryNotifier.value = const FoodSummary(
+      calories: 1100,
+      protein: 50,
+      fat: 30,
+      carbohydrates: 120,
+      hydrationMl: 1750,
+      mealCount: 3,
+    );
+    activitySummaryNotifier.value = ActivitySummary(
+      steps: 6000,
+      measuredSteps: 6000,
+      isRecorded: true,
+      digestiveSummary: _digestiveSummary(amounts: const [2]),
+      calculationBasis: const ActivityCalculationBasis(
+        rawSteps: 6000,
+        currentCarryOver: 0,
+        previousCarryOverDeduction: 0,
+        officialSteps: 6000,
+      ),
+    );
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+
+    for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
+      await tester.tap(
+        find.byKey(ValueKey('operation-progress-status-zone-$label')),
+      );
+      await _settleDashboard(tester);
+      final popover = find.byKey(
+        ValueKey('semantic-help-popover-completion-${label.toLowerCase()}'),
+      );
+      expect(popover, findsOneWidget);
+      expect(
+        _popoverDescriptionColor(tester, popover, 'COMPLETE'),
+        Theme.of(tester.element(_tile(label))).colorScheme.primary,
+      );
+      await tester.tapAt(const Offset(1, 1));
+      await _settleDashboard(tester);
+    }
+  });
 
   testWidgets('Cycle State help popover stays rectangular at target widths', (
     tester,
@@ -2144,6 +2243,17 @@ Finder _dashboardScrollable() => find.descendant(
 
 ScrollPosition _dashboardScrollPosition(WidgetTester tester) =>
     tester.state<ScrollableState>(_dashboardScrollable()).position;
+
+Color? _popoverDescriptionColor(
+  WidgetTester tester,
+  Finder popover,
+  String description,
+) => tester
+    .widget<Text>(
+      find.descendant(of: popover, matching: find.text(description)),
+    )
+    .style
+    ?.color;
 
 void _expectTileText(String label, String text) {
   expect(

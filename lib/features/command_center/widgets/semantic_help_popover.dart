@@ -19,6 +19,7 @@ class SemanticHelpPopover extends StatefulWidget {
     required this.description,
     required this.child,
     this.secondary,
+    this.descriptionColor,
     this.offset = Offset.zero,
     this.constraints = const BoxConstraints(minWidth: 220, maxWidth: 300),
     this.visibleAnchorKey,
@@ -28,6 +29,7 @@ class SemanticHelpPopover extends StatefulWidget {
   final String title;
   final String description;
   final String? secondary;
+  final Color? descriptionColor;
   final Offset offset;
   final BoxConstraints constraints;
   final GlobalKey? visibleAnchorKey;
@@ -103,6 +105,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
                   title: widget.title,
                   description: widget.description,
                   secondary: widget.secondary,
+                  descriptionColor: widget.descriptionColor,
                 ),
               ),
             ),
@@ -131,6 +134,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
               title: widget.title,
               description: widget.description,
               secondary: widget.secondary,
+              descriptionColor: widget.descriptionColor,
             ),
           ),
         ],
@@ -152,11 +156,13 @@ class _PopoverContent extends StatelessWidget {
     required this.title,
     required this.description,
     this.secondary,
+    this.descriptionColor,
   });
 
   final String title;
   final String description;
   final String? secondary;
+  final Color? descriptionColor;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -170,7 +176,7 @@ class _PopoverContent extends StatelessWidget {
         ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
       const SizedBox(height: 8),
-      Text(description),
+      Text(description, style: TextStyle(color: descriptionColor)),
       if (secondary != null) ...[
         const SizedBox(height: 8),
         Text(secondary!, style: Theme.of(context).textTheme.bodySmall),

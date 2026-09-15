@@ -1047,7 +1047,6 @@ class _ProgressCardState extends State<_ProgressCard> {
           List<String> details = const [],
           DynamicTargetState? targetState,
           DailyCommandCompletionItem? completion,
-          bool? optionalRecordPresent,
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
@@ -1060,7 +1059,6 @@ class _ProgressCardState extends State<_ProgressCard> {
               details: details,
               targetState: targetState,
               completion: completion,
-              optionalRecordPresent: optionalRecordPresent,
             ),
           );
         }
@@ -1142,7 +1140,15 @@ class _ProgressCardState extends State<_ProgressCard> {
                   ? 'Recorded'
                   : 'Not recorded',
               progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
-              optionalRecordPresent: widget.trainingSummary?.completed == true,
+              completion:
+                  completionModel?.trainingCompletion ??
+                  DailyCommandCompletionItem(
+                    label: 'TRAINING',
+                    state: widget.trainingSummary?.completed == true
+                        ? DailyCommandModuleState.recorded
+                        : DailyCommandModuleState.optionalMissing,
+                    missingRequirements: const [],
+                  ),
               onTap: () => Navigator.pushNamed(context, AppRoutes.training),
             ),
             tile(
@@ -1275,20 +1281,10 @@ class _ProgressSummaryMetric extends StatelessWidget {
   }
 }
 
-/// Shared horizontal geometry for the completion badge column and TRAINING's
-/// passive presence indicator. Semantics remain separate; only their visual
-/// anchor is shared.
+/// Shared horizontal geometry for status-bearing OPERATION PROGRESS cards.
 abstract final class _ProgressStatusAnchorGeometry {
   static const statusZoneWidth = 48.0;
   static const statusZoneRightPadding = AppSpacing.sm;
-  static const trainingIndicatorSize = 18.0;
-  static const contentHorizontalPadding = AppSpacing.md;
-  static const statusAnchorCenterTrailingInset =
-      statusZoneWidth - ((statusZoneWidth - statusZoneRightPadding) / 2);
-  static const trainingIndicatorRightInset =
-      statusAnchorCenterTrailingInset -
-      contentHorizontalPadding -
-      (trainingIndicatorSize / 2);
 }
 
 class _ProgressRow extends StatelessWidget {
@@ -1299,7 +1295,6 @@ class _ProgressRow extends StatelessWidget {
   final List<String> details;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
-  final bool? optionalRecordPresent;
 
   const _ProgressRow({
     required this.label,
@@ -1309,7 +1304,6 @@ class _ProgressRow extends StatelessWidget {
     this.details = const [],
     this.targetState,
     this.completion,
-    this.optionalRecordPresent,
   });
 
   @override
@@ -1332,67 +1326,16 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (optionalRecordPresent != null)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final titleStyle = constraints.maxWidth < 140
-                  ? Theme.of(context).textTheme.labelMedium
-                  : Theme.of(context).textTheme.labelLarge;
-              return SizedBox(
-                height: 20,
-                width: double.infinity,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        label,
-                        key: ValueKey('operation-progress-title-$label'),
-                        style: titleStyle,
-                      ),
-                    ),
-                    Positioned(
-                      top: 1,
-                      right: _ProgressStatusAnchorGeometry
-                          .trainingIndicatorRightInset,
-                      child: Semantics(
-                        label: optionalRecordPresent!
-                            ? 'Training recorded'
-                            : 'Training not recorded, optional',
-                        child: ExcludeSemantics(
-                          child: Icon(
-                            optionalRecordPresent!
-                                ? Icons.check_circle_outline
-                                : Icons.radio_button_unchecked,
-                            key: ValueKey(
-                              optionalRecordPresent!
-                                  ? 'operation-progress-training-recorded'
-                                  : 'operation-progress-training-optional',
-                            ),
-                            size: _ProgressStatusAnchorGeometry
-                                .trainingIndicatorSize,
-                            color: optionalRecordPresent!
-                                ? colorScheme.primary
-                                : colorScheme.outline,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          )
-        else
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
+        Text(
+          label,
+          key: ValueKey('operation-progress-title-$label'),
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
         AppSpacing.gapXS,
         Row(
           children: [
             Expanded(child: Text(status)),
-            if (optionalRecordPresent == null &&
-                completion == null &&
-                onTap != null) ...[
+            if (completion == null && onTap != null) ...[
               SizedBox(width: AppSpacing.sm),
               Icon(
                 Icons.add_circle_outline,
@@ -1500,7 +1443,7 @@ class _CompletionHelpButton extends StatelessWidget {
         colorScheme.error,
       ),
       DailyCommandModuleState.optionalMissing => (
-        Icons.info_outline,
+        Icons.radio_button_unchecked,
         colorScheme.onSurfaceVariant,
       ),
     };
@@ -1511,12 +1454,19 @@ class _CompletionHelpButton extends StatelessWidget {
       secondary: completion.missingRequirements.isEmpty
           ? null
           : 'Missing: ${completion.missingRequirements.join(', ')}',
+      descriptionColor: switch (completion.state) {
+        DailyCommandModuleState.recorded => colorScheme.primary,
+        DailyCommandModuleState.missing ||
+        DailyCommandModuleState.invalid => colorScheme.error,
+        DailyCommandModuleState.optionalMissing => colorScheme.onSurfaceVariant,
+      },
       offset: const Offset(0, 4),
       constraints: const BoxConstraints(minWidth: 240, maxWidth: 300),
       visibleAnchorKey: _visibleAnchorKey,
       child: Semantics(
         button: true,
-        label: '${completion.label} completion details',
+        label:
+            '${completion.label} status: ${completion.displayState.toLowerCase()}',
         child: SizedBox(
           key: ValueKey('operation-progress-info-${completion.label}'),
           width: _ProgressStatusAnchorGeometry.statusZoneWidth,
@@ -1531,7 +1481,11 @@ class _CompletionHelpButton extends StatelessWidget {
                 child: Icon(
                   icon,
                   key: ValueKey(
-                    'operation-progress-completion-${completion.label}',
+                    completion.label == 'TRAINING'
+                        ? (completion.state == DailyCommandModuleState.recorded
+                              ? 'operation-progress-training-recorded'
+                              : 'operation-progress-training-optional')
+                        : 'operation-progress-completion-${completion.label}',
                   ),
                   color: color,
                   size: 20,
