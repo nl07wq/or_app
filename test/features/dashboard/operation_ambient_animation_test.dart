@@ -123,59 +123,62 @@ void main() {
     },
   );
 
-  testWidgets('loop repeats without accumulating a translated offset', (
-    tester,
-  ) async {
-    await tester.pumpWidget(subject(OperationStatus.red));
-    await tester.pump(const Duration(seconds: 2));
-    final firstPhase = painter(tester).phase.value;
-    await tester.pump(OperationAmbientAnimation.loopDuration);
-
-    expect(painter(tester).phase.value, moreOrLessEquals(firstPhase));
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'recorded ECG progressively reveals fixed geometry to the right edge',
+    (tester) async {
+      await tester.pumpWidget(subject(OperationStatus.green));
+      final activePainter = painter(tester);
+      const size = Size(390, OperationAmbientAnimation.height);
+      var previous = -1.0;
+      for (final progress in [0.0, .25, .5, .75, 1.0]) {
+        final extent = activePainter.coverageFor(size, phaseValue: progress);
+        expect(extent.left, 0);
+        expect(extent.right, greaterThanOrEqualTo(previous));
+        expect(extent.right, moreOrLessEquals(size.width * progress));
+        previous = extent.right;
+      }
+      expect(activePainter.coverageFor(size, phaseValue: 1).right, size.width);
+    },
+  );
 
   testWidgets(
-    'ECG baseline coverage extends beyond both lane edges at every phase',
+    'DRAW holds complete ECG then explicitly resets before the next draw',
     (tester) async {
-      const phases = [0.0, .25, .5, .75, .99, 1.0];
+      await tester.pumpWidget(subject(OperationStatus.red));
+      await tester.pump(
+        OperationAmbientAnimation.drawDuration + const Duration(milliseconds: 20),
+      );
+      await tester.pump();
+      expect(painter(tester).sweepPhase, OperationAmbientSweepPhase.hold);
+      expect(painter(tester).revealProgress, 1);
+
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(painter(tester).sweepPhase, OperationAmbientSweepPhase.hold);
+      expect(painter(tester).revealProgress, 1);
+
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(painter(tester).revealProgress, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'complete fixed trace reaches the right edge at responsive widths',
+    (tester) async {
       for (final width in [320.0, 390.0, 900.0]) {
         await tester.binding.setSurfaceSize(Size(width, 844));
-        await tester.pumpWidget(subject(OperationStatus.green, width: width));
-        final activePainter = painter(tester);
-
-        for (final phase in phases) {
-          final coverage = activePainter.coverageFor(
-            Size(width, OperationAmbientAnimation.height),
-            phaseValue: phase,
-          );
-          expect(coverage.left, lessThanOrEqualTo(0));
-          expect(coverage.right, greaterThanOrEqualTo(width));
-          expect(coverage.left, lessThan(0));
-          expect(coverage.right, greaterThan(width));
-        }
+        await tester.pumpWidget(subject(OperationStatus.yellow, width: width));
+        final extent = painter(tester).coverageFor(
+          Size(width, OperationAmbientAnimation.height),
+          phaseValue: 1,
+        );
+        expect(extent.left, 0);
+        expect(extent.right, width);
       }
       await tester.binding.setSurfaceSize(null);
     },
   );
-
-  testWidgets('ECG coverage has identical bounds at the loop seam', (
-    tester,
-  ) async {
-    await tester.pumpWidget(subject(OperationStatus.red));
-    final activePainter = painter(tester);
-    final zero = activePainter.coverageFor(
-      const Size(390, OperationAmbientAnimation.height),
-      phaseValue: 0,
-    );
-    final wrap = activePainter.coverageFor(
-      const Size(390, OperationAmbientAnimation.height),
-      phaseValue: 1,
-    );
-
-    expect(wrap.left, zero.left);
-    expect(wrap.right, zero.right);
-  });
 
   testWidgets('ECG extrema remain inside the responsive non-interactive lane', (
     tester,

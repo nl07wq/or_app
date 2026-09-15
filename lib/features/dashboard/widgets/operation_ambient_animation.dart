@@ -1,42 +1,37 @@
+import 'dart:async';
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-
 import '../../../core/engine/operation_status.dart';
 import '../../../core/theme/app_colors.dart';
 
-/// V3's ambient renderer. Future slot presets can be added without changing
-/// Dashboard placement or the canonical status input.
 enum OperationAmbientPreset { statusPulse }
 
 enum OperationAmbientPulsePreset { green, yellow, red, neutral }
 
+enum OperationAmbientSweepPhase { draw, hold, reset }
+
 OperationAmbientPulsePreset operationAmbientPulsePresetFor(
-  OperationStatus? status,
-) => switch (status) {
+  OperationStatus? s,
+) => switch (s) {
   OperationStatus.green => OperationAmbientPulsePreset.green,
   OperationStatus.yellow => OperationAmbientPulsePreset.yellow,
   OperationStatus.red => OperationAmbientPulsePreset.red,
   OperationStatus.black || null => OperationAmbientPulsePreset.neutral,
 };
 
-/// Presentation-only top-edge slot for the canonical Operation Status.
-///
-/// V1 hosts the continuous status pulse. A future event renderer can occupy
-/// this same slot temporarily and then return to the ambient preset.
+/// Presentation-only top-edge slot. Future event renderers can use this slot.
 class OperationAmbientAnimation extends StatefulWidget {
   const OperationAmbientAnimation({
     super.key,
     required this.status,
     this.preset = OperationAmbientPreset.statusPulse,
   });
-
   static const height = 10.0;
-  static const loopDuration = Duration(seconds: 6);
-
+  static const drawDuration = Duration(seconds: 6);
+  static const holdDuration = Duration(milliseconds: 1300);
+  static const loopDuration = drawDuration;
   final OperationStatus? status;
   final OperationAmbientPreset preset;
-
   @override
   State<OperationAmbientAnimation> createState() =>
       _OperationAmbientAnimationState();
@@ -44,11 +39,17 @@ class OperationAmbientAnimation extends StatefulWidget {
 
 class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final AnimationController _controller = AnimationController(vsync: this);
-  bool _reducedMotion = false;
-  bool _tickerEnabled = true;
-  bool _appActive = true;
-
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: OperationAmbientAnimation.drawDuration,
+  )..addStatusListener(_completed);
+  Timer? _holdTimer;
+  bool _reducedMotion = false, _tickerEnabled = true, _appActive = true;
+  OperationAmbientSweepPhase _sweepPhase = OperationAmbientSweepPhase.draw;
+  bool get _recorded =>
+      operationAmbientPulsePresetFor(widget.status) !=
+      OperationAmbientPulsePreset.neutral;
+  bool get _motionAllowed => !_reducedMotion && _tickerEnabled && _appActive;
   @override
   void initState() {
     super.initState();
@@ -60,41 +61,87 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     super.didChangeDependencies();
     _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     _tickerEnabled = TickerMode.valuesOf(context).enabled;
-    _syncMotion();
+    _sync(restart: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant OperationAmbientAnimation old) {
+    super.didUpdateWidget(old);
+    if (operationAmbientPulsePresetFor(old.status) !=
+        operationAmbientPulsePresetFor(widget.status)) {
+      _sync(restart: true);
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
-    _syncMotion();
+    _sync();
   }
 
-  void _syncMotion() {
+  void _sync({bool restart = false}) {
     if (!mounted) return;
-    if (_reducedMotion || !_tickerEnabled || !_appActive) {
+    _holdTimer?.cancel();
+    if (!_motionAllowed) {
       _controller.stop();
       return;
     }
-    if (!_controller.isAnimating) {
+    if (!_recorded) {
+      _sweepPhase = OperationAmbientSweepPhase.draw;
       _controller.repeat(period: OperationAmbientAnimation.loopDuration);
+      return;
     }
+    if (restart) {
+      _startDraw();
+    } else if (_sweepPhase == OperationAmbientSweepPhase.hold) {
+      _scheduleReset();
+    } else if (!_controller.isAnimating) {
+      _controller.forward();
+    }
+  }
+
+  void _startDraw() {
+    _holdTimer?.cancel();
+    if (!mounted || !_motionAllowed || !_recorded) return;
+    setState(() => _sweepPhase = OperationAmbientSweepPhase.draw);
+    _controller.forward(from: 0);
+  }
+
+  void _completed(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !_recorded || !mounted) return;
+    setState(() => _sweepPhase = OperationAmbientSweepPhase.hold);
+    _scheduleReset();
+  }
+
+  void _scheduleReset() {
+    _holdTimer?.cancel();
+    if (!_motionAllowed || !_recorded) return;
+    _holdTimer = Timer(OperationAmbientAnimation.holdDuration, () {
+      if (!mounted || !_motionAllowed || !_recorded) return;
+      setState(() {
+        _sweepPhase = OperationAmbientSweepPhase.reset;
+        _controller.value = 0;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startDraw());
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _holdTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final pulse = OperationAmbientPulseGeometry.forPreset(
-      operationAmbientPulsePresetFor(widget.status),
-    );
+    final preset = operationAmbientPulsePresetFor(widget.status);
+    final staticFrame = !_motionAllowed;
+    final geometry = OperationAmbientPulseGeometry.forPreset(preset);
     return IgnorePointer(
       child: Semantics(
-        label: 'Operation status ambient pulse: ${pulse.semanticLabel}',
+        label: 'Operation status ambient pulse: ${geometry.semanticLabel}',
         child: RepaintBoundary(
           child: SizedBox(
             key: const ValueKey('operation-ambient-animation-slot'),
@@ -104,11 +151,12 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
               key: const ValueKey('operation-ambient-animation-paint'),
               painter: OperationAmbientPulsePainter(
                 phase: _controller,
-                geometry: pulse,
-                preset: operationAmbientPulsePresetFor(widget.status),
-                staticFrame: _reducedMotion || !_tickerEnabled || !_appActive,
+                geometry: geometry,
+                preset: preset,
+                staticFrame: staticFrame,
+                sweepPhase: _sweepPhase,
               ),
-              willChange: !_reducedMotion && _tickerEnabled && _appActive,
+              willChange: !staticFrame,
             ),
           ),
         ),
@@ -125,177 +173,168 @@ class OperationAmbientPulseGeometry {
     required this.waveform,
     required this.semanticLabel,
   });
-
   factory OperationAmbientPulseGeometry.forPreset(
-    OperationAmbientPulsePreset preset,
-  ) => switch (preset) {
+    OperationAmbientPulsePreset p,
+  ) => switch (p) {
     OperationAmbientPulsePreset.green => const OperationAmbientPulseGeometry(
       color: AppColors.success,
-      amplitude: 4.0,
+      amplitude: 4,
       waveLength: 240,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
-      amplitude: 3.0,
+      amplitude: 3,
       waveLength: 240,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
-      amplitude: 2.0,
+      amplitude: 2,
       waveLength: 240,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
     ),
     OperationAmbientPulsePreset.neutral => const OperationAmbientPulseGeometry(
       color: AppColors.secondary,
-      amplitude: 0.8,
+      amplitude: .8,
       waveLength: 32,
       waveform: OperationAmbientWaveform.sine,
       semanticLabel: 'status unavailable',
     ),
   };
-
   final Color color;
-  final double amplitude;
-  final double waveLength;
+  final double amplitude, waveLength;
   final OperationAmbientWaveform waveform;
   final String semanticLabel;
 }
 
 enum OperationAmbientWaveform { sine, ecg }
 
-/// Paints a tileable waveform. Phase changes timing only; endpoints and wave
-/// geometry remain independent of the controller's loop duration.
+/// ECG geometry stays in viewport coordinates. DRAW clips it from the left;
+/// HOLD keeps progress at one; RESET explicitly clears it before the next draw.
 class OperationAmbientPulsePainter extends CustomPainter {
-  static const ecgPulseStartFraction = .42;
-  static const ecgPulseEndFraction = .64;
-
+  static const ecgPulseStartFraction = .42, ecgPulseEndFraction = .64;
   OperationAmbientPulsePainter({
     required this.phase,
-    required this._geometry,
+    required this.geometry,
     required this.preset,
     required this.staticFrame,
+    required this.sweepPhase,
   }) : super(repaint: phase);
-
   final Animation<double> phase;
-  final OperationAmbientPulseGeometry _geometry;
+  final OperationAmbientPulseGeometry geometry;
   final OperationAmbientPulsePreset preset;
   final bool staticFrame;
-
-  OperationAmbientPulseGeometry get geometry => _geometry;
-
-  /// Gives tests and diagnostics the actual horizontal path range for a
-  /// phase. The ECG tile deliberately starts one full period before the
-  /// visible lane and ends one full period after it, so moving a pulse never
-  /// exposes a line endpoint inside the viewport.
+  final OperationAmbientSweepPhase sweepPhase;
+  Path? _cachedPath;
+  Size? _cachedSize;
+  double get revealProgress =>
+      staticFrame ||
+          geometry.waveform == OperationAmbientWaveform.sine ||
+          sweepPhase == OperationAmbientSweepPhase.hold
+      ? 1
+      : sweepPhase == OperationAmbientSweepPhase.reset
+      ? 0
+      : phase.value;
   OperationAmbientWaveformCoverage coverageFor(
     Size size, {
     double? phaseValue,
   }) {
-    final value = staticFrame ? 0.0 : (phaseValue ?? phase.value);
-    if (_geometry.waveform == OperationAmbientWaveform.sine) {
+    if (geometry.waveform == OperationAmbientWaveform.sine) {
       return OperationAmbientWaveformCoverage(
-        left: -_geometry.waveLength * 2,
-        right: size.width + _geometry.waveLength * 2,
+        left: -geometry.waveLength * 2,
+        right: size.width + geometry.waveLength * 2,
       );
     }
-
-    final phaseOffset = _positiveRemainder(value * _geometry.waveLength);
-    return OperationAmbientWaveformCoverage(
-      left: phaseOffset - _geometry.waveLength,
-      right: size.width + phaseOffset + _geometry.waveLength,
-    );
+    final p = staticFrame || sweepPhase == OperationAmbientSweepPhase.hold
+        ? 1.0
+        : sweepPhase == OperationAmbientSweepPhase.reset
+        ? 0.0
+        : (phaseValue ?? phase.value);
+    return OperationAmbientWaveformCoverage(left: 0, right: size.width * p);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final value = staticFrame ? 0.0 : phase.value;
-    // One complete tile makes phase 1.0 geometrically identical to 0.0.
-    // The painter derives overdraw from the current phase and tile period,
-    // rather than relying on a fixed number of leading tiles.
-    final offset = _positiveRemainder(value * _geometry.waveLength);
-    final path = Path();
-    final centerY = size.height / 2;
-    switch (_geometry.waveform) {
-      case OperationAmbientWaveform.sine:
-        _drawSine(path, size: size, centerY: centerY, offset: offset);
-      case OperationAmbientWaveform.ecg:
-        _drawEcg(path, size: size, centerY: centerY, offset: offset);
+    final paint = Paint()
+      ..color = geometry.color.withValues(alpha: .78)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    if (geometry.waveform == OperationAmbientWaveform.sine) {
+      canvas.drawPath(_sine(size), paint);
+      return;
     }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = _geometry.color.withValues(alpha: 0.78)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round,
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(0, 0, size.width * revealProgress.clamp(0, 1), size.height),
     );
+    canvas.drawPath(_ecg(size), paint);
+    canvas.restore();
   }
 
-  void _drawSine(
-    Path path, {
-    required Size size,
-    required double centerY,
-    required double offset,
-  }) {
+  Path _sine(Size size) {
+    final path = Path();
+    final offset = staticFrame
+        ? 0.0
+        : _remainder(phase.value * geometry.waveLength);
+    final mid = size.height / 2;
     for (
-      var x = -_geometry.waveLength * 2;
-      x <= size.width + _geometry.waveLength * 2;
+      var x = -geometry.waveLength * 2;
+      x <= size.width + geometry.waveLength * 2;
       x += 1
     ) {
       final y =
-          centerY +
-          math.sin((x - offset) * math.pi * 2 / _geometry.waveLength) *
-              _geometry.amplitude;
-      if (x == -_geometry.waveLength * 2) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
+          mid +
+          math.sin((x - offset) * math.pi * 2 / geometry.waveLength) *
+              geometry.amplitude;
+      x == -geometry.waveLength * 2 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    return path;
+  }
+
+  Path _ecg(Size size) {
+    if (_cachedSize == size && _cachedPath != null) return _cachedPath!;
+    final path = Path();
+    final mid = size.height / 2, period = geometry.waveLength;
+    path.moveTo(0, mid);
+    for (var start = 0.0; start < size.width; start += period) {
+      void line(double f, double y) {
+        final x = start + period * f;
+        if (x <= size.width) path.lineTo(x, y);
       }
+
+      line(ecgPulseStartFraction, mid);
+      line(.46, mid - geometry.amplitude * .25);
+      line(.49, mid + geometry.amplitude * .12);
+      line(.52, mid - geometry.amplitude);
+      line(.56, mid + geometry.amplitude * .55);
+      line(.60, mid - geometry.amplitude * .30);
+      line(ecgPulseEndFraction, mid);
+      path.lineTo(math.min(start + period, size.width), mid);
     }
+    _cachedSize = size;
+    return _cachedPath = path..moveTo(size.width, mid);
   }
 
-  void _drawEcg(
-    Path path, {
-    required Size size,
-    required double centerY,
-    required double offset,
-  }) {
-    final period = _geometry.waveLength;
-    final coverageLeft = offset - period;
-    final coverageRight = size.width + offset + period;
-    for (var start = coverageLeft; start <= coverageRight; start += period) {
-      path
-        ..moveTo(start, centerY)
-        ..lineTo(start + period * ecgPulseStartFraction, centerY)
-        ..lineTo(start + period * .46, centerY - _geometry.amplitude * .25)
-        ..lineTo(start + period * .49, centerY + _geometry.amplitude * .12)
-        ..lineTo(start + period * .52, centerY - _geometry.amplitude)
-        ..lineTo(start + period * .56, centerY + _geometry.amplitude * .55)
-        ..lineTo(start + period * .60, centerY - _geometry.amplitude * .30)
-        ..lineTo(start + period * ecgPulseEndFraction, centerY)
-        ..lineTo(start + period, centerY);
-    }
-  }
-
-  double _positiveRemainder(double value) {
-    final remainder = value % _geometry.waveLength;
-    return remainder < 0 ? remainder + _geometry.waveLength : remainder;
+  double _remainder(double v) {
+    final r = v % geometry.waveLength;
+    return r < 0 ? r + geometry.waveLength : r;
   }
 
   @override
-  bool shouldRepaint(covariant OperationAmbientPulsePainter oldDelegate) =>
-      oldDelegate._geometry.color != _geometry.color ||
-      oldDelegate._geometry.amplitude != _geometry.amplitude ||
-      oldDelegate._geometry.waveLength != _geometry.waveLength ||
-      oldDelegate._geometry.waveform != _geometry.waveform ||
-      oldDelegate.preset != preset ||
-      oldDelegate.staticFrame != staticFrame;
+  bool shouldRepaint(covariant OperationAmbientPulsePainter old) =>
+      old.geometry.color != geometry.color ||
+      old.geometry.amplitude != geometry.amplitude ||
+      old.geometry.waveLength != geometry.waveLength ||
+      old.geometry.waveform != geometry.waveform ||
+      old.preset != preset ||
+      old.staticFrame != staticFrame ||
+      old.sweepPhase != sweepPhase;
 }
 
 class OperationAmbientWaveformCoverage {
@@ -303,7 +342,5 @@ class OperationAmbientWaveformCoverage {
     required this.left,
     required this.right,
   });
-
-  final double left;
-  final double right;
+  final double left, right;
 }
