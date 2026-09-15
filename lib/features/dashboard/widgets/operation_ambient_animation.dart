@@ -36,7 +36,11 @@ class OperationAmbientAnimation extends StatefulWidget {
     required this.status,
     this.preset = OperationAmbientPreset.statusPulse,
   });
-  static const height = 28.0;
+
+  /// The lane adds two pixels below the established trace coordinate system,
+  /// allowing the status label to sit two pixels lower without shifting ECG.
+  static const height = 30.0;
+  static const waveformBaselineY = 14.0;
   static const drawDuration = Duration(seconds: 6);
   static const loopDuration = drawDuration;
   final OperationStatus? status;
@@ -471,7 +475,7 @@ class OperationAmbientPulsePainter extends CustomPainter {
     final offset = staticFrame
         ? 0.0
         : _remainder(phase.value * geometry.waveLength);
-    final mid = size.height / 2;
+    final mid = OperationAmbientAnimation.waveformBaselineY;
     for (
       var x = -geometry.waveLength * 2;
       x <= size.width + geometry.waveLength * 2;
@@ -497,7 +501,7 @@ class OperationAmbientPulsePainter extends CustomPainter {
     if (existing != null) return existing;
 
     final path = Path();
-    final mid = size.height / 2;
+    final mid = OperationAmbientAnimation.waveformBaselineY;
     path.moveTo(0, mid);
     final events = _generateEvents(size, traceIndex);
     for (final event in events) {

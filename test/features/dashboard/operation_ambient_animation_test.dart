@@ -59,12 +59,17 @@ void main() {
         expect(tester.widget<Text>(label).style?.letterSpacing, .25);
         final labelBounds = tester.getRect(label);
         final slotBounds = tester.getRect(slot);
+        expect(slotBounds.height, OperationAmbientAnimation.height);
         final expectedCenter =
             slotBounds.left + OperationAmbientStatusLabel.noWaveZoneWidth() / 2;
         expect(labelBounds.center.dx, closeTo(expectedCenter, .01));
         expect(OperationAmbientStatusLabel.bottomPadding, 0);
         expect(labelBounds.bottom, slotBounds.bottom);
+        // The old 28px lane also used bottom zero. Its text line box ended at
+        // y=28; the 30px lane places that same text output 2px lower.
+        expect(labelBounds.bottom - slotBounds.top, 30);
         expect(labelBounds.left, greaterThanOrEqualTo(slotBounds.left));
+        expect(labelBounds.top, greaterThanOrEqualTo(slotBounds.top));
         expect(
           labelBounds.right,
           lessThanOrEqualTo(
@@ -108,6 +113,8 @@ void main() {
       labelBounds.center.dx,
       closeTo(slotBounds.left + zoneWidth / 2, .01),
     );
+    expect(labelBounds.top, greaterThanOrEqualTo(slotBounds.top));
+    expect(labelBounds.bottom, lessThanOrEqualTo(slotBounds.bottom));
     expect(labelBounds.right, lessThanOrEqualTo(slotBounds.left + zoneWidth));
   });
 
@@ -455,7 +462,9 @@ void main() {
         expect(tester.getSize(slot).height, OperationAmbientAnimation.height);
         expect(tester.getSize(slot).width, width);
         final geometry = painter(tester).geometry;
-        final center = OperationAmbientAnimation.height / 2;
+        const previousBaselineY = 28.0 / 2;
+        final center = OperationAmbientAnimation.waveformBaselineY;
+        expect(center, previousBaselineY);
         expect(center - geometry.amplitude, greaterThanOrEqualTo(.5));
         expect(
           center + geometry.amplitude,
