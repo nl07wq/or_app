@@ -5,6 +5,7 @@ class OperationDropdown<T> extends StatelessWidget {
   final T value;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
+  final bool isExpanded;
 
   const OperationDropdown({
     super.key,
@@ -12,6 +13,7 @@ class OperationDropdown<T> extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.isExpanded = false,
   });
 
   @override
@@ -22,6 +24,7 @@ class OperationDropdown<T> extends StatelessWidget {
         labelText: label,
         border: const OutlineInputBorder(),
       ),
+      isExpanded: isExpanded,
       items: items,
       onChanged: onChanged,
     );

@@ -7,6 +7,7 @@ class OperationTextField extends StatelessWidget {
   final String? hint;
 
   final TextInputType keyboardType;
+  final int? minLines;
   final int maxLines;
   final FocusNode? focusNode;
 
@@ -18,6 +19,7 @@ class OperationTextField extends StatelessWidget {
     this.label,
     this.hint,
     this.keyboardType = TextInputType.text,
+    this.minLines,
     this.maxLines = 1,
     this.focusNode,
     this.onChanged,
@@ -30,6 +32,7 @@ class OperationTextField extends StatelessWidget {
       focusNode: focusNode,
       onChanged: onChanged,
       keyboardType: keyboardType,
+      minLines: minLines,
       maxLines: maxLines,
       decoration: InputDecoration(
         labelText: (label == null || label!.isEmpty) ? null : label,

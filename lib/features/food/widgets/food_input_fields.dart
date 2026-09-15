@@ -11,6 +11,12 @@ import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
 
 class FoodInputFields extends StatelessWidget {
+  static const _compactGap = SizedBox(height: AppSpacing.sm);
+  static const _compactFieldPadding = EdgeInsets.symmetric(
+    horizontal: 10,
+    vertical: 8,
+  );
+  static const _compactLabelStyle = TextStyle(fontSize: 12);
   final TextEditingController foodNameController;
   final TextEditingController brandController;
   final TextEditingController barcodeController;
@@ -82,127 +88,150 @@ class FoodInputFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseAmount = _formatAmount(baseAmountController.text);
-    return Column(
-      children: [
-        if (nutritionCaptureInProgress)
-          const _NutritionOcrProcessing()
-        else
-          OperationButton(
-            key: const ValueKey('food-entry-ocr'),
-            icon: Icons.document_scanner,
-            text: 'SCAN NUTRITION LABEL',
-            onPressed: onReadNutrition,
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          isDense: true,
+          contentPadding: _compactFieldPadding,
+          labelStyle: _compactLabelStyle.copyWith(
+            color: theme.inputDecorationTheme.labelStyle?.color,
+          ),
+          floatingLabelStyle: _compactLabelStyle,
+        ),
+        textTheme: theme.textTheme.copyWith(
+          bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: 14),
+        ),
+      ),
+      child: Column(
+        children: [
+          if (nutritionCaptureInProgress)
+            const _NutritionOcrProcessing()
+          else
+            OperationButton(
+              key: const ValueKey('food-entry-ocr'),
+              icon: Icons.document_scanner,
+              text: 'SCAN NUTRITION LABEL',
+              onPressed: onReadNutrition,
+            ),
+
+          _compactGap,
+
+          OperationTextField(
+            controller: foodNameController,
+            label: 'NAME',
+            onChanged: onChanged,
           ),
 
-        AppSpacing.gapMD,
+          _compactGap,
 
-        OperationTextField(
-          controller: foodNameController,
-          label: 'NAME',
-          onChanged: onChanged,
-        ),
-
-        AppSpacing.gapMD,
-
-        OperationTextField(
-          controller: brandController,
-          label: 'BRAND',
-          onChanged: onChanged,
-        ),
-
-        AppSpacing.gapMD,
-
-        OperationDropdown<FoodCatalogCategory>(
-          key: ValueKey('food-entry-category-${category.name}'),
-          label: 'CATEGORY',
-          value: category,
-          items: FoodCatalogCategory.values
-              .map(
-                (value) => DropdownMenuItem(
-                  value: value,
-                  child: Text(foodCatalogCategoryLabel(value)),
-                ),
-              )
-              .toList(growable: false),
-          onChanged: (value) {
-            if (value != null) onCategoryChanged(value);
-          },
-        ),
-
-        AppSpacing.gapMD,
-
-        Row(
-          children: [
-            Expanded(
-              child: OperationTextField(
-                controller: barcodeController,
-                label: 'BARCODE / JAN',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final brand = OperationTextField(
+                controller: brandController,
+                label: 'BRAND',
                 onChanged: onChanged,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            OutlinedButton.icon(
-              key: const ValueKey('food-entry-barcode-scan'),
-              onPressed: onScanBarcode,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: Text(barcodeScanInProgress ? '...' : 'SCAN'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(96, 48),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-            ),
-          ],
-        ),
-
-        AppSpacing.gapMD,
-
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final quantity = OperationTextField(
-              controller: packageQuantityController,
-              label: '表示量',
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: onPackageQuantityChanged,
-            );
-            final unit = OperationDropdown<FoodQuantityUnit?>(
-              key: ValueKey(
-                'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
-              ),
-              label: '単位',
-              value: packageUnit,
-              items: [null, ...FoodQuantityUnit.values]
-                  .map(
-                    (unit) => DropdownMenuItem(
-                      value: unit,
-                      child: Text(
-                        unit == null ? 'NOT SET' : _quantityUnitLabel(unit),
+              );
+              final categoryField = OperationDropdown<FoodCatalogCategory>(
+                key: ValueKey('food-entry-category-${category.name}'),
+                label: 'CATEGORY',
+                value: category,
+                isExpanded: true,
+                items: FoodCatalogCategory.values
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(foodCatalogCategoryLabel(value)),
                       ),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: onPackageUnitChanged,
-            );
-            if (constraints.maxWidth < 300) {
-              return Column(children: [quantity, AppSpacing.gapMD, unit]);
-            }
-            return Row(
-              children: [
-                Expanded(child: quantity),
-                const SizedBox(width: 12),
-                Expanded(child: unit),
-              ],
-            );
-          },
-        ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value != null) onCategoryChanged(value);
+                },
+              );
+              if (constraints.maxWidth < 300) {
+                return Column(children: [brand, _compactGap, categoryField]);
+              }
+              return Row(
+                children: [
+                  Expanded(child: brand),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(child: categoryField),
+                ],
+              );
+            },
+          ),
 
-        AppSpacing.gapMD,
+          _compactGap,
 
-        if (!recipeSelected)
+          Row(
+            children: [
+              Expanded(
+                child: OperationTextField(
+                  controller: barcodeController,
+                  label: 'BARCODE / JAN',
+                  onChanged: onChanged,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              OutlinedButton.icon(
+                key: const ValueKey('food-entry-barcode-scan'),
+                onPressed: onScanBarcode,
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(barcodeScanInProgress ? '...' : 'SCAN'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(84, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+              ),
+            ],
+          ),
+
+          _compactGap,
+
           LayoutBuilder(
             builder: (context, constraints) {
               final quantity = OperationTextField(
+                controller: packageQuantityController,
+                label: '表示量',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: onPackageQuantityChanged,
+              );
+              final unit = OperationDropdown<FoodQuantityUnit?>(
+                key: ValueKey(
+                  'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
+                ),
+                label: '単位',
+                value: packageUnit,
+                isExpanded: !recipeSelected,
+                items: [null, ...FoodQuantityUnit.values]
+                    .map(
+                      (unit) => DropdownMenuItem(
+                        value: unit,
+                        child: Text(
+                          unit == null ? 'NOT SET' : _quantityUnitLabel(unit),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: onPackageUnitChanged,
+              );
+              if (recipeSelected) {
+                if (constraints.maxWidth < 260) {
+                  return Column(children: [quantity, _compactGap, unit]);
+                }
+                return Row(
+                  children: [
+                    Expanded(child: quantity),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(child: unit),
+                  ],
+                );
+              }
+              final baseQuantity = OperationTextField(
                 controller: baseAmountController,
                 label: '登録基準量',
                 keyboardType: const TextInputType.numberWithOptions(
@@ -210,10 +239,11 @@ class FoodInputFields extends StatelessWidget {
                 ),
                 onChanged: onBaseAmountChanged,
               );
-              final unit = OperationDropdown<FoodQuantityUnit>(
+              final baseUnitField = OperationDropdown<FoodQuantityUnit>(
                 key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
                 label: '単位',
                 value: baseUnit,
+                isExpanded: true,
                 items: FoodQuantityUnit.values
                     .map(
                       (unit) => DropdownMenuItem(
@@ -227,23 +257,43 @@ class FoodInputFields extends StatelessWidget {
                 },
               );
               if (constraints.maxWidth < 300) {
-                return Column(children: [quantity, AppSpacing.gapMD, unit]);
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(flex: 3, child: quantity),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(flex: 2, child: unit),
+                      ],
+                    ),
+                    _compactGap,
+                    Row(
+                      children: [
+                        Expanded(flex: 3, child: baseQuantity),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(flex: 2, child: baseUnitField),
+                      ],
+                    ),
+                  ],
+                );
               }
               return Row(
                 children: [
-                  Expanded(child: quantity),
-                  const SizedBox(width: 12),
-                  Expanded(child: unit),
+                  Expanded(flex: 30, child: quantity),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(flex: 18, child: unit),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(flex: 34, child: baseQuantity),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(flex: 18, child: baseUnitField),
                 ],
               );
             },
           ),
 
-        AppSpacing.gapMD,
+          _compactGap,
 
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OperationButton(
+          OperationButton(
             key: const ValueKey('food-entry-recalculate-nutrition'),
             icon: Icons.calculate_outlined,
             text: _recalculationActionLabel(),
@@ -251,121 +301,150 @@ class FoodInputFields extends StatelessWidget {
                 ? onRecalculateNutrition
                 : null,
           ),
-        ),
 
-        if (recalculationBlockReason case final reason?) ...[
-          AppSpacing.gapXS,
+          const SizedBox(height: AppSpacing.xs),
+
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              reason,
-              key: const ValueKey('food-entry-recalculation-reason'),
+              '栄養成分の基準量を設定',
+              key: const ValueKey('food-entry-nutrition-basis-helper'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-        ],
 
-        AppSpacing.gapMD,
+          if (_visibleRecalculationBlockReason case final reason?) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                reason,
+                key: const ValueKey('food-entry-recalculation-reason'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
 
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            recipeSelected
-                ? 'NUTRITION PER SERVING'
-                : 'NUTRITION PER $baseAmount${_quantityUnitLabel(baseUnit)}',
-            style: Theme.of(context).textTheme.titleSmall,
+          _compactGap,
+
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              recipeSelected
+                  ? 'NUTRITION PER SERVING'
+                  : 'NUTRITION PER $baseAmount${_quantityUnitLabel(baseUnit)}',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
           ),
-        ),
 
-        AppSpacing.gapMD,
+          _compactGap,
 
-        Row(
-          children: [
-            Expanded(
-              child: OperationTextField(
-                controller: calorieController,
-                label: 'CALORIES',
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  onCaloriesChanged();
-                  onChanged(value);
-                },
+          Row(
+            children: [
+              Expanded(
+                child: OperationTextField(
+                  controller: calorieController,
+                  label: 'CALORIES',
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    onCaloriesChanged();
+                    onChanged(value);
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OperationTextField(
-                controller: proteinController,
-                label: 'PROTEIN',
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  onProteinChanged();
-                  onChanged(value);
-                },
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OperationTextField(
+                  controller: proteinController,
+                  label: 'PROTEIN',
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    onProteinChanged();
+                    onChanged(value);
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
 
-        AppSpacing.gapMD,
+          _compactGap,
 
-        Row(
-          children: [
-            Expanded(
-              child: OperationTextField(
-                controller: fatController,
-                label: 'FAT',
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  onFatChanged();
-                  onChanged(value);
-                },
+          Row(
+            children: [
+              Expanded(
+                child: OperationTextField(
+                  controller: fatController,
+                  label: 'FAT',
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    onFatChanged();
+                    onChanged(value);
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OperationTextField(
-                controller: carbohydrateController,
-                label: 'CARBOHYDRATE',
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  onCarbohydrateChanged();
-                  onChanged(value);
-                },
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OperationTextField(
+                  controller: carbohydrateController,
+                  label: 'CARBOHYDRATE',
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    onCarbohydrateChanged();
+                    onChanged(value);
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
 
-        AppSpacing.gapMD,
+          _compactGap,
 
-        OperationTextField(
-          controller: foodMemoController,
-          label: 'MEMO',
-          maxLines: 2,
-          onChanged: onChanged,
-        ),
-
-        AppSpacing.gapMD,
-
-        FoodNumericStepperRow(
-          key: const ValueKey('food-amount-stepper-row'),
-          inputKey: const ValueKey('food-amount-input'),
-          controller: amountController,
-          label: recipeSelected
-              ? 'SERVINGS'
-              : '実使用量 (${_quantityUnitLabel(baseUnit)})',
-          onChanged: onChanged,
-          incrementKey: const ValueKey('food-amount-increment'),
-          incrementTooltip: 'Increase amount',
-          onIncrement: () => _stepAmount(1),
-          decrementKey: const ValueKey('food-amount-decrement'),
-          decrementTooltip: 'Decrease amount',
-          onDecrement: _canDecrement ? () => _stepAmount(-1) : null,
-        ),
-      ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final amount = FoodNumericStepperRow(
+                key: const ValueKey('food-amount-stepper-row'),
+                inputKey: const ValueKey('food-amount-input'),
+                controller: amountController,
+                label: recipeSelected
+                    ? 'SERVINGS'
+                    : '実使用量 (${_quantityUnitLabel(baseUnit)})',
+                onChanged: onChanged,
+                incrementKey: const ValueKey('food-amount-increment'),
+                incrementTooltip: 'Increase amount',
+                onIncrement: () => _stepAmount(1),
+                decrementKey: const ValueKey('food-amount-decrement'),
+                decrementTooltip: 'Decrease amount',
+                onDecrement: _canDecrement ? () => _stepAmount(-1) : null,
+              );
+              final memo = OperationTextField(
+                controller: foodMemoController,
+                label: 'MEMO',
+                minLines: 1,
+                maxLines: 2,
+                onChanged: onChanged,
+              );
+              if (constraints.maxWidth < 300) {
+                return Column(children: [amount, _compactGap, memo]);
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: amount),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(flex: 4, child: memo),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
+
+  String? get _visibleRecalculationBlockReason =>
+      recalculationBlockReason == 'SET PACKAGE QUANTITY AND UNIT'
+      ? null
+      : recalculationBlockReason;
 
   String _recalculationActionLabel() {
     final value = double.tryParse(baseAmountController.text.trim());
