@@ -69,7 +69,7 @@ void main() {
     );
 
     await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(
       find.byKey(const ValueKey('dashboard-information-strip')),
       findsOneWidget,
@@ -80,10 +80,10 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('dashboard-information-strip')));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(find.text('Dashboard pipeline test'), findsOneWidget);
     await tester.tap(find.text('表示から消す'));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(
       find.byKey(const ValueKey('dashboard-information-strip')),
       findsNothing,
@@ -106,4 +106,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
   });
+}
+
+Future<void> _settleUi(WidgetTester tester) async {
+  // Dashboard includes a deliberate perpetual ambient pulse. A bounded pump
+  // flushes the finite interaction work without waiting for that pulse.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }

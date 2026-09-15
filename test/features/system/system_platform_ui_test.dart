@@ -106,7 +106,7 @@ void main() {
     expect(find.byIcon(Icons.more_vert), findsOneWidget);
     expect(find.byIcon(Icons.more_horiz), findsNothing);
     await tester.tap(find.byTooltip('SYSTEM MENU'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.byIcon(Icons.account_circle), findsOneWidget);
     expect(find.byIcon(Icons.info_outline), findsOneWidget);
     expect(find.byIcon(Icons.admin_panel_settings), findsOneWidget);
@@ -118,18 +118,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ProfilePage), findsOneWidget);
     Navigator.of(tester.element(find.byType(ProfilePage))).pop();
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     await tester.tap(find.byTooltip('SYSTEM MENU'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.text('ABOUT'));
     await tester.pumpAndSettle();
     expect(find.byType(AboutPage), findsOneWidget);
     Navigator.of(tester.element(find.byType(AboutPage))).pop();
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     await tester.tap(find.byTooltip('SYSTEM MENU'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.text('SYSTEM'));
     await tester.pumpAndSettle();
     expect(find.byType(SystemPage), findsOneWidget);
@@ -679,6 +679,13 @@ void main() {
       }
     });
   }
+}
+
+Future<void> _settleDashboard(WidgetTester tester) async {
+  // The Dashboard ambient pulse is intentionally perpetual. Settle finite
+  // menu/navigation work without waiting for the pulse itself.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 class _FakeStorageGateway implements StorageStatusGateway {

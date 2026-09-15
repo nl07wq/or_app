@@ -54,6 +54,7 @@ import '../report_sync/models/morning_brief_state.dart';
 
 import 'models/dynamic_daily_target.dart';
 import 'services/dynamic_daily_target_service.dart';
+import 'widgets/operation_ambient_animation.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -596,6 +597,8 @@ class _DashboardOperationOverviewState
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          OperationAmbientAnimation(status: model?.operationStatus),
+          AppSpacing.gapSM,
           const SectionHeader(
             icon: Icons.dashboard_outlined,
             title: 'DAILY COMMAND',

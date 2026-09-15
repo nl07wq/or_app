@@ -225,7 +225,7 @@ void main() {
           );
         },
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       expect(_tile('STATUS'), findsOneWidget);
       _expectTileText('STATUS', 'NOT RECORDED');
@@ -252,7 +252,7 @@ void main() {
       await tester.tapAt(
         Offset(statusZoneRect.right - 2, statusZoneRect.top + 20),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(
         find.byKey(const ValueKey('semantic-help-popover-completion-status')),
         findsOneWidget,
@@ -260,12 +260,12 @@ void main() {
       expect(find.text('Missing: STATUS'), findsOneWidget);
       expect(openedRoutes, isEmpty);
       await tester.tapAt(const Offset(4, 4));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       await tester.tap(
         find.byKey(const ValueKey('operation-progress-body-STATUS')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(openedRoutes.last, AppRoutes.morning);
     },
   );
@@ -275,7 +275,7 @@ void main() {
   ) async {
     await _installDdtStatus();
     await _pumpDashboard(tester, width: 390);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
       expect(
@@ -320,7 +320,7 @@ void main() {
         );
       },
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     final training = _tile('TRAINING');
     _expectTileText('TRAINING', 'Not recorded');
@@ -340,7 +340,7 @@ void main() {
       findsNothing,
     );
     await tester.tap(training);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(openedRoutes.last, AppRoutes.training);
   });
 
@@ -355,7 +355,7 @@ void main() {
       sessionName: 'Strength',
     );
     await _pumpDashboard(tester, width: 390);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     _expectTileText('TRAINING', 'Recorded');
     final indicator = find.byKey(
@@ -381,7 +381,7 @@ void main() {
     await _installDdtStatus();
     for (final width in [320.0, 390.0, 900.0]) {
       await _pumpDashboard(tester, width: width);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       final indicator = find.byKey(
         const ValueKey('operation-progress-training-optional'),
@@ -423,7 +423,7 @@ void main() {
       sessionName: 'Strength',
     );
     await _pumpDashboard(tester, width: 390);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(
       _localCenterX(
@@ -462,14 +462,14 @@ void main() {
           );
         },
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       final zone = find.byKey(
         ValueKey('operation-progress-status-zone-${entry.$1}'),
       );
       final zoneRect = tester.getRect(zone);
       await tester.tapAt(Offset(zoneRect.right - 2, zoneRect.top + 20));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(
         find.byKey(
           ValueKey(
@@ -481,11 +481,11 @@ void main() {
       expect(openedRoutes, isEmpty);
 
       await tester.tapAt(const Offset(4, 4));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       await tester.tap(
         find.byKey(ValueKey('operation-progress-body-${entry.$1}')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(openedRoutes.last, entry.$2);
     });
   }
@@ -501,7 +501,7 @@ void main() {
 
     for (final width in [320.0, 390.0, 900.0]) {
       await _pumpDashboard(tester, width: width);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       expect(find.text('JUL'), findsOneWidget);
       expect(find.text('28'), findsOneWidget);
@@ -647,7 +647,7 @@ void main() {
     navigatorKey.currentState!.push(
       MaterialPageRoute<void>(builder: (_) => const Scaffold()),
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     now = DateTime(2026, 8, 11, 1, 40, 5);
     await tester.pump(const Duration(seconds: 2));
     expect(_timeTileValues(tester, skipOffstage: false), [
@@ -660,7 +660,7 @@ void main() {
     ]);
 
     navigatorKey.currentState!.pop();
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(_timeTileValues(tester), ['0', '1', '4', '0', '0', '5']);
   });
 
@@ -695,7 +695,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.text('AUG'), findsOneWidget);
     expect(find.text('11'), findsOneWidget);
     expect(find.text('TUE'), findsOneWidget);
@@ -805,7 +805,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.text('11'), findsNothing);
     expect(find.text('12'), findsOneWidget);
     expect(find.text('TUE'), findsNothing);
@@ -853,7 +853,7 @@ void main() {
         },
       ),
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await Scrollable.ensureVisible(
       tester.element(find.text('DAILY REVIEW')),
       alignment: 0.5,
@@ -862,9 +862,9 @@ void main() {
     final scrollOffset = _dashboardScrollPosition(tester).pixels;
     expect(scrollOffset, greaterThan(0));
     await tester.tap(find.text('DAILY REVIEW'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.text('FAIL FINALIZE'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.text('AUG'), findsOneWidget);
     expect(find.text('11'), findsOneWidget);
@@ -899,7 +899,7 @@ void main() {
         },
       ),
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await Scrollable.ensureVisible(
       tester.element(find.bySemanticsLabel('STATUS incomplete')),
       alignment: 0.5,
@@ -909,9 +909,9 @@ void main() {
     expect(scrollOffset, greaterThan(0));
 
     await tester.tap(find.bySemanticsLabel('STATUS incomplete'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.text('RETURN TO DASHBOARD'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(_dashboardScrollPosition(tester).pixels, scrollOffset);
   }, skip: true);
@@ -947,10 +947,10 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.ensureVisible(find.text('DAILY REVIEW'));
     await tester.tap(find.text('DAILY REVIEW'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.text('COMPLETE MONTH FINALIZE'));
     await tester.pump();
 
@@ -997,7 +997,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 60));
     await tester.pump();
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.text('AUG'), findsNothing);
     expect(find.text('SEP'), findsOneWidget);
     expect(find.text('31'), findsNothing);
@@ -1039,7 +1039,7 @@ void main() {
     );
 
     await _pumpDashboard(tester, width: 800);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     _expectTileText('STATUS', 'COMPLETE');
     _expectTileText('FOOD', 'COMPLETE');
@@ -1081,7 +1081,7 @@ void main() {
     morningFactNotifier.value = _morning();
 
     await _pumpDashboard(tester, width: 800);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     _expectTileText('CALORIES', '0 / 2,200 kcal');
     _expectTileText('PROTEIN', '0 / 135 g');
@@ -1110,7 +1110,7 @@ void main() {
       );
 
       await _pumpDashboard(tester, width: width);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       _expectTileText('STATUS', 'NOT RECORDED');
       _expectTileText('CALORIES', '1,100 / 2,200 kcal');
@@ -1145,7 +1145,7 @@ void main() {
       );
 
       await _pumpDashboard(tester, width: 800);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       final label = find.text('WEIGHT');
       final value = find.text('90.0 kg');
@@ -1183,7 +1183,7 @@ void main() {
         mealCount: 3,
       );
       await tester.pump();
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(_progress(tester, 'WATER'), closeTo(2699 / 2700, 1e-12));
       final neutralWaterProgress = tester.widget<LinearProgressIndicator>(
         find.descendant(
@@ -1219,7 +1219,7 @@ void main() {
         mealCount: 3,
       );
       await tester.pump();
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(_progress(tester, 'WATER'), 1);
     },
   );
@@ -1233,7 +1233,7 @@ void main() {
       addTearDown(AppRepositoryRegistry.resetForTesting);
 
       await _pumpDashboard(tester, width: 390);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       final dailyCommandCard = find.ancestor(
         of: find.text('OPERATION STATUS'),
@@ -1286,7 +1286,7 @@ void main() {
     addTearDown(AppRepositoryRegistry.resetForTesting);
 
     await _pumpDashboard(tester, width: 390);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(
       tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
@@ -1324,7 +1324,7 @@ void main() {
     addTearDown(AppRepositoryRegistry.resetForTesting);
 
     await _pumpDashboard(tester, width: 390);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     final card = find.ancestor(
       of: find.text('CYCLE STATE'),
       matching: find.byType(OperationCard),
@@ -1337,7 +1337,7 @@ void main() {
     expect(cardRight - valueRight, greaterThan(40));
 
     await tester.tap(cycleValue);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     final popover = find.byKey(
       const ValueKey('semantic-help-popover-cycle-standby'),
     );
@@ -1369,7 +1369,7 @@ void main() {
     (tester) async {
       await _installDdtStatus();
       await _pumpDashboard(tester, width: 390);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       final results = <String, ContextPopoverEdge>{};
       for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
@@ -1379,7 +1379,7 @@ void main() {
         await tester.tap(
           find.byKey(ValueKey('operation-progress-status-zone-$label')),
         );
-        await tester.pumpAndSettle();
+        await _settleDashboard(tester);
         final popover = find.byKey(
           ValueKey('semantic-help-popover-completion-${label.toLowerCase()}'),
         );
@@ -1395,7 +1395,7 @@ void main() {
         }
 
         await tester.tapAt(const Offset(1, 1));
-        await tester.pumpAndSettle();
+        await _settleDashboard(tester);
       }
 
       expect(results['STATUS'], ContextPopoverEdge.left);
@@ -1414,11 +1414,11 @@ void main() {
 
     for (final width in [320.0, 390.0, 900.0]) {
       await _pumpDashboard(tester, width: width);
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       await tester.tap(
         find.byKey(const ValueKey('semantic-help-anchor-cycle-standby')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       final popover = find.byKey(
         const ValueKey('semantic-help-popover-cycle-standby'),
@@ -1441,7 +1441,7 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await tester.tapAt(const Offset(1, 1));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
     }
   });
 
@@ -1457,7 +1457,7 @@ void main() {
     );
 
     await _pumpDashboard(tester, width: 390);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.text('STANDBY'), findsOneWidget);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
 
@@ -1465,7 +1465,7 @@ void main() {
       _brief('2026-07-28', intent: 'LIVE COMMANDER INTENT'),
     );
     notifyMorningBriefChanged();
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.text('GREEN'), findsOneWidget);
     expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
@@ -1482,7 +1482,7 @@ void main() {
     tester,
   ) async {
     await _pumpDashboard(tester, width: 800);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     _expectTileText('STATUS', '未完了');
     _expectTileText('FOOD', '0 / 3');
@@ -1799,7 +1799,7 @@ void main() {
     await _pumpDashboard(tester, width: 800);
 
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.text('QUICK WATER LOG'), findsOneWidget);
     expect(find.text('+250 ml'), findsOneWidget);
     expect(find.text('Save Water'), findsOneWidget);
@@ -1828,7 +1828,7 @@ void main() {
 
     await _pumpDashboard(tester, width: 800);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.text('CURRENT WATER  500 ml'), findsOneWidget);
     final add250 = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, '+250 ml'),
@@ -1851,7 +1851,7 @@ void main() {
     expect(find.text('CURRENT WATER  500 ml'), findsOneWidget);
 
     await tester.tap(find.text('Save Water'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     records = await AppRepositoryRegistry.container.food.findAll();
     expect(records.map((record) => record.waterMl).toList(), [500, 1000]);
@@ -1889,10 +1889,10 @@ void main() {
 
       await _pumpDashboard(tester, width: 390);
       await tester.tap(_tile('WATER'));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       await tester.tap(find.widgetWithText(OutlinedButton, '+$amount ml'));
       await tester.tap(find.text('Save Water'));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       expect(find.text('QUICK WATER LOG'), findsNothing);
       expect(foodSummaryNotifier.value?.hydrationMl, 950 + amount);
@@ -1925,10 +1925,10 @@ void main() {
 
     await _pumpDashboard(tester, width: 390);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.enterText(find.byType(TextField), '325');
     await tester.tap(find.text('Save Water'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.text('QUICK WATER LOG'), findsNothing);
     expect(foodSummaryNotifier.value?.hydrationMl, 1275);
@@ -1946,11 +1946,11 @@ void main() {
 
     await _pumpDashboard(tester, width: 390);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.widgetWithText(OutlinedButton, '+500 ml'));
     await tester.tap(find.text('Save Water'));
     await tester.tap(find.text('Save Water'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(await AppRepositoryRegistry.container.food.findAll(), hasLength(1));
     expect(foodSummaryNotifier.value?.hydrationMl, 500);
@@ -1969,7 +1969,7 @@ void main() {
 
     await _pumpDashboard(tester, width: 390);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.enterText(find.byType(TextField), '600');
     await tester.tap(find.widgetWithText(OutlinedButton, '+250 ml'));
     await tester.pump();
@@ -1992,10 +1992,10 @@ void main() {
 
     await _pumpDashboard(tester, width: 390);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.widgetWithText(OutlinedButton, '+500 ml'));
     await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.text('QUICK WATER LOG'), findsNothing);
     expect(await AppRepositoryRegistry.container.food.findAll(), isEmpty);
@@ -2013,10 +2013,10 @@ void main() {
 
     await _pumpDashboard(tester, width: 390);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.widgetWithText(OutlinedButton, '+750 ml'));
     await tester.tapAt(const Offset(8, 8));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.text('QUICK WATER LOG'), findsNothing);
     expect(await AppRepositoryRegistry.container.food.findAll(), isEmpty);
@@ -2032,11 +2032,11 @@ void main() {
 
     await _pumpDashboard(tester, width: 390);
     await tester.tap(_tile('WATER'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(find.widgetWithText(OutlinedButton, '+500 ml'));
     database.failNextTransactionWith = StateError('save failed');
     await tester.tap(find.text('Save Water'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.text('QUICK WATER LOG'), findsOneWidget);
     expect(find.text('500'), findsOneWidget);
@@ -2197,6 +2197,13 @@ void _expectProgressTilesFit(WidgetTester tester) {
       expect(rect.right, lessThanOrEqualTo(tileRect.right));
     }
   }
+}
+
+Future<void> _settleDashboard(WidgetTester tester) async {
+  // The Dashboard now contains a deliberately perpetual ambient animation.
+  // Advance the finite UI work without waiting for that status pulse to stop.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 Future<void> _pumpDashboard(

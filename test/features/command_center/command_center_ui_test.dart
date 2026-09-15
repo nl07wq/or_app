@@ -122,7 +122,7 @@ void main() {
         routes: {AppRoutes.commandCenter: (_) => const CommandCenterPage()},
       ),
     );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     final commandCenter = find.text('COMMAND CENTER').last;
     final dashboardScrollable = find
@@ -140,14 +140,14 @@ void main() {
               .position
               .maxScrollExtent,
         );
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await tester.tap(commandCenter);
     await tester.pumpAndSettle();
     expect(find.byType(CommandCenterPage), findsOneWidget);
     expect(find.byType(BackButton), findsOneWidget);
 
     await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.byType(DashboardPage), findsOneWidget);
     expect(find.byType(CommandCenterPage), findsNothing);
   });
@@ -2272,6 +2272,13 @@ String _commandCenterTabGeometry(WidgetTester tester) {
     ])
       '$label=${tester.getRect(find.widgetWithText(TextButton, label).first)}',
   ].join('; ');
+}
+
+Future<void> _settleDashboard(WidgetTester tester) async {
+  // The Dashboard ambient pulse repeats indefinitely by design. Flush finite
+  // navigation work without waiting for the ambient status layer to stop.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 Future<void> _pump(
