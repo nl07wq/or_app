@@ -49,11 +49,19 @@ void main() {
       );
       expect(tester.widget<Text>(label).style?.color, entry.$3);
       expect(tester.widget<Text>(label).style?.fontSize, 9);
-      expect(tester.widget<Text>(label).style?.fontWeight, FontWeight.w600);
+      expect(tester.widget<Text>(label).style?.fontFamily, 'ShareTechMono');
+      expect(tester.widget<Text>(label).style?.fontWeight, FontWeight.w400);
+      expect(tester.widget<Text>(label).style?.letterSpacing, .25);
       final labelBounds = tester.getRect(label);
       final slotBounds = tester.getRect(slot);
       expect(labelBounds.left, slotBounds.left + 6);
       expect(labelBounds.bottom, slotBounds.bottom - 2);
+      expect(
+        labelBounds.right,
+        lessThanOrEqualTo(
+          slotBounds.left + OperationAmbientStatusLabel.noWaveZoneWidth(),
+        ),
+      );
     }
 
     await tester.pumpWidget(subject(null));
@@ -259,9 +267,11 @@ void main() {
     }
     expect(counts[0], lessThan(counts[1]));
     expect(counts[1], lessThan(counts[2]));
-    expect(counts[0], inInclusiveRange(4, 6));
-    expect(counts[1], greaterThanOrEqualTo(8));
-    expect(counts[2], greaterThanOrEqualTo(20));
+    expect(counts[0], inInclusiveRange(3, 5));
+    // Edge zones intentionally reduce absolute full-lane counts without
+    // changing the status density contract inside the active range.
+    expect(counts[1], greaterThanOrEqualTo(6));
+    expect(counts[2], greaterThanOrEqualTo(15));
   });
 
   testWidgets('organic events use bounded irregular spacing and envelopes', (
@@ -322,6 +332,36 @@ void main() {
         events.map((event) => event.positiveFirst).toSet().length,
         greaterThan(1),
       );
+    }
+  });
+
+  testWidgets('recorded events reserve symmetric label-safe baseline zones', (
+    tester,
+  ) async {
+    final expectedZone = OperationAmbientStatusLabel.noWaveZoneWidth();
+    for (final width in [320.0, 390.0, 900.0]) {
+      final size = Size(width, OperationAmbientAnimation.height);
+      for (final status in const [
+        OperationStatus.green,
+        OperationStatus.yellow,
+        OperationStatus.red,
+      ]) {
+        await tester.pumpWidget(subject(status, width: width));
+        final activePainter = painter(tester);
+        final activeRange = activePainter.activeEventRangeFor(size);
+        expect(activePainter.noWaveInset, expectedZone);
+        expect(activeRange.left, expectedZone);
+        expect(size.width - activeRange.right, expectedZone);
+        final events = activePainter.traceEventsFor(size, 4);
+        expect(events, isNotEmpty);
+        expect(events.every((event) => event.x >= activeRange.left), isTrue);
+        expect(
+          events.every((event) => event.right <= activeRange.right),
+          isTrue,
+        );
+        expect(events.first.x, greaterThanOrEqualTo(activeRange.left));
+        expect(events.last.right, lessThanOrEqualTo(activeRange.right));
+      }
     }
   });
 

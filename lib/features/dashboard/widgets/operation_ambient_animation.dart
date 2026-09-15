@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/engine/operation_status.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 
 enum OperationAmbientPreset { statusPulse }
 
@@ -155,6 +156,10 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     final preset = operationAmbientPulsePresetFor(widget.status);
     final staticFrame = !_motionAllowed;
     final geometry = OperationAmbientPulseGeometry.forPreset(preset);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final noWaveInset = geometry.statusLabel == null
+        ? 0.0
+        : OperationAmbientStatusLabel.noWaveZoneWidth(textScaler);
     return IgnorePointer(
       child: Semantics(
         label: 'Operation status ambient pulse: ${geometry.semanticLabel}',
@@ -176,6 +181,7 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                     sweepPhase: _sweepPhase,
                     currentTraceIndex: _currentTraceIndex,
                     nextTraceIndex: _nextTraceIndex,
+                    noWaveInset: noWaveInset,
                   ),
                   willChange: !staticFrame,
                 ),
@@ -186,12 +192,8 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                     bottom: OperationAmbientStatusLabel.bottomPadding,
                     child: Text(
                       label,
-                      style: TextStyle(
+                      style: OperationAmbientStatusLabel.textStyle.copyWith(
                         color: geometry.color,
-                        fontSize: OperationAmbientStatusLabel.fontSize,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing:
-                            OperationAmbientStatusLabel.letterSpacing,
                         height: 1,
                       ),
                     ),
@@ -265,6 +267,29 @@ class OperationAmbientStatusLabel {
   static const bottomPadding = 2.0;
   static const fontSize = 9.0;
   static const letterSpacing = .25;
+
+  /// Keeps generated ECG deflections clear of the label and mirrors that
+  /// calm baseline on the opposite lane edge.
+  static const horizontalSafetyPadding = 4.0;
+  static final textStyle = AppTextStyles.bootTechnical.copyWith(
+    fontSize: fontSize,
+    letterSpacing: letterSpacing,
+  );
+
+  static double cautionTextWidth([
+    TextScaler textScaler = TextScaler.noScaling,
+  ]) {
+    final painter = TextPainter(
+      text: TextSpan(text: 'CAUTION', style: textStyle),
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+    )..layout();
+    return painter.width;
+  }
+
+  static double noWaveZoneWidth([
+    TextScaler textScaler = TextScaler.noScaling,
+  ]) => leftPadding + cautionTextWidth(textScaler) + horizontalSafetyPadding;
 }
 
 enum OperationAmbientWaveform { sine, ecg }
@@ -284,6 +309,7 @@ class OperationAmbientPulsePainter extends CustomPainter {
     required this.sweepPhase,
     required this.currentTraceIndex,
     required this.nextTraceIndex,
+    required this.noWaveInset,
   }) : super(repaint: phase);
   final Animation<double> phase;
   final OperationAmbientPulseGeometry geometry;
@@ -292,6 +318,7 @@ class OperationAmbientPulsePainter extends CustomPainter {
   final OperationAmbientSweepPhase sweepPhase;
   final int currentTraceIndex;
   final int nextTraceIndex;
+  final double noWaveInset;
   final Map<int, _OperationAmbientCachedTrace> _cachedTraces = {};
   Size? _cachedSize;
   double get revealProgress =>
@@ -307,6 +334,14 @@ class OperationAmbientPulsePainter extends CustomPainter {
 
   int eventCountFor(Size size, int traceIndex) =>
       traceEventsFor(size, traceIndex).length;
+
+  /// The central range where ECG complexes may be generated. The trace path
+  /// itself still spans the full lane as a continuous baseline.
+  Rect activeEventRangeFor(Size size) {
+    final left = math.min(noWaveInset, size.width / 2);
+    final right = math.max(left, size.width - noWaveInset);
+    return Rect.fromLTRB(left, 0, right, size.height);
+  }
 
   OperationAmbientSweepRegions sweepRegionsFor(
     Size size, {
@@ -496,11 +531,16 @@ class OperationAmbientPulsePainter extends CustomPainter {
       OperationAmbientPulsePreset.neutral => 0.0,
     };
     final events = <OperationAmbientEcgEvent>[];
-    var x = nominal * random.range(.32, .55);
+    final activeRange = activeEventRangeFor(size);
+    final activeLeft = activeRange.left;
+    final activeRight = activeRange.right;
+    var x = activeLeft + nominal * random.range(.32, .55);
     OperationAmbientEcgFamily? previousFamily;
-    while (x + baseWidth * .72 <= size.width) {
+    while (x + baseWidth * .72 <= activeRight) {
       final width = baseWidth * random.range(.72, 1.22);
-      if (x + width > size.width) break;
+      // Whole events stay in the active range. Both edge zones retain only
+      // the continuous baseline, never a partial ECG complex.
+      if (x + width > activeRight) break;
       var family = OperationAmbientEcgFamily
           .values[random.nextInt(OperationAmbientEcgFamily.values.length)];
       if (family == previousFamily) {
@@ -584,7 +624,8 @@ class OperationAmbientPulsePainter extends CustomPainter {
       old.staticFrame != staticFrame ||
       old.sweepPhase != sweepPhase ||
       old.currentTraceIndex != currentTraceIndex ||
-      old.nextTraceIndex != nextTraceIndex;
+      old.nextTraceIndex != nextTraceIndex ||
+      old.noWaveInset != noWaveInset;
 }
 
 class OperationAmbientEcgEvent {

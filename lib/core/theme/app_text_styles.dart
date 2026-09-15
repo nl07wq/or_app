@@ -5,6 +5,14 @@ import 'app_colors.dart';
 class AppTextStyles {
   AppTextStyles._();
 
+  /// The bundled narrow terminal face used by the Boot presentation.
+  static const bootTechnicalFontFamily = 'ShareTechMono';
+
+  static const bootTechnical = TextStyle(
+    fontFamily: bootTechnicalFontFamily,
+    fontWeight: FontWeight.w400,
+  );
+
   static const display = TextStyle(
     fontSize: 32,
     fontWeight: FontWeight.bold,

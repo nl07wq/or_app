@@ -8,6 +8,7 @@ import '../services/boot_audio.dart';
 import '../services/operation_system_metadata.dart';
 import '../services/startup_diagnostic.dart';
 import '../state/app_initialization_state.dart';
+import '../theme/app_text_styles.dart';
 
 enum BootSequenceEventType { bootStart, systemInitialized, bootComplete }
 
@@ -32,7 +33,7 @@ const bootSignalCoreColor = Color(0xFFF4FAFC);
 const bootSignalHaloColor = Color(0x707FADBA);
 const bootSignalFragmentColor = Color(0xB8A4C4CE);
 const bootBackgroundColor = Color(0xFF101010);
-const _bootTerminalFontFamily = 'ShareTechMono';
+const _bootTerminalFontFamily = AppTextStyles.bootTechnicalFontFamily;
 
 @visibleForTesting
 Duration bootCrtVerticalCollapseDuration(Duration total) => Duration(
