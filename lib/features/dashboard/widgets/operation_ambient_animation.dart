@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/operation_status.dart';
 import '../../../core/theme/app_colors.dart';
 
-/// V1's ambient renderer. Future slot presets can be added without changing
+/// V2's ambient renderer. Future slot presets can be added without changing
 /// Dashboard placement or the canonical status input.
 enum OperationAmbientPreset { statusPulse }
 
@@ -31,7 +31,7 @@ class OperationAmbientAnimation extends StatefulWidget {
     this.preset = OperationAmbientPreset.statusPulse,
   });
 
-  static const height = 8.0;
+  static const height = 10.0;
   static const loopDuration = Duration(seconds: 6);
 
   final OperationStatus? status;
@@ -122,6 +122,7 @@ class OperationAmbientPulseGeometry {
     required this.color,
     required this.amplitude,
     required this.waveLength,
+    required this.waveform,
     required this.semanticLabel,
   });
 
@@ -130,26 +131,30 @@ class OperationAmbientPulseGeometry {
   ) => switch (preset) {
     OperationAmbientPulsePreset.green => const OperationAmbientPulseGeometry(
       color: AppColors.success,
-      amplitude: 1.0,
-      waveLength: 32,
+      amplitude: 4.0,
+      waveLength: 36,
+      waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
-      amplitude: 2.0,
-      waveLength: 24,
+      amplitude: 3.0,
+      waveLength: 36,
+      waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
-      amplitude: 3.0,
-      waveLength: 16,
+      amplitude: 2.0,
+      waveLength: 36,
+      waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
     ),
     OperationAmbientPulsePreset.neutral => const OperationAmbientPulseGeometry(
       color: AppColors.secondary,
       amplitude: 0.8,
       waveLength: 32,
+      waveform: OperationAmbientWaveform.sine,
       semanticLabel: 'status unavailable',
     ),
   };
@@ -157,8 +162,11 @@ class OperationAmbientPulseGeometry {
   final Color color;
   final double amplitude;
   final double waveLength;
+  final OperationAmbientWaveform waveform;
   final String semanticLabel;
 }
+
+enum OperationAmbientWaveform { sine, ecg }
 
 /// Paints a tileable waveform. Phase changes timing only; endpoints and wave
 /// geometry remain independent of the controller's loop duration.
@@ -175,6 +183,8 @@ class OperationAmbientPulsePainter extends CustomPainter {
   final OperationAmbientPulsePreset preset;
   final bool staticFrame;
 
+  OperationAmbientPulseGeometry get geometry => _geometry;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
@@ -183,6 +193,28 @@ class OperationAmbientPulsePainter extends CustomPainter {
     final offset = value * _geometry.waveLength * 4;
     final path = Path();
     final centerY = size.height / 2;
+    switch (_geometry.waveform) {
+      case OperationAmbientWaveform.sine:
+        _drawSine(path, size: size, centerY: centerY, offset: offset);
+      case OperationAmbientWaveform.ecg:
+        _drawEcg(path, size: size, centerY: centerY, offset: offset);
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = _geometry.color.withValues(alpha: 0.78)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  void _drawSine(
+    Path path, {
+    required Size size,
+    required double centerY,
+    required double offset,
+  }) {
     for (
       var x = -_geometry.waveLength * 2;
       x <= size.width + _geometry.waveLength * 2;
@@ -198,14 +230,30 @@ class OperationAmbientPulsePainter extends CustomPainter {
         path.lineTo(x, y);
       }
     }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = _geometry.color.withValues(alpha: 0.78)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round,
-    );
+  }
+
+  void _drawEcg(
+    Path path, {
+    required Size size,
+    required double centerY,
+    required double offset,
+  }) {
+    final period = _geometry.waveLength;
+    for (
+      var start = -period * 2 + offset;
+      start <= size.width + period * 2;
+      start += period
+    ) {
+      path
+        ..moveTo(start, centerY)
+        ..lineTo(start + period * .40, centerY)
+        ..lineTo(start + period * .48, centerY - _geometry.amplitude * .25)
+        ..lineTo(start + period * .54, centerY - _geometry.amplitude)
+        ..lineTo(start + period * .60, centerY + _geometry.amplitude * .55)
+        ..lineTo(start + period * .68, centerY - _geometry.amplitude * .30)
+        ..lineTo(start + period * .76, centerY)
+        ..lineTo(start + period, centerY);
+    }
   }
 
   @override
@@ -213,6 +261,7 @@ class OperationAmbientPulsePainter extends CustomPainter {
       oldDelegate._geometry.color != _geometry.color ||
       oldDelegate._geometry.amplitude != _geometry.amplitude ||
       oldDelegate._geometry.waveLength != _geometry.waveLength ||
+      oldDelegate._geometry.waveform != _geometry.waveform ||
       oldDelegate.preset != preset ||
       oldDelegate.staticFrame != staticFrame;
 }

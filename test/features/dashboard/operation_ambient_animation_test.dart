@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/operation_status.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 
 void main() {
@@ -28,26 +29,76 @@ void main() {
               .painter!
           as OperationAmbientPulsePainter;
 
-  testWidgets('GREEN uses the calm canonical pulse preset', (tester) async {
-    await tester.pumpWidget(subject(OperationStatus.green));
-
-    expect(painter(tester).preset, OperationAmbientPulsePreset.green);
-    expect(painter(tester).staticFrame, isFalse);
-    await tester.pump(const Duration(seconds: 1));
-    expect(painter(tester).phase.value, greaterThan(0));
-  });
-
-  testWidgets('YELLOW and RED update the waveform preset while mounted', (
+  testWidgets('GREEN uses the strongest canonical ECG pulse preset', (
     tester,
   ) async {
     await tester.pumpWidget(subject(OperationStatus.green));
-    expect(painter(tester).preset, OperationAmbientPulsePreset.green);
+
+    final activePainter = painter(tester);
+    expect(activePainter.preset, OperationAmbientPulsePreset.green);
+    expect(activePainter.geometry.waveform, OperationAmbientWaveform.ecg);
+    expect(activePainter.geometry.color, AppColors.success);
+    expect(activePainter.geometry.amplitude, 4);
+    expect(activePainter.staticFrame, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+    expect(activePainter.phase.value, greaterThan(0));
+  });
+
+  testWidgets(
+    'recorded statuses use one ECG period with descending amplitude',
+    (tester) async {
+      final geometries = <OperationAmbientPulseGeometry>[];
+      for (final status in const [
+        OperationStatus.green,
+        OperationStatus.yellow,
+        OperationStatus.red,
+      ]) {
+        await tester.pumpWidget(subject(status));
+        geometries.add(painter(tester).geometry);
+      }
+
+      expect(
+        geometries.every(
+          (geometry) => geometry.waveform == OperationAmbientWaveform.ecg,
+        ),
+        isTrue,
+      );
+      expect(geometries[0].waveLength, geometries[1].waveLength);
+      expect(geometries[1].waveLength, geometries[2].waveLength);
+      expect(geometries[0].amplitude, greaterThan(geometries[1].amplitude));
+      expect(geometries[1].amplitude, greaterThan(geometries[2].amplitude));
+      expect(geometries.map((geometry) => geometry.color), [
+        AppColors.success,
+        AppColors.warning,
+        AppColors.danger,
+      ]);
+      expect(
+        OperationAmbientAnimation.loopDuration,
+        const Duration(seconds: 6),
+      );
+    },
+  );
+
+  testWidgets('status transitions replace both waveform geometry and color', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(null));
+    expect(painter(tester).geometry.waveform, OperationAmbientWaveform.sine);
+    expect(painter(tester).geometry.color, AppColors.secondary);
 
     await tester.pumpWidget(subject(OperationStatus.yellow));
     expect(painter(tester).preset, OperationAmbientPulsePreset.yellow);
+    expect(painter(tester).geometry.waveform, OperationAmbientWaveform.ecg);
+    expect(painter(tester).geometry.color, AppColors.warning);
 
     await tester.pumpWidget(subject(OperationStatus.red));
     expect(painter(tester).preset, OperationAmbientPulsePreset.red);
+    expect(painter(tester).geometry.color, AppColors.danger);
+
+    await tester.pumpWidget(subject(null));
+    expect(painter(tester).preset, OperationAmbientPulsePreset.neutral);
+    expect(painter(tester).geometry.waveform, OperationAmbientWaveform.sine);
+    expect(painter(tester).geometry.color, AppColors.secondary);
   });
 
   testWidgets(
@@ -55,11 +106,14 @@ void main() {
     (tester) async {
       await tester.pumpWidget(subject(null, reducedMotion: true));
 
-      expect(painter(tester).preset, OperationAmbientPulsePreset.neutral);
-      expect(painter(tester).staticFrame, isTrue);
-      final phase = painter(tester).phase.value;
+      final activePainter = painter(tester);
+      expect(activePainter.preset, OperationAmbientPulsePreset.neutral);
+      expect(activePainter.geometry.waveform, OperationAmbientWaveform.sine);
+      expect(activePainter.geometry.color, AppColors.secondary);
+      expect(activePainter.staticFrame, isTrue);
+      final phase = activePainter.phase.value;
       await tester.pump(const Duration(seconds: 8));
-      expect(painter(tester).phase.value, phase);
+      expect(activePainter.phase.value, phase);
     },
   );
 
@@ -75,7 +129,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('slot remains a thin responsive non-interactive layer', (
+  testWidgets('ECG extrema remain inside the responsive non-interactive lane', (
     tester,
   ) async {
     for (final width in [320.0, 390.0, 900.0]) {
@@ -86,6 +140,13 @@ void main() {
       );
       expect(tester.getSize(slot).height, OperationAmbientAnimation.height);
       expect(tester.getSize(slot).width, width);
+      final geometry = painter(tester).geometry;
+      final center = OperationAmbientAnimation.height / 2;
+      expect(center - geometry.amplitude, greaterThanOrEqualTo(.5));
+      expect(
+        center + geometry.amplitude * .55,
+        lessThanOrEqualTo(OperationAmbientAnimation.height - .5),
+      );
       expect(
         find.descendant(
           of: find.byType(OperationAmbientAnimation),

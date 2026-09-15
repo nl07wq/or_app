@@ -163,7 +163,7 @@ void main() {
   });
 
   test('production marquee configuration is the sole timing source', () {
-    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 100);
+    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 90);
     expect(InformationMarqueeConfiguration.exitSafetyMargin, 12);
     expect(
       InformationMarqueeConfiguration.initialPause,
@@ -183,13 +183,10 @@ void main() {
       scrollSpeedPxPerSecond:
           InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
     );
-    expect(
-      timing.effectivePixelsPerSecond,
-      moreOrLessEquals(100, epsilon: .01),
-    );
+    expect(timing.effectivePixelsPerSecond, moreOrLessEquals(90, epsilon: .01));
   });
 
-  testWidgets('renders 100px per second for short, medium, and long notices', (
+  testWidgets('renders 90px per second for short, medium, and long notices', (
     tester,
   ) async {
     const titles = [
@@ -384,7 +381,7 @@ void main() {
     (tester) async {
       const title =
           'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ 1234567890';
-      const speeds = [150.0, 120.0, 100.0, 80.0];
+      const speeds = [150.0, 120.0, 100.0, 90.0, 80.0];
       final snapshots = <InformationMarqueeRuntimeSnapshot>[];
       final terminalRights = <double>[];
       final durations = <Duration>[];
@@ -471,6 +468,7 @@ void main() {
       expect(durations[0], lessThan(durations[1]));
       expect(durations[1], lessThan(durations[2]));
       expect(durations[2], lessThan(durations[3]));
+      expect(durations[3], lessThan(durations[4]));
     },
   );
 
@@ -482,7 +480,7 @@ void main() {
         'TEST INFORMATION',
         'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ',
       ];
-      const speeds = [150.0, 120.0, 100.0, 80.0];
+      const speeds = [150.0, 120.0, 100.0, 90.0, 80.0];
 
       for (final title in titles) {
         InformationMarqueeRuntimeSnapshot? firstTerminal;
