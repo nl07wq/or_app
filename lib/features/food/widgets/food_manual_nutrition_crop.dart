@@ -769,6 +769,7 @@ class _CropViewportControls extends StatelessWidget {
 
   static const _edgeHit = 36.0;
   static const _cornerHit = 52.0;
+  static const _visibleEdgeDiameter = 20.0;
   static const _moveHitWidth = 104.0;
   static const _moveHitHeight = 36.0;
 
@@ -799,6 +800,9 @@ class _CropViewportControls extends StatelessWidget {
           ),
         _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-left'),
+          indicatorKey: const ValueKey(
+            'manual-nutrition-crop-edge-indicator-left',
+          ),
           rect: Rect.fromLTWH(
             viewport.left - _edgeHit / 2,
             viewport.top + _cornerHit / 2,
@@ -810,6 +814,9 @@ class _CropViewportControls extends StatelessWidget {
         ),
         _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-right'),
+          indicatorKey: const ValueKey(
+            'manual-nutrition-crop-edge-indicator-right',
+          ),
           rect: Rect.fromLTWH(
             viewport.right - _edgeHit / 2,
             viewport.top + _cornerHit / 2,
@@ -821,6 +828,9 @@ class _CropViewportControls extends StatelessWidget {
         ),
         _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-top'),
+          indicatorKey: const ValueKey(
+            'manual-nutrition-crop-edge-indicator-top',
+          ),
           rect: Rect.fromLTWH(
             viewport.left + _cornerHit / 2,
             viewport.top - _edgeHit / 2,
@@ -833,6 +843,9 @@ class _CropViewportControls extends StatelessWidget {
         ),
         _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-bottom'),
+          indicatorKey: const ValueKey(
+            'manual-nutrition-crop-edge-indicator-bottom',
+          ),
           rect: Rect.fromLTWH(
             viewport.left + _cornerHit / 2,
             viewport.bottom - _edgeHit / 2,
@@ -873,6 +886,7 @@ class _CropViewportControls extends StatelessWidget {
 
   Widget _edgeHandle({
     required Key key,
+    required Key indicatorKey,
     required Rect rect,
     required _CropViewportEdge edge,
     required MouseCursor cursor,
@@ -881,6 +895,7 @@ class _CropViewportControls extends StatelessWidget {
     rect: rect,
     child: _CropViewportHandle(
       key: key,
+      indicatorKey: indicatorKey,
       semanticLabel: 'Resize crop area',
       icon: Icons.drag_handle,
       rotate: rotate,
@@ -903,9 +918,9 @@ class _CropViewportControls extends StatelessWidget {
     child: _CropViewportHandle(
       key: key,
       semanticLabel: 'Resize crop area',
-      icon: Icons.open_in_full,
       cursor: cursor,
       onPanUpdate: (delta) => onResize(edge, delta),
+      showIndicator: false,
     ),
   );
 }
@@ -916,6 +931,7 @@ class _CropViewportHandle extends StatelessWidget {
     required this.semanticLabel,
     required this.onPanUpdate,
     required this.cursor,
+    this.indicatorKey,
     this.icon,
     this.rotate = false,
     this.showIndicator = true,
@@ -924,6 +940,7 @@ class _CropViewportHandle extends StatelessWidget {
   final String semanticLabel;
   final ValueChanged<Offset> onPanUpdate;
   final MouseCursor cursor;
+  final Key? indicatorKey;
   final IconData? icon;
   final bool rotate;
   final bool showIndicator;
@@ -939,18 +956,19 @@ class _CropViewportHandle extends StatelessWidget {
         child: Center(
           child: showIndicator
               ? DecoratedBox(
+                  key: indicatorKey,
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: _CropViewportControls._visibleEdgeDiameter,
+                    height: _CropViewportControls._visibleEdgeDiameter,
                     child: Transform.rotate(
                       angle: rotate ? 1.5707963267948966 : 0,
                       child: Icon(
                         icon,
-                        size: 14,
+                        size: 12,
                         color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     ),

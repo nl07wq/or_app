@@ -677,8 +677,20 @@ void main() {
     final edge = find.byKey(
       const ValueKey('manual-nutrition-crop-resize-right'),
     );
+    final edgeIndicators = [
+      find.byKey(const ValueKey('manual-nutrition-crop-edge-indicator-left')),
+      find.byKey(const ValueKey('manual-nutrition-crop-edge-indicator-right')),
+      find.byKey(const ValueKey('manual-nutrition-crop-edge-indicator-top')),
+      find.byKey(const ValueKey('manual-nutrition-crop-edge-indicator-bottom')),
+    ];
     expect(tester.getSize(topLeft), const Size(52, 52));
     expect(tester.getSize(edge).width, 36);
+    expect(edgeIndicators, everyElement(findsOneWidget));
+    expect(
+      edgeIndicators.map(tester.getSize),
+      everyElement(const Size(20, 20)),
+    );
+    expect(find.byIcon(Icons.open_in_full), findsNothing);
     final beforeTopLeft = tester.getCenter(topLeft);
     final beforeBottomRight = tester.getCenter(bottomRight);
 

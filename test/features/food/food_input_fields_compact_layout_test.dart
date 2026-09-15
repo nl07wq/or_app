@@ -42,6 +42,7 @@ void main() {
     expect(stepperBounds.top, amountBounds.top);
     expect(stepperBounds.bottom, amountBounds.bottom);
     expect(stepperBounds.width, FoodNumericStepper.width);
+    expect(memoBounds.width, greaterThan(amountBounds.width));
     final incrementBounds = tester.getRect(
       find.byKey(const ValueKey('food-amount-increment')),
     );
@@ -97,8 +98,11 @@ void main() {
       find.byKey(const ValueKey('food-amount-stepper-column')),
     );
     final twoLineAmount = tester.getRect(_amount());
+    final twoLineMemo = tester.getRect(memo);
     expect(twoLineStepper.top, twoLineAmount.top);
     expect(twoLineStepper.bottom, twoLineAmount.bottom);
+    expect(twoLineMemo.top, twoLineAmount.top);
+    expect(twoLineMemo.bottom, twoLineAmount.bottom);
 
     await tester.enterText(memo, 'first line\nsecond line\nthird line');
     await tester.pump();
@@ -127,6 +131,7 @@ void main() {
     expect(amount.bottom, stepper.bottom);
     expect(stepper.bottom, memo.bottom);
     expect(amount.center.dx, lessThan(memo.center.dx));
+    expect(memo.width, greaterThan(amount.width));
   });
 
   testWidgets('dynamic conversion label preserves its target basis', (
