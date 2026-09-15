@@ -38,7 +38,7 @@ void main() {
     expect(activePainter.preset, OperationAmbientPulsePreset.green);
     expect(activePainter.geometry.waveform, OperationAmbientWaveform.ecg);
     expect(activePainter.geometry.color, AppColors.success);
-    expect(activePainter.geometry.amplitude, 8);
+    expect(activePainter.geometry.amplitude, 12);
     expect(activePainter.staticFrame, isFalse);
     await tester.pump(const Duration(seconds: 1));
     expect(activePainter.phase.value, greaterThan(0));
@@ -65,14 +65,10 @@ void main() {
       );
       expect(geometries[0].waveLength, greaterThan(geometries[1].waveLength));
       expect(geometries[1].waveLength, greaterThan(geometries[2].waveLength));
-      expect(geometries[0].waveLength, 100);
-      expect(geometries[1].waveLength, 60);
-      expect(geometries[2].waveLength, 35);
-      expect(geometries.map((geometry) => geometry.amplitude), [8, 6, 4]);
-      final fractions = painter(
-        tester,
-      ).pulseFractionsFor(OperationAmbientEcgVariant.a);
-      expect(fractions.last - fractions.first, lessThan(.5));
+      expect(geometries[0].waveLength, 80);
+      expect(geometries[1].waveLength, 40);
+      expect(geometries[2].waveLength, 15);
+      expect(geometries.map((geometry) => geometry.amplitude), [12, 10, 5]);
       expect(geometries[0].amplitude, greaterThan(geometries[1].amplitude));
       expect(geometries[1].amplitude, greaterThan(geometries[2].amplitude));
       expect(geometries.map((geometry) => geometry.color), [
@@ -154,8 +150,8 @@ void main() {
       await tester.pump();
       final activePainter = painter(tester);
       expect(activePainter.sweepPhase, OperationAmbientSweepPhase.sweep);
-      expect(activePainter.currentVariant, OperationAmbientEcgVariant.a);
-      expect(activePainter.nextVariant, OperationAmbientEcgVariant.b);
+      expect(activePainter.currentTraceIndex, 0);
+      expect(activePainter.nextTraceIndex, 1);
 
       const size = Size(390, OperationAmbientAnimation.height);
       for (final progress in [0.0, .25, .5, .75]) {
@@ -174,44 +170,31 @@ void main() {
     },
   );
 
-  testWidgets(
-    'traces compose distinct variants on a deterministic longer sequence',
-    (tester) async {
-      await tester.pumpWidget(subject(OperationStatus.green));
-      final activePainter = painter(tester);
-      expect(
-        activePainter.pulseFractionsFor(OperationAmbientEcgVariant.a),
-        isNot(activePainter.pulseFractionsFor(OperationAmbientEcgVariant.b)),
-      );
-      expect(
-        activePainter.pulseFractionsFor(OperationAmbientEcgVariant.b),
-        isNot(activePainter.pulseFractionsFor(OperationAmbientEcgVariant.c)),
-      );
-      final current = activePainter.currentVariant;
-      final next = activePainter.nextVariant;
-      final composition = activePainter.traceCompositionFor(
-        const Size(900, OperationAmbientAnimation.height),
-        current,
-      );
-      expect(composition.length, greaterThan(3));
-      expect(composition.toSet().length, greaterThan(1));
-      await tester.pump(const Duration(seconds: 1));
-      expect(activePainter.currentVariant, current);
-      expect(activePainter.nextVariant, next);
-
-      final sequence = List.generate(
-        13,
-        OperationAmbientPulsePainter.variantAt,
-      );
-      for (var index = 0; index < sequence.length - 1; index++) {
-        expect(sequence[index], isNot(sequence[index + 1]));
-      }
-      expect(
-        sequence.take(6).toList(),
-        isNot(equals(sequence.skip(6).take(6).toList())),
-      );
-    },
-  );
+  testWidgets('traces are deterministic, organic, and vary by generation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(OperationStatus.green));
+    final activePainter = painter(tester);
+    const size = Size(900, OperationAmbientAnimation.height);
+    final first = activePainter.traceEventsFor(size, 3);
+    final repeated = activePainter.traceEventsFor(size, 3);
+    final next = activePainter.traceEventsFor(size, 4);
+    expect(_signature(first), _signature(repeated));
+    expect(_signature(first), isNot(_signature(next)));
+    expect(first.map((event) => event.family).toSet().length, greaterThan(1));
+    expect(
+      List.generate(
+        12,
+        (index) => activePainter.traceEventsFor(size, index),
+      ).expand((events) => events).map((event) => event.family).toSet(),
+      containsAll(OperationAmbientEcgFamily.values.take(4)),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      _signature(activePainter.traceEventsFor(size, 3)),
+      _signature(first),
+    );
+  });
 
   testWidgets('status-specific traces get denser as vitality weakens', (
     tester,
@@ -226,15 +209,75 @@ void main() {
       await tester.pumpWidget(subject(status));
       final activePainter = painter(tester);
       counts.add(
-        activePainter.eventCountFor(size, activePainter.currentVariant),
+        activePainter.eventCountFor(size, activePainter.currentTraceIndex),
       );
     }
     expect(counts[0], lessThan(counts[1]));
     expect(counts[1], lessThan(counts[2]));
-    expect(counts, [4, 7, 12]);
-    expect(counts[0], 2 * 2);
-    expect(counts[1], greaterThanOrEqualTo(2 * 4 - 1));
-    expect(counts[2], 2 * 6);
+    expect(counts[0], inInclusiveRange(4, 6));
+    expect(counts[1], greaterThanOrEqualTo(8));
+    expect(counts[2], greaterThanOrEqualTo(20));
+  });
+
+  testWidgets('organic events use bounded irregular spacing and envelopes', (
+    tester,
+  ) async {
+    const size = Size(900, OperationAmbientAnimation.height);
+    for (final status in const [
+      OperationStatus.green,
+      OperationStatus.yellow,
+      OperationStatus.red,
+    ]) {
+      await tester.pumpWidget(subject(status));
+      final activePainter = painter(tester);
+      final events = activePainter.traceEventsFor(size, 5);
+      final intervals = [
+        for (var index = 1; index < events.length; index++)
+          events[index].x - events[index - 1].x,
+      ];
+      expect(intervals.toSet().length, greaterThan(1));
+      final nominal = activePainter.geometry.waveLength;
+      final range = switch (activePainter.preset) {
+        OperationAmbientPulsePreset.green ||
+        OperationAmbientPulsePreset.yellow => (
+          minimum: nominal * .70,
+          maximum: nominal * 1.30,
+        ),
+        OperationAmbientPulsePreset.red => (minimum: 11.0, maximum: 20.0),
+        OperationAmbientPulsePreset.neutral => (
+          minimum: nominal,
+          maximum: nominal,
+        ),
+      };
+      expect(
+        intervals.every(
+          (interval) => interval >= range.minimum && interval <= range.maximum,
+        ),
+        isTrue,
+      );
+      final average =
+          intervals.reduce((sum, interval) => sum + interval) /
+          intervals.length;
+      expect(average, closeTo(nominal, nominal * .20));
+      expect(events.map((event) => event.width).toSet().length, greaterThan(1));
+      expect(
+        events.map((event) => event.heightFactor).toSet().length,
+        greaterThan(1),
+      );
+      expect(events.every((event) => event.heightFactor >= .65), isTrue);
+      expect(events.every((event) => event.heightFactor <= 1), isTrue);
+      expect(
+        events.every((event) => event.width > 0 && event.right <= size.width),
+        isTrue,
+      );
+      for (var index = 1; index < events.length; index++) {
+        expect(events[index].x, greaterThan(events[index - 1].right));
+      }
+      expect(
+        events.map((event) => event.positiveFirst).toSet().length,
+        greaterThan(1),
+      );
+    }
   });
 
   testWidgets('steady sweep keeps an eight pixel clear window and local head', (
@@ -301,7 +344,7 @@ void main() {
         final center = OperationAmbientAnimation.height / 2;
         expect(center - geometry.amplitude, greaterThanOrEqualTo(.5));
         expect(
-          center + geometry.amplitude * .55,
+          center + geometry.amplitude,
           lessThanOrEqualTo(OperationAmbientAnimation.height - .5),
         );
         expect(
@@ -328,8 +371,15 @@ void main() {
     expect(activePainter.staticFrame, isTrue);
     expect(activePainter.activeHeadRegionFor(size), Rect.zero);
     expect(
-      activePainter.eventCountFor(size, activePainter.currentVariant),
+      activePainter.eventCountFor(size, activePainter.currentTraceIndex),
       greaterThan(0),
     );
   });
 }
+
+String _signature(List<OperationAmbientEcgEvent> events) => events
+    .map(
+      (event) =>
+          '${event.family.name}:${event.x.toStringAsFixed(3)}:${event.width.toStringAsFixed(3)}:${event.heightFactor.toStringAsFixed(3)}:${event.secondaryFactor.toStringAsFixed(3)}',
+    )
+    .join('|');

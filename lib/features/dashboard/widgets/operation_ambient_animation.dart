@@ -9,9 +9,15 @@ enum OperationAmbientPulsePreset { green, yellow, red, neutral }
 
 enum OperationAmbientSweepPhase { initialize, sweep }
 
-/// Each trace uses one restrained ECG family member. Selection occurs once per
-/// completed sweep, never while a trace is being painted.
-enum OperationAmbientEcgVariant { a, b, c }
+/// Controlled ECG complex families. A trace chooses several families when it
+/// is generated, never during frame-by-frame painting.
+enum OperationAmbientEcgFamily {
+  upDownUp,
+  downUpDown,
+  positiveDominant,
+  negativeDominant,
+  multiDeflection,
+}
 
 OperationAmbientPulsePreset operationAmbientPulsePresetFor(
   OperationStatus? s,
@@ -29,7 +35,7 @@ class OperationAmbientAnimation extends StatefulWidget {
     required this.status,
     this.preset = OperationAmbientPreset.statusPulse,
   });
-  static const height = 20.0;
+  static const height = 28.0;
   static const drawDuration = Duration(seconds: 6);
   static const loopDuration = drawDuration;
   final OperationStatus? status;
@@ -48,9 +54,9 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
   bool _reducedMotion = false, _tickerEnabled = true, _appActive = true;
   OperationAmbientSweepPhase _sweepPhase =
       OperationAmbientSweepPhase.initialize;
-  OperationAmbientEcgVariant _currentVariant = OperationAmbientEcgVariant.a;
-  OperationAmbientEcgVariant _nextVariant = OperationAmbientEcgVariant.b;
-  var _nextVariantSequenceIndex = 2;
+  var _currentTraceIndex = 0;
+  var _nextTraceIndex = 1;
+  var _followingTraceIndex = 2;
   bool get _recorded =>
       operationAmbientPulsePresetFor(widget.status) !=
       OperationAmbientPulsePreset.neutral;
@@ -105,9 +111,9 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     if (!mounted || !_motionAllowed || !_recorded) return;
     setState(() {
       _sweepPhase = OperationAmbientSweepPhase.initialize;
-      _currentVariant = OperationAmbientPulsePainter.variantAt(0);
-      _nextVariant = OperationAmbientPulsePainter.variantAt(1);
-      _nextVariantSequenceIndex = 2;
+      _currentTraceIndex = 0;
+      _nextTraceIndex = 1;
+      _followingTraceIndex = 2;
     });
     _controller.forward(from: 0);
   }
@@ -129,11 +135,9 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
       });
     } else {
       setState(() {
-        _currentVariant = _nextVariant;
-        _nextVariant = OperationAmbientPulsePainter.variantAt(
-          _nextVariantSequenceIndex,
-        );
-        _nextVariantSequenceIndex += 1;
+        _currentTraceIndex = _nextTraceIndex;
+        _nextTraceIndex = _followingTraceIndex;
+        _followingTraceIndex += 1;
       });
     }
     _controller.forward(from: 0);
@@ -167,8 +171,8 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                 preset: preset,
                 staticFrame: staticFrame,
                 sweepPhase: _sweepPhase,
-                currentVariant: _currentVariant,
-                nextVariant: _nextVariant,
+                currentTraceIndex: _currentTraceIndex,
+                nextTraceIndex: _nextTraceIndex,
               ),
               willChange: !staticFrame,
             ),
@@ -192,22 +196,22 @@ class OperationAmbientPulseGeometry {
   ) => switch (p) {
     OperationAmbientPulsePreset.green => const OperationAmbientPulseGeometry(
       color: AppColors.success,
-      amplitude: 8,
-      waveLength: 100,
+      amplitude: 12,
+      waveLength: 80,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
-      amplitude: 6,
-      waveLength: 60,
+      amplitude: 10,
+      waveLength: 40,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
-      amplitude: 4,
-      waveLength: 35,
+      amplitude: 5,
+      waveLength: 15,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
     ),
@@ -234,73 +238,37 @@ class OperationAmbientPulsePainter extends CustomPainter {
   static const traceStrokeWidth = 1.5;
   static const activeHeadStrokeWidth = 2.25;
   static const activeHeadLength = 4.0;
-  static const _variantSequence = [
-    OperationAmbientEcgVariant.a,
-    OperationAmbientEcgVariant.b,
-    OperationAmbientEcgVariant.c,
-    OperationAmbientEcgVariant.a,
-    OperationAmbientEcgVariant.c,
-    OperationAmbientEcgVariant.b,
-    OperationAmbientEcgVariant.c,
-    OperationAmbientEcgVariant.a,
-    OperationAmbientEcgVariant.b,
-    OperationAmbientEcgVariant.c,
-    OperationAmbientEcgVariant.b,
-    OperationAmbientEcgVariant.c,
-  ];
-  static OperationAmbientEcgVariant variantAt(int sequenceIndex) =>
-      _variantSequence[sequenceIndex % _variantSequence.length];
   OperationAmbientPulsePainter({
     required this.phase,
     required this.geometry,
     required this.preset,
     required this.staticFrame,
     required this.sweepPhase,
-    required this.currentVariant,
-    required this.nextVariant,
+    required this.currentTraceIndex,
+    required this.nextTraceIndex,
   }) : super(repaint: phase);
   final Animation<double> phase;
   final OperationAmbientPulseGeometry geometry;
   final OperationAmbientPulsePreset preset;
   final bool staticFrame;
   final OperationAmbientSweepPhase sweepPhase;
-  final OperationAmbientEcgVariant currentVariant;
-  final OperationAmbientEcgVariant nextVariant;
-  final Map<OperationAmbientEcgVariant, Path> _cachedPaths = {};
+  final int currentTraceIndex;
+  final int nextTraceIndex;
+  final Map<int, _OperationAmbientCachedTrace> _cachedTraces = {};
   Size? _cachedSize;
   double get revealProgress =>
       staticFrame || geometry.waveform == OperationAmbientWaveform.sine
       ? 1
       : phase.value;
 
-  List<double> pulseFractionsFor(
-    OperationAmbientEcgVariant variant,
-  ) => switch (variant) {
-    // Baseline, small pre-deflection, peak, negative return, recovery,
-    // baseline. Variants differ only horizontally, preserving amplitude.
-    OperationAmbientEcgVariant.a => const [.42, .46, .49, .52, .56, .60, .64],
-    OperationAmbientEcgVariant.b => const [.30, .35, .39, .43, .47, .52, .58],
-    OperationAmbientEcgVariant.c => const [.54, .58, .61, .64, .68, .72, .78],
-  };
+  /// The trace metadata is generated from presentation-only inputs and cached
+  /// with the Path. This is intentionally available to widget tests so
+  /// spacing, families, widths, and envelopes are verified structurally.
+  List<OperationAmbientEcgEvent> traceEventsFor(Size size, int traceIndex) =>
+      _traceFor(size, traceIndex).events;
 
-  /// A full trace is composed from several controlled family members. The
-  /// composition is deterministic for a trace variant and viewport, and is
-  /// only rebuilt when the cached trace itself changes.
-  List<OperationAmbientEcgVariant> traceCompositionFor(
-    Size size,
-    OperationAmbientEcgVariant traceVariant,
-  ) {
-    final count = math.max(1, (size.width / geometry.waveLength).ceil());
-    return List.generate(
-      count,
-      (index) =>
-          _variantSequence[(traceVariant.index + index) %
-              _variantSequence.length],
-    );
-  }
-
-  int eventCountFor(Size size, OperationAmbientEcgVariant traceVariant) =>
-      traceCompositionFor(size, traceVariant).length;
+  int eventCountFor(Size size, int traceIndex) =>
+      traceEventsFor(size, traceIndex).length;
 
   OperationAmbientSweepRegions sweepRegionsFor(
     Size size, {
@@ -378,26 +346,31 @@ class OperationAmbientPulsePainter extends CustomPainter {
       return;
     }
     if (staticFrame) {
-      canvas.drawPath(_ecg(size, currentVariant), paint);
+      canvas.drawPath(_ecg(size, currentTraceIndex), paint);
       return;
     }
     final regions = sweepRegionsFor(size);
     if (sweepPhase == OperationAmbientSweepPhase.initialize) {
       _paintClipped(
         canvas,
-        _ecg(size, currentVariant),
+        _ecg(size, currentTraceIndex),
         regions.newTrace,
         paint,
       );
       return;
     }
-    _paintClipped(canvas, _ecg(size, currentVariant), regions.oldTrace, paint);
-    _paintClipped(canvas, _ecg(size, nextVariant), regions.newTrace, paint);
+    _paintClipped(
+      canvas,
+      _ecg(size, currentTraceIndex),
+      regions.oldTrace,
+      paint,
+    );
+    _paintClipped(canvas, _ecg(size, nextTraceIndex), regions.newTrace, paint);
     final head = activeHeadRegionFor(size);
     if (!head.isEmpty) {
       _paintClipped(
         canvas,
-        _ecg(size, nextVariant),
+        _ecg(size, nextTraceIndex),
         head,
         Paint()
           ..color = geometry.color.withValues(alpha: .78)
@@ -436,40 +409,126 @@ class OperationAmbientPulsePainter extends CustomPainter {
     return path;
   }
 
-  Path _ecg(Size size, OperationAmbientEcgVariant variant) {
+  Path _ecg(Size size, int traceIndex) => _traceFor(size, traceIndex).path;
+
+  _OperationAmbientCachedTrace _traceFor(Size size, int traceIndex) {
     if (_cachedSize != size) {
       _cachedSize = size;
-      _cachedPaths.clear();
+      _cachedTraces.clear();
     }
-    final existing = _cachedPaths[variant];
+    final existing = _cachedTraces[traceIndex];
     if (existing != null) return existing;
-    final path = Path();
-    final mid = size.height / 2, period = geometry.waveLength;
-    path.moveTo(0, mid);
-    final composition = traceCompositionFor(size, variant);
-    for (var index = 0; index < composition.length; index++) {
-      final start = index * period;
-      final fractions = pulseFractionsFor(composition[index]);
-      void line(double f, double y) {
-        final x = start + period * f;
-        if (x <= size.width) path.lineTo(x, y);
-      }
 
-      line(fractions[0], mid);
-      line(fractions[1], mid - geometry.amplitude * .25);
-      line(fractions[2], mid + geometry.amplitude * .12);
-      line(fractions[3], mid - geometry.amplitude);
-      line(fractions[4], mid + geometry.amplitude * .55);
-      line(fractions[5], mid - geometry.amplitude * .30);
-      line(fractions[6], mid);
-      if (preset == OperationAmbientPulsePreset.red) {
-        line(.82, mid - geometry.amplitude * .38);
-        line(.87, mid + geometry.amplitude * .28);
-        line(.92, mid - geometry.amplitude * .18);
-      }
-      path.lineTo(math.min(start + period, size.width), mid);
+    final path = Path();
+    final mid = size.height / 2;
+    path.moveTo(0, mid);
+    final events = _generateEvents(size, traceIndex);
+    for (final event in events) {
+      path.lineTo(event.x, mid);
+      _appendEvent(path, event, mid);
+      path.lineTo(event.right, mid);
     }
-    return _cachedPaths[variant] = path..lineTo(size.width, mid);
+    path.lineTo(size.width, mid);
+    final trace = _OperationAmbientCachedTrace(path: path, events: events);
+    _cachedTraces[traceIndex] = trace;
+    return trace;
+  }
+
+  List<OperationAmbientEcgEvent> _generateEvents(Size size, int traceIndex) {
+    final random = _OperationAmbientDeterministicRandom(
+      _traceSeed(size, traceIndex),
+    );
+    final nominal = geometry.waveLength;
+    final intervalRange = switch (preset) {
+      OperationAmbientPulsePreset.green => (min: .70, max: 1.30),
+      OperationAmbientPulsePreset.yellow => (min: .70, max: 1.30),
+      OperationAmbientPulsePreset.red => (min: 11 / 15, max: 20 / 15),
+      OperationAmbientPulsePreset.neutral => (min: 1.0, max: 1.0),
+    };
+    final baseWidth = switch (preset) {
+      OperationAmbientPulsePreset.green => 20.0,
+      OperationAmbientPulsePreset.yellow => 12.0,
+      OperationAmbientPulsePreset.red => 7.0,
+      OperationAmbientPulsePreset.neutral => 0.0,
+    };
+    final minimumGap = switch (preset) {
+      OperationAmbientPulsePreset.green => 4.0,
+      OperationAmbientPulsePreset.yellow => 3.0,
+      OperationAmbientPulsePreset.red => 2.0,
+      OperationAmbientPulsePreset.neutral => 0.0,
+    };
+    final events = <OperationAmbientEcgEvent>[];
+    var x = nominal * random.range(.32, .55);
+    OperationAmbientEcgFamily? previousFamily;
+    while (x + baseWidth * .72 <= size.width) {
+      final width = baseWidth * random.range(.72, 1.22);
+      if (x + width > size.width) break;
+      var family = OperationAmbientEcgFamily
+          .values[random.nextInt(OperationAmbientEcgFamily.values.length)];
+      if (family == previousFamily) {
+        family =
+            OperationAmbientEcgFamily.values[(family.index +
+                    1 +
+                    random.nextInt(3)) %
+                OperationAmbientEcgFamily.values.length];
+      }
+      final event = OperationAmbientEcgEvent(
+        x: x,
+        width: width,
+        family: family,
+        heightFactor: random.range(.65, 1.0),
+        secondaryFactor: random.range(.35, .70),
+      );
+      events.add(event);
+      previousFamily = family;
+      final interval =
+          nominal * random.range(intervalRange.min, intervalRange.max);
+      x += math.max(interval, width + minimumGap);
+    }
+    return events;
+  }
+
+  int _traceSeed(Size size, int traceIndex) =>
+      ((preset.index + 1) * 73856093 ^
+          (traceIndex + 1) * 19349663 ^
+          size.width.round() * 83492791) &
+      0x7fffffff;
+
+  void _appendEvent(Path path, OperationAmbientEcgEvent event, double mid) {
+    final amplitude = geometry.amplitude * event.heightFactor;
+    double up(double factor) => mid - amplitude * factor;
+    double down(double factor) => mid + amplitude * factor;
+    void point(double fraction, double y) =>
+        path.lineTo(event.x + event.width * fraction, y);
+
+    switch (event.family) {
+      case OperationAmbientEcgFamily.upDownUp:
+        point(.18, up(.62));
+        point(.40, down(event.secondaryFactor));
+        point(.64, up(1));
+        point(.84, down(event.secondaryFactor * .82));
+      case OperationAmbientEcgFamily.downUpDown:
+        point(.18, down(.62));
+        point(.40, up(event.secondaryFactor));
+        point(.64, down(1));
+        point(.84, up(event.secondaryFactor * .82));
+      case OperationAmbientEcgFamily.positiveDominant:
+        point(.16, down(.20));
+        point(.42, up(1));
+        point(.66, down(event.secondaryFactor));
+        point(.84, up(.28));
+      case OperationAmbientEcgFamily.negativeDominant:
+        point(.16, up(.20));
+        point(.42, down(1));
+        point(.66, up(event.secondaryFactor));
+        point(.84, down(.28));
+      case OperationAmbientEcgFamily.multiDeflection:
+        point(.14, up(.38));
+        point(.30, down(event.secondaryFactor * .82));
+        point(.50, up(.88));
+        point(.70, down(event.secondaryFactor));
+        point(.86, up(.34));
+    }
   }
 
   double _remainder(double v) {
@@ -486,8 +545,58 @@ class OperationAmbientPulsePainter extends CustomPainter {
       old.preset != preset ||
       old.staticFrame != staticFrame ||
       old.sweepPhase != sweepPhase ||
-      old.currentVariant != currentVariant ||
-      old.nextVariant != nextVariant;
+      old.currentTraceIndex != currentTraceIndex ||
+      old.nextTraceIndex != nextTraceIndex;
+}
+
+class OperationAmbientEcgEvent {
+  const OperationAmbientEcgEvent({
+    required this.x,
+    required this.width,
+    required this.family,
+    required this.heightFactor,
+    required this.secondaryFactor,
+  });
+
+  final double x;
+  final double width;
+  final OperationAmbientEcgFamily family;
+  final double heightFactor;
+  final double secondaryFactor;
+
+  double get right => x + width;
+  bool get positiveFirst => switch (family) {
+    OperationAmbientEcgFamily.upDownUp ||
+    OperationAmbientEcgFamily.negativeDominant ||
+    OperationAmbientEcgFamily.multiDeflection => true,
+    OperationAmbientEcgFamily.downUpDown ||
+    OperationAmbientEcgFamily.positiveDominant => false,
+  };
+}
+
+class _OperationAmbientCachedTrace {
+  const _OperationAmbientCachedTrace({
+    required this.path,
+    required this.events,
+  });
+  final Path path;
+  final List<OperationAmbientEcgEvent> events;
+}
+
+/// Tiny deterministic generator kept presentation-only: traces reproduce from
+/// preset, viewport width, and generation index without wall-clock entropy.
+class _OperationAmbientDeterministicRandom {
+  _OperationAmbientDeterministicRandom(this._state);
+  int _state;
+
+  int _next() {
+    _state = ((_state * 1103515245) + 12345) & 0x7fffffff;
+    return _state;
+  }
+
+  int nextInt(int upperExclusive) => _next() % upperExclusive;
+  double range(double minimum, double maximum) =>
+      minimum + (_next() / 0x7fffffff) * (maximum - minimum);
 }
 
 class OperationAmbientSweepRegions {

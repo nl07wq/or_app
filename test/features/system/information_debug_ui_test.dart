@@ -58,8 +58,11 @@ void main() {
       OperationAmbientPulseGeometry.forPreset(
         operationAmbientPulsePresetFor(OperationStatus.green),
       ).amplitude,
-      8,
+      12,
     );
+    expect(find.text('AMP 12px / ~80px'), findsOneWidget);
+    expect(find.text('AMP 10px / ~40px'), findsOneWidget);
+    expect(find.text('AMP 5px / ~15px'), findsOneWidget);
     expect(
       tester
           .widgetList<OperationAmbientAnimation>(

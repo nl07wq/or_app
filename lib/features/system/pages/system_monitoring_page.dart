@@ -362,7 +362,7 @@ class _AmbientPulseDebugRow extends StatelessWidget {
     final geometry = OperationAmbientPulseGeometry.forPreset(preset);
     final details = preset == OperationAmbientPulsePreset.neutral
         ? 'NEUTRAL'
-        : 'AMP ${geometry.amplitude.toStringAsFixed(0)}px / ${geometry.waveLength.toStringAsFixed(0)}px';
+        : 'AMP ${geometry.amplitude.toStringAsFixed(0)}px / ~${geometry.waveLength.toStringAsFixed(0)}px';
     return Semantics(
       container: true,
       label: 'Ambient pulse debug $label',
