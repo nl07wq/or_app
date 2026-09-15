@@ -108,6 +108,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final _foodSearchController = TextEditingController();
   final _recipeSearchController = TextEditingController();
   final _mealSearchController = TextEditingController();
+  final _mealItemUsedAmountController = TextEditingController();
+  final _mealItemQuantityController = TextEditingController();
 
   MealType mealType = MealType.breakfast;
 
@@ -128,11 +130,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
   FoodCatalogCategory category = FoodCatalogCategory.preparedFood;
   FoodQuantityUnit? packageUnit;
 
-  int? editingIndex;
+  int? _mealItemEditingIndex;
+  bool _syncingMealItemEdit = false;
+  String? _mealItemEditError;
   bool isWaterEntry = false;
   String? inputError;
   FoodQuantityUnit baseUnit = FoodQuantityUnit.gram;
-  double? _lastValidBaseAmount = _defaultBaseAmount;
   double? _rawCalories;
   double? _rawProtein;
   double? _rawFat;
@@ -151,13 +154,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
 
-  FoodAmountMode get _inputAmountMode {
-    final index = editingIndex;
-    if (index != null && items[index].hasMeasuredAmount) {
-      return items[index].effectiveAmountMode;
-    }
-    return FoodAmountMode.baseMultiplier;
-  }
+  FoodAmountMode get _inputAmountMode => FoodAmountMode.baseMultiplier;
 
   @override
   void initState() {
@@ -241,6 +238,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _foodSearchController.dispose();
     _recipeSearchController.dispose();
     _mealSearchController.dispose();
+    _mealItemUsedAmountController.dispose();
+    _mealItemQuantityController.dispose();
     super.dispose();
   }
 
@@ -286,26 +285,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
     final baseAmount = double.tryParse(baseAmountController.text.trim());
     final amount = double.tryParse(amountController.text.trim());
-    final editingItem = editingIndex == null ? null : items[editingIndex!];
-    final preservesLegacy =
-        editingItem != null &&
-        !editingItem.hasMeasuredAmount &&
-        baseAmountController.text.trim().isEmpty &&
-        amountController.text.trim().isEmpty;
-    if (!preservesLegacy &&
-        (baseAmount == null ||
-            !baseAmount.isFinite ||
-            baseAmount <= 0 ||
-            amount == null ||
-            !amount.isFinite ||
-            amount <= 0)) {
+    if (baseAmount == null ||
+        !baseAmount.isFinite ||
+        baseAmount <= 0 ||
+        amount == null ||
+        !amount.isFinite ||
+        amount <= 0) {
       return null;
     }
 
     try {
-      final amountMode = editingItem != null && editingItem.hasMeasuredAmount
-          ? editingItem.amountMode
-          : FoodAmountMode.baseMultiplier;
       return FoodItem(
         name: name,
         calories: calories!,
@@ -313,14 +302,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
         fat: fat!,
         carbohydrate: carbohydrate!,
         quantity: quantity,
-        amount: preservesLegacy ? null : amount,
-        baseAmount: preservesLegacy ? null : baseAmount,
-        baseUnit: preservesLegacy
-            ? null
-            : baseUnit == FoodQuantityUnit.milliliter
+        amount: amount,
+        baseAmount: baseAmount,
+        baseUnit: baseUnit == FoodQuantityUnit.milliliter
             ? FoodBaseUnit.ml
             : FoodBaseUnit.g,
-        amountMode: preservesLegacy ? null : amountMode,
+        amountMode: FoodAmountMode.baseMultiplier,
       );
     } on ArgumentError {
       return null;
@@ -365,7 +352,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void _setDefaultMeasurementInputs() {
     baseAmountController.text = _formatAmount(_defaultBaseAmount);
     amountController.text = _formatAmount(_defaultAmount);
-    _lastValidBaseAmount = _defaultBaseAmount;
   }
 
   void _onBaseAmountChanged(String source) {
@@ -382,8 +368,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
           nextBaseAmount <= 0) {
         return;
       }
-
-      _lastValidBaseAmount = nextBaseAmount;
     });
   }
 
@@ -552,90 +536,180 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _categories.removeAt(index);
       _itemMemos.removeAt(index);
 
-      if (editingIndex == index) {
-        editingIndex = null;
-        _clearFoodInputs();
-      } else if (editingIndex != null && editingIndex! > index) {
-        editingIndex = editingIndex! - 1;
+      if (_mealItemEditingIndex == index) {
+        _cancelMealItemEdit();
+      } else if (_mealItemEditingIndex != null &&
+          _mealItemEditingIndex! > index) {
+        _mealItemEditingIndex = _mealItemEditingIndex! - 1;
       }
     });
   }
 
-  void editFood(int index) {
-    final item = items[index];
+  double _sourceBaseAmount(int index) {
     final source = _catalogSources[index];
-    final recipe = _recipeSources[index];
-
-    setState(() {
-      editingIndex = index;
-      _currentCatalogSource = source;
-      _currentRecipeSource = recipe;
-      if (source != null) {
-        _setMasterFields(source);
-      } else {
-        brandController.clear();
-        barcodeController.clear();
-        packageQuantityController.clear();
-        foodMemoController.clear();
-        category = FoodCatalogCategory.preparedFood;
-        packageUnit = null;
-        _basisLinkedToPackage = false;
-      }
-
-      foodNameController.text = item.name;
-      _setRawNutrition(
-        calories: item.calories.toDouble(),
-        protein: item.protein,
-        fat: item.fat,
-        carbohydrate: item.carbohydrate,
-      );
-      baseAmountController.text = item.baseAmount == null
-          ? ''
-          : _formatAmount(item.baseAmount!);
-      amountController.text = item.amount == null
-          ? ''
-          : _formatAmount(item.amount!);
-      baseUnit = recipe != null
-          ? FoodQuantityUnit.serving
-          : source?.baseQuantity.unit ?? _quantityUnits[index];
-      _lastValidBaseAmount = item.baseAmount;
-      inputError = null;
-    });
+    return source == null
+        ? items[index].baseAmount!
+        : _catalogSourceBaseAmount(source);
   }
 
-  void updateFood() {
-    if (editingIndex == null) return;
+  FoodQuantityUnit _sourceUnit(int index) => _catalogSources[index] == null
+      ? _quantityUnits[index]
+      : _catalogSourceUnit(_catalogSources[index]!);
 
-    final item = _currentFoodItem(quantity: items[editingIndex!].quantity);
+  double _nutritionBasisAmount(int index) =>
+      _catalogSources[index]?.baseQuantity.value ?? items[index].baseAmount!;
 
-    if (item == null) {
+  void _setMealItemEditText(TextEditingController controller, double value) {
+    final text = _formatAmount(value);
+    controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  void _openMealItemEditor(int index) {
+    if (_mealItemEditingIndex != null || index >= items.length) return;
+    final item = items[index];
+    final isRecipe = _recipeSources[index] != null;
+    if (!isRecipe && !item.hasMeasuredAmount) {
       setState(() {
-        inputError =
-            'Enter valid food, base amount, quantity, and nutrition values.';
+        _mealItemEditingIndex = index;
+        _mealItemEditError =
+            'THIS LEGACY ITEM DOES NOT RETAIN A SAFE EDITABLE AMOUNT.';
       });
       return;
     }
-
+    final usedAmount = isRecipe ? null : item.physicalAmount!;
+    final quantity = isRecipe
+        ? item.multiplier
+        : usedAmount! / _sourceBaseAmount(index);
     setState(() {
-      items[editingIndex!] = item;
-      _catalogSources[editingIndex!] = _currentCatalogSource;
-      _recipeSources[editingIndex!] = _currentRecipeSource;
-      _quantityUnits[editingIndex!] = baseUnit;
-      if (_currentCatalogSource != null) {
-        _foodReferenceIds[editingIndex!] = _currentCatalogSource!.foodId;
-        _recipeReferenceIds[editingIndex!] = null;
-        _brandSnapshots[editingIndex!] = _currentCatalogSource!.brand;
-        _categories[editingIndex!] = _currentCatalogSource!.category;
-      } else if (_currentRecipeSource != null) {
-        _foodReferenceIds[editingIndex!] = null;
-        _recipeReferenceIds[editingIndex!] = _currentRecipeSource!.recipeId;
+      _mealItemEditingIndex = index;
+      _mealItemEditError = null;
+      if (usedAmount != null) {
+        _setMealItemEditText(_mealItemUsedAmountController, usedAmount);
       }
-
-      editingIndex = null;
-      inputError = null;
-
-      _clearFoodInputs();
+      _setMealItemEditText(_mealItemQuantityController, quantity);
     });
+  }
+
+  void _changeMealItemUsedAmount(String text) {
+    if (_syncingMealItemEdit) return;
+    final index = _mealItemEditingIndex;
+    final usedAmount = double.tryParse(text.trim());
+    if (index == null ||
+        usedAmount == null ||
+        !usedAmount.isFinite ||
+        usedAmount <= 0) {
+      setState(() => _mealItemEditError = 'ENTER A VALID USED AMOUNT.');
+      return;
+    }
+    _syncingMealItemEdit = true;
+    _setMealItemEditText(
+      _mealItemQuantityController,
+      usedAmount / _sourceBaseAmount(index),
+    );
+    _syncingMealItemEdit = false;
+    setState(() => _mealItemEditError = null);
+  }
+
+  void _changeMealItemQuantity(String text) {
+    if (_syncingMealItemEdit) return;
+    final index = _mealItemEditingIndex;
+    final quantity = double.tryParse(text.trim());
+    if (index == null ||
+        quantity == null ||
+        !quantity.isFinite ||
+        quantity <= 0) {
+      setState(() => _mealItemEditError = 'ENTER A VALID QUANTITY.');
+      return;
+    }
+    _syncingMealItemEdit = true;
+    if (_recipeSources[index] == null) {
+      _setMealItemEditText(
+        _mealItemUsedAmountController,
+        _sourceBaseAmount(index) * quantity,
+      );
+    }
+    _syncingMealItemEdit = false;
+    setState(() => _mealItemEditError = null);
+  }
+
+  void _adjustMealItemValue({required bool usedAmount, required double delta}) {
+    final controller = usedAmount
+        ? _mealItemUsedAmountController
+        : _mealItemQuantityController;
+    final current = double.tryParse(controller.text.trim());
+    if (current == null || !current.isFinite || current + delta <= 0) return;
+    final next = _formatAmount(current + delta);
+    controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    if (usedAmount) {
+      _changeMealItemUsedAmount(next);
+    } else {
+      _changeMealItemQuantity(next);
+    }
+  }
+
+  FoodItem? _editedMealItem() {
+    final index = _mealItemEditingIndex;
+    if (index == null) return null;
+    final item = items[index];
+    final quantity = double.tryParse(_mealItemQuantityController.text.trim());
+    if (quantity == null || !quantity.isFinite || quantity <= 0) return null;
+    if (_recipeSources[index] != null) {
+      return item.copyWith(
+        amount: quantity,
+        amountMode: FoodAmountMode.baseMultiplier,
+      );
+    }
+    final usedAmount = double.tryParse(
+      _mealItemUsedAmountController.text.trim(),
+    );
+    if (usedAmount == null || !usedAmount.isFinite || usedAmount <= 0) {
+      return null;
+    }
+    return FoodItem(
+      name: item.name,
+      calories: item.calories,
+      protein: item.protein,
+      fat: item.fat,
+      carbohydrate: item.carbohydrate,
+      quantity: item.quantity,
+      amount: usedAmount,
+      baseAmount: _nutritionBasisAmount(index),
+      baseUnit: _sourceUnit(index) == FoodQuantityUnit.milliliter
+          ? FoodBaseUnit.ml
+          : FoodBaseUnit.g,
+      amountMode: _catalogSources[index] == null
+          ? item.amountMode
+          : FoodAmountMode.physicalAmount,
+    );
+  }
+
+  void _saveMealItemEdit() {
+    final index = _mealItemEditingIndex;
+    final edited = _editedMealItem();
+    if (index == null || edited == null) {
+      setState(() => _mealItemEditError = 'ENTER A VALID POSITIVE VALUE.');
+      return;
+    }
+    setState(() {
+      items[index] = edited;
+      _mealItemEditingIndex = null;
+      _mealItemEditError = null;
+      _mealItemUsedAmountController.clear();
+      _mealItemQuantityController.clear();
+    });
+  }
+
+  void _cancelMealItemEdit() {
+    _mealItemEditingIndex = null;
+    _mealItemEditError = null;
+    _mealItemUsedAmountController.clear();
+    _mealItemQuantityController.clear();
   }
 
   void updateQuantity(int index, int change) {
@@ -749,7 +823,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
       if (draft.basisQuantity != null && draft.basisUnit != null) {
         baseAmountController.text = _formatAmount(draft.basisQuantity!);
         baseUnit = draft.basisUnit!;
-        _lastValidBaseAmount = draft.basisQuantity;
         _basisLinkedToPackage = false;
       } else if (_basisLinkedToPackage && packageUnit != null) {
         final source = packageUnit!.isPhysical
@@ -757,7 +830,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
             : '1';
         baseAmountController.text = source;
         baseUnit = packageUnit!;
-        _lastValidBaseAmount = double.tryParse(source);
       }
       if (draft.calories != null) {
         _rawCalories = draft.calories;
@@ -795,9 +867,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
               ? packageQuantityController.text
               : '1';
           baseUnit = draft.packageUnit!;
-          _lastValidBaseAmount = draft.packageUnit!.isPhysical
-              ? draft.packageQuantity
-              : 1;
         }
       }
       inputError = null;
@@ -831,14 +900,29 @@ class _FoodInputFormState extends State<FoodInputForm> {
       protein: nutrition.protein!,
       fat: nutrition.fat!,
       carbohydrate: nutrition.carbohydrate!,
-      amount: multiplier,
+      // A catalog package is the consumed source base; nutrition remains
+      // expressed against the independently stored nutrition basis.
+      amount: _catalogSourceBaseAmount(entry) * multiplier,
       baseAmount: entry.baseQuantity.value,
       baseUnit: entry.baseQuantity.unit == FoodQuantityUnit.milliliter
           ? FoodBaseUnit.ml
           : FoodBaseUnit.g,
-      amountMode: FoodAmountMode.baseMultiplier,
+      amountMode: FoodAmountMode.physicalAmount,
     );
   }
+
+  bool _usesPackageSource(FoodCatalogEntry entry) =>
+      entry.packageQuantity != null &&
+      entry.packageUnit != null &&
+      entry.packageUnit == entry.baseQuantity.unit;
+
+  double _catalogSourceBaseAmount(FoodCatalogEntry entry) =>
+      _usesPackageSource(entry)
+      ? entry.packageQuantity!
+      : entry.baseQuantity.value;
+
+  FoodQuantityUnit _catalogSourceUnit(FoodCatalogEntry entry) =>
+      _usesPackageSource(entry) ? entry.packageUnit! : entry.baseQuantity.unit;
 
   FoodItem? _databaseRecipeItem(FoodRecipeDefinition recipe, double servings) {
     final nutrition = FoodRecipeNutrition.perServing(recipe);
@@ -972,7 +1056,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
             newItems: [item],
             foodSources: [entry],
             recipeSources: [null],
-            units: [entry.baseQuantity.unit],
+            units: [_catalogSourceUnit(entry)],
           );
           _pendingDatabaseSelection = null;
           _pendingQuantityController.clear();
@@ -1134,7 +1218,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final brandSnapshots = List<String?>.from(_brandSnapshots);
     final categories = List<FoodCatalogCategory?>.from(_categories);
     final itemMemos = List<String?>.from(_itemMemos);
-    if (editingIndex == null && _currentFoodItem() != null) {
+    if (_currentFoodItem() != null) {
       sources.add(_currentCatalogSource);
       recipeSources.add(_currentRecipeSource);
       quantityUnits.add(baseUnit);
@@ -1190,7 +1274,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   bool get _canSwitchInputMode =>
-      !_isSaving && _pendingDatabaseSelection == null;
+      !_isSaving &&
+      _pendingDatabaseSelection == null &&
+      _mealItemEditingIndex == null;
 
   Widget _entryTypeControls() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1387,8 +1473,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   String _pendingUnit(_DatabaseFoodSelection pending) =>
       switch (pending.value) {
-        FoodCatalogEntry(:final baseQuantity) =>
-          '× ${FoodNutritionFormatter.compactQuantity(baseQuantity)}',
+        final FoodCatalogEntry entry =>
+          '× ${_formatAmount(_catalogSourceBaseAmount(entry))} '
+              '${_catalogSourceUnit(entry).stableId}',
         FoodRecipeDefinition() => 'serving',
         FoodMealMaster() => 'meal',
         _ => '',
@@ -1745,14 +1832,158 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
       );
 
+  Widget _mealItemEditor() {
+    final index = _mealItemEditingIndex!;
+    final item = items[index];
+    final recipe = _recipeSources[index];
+    final catalog = _catalogSources[index];
+    final editable = recipe != null || item.hasMeasuredAmount;
+    final isRecipe = recipe != null;
+    final unit = isRecipe ? FoodQuantityUnit.serving : _sourceUnit(index);
+    final sourceBase = !editable
+        ? null
+        : isRecipe
+        ? 1.0
+        : _sourceBaseAmount(index);
+    final usedAmount = double.tryParse(_mealItemUsedAmountController.text);
+    final quantity = double.tryParse(_mealItemQuantityController.text);
+    final candidate = editable ? _editedMealItem() : null;
+    return OperationCard(
+      key: const ValueKey('food-meal-item-editor'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            icon: Icons.edit_outlined,
+            title: 'EDIT MEAL ITEM',
+          ),
+          AppSpacing.gapSM,
+          Text(item.name, style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            isRecipe
+                ? 'RECIPE'
+                : catalog == null
+                ? 'MANUAL'
+                : 'FOOD',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          AppSpacing.gapMD,
+          if (!editable)
+            Text(
+              _mealItemEditError ??
+                  'THIS ITEM DOES NOT RETAIN A SAFE EDITABLE AMOUNT.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            )
+          else if (isRecipe) ...[
+            FoodNumericStepperRow(
+              key: const ValueKey('meal-item-serving-stepper'),
+              inputKey: const ValueKey('meal-item-serving-input'),
+              controller: _mealItemQuantityController,
+              label: 'SERVINGS',
+              onChanged: _changeMealItemQuantity,
+              incrementKey: const ValueKey('meal-item-serving-increment'),
+              incrementTooltip: 'Increase servings',
+              onIncrement: () =>
+                  _adjustMealItemValue(usedAmount: false, delta: 1),
+              decrementKey: const ValueKey('meal-item-serving-decrement'),
+              decrementTooltip: 'Decrease servings',
+              onDecrement: () =>
+                  _adjustMealItemValue(usedAmount: false, delta: -1),
+            ),
+          ] else ...[
+            FoodNumericStepperRow(
+              key: const ValueKey('meal-item-used-amount-stepper'),
+              inputKey: const ValueKey('meal-item-used-amount-input'),
+              controller: _mealItemUsedAmountController,
+              label:
+                  'USED AMOUNT (${FoodNutritionFormatter.quantityUnit(unit)})',
+              onChanged: _changeMealItemUsedAmount,
+              incrementKey: const ValueKey('meal-item-used-amount-increment'),
+              incrementTooltip: 'Increase used amount',
+              onIncrement: () =>
+                  _adjustMealItemValue(usedAmount: true, delta: 1),
+              decrementKey: const ValueKey('meal-item-used-amount-decrement'),
+              decrementTooltip: 'Decrease used amount',
+              onDecrement: () =>
+                  _adjustMealItemValue(usedAmount: true, delta: -1),
+            ),
+            AppSpacing.gapSM,
+            FoodNumericStepperRow(
+              key: const ValueKey('meal-item-quantity-stepper'),
+              inputKey: const ValueKey('meal-item-quantity-input'),
+              controller: _mealItemQuantityController,
+              label: 'QUANTITY',
+              onChanged: _changeMealItemQuantity,
+              incrementKey: const ValueKey('meal-item-quantity-increment'),
+              incrementTooltip: 'Increase quantity',
+              onIncrement: () =>
+                  _adjustMealItemValue(usedAmount: false, delta: 1),
+              decrementKey: const ValueKey('meal-item-quantity-decrement'),
+              decrementTooltip: 'Decrease quantity',
+              onDecrement: () =>
+                  _adjustMealItemValue(usedAmount: false, delta: -1),
+            ),
+            AppSpacing.gapXS,
+            Text(
+              'BASIS  ${_formatAmount(sourceBase!)}'
+              '${FoodNutritionFormatter.quantityUnit(unit)} × '
+              '${quantity == null ? '—' : _formatAmount(quantity)} = '
+              '${usedAmount == null ? '—' : _formatAmount(usedAmount)}'
+              '${FoodNutritionFormatter.quantityUnit(unit)}',
+              key: const ValueKey('meal-item-edit-basis'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          if (_mealItemEditError != null && editable) ...[
+            AppSpacing.gapSM,
+            Text(
+              _mealItemEditError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+          if (candidate != null) ...[
+            AppSpacing.gapSM,
+            Text(
+              '${FoodNutritionFormatter.calories(candidate.totalCalories)}kcal'
+              '  P ${FoodNutritionFormatter.macro(candidate.totalProtein)}g'
+              '  F ${FoodNutritionFormatter.macro(candidate.totalFat)}g'
+              '  C ${FoodNutritionFormatter.macro(candidate.totalCarbohydrate)}g',
+              key: const ValueKey('meal-item-edit-nutrition-preview'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          AppSpacing.gapMD,
+          Row(
+            children: [
+              Expanded(
+                child: OperationButton(
+                  key: const ValueKey('meal-item-edit-save'),
+                  icon: Icons.check,
+                  text: 'SAVE',
+                  onPressed: editable ? _saveMealItemEdit : null,
+                ),
+              ),
+              AppSpacing.gapSM,
+              OutlinedButton(
+                key: const ValueKey('meal-item-edit-cancel'),
+                onPressed: () => setState(_cancelMealItemEdit),
+                child: const Text('CANCEL'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final preview = editingIndex == null ? previewItems : items;
+    final preview = previewItems;
     final previewCatalogSources = List<FoodCatalogEntry?>.from(_catalogSources);
     final previewRecipeSources = List<FoodRecipeDefinition?>.from(
       _recipeSources,
     );
-    if (editingIndex == null && _currentFoodItem() != null) {
+    if (_currentFoodItem() != null) {
       previewCatalogSources.add(_currentCatalogSource);
       previewRecipeSources.add(_currentRecipeSource);
     }
@@ -1942,31 +2173,33 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       recipeSources: previewRecipeSources,
                       quantityUnits: [
                         ..._quantityUnits,
-                        if (editingIndex == null && _currentFoodItem() != null)
-                          baseUnit,
+                        if (_currentFoodItem() != null) baseUnit,
                       ],
                       onDelete: (index) {
-                        if (index < items.length) {
+                        if (index < items.length &&
+                            _mealItemEditingIndex == null) {
                           removeFood(index);
                         }
                       },
                       onTap: (index) {
-                        if (index < items.length) {
-                          editFood(index);
+                        if (index < items.length &&
+                            _mealItemEditingIndex == null) {
+                          _openMealItemEditor(index);
                         }
                       },
                       onQuantityChanged: updateQuantity,
                       editableItemCount: items.length,
-                      actionIcon: editingIndex == null
-                          ? Icons.add_circle_outline
-                          : Icons.edit_outlined,
-                      actionText: editingIndex == null
-                          ? 'ADD FOOD'
-                          : 'Update Food',
-                      onAction: editingIndex == null ? addFood : updateFood,
+                      actionIcon: Icons.add_circle_outline,
+                      actionText: 'ADD FOOD',
+                      onAction: addFood,
                       showPrimaryAction:
                           _inputMode == _FoodEntryInputMode.manual,
                     ),
+
+                  if (_mealItemEditingIndex != null) ...[
+                    AppSpacing.gapMD,
+                    _mealItemEditor(),
+                  ],
 
                   if (preview.isNotEmpty) ...[
                     AppSpacing.gapXL,
@@ -2010,58 +2243,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
-  void _setMasterFields(FoodCatalogEntry entry) {
-    foodNameController.text = entry.name;
-    brandController.text = entry.brand ?? '';
-    barcodeController.text = entry.barcodeValue ?? '';
-    packageQuantityController.text = entry.packageQuantity == null
-        ? ''
-        : _formatAmount(entry.packageQuantity!);
-    foodMemoController.text = entry.memo ?? '';
-    category = entry.category;
-    packageUnit = entry.packageUnit;
-  }
-
-  void _setRawNutrition({
-    required double? calories,
-    required double? protein,
-    required double? fat,
-    required double? carbohydrate,
-  }) {
-    _rawCalories = calories;
-    _rawProtein = protein;
-    _rawFat = fat;
-    _rawCarbohydrate = carbohydrate;
-    calorieController.text = calories == null
-        ? ''
-        : FoodNutritionFormatter.calories(calories);
-    proteinController.text = protein == null
-        ? ''
-        : FoodNutritionFormatter.macro(protein);
-    fatController.text = fat == null ? '' : FoodNutritionFormatter.macro(fat);
-    carbohydrateController.text = carbohydrate == null
-        ? ''
-        : FoodNutritionFormatter.macro(carbohydrate);
-  }
-
   void _clearRawNutrition() {
     _rawCalories = null;
     _rawProtein = null;
     _rawFat = null;
     _rawCarbohydrate = null;
-  }
-
-  static double? _rescaleNutrition({
-    required TextEditingController controller,
-    required double? rawValue,
-    required double multiplier,
-    required String Function(num) formatter,
-  }) {
-    final source = rawValue ?? double.tryParse(controller.text.trim());
-    if (source == null || !source.isFinite || source < 0) return null;
-    final result = source * multiplier;
-    controller.text = formatter(result);
-    return result;
   }
 }
 

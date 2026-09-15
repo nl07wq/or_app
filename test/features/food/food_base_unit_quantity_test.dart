@@ -748,7 +748,7 @@ void main() {
       expect(saved!.items.single.toJson()['baseUnit'], 'mL');
     });
 
-    testWidgets('editing a legacy item preserves serving semantics', (
+    testWidgets('legacy item edit does not invent missing amount semantics', (
       tester,
     ) async {
       final legacyMeal = MealData(
@@ -788,12 +788,11 @@ void main() {
       await tester.tap(find.text('Legacy'));
       await tester.pump();
       expect(
-        tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
-        isEmpty,
+        find.text('THIS LEGACY ITEM DOES NOT RETAIN A SAFE EDITABLE AMOUNT.'),
+        findsOneWidget,
       );
 
-      await tester.ensureVisible(find.text('Update Food'));
-      await tester.tap(find.text('Update Food'));
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
       await tester.ensureVisible(find.text('UPDATE MEAL'));
       await tester.tap(find.text('UPDATE MEAL'));
       await tester.pump();
@@ -833,12 +832,10 @@ void main() {
       await tester.ensureVisible(find.text('Measured'));
       await tester.tap(find.text('Measured'));
       await tester.pump();
-      expect(_controllerText(tester, 'QUANTITY (g)'), '10');
-      expect(find.text('1 AMOUNT = 100g'), findsNothing);
-      expect(find.textContaining('実使用量:'), findsNothing);
+      expect(_controllerText(tester, 'USED AMOUNT (g)'), '10');
+      expect(find.text('BASIS  100g × 0.1 = 10g'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Update Food'));
-      await tester.tap(find.text('Update Food'));
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
       await tester.ensureVisible(find.text('UPDATE MEAL'));
       await tester.tap(find.text('UPDATE MEAL'));
       await tester.pump();

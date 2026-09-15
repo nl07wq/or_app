@@ -434,6 +434,115 @@ void main() {
     },
   );
 
+  testWidgets(
+    'registered Food item edits synchronize used amount and quantity',
+    (tester) async {
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
+
+      final item = find.byKey(const ValueKey('meal-item-name-0'));
+      await tester.ensureVisible(item);
+      await tester.tap(item);
+      await tester.pumpAndSettle();
+
+      final usedAmount = find.byKey(
+        const ValueKey('meal-item-used-amount-input'),
+      );
+      final quantity = find.byKey(const ValueKey('meal-item-quantity-input'));
+      await tester.enterText(usedAmount, '130');
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(of: quantity, matching: find.byType(TextField)),
+            )
+            .controller!
+            .text,
+        '1.3',
+      );
+      expect(find.textContaining('100g × 1.3 = 130g'), findsOneWidget);
+
+      await tester.enterText(quantity, '1.5');
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(of: usedAmount, matching: find.byType(TextField)),
+            )
+            .controller!
+            .text,
+        '150',
+      );
+      expect(find.textContaining('150kcal'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('food-meal-item-editor')), findsNothing);
+      expect(find.textContaining('100kcal'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Food package quantity and nutrition basis remain distinct in edit',
+    (tester) async {
+      await _installFood(index: 0, baseAmount: 100, packageAmount: 350);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
+      final item = find.byKey(const ValueKey('meal-item-name-0'));
+      await tester.ensureVisible(item);
+      await tester.tap(item);
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('meal-item-quantity-input'));
+      await tester.enterText(quantity, '0.5');
+      await tester.pump();
+      expect(find.textContaining('350g × 0.5 = 175g'), findsOneWidget);
+      expect(find.textContaining('175kcal'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('175kcal'), findsOneWidget);
+    },
+  );
+
+  testWidgets('meal item edit locks mode swipe without discarding its draft', (
+    tester,
+  ) async {
+    await _installFoods(1);
+    await tester.pumpWidget(subject());
+    await tester.tap(modeTab('databaseFood'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('food-db-add')));
+    await tester.pumpAndSettle();
+    final item = find.byKey(const ValueKey('meal-item-name-0'));
+    await tester.ensureVisible(item);
+    await tester.tap(item);
+    await tester.pumpAndSettle();
+
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseFood');
+    expect(find.byKey(const ValueKey('food-meal-item-editor')), findsOneWidget);
+  });
+
   testWidgets('water disables meal type and hides database modes', (
     tester,
   ) async {
@@ -527,33 +636,60 @@ Future<void> _installFoods(int count) async {
   addTearDown(AppRepositoryRegistry.resetForTesting);
   final timestamp = DateTime.utc(2026, 9, 15);
   for (var index = 0; index < count; index++) {
-    await container.foodCatalog.create(
-      FoodCatalogEntry(
-        foodId: _foodId(index),
-        name: 'Food $index',
-        category: FoodCatalogCategory.ingredient,
-        baseQuantity: FoodQuantityDefinition(
-          value: 100,
-          unit: FoodQuantityUnit.gram,
-        ),
-        nutrition: NutritionSnapshot(
-          calories: 100,
-          protein: 10,
-          fat: 5,
-          carbohydrate: 20,
-        ),
-        nutritionStatus: NutritionStatus.declared,
-        provenance: FoodDataProvenance(
-          sourceType: FoodProvenanceSourceType.userInput,
-          capturedAt: timestamp,
-        ),
-        isArchived: false,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      ),
-    );
+    await _createFood(container, index: index, timestamp: timestamp);
   }
 }
+
+Future<void> _installFood({
+  required int index,
+  required double baseAmount,
+  double? packageAmount,
+}) async {
+  final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
+  AppRepositoryRegistry.install(container);
+  addTearDown(AppRepositoryRegistry.resetForTesting);
+  await _createFood(
+    container,
+    index: index,
+    timestamp: DateTime.utc(2026, 9, 15),
+    baseAmount: baseAmount,
+    packageAmount: packageAmount,
+  );
+}
+
+Future<void> _createFood(
+  AppRepositoryContainer container, {
+  required int index,
+  required DateTime timestamp,
+  double baseAmount = 100,
+  double? packageAmount,
+}) => container.foodCatalog.create(
+  FoodCatalogEntry(
+    foodId: _foodId(index),
+    name: 'Food $index',
+    category: FoodCatalogCategory.ingredient,
+    baseQuantity: FoodQuantityDefinition(
+      value: baseAmount,
+      unit: FoodQuantityUnit.gram,
+    ),
+    nutrition: NutritionSnapshot(
+      calories: 100,
+      protein: 10,
+      fat: 5,
+      carbohydrate: 20,
+    ),
+    nutritionStatus: NutritionStatus.declared,
+    provenance: FoodDataProvenance(
+      sourceType: FoodProvenanceSourceType.userInput,
+      capturedAt: timestamp,
+    ),
+    isArchived: false,
+    packageQuantity: packageAmount,
+    packageUnit: packageAmount == null ? null : FoodQuantityUnit.gram,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  ),
+);
 
 String _foodId(int index) =>
     '00000000-0000-4000-8000-${index.toString().padLeft(12, '0')}';
