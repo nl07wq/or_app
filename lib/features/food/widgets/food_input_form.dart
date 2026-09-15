@@ -389,7 +389,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final nutrition = _editableNutrition();
     final reason = _recalculationBlockReason;
     if (reason != null) {
-      setState(() => inputError = reason);
+      setState(() => inputError = foodManualNutritionValidationMessage(reason));
       return;
     }
     final result = FoodNutritionRecalculation.preview(

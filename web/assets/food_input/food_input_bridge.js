@@ -5670,9 +5670,9 @@
 
   async function prepareNutritionCropPreview(dataUrl, maxEdge) {
     const image = await loadImage(dataUrl);
-    // 2048px covers a 3x iPhone crop viewport with room for positioning while
-    // avoiding a second full-resolution Flutter Web decode for each gesture.
-    const limit = Math.max(1, Math.floor(Number(maxEdge) || 2048));
+    // The interaction preview stays at screen-appropriate resolution. The
+    // untouched source image remains the sole input to final crop/export.
+    const limit = Math.max(1, Math.floor(Number(maxEdge) || 1024));
     const longestEdge = Math.max(image.naturalWidth, image.naturalHeight);
     const scale = Math.min(1, limit / longestEdge);
     const width = Math.max(1, Math.round(image.naturalWidth * scale));

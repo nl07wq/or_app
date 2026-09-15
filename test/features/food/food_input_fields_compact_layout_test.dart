@@ -36,6 +36,15 @@ void main() {
     final memoBounds = tester.getRect(_field('MEMO'));
     expect(amountBounds.top, memoBounds.top);
     expect(amountBounds.bottom, memoBounds.bottom);
+    final incrementBounds = tester.getRect(
+      find.byKey(const ValueKey('food-amount-increment')),
+    );
+    final decrementBounds = tester.getRect(
+      find.byKey(const ValueKey('food-amount-decrement')),
+    );
+    expect(incrementBounds.top, greaterThanOrEqualTo(amountBounds.top));
+    expect(decrementBounds.bottom, lessThanOrEqualTo(amountBounds.bottom));
+    expect(incrementBounds.center.dy, lessThan(decrementBounds.center.dy));
     expect(find.text('栄養成分の基準量を設定'), findsOneWidget);
     expect(find.text('100gあたりの栄養成分'), findsOneWidget);
     expect(find.text('NUTRITION PER 100g'), findsNothing);
@@ -111,12 +120,57 @@ void main() {
     expect(find.text('250mLあたりに換算'), findsOneWidget);
     expect(find.text('250mLあたりの栄養成分'), findsOneWidget);
   });
+
+  testWidgets('category and manual validation text use compact Japanese UI', (
+    tester,
+  ) async {
+    final controllers = _Controllers();
+    addTearDown(controllers.dispose);
+    await tester.pumpWidget(
+      _subject(
+        controllers,
+        width: 320,
+        recalculationBlockReason: 'NUTRITION BASIS MUST BE GREATER THAN ZERO',
+      ),
+    );
+
+    final category = tester.widget<Text>(find.text('調理済み食品'));
+    expect(category.style?.fontSize, 14);
+    expect(find.text('登録基準量は0より大きい値を入力してください'), findsOneWidget);
+    expect(
+      find.text('NUTRITION BASIS MUST BE GREATER THAN ZERO'),
+      findsNothing,
+    );
+
+    controllers.base.clear();
+    await tester.pumpWidget(_subject(controllers, width: 320));
+    expect(find.text('栄養成分'), findsOneWidget);
+    expect(find.text('—gあたりの栄養成分'), findsNothing);
+  });
+
+  testWidgets('manual nutrition validation localizes all visible reasons', (
+    tester,
+  ) async {
+    final controllers = _Controllers();
+    addTearDown(controllers.dispose);
+    await tester.pumpWidget(
+      _subject(
+        controllers,
+        width: 320,
+        recalculationBlockReason: 'ENTER AT LEAST ONE NUTRITION VALUE',
+      ),
+    );
+
+    expect(find.text('栄養成分を1項目以上入力してください'), findsOneWidget);
+    expect(find.text('ENTER AT LEAST ONE NUTRITION VALUE'), findsNothing);
+  });
 }
 
 Widget _subject(
   _Controllers controllers, {
   required double width,
   FoodQuantityUnit baseUnit = FoodQuantityUnit.gram,
+  String? recalculationBlockReason,
 }) => MaterialApp(
   theme: StandardTheme.theme,
   home: Scaffold(
@@ -149,6 +203,7 @@ Widget _subject(
           onFatChanged: () {},
           onCarbohydrateChanged: () {},
           onRecalculateNutrition: () {},
+          recalculationBlockReason: recalculationBlockReason,
         ),
       ),
     ),

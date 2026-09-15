@@ -56,12 +56,36 @@ void main() {
     ).readAsStringSync();
 
     expect(bridge, contains("input.accept = 'image/*'"));
-    expect(bridge, contains("if (preferCamera) input.setAttribute('capture', 'environment')"));
+    expect(
+      bridge,
+      contains(
+        "if (preferCamera) input.setAttribute('capture', 'environment')",
+      ),
+    );
     expect(
       bridge,
       contains('gallery path intentionally leaves `capture` unset'),
     );
     expect(gateway, contains('(source == FoodImageSource.camera).toJS'));
+  });
+
+  test('crop interaction uses a bounded preview and retains source export', () {
+    final bridge = File(
+      'web/assets/food_input/food_input_bridge.js',
+    ).readAsStringSync();
+    final gateway = File(
+      'lib/features/food/services/food_input_capture_gateway_web.dart',
+    ).readAsStringSync();
+
+    expect(gateway, contains('1024.toJS'));
+    expect(bridge, contains('Number(maxEdge) || 1024'));
+    expect(
+      bridge,
+      contains(
+        'untouched source image remains the sole input to final crop/export',
+      ),
+    );
+    expect(bridge, contains('async function cropNutritionImage(dataUrl'));
   });
 
   test('visible scan-mode selector keeps hidden engine compatibility', () {

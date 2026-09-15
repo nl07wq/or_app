@@ -77,3 +77,15 @@ abstract final class FoodNutritionRecalculation {
     );
   }
 }
+
+/// Localizes only the user-facing Manual nutrition validation layer. Domain
+/// services retain their stable English reason codes for existing callers.
+String foodManualNutritionValidationMessage(String reason) => switch (reason) {
+  'SET PACKAGE QUANTITY AND UNIT' => '表示量と単位を入力してください',
+  'PACKAGE QUANTITY MUST BE GREATER THAN ZERO' => '表示量は0より大きい値を入力してください',
+  'NUTRITION BASIS MUST BE GREATER THAN ZERO' => '登録基準量は0より大きい値を入力してください',
+  'PACKAGE AND NUTRITION BASIS UNITS MUST MATCH' => '表示量と登録基準量の単位を一致させてください',
+  'ENTER AT LEAST ONE NUTRITION VALUE' => '栄養成分を1項目以上入力してください',
+  'NUTRITION VALUES MUST BE ZERO OR GREATER.' => '栄養成分は0以上の値を入力してください',
+  _ => reason,
+};

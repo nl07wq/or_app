@@ -9,6 +9,7 @@ import '../../../core/widgets/operation_text_field.dart';
 import '../food_catalog_page.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
+import '../services/food_nutrition_recalculation.dart';
 
 class FoodInputFields extends StatelessWidget {
   static const _compactGap = SizedBox(height: AppSpacing.sm);
@@ -141,7 +142,10 @@ class FoodInputFields extends StatelessWidget {
                     .map(
                       (value) => DropdownMenuItem(
                         value: value,
-                        child: Text(foodCatalogCategoryLabel(value)),
+                        child: Text(
+                          foodCatalogCategoryLabel(value),
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ),
                     )
                     .toList(growable: false),
@@ -332,6 +336,8 @@ class FoodInputFields extends StatelessWidget {
             child: Text(
               recipeSelected
                   ? 'NUTRITION PER SERVING'
+                  : baseAmount == '—'
+                  ? '栄養成分'
                   : '$baseAmount${_quantityUnitLabel(baseUnit)}あたりの栄養成分',
               style: Theme.of(context).textTheme.titleSmall,
             ),
@@ -461,7 +467,9 @@ class FoodInputFields extends StatelessWidget {
   String? get _visibleRecalculationBlockReason =>
       recalculationBlockReason == 'SET PACKAGE QUANTITY AND UNIT'
       ? null
-      : recalculationBlockReason;
+      : recalculationBlockReason == null
+      ? null
+      : foodManualNutritionValidationMessage(recalculationBlockReason!);
 
   String _recalculationActionLabel() {
     final value = double.tryParse(baseAmountController.text.trim());
@@ -633,6 +641,7 @@ class FoodNumericStepperRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FoodNumericStepButton(
                 key: incrementKey,
@@ -669,11 +678,11 @@ class FoodNumericStepButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 40,
-    height: 28,
+    height: 22,
     child: IconButton(
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      iconSize: 20,
+      iconSize: 18,
       tooltip: tooltip,
       onPressed: onPressed,
       icon: Icon(icon),

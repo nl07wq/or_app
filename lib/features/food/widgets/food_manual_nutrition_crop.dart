@@ -666,7 +666,10 @@ class _CropSourceImage extends StatelessWidget {
                 image: imageProvider,
                 fit: BoxFit.fill,
                 gaplessPlayback: true,
-                filterQuality: FilterQuality.high,
+                // The browser bridge supplies a 1024px interaction preview.
+                // Medium sampling keeps pan/pinch responsive without changing
+                // the original-pixel crop used after confirmation.
+                filterQuality: FilterQuality.medium,
                 frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
                   if (frame != null || wasSynchronouslyLoaded) onDrawable();
                   return child;
@@ -841,14 +844,33 @@ class _CropMaskPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final outside = Path()
-      ..addRect(Offset.zero & size)
-      ..addRect(viewport)
-      ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(
-      outside,
-      Paint()..color = Colors.black.withValues(alpha: .56),
-    );
+    // Four opaque rectangles avoid even-odd Path allocation during every
+    // crop-frame update while preserving the same transparent crop window.
+    final dim = Paint()..color = Colors.black.withValues(alpha: .56);
+    canvas
+      ..drawRect(Rect.fromLTWH(0, 0, size.width, viewport.top), dim)
+      ..drawRect(
+        Rect.fromLTWH(0, viewport.top, viewport.left, viewport.height),
+        dim,
+      )
+      ..drawRect(
+        Rect.fromLTWH(
+          viewport.right,
+          viewport.top,
+          size.width - viewport.right,
+          viewport.height,
+        ),
+        dim,
+      )
+      ..drawRect(
+        Rect.fromLTWH(
+          0,
+          viewport.bottom,
+          size.width,
+          size.height - viewport.bottom,
+        ),
+        dim,
+      );
     canvas.drawRect(
       viewport,
       Paint()

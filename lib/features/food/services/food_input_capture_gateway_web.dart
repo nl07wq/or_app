@@ -66,7 +66,7 @@ class WebFoodInputCaptureGateway
         .callMethod<JSPromise<JSString>>(
           'prepareNutritionCropPreview'.toJS,
           image.dataUrl.toJS,
-          2048.toJS,
+          1024.toJS,
         )
         .toDart;
     final payload = jsonDecode(result.toDart) as Map<String, dynamic>;
