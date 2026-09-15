@@ -158,8 +158,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
 
-  FoodAmountMode get _inputAmountMode => FoodAmountMode.baseMultiplier;
-
   @override
   void initState() {
     super.initState();
@@ -254,6 +252,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
       return null;
     }
 
+    final currentCatalog = _currentCatalogSource;
+    if (currentCatalog != null && _currentRecipeSource == null) {
+      final usedAmount = double.tryParse(amountController.text.trim());
+      if (usedAmount == null || !usedAmount.isFinite || usedAmount <= 0) {
+        return null;
+      }
+      return _databaseFoodItem(
+        currentCatalog,
+        usedAmount / _catalogSourceBaseAmount(currentCatalog),
+      );
+    }
+
     final calories =
         _rawCalories ?? double.tryParse(calorieController.text.trim());
     final protein =
@@ -311,7 +321,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         baseUnit: baseUnit == FoodQuantityUnit.milliliter
             ? FoodBaseUnit.ml
             : FoodBaseUnit.g,
-        amountMode: FoodAmountMode.baseMultiplier,
+        amountMode: FoodAmountMode.physicalAmount,
       );
     } on ArgumentError {
       return null;
@@ -1131,12 +1141,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
       setState(() => inputError = 'ENTER VALID PACKAGE QUANTITY AND UNIT.');
       return;
     }
-    final changed = await Navigator.push<bool>(
+    final consumedAmount = item.physicalAmount;
+    if (consumedAmount == null) {
+      setState(() => inputError = 'ENTER A VALID USED AMOUNT.');
+      return;
+    }
+    final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogEditorPage(
           repository: AppRepositoryRegistry.container.foodCatalog,
           initialEntry: _currentCatalogSource,
+          requireCompleteNutrition: true,
           draft: FoodCatalogDraft(
             name: item.name,
             category: category,
@@ -1159,11 +1175,52 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
       ),
     );
-    if (changed == true && mounted) {
+    if (saved != null && mounted) {
+      _bindCurrentItemToCatalog(saved, consumedAmount);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('SAVED TO FOOD DATABASE')));
+      ).showSnackBar(const SnackBar(content: Text('SAVED · DB LINKED')));
     }
+  }
+
+  void _bindCurrentItemToCatalog(
+    FoodCatalogEntry entry,
+    double consumedAmount,
+  ) {
+    setState(() {
+      _currentCatalogSource = entry;
+      _currentRecipeSource = null;
+      foodNameController.text = entry.name;
+      brandController.text = entry.brand ?? '';
+      barcodeController.text = entry.barcodeValue ?? '';
+      packageQuantityController.text = entry.packageQuantity == null
+          ? ''
+          : _formatAmount(entry.packageQuantity!);
+      packageUnit = entry.packageUnit;
+      baseAmountController.text = _formatAmount(entry.baseQuantity.value);
+      baseUnit = entry.baseQuantity.unit;
+      amountController.text = _formatAmount(consumedAmount);
+      foodMemoController.text = entry.memo ?? '';
+      category = entry.category;
+      _basisLinkedToPackage = false;
+      _rawCalories = entry.nutrition.calories;
+      _rawProtein = entry.nutrition.protein;
+      _rawFat = entry.nutrition.fat;
+      _rawCarbohydrate = entry.nutrition.carbohydrate;
+      calorieController.text = entry.nutrition.calories == null
+          ? ''
+          : FoodNutritionFormatter.calories(entry.nutrition.calories!);
+      proteinController.text = entry.nutrition.protein == null
+          ? ''
+          : FoodNutritionFormatter.macro(entry.nutrition.protein!);
+      fatController.text = entry.nutrition.fat == null
+          ? ''
+          : FoodNutritionFormatter.macro(entry.nutrition.fat!);
+      carbohydrateController.text = entry.nutrition.carbohydrate == null
+          ? ''
+          : FoodNutritionFormatter.macro(entry.nutrition.carbohydrate!);
+      inputError = null;
+    });
   }
 
   /// A catalog source carries the persisted FOOD master identity.  Do not use
@@ -2089,7 +2146,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       category: category,
                       packageUnit: packageUnit,
                       baseUnit: baseUnit,
-                      amountMode: _inputAmountMode,
                       recipeSelected: _currentRecipeSource != null,
                       onBaseAmountChanged: _onBaseAmountChanged,
                       onCategoryChanged: (value) => setState(() {
@@ -2158,7 +2214,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       OperationButton(
                         key: const ValueKey('food-save-to-catalog'),
                         icon: Icons.add_business,
-                        text: 'SAVE TO FOOD DATABASE',
+                        text: 'SAVE TO DB',
                         onPressed: _isSaving ? null : _saveCurrentToCatalog,
                       ),
                   ] else

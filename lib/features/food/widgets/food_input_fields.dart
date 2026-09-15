@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/models/food_item.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_dropdown.dart';
@@ -26,7 +25,6 @@ class FoodInputFields extends StatelessWidget {
   final FoodCatalogCategory category;
   final FoodQuantityUnit? packageUnit;
   final FoodQuantityUnit baseUnit;
-  final FoodAmountMode amountMode;
   final bool recipeSelected;
 
   final ValueChanged<String> onChanged;
@@ -62,7 +60,6 @@ class FoodInputFields extends StatelessWidget {
     required this.category,
     required this.packageUnit,
     required this.baseUnit,
-    required this.amountMode,
     this.recipeSelected = false,
     required this.onChanged,
     required this.onBaseAmountChanged,
@@ -85,19 +82,6 @@ class FoodInputFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseAmount = _formatAmount(baseAmountController.text);
-    final parsedBaseAmount = double.tryParse(baseAmountController.text.trim());
-    final parsedAmount = double.tryParse(amountController.text.trim());
-    final physicalAmount =
-        amountMode == FoodAmountMode.baseMultiplier &&
-            parsedBaseAmount != null &&
-            parsedBaseAmount.isFinite &&
-            parsedBaseAmount > 0 &&
-            parsedAmount != null &&
-            parsedAmount.isFinite &&
-            parsedAmount > 0
-        ? parsedBaseAmount * parsedAmount
-        : null;
-
     return Column(
       children: [
         if (nutritionCaptureInProgress)
@@ -176,7 +160,7 @@ class FoodInputFields extends StatelessWidget {
           builder: (context, constraints) {
             final quantity = OperationTextField(
               controller: packageQuantityController,
-              label: 'PACKAGE QUANTITY',
+              label: '表示量',
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -186,7 +170,7 @@ class FoodInputFields extends StatelessWidget {
               key: ValueKey(
                 'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
               ),
-              label: 'PACKAGE UNIT',
+              label: '単位',
               value: packageUnit,
               items: [null, ...FoodQuantityUnit.values]
                   .map(
@@ -220,7 +204,7 @@ class FoodInputFields extends StatelessWidget {
             builder: (context, constraints) {
               final quantity = OperationTextField(
                 controller: baseAmountController,
-                label: 'NUTRITION BASIS',
+                label: '登録基準量',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
@@ -228,7 +212,7 @@ class FoodInputFields extends StatelessWidget {
               );
               final unit = OperationDropdown<FoodQuantityUnit>(
                 key: ValueKey('food-entry-base-unit-${baseUnit.name}'),
-                label: 'BASE UNIT',
+                label: '単位',
                 value: baseUnit,
                 items: FoodQuantityUnit.values
                     .map(
@@ -262,7 +246,7 @@ class FoodInputFields extends StatelessWidget {
           child: OperationButton(
             key: const ValueKey('food-entry-recalculate-nutrition'),
             icon: Icons.calculate_outlined,
-            text: 'RECALCULATE NUTRITION',
+            text: _recalculationActionLabel(),
             onPressed: recalculationBlockReason == null
                 ? onRecalculateNutrition
                 : null,
@@ -370,9 +354,7 @@ class FoodInputFields extends StatelessWidget {
           controller: amountController,
           label: recipeSelected
               ? 'SERVINGS'
-              : amountMode == FoodAmountMode.baseMultiplier
-              ? 'AMOUNT'
-              : 'QUANTITY (${_quantityUnitLabel(baseUnit)})',
+              : '実使用量 (${_quantityUnitLabel(baseUnit)})',
           onChanged: onChanged,
           incrementKey: const ValueKey('food-amount-increment'),
           incrementTooltip: 'Increase amount',
@@ -381,31 +363,14 @@ class FoodInputFields extends StatelessWidget {
           decrementTooltip: 'Decrease amount',
           onDecrement: _canDecrement ? () => _stepAmount(-1) : null,
         ),
-
-        if (!recipeSelected && amountMode == FoodAmountMode.baseMultiplier) ...[
-          AppSpacing.gapXS,
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '1 AMOUNT = $baseAmount${_quantityUnitLabel(baseUnit)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ],
-
-        if (!recipeSelected && physicalAmount != null) ...[
-          AppSpacing.gapXS,
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '実使用量: ${_formatNumber(physicalAmount)}'
-              '${_quantityUnitLabel(baseUnit)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ],
       ],
     );
+  }
+
+  String _recalculationActionLabel() {
+    final value = double.tryParse(baseAmountController.text.trim());
+    if (value == null || !value.isFinite || value <= 0) return '栄養を換算';
+    return '${_formatNumber(value)}${_quantityUnitLabel(baseUnit)}あたりに換算';
   }
 
   static String _formatAmount(String source) {

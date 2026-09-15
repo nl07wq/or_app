@@ -204,14 +204,14 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   }
 
   Future<void> _openEditor([FoodCatalogEntry? entry]) async {
-    final changed = await Navigator.push<bool>(
+    final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) =>
             FoodCatalogEditorPage(repository: _repository, initialEntry: entry),
       ),
     );
-    if (changed == true) await _load();
+    if (saved != null) await _load();
   }
 
   Future<void> _openEntry(FoodCatalogEntry entry) async {
@@ -512,12 +512,14 @@ class FoodCatalogEditorPage extends StatefulWidget {
     this.initialEntry,
     this.draft,
     this.captureGateway,
+    this.requireCompleteNutrition = false,
   });
 
   final FoodCatalogRepository repository;
   final FoodCatalogEntry? initialEntry;
   final FoodCatalogDraft? draft;
   final FoodInputCaptureGateway? captureGateway;
+  final bool requireCompleteNutrition;
 
   @override
   State<FoodCatalogEditorPage> createState() => _FoodCatalogEditorPageState();
@@ -997,6 +999,16 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       fat: _rawFat ?? _optionalNumber(_fat),
       carbohydrate: _rawCarbohydrate ?? _optionalNumber(_carbs),
     );
+    if (widget.requireCompleteNutrition &&
+        [
+          nutrition.calories,
+          nutrition.protein,
+          nutrition.fat,
+          nutrition.carbohydrate,
+        ].any((value) => value == null || !value.isFinite || value < 0)) {
+      setState(() => _error = 'COMPLETE NUTRITION VALUES ARE REQUIRED');
+      return;
+    }
     final entry = FoodCatalogEntry(
       foodId: existing?.foodId ?? FoodMealIdGenerator().generate().substring(5),
       recordVersion: FoodCatalogEntry.recordVersion2,
@@ -1034,7 +1046,10 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       } else {
         await widget.repository.update(entry);
       }
-      if (mounted) Navigator.pop(context, true);
+      final saved = (await widget.repository.list()).singleWhere(
+        (candidate) => candidate.foodId == entry.foodId,
+      );
+      if (mounted) Navigator.pop(context, saved);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -1517,14 +1532,14 @@ class FoodCatalogDetailPage extends StatelessWidget {
   final FoodCatalogRepository repository;
 
   Future<void> _edit(BuildContext context) async {
-    final changed = await Navigator.push<bool>(
+    final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) =>
             FoodCatalogEditorPage(repository: repository, initialEntry: entry),
       ),
     );
-    if (changed == true && context.mounted) Navigator.pop(context, true);
+    if (saved != null && context.mounted) Navigator.pop(context, true);
   }
 
   Future<void> _delete(BuildContext context) async {

@@ -341,7 +341,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
   Future<void> _addLegacyItemToCatalog(FoodItem item) async {
     if (!AppRepositoryRegistry.hasContainer) return;
-    await Navigator.push<bool>(
+    await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogEditorPage(
@@ -499,7 +499,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
 
   Future<void> _addV2ItemToCatalog(DailyMealItemSnapshot item) async {
     if (!AppRepositoryRegistry.hasContainer) return;
-    await Navigator.push<bool>(
+    await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogEditorPage(

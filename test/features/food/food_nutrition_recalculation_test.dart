@@ -4,6 +4,26 @@ import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/services/food_nutrition_recalculation.dart';
 
 void main() {
+  test('normalizes a 150g label to a 100g database basis', () {
+    final preview = FoodNutritionRecalculation.preview(
+      packageQuantity: 150,
+      packageUnit: FoodQuantityUnit.gram,
+      basisQuantity: 100,
+      basisUnit: FoodQuantityUnit.gram,
+      nutrition: NutritionSnapshot(
+        calories: 300,
+        protein: 10,
+        fat: 5,
+        carbohydrate: 20,
+      ),
+    );
+
+    expect(preview.recalculated.calories, 200);
+    expect(preview.recalculated.protein, closeTo(6.6666667, .000001));
+    expect(preview.recalculated.fat, closeTo(3.3333333, .000001));
+    expect(preview.recalculated.carbohydrate, closeTo(13.3333333, .000001));
+  });
+
   test('recalculates compatible gram nutrition without fabricating nulls', () {
     final preview = FoodNutritionRecalculation.preview(
       packageQuantity: 240,
