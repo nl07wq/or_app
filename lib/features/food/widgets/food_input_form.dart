@@ -30,6 +30,7 @@ import '../services/japanese_package_ocr_parser.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
 import 'food_ocr_scanner.dart';
+import 'food_thumbnail.dart';
 import 'food_total_card.dart';
 
 class FoodInputForm extends StatefulWidget {
@@ -150,6 +151,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   bool _foodListExpanded = false;
   bool _recipeListExpanded = false;
   bool _mealListExpanded = false;
+  Future<List<FoodCatalogEntry>>? _foodDiscoveryFuture;
+  Future<List<FoodRecipeDefinition>>? _recipeDiscoveryFuture;
+  Future<List<FoodMealMaster>>? _mealDiscoveryFuture;
 
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
@@ -1610,7 +1614,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
       : entries.take(_compactMasterListLimit).toList(growable: false);
 
   Widget _inlineFoodList() => FutureBuilder<List<FoodCatalogEntry>>(
-    future: AppRepositoryRegistry.container.foodCatalog.list(),
+    future: _foodDiscoveryFuture ??= AppRepositoryRegistry.container.foodCatalog
+        .list(),
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) {
         return const Center(child: CircularProgressIndicator());
@@ -1643,7 +1648,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
             for (final entry in visible)
               ListTile(
                 key: ValueKey('food-entry-inline-food-${entry.foodId}'),
-                leading: const Icon(Icons.restaurant_outlined),
+                leading: FoodThumbnail(visualKey: entry.visualKey, size: 40),
                 title: Text(entry.name),
                 subtitle: Text(
                   FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
@@ -1664,7 +1669,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
   );
 
   Widget _inlineRecipeList() => FutureBuilder<List<FoodRecipeDefinition>>(
-    future: AppRepositoryRegistry.container.foodRecipes.list(),
+    future: _recipeDiscoveryFuture ??= AppRepositoryRegistry
+        .container
+        .foodRecipes
+        .list(),
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) {
         return const Center(child: CircularProgressIndicator());
@@ -1716,7 +1724,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
   );
 
   Widget _inlineMealList() => FutureBuilder<List<FoodMealMaster>>(
-    future: AppRepositoryRegistry.container.foodMealMasters.list(),
+    future: _mealDiscoveryFuture ??= AppRepositoryRegistry
+        .container
+        .foodMealMasters
+        .list(),
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) {
         return const Center(child: CircularProgressIndicator());

@@ -172,6 +172,59 @@ void main() {
     );
   });
 
+  testWidgets(
+    'discovery search keeps one focused field through live result updates',
+    (tester) async {
+      await _installFoods(2);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      final search = find.byKey(
+        const ValueKey('food-entry-search-databaseFood'),
+      );
+      await tester.tap(search);
+      for (final text in [
+        'c',
+        'ch',
+        'chi',
+        'chic',
+        'chicken',
+        '12345',
+        'さ',
+        'ささ',
+        'ささみ',
+      ]) {
+        await tester.enterText(search, text);
+        await tester.pump();
+        expect(tester.widget<TextField>(search).controller!.text, text);
+        expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+      }
+    },
+  );
+
+  testWidgets('discovery rows use catalog thumbnails with icon fallback', (
+    tester,
+  ) async {
+    await _installFood(
+      index: 0,
+      baseAmount: 100,
+      visualKey: FoodVisualKey.meat,
+    );
+    await _createFood(
+      AppRepositoryRegistry.container,
+      index: 1,
+      timestamp: DateTime.utc(2026, 9, 15),
+    );
+    await tester.pumpWidget(subject());
+    await tester.tap(modeTab('databaseFood'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('food-thumbnail-meat')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-thumbnail-fallback')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('vertical discovery scrolling keeps the current mode active', (
     tester,
   ) async {
@@ -644,6 +697,7 @@ Future<void> _installFood({
   required int index,
   required double baseAmount,
   double? packageAmount,
+  FoodVisualKey? visualKey,
 }) async {
   final container = AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase());
   AppRepositoryRegistry.install(container);
@@ -654,6 +708,7 @@ Future<void> _installFood({
     timestamp: DateTime.utc(2026, 9, 15),
     baseAmount: baseAmount,
     packageAmount: packageAmount,
+    visualKey: visualKey,
   );
 }
 
@@ -663,6 +718,7 @@ Future<void> _createFood(
   required DateTime timestamp,
   double baseAmount = 100,
   double? packageAmount,
+  FoodVisualKey? visualKey,
 }) => container.foodCatalog.create(
   FoodCatalogEntry(
     foodId: _foodId(index),
@@ -686,6 +742,7 @@ Future<void> _createFood(
     isArchived: false,
     packageQuantity: packageAmount,
     packageUnit: packageAmount == null ? null : FoodQuantityUnit.gram,
+    visualKey: visualKey,
     createdAt: timestamp,
     updatedAt: timestamp,
   ),
