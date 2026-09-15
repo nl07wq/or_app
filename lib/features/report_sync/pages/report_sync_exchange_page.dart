@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/food_item.dart';
 import '../../../core/models/meal_data.dart';
+import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -37,6 +38,7 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.onApplied,
     this.onTargetDateChanged,
     this.initialTargetDate,
+    this.currentOperationDateValidation,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -47,6 +49,7 @@ class ReportSyncExchangePage extends StatelessWidget {
   final VoidCallback? onApplied;
   final ValueChanged<String>? onTargetDateChanged;
   final String? initialTargetDate;
+  final DailyLogValidationResult? currentOperationDateValidation;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -60,6 +63,7 @@ class ReportSyncExchangePage extends StatelessWidget {
       onApplied: onApplied,
       onTargetDateChanged: onTargetDateChanged,
       initialTargetDate: initialTargetDate,
+      currentOperationDateValidation: currentOperationDateValidation,
     ),
   );
 }
@@ -75,6 +79,7 @@ class ReportSyncExchangePanel extends StatefulWidget {
     this.onApplied,
     this.onTargetDateChanged,
     this.initialTargetDate,
+    this.currentOperationDateValidation,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -85,6 +90,7 @@ class ReportSyncExchangePanel extends StatefulWidget {
   final VoidCallback? onApplied;
   final ValueChanged<String>? onTargetDateChanged;
   final String? initialTargetDate;
+  final DailyLogValidationResult? currentOperationDateValidation;
 
   @override
   State<ReportSyncExchangePanel> createState() =>
@@ -200,6 +206,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       final request = await _gateway.prepareRequest(
         widget.exchangeType,
         targetDate: widget.initialTargetDate,
+        currentOperationDateValidation: widget.currentOperationDateValidation,
       );
       final history = await _gateway.history(widget.exchangeType);
       if (!mounted) return;
@@ -297,25 +304,34 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                 onPressed: () => Navigator.pop(context, date),
                 child: Text(date),
               ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, '__select_date__'),
+              child: const Text('SELECT DATE'),
+            ),
           ],
         ),
       );
       if (selected == null || !mounted) return;
+      final localDate = selected == '__select_date__'
+          ? await _selectHistoricalDate()
+          : selected;
+      if (localDate == null || !mounted) return;
       final request = await _gateway.prepareRequest(
         ReportSyncExchangeType.dailyDebrief,
-        targetDate: selected,
+        targetDate: localDate,
+        currentOperationDateValidation: widget.currentOperationDateValidation,
       );
       if (!mounted) return;
       setState(() {
         _request = request;
-        _targetDateController.text = selected;
+        _targetDateController.text = localDate;
         _preview = null;
         _clearExportFeedback();
         _importMessage = null;
         _importActionError = null;
         _importError = null;
       });
-      widget.onTargetDateChanged?.call(selected);
+      widget.onTargetDateChanged?.call(localDate);
       return;
     }
     final current = DateTime.tryParse(_targetDateController.text);
@@ -344,6 +360,17 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         );
       });
     }
+  }
+
+  Future<String?> _selectHistoricalDate() async {
+    final current = DateTime.tryParse(_targetDateController.text);
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    return selected == null ? null : _formatLocalDate(selected);
   }
 
   Future<void> _selectResponseFile() async {
@@ -626,19 +653,15 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     ),
                   if (request?.blockingReason != null)
                     Text(request!.blockingReason!),
-                ] else
-                  Text(
-                    ready
-                        ? 'IMPORT READY'
-                        : widget.exchangeType ==
-                              ReportSyncExchangeType.dailyDebrief
-                        ? request?.statusLabel ?? 'SOURCE NOT READY'
-                        : '対象日をYYYY-MM-DD形式で入力してください。',
-                  ),
-                if (widget.exchangeType ==
-                        ReportSyncExchangeType.dailyDebrief &&
-                    request?.blockingReason != null)
-                  Text(request!.blockingReason!),
+                ] else if (widget.exchangeType ==
+                    ReportSyncExchangeType.dailyDebrief)
+                  _DailyDebriefReadiness(
+                    isReady: ready,
+                    blockers: request?.blockingReasons ?? const [],
+                    fallbackReason: request?.blockingReason,
+                  )
+                else
+                  Text(ready ? 'IMPORT READY' : '対象日をYYYY-MM-DD形式で入力してください。'),
               ],
             ),
           )
@@ -908,6 +931,51 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
 }
 
 enum _ExportAction { generate, prompt, source }
+
+class _DailyDebriefReadiness extends StatelessWidget {
+  const _DailyDebriefReadiness({
+    required this.isReady,
+    required this.blockers,
+    required this.fallbackReason,
+  });
+
+  final bool isReady;
+  final List<String> blockers;
+  final String? fallbackReason;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final reasons = blockers.isNotEmpty
+        ? blockers
+        : fallbackReason == null
+        ? const <String>[]
+        : [fallbackReason!];
+    return Column(
+      key: const ValueKey('daily-debrief-source-readiness'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isReady ? 'IMPORT READY' : 'SOURCE NOT READY',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: isReady ? colors.primary : colors.error,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        for (final reason in reasons)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              reason,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isReady ? null : colors.error,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 class _RecordArchiveButton extends StatelessWidget {
   const _RecordArchiveButton({

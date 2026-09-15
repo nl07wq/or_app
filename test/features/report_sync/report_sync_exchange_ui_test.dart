@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
+import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
@@ -59,7 +60,10 @@ void main() {
               operationDate: '2026-09-14',
               eligibleDates: ['2026-09-13'],
               statusLabel: 'SOURCE NOT READY',
-              blockingReason: 'DAILY AGGREGATEが存在しません。',
+              blockingReasons: [
+                'STATUS: NOT RECORDED (STATUS)',
+                'ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)',
+              ],
             ),
           ),
           fileGateway: _FakeFileGateway(),
@@ -74,7 +78,11 @@ void main() {
     );
     expect(targetDate.controller?.text, '2026-09-14');
     expect(find.text('SOURCE NOT READY'), findsOneWidget);
-    expect(find.text('DAILY AGGREGATEが存在しません。'), findsOneWidget);
+    expect(find.text('STATUS: NOT RECORDED (STATUS)'), findsOneWidget);
+    expect(
+      find.text('ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('successful DD import returns to the existing top page', (
@@ -1738,6 +1746,7 @@ class _FakeExchangeGateway implements ReportSyncExchangeGateway {
   Future<ReportSyncRequestPreparation> prepareRequest(
     ReportSyncExchangeType type, {
     String? targetDate,
+    DailyLogValidationResult? currentOperationDateValidation,
   }) async =>
       preparation ??
       ReportSyncRequestPreparation(

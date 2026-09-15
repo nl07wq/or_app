@@ -1,4 +1,5 @@
 import '../../../core/models/meal_data.dart';
+import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../daily_aggregate/models/recent_context.dart';
 import '../../daily_aggregate/services/recent_context_builder.dart';
 import '../../operation_sync/services/historical_training_workflow.dart';
@@ -63,6 +64,7 @@ class ReportSyncRequestPreparation {
     this.statusSourceError,
     this.statusLabel = 'REQUEST NOT READY',
     this.blockingReason,
+    this.blockingReasons = const [],
     this.dailyDebriefSource,
     this.recentContext,
     this.eligibleDates = const [],
@@ -75,6 +77,7 @@ class ReportSyncRequestPreparation {
   final StatusReportSyncSourceException? statusSourceError;
   final String statusLabel;
   final String? blockingReason;
+  final List<String> blockingReasons;
   final DailyDebriefSourcePackage? dailyDebriefSource;
   final RecentContext? recentContext;
   final List<String> eligibleDates;
@@ -146,6 +149,7 @@ abstract interface class ReportSyncExchangeGateway {
   Future<ReportSyncRequestPreparation> prepareRequest(
     ReportSyncExchangeType type, {
     String? targetDate,
+    DailyLogValidationResult? currentOperationDateValidation,
   });
 
   Future<void> recordRequest(ReportSyncEnvelope request);
@@ -204,6 +208,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
   Future<ReportSyncRequestPreparation> prepareRequest(
     ReportSyncExchangeType type, {
     String? targetDate,
+    DailyLogValidationResult? currentOperationDateValidation,
   }) async {
     final state = await _container.operationState.requireCurrent();
     if (targetDate != null) OperationLocalDate.parse(targetDate);
@@ -266,24 +271,27 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
             blockingReason: 'DAILY DEBRIEFの対象日を解決できません。',
           );
         }
-        try {
-          final source = await _container.dailyDebriefSources.requireEligible(
-            selected,
-          );
-          return ReportSyncRequestPreparation(
-            operationDate: selected,
-            dailyDebriefSource: source,
-            eligibleDates: eligible,
-            statusLabel: 'READY',
-          );
-        } on DailyDebriefSourceException catch (error) {
-          return ReportSyncRequestPreparation(
-            operationDate: selected,
-            eligibleDates: eligible,
-            statusLabel: 'SOURCE NOT READY',
-            blockingReason: error.message,
-          );
-        }
+        final state = await _container.operationState.requireCurrent();
+        final currentValidation =
+            state.phase == OperationPhase.open &&
+                selected == state.operationDate.value
+            ? currentOperationDateValidation
+            : null;
+        final readiness = await _container.dailyDebriefSources
+            .evaluateReadiness(
+              selected,
+              currentOperationDateValidation: currentValidation,
+            );
+        return ReportSyncRequestPreparation(
+          operationDate: selected,
+          dailyDebriefSource: readiness.source,
+          eligibleDates: eligible,
+          statusLabel: readiness.isReady ? 'READY' : 'SOURCE NOT READY',
+          blockingReason: readiness.blockingReasons.isEmpty
+              ? null
+              : readiness.blockingReasons.join('\n'),
+          blockingReasons: readiness.blockingReasons,
+        );
       case ReportSyncExchangeType.periodicReport:
         throw StateError('Periodic Report uses its dedicated report flow.');
     }

@@ -84,6 +84,46 @@ void main() {
     },
   );
 
+  testWidgets(
+    'current blocked date keeps its target and exposes persistent readiness',
+    (tester) async {
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      await container.operationState.createInitial(
+        OperationLocalDate.parse('2026-09-14'),
+      );
+      AppRepositoryRegistry.install(container);
+      var preparationCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BriefDebriefPage(
+              dailyLogSourceLoader: (_) async => _blockedSnapshot(),
+              prepareDailyDebrief: (_, _) async => preparationCount++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('DAILY DEBRIEF').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('CREATE DAILY DEBRIEF'));
+      await tester.pumpAndSettle();
+
+      expect(preparationCount, 0);
+      final target = tester.widget<TextField>(
+        find.byKey(const ValueKey('report-sync-target-date')),
+      );
+      expect(target.controller?.text, '2026-09-14');
+      expect(find.text('SOURCE NOT READY'), findsOneWidget);
+      expect(
+        find.text('ACTIVITY: NOT RECORDED (STEPS, DIGESTIVE)'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('successful import returns daily debrief content to top', (
     tester,
   ) async {
@@ -260,6 +300,34 @@ DailyLogSourceSnapshot _snapshot([String localDate = '2026-08-12']) {
     food: food,
     activity: activity,
     training: null,
+    validation: validation,
+  );
+}
+
+DailyLogSourceSnapshot _blockedSnapshot() {
+  final valid = _snapshot('2026-09-14');
+  const validation = DailyLogValidationResult(
+    statusValid: true,
+    foodValid: true,
+    activityValid: false,
+    trainingValid: true,
+    trainingRecorded: false,
+    statusCompleteness: DailyLogModuleCompleteness(
+      state: DailyLogCompletenessState.complete,
+    ),
+    foodCompleteness: DailyLogModuleCompleteness(
+      state: DailyLogCompletenessState.complete,
+    ),
+    activityCompleteness: DailyLogModuleCompleteness(
+      state: DailyLogCompletenessState.notRecorded,
+      missingRequirements: ['STEPS', 'DIGESTIVE'],
+    ),
+  );
+  return DailyLogSourceSnapshot(
+    morning: valid.morning,
+    food: valid.food,
+    activity: valid.activity,
+    training: valid.training,
     validation: validation,
   );
 }

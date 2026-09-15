@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/services/daily_log_confirmation_service.dart';
+import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -362,11 +363,54 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
     if (data == null) return;
     final selected = _selectedTargetDate;
     if (selected == null) return;
-    if ((data.operationState.phase == OperationPhase.open ||
-            data.operationState.phase == OperationPhase.awaitingDebrief) &&
-        selected == data.operationState.operationDate.value) {
+    DailyLogValidationResult? currentOperationDateValidation;
+    final isCurrentTarget = selected == data.operationState.operationDate.value;
+    if (data.operationState.phase == OperationPhase.open) {
+      final sourceSnapshot = await widget.sourceLoader(
+        data.operationState.operationDate.value,
+      );
+      currentOperationDateValidation = sourceSnapshot.validation;
+      if (isCurrentTarget) {
+        try {
+          if (!sourceSnapshot.validation.canFinalize) {
+            throw DailyLogValidationException(
+              sourceSnapshot.validation.blockingModules,
+            );
+          }
+          final container = AppRepositoryRegistry.container;
+          final estimatedTotalBurn = await DailyEstimatedTotalBurnService(
+            statusRepository: container.status,
+            trainingRepository: container.training,
+          ).calculate(selected);
+          final prepare = widget.prepareDailyDebrief;
+          if (prepare == null) {
+            await DailyFinalizeCoordinatorFactory.production()
+                .prepareDailyDebrief(
+                  targetLocalDate: OperationLocalDate.parse(selected),
+                  estimatedTotalBurnKcal: estimatedTotalBurn,
+                );
+          } else {
+            await prepare(selected, estimatedTotalBurn);
+          }
+        } on DailyLogValidationException {
+          // Keep the exact current target and open its readiness view. The
+          // same validation object is supplied to that view, so the blocker
+          // remains visible instead of existing only as transient feedback.
+        } on DailyFinalizeException catch (error) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('CREATE DAILY DEBRIEF failed: ${error.code.name}'),
+            ),
+          );
+          return;
+        }
+      }
+    } else if (data.operationState.phase == OperationPhase.awaitingDebrief &&
+        isCurrentTarget) {
       try {
         final sourceSnapshot = await widget.sourceLoader(selected);
+        currentOperationDateValidation = sourceSnapshot.validation;
         if (!sourceSnapshot.validation.canFinalize) {
           throw DailyLogValidationException(
             sourceSnapshot.validation.blockingModules,
@@ -411,6 +455,7 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         builder: (_) => ReportSyncExchangePage(
           exchangeType: ReportSyncExchangeType.dailyDebrief,
           initialTargetDate: selected,
+          currentOperationDateValidation: currentOperationDateValidation,
           onApplied: () {
             imported = true;
           },

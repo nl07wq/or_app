@@ -34,6 +34,50 @@ class DailyDebriefSourcePackage {
   });
 }
 
+enum DailyDebriefSourceReadinessMode { current, historical }
+
+/// Read-only selected-date readiness for the Daily Debrief workflow.
+///
+/// This deliberately keeps the selected target independent from whether its
+/// source is currently usable.  The value is not persisted as Formal data.
+class DailyDebriefSourceReadiness {
+  const DailyDebriefSourceReadiness._({
+    required this.operationDate,
+    required this.mode,
+    required this.source,
+    required this.blockingReasons,
+  });
+
+  factory DailyDebriefSourceReadiness.ready({
+    required String operationDate,
+    required DailyDebriefSourceReadinessMode mode,
+    required DailyDebriefSourcePackage source,
+  }) => DailyDebriefSourceReadiness._(
+    operationDate: operationDate,
+    mode: mode,
+    source: source,
+    blockingReasons: const [],
+  );
+
+  factory DailyDebriefSourceReadiness.notReady({
+    required String operationDate,
+    required DailyDebriefSourceReadinessMode mode,
+    required List<String> blockingReasons,
+  }) => DailyDebriefSourceReadiness._(
+    operationDate: operationDate,
+    mode: mode,
+    source: null,
+    blockingReasons: List.unmodifiable(blockingReasons),
+  );
+
+  final String operationDate;
+  final DailyDebriefSourceReadinessMode mode;
+  final DailyDebriefSourcePackage? source;
+  final List<String> blockingReasons;
+
+  bool get isReady => source != null;
+}
+
 class DailyDebriefSourceService {
   final DailyAggregateRepository dailyAggregates;
   final RecentContextBuilder recentContextBuilder;
@@ -128,6 +172,43 @@ class DailyDebriefSourceService {
     );
   }
 
+  /// Evaluates exactly one selected date without changing it or falling back
+  /// to another date. Current dates use the canonical Daily Log validation;
+  /// explicit historical dates use their same-date formal source eligibility.
+  Future<DailyDebriefSourceReadiness> evaluateReadiness(
+    String localDate, {
+    DailyLogValidationResult? currentOperationDateValidation,
+  }) async {
+    final state = await operationState.requireCurrent();
+    final mode = localDate == state.operationDate.value
+        ? DailyDebriefSourceReadinessMode.current
+        : DailyDebriefSourceReadinessMode.historical;
+    if (mode == DailyDebriefSourceReadinessMode.current &&
+        currentOperationDateValidation != null &&
+        !currentOperationDateValidation.canFinalize) {
+      return DailyDebriefSourceReadiness.notReady(
+        operationDate: localDate,
+        mode: mode,
+        blockingReasons: _currentValidationBlockers(
+          currentOperationDateValidation,
+        ),
+      );
+    }
+    try {
+      return DailyDebriefSourceReadiness.ready(
+        operationDate: localDate,
+        mode: mode,
+        source: await requireEligible(localDate),
+      );
+    } on DailyDebriefSourceException catch (error) {
+      return DailyDebriefSourceReadiness.notReady(
+        operationDate: localDate,
+        mode: mode,
+        blockingReasons: [error.message],
+      );
+    }
+  }
+
   Future<List<String>> eligibleDates({
     DailyLogValidationResult? currentOperationDateValidation,
   }) async {
@@ -188,6 +269,30 @@ class DailyDebriefSourceService {
       value.data.date.toIso8601String().substring(0, 10) == localDate &&
       value.projectedLifecycleStatus ==
           DailyLogConfirmationLifecycleStatus.finalized;
+
+  static List<String> _currentValidationBlockers(
+    DailyLogValidationResult validation,
+  ) => [
+    for (final module in validation.blockingModules)
+      '${DailyLogConfirmationValidation.moduleLabel(module)}: '
+          '${_completenessLabel(switch (module) {
+            DailyLogModule.status => validation.statusCompleteness,
+            DailyLogModule.food => validation.foodCompleteness,
+            DailyLogModule.activity => validation.activityCompleteness,
+            DailyLogModule.training => throw StateError('TRAINING is not a required Daily Debrief blocker.'),
+          })}',
+  ];
+
+  static String _completenessLabel(DailyLogModuleCompleteness value) {
+    final state = switch (value.state) {
+      DailyLogCompletenessState.notRecorded => 'NOT RECORDED',
+      DailyLogCompletenessState.incomplete => 'INCOMPLETE',
+      DailyLogCompletenessState.complete => 'COMPLETE',
+    };
+    return value.missingRequirements.isEmpty
+        ? state
+        : '$state (${value.missingRequirements.join(', ')})';
+  }
 
   static Map<String, Object?>? _morningBriefProjection(
     MorningBriefRecord? value,

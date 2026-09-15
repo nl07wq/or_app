@@ -188,6 +188,95 @@ void main() {
   );
 
   test(
+    'current blockers and historical eligibility are evaluated independently',
+    () async {
+      const activeDate = '2026-09-14';
+      const historicalDate = '2026-09-13';
+      const currentValidation = DailyLogValidationResult(
+        statusValid: false,
+        foodValid: false,
+        activityValid: false,
+        trainingValid: true,
+        trainingRecorded: false,
+        statusCompleteness: DailyLogModuleCompleteness(
+          state: DailyLogCompletenessState.notRecorded,
+          missingRequirements: ['STATUS'],
+        ),
+        foodCompleteness: DailyLogModuleCompleteness(
+          state: DailyLogCompletenessState.notRecorded,
+          missingRequirements: ['FOOD', 'WATER'],
+        ),
+        activityCompleteness: DailyLogModuleCompleteness(
+          state: DailyLogCompletenessState.incomplete,
+          missingRequirements: ['STEPS', 'DIGESTIVE'],
+        ),
+      );
+      final database = FakeIndexedDbDatabase();
+      final container = AppRepositoryContainer.indexedDb(database);
+      await container.operationState.createInitial(
+        OperationLocalDate.parse(activeDate),
+      );
+      await container.confirmationLifecycle.createV2(
+        PersistedDailyLogConfirmationRecord.initialFinalizedV2(
+          id: 'confirmation:$historicalDate',
+          localDate: historicalDate,
+          data: completeConfirmation(date: DateTime(2026, 9, 13)),
+          timestamp: timestamp,
+        ),
+      );
+      await container.dailyAggregates.put(_aggregate(historicalDate));
+
+      final current = await container.dailyDebriefSources.evaluateReadiness(
+        activeDate,
+        currentOperationDateValidation: currentValidation,
+      );
+      expect(current.operationDate, activeDate);
+      expect(current.mode, DailyDebriefSourceReadinessMode.current);
+      expect(current.isReady, isFalse);
+      expect(
+        current.blockingReasons,
+        containsAll([
+          'STATUS: NOT RECORDED (STATUS)',
+          'FOOD: NOT RECORDED (FOOD, WATER)',
+          'ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)',
+        ]),
+      );
+
+      final historical = await container.dailyDebriefSources.evaluateReadiness(
+        historicalDate,
+        currentOperationDateValidation: currentValidation,
+      );
+      expect(historical.operationDate, historicalDate);
+      expect(historical.mode, DailyDebriefSourceReadinessMode.historical);
+      expect(historical.isReady, isTrue);
+      expect(historical.blockingReasons, isEmpty);
+
+      final gateway = ProductionReportSyncExchangeGateway(
+        container: container,
+        clock: () => timestamp,
+      );
+      final currentRequest = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+        targetDate: activeDate,
+        currentOperationDateValidation: currentValidation,
+      );
+      expect(currentRequest.operationDate, activeDate);
+      expect(currentRequest.dailyDebriefSource, isNull);
+      expect(currentRequest.statusLabel, 'SOURCE NOT READY');
+      expect(currentRequest.blockingReasons, current.blockingReasons);
+
+      final historicalRequest = await gateway.prepareRequest(
+        ReportSyncExchangeType.dailyDebrief,
+        targetDate: historicalDate,
+        currentOperationDateValidation: currentValidation,
+      );
+      expect(historicalRequest.operationDate, historicalDate);
+      expect(historicalRequest.dailyDebriefSource, isNotNull);
+      expect(historicalRequest.statusLabel, 'READY');
+    },
+  );
+
+  test(
     'operation-date ISO values preserve the local calendar day at midnight',
     () {
       expect(OperationLocalDate.parse('2026-09-14').value, '2026-09-14');
