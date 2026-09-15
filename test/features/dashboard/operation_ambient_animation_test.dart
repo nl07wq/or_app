@@ -9,9 +9,13 @@ void main() {
     OperationStatus? status, {
     bool reducedMotion = false,
     double width = 390,
+    TextScaler textScaler = TextScaler.noScaling,
   }) => MaterialApp(
     home: MediaQuery(
-      data: MediaQueryData(disableAnimations: reducedMotion),
+      data: MediaQueryData(
+        disableAnimations: reducedMotion,
+        textScaler: textScaler,
+      ),
       child: Scaffold(
         body: SizedBox(
           width: width,
@@ -29,39 +33,44 @@ void main() {
               .painter!
           as OperationAmbientPulsePainter;
 
-  testWidgets('recorded statuses render a fixed lower-left status label', (
+  testWidgets('recorded labels share the left quiet-zone center axis', (
     tester,
   ) async {
-    for (final entry in const <(OperationStatus, String, Color)>[
-      (OperationStatus.green, 'FINE', AppColors.success),
-      (OperationStatus.yellow, 'CAUTION', AppColors.warning),
-      (OperationStatus.red, 'DANGER', AppColors.danger),
-    ]) {
-      await tester.pumpWidget(subject(entry.$1));
-      final label = find.text(entry.$2);
-      final slot = find.byKey(
-        const ValueKey('operation-ambient-animation-slot'),
-      );
-      expect(label, findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('operation-ambient-status-label')),
-        findsOneWidget,
-      );
-      expect(tester.widget<Text>(label).style?.color, entry.$3);
-      expect(tester.widget<Text>(label).style?.fontSize, 9);
-      expect(tester.widget<Text>(label).style?.fontFamily, 'ShareTechMono');
-      expect(tester.widget<Text>(label).style?.fontWeight, FontWeight.w400);
-      expect(tester.widget<Text>(label).style?.letterSpacing, .25);
-      final labelBounds = tester.getRect(label);
-      final slotBounds = tester.getRect(slot);
-      expect(labelBounds.left, slotBounds.left + 6);
-      expect(labelBounds.bottom, slotBounds.bottom - 2);
-      expect(
-        labelBounds.right,
-        lessThanOrEqualTo(
-          slotBounds.left + OperationAmbientStatusLabel.noWaveZoneWidth(),
-        ),
-      );
+    for (final width in [320.0, 390.0, 900.0]) {
+      for (final entry in const <(OperationStatus, String, Color)>[
+        (OperationStatus.green, 'FINE', AppColors.success),
+        (OperationStatus.yellow, 'CAUTION', AppColors.warning),
+        (OperationStatus.red, 'DANGER', AppColors.danger),
+      ]) {
+        await tester.pumpWidget(subject(entry.$1, width: width));
+        final label = find.text(entry.$2);
+        final slot = find.byKey(
+          const ValueKey('operation-ambient-animation-slot'),
+        );
+        expect(label, findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('operation-ambient-status-label')),
+          findsOneWidget,
+        );
+        expect(tester.widget<Text>(label).style?.color, entry.$3);
+        expect(tester.widget<Text>(label).style?.fontSize, 9);
+        expect(tester.widget<Text>(label).style?.fontFamily, 'ShareTechMono');
+        expect(tester.widget<Text>(label).style?.fontWeight, FontWeight.w400);
+        expect(tester.widget<Text>(label).style?.letterSpacing, .25);
+        final labelBounds = tester.getRect(label);
+        final slotBounds = tester.getRect(slot);
+        final expectedCenter =
+            slotBounds.left + OperationAmbientStatusLabel.noWaveZoneWidth() / 2;
+        expect(labelBounds.center.dx, closeTo(expectedCenter, .01));
+        expect(labelBounds.bottom, slotBounds.bottom - 2);
+        expect(labelBounds.left, greaterThanOrEqualTo(slotBounds.left));
+        expect(
+          labelBounds.right,
+          lessThanOrEqualTo(
+            slotBounds.left + OperationAmbientStatusLabel.noWaveZoneWidth(),
+          ),
+        );
+      }
     }
 
     await tester.pumpWidget(subject(null));
@@ -80,6 +89,25 @@ void main() {
     await tester.pumpWidget(subject(OperationStatus.red, reducedMotion: true));
     expect(find.text('DANGER'), findsOneWidget);
     expect(painter(tester).staticFrame, isTrue);
+  });
+
+  testWidgets('scaled status text stays centered in its scaled quiet zone', (
+    tester,
+  ) async {
+    const textScaler = TextScaler.linear(1.4);
+    await tester.pumpWidget(
+      subject(OperationStatus.yellow, textScaler: textScaler),
+    );
+    final labelBounds = tester.getRect(find.text('CAUTION'));
+    final slotBounds = tester.getRect(
+      find.byKey(const ValueKey('operation-ambient-animation-slot')),
+    );
+    final zoneWidth = OperationAmbientStatusLabel.noWaveZoneWidth(textScaler);
+    expect(
+      labelBounds.center.dx,
+      closeTo(slotBounds.left + zoneWidth / 2, .01),
+    );
+    expect(labelBounds.right, lessThanOrEqualTo(slotBounds.left + zoneWidth));
   });
 
   testWidgets('GREEN uses the strongest canonical ECG pulse preset', (

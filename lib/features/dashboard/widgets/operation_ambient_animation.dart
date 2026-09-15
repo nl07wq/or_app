@@ -188,13 +188,17 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                 if (geometry.statusLabel case final label?)
                   Positioned(
                     key: const ValueKey('operation-ambient-status-label'),
-                    left: OperationAmbientStatusLabel.leftPadding,
+                    left: 0,
+                    width: noWaveInset,
                     bottom: OperationAmbientStatusLabel.bottomPadding,
-                    child: Text(
-                      label,
-                      style: OperationAmbientStatusLabel.textStyle.copyWith(
-                        color: geometry.color,
-                        height: 1,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Text(
+                        label,
+                        style: OperationAmbientStatusLabel.textStyle.copyWith(
+                          color: geometry.color,
+                          height: 1,
+                        ),
                       ),
                     ),
                   ),
