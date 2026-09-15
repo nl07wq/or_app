@@ -364,43 +364,22 @@ class FoodInputFields extends StatelessWidget {
 
         AppSpacing.gapMD,
 
-        Row(
+        FoodNumericStepperRow(
           key: const ValueKey('food-amount-stepper-row'),
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: OperationTextField(
-                controller: amountController,
-                label: recipeSelected
-                    ? 'SERVINGS'
-                    : amountMode == FoodAmountMode.baseMultiplier
-                    ? 'AMOUNT'
-                    : 'QUANTITY (${_quantityUnitLabel(baseUnit)})',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: onChanged,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _AmountStepButton(
-                  key: const ValueKey('food-amount-increment'),
-                  icon: Icons.keyboard_arrow_up,
-                  tooltip: 'Increase amount',
-                  onPressed: () => _stepAmount(1),
-                ),
-                _AmountStepButton(
-                  key: const ValueKey('food-amount-decrement'),
-                  icon: Icons.keyboard_arrow_down,
-                  tooltip: 'Decrease amount',
-                  onPressed: _canDecrement ? () => _stepAmount(-1) : null,
-                ),
-              ],
-            ),
-          ],
+          inputKey: const ValueKey('food-amount-input'),
+          controller: amountController,
+          label: recipeSelected
+              ? 'SERVINGS'
+              : amountMode == FoodAmountMode.baseMultiplier
+              ? 'AMOUNT'
+              : 'QUANTITY (${_quantityUnitLabel(baseUnit)})',
+          onChanged: onChanged,
+          incrementKey: const ValueKey('food-amount-increment'),
+          incrementTooltip: 'Increase amount',
+          onIncrement: () => _stepAmount(1),
+          decrementKey: const ValueKey('food-amount-decrement'),
+          decrementTooltip: 'Decrease amount',
+          onDecrement: _canDecrement ? () => _stepAmount(-1) : null,
         ),
 
         if (!recipeSelected && amountMode == FoodAmountMode.baseMultiplier) ...[
@@ -543,8 +522,71 @@ class _NutritionAnalysisPainter extends CustomPainter {
       oldDelegate.mutedColor != mutedColor;
 }
 
-class _AmountStepButton extends StatelessWidget {
-  const _AmountStepButton({
+/// Shared presentation-only numeric field plus a compact vertical stepper.
+/// Callers keep ownership of parsing, minimum values, and domain calculations.
+class FoodNumericStepperRow extends StatelessWidget {
+  const FoodNumericStepperRow({
+    super.key,
+    required this.inputKey,
+    required this.controller,
+    required this.label,
+    required this.onChanged,
+    required this.incrementKey,
+    required this.incrementTooltip,
+    required this.onIncrement,
+    required this.decrementKey,
+    required this.decrementTooltip,
+    required this.onDecrement,
+  });
+
+  final Key inputKey;
+  final TextEditingController controller;
+  final String label;
+  final ValueChanged<String> onChanged;
+  final Key incrementKey;
+  final String incrementTooltip;
+  final VoidCallback? onIncrement;
+  final Key decrementKey;
+  final String decrementTooltip;
+  final VoidCallback? onDecrement;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: OperationTextField(
+          key: inputKey,
+          controller: controller,
+          label: label,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onChanged,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.xs),
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FoodNumericStepButton(
+            key: incrementKey,
+            icon: Icons.keyboard_arrow_up,
+            tooltip: incrementTooltip,
+            onPressed: onIncrement,
+          ),
+          FoodNumericStepButton(
+            key: decrementKey,
+            icon: Icons.keyboard_arrow_down,
+            tooltip: decrementTooltip,
+            onPressed: onDecrement,
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class FoodNumericStepButton extends StatelessWidget {
+  const FoodNumericStepButton({
     super.key,
     required this.icon,
     required this.tooltip,

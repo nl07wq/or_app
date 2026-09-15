@@ -161,6 +161,99 @@ void main() {
     expect(find.text('さらに表示'), findsOneWidget);
   });
 
+  testWidgets(
+    'FOOD quantity shares the compact MANUAL amount stepper geometry',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+
+      final manualField = find.byKey(const ValueKey('food-amount-input'));
+      final manualIncrement = find.byKey(
+        const ValueKey('food-amount-increment'),
+      );
+      final manualDecrement = find.byKey(
+        const ValueKey('food-amount-decrement'),
+      );
+      final manualGap =
+          tester.getRect(manualIncrement).left -
+          tester.getRect(manualField).right;
+      final manualIncrementSize = tester.getSize(manualIncrement);
+      final manualDecrementSize = tester.getSize(manualDecrement);
+
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-tab-databaseFood')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('food-db-pending-quantity'));
+      final increment = find.byKey(
+        const ValueKey('food-db-quantity-increment'),
+      );
+      final decrement = find.byKey(
+        const ValueKey('food-db-quantity-decrement'),
+      );
+      final quantityRect = tester.getRect(quantity);
+      final incrementRect = tester.getRect(increment);
+      final decrementRect = tester.getRect(decrement);
+
+      expect(incrementRect.left, greaterThan(quantityRect.right));
+      expect(decrementRect.left, greaterThan(quantityRect.right));
+      expect(incrementRect.left, moreOrLessEquals(decrementRect.left));
+      expect(incrementRect.top, lessThan(decrementRect.top));
+      expect(
+        incrementRect.left - quantityRect.right,
+        moreOrLessEquals(manualGap),
+      );
+      expect(tester.getSize(increment), manualIncrementSize);
+      expect(tester.getSize(decrement), manualDecrementSize);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'FOOD quantity preserves decimal typing and current step actions',
+    (tester) async {
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-tab-databaseFood')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('food-db-pending-quantity'));
+      TextField quantityInput() => tester.widget<TextField>(
+        find.descendant(of: quantity, matching: find.byType(TextField)),
+      );
+
+      expect(quantityInput().controller!.text, '1');
+      await tester.tap(
+        find.byKey(const ValueKey('food-db-quantity-increment')),
+      );
+      await tester.pump();
+      expect(quantityInput().controller!.text, '2');
+      await tester.tap(
+        find.byKey(const ValueKey('food-db-quantity-decrement')),
+      );
+      await tester.pump();
+      expect(quantityInput().controller!.text, '1');
+      await tester.enterText(quantity, '2.25');
+      await tester.pump();
+      expect(quantityInput().controller!.text, '2.25');
+    },
+  );
+
   testWidgets('water disables meal type and hides database modes', (
     tester,
   ) async {
@@ -197,6 +290,25 @@ void main() {
         find.byKey(const ValueKey('food-entry-tab-databaseFood')),
       );
       await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+      final quantity = find.byKey(const ValueKey('food-db-pending-quantity'));
+      final increment = find.byKey(
+        const ValueKey('food-db-quantity-increment'),
+      );
+      final decrement = find.byKey(
+        const ValueKey('food-db-quantity-decrement'),
+      );
+      expect(
+        tester.getRect(increment).left,
+        greaterThan(tester.getRect(quantity).right),
+      );
+      expect(
+        tester.getRect(decrement).left,
+        greaterThan(tester.getRect(quantity).right),
+      );
       expect(tester.takeException(), isNull);
     });
   }

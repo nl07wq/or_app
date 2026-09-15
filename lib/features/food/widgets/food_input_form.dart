@@ -1711,29 +1711,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
             ),
             Text(_pendingUnit(pending)),
             AppSpacing.gapMD,
-            OperationTextField(
-              key: const ValueKey('food-db-pending-quantity'),
+            FoodNumericStepperRow(
+              key: const ValueKey('food-db-quantity-stepper-row'),
+              inputKey: const ValueKey('food-db-pending-quantity'),
               controller: _pendingQuantityController,
               label: 'Quantity',
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
               onChanged: (_) => setState(() => inputError = null),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  key: const ValueKey('food-db-quantity-decrement'),
-                  onPressed: () => _adjustPendingQuantity(-1),
-                  icon: const Icon(Icons.arrow_drop_down),
-                ),
-                IconButton(
-                  key: const ValueKey('food-db-quantity-increment'),
-                  onPressed: () => _adjustPendingQuantity(1),
-                  icon: const Icon(Icons.arrow_drop_up),
-                ),
-              ],
+              incrementKey: const ValueKey('food-db-quantity-increment'),
+              incrementTooltip: 'Increase quantity',
+              onIncrement: () => _adjustPendingQuantity(1),
+              decrementKey: const ValueKey('food-db-quantity-decrement'),
+              decrementTooltip: 'Decrease quantity',
+              onDecrement: () => _adjustPendingQuantity(-1),
             ),
             AppSpacing.gapMD,
             Row(
