@@ -62,7 +62,8 @@ void main() {
         final expectedCenter =
             slotBounds.left + OperationAmbientStatusLabel.noWaveZoneWidth() / 2;
         expect(labelBounds.center.dx, closeTo(expectedCenter, .01));
-        expect(labelBounds.bottom, slotBounds.bottom - 2);
+        expect(OperationAmbientStatusLabel.bottomPadding, 0);
+        expect(labelBounds.bottom, slotBounds.bottom);
         expect(labelBounds.left, greaterThanOrEqualTo(slotBounds.left));
         expect(
           labelBounds.right,

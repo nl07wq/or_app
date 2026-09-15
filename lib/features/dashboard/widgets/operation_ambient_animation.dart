@@ -268,7 +268,7 @@ class OperationAmbientStatusLabel {
   const OperationAmbientStatusLabel._();
 
   static const leftPadding = 6.0;
-  static const bottomPadding = 2.0;
+  static const bottomPadding = 0.0;
   static const fontSize = 9.0;
   static const letterSpacing = .25;
 
