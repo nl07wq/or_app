@@ -208,7 +208,7 @@ class _InformationMarqueeRuntimeDiagnostics extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         Text('RUNNING BUILD  ${AppMetadata.releaseMetadata.releaseCommit}'),
         Text(
-          'SPEED  ${InformationMarqueeConfiguration.scrollSpeedPxPerSecond.toStringAsFixed(0)} px/s',
+          'SPEED  ${snapshot?.configuredSpeedPxPerSecond.toStringAsFixed(0) ?? InformationMarqueeConfiguration.scrollSpeedPxPerSecond.toStringAsFixed(0)} px/s',
         ),
         Text(
           'EXIT MARGIN  ${InformationMarqueeConfiguration.exitSafetyMargin.toStringAsFixed(0)} px',
@@ -226,6 +226,9 @@ class _InformationMarqueeRuntimeDiagnostics extends StatelessWidget {
           Text(
             'START / END  ${_px(snapshot.startLeft)} / ${_px(snapshot.endLeft)} px',
           ),
+          Text('STATE  ${snapshot.phase.name.toUpperCase()}'),
+          Text('CURRENT X  ${_px(snapshot.currentX)} px'),
+          Text('PROGRESS  ${snapshot.progress.toStringAsFixed(3)}'),
         ],
       ],
     ),

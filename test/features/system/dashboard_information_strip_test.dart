@@ -379,6 +379,183 @@ void main() {
     expect(tester.getRect(text).left, greaterThanOrEqualTo(viewportRect.right));
   });
 
+  testWidgets(
+    'speed changes duration only: production endpoints and terminal bounds stay invariant',
+    (tester) async {
+      const title =
+          'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ 1234567890';
+      const speeds = [150.0, 120.0, 100.0, 80.0];
+      final snapshots = <InformationMarqueeRuntimeSnapshot>[];
+      final terminalRights = <double>[];
+      final durations = <Duration>[];
+
+      for (final speed in speeds) {
+        await tester.pumpWidget(
+          _app(
+            disableAnimations: false,
+            width: 390,
+            title: title,
+            debugScrollSpeedPxPerSecond: speed,
+          ),
+        );
+        await tester.pump();
+        final text = find.byKey(
+          const ValueKey('dashboard-information-marquee-text'),
+        );
+        final viewport = find.byKey(
+          const ValueKey('dashboard-information-ticker-viewport'),
+        );
+        final timing = _timingFor(
+          tester,
+          text: text,
+          viewport: viewport,
+          speed: speed,
+        );
+        final initial = InformationMarqueeRuntimeDiagnostics.snapshot.value!;
+        expect(initial.phase, InformationMarqueePhase.initialPause);
+        expect(initial.currentX, moreOrLessEquals(initial.startLeft));
+
+        await tester.pump(InformationMarqueeConfiguration.initialPause);
+        await tester.pump();
+        final travelStart = tester.getRect(text).left;
+        await tester.pump(const Duration(milliseconds: 400));
+        final actualSpeed = (travelStart - tester.getRect(text).left) / .4;
+        expect(actualSpeed, moreOrLessEquals(speed, epsilon: .5));
+
+        await tester.pump(
+          timing.travelDuration - const Duration(milliseconds: 399),
+        );
+        await _paintTerminalFrame(tester);
+        final terminal = InformationMarqueeRuntimeDiagnostics.snapshot.value!;
+        expect(terminal.phase, InformationMarqueePhase.terminalPause);
+        expect(terminal.progress, 1);
+        expect(terminal.currentX, moreOrLessEquals(terminal.endLeft));
+        expect(
+          tester.getRect(text).right,
+          lessThanOrEqualTo(tester.getRect(viewport).left - 10),
+        );
+        snapshots.add(terminal);
+        terminalRights.add(tester.getRect(text).right);
+        durations.add(timing.travelDuration);
+
+        await tester.pump(const Duration(milliseconds: 1299));
+        expect(
+          tester.getRect(text).right,
+          moreOrLessEquals(terminalRights.last, epsilon: .01),
+        );
+        await tester.pump(const Duration(milliseconds: 1));
+        await tester.pump();
+        final reset = InformationMarqueeRuntimeDiagnostics.snapshot.value!;
+        expect(reset.phase, InformationMarqueePhase.initialPause);
+        expect(reset.currentX, moreOrLessEquals(reset.startLeft));
+      }
+
+      for (var index = 1; index < snapshots.length; index++) {
+        expect(
+          snapshots[index].startLeft,
+          moreOrLessEquals(snapshots.first.startLeft),
+        );
+        expect(
+          snapshots[index].endLeft,
+          moreOrLessEquals(snapshots.first.endLeft),
+        );
+        expect(
+          snapshots[index].travelDistance,
+          moreOrLessEquals(snapshots.first.travelDistance),
+        );
+        expect(
+          terminalRights[index],
+          moreOrLessEquals(terminalRights.first, epsilon: .01),
+        );
+      }
+      expect(durations[0], lessThan(durations[1]));
+      expect(durations[1], lessThan(durations[2]));
+      expect(durations[2], lessThan(durations[3]));
+    },
+  );
+
+  testWidgets(
+    'notice length changes distance, never speed-selected endpoints',
+    (tester) async {
+      const titles = [
+        'TEST',
+        'TEST INFORMATION',
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ',
+      ];
+      const speeds = [150.0, 120.0, 100.0, 80.0];
+
+      for (final title in titles) {
+        InformationMarqueeRuntimeSnapshot? firstTerminal;
+        for (final speed in speeds) {
+          await tester.pumpWidget(
+            _app(
+              disableAnimations: false,
+              width: 390,
+              title: title,
+              debugScrollSpeedPxPerSecond: speed,
+            ),
+          );
+          await tester.pump();
+          await tester.pump(InformationMarqueeConfiguration.initialPause);
+          await tester.pump();
+          await _advanceToTerminal(
+            tester,
+            cadence: const Duration(milliseconds: 100),
+          );
+          final terminal = InformationMarqueeRuntimeDiagnostics.snapshot.value!;
+          expect(terminal.phase, InformationMarqueePhase.terminalPause);
+          expect(terminal.currentX, moreOrLessEquals(terminal.endLeft));
+          if (firstTerminal == null) {
+            firstTerminal = terminal;
+          } else {
+            expect(
+              terminal.startLeft,
+              moreOrLessEquals(firstTerminal.startLeft),
+            );
+            expect(terminal.endLeft, moreOrLessEquals(firstTerminal.endLeft));
+            expect(
+              terminal.travelDistance,
+              moreOrLessEquals(firstTerminal.travelDistance),
+            );
+          }
+        }
+      }
+    },
+  );
+
+  testWidgets('terminal endpoint is cadence independent at supported widths', (
+    tester,
+  ) async {
+    const title =
+        'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ';
+    for (final width in [320.0, 390.0, 900.0]) {
+      for (final cadence in const [16, 33, 100]) {
+        await tester.pumpWidget(
+          _app(disableAnimations: false, width: width, title: title),
+        );
+        final text = find.byKey(
+          const ValueKey('dashboard-information-marquee-text'),
+        );
+        final viewport = find.byKey(
+          const ValueKey('dashboard-information-ticker-viewport'),
+        );
+        await tester.pump(InformationMarqueeConfiguration.initialPause);
+        await tester.pump();
+        await _advanceToTerminal(
+          tester,
+          cadence: Duration(milliseconds: cadence),
+        );
+        final terminal = InformationMarqueeRuntimeDiagnostics.snapshot.value!;
+        expect(terminal.phase, InformationMarqueePhase.terminalPause);
+        expect(terminal.currentX, moreOrLessEquals(terminal.endLeft));
+        expect(
+          tester.getRect(text).right,
+          lessThanOrEqualTo(tester.getRect(viewport).left - 10),
+        );
+      }
+    }
+  });
+
   testWidgets('keeps a compact two-row strip at supported dashboard widths', (
     tester,
   ) async {
@@ -427,19 +604,21 @@ InformationMarqueeTiming _timingFor(
   WidgetTester tester, {
   required Finder text,
   required Finder viewport,
+  double speed = InformationMarqueeTiming.fixedScrollSpeedPxPerSecond,
 }) => InformationMarqueeTiming(
   geometry: InformationMarqueeGeometry(
     viewportWidth: tester.getSize(viewport).width,
     textLayoutWidth: tester.getSize(text).width,
     exitSafetyMargin: 12,
   ),
-  scrollSpeedPxPerSecond: InformationMarqueeTiming.fixedScrollSpeedPxPerSecond,
+  scrollSpeedPxPerSecond: speed,
 );
 
 Widget _app({
   required bool disableAnimations,
   double width = 390,
   String title = 'RECOVERY V2 BETA — REVIEW READY',
+  double? debugScrollSpeedPxPerSecond,
 }) => MaterialApp(
   home: Align(
     alignment: Alignment.topLeft,
@@ -469,6 +648,7 @@ Widget _app({
                 ),
               ],
               onTap: _noop,
+              debugScrollSpeedPxPerSecond: debugScrollSpeedPxPerSecond,
             ),
           ),
         ),
@@ -478,3 +658,26 @@ Widget _app({
 );
 
 void _noop() {}
+
+/// The first pump runs the post-paint completion callback; the second paints
+/// the explicit terminal-pause geometry selected by that callback.
+Future<void> _paintTerminalFrame(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump();
+}
+
+Future<void> _advanceToTerminal(
+  WidgetTester tester, {
+  required Duration cadence,
+}) async {
+  for (
+    var step = 0;
+    step < 2000 &&
+        InformationMarqueeRuntimeDiagnostics.snapshot.value!.phase !=
+            InformationMarqueePhase.terminalPause;
+    step++
+  ) {
+    await tester.pump(cadence);
+    await tester.pump();
+  }
+}

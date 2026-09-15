@@ -12,10 +12,16 @@ class DashboardInformationStrip extends StatelessWidget {
     super.key,
     required this.notices,
     required this.onTap,
+    @visibleForTesting this.debugScrollSpeedPxPerSecond,
   });
 
   final List<InformationNotice> notices;
   final VoidCallback onTap;
+
+  /// Test-only input used to prove that alternate speeds share the exact
+  /// production renderer and endpoint geometry. Production always uses the
+  /// canonical configuration below.
+  final double? debugScrollSpeedPxPerSecond;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +65,10 @@ class DashboardInformationStrip extends StatelessWidget {
               key: const ValueKey('dashboard-information-ticker-viewport'),
               height: 26,
               width: double.infinity,
-              child: _InformationMarquee(text: notice.title),
+              child: _InformationMarquee(
+                text: notice.title,
+                scrollSpeedPxPerSecond: debugScrollSpeedPxPerSecond,
+              ),
             ),
           ],
         ),
@@ -87,9 +96,10 @@ class _NoticeCount extends StatelessWidget {
 /// A self-contained ticker so animation frames never rebuild Dashboard. Text
 /// enters from the right and travels to the left, then rests before repeating.
 class _InformationMarquee extends StatefulWidget {
-  const _InformationMarquee({required this.text});
+  const _InformationMarquee({required this.text, this.scrollSpeedPxPerSecond});
 
   final String text;
+  final double? scrollSpeedPxPerSecond;
 
   @override
   State<_InformationMarquee> createState() => _InformationMarqueeState();
@@ -106,6 +116,7 @@ class _InformationMarqueeState extends State<_InformationMarquee>
   Timer? _pauseTimer;
   bool _reducedMotion = false;
   bool _tickerEnabled = true;
+  InformationMarqueePhase _phase = InformationMarqueePhase.initialPause;
 
   @override
   void didChangeDependencies() {
@@ -119,14 +130,14 @@ class _InformationMarqueeState extends State<_InformationMarquee>
       _pauseTimer?.cancel();
       _controller.stop();
     } else {
-      _restart(after: InformationMarqueeConfiguration.initialPause);
+      _enterInitialPause();
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _restart(after: InformationMarqueeConfiguration.initialPause);
+    _enterInitialPause();
   }
 
   @override
@@ -134,29 +145,48 @@ class _InformationMarqueeState extends State<_InformationMarquee>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text) {
       _renderedTextWidth = null;
-      _restart(after: InformationMarqueeConfiguration.initialPause);
+      _enterInitialPause();
     }
   }
 
   void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed && !_reducedMotion) {
-      _restart(
-        after: InformationMarqueeConfiguration.terminalPause,
-        resetToStart: false,
-      );
+    if (status != AnimationStatus.completed ||
+        _reducedMotion ||
+        _phase != InformationMarqueePhase.travel) {
+      return;
     }
+    // Let the completed controller value (1.0) paint once while still in the
+    // travel phase. The following frame switches to the explicit terminal
+    // phase, whose geometry is END_X rather than a sampled controller value.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          !_reducedMotion &&
+          _tickerEnabled &&
+          _phase == InformationMarqueePhase.travel &&
+          _controller.value == 1) {
+        _enterTerminalPause();
+      }
+    });
   }
 
-  void _restart({required Duration after, bool resetToStart = true}) {
+  void _enterInitialPause() {
     _pauseTimer?.cancel();
-    if (resetToStart) {
-      _controller.stop();
-      _controller.value = 0;
-    }
-    _pauseTimer = Timer(after, () {
+    _controller.stop();
+    _controller.value = 0;
+    if (mounted) setState(() => _phase = InformationMarqueePhase.initialPause);
+    _pauseTimer = Timer(InformationMarqueeConfiguration.initialPause, () {
       if (mounted && !_reducedMotion && _tickerEnabled) {
+        setState(() => _phase = InformationMarqueePhase.travel);
         _controller.forward(from: 0);
       }
+    });
+  }
+
+  void _enterTerminalPause() {
+    _pauseTimer?.cancel();
+    setState(() => _phase = InformationMarqueePhase.terminalPause);
+    _pauseTimer = Timer(InformationMarqueeConfiguration.terminalPause, () {
+      if (mounted && !_reducedMotion && _tickerEnabled) _enterInitialPause();
     });
   }
 
@@ -221,6 +251,7 @@ class _InformationMarqueeState extends State<_InformationMarquee>
         final timing = InformationMarqueeTiming(
           geometry: geometry,
           scrollSpeedPxPerSecond:
+              widget.scrollSpeedPxPerSecond ??
               InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
         );
         // The same measured distance used for the exit geometry controls the
@@ -228,17 +259,6 @@ class _InformationMarqueeState extends State<_InformationMarquee>
         if (_controller.duration != timing.travelDuration) {
           _controller.duration = timing.travelDuration;
         }
-        InformationMarqueeRuntimeDiagnostics.publish(
-          InformationMarqueeRuntimeSnapshot(
-            viewportWidth: constraints.maxWidth,
-            measuredTextWidth: painter.width,
-            renderedTextWidth: _renderedTextWidth,
-            travelDistance: geometry.travelDistance,
-            travelDuration: timing.travelDuration,
-            startLeft: geometry.startLeft,
-            endLeft: geometry.endLeft,
-          ),
-        );
         return AnimatedBuilder(
           animation: _controller,
           child: KeyedSubtree(
@@ -254,26 +274,55 @@ class _InformationMarqueeState extends State<_InformationMarquee>
               textWidthBasis: TextWidthBasis.longestLine,
             ),
           ),
-          builder: (context, child) => ClipRect(
-            key: const ValueKey('dashboard-information-marquee-clip'),
-            child: Transform.translate(
-              key: const ValueKey('dashboard-information-marquee-transform'),
-              offset: Offset(geometry.leftAt(_controller.value), 0),
-              // Keep the text's paint box unconstrained. The ClipRect above,
-              // not an inherited Text width constraint, owns all clipping.
-              child: OverflowBox(
-                alignment: Alignment.topLeft,
-                minWidth: 0,
-                maxWidth: double.infinity,
-                child: child,
+          builder: (context, child) {
+            final progress = switch (_phase) {
+              InformationMarqueePhase.initialPause => 0.0,
+              InformationMarqueePhase.travel => _controller.value,
+              InformationMarqueePhase.terminalPause => 1.0,
+            };
+            final currentX = switch (_phase) {
+              InformationMarqueePhase.initialPause => geometry.startLeft,
+              InformationMarqueePhase.travel => geometry.leftAt(progress),
+              InformationMarqueePhase.terminalPause => geometry.endLeft,
+            };
+            InformationMarqueeRuntimeDiagnostics.publish(
+              InformationMarqueeRuntimeSnapshot(
+                phase: _phase,
+                configuredSpeedPxPerSecond: timing.scrollSpeedPxPerSecond,
+                viewportWidth: constraints.maxWidth,
+                measuredTextWidth: painter.width,
+                renderedTextWidth: _renderedTextWidth,
+                travelDistance: geometry.travelDistance,
+                travelDuration: timing.travelDuration,
+                startLeft: geometry.startLeft,
+                endLeft: geometry.endLeft,
+                currentX: currentX,
+                progress: progress,
               ),
-            ),
-          ),
+            );
+            return ClipRect(
+              key: const ValueKey('dashboard-information-marquee-clip'),
+              child: Transform.translate(
+                key: const ValueKey('dashboard-information-marquee-transform'),
+                offset: Offset(currentX, 0),
+                // Keep the text's paint box unconstrained. The ClipRect above,
+                // not an inherited Text width constraint, owns all clipping.
+                child: OverflowBox(
+                  alignment: Alignment.topLeft,
+                  minWidth: 0,
+                  maxWidth: double.infinity,
+                  child: child,
+                ),
+              ),
+            );
+          },
         );
       },
     ),
   );
 }
+
+enum InformationMarqueePhase { initialPause, travel, terminalPause }
 
 /// Production configuration shared by the Dashboard renderer and runtime
 /// diagnostics. Keeping these values public makes it impossible for a debug
@@ -335,11 +384,13 @@ class InformationMarqueeTiming {
       (travelDuration.inMicroseconds / Duration.microsecondsPerSecond);
 }
 
-/// A read-only snapshot from the active production ticker. It intentionally
-/// contains geometry only: notice content and INFORMATION state remain private
+/// A read-only snapshot from the active production ticker. It exposes timing
+/// phase and geometry only; notice content and INFORMATION state remain private
 /// to their existing service/detail flow.
 class InformationMarqueeRuntimeSnapshot {
   const InformationMarqueeRuntimeSnapshot({
+    required this.phase,
+    required this.configuredSpeedPxPerSecond,
     required this.viewportWidth,
     required this.measuredTextWidth,
     required this.renderedTextWidth,
@@ -347,8 +398,12 @@ class InformationMarqueeRuntimeSnapshot {
     required this.travelDuration,
     required this.startLeft,
     required this.endLeft,
+    required this.currentX,
+    required this.progress,
   });
 
+  final InformationMarqueePhase phase;
+  final double configuredSpeedPxPerSecond;
   final double viewportWidth;
   final double measuredTextWidth;
   final double? renderedTextWidth;
@@ -356,20 +411,28 @@ class InformationMarqueeRuntimeSnapshot {
   final Duration travelDuration;
   final double startLeft;
   final double endLeft;
+  final double currentX;
+  final double progress;
 
   @override
   bool operator ==(Object other) =>
       other is InformationMarqueeRuntimeSnapshot &&
+      phase == other.phase &&
+      configuredSpeedPxPerSecond == other.configuredSpeedPxPerSecond &&
       viewportWidth == other.viewportWidth &&
       measuredTextWidth == other.measuredTextWidth &&
       renderedTextWidth == other.renderedTextWidth &&
       travelDistance == other.travelDistance &&
       travelDuration == other.travelDuration &&
       startLeft == other.startLeft &&
-      endLeft == other.endLeft;
+      endLeft == other.endLeft &&
+      currentX == other.currentX &&
+      progress == other.progress;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
+    phase,
+    configuredSpeedPxPerSecond,
     viewportWidth,
     measuredTextWidth,
     renderedTextWidth,
@@ -377,7 +440,9 @@ class InformationMarqueeRuntimeSnapshot {
     travelDuration,
     startLeft,
     endLeft,
-  );
+    currentX,
+    progress,
+  ]);
 }
 
 abstract final class InformationMarqueeRuntimeDiagnostics {
