@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/meal_type.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
@@ -17,6 +18,24 @@ void main() {
       ),
     ),
   );
+
+  Finder modeTab(String mode) => find.byKey(ValueKey('food-entry-tab-$mode'));
+
+  Future<void> swipeMode(WidgetTester tester, double deltaX) async {
+    final surface = find.byKey(
+      const ValueKey('food-entry-input-mode-page-surface'),
+    );
+    final origin = tester.getTopLeft(surface) + const Offset(20, 20);
+    await tester.flingFrom(origin, Offset(deltaX, 0), 1200);
+    await tester.pumpAndSettle();
+  }
+
+  void expectActiveMode(WidgetTester tester, String mode) {
+    final label = tester.widget<Text>(
+      find.descendant(of: modeTab(mode), matching: find.text(_modeLabel(mode))),
+    );
+    expect(label.style?.fontWeight, FontWeight.bold);
+  }
 
   testWidgets('compact selectors and input modes show only active content', (
     tester,
@@ -71,6 +90,167 @@ void main() {
     final foodText = tester.widget<Text>(find.text('FOOD').first);
     expect(foodText.style?.color, primary);
     expect(foodText.style?.fontWeight, FontWeight.bold);
+  });
+
+  testWidgets('mode body restores the complete no-wrap swipe sequence', (
+    tester,
+  ) async {
+    await _installFoods(1);
+    await tester.pumpWidget(subject());
+    expectActiveMode(tester, 'manual');
+
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseFood');
+    expect(
+      find.byKey(const ValueKey('food-entry-search-databaseFood')),
+      findsOneWidget,
+    );
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseRecipe');
+    expect(
+      find.byKey(const ValueKey('food-entry-search-databaseRecipe')),
+      findsOneWidget,
+    );
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseMeal');
+    expect(
+      find.byKey(const ValueKey('food-entry-search-databaseMeal')),
+      findsOneWidget,
+    );
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseMeal');
+
+    await swipeMode(tester, 300);
+    expectActiveMode(tester, 'databaseRecipe');
+    await swipeMode(tester, 300);
+    expectActiveMode(tester, 'databaseFood');
+    await swipeMode(tester, 300);
+    expectActiveMode(tester, 'manual');
+    await swipeMode(tester, 300);
+    expectActiveMode(tester, 'manual');
+  });
+
+  testWidgets('tab taps and body swipes share one selected mode', (
+    tester,
+  ) async {
+    await _installFoods(1);
+    await tester.pumpWidget(subject());
+
+    await tester.tap(modeTab('databaseRecipe'));
+    await tester.pumpAndSettle();
+    expectActiveMode(tester, 'databaseRecipe');
+    expect(
+      find.byKey(const ValueKey('food-entry-search-databaseRecipe')),
+      findsOneWidget,
+    );
+
+    await swipeMode(tester, 300);
+    expectActiveMode(tester, 'databaseFood');
+    await tester.tap(modeTab('databaseMeal'));
+    await tester.pumpAndSettle();
+    expectActiveMode(tester, 'databaseMeal');
+  });
+
+  testWidgets('search state survives body swipe navigation', (tester) async {
+    await _installFoods(10);
+    await tester.pumpWidget(subject());
+    await tester.tap(modeTab('databaseFood'));
+    await tester.pumpAndSettle();
+    final search = find.byKey(const ValueKey('food-entry-search-databaseFood'));
+    await tester.enterText(search, 'Food 9');
+    await tester.pump();
+    expectActiveMode(tester, 'databaseFood');
+
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseRecipe');
+    await swipeMode(tester, 300);
+    expectActiveMode(tester, 'databaseFood');
+    expect(tester.widget<TextField>(search).controller!.text, 'Food 9');
+    expect(
+      find.byKey(ValueKey('food-entry-inline-food-${_foodId(9)}')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('vertical discovery scrolling keeps the current mode active', (
+    tester,
+  ) async {
+    await _installFoods(10);
+    await tester.pumpWidget(subject());
+    await tester.tap(modeTab('databaseFood'));
+    await tester.pumpAndSettle();
+    final expand = find.byKey(const ValueKey('food-entry-expand-databaseFood'));
+    await tester.ensureVisible(expand);
+    await tester.tap(expand);
+    await tester.pumpAndSettle();
+
+    final surface = find.byKey(
+      const ValueKey('food-entry-input-mode-page-surface'),
+    );
+    await tester.dragFrom(
+      tester.getTopLeft(surface) + const Offset(20, 20),
+      const Offset(0, -250),
+    );
+    await tester.pumpAndSettle();
+
+    expectActiveMode(tester, 'databaseFood');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pending Food quantity confirmation blocks mode changes', (
+    tester,
+  ) async {
+    await _installFoods(1);
+    await tester.pumpWidget(subject());
+    await tester.tap(modeTab('databaseFood'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+    );
+    await tester.pumpAndSettle();
+
+    await swipeMode(tester, -300);
+    expectActiveMode(tester, 'databaseFood');
+    expect(
+      find.byKey(const ValueKey('food-db-quantity-confirmation')),
+      findsOneWidget,
+    );
+    expect(tester.widget<InkWell>(modeTab('databaseRecipe')).onTap, isNull);
+  });
+
+  testWidgets('selectors use a smaller aligned selected value treatment', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(subject());
+
+    final entrySelector = find.byKey(
+      const ValueKey('food-entry-type-selector'),
+    );
+    final mealSelector = find.byKey(const ValueKey('food-meal-type-selector'));
+    final mealValue = tester.widget<Text>(
+      find.descendant(of: entrySelector, matching: find.text('MEAL')).first,
+    );
+    final breakfastValue = tester.widget<Text>(
+      find.descendant(of: mealSelector, matching: find.text('朝食')).first,
+    );
+    final icon = tester.widget<Icon>(
+      find
+          .descendant(
+            of: entrySelector,
+            matching: find.byIcon(Icons.restaurant),
+          )
+          .first,
+    );
+
+    expect(mealValue.style?.fontSize, 14);
+    expect(breakfastValue.style?.fontSize, 14);
+    expect(icon.size, 16);
+    expect(tester.getRect(entrySelector).height, lessThan(48));
+    expect(tester.getRect(mealSelector).height, lessThan(48));
   });
 
   testWidgets(
@@ -275,6 +455,33 @@ void main() {
     expect(find.text('Water Volume (ml)'), findsOneWidget);
   });
 
+  testWidgets('water keeps the prior meal selection for return to meal mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject());
+    final mealSelector = find.byKey(const ValueKey('food-meal-type-selector'));
+    await tester.tap(mealSelector);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('昼食').last);
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WATER').last);
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MEAL').last);
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<DropdownButtonFormField<MealType>>(mealSelector)
+          .initialValue,
+      MealType.lunch,
+    );
+  });
+
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets('compact Food Entry does not overflow at ${width.toInt()}px', (
       tester,
@@ -350,3 +557,11 @@ Future<void> _installFoods(int count) async {
 
 String _foodId(int index) =>
     '00000000-0000-4000-8000-${index.toString().padLeft(12, '0')}';
+
+String _modeLabel(String mode) => switch (mode) {
+  'manual' => 'MANUAL',
+  'databaseFood' => 'FOOD',
+  'databaseRecipe' => 'RECIPE',
+  'databaseMeal' => 'MEAL',
+  _ => throw ArgumentError.value(mode, 'mode'),
+};

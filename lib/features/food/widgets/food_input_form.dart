@@ -73,9 +73,9 @@ class _SelectorOption extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+      Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
       const SizedBox(width: 6),
-      Text(label),
+      Text(label, style: const TextStyle(fontSize: 14)),
     ],
   );
 }
@@ -1182,14 +1182,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _switchInputMode(_FoodEntryInputMode mode) {
-    if (_inputMode == mode) return;
+    if (_inputMode == mode || !_canSwitchInputMode) return;
     setState(() {
       _inputMode = mode;
-      _pendingDatabaseSelection = null;
-      _pendingQuantityController.clear();
       inputError = null;
     });
   }
+
+  bool get _canSwitchInputMode =>
+      !_isSaving && _pendingDatabaseSelection == null;
 
   Widget _entryTypeControls() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1221,7 +1222,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         isDense: true,
         decoration: const InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         ),
         onChanged: _isSaving
             ? null
@@ -1273,7 +1274,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         isDense: true,
         decoration: const InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         ),
         onChanged: isWaterEntry || _isSaving
             ? null
@@ -1323,52 +1324,48 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   : Theme.of(context).textTheme.labelMedium)
               ?.copyWith(fontSize: constraints.maxWidth >= 300 ? 14 : 12);
       final colors = Theme.of(context).colorScheme;
-      return GestureDetector(
-        onHorizontalDragEnd: (details) =>
-            _swipeInputMode(details.primaryVelocity ?? 0),
-        child: Row(
-          key: const ValueKey('food-entry-input-mode-tabs'),
-          children: [
-            for (final mode in _FoodEntryInputMode.values)
-              Expanded(
-                child: InkWell(
-                  key: ValueKey('food-entry-tab-${mode.name}'),
-                  onTap: _isSaving ? null : () => _switchInputMode(mode),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.sm,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _inputModeLabel(mode),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.clip,
-                          style: textStyle?.copyWith(
-                            color: _inputMode == mode
-                                ? colors.primary
-                                : colors.onSurfaceVariant,
-                            fontWeight: _inputMode == mode
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          height: 2,
+      return Row(
+        key: const ValueKey('food-entry-input-mode-tabs'),
+        children: [
+          for (final mode in _FoodEntryInputMode.values)
+            Expanded(
+              child: InkWell(
+                key: ValueKey('food-entry-tab-${mode.name}'),
+                onTap: _canSwitchInputMode
+                    ? () => _switchInputMode(mode)
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _inputModeLabel(mode),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.clip,
+                        style: textStyle?.copyWith(
                           color: _inputMode == mode
                               ? colors.primary
-                              : Colors.transparent,
+                              : colors.onSurfaceVariant,
+                          fontWeight: _inputMode == mode
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        height: 2,
+                        color: _inputMode == mode
+                            ? colors.primary
+                            : Colors.transparent,
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       );
     },
   );
@@ -1410,6 +1407,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _swipeInputMode(double velocity) {
+    if (!_canSwitchInputMode) return;
     final index = _inputMode.index + (velocity < 0 ? 1 : -1);
     if (velocity == 0 ||
         index < 0 ||
@@ -1817,165 +1815,185 @@ class _FoodInputFormState extends State<FoodInputForm> {
             ),
           ] else ...[
             AppSpacing.gapMD,
-            _inputModeTabs(),
-            AppSpacing.gapMD,
-            if (_inputMode == _FoodEntryInputMode.manual) ...[
-              const SectionHeader(
-                icon: Icons.restaurant_menu,
-                title: 'Add Food Item',
-              ),
-              AppSpacing.gapMD,
-              FoodInputFields(
-                foodNameController: foodNameController,
-                brandController: brandController,
-                barcodeController: barcodeController,
-                packageQuantityController: packageQuantityController,
-                calorieController: calorieController,
-                proteinController: proteinController,
-                fatController: fatController,
-                carbohydrateController: carbohydrateController,
-                baseAmountController: baseAmountController,
-                amountController: amountController,
-                foodMemoController: foodMemoController,
-                category: category,
-                packageUnit: packageUnit,
-                baseUnit: baseUnit,
-                amountMode: _inputAmountMode,
-                recipeSelected: _currentRecipeSource != null,
-                onBaseAmountChanged: _onBaseAmountChanged,
-                onCategoryChanged: (value) => setState(() {
-                  category = value;
-                  inputError = null;
-                }),
-                onPackageQuantityChanged: _onPackageQuantityChanged,
-                onPackageUnitChanged: _onPackageUnitChanged,
-                onCaloriesChanged: () => _rawCalories = null,
-                onProteinChanged: () => _rawProtein = null,
-                onFatChanged: () => _rawFat = null,
-                onCarbohydrateChanged: () => _rawCarbohydrate = null,
-                onScanBarcode: _isSaving || _capturingBarcode
-                    ? null
-                    : _scanBarcode,
-                barcodeScanInProgress: _capturingBarcode,
-                onReadNutrition: _isSaving || _capturingNutrition
-                    ? null
-                    : _scanOcr,
-                nutritionCaptureInProgress: _capturingNutrition,
-                onRecalculateNutrition: _recalculateNutrition,
-                recalculationBlockReason: _recalculationBlockReason,
-                onChanged: (_) {
-                  setState(() {
-                    inputError = null;
-                  });
-                },
-                onBaseUnitChanged: (unit) {
-                  setState(() {
-                    baseUnit = unit;
-                    _basisLinkedToPackage = false;
-                    inputError = null;
-                  });
-                },
-              ),
+            GestureDetector(
+              key: const ValueKey('food-entry-input-mode-page-surface'),
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: _canSwitchInputMode
+                  ? (details) => _swipeInputMode(details.primaryVelocity ?? 0)
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _inputModeTabs(),
+                  AppSpacing.gapMD,
+                  if (_inputMode == _FoodEntryInputMode.manual) ...[
+                    const SectionHeader(
+                      icon: Icons.restaurant_menu,
+                      title: 'Add Food Item',
+                    ),
+                    AppSpacing.gapMD,
+                    FoodInputFields(
+                      foodNameController: foodNameController,
+                      brandController: brandController,
+                      barcodeController: barcodeController,
+                      packageQuantityController: packageQuantityController,
+                      calorieController: calorieController,
+                      proteinController: proteinController,
+                      fatController: fatController,
+                      carbohydrateController: carbohydrateController,
+                      baseAmountController: baseAmountController,
+                      amountController: amountController,
+                      foodMemoController: foodMemoController,
+                      category: category,
+                      packageUnit: packageUnit,
+                      baseUnit: baseUnit,
+                      amountMode: _inputAmountMode,
+                      recipeSelected: _currentRecipeSource != null,
+                      onBaseAmountChanged: _onBaseAmountChanged,
+                      onCategoryChanged: (value) => setState(() {
+                        category = value;
+                        inputError = null;
+                      }),
+                      onPackageQuantityChanged: _onPackageQuantityChanged,
+                      onPackageUnitChanged: _onPackageUnitChanged,
+                      onCaloriesChanged: () => _rawCalories = null,
+                      onProteinChanged: () => _rawProtein = null,
+                      onFatChanged: () => _rawFat = null,
+                      onCarbohydrateChanged: () => _rawCarbohydrate = null,
+                      onScanBarcode: _isSaving || _capturingBarcode
+                          ? null
+                          : _scanBarcode,
+                      barcodeScanInProgress: _capturingBarcode,
+                      onReadNutrition: _isSaving || _capturingNutrition
+                          ? null
+                          : _scanOcr,
+                      nutritionCaptureInProgress: _capturingNutrition,
+                      onRecalculateNutrition: _recalculateNutrition,
+                      recalculationBlockReason: _recalculationBlockReason,
+                      onChanged: (_) {
+                        setState(() {
+                          inputError = null;
+                        });
+                      },
+                      onBaseUnitChanged: (unit) {
+                        setState(() {
+                          baseUnit = unit;
+                          _basisLinkedToPackage = false;
+                          inputError = null;
+                        });
+                      },
+                    ),
 
-              if (_currentCatalogSource != null) ...[
-                AppSpacing.gapSM,
-                Text(
-                  'CATALOG · ${_currentCatalogSource!.name} · '
-                  '${_formatAmount(_currentCatalogSource!.baseQuantity.value)} '
-                  '${_currentCatalogSource!.baseQuantity.unit.stableId}',
-                  key: const ValueKey('food-catalog-selection'),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+                    if (_currentCatalogSource != null) ...[
+                      AppSpacing.gapSM,
+                      Text(
+                        'CATALOG · ${_currentCatalogSource!.name} · '
+                        '${_formatAmount(_currentCatalogSource!.baseQuantity.value)} '
+                        '${_currentCatalogSource!.baseQuantity.unit.stableId}',
+                        key: const ValueKey('food-catalog-selection'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
 
-              if (_currentRecipeSource != null) ...[
-                AppSpacing.gapSM,
-                Text(
-                  'RECIPE · ${_currentRecipeSource!.name}',
-                  key: const ValueKey('food-recipe-selection'),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+                    if (_currentRecipeSource != null) ...[
+                      AppSpacing.gapSM,
+                      Text(
+                        'RECIPE · ${_currentRecipeSource!.name}',
+                        key: const ValueKey('food-recipe-selection'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
 
-              AppSpacing.gapMD,
+                    AppSpacing.gapMD,
 
-              if (!_hasActiveCatalogReference)
-                OperationButton(
-                  key: const ValueKey('food-save-to-catalog'),
-                  icon: Icons.add_business,
-                  text: 'SAVE TO FOOD DATABASE',
-                  onPressed: _isSaving ? null : _saveCurrentToCatalog,
-                ),
-            ] else
-              _databaseInput(),
+                    if (!_hasActiveCatalogReference)
+                      OperationButton(
+                        key: const ValueKey('food-save-to-catalog'),
+                        icon: Icons.add_business,
+                        text: 'SAVE TO FOOD DATABASE',
+                        onPressed: _isSaving ? null : _saveCurrentToCatalog,
+                      ),
+                  ] else
+                    _databaseInput(),
 
-            if (inputError != null) ...[
-              AppSpacing.gapMD,
-              Text(
-                inputError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
+                  if (inputError != null) ...[
+                    AppSpacing.gapMD,
+                    Text(
+                      inputError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
 
-            AppSpacing.gapXL,
+                  AppSpacing.gapXL,
 
-            if (_inputMode == _FoodEntryInputMode.manual || items.isNotEmpty)
-              FoodItemList(
-                items: preview,
-                catalogSources: previewCatalogSources,
-                recipeSources: previewRecipeSources,
-                quantityUnits: [
-                  ..._quantityUnits,
-                  if (editingIndex == null && _currentFoodItem() != null)
-                    baseUnit,
+                  if (_inputMode == _FoodEntryInputMode.manual ||
+                      items.isNotEmpty)
+                    FoodItemList(
+                      items: preview,
+                      catalogSources: previewCatalogSources,
+                      recipeSources: previewRecipeSources,
+                      quantityUnits: [
+                        ..._quantityUnits,
+                        if (editingIndex == null && _currentFoodItem() != null)
+                          baseUnit,
+                      ],
+                      onDelete: (index) {
+                        if (index < items.length) {
+                          removeFood(index);
+                        }
+                      },
+                      onTap: (index) {
+                        if (index < items.length) {
+                          editFood(index);
+                        }
+                      },
+                      onQuantityChanged: updateQuantity,
+                      editableItemCount: items.length,
+                      actionIcon: editingIndex == null
+                          ? Icons.add_circle_outline
+                          : Icons.edit_outlined,
+                      actionText: editingIndex == null
+                          ? 'ADD FOOD'
+                          : 'Update Food',
+                      onAction: editingIndex == null ? addFood : updateFood,
+                      showPrimaryAction:
+                          _inputMode == _FoodEntryInputMode.manual,
+                    ),
+
+                  if (preview.isNotEmpty) ...[
+                    AppSpacing.gapXL,
+
+                    FoodTotalCard(items: preview),
+
+                    AppSpacing.gapLG,
+
+                    OperationTextField(
+                      controller: memoController,
+                      label: 'Meal Memo',
+                      maxLines: 3,
+                    ),
+
+                    AppSpacing.gapXL,
+
+                    OperationButton(
+                      icon: Icons.save,
+                      text: widget.initialMeal == null
+                          ? 'SAVE MEAL'
+                          : 'UPDATE MEAL',
+                      onPressed: _isSaving ? null : saveMeal,
+                    ),
+                  ],
                 ],
-                onDelete: (index) {
-                  if (index < items.length) {
-                    removeFood(index);
-                  }
-                },
-                onTap: (index) {
-                  if (index < items.length) {
-                    editFood(index);
-                  }
-                },
-                onQuantityChanged: updateQuantity,
-                editableItemCount: items.length,
-                actionIcon: editingIndex == null
-                    ? Icons.add_circle_outline
-                    : Icons.edit_outlined,
-                actionText: editingIndex == null ? 'ADD FOOD' : 'Update Food',
-                onAction: editingIndex == null ? addFood : updateFood,
-                showPrimaryAction: _inputMode == _FoodEntryInputMode.manual,
               ),
-
-            if (preview.isNotEmpty) ...[
-              AppSpacing.gapXL,
-
-              FoodTotalCard(items: preview),
-
-              AppSpacing.gapLG,
-
-              OperationTextField(
-                controller: memoController,
-                label: 'Meal Memo',
-                maxLines: 3,
-              ),
-
-              AppSpacing.gapXL,
-
-              OperationButton(
-                icon: Icons.save,
-                text: widget.initialMeal == null ? 'SAVE MEAL' : 'UPDATE MEAL',
-                onPressed: _isSaving ? null : saveMeal,
-              ),
-            ],
+            ),
           ],
         ],
       ),
