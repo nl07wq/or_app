@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../services/food_input_capture_gateway.dart';
 
-/// Maps the fixed displayed crop viewport back onto decoded original pixels.
+/// Maps the displayed crop viewport back onto decoded original pixels.
 /// It intentionally has no OCR knowledge so the conversion is deterministic
 /// and directly testable without a rendered screenshot.
 class FoodManualCropTransform {
@@ -30,7 +30,7 @@ class FoodManualCropTransform {
       );
 }
 
-/// Pure display-space interaction math for the fixed crop viewport.
+/// Pure display-space interaction math for the user-adjustable crop viewport.
 ///
 /// The image offset is its displayed top-left corner. Keeping this separate
 /// from original-pixel extraction makes direct pan and focal-point zoom
@@ -105,7 +105,27 @@ class FoodManualCropInteraction {
     viewport: viewport,
     imageSize: imageSize,
   );
+
+  static const minimumViewportWidth = 96.0;
+  static const minimumViewportHeight = 72.0;
+
+  /// Keeps an independently sized crop rectangle usable inside its canvas.
+  /// The selected rectangle is also the only rectangle transformed to source
+  /// pixels at confirmation time.
+  static Rect clampViewport({required Rect canvas, required Rect candidate}) {
+    final width = candidate.width
+        .clamp(minimumViewportWidth, canvas.width)
+        .toDouble();
+    final height = candidate.height
+        .clamp(minimumViewportHeight, canvas.height)
+        .toDouble();
+    final left = candidate.left.clamp(canvas.left, canvas.right - width);
+    final top = candidate.top.clamp(canvas.top, canvas.bottom - height);
+    return Rect.fromLTWH(left.toDouble(), top.toDouble(), width, height);
+  }
 }
+
+enum _CropViewportEdge { left, top, right, bottom }
 
 class FoodManualCropTranslationBounds {
   const FoodManualCropTranslationBounds({
@@ -174,6 +194,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   double _startScale = 1;
   Offset _startImageOffset = Offset.zero;
   Offset _startFocalPoint = Offset.zero;
+  Rect? _cropViewport;
   bool _previewImageDrawable = false;
   bool _previewLoadFailed = false;
   bool _submitting = false;
@@ -244,11 +265,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                         constraints.maxWidth,
                         constraints.maxHeight,
                       );
-                      final viewport = Rect.fromCenter(
-                        center: canvas.center,
-                        width: canvas.width * .88,
-                        height: canvas.height * .60,
-                      );
+                      final viewport = _viewportFor(canvas);
                       final baseScale = _baseScale(viewport);
                       final actualScale = baseScale * _scale;
                       final imageOffset =
@@ -379,6 +396,22 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                                   failed: _previewLoadFailed,
                                 ),
                               ),
+                            Positioned.fill(
+                              child: _CropViewportControls(
+                                viewport: viewport,
+                                onMove: (delta) => _moveViewport(
+                                  canvas: canvas,
+                                  viewport: viewport,
+                                  delta: delta,
+                                ),
+                                onResize: (edge, delta) => _resizeViewport(
+                                  canvas: canvas,
+                                  viewport: viewport,
+                                  edge: edge,
+                                  delta: delta,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -387,7 +420,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
           ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-            child: Text('PINCH TO ZOOM • DRAG TO POSITION'),
+            child: Text('DRAG IMAGE TO PAN • PINCH TO ZOOM • ADJUST FRAME'),
           ),
           Padding(
             padding: AppSpacing.cardPadding,
@@ -417,6 +450,95 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       ),
     ),
   );
+
+  Rect _viewportFor(Rect canvas) {
+    final defaultViewport = Rect.fromCenter(
+      center: canvas.center,
+      width: canvas.width * .88,
+      height: canvas.height * .60,
+    );
+    return FoodManualCropInteraction.clampViewport(
+      canvas: canvas,
+      candidate: _cropViewport ?? defaultViewport,
+    );
+  }
+
+  void _moveViewport({
+    required Rect canvas,
+    required Rect viewport,
+    required Offset delta,
+  }) {
+    _setViewport(
+      canvas: canvas,
+      previous: viewport,
+      candidate: viewport.shift(delta),
+    );
+  }
+
+  void _resizeViewport({
+    required Rect canvas,
+    required Rect viewport,
+    required _CropViewportEdge edge,
+    required Offset delta,
+  }) {
+    final candidate = switch (edge) {
+      _CropViewportEdge.left => Rect.fromLTRB(
+        viewport.left + delta.dx,
+        viewport.top,
+        viewport.right,
+        viewport.bottom,
+      ),
+      _CropViewportEdge.top => Rect.fromLTRB(
+        viewport.left,
+        viewport.top + delta.dy,
+        viewport.right,
+        viewport.bottom,
+      ),
+      _CropViewportEdge.right => Rect.fromLTRB(
+        viewport.left,
+        viewport.top,
+        viewport.right + delta.dx,
+        viewport.bottom,
+      ),
+      _CropViewportEdge.bottom => Rect.fromLTRB(
+        viewport.left,
+        viewport.top,
+        viewport.right,
+        viewport.bottom + delta.dy,
+      ),
+    };
+    _setViewport(canvas: canvas, previous: viewport, candidate: candidate);
+  }
+
+  void _setViewport({
+    required Rect canvas,
+    required Rect previous,
+    required Rect candidate,
+  }) {
+    final next = FoodManualCropInteraction.clampViewport(
+      canvas: canvas,
+      candidate: candidate,
+    );
+    final previousBaseScale = _baseScale(previous);
+    final previousActualScale = previousBaseScale * _scale;
+    final currentOffset =
+        _initialImageOffset(canvas, previousActualScale) + _pan;
+    final nextBaseScale = _baseScale(next);
+    final nextRelativeScale = (previousActualScale / nextBaseScale)
+        .clamp(1.0, 5.0)
+        .toDouble();
+    final nextActualScale = nextBaseScale * nextRelativeScale;
+    final acceptedOffset = FoodManualCropInteraction.clampToCoverage(
+      viewport: next,
+      imageSize: _imageSize(nextActualScale),
+      candidate: currentOffset,
+    );
+    setState(() {
+      _cropViewport = next;
+      _scale = nextRelativeScale;
+      _pan = acceptedOffset - _initialImageOffset(canvas, nextActualScale);
+    });
+  }
 
   double _baseScale(Rect viewport) =>
       FoodManualCropInteraction.minimumBaseScale(
@@ -464,11 +586,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   Future<void> _confirmCrop() async {
     final box = _cropCanvasKey.currentContext!.findRenderObject()! as RenderBox;
     final canvas = Offset.zero & box.size;
-    final viewport = Rect.fromCenter(
-      center: canvas.center,
-      width: canvas.width * .88,
-      height: canvas.height * .60,
-    );
+    final viewport = _viewportFor(canvas);
     final baseScale = _baseScale(viewport);
     final currentScale = baseScale * _scale;
     final normalizedScale = FoodManualCropInteraction.normalizedRelativeScale(
@@ -527,6 +645,125 @@ class _CropImageLoadingState extends StatelessWidget {
           if (!failed) const SizedBox(height: AppSpacing.sm),
           Text(failed ? 'IMAGE UNAVAILABLE' : 'LOADING IMAGE...'),
         ],
+      ),
+    ),
+  );
+}
+
+class _CropViewportControls extends StatelessWidget {
+  const _CropViewportControls({
+    required this.viewport,
+    required this.onMove,
+    required this.onResize,
+  });
+
+  final Rect viewport;
+  final ValueChanged<Offset> onMove;
+  final void Function(_CropViewportEdge edge, Offset delta) onResize;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Positioned(
+        left: viewport.center.dx - 52,
+        top: viewport.top + 6,
+        width: 104,
+        height: 28,
+        child: _CropViewportHandle(
+          key: const ValueKey('manual-nutrition-crop-move-handle'),
+          semanticLabel: 'Move crop area',
+          icon: Icons.open_with,
+          onPanUpdate: onMove,
+        ),
+      ),
+      Positioned(
+        left: viewport.left - 14,
+        top: viewport.center.dy - 14,
+        width: 28,
+        height: 28,
+        child: _CropViewportHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-left'),
+          semanticLabel: 'Resize crop width',
+          icon: Icons.drag_handle,
+          onPanUpdate: (delta) => onResize(_CropViewportEdge.left, delta),
+        ),
+      ),
+      Positioned(
+        left: viewport.right - 14,
+        top: viewport.center.dy - 14,
+        width: 28,
+        height: 28,
+        child: _CropViewportHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-right'),
+          semanticLabel: 'Resize crop width',
+          icon: Icons.drag_handle,
+          onPanUpdate: (delta) => onResize(_CropViewportEdge.right, delta),
+        ),
+      ),
+      Positioned(
+        left: viewport.center.dx - 14,
+        top: viewport.top - 14,
+        width: 28,
+        height: 28,
+        child: _CropViewportHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-top'),
+          semanticLabel: 'Resize crop height',
+          icon: Icons.drag_handle,
+          rotate: true,
+          onPanUpdate: (delta) => onResize(_CropViewportEdge.top, delta),
+        ),
+      ),
+      Positioned(
+        left: viewport.center.dx - 14,
+        top: viewport.bottom - 14,
+        width: 28,
+        height: 28,
+        child: _CropViewportHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-bottom'),
+          semanticLabel: 'Resize crop height',
+          icon: Icons.drag_handle,
+          rotate: true,
+          onPanUpdate: (delta) => onResize(_CropViewportEdge.bottom, delta),
+        ),
+      ),
+    ],
+  );
+}
+
+class _CropViewportHandle extends StatelessWidget {
+  const _CropViewportHandle({
+    required super.key,
+    required this.semanticLabel,
+    required this.icon,
+    required this.onPanUpdate,
+    this.rotate = false,
+  });
+
+  final String semanticLabel;
+  final IconData icon;
+  final ValueChanged<Offset> onPanUpdate;
+  final bool rotate;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: semanticLabel,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanUpdate: (details) => onPanUpdate(details.delta),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Transform.rotate(
+          angle: rotate ? 1.5707963267948966 : 0,
+          child: Icon(
+            icon,
+            size: 16,
+            color: Theme.of(context).colorScheme.onPrimary,
+          ),
+        ),
       ),
     ),
   );

@@ -62,7 +62,7 @@ class FoodItemList extends StatelessWidget {
         children: [
           SectionHeader(
             icon: Icons.restaurant_menu,
-            title: 'Meal Items (${items.length})',
+            title: 'MEAL ITEMS (${items.length})',
           ),
           AppSpacing.gapMD,
           if (secondaryActionText != null) ...[

@@ -10,7 +10,7 @@ void main() {
   const source = FoodImageDimensions(width: 2000, height: 1000);
   const viewport = Rect.fromLTWH(100, 100, 400, 200);
 
-  test('fixed viewport maps to original pixels without zoom', () {
+  test('viewport maps to original pixels without zoom', () {
     final rect = FoodManualCropTransform(
       source: source,
       viewport: viewport,
@@ -34,6 +34,32 @@ void main() {
     expect(rect.right, lessThanOrEqualTo(source.width.toDouble()));
     expect(rect.bottom, lessThanOrEqualTo(source.height.toDouble()));
   });
+
+  test(
+    'adjustable viewport clamps move and independent dimensions to canvas',
+    () {
+      final canvas = const Rect.fromLTWH(0, 0, 390, 600);
+      final adjusted = FoodManualCropInteraction.clampViewport(
+        canvas: canvas,
+        candidate: const Rect.fromLTWH(320, 560, 180, 120),
+      );
+
+      expect(adjusted.right, canvas.right);
+      expect(adjusted.bottom, canvas.bottom);
+      expect(adjusted.width, 180);
+      expect(adjusted.height, 120);
+      expect(
+        FoodManualCropInteraction.clampViewport(
+          canvas: canvas,
+          candidate: const Rect.fromLTWH(10, 10, 1, 1),
+        ).size,
+        const Size(
+          FoodManualCropInteraction.minimumViewportWidth,
+          FoodManualCropInteraction.minimumViewportHeight,
+        ),
+      );
+    },
+  );
 
   test('pan follows the finger directly during an active gesture', () {
     final offset = FoodManualCropInteraction.offsetForGesture(
@@ -522,6 +548,56 @@ void main() {
     expect(gateway.lastRect!.height, greaterThan(1));
   });
 
+  testWidgets('crop frame moves and resizes before selecting source pixels', (
+    tester,
+  ) async {
+    final gateway = _CropGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showManualNutritionCrop(
+              context: context,
+              gateway: gateway,
+              image: const FoodCapturedImage('data:image/png;base64,AA=='),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN'));
+    await _pumpCropFrames(tester);
+
+    await tester.drag(
+      find.byKey(const ValueKey('manual-nutrition-crop-move-handle')),
+      const Offset(32, 24),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('manual-nutrition-crop-resize-right')),
+      const Offset(-48, 0),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('manual-nutrition-crop-resize-bottom')),
+      const Offset(0, -36),
+    );
+    await _pumpCropFrames(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey('manual-nutrition-crop-confirm')),
+    );
+    await _pumpCropFrames(tester);
+
+    final selected = gateway.lastRect!;
+    expect(gateway.cropCalls, 1);
+    expect(selected.x, greaterThan(0));
+    expect(selected.y, greaterThan(0));
+    expect(selected.width, greaterThan(1));
+    expect(selected.height, greaterThan(1));
+    expect(selected.x + selected.width, lessThanOrEqualTo(1200));
+    expect(selected.y + selected.height, lessThanOrEqualTo(800));
+  });
+
   testWidgets('source image stays visible and pans during active touch', (
     tester,
   ) async {
@@ -702,7 +778,7 @@ void main() {
 
 Future<void> _pumpCropFrames(WidgetTester tester) async {
   await tester.pump();
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 350));
 }
 
 class _CropGateway implements FoodManualNutritionCropGateway {

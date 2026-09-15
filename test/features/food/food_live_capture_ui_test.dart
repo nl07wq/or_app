@@ -586,10 +586,7 @@ void main() {
 
     await tester.tap(find.text('APPLY'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<TextField>(_field('NUTRITION BASIS')).controller!.text,
-      '38',
-    );
+    expect(tester.widget<TextField>(_field('登録基準量')).controller!.text, '38');
     expect(
       tester.widget<TextField>(_field('CALORIES')).controller!.text,
       '201',
@@ -818,25 +815,40 @@ void main() {
       ),
     );
 
-    final ordered = [
-      find.byKey(const ValueKey('food-entry-ocr')),
-      _field('NAME'),
-      _field('BRAND'),
-      find.byKey(const ValueKey('food-entry-category-preparedFood')),
-      _field('BARCODE / JAN'),
-      _field('PACKAGE QUANTITY'),
-      _field('NUTRITION BASIS'),
-      _field('CALORIES'),
-      _field('FAT'),
-      _field('MEMO'),
-      _field('AMOUNT'),
-    ];
-    for (var index = 1; index < ordered.length; index += 1) {
-      expect(
-        tester.getTopLeft(ordered[index]).dy,
-        greaterThan(tester.getTopLeft(ordered[index - 1]).dy),
-      );
-    }
+    final ocrY = tester
+        .getTopLeft(find.byKey(const ValueKey('food-entry-ocr')))
+        .dy;
+    final nameY = tester.getTopLeft(_field('NAME')).dy;
+    final brandY = tester.getTopLeft(_field('BRAND')).dy;
+    final categoryY = tester
+        .getTopLeft(
+          find.byKey(const ValueKey('food-entry-category-preparedFood')),
+        )
+        .dy;
+    final barcodeY = tester.getTopLeft(_field('BARCODE / JAN')).dy;
+    final displayY = tester.getTopLeft(_field('表示量')).dy;
+    final basisY = tester.getTopLeft(_field('登録基準量')).dy;
+    final caloriesY = tester.getTopLeft(_field('CALORIES')).dy;
+    final proteinY = tester.getTopLeft(_field('PROTEIN')).dy;
+    final fatY = tester.getTopLeft(_field('FAT')).dy;
+    final carbohydrateY = tester.getTopLeft(_field('CARBOHYDRATE')).dy;
+    final amountY = tester
+        .getTopLeft(find.byKey(const ValueKey('food-amount-input')))
+        .dy;
+    final memoY = tester.getTopLeft(_field('MEMO')).dy;
+
+    expect(nameY, greaterThan(ocrY));
+    expect(brandY, greaterThan(nameY));
+    expect(categoryY, closeTo(brandY, 8));
+    expect(barcodeY, greaterThan(brandY));
+    expect(displayY, greaterThan(barcodeY));
+    expect(basisY, closeTo(displayY, 8));
+    expect(caloriesY, greaterThan(displayY));
+    expect(proteinY, closeTo(caloriesY, 8));
+    expect(fatY, greaterThan(caloriesY));
+    expect(carbohydrateY, closeTo(fatY, 8));
+    expect(amountY, greaterThan(fatY));
+    expect(memoY, closeTo(amountY, 8));
     expect(_field('PROTEIN'), findsOneWidget);
     expect(_field('CARBOHYDRATE'), findsOneWidget);
     expect(

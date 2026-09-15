@@ -2128,7 +2128,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   if (_inputMode == _FoodEntryInputMode.manual) ...[
                     const SectionHeader(
                       icon: Icons.restaurant_menu,
-                      title: 'Add Food Item',
+                      title: 'ADD FOOD ITEM',
                     ),
                     AppSpacing.gapMD,
                     FoodInputFields(
@@ -2214,7 +2214,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       OperationButton(
                         key: const ValueKey('food-save-to-catalog'),
                         icon: Icons.add_business,
-                        text: 'SAVE TO DB',
+                        text: 'SAVE TO DATABASE',
                         onPressed: _isSaving ? null : _saveCurrentToCatalog,
                       ),
                   ] else
