@@ -29,6 +29,51 @@ void main() {
               .painter!
           as OperationAmbientPulsePainter;
 
+  testWidgets('recorded statuses render a fixed lower-left status label', (
+    tester,
+  ) async {
+    for (final entry in const <(OperationStatus, String, Color)>[
+      (OperationStatus.green, 'FINE', AppColors.success),
+      (OperationStatus.yellow, 'CAUTION', AppColors.warning),
+      (OperationStatus.red, 'DANGER', AppColors.danger),
+    ]) {
+      await tester.pumpWidget(subject(entry.$1));
+      final label = find.text(entry.$2);
+      final slot = find.byKey(
+        const ValueKey('operation-ambient-animation-slot'),
+      );
+      expect(label, findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('operation-ambient-status-label')),
+        findsOneWidget,
+      );
+      expect(tester.widget<Text>(label).style?.color, entry.$3);
+      expect(tester.widget<Text>(label).style?.fontSize, 9);
+      expect(tester.widget<Text>(label).style?.fontWeight, FontWeight.w600);
+      final labelBounds = tester.getRect(label);
+      final slotBounds = tester.getRect(slot);
+      expect(labelBounds.left, slotBounds.left + 6);
+      expect(labelBounds.bottom, slotBounds.bottom - 2);
+    }
+
+    await tester.pumpWidget(subject(null));
+    expect(find.text('FINE'), findsNothing);
+    expect(find.text('CAUTION'), findsNothing);
+    expect(find.text('DANGER'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('operation-ambient-status-label')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('reduced motion retains the recorded status label', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(OperationStatus.red, reducedMotion: true));
+    expect(find.text('DANGER'), findsOneWidget);
+    expect(painter(tester).staticFrame, isTrue);
+  });
+
   testWidgets('GREEN uses the strongest canonical ECG pulse preset', (
     tester,
   ) async {

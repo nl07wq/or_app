@@ -163,18 +163,40 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
             key: const ValueKey('operation-ambient-animation-slot'),
             height: OperationAmbientAnimation.height,
             width: double.infinity,
-            child: CustomPaint(
-              key: const ValueKey('operation-ambient-animation-paint'),
-              painter: OperationAmbientPulsePainter(
-                phase: _controller,
-                geometry: geometry,
-                preset: preset,
-                staticFrame: staticFrame,
-                sweepPhase: _sweepPhase,
-                currentTraceIndex: _currentTraceIndex,
-                nextTraceIndex: _nextTraceIndex,
-              ),
-              willChange: !staticFrame,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CustomPaint(
+                  key: const ValueKey('operation-ambient-animation-paint'),
+                  painter: OperationAmbientPulsePainter(
+                    phase: _controller,
+                    geometry: geometry,
+                    preset: preset,
+                    staticFrame: staticFrame,
+                    sweepPhase: _sweepPhase,
+                    currentTraceIndex: _currentTraceIndex,
+                    nextTraceIndex: _nextTraceIndex,
+                  ),
+                  willChange: !staticFrame,
+                ),
+                if (geometry.statusLabel case final label?)
+                  Positioned(
+                    key: const ValueKey('operation-ambient-status-label'),
+                    left: OperationAmbientStatusLabel.leftPadding,
+                    bottom: OperationAmbientStatusLabel.bottomPadding,
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        color: geometry.color,
+                        fontSize: OperationAmbientStatusLabel.fontSize,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing:
+                            OperationAmbientStatusLabel.letterSpacing,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -190,6 +212,7 @@ class OperationAmbientPulseGeometry {
     required this.waveLength,
     required this.waveform,
     required this.semanticLabel,
+    required this.statusLabel,
   });
   factory OperationAmbientPulseGeometry.forPreset(
     OperationAmbientPulsePreset p,
@@ -200,6 +223,7 @@ class OperationAmbientPulseGeometry {
       waveLength: 80,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
+      statusLabel: 'FINE',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
@@ -207,6 +231,7 @@ class OperationAmbientPulseGeometry {
       waveLength: 40,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
+      statusLabel: 'CAUTION',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
@@ -214,6 +239,7 @@ class OperationAmbientPulseGeometry {
       waveLength: 15,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
+      statusLabel: 'DANGER',
     ),
     OperationAmbientPulsePreset.neutral => const OperationAmbientPulseGeometry(
       color: AppColors.secondary,
@@ -221,12 +247,24 @@ class OperationAmbientPulseGeometry {
       waveLength: 32,
       waveform: OperationAmbientWaveform.sine,
       semanticLabel: 'status unavailable',
+      statusLabel: null,
     ),
   };
   final Color color;
   final double amplitude, waveLength;
   final OperationAmbientWaveform waveform;
   final String semanticLabel;
+  final String? statusLabel;
+}
+
+/// Shared lower-left in-lane text treatment for Dashboard and System debug.
+class OperationAmbientStatusLabel {
+  const OperationAmbientStatusLabel._();
+
+  static const leftPadding = 6.0;
+  static const bottomPadding = 2.0;
+  static const fontSize = 9.0;
+  static const letterSpacing = .25;
 }
 
 enum OperationAmbientWaveform { sine, ecg }

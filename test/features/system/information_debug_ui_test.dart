@@ -63,6 +63,16 @@ void main() {
     expect(find.text('AMP 12px / ~80px'), findsOneWidget);
     expect(find.text('AMP 10px / ~40px'), findsOneWidget);
     expect(find.text('AMP 5px / ~15px'), findsOneWidget);
+    expect(find.text('FINE'), findsOneWidget);
+    expect(find.text('CAUTION'), findsOneWidget);
+    expect(find.text('DANGER'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-pulse-debug-neutral')),
+        matching: find.byKey(const ValueKey('operation-ambient-status-label')),
+      ),
+      findsNothing,
+    );
     expect(
       tester
           .widgetList<OperationAmbientAnimation>(
