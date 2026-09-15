@@ -45,7 +45,7 @@ void main() {
   });
 
   testWidgets(
-    'recorded statuses use one calm ECG period with descending amplitude',
+    'recorded statuses use inverse amplitude and activity-density semantics',
     (tester) async {
       final geometries = <OperationAmbientPulseGeometry>[];
       for (final status in const [
@@ -63,9 +63,11 @@ void main() {
         ),
         isTrue,
       );
-      expect(geometries[0].waveLength, geometries[1].waveLength);
-      expect(geometries[1].waveLength, geometries[2].waveLength);
-      expect(geometries.first.waveLength, 240);
+      expect(geometries[0].waveLength, greaterThan(geometries[1].waveLength));
+      expect(geometries[1].waveLength, greaterThan(geometries[2].waveLength));
+      expect(geometries[0].waveLength, 200);
+      expect(geometries[1].waveLength, 120);
+      expect(geometries[2].waveLength, 70);
       final fractions = painter(
         tester,
       ).pulseFractionsFor(OperationAmbientEcgVariant.a);
@@ -161,10 +163,7 @@ void main() {
           phaseValue: progress,
         );
         expect(regions.newTrace.width + regions.oldTrace.width, greaterThan(0));
-        expect(
-          regions.clear.width,
-          lessThanOrEqualTo(OperationAmbientPulsePainter.clearWindowWidth),
-        );
+        expect(regions.clear.width, lessThanOrEqualTo(8));
       }
       final complete = activePainter.sweepRegionsFor(size, phaseValue: 1);
       expect(complete.newTrace.right, size.width);
@@ -175,7 +174,7 @@ void main() {
   );
 
   testWidgets(
-    'variants are distinct, deterministic, and never change per frame',
+    'traces compose distinct variants on a deterministic longer sequence',
     (tester) async {
       await tester.pumpWidget(subject(OperationStatus.green));
       final activePainter = painter(tester);
@@ -189,24 +188,76 @@ void main() {
       );
       final current = activePainter.currentVariant;
       final next = activePainter.nextVariant;
+      final composition = activePainter.traceCompositionFor(
+        const Size(900, OperationAmbientAnimation.height),
+        current,
+      );
+      expect(composition.length, greaterThan(3));
+      expect(composition.toSet().length, greaterThan(1));
       await tester.pump(const Duration(seconds: 1));
       expect(activePainter.currentVariant, current);
       expect(activePainter.nextVariant, next);
 
-      final sequence = [
-        OperationAmbientEcgVariant.a,
-        OperationAmbientEcgVariant.b,
-        OperationAmbientEcgVariant.c,
-        OperationAmbientEcgVariant.a,
-      ];
+      final sequence = List.generate(
+        13,
+        OperationAmbientPulsePainter.variantAt,
+      );
       for (var index = 0; index < sequence.length - 1; index++) {
-        expect(
-          OperationAmbientPulsePainter.nextVariantAfter(sequence[index]),
-          sequence[index + 1],
-        );
+        expect(sequence[index], isNot(sequence[index + 1]));
       }
+      expect(
+        sequence.take(6).toList(),
+        isNot(equals(sequence.skip(6).take(6).toList())),
+      );
     },
   );
+
+  testWidgets('status-specific traces get denser as vitality weakens', (
+    tester,
+  ) async {
+    const size = Size(390, OperationAmbientAnimation.height);
+    final counts = <int>[];
+    for (final status in const [
+      OperationStatus.green,
+      OperationStatus.yellow,
+      OperationStatus.red,
+    ]) {
+      await tester.pumpWidget(subject(status));
+      final activePainter = painter(tester);
+      counts.add(
+        activePainter.eventCountFor(size, activePainter.currentVariant),
+      );
+    }
+    expect(counts[0], lessThan(counts[1]));
+    expect(counts[1], lessThan(counts[2]));
+  });
+
+  testWidgets('steady sweep keeps an eight pixel clear window and local head', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(OperationStatus.red));
+    await tester.pump(
+      OperationAmbientAnimation.drawDuration + const Duration(milliseconds: 20),
+    );
+    await tester.pump();
+    final activePainter = painter(tester);
+    const size = Size(390, OperationAmbientAnimation.height);
+    final regions = activePainter.sweepRegionsFor(size, phaseValue: .5);
+    final head = activePainter.activeHeadRegionFor(size, phaseValue: .5);
+    expect(regions.clear.width, OperationAmbientPulsePainter.clearWindowWidth);
+    expect(OperationAmbientPulsePainter.clearWindowWidth, 8);
+    expect(head.width, OperationAmbientPulsePainter.activeHeadLength);
+    expect(head.right, regions.clear.left);
+    expect(
+      OperationAmbientPulsePainter.activeHeadStrokeWidth,
+      greaterThan(OperationAmbientPulsePainter.traceStrokeWidth),
+    );
+    expect(
+      OperationAmbientPulsePainter.activeHeadStrokeWidth -
+          OperationAmbientPulsePainter.traceStrokeWidth,
+      lessThanOrEqualTo(1),
+    );
+  });
 
   testWidgets(
     'complete fixed trace reaches the right edge at responsive widths',
@@ -255,5 +306,19 @@ void main() {
       expect(tester.takeException(), isNull);
     }
     await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets('reduced motion uses a deterministic static status trace', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(OperationStatus.red, reducedMotion: true));
+    final activePainter = painter(tester);
+    const size = Size(390, OperationAmbientAnimation.height);
+    expect(activePainter.staticFrame, isTrue);
+    expect(activePainter.activeHeadRegionFor(size), Rect.zero);
+    expect(
+      activePainter.eventCountFor(size, activePainter.currentVariant),
+      greaterThan(0),
+    );
   });
 }

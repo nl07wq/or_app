@@ -50,6 +50,7 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
       OperationAmbientSweepPhase.initialize;
   OperationAmbientEcgVariant _currentVariant = OperationAmbientEcgVariant.a;
   OperationAmbientEcgVariant _nextVariant = OperationAmbientEcgVariant.b;
+  var _nextVariantSequenceIndex = 2;
   bool get _recorded =>
       operationAmbientPulsePresetFor(widget.status) !=
       OperationAmbientPulsePreset.neutral;
@@ -104,8 +105,9 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     if (!mounted || !_motionAllowed || !_recorded) return;
     setState(() {
       _sweepPhase = OperationAmbientSweepPhase.initialize;
-      _currentVariant = OperationAmbientEcgVariant.a;
-      _nextVariant = OperationAmbientEcgVariant.b;
+      _currentVariant = OperationAmbientPulsePainter.variantAt(0);
+      _nextVariant = OperationAmbientPulsePainter.variantAt(1);
+      _nextVariantSequenceIndex = 2;
     });
     _controller.forward(from: 0);
   }
@@ -128,9 +130,10 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     } else {
       setState(() {
         _currentVariant = _nextVariant;
-        _nextVariant = OperationAmbientPulsePainter.nextVariantAfter(
-          _nextVariant,
+        _nextVariant = OperationAmbientPulsePainter.variantAt(
+          _nextVariantSequenceIndex,
         );
+        _nextVariantSequenceIndex += 1;
       });
     }
     _controller.forward(from: 0);
@@ -190,21 +193,21 @@ class OperationAmbientPulseGeometry {
     OperationAmbientPulsePreset.green => const OperationAmbientPulseGeometry(
       color: AppColors.success,
       amplitude: 4,
-      waveLength: 240,
+      waveLength: 200,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
       amplitude: 3,
-      waveLength: 240,
+      waveLength: 120,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
       amplitude: 2,
-      waveLength: 240,
+      waveLength: 70,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
     ),
@@ -227,14 +230,26 @@ enum OperationAmbientWaveform { sine, ecg }
 /// Recorded ECG geometry stays in fixed viewport coordinates. The first pass
 /// establishes a trace, then each sweep replaces it behind a small clear seam.
 class OperationAmbientPulsePainter extends CustomPainter {
-  static const clearWindowWidth = 12.0;
-  static OperationAmbientEcgVariant nextVariantAfter(
-    OperationAmbientEcgVariant variant,
-  ) => switch (variant) {
-    OperationAmbientEcgVariant.a => OperationAmbientEcgVariant.b,
-    OperationAmbientEcgVariant.b => OperationAmbientEcgVariant.c,
-    OperationAmbientEcgVariant.c => OperationAmbientEcgVariant.a,
-  };
+  static const clearWindowWidth = 8.0;
+  static const traceStrokeWidth = 1.5;
+  static const activeHeadStrokeWidth = 2.25;
+  static const activeHeadLength = 4.0;
+  static const _variantSequence = [
+    OperationAmbientEcgVariant.a,
+    OperationAmbientEcgVariant.b,
+    OperationAmbientEcgVariant.c,
+    OperationAmbientEcgVariant.a,
+    OperationAmbientEcgVariant.c,
+    OperationAmbientEcgVariant.b,
+    OperationAmbientEcgVariant.c,
+    OperationAmbientEcgVariant.a,
+    OperationAmbientEcgVariant.b,
+    OperationAmbientEcgVariant.c,
+    OperationAmbientEcgVariant.b,
+    OperationAmbientEcgVariant.c,
+  ];
+  static OperationAmbientEcgVariant variantAt(int sequenceIndex) =>
+      _variantSequence[sequenceIndex % _variantSequence.length];
   OperationAmbientPulsePainter({
     required this.phase,
     required this.geometry,
@@ -267,6 +282,25 @@ class OperationAmbientPulsePainter extends CustomPainter {
     OperationAmbientEcgVariant.b => const [.30, .35, .39, .43, .47, .52, .58],
     OperationAmbientEcgVariant.c => const [.54, .58, .61, .64, .68, .72, .78],
   };
+
+  /// A full trace is composed from several controlled family members. The
+  /// composition is deterministic for a trace variant and viewport, and is
+  /// only rebuilt when the cached trace itself changes.
+  List<OperationAmbientEcgVariant> traceCompositionFor(
+    Size size,
+    OperationAmbientEcgVariant traceVariant,
+  ) {
+    final count = math.max(1, (size.width / geometry.waveLength).ceil());
+    return List.generate(
+      count,
+      (index) =>
+          _variantSequence[(traceVariant.index + index) %
+              _variantSequence.length],
+    );
+  }
+
+  int eventCountFor(Size size, OperationAmbientEcgVariant traceVariant) =>
+      traceCompositionFor(size, traceVariant).length;
 
   OperationAmbientSweepRegions sweepRegionsFor(
     Size size, {
@@ -313,13 +347,31 @@ class OperationAmbientPulsePainter extends CustomPainter {
     );
   }
 
+  Rect activeHeadRegionFor(Size size, {double? phaseValue}) {
+    final progress = (phaseValue ?? phase.value).clamp(0.0, 1.0);
+    if (staticFrame ||
+        geometry.waveform != OperationAmbientWaveform.ecg ||
+        sweepPhase != OperationAmbientSweepPhase.sweep ||
+        progress <= 0 ||
+        progress >= 1) {
+      return Rect.zero;
+    }
+    final head = size.width * progress;
+    return Rect.fromLTRB(
+      math.max(0, head - activeHeadLength),
+      0,
+      head,
+      size.height,
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final paint = Paint()
       ..color = geometry.color.withValues(alpha: .78)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
+      ..strokeWidth = traceStrokeWidth
       ..strokeCap = StrokeCap.round;
     if (geometry.waveform == OperationAmbientWaveform.sine) {
       canvas.drawPath(_sine(size), paint);
@@ -341,6 +393,19 @@ class OperationAmbientPulsePainter extends CustomPainter {
     }
     _paintClipped(canvas, _ecg(size, currentVariant), regions.oldTrace, paint);
     _paintClipped(canvas, _ecg(size, nextVariant), regions.newTrace, paint);
+    final head = activeHeadRegionFor(size);
+    if (!head.isEmpty) {
+      _paintClipped(
+        canvas,
+        _ecg(size, nextVariant),
+        head,
+        Paint()
+          ..color = geometry.color.withValues(alpha: .78)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = activeHeadStrokeWidth
+          ..strokeCap = StrokeCap.round,
+      );
+    }
   }
 
   void _paintClipped(Canvas canvas, Path path, Rect rect, Paint paint) {
@@ -381,8 +446,10 @@ class OperationAmbientPulsePainter extends CustomPainter {
     final path = Path();
     final mid = size.height / 2, period = geometry.waveLength;
     path.moveTo(0, mid);
-    final fractions = pulseFractionsFor(variant);
-    for (var start = 0.0; start < size.width; start += period) {
+    final composition = traceCompositionFor(size, variant);
+    for (var index = 0; index < composition.length; index++) {
+      final start = index * period;
+      final fractions = pulseFractionsFor(composition[index]);
       void line(double f, double y) {
         final x = start + period * f;
         if (x <= size.width) path.lineTo(x, y);
@@ -395,6 +462,11 @@ class OperationAmbientPulsePainter extends CustomPainter {
       line(fractions[4], mid + geometry.amplitude * .55);
       line(fractions[5], mid - geometry.amplitude * .30);
       line(fractions[6], mid);
+      if (preset == OperationAmbientPulsePreset.red) {
+        line(.82, mid - geometry.amplitude * .38);
+        line(.87, mid + geometry.amplitude * .28);
+        line(.92, mid - geometry.amplitude * .18);
+      }
       path.lineTo(math.min(start + period, size.width), mid);
     }
     return _cachedPaths[variant] = path..lineTo(size.width, mid);
