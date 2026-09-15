@@ -45,7 +45,7 @@ void main() {
   });
 
   testWidgets(
-    'recorded statuses use one ECG period with descending amplitude',
+    'recorded statuses use one calm ECG period with descending amplitude',
     (tester) async {
       final geometries = <OperationAmbientPulseGeometry>[];
       for (final status in const [
@@ -65,6 +65,12 @@ void main() {
       );
       expect(geometries[0].waveLength, geometries[1].waveLength);
       expect(geometries[1].waveLength, geometries[2].waveLength);
+      expect(geometries.first.waveLength, 240);
+      expect(
+        OperationAmbientPulsePainter.ecgPulseEndFraction -
+            OperationAmbientPulsePainter.ecgPulseStartFraction,
+        lessThan(.5),
+      );
       expect(geometries[0].amplitude, greaterThan(geometries[1].amplitude));
       expect(geometries[1].amplitude, greaterThan(geometries[2].amplitude));
       expect(geometries.map((geometry) => geometry.color), [
@@ -127,6 +133,48 @@ void main() {
 
     expect(painter(tester).phase.value, moreOrLessEquals(firstPhase));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'ECG baseline coverage extends beyond both lane edges at every phase',
+    (tester) async {
+      const phases = [0.0, .25, .5, .75, .99, 1.0];
+      for (final width in [320.0, 390.0, 900.0]) {
+        await tester.binding.setSurfaceSize(Size(width, 844));
+        await tester.pumpWidget(subject(OperationStatus.green, width: width));
+        final activePainter = painter(tester);
+
+        for (final phase in phases) {
+          final coverage = activePainter.coverageFor(
+            Size(width, OperationAmbientAnimation.height),
+            phaseValue: phase,
+          );
+          expect(coverage.left, lessThanOrEqualTo(0));
+          expect(coverage.right, greaterThanOrEqualTo(width));
+          expect(coverage.left, lessThan(0));
+          expect(coverage.right, greaterThan(width));
+        }
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
+
+  testWidgets('ECG coverage has identical bounds at the loop seam', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(OperationStatus.red));
+    final activePainter = painter(tester);
+    final zero = activePainter.coverageFor(
+      const Size(390, OperationAmbientAnimation.height),
+      phaseValue: 0,
+    );
+    final wrap = activePainter.coverageFor(
+      const Size(390, OperationAmbientAnimation.height),
+      phaseValue: 1,
+    );
+
+    expect(wrap.left, zero.left);
+    expect(wrap.right, zero.right);
   });
 
   testWidgets('ECG extrema remain inside the responsive non-interactive lane', (

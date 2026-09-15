@@ -33,7 +33,7 @@ void main() {
 
     expect(find.text('INFORMATION DEBUG'), findsOneWidget);
     expect(find.text('INFORMATION MARQUEE RUNTIME'), findsOneWidget);
-    expect(find.text('SPEED  90 px/s'), findsOneWidget);
+    expect(find.text('SPEED  80 px/s'), findsOneWidget);
     expect(find.text('DAILY BRIEF V2 REVIEW'), findsOneWidget);
     await tester.tap(find.text('CREATE TEST NOTICE'));
     await tester.pumpAndSettle();

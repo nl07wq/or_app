@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/operation_status.dart';
 import '../../../core/theme/app_colors.dart';
 
-/// V2's ambient renderer. Future slot presets can be added without changing
+/// V3's ambient renderer. Future slot presets can be added without changing
 /// Dashboard placement or the canonical status input.
 enum OperationAmbientPreset { statusPulse }
 
@@ -132,21 +132,21 @@ class OperationAmbientPulseGeometry {
     OperationAmbientPulsePreset.green => const OperationAmbientPulseGeometry(
       color: AppColors.success,
       amplitude: 4.0,
-      waveLength: 36,
+      waveLength: 240,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
       amplitude: 3.0,
-      waveLength: 36,
+      waveLength: 240,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
       amplitude: 2.0,
-      waveLength: 36,
+      waveLength: 240,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
     ),
@@ -171,6 +171,9 @@ enum OperationAmbientWaveform { sine, ecg }
 /// Paints a tileable waveform. Phase changes timing only; endpoints and wave
 /// geometry remain independent of the controller's loop duration.
 class OperationAmbientPulsePainter extends CustomPainter {
+  static const ecgPulseStartFraction = .42;
+  static const ecgPulseEndFraction = .64;
+
   OperationAmbientPulsePainter({
     required this.phase,
     required this._geometry,
@@ -185,12 +188,37 @@ class OperationAmbientPulsePainter extends CustomPainter {
 
   OperationAmbientPulseGeometry get geometry => _geometry;
 
+  /// Gives tests and diagnostics the actual horizontal path range for a
+  /// phase. The ECG tile deliberately starts one full period before the
+  /// visible lane and ends one full period after it, so moving a pulse never
+  /// exposes a line endpoint inside the viewport.
+  OperationAmbientWaveformCoverage coverageFor(
+    Size size, {
+    double? phaseValue,
+  }) {
+    final value = staticFrame ? 0.0 : (phaseValue ?? phase.value);
+    if (_geometry.waveform == OperationAmbientWaveform.sine) {
+      return OperationAmbientWaveformCoverage(
+        left: -_geometry.waveLength * 2,
+        right: size.width + _geometry.waveLength * 2,
+      );
+    }
+
+    final phaseOffset = _positiveRemainder(value * _geometry.waveLength);
+    return OperationAmbientWaveformCoverage(
+      left: phaseOffset - _geometry.waveLength,
+      right: size.width + phaseOffset + _geometry.waveLength,
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final value = staticFrame ? 0.0 : phase.value;
-    // Four complete waves make phase 1.0 geometrically identical to 0.0.
-    final offset = value * _geometry.waveLength * 4;
+    // One complete tile makes phase 1.0 geometrically identical to 0.0.
+    // The painter derives overdraw from the current phase and tile period,
+    // rather than relying on a fixed number of leading tiles.
+    final offset = _positiveRemainder(value * _geometry.waveLength);
     final path = Path();
     final centerY = size.height / 2;
     switch (_geometry.waveform) {
@@ -239,21 +267,25 @@ class OperationAmbientPulsePainter extends CustomPainter {
     required double offset,
   }) {
     final period = _geometry.waveLength;
-    for (
-      var start = -period * 2 + offset;
-      start <= size.width + period * 2;
-      start += period
-    ) {
+    final coverageLeft = offset - period;
+    final coverageRight = size.width + offset + period;
+    for (var start = coverageLeft; start <= coverageRight; start += period) {
       path
         ..moveTo(start, centerY)
-        ..lineTo(start + period * .40, centerY)
-        ..lineTo(start + period * .48, centerY - _geometry.amplitude * .25)
-        ..lineTo(start + period * .54, centerY - _geometry.amplitude)
-        ..lineTo(start + period * .60, centerY + _geometry.amplitude * .55)
-        ..lineTo(start + period * .68, centerY - _geometry.amplitude * .30)
-        ..lineTo(start + period * .76, centerY)
+        ..lineTo(start + period * ecgPulseStartFraction, centerY)
+        ..lineTo(start + period * .46, centerY - _geometry.amplitude * .25)
+        ..lineTo(start + period * .49, centerY + _geometry.amplitude * .12)
+        ..lineTo(start + period * .52, centerY - _geometry.amplitude)
+        ..lineTo(start + period * .56, centerY + _geometry.amplitude * .55)
+        ..lineTo(start + period * .60, centerY - _geometry.amplitude * .30)
+        ..lineTo(start + period * ecgPulseEndFraction, centerY)
         ..lineTo(start + period, centerY);
     }
+  }
+
+  double _positiveRemainder(double value) {
+    final remainder = value % _geometry.waveLength;
+    return remainder < 0 ? remainder + _geometry.waveLength : remainder;
   }
 
   @override
@@ -264,4 +296,14 @@ class OperationAmbientPulsePainter extends CustomPainter {
       oldDelegate._geometry.waveform != _geometry.waveform ||
       oldDelegate.preset != preset ||
       oldDelegate.staticFrame != staticFrame;
+}
+
+class OperationAmbientWaveformCoverage {
+  const OperationAmbientWaveformCoverage({
+    required this.left,
+    required this.right,
+  });
+
+  final double left;
+  final double right;
 }
