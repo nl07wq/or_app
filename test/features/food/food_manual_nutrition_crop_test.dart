@@ -582,6 +582,9 @@ void main() {
       const Offset(0, -36),
     );
     await _pumpCropFrames(tester);
+    // Gesture frames only update the lightweight crop presentation state.
+    // Original-pixel export remains exclusively behind confirmation.
+    expect(gateway.cropCalls, 0);
 
     await tester.tap(
       find.byKey(const ValueKey('manual-nutrition-crop-confirm')),

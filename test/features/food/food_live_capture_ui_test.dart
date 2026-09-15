@@ -416,6 +416,64 @@ void main() {
     expect(tester.widget<TextField>(_field('PROTEIN')).controller!.text, '2.8');
   });
 
+  testWidgets('OCR preview supports manual decimal entry in Next focus order', (
+    tester,
+  ) async {
+    final gateway = _LiveGateway(nutritionRawText: '栄養成分表示');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async => true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
+    await tester.pumpAndSettle();
+    final energy = find.byKey(const ValueKey('nutrition-preview-ENERGY'));
+    final protein = find.byKey(const ValueKey('nutrition-preview-PROTEIN'));
+    final fat = find.byKey(const ValueKey('nutrition-preview-FAT'));
+    final carbohydrate = find.byKey(
+      const ValueKey('nutrition-preview-CARBOHYDRATE'),
+    );
+    expect(energy, findsOneWidget);
+    expect(protein, findsOneWidget);
+    expect(fat, findsOneWidget);
+    expect(carbohydrate, findsOneWidget);
+
+    await tester.tap(energy);
+    await tester.enterText(energy, '9.3');
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    expect(tester.widget<TextField>(protein).focusNode!.hasFocus, isTrue);
+    await tester.enterText(protein, '0.65');
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    expect(tester.widget<TextField>(fat).focusNode!.hasFocus, isTrue);
+    await tester.enterText(fat, '0.51');
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    expect(tester.widget<TextField>(carbohydrate).focusNode!.hasFocus, isTrue);
+    await tester.enterText(carbohydrate, '0.54');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    expect(tester.widget<TextField>(energy).controller!.text, '9.3');
+    await tester.tap(find.text('APPLY'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(_field('CALORIES')).controller!.text, '9');
+    expect(
+      tester.widget<TextField>(_field('PROTEIN')).controller!.text,
+      '0.7',
+    );
+    expect(tester.widget<TextField>(_field('FAT')).controller!.text, '0.5');
+    expect(
+      tester.widget<TextField>(_field('CARBOHYDRATE')).controller!.text,
+      '0.5',
+    );
+  });
+
   testWidgets('multi-pass nutrition fields merge without averaging', (
     tester,
   ) async {

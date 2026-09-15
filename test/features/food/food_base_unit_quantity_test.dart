@@ -530,7 +530,7 @@ void main() {
       await tester.enterText(_field('Carbohydrate'), '0');
       await tester.pump();
 
-      expect(find.text('NUTRITION PER 100g'), findsOneWidget);
+      expect(find.text('100gあたりの栄養成分'), findsOneWidget);
       expect(tester.widget<TextField>(_field('AMOUNT')).controller!.text, '1');
       expect(find.text('1 AMOUNT = 100g'), findsOneWidget);
       expect(find.text('実使用量: 100g'), findsOneWidget);
@@ -585,7 +585,7 @@ void main() {
         expect(_controllerText(tester, 'Fat'), '1.1');
         expect(_controllerText(tester, 'Carbohydrate'), '2.7');
         expect(_controllerText(tester, 'AMOUNT'), '1');
-        expect(find.text('NUTRITION PER 10g'), findsOneWidget);
+        expect(find.text('10gあたりの栄養成分'), findsOneWidget);
         expect(find.text('1 AMOUNT = 10g'), findsOneWidget);
         expect(find.text('実使用量: 10g'), findsOneWidget);
         expect(find.textContaining('26kcal'), findsOneWidget);
@@ -728,7 +728,7 @@ void main() {
       await tester.enterText(_field('AMOUNT'), '0');
       await tester.pump();
 
-      expect(find.text('NUTRITION PER 100mL'), findsOneWidget);
+      expect(find.text('100mLあたりの栄養成分'), findsOneWidget);
       expect(find.text('SAVE MEAL'), findsNothing);
       expect(saved, isNull);
 
@@ -868,7 +868,7 @@ void main() {
       expect(find.text('serving'), findsOneWidget);
       await tester.tap(find.text('piece'));
       await tester.pump();
-      expect(find.text('NUTRITION PER 100piece'), findsOneWidget);
+      expect(find.text('100pieceあたりの栄養成分'), findsOneWidget);
     });
 
     testWidgets('discrete package unit suggests a one-unit basis', (
@@ -898,7 +898,7 @@ void main() {
         find.byKey(const ValueKey('food-entry-base-unit-pack')),
         findsOneWidget,
       );
-      expect(find.text('NUTRITION PER 1pack'), findsOneWidget);
+      expect(find.text('1packあたりの栄養成分'), findsOneWidget);
     });
 
     testWidgets(

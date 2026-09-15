@@ -332,7 +332,7 @@ class FoodInputFields extends StatelessWidget {
             child: Text(
               recipeSelected
                   ? 'NUTRITION PER SERVING'
-                  : 'NUTRITION PER $baseAmount${_quantityUnitLabel(baseUnit)}',
+                  : '$baseAmount${_quantityUnitLabel(baseUnit)}あたりの栄養成分',
               style: Theme.of(context).textTheme.titleSmall,
             ),
           ),
@@ -415,6 +415,7 @@ class FoodInputFields extends StatelessWidget {
                 decrementKey: const ValueKey('food-amount-decrement'),
                 decrementTooltip: 'Decrease amount',
                 onDecrement: _canDecrement ? () => _stepAmount(-1) : null,
+                matchFieldHeight: true,
               );
               final memo = OperationTextField(
                 controller: foodMemoController,
@@ -426,13 +427,29 @@ class FoodInputFields extends StatelessWidget {
               if (constraints.maxWidth < 300) {
                 return Column(children: [amount, _compactGap, memo]);
               }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 5, child: amount),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(flex: 4, child: memo),
-                ],
+              return ValueListenableBuilder<TextEditingValue>(
+                valueListenable: foodMemoController,
+                builder: (context, value, _) {
+                  // The compact amount stepper is 56px tall. Give both visible
+                  // surfaces one explicit row contract; a newline grows both
+                  // sides together to the approved two-line Memo height.
+                  final lines = '\n'.allMatches(value.text).length + 1;
+                  final rowHeight = lines > 1 ? 72.0 : 56.0;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: SizedBox(height: rowHeight, child: amount),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        flex: 4,
+                        child: SizedBox(height: rowHeight, child: memo),
+                      ),
+                    ],
+                  );
+                },
               );
             },
           ),
@@ -581,6 +598,7 @@ class FoodNumericStepperRow extends StatelessWidget {
     required this.decrementKey,
     required this.decrementTooltip,
     required this.onDecrement,
+    this.matchFieldHeight = false,
   });
 
   final Key inputKey;
@@ -593,39 +611,46 @@ class FoodNumericStepperRow extends StatelessWidget {
   final Key decrementKey;
   final String decrementTooltip;
   final VoidCallback? onDecrement;
+  final bool matchFieldHeight;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Expanded(
-        child: OperationTextField(
-          key: inputKey,
-          controller: controller,
-          label: label,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: onChanged,
-        ),
-      ),
-      const SizedBox(width: AppSpacing.xs),
-      Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final field = OperationTextField(
+        key: inputKey,
+        controller: controller,
+        label: label,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: onChanged,
+      );
+      final matchedField = matchFieldHeight && constraints.hasBoundedHeight
+          ? SizedBox(height: constraints.maxHeight, child: field)
+          : field;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          FoodNumericStepButton(
-            key: incrementKey,
-            icon: Icons.keyboard_arrow_up,
-            tooltip: incrementTooltip,
-            onPressed: onIncrement,
-          ),
-          FoodNumericStepButton(
-            key: decrementKey,
-            icon: Icons.keyboard_arrow_down,
-            tooltip: decrementTooltip,
-            onPressed: onDecrement,
+          Expanded(child: matchedField),
+          const SizedBox(width: AppSpacing.xs),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FoodNumericStepButton(
+                key: incrementKey,
+                icon: Icons.keyboard_arrow_up,
+                tooltip: incrementTooltip,
+                onPressed: onIncrement,
+              ),
+              FoodNumericStepButton(
+                key: decrementKey,
+                icon: Icons.keyboard_arrow_down,
+                tooltip: decrementTooltip,
+                onPressed: onDecrement,
+              ),
+            ],
           ),
         ],
-      ),
-    ],
+      );
+    },
   );
 }
 

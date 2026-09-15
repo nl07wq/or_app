@@ -127,6 +127,31 @@ class FoodManualCropInteraction {
 
 enum _CropViewportEdge { left, top, right, bottom }
 
+/// Ephemeral gesture state. Updating this notifier repaints only the crop
+/// canvas; the app bar, instructions, and confirmation controls remain out of
+/// the pointer-move rebuild path.
+class _CropInteractionState {
+  const _CropInteractionState({
+    this.scale = 1,
+    this.pan = Offset.zero,
+    this.viewport,
+  });
+
+  final double scale;
+  final Offset pan;
+  final Rect? viewport;
+
+  _CropInteractionState copyWith({
+    double? scale,
+    Offset? pan,
+    Rect? viewport,
+  }) => _CropInteractionState(
+    scale: scale ?? this.scale,
+    pan: pan ?? this.pan,
+    viewport: viewport ?? this.viewport,
+  );
+}
+
 class FoodManualCropTranslationBounds {
   const FoodManualCropTranslationBounds({
     required this.minX,
@@ -187,14 +212,14 @@ class _ManualNutritionCropPage extends StatefulWidget {
 
 class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   final GlobalKey _cropCanvasKey = GlobalKey();
+  final ValueNotifier<_CropInteractionState> _interaction = ValueNotifier(
+    const _CropInteractionState(),
+  );
   ImageProvider<Object>? _previewImageProvider;
   FoodNutritionCropPreview? _preview;
-  double _scale = 1;
-  Offset _pan = Offset.zero;
   double _startScale = 1;
   Offset _startImageOffset = Offset.zero;
   Offset _startFocalPoint = Offset.zero;
-  Rect? _cropViewport;
   bool _previewImageDrawable = false;
   bool _previewLoadFailed = false;
   bool _submitting = false;
@@ -203,6 +228,12 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   void initState() {
     super.initState();
     _preparePreview();
+  }
+
+  @override
+  void dispose() {
+    _interaction.dispose();
+    super.dispose();
   }
 
   FoodImageDimensions get _dimensions => _preview!.originalDimensions;
@@ -259,161 +290,89 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                 ? _CropImageLoadingState(failed: _previewLoadFailed)
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      final canvas = Rect.fromLTWH(
-                        0,
-                        0,
-                        constraints.maxWidth,
-                        constraints.maxHeight,
-                      );
-                      final viewport = _viewportFor(canvas);
-                      final baseScale = _baseScale(viewport);
-                      final actualScale = baseScale * _scale;
-                      final imageOffset =
-                          _initialImageOffset(canvas, actualScale) + _pan;
-                      return GestureDetector(
-                        key: const ValueKey(
-                          'manual-nutrition-crop-gesture-area',
-                        ),
-                        onScaleStart: (details) {
-                          _startScale = _scale;
-                          _startImageOffset = imageOffset;
-                          _startFocalPoint = details.localFocalPoint;
-                        },
-                        onScaleUpdate: (details) {
-                          final next = (_startScale * details.scale)
-                              .clamp(1.0, 5.0)
-                              .toDouble();
-                          final nextActualScale = baseScale * next;
-                          // Map the source point under the gesture's initial focal
-                          // point to its current focal point. With one finger this
-                          // reduces exactly to direct pan by the finger delta.
-                          final nextOffset =
-                              FoodManualCropInteraction.offsetForGesture(
-                                startImageOffset: _startImageOffset,
-                                startFocalPoint: _startFocalPoint,
-                                currentFocalPoint: details.localFocalPoint,
-                                startScale: baseScale * _startScale,
-                                currentScale: nextActualScale,
-                              );
-                          final initial = _initialImageOffset(
-                            canvas,
-                            nextActualScale,
+                      return ValueListenableBuilder<_CropInteractionState>(
+                        valueListenable: _interaction,
+                        builder: (context, interaction, _) {
+                          final canvas = Rect.fromLTWH(
+                            0,
+                            0,
+                            constraints.maxWidth,
+                            constraints.maxHeight,
                           );
-                          final strictBounds =
-                              FoodManualCropInteraction.translationBounds(
-                                viewport: viewport,
-                                imageSize: _imageSize(nextActualScale),
-                              );
-                          final acceptedOffset = strictBounds.clamp(nextOffset);
-                          setState(() {
-                            _scale = next;
-                            _pan = acceptedOffset - initial;
-                          });
-                        },
-                        onScaleEnd: (_) => _normalizeAfterInteraction(
-                          canvas: canvas,
-                          viewport: viewport,
-                          baseScale: baseScale,
-                        ),
-                        child: Stack(
-                          key: _cropCanvasKey,
-                          fit: StackFit.expand,
-                          children: [
-                            ColoredBox(
-                              color: Theme.of(context).colorScheme.surface,
+                          final viewport = _viewportFor(canvas);
+                          final baseScale = _baseScale(viewport);
+                          final actualScale = baseScale * interaction.scale;
+                          final imageOffset =
+                              _initialImageOffset(canvas, actualScale) +
+                              interaction.pan;
+                          return GestureDetector(
+                            key: const ValueKey(
+                              'manual-nutrition-crop-gesture-area',
                             ),
-                            ClipRect(
-                              child: RepaintBoundary(
-                                child: Transform(
-                                  key: const ValueKey(
-                                    'manual-nutrition-crop-image-transform',
+                            onScaleStart: (details) {
+                              _startScale = interaction.scale;
+                              _startImageOffset = imageOffset;
+                              _startFocalPoint = details.localFocalPoint;
+                            },
+                            onScaleUpdate: (details) => _updateImageGesture(
+                              details: details,
+                              canvas: canvas,
+                              viewport: viewport,
+                              baseScale: baseScale,
+                            ),
+                            onScaleEnd: (_) => _normalizeAfterInteraction(
+                              canvas: canvas,
+                              viewport: viewport,
+                              baseScale: baseScale,
+                            ),
+                            child: RepaintBoundary(
+                              child: Stack(
+                                key: _cropCanvasKey,
+                                fit: StackFit.expand,
+                                children: [
+                                  ColoredBox(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.surface,
                                   ),
-                                  transform: Matrix4.identity()
-                                    ..translateByDouble(
-                                      imageOffset.dx,
-                                      imageOffset.dy,
-                                      0,
-                                      1,
-                                    )
-                                    ..scaleByDouble(_scale, _scale, 1, 1),
-                                  // Transform receives the canvas's tight
-                                  // constraints. Release them for the bitmap so
-                                  // its painted rect stays at the same base size
-                                  // used by strict bounds and source mapping.
-                                  child: OverflowBox(
-                                    alignment: Alignment.topLeft,
-                                    minWidth: 0,
-                                    maxWidth: double.infinity,
-                                    minHeight: 0,
-                                    maxHeight: double.infinity,
-                                    child: SizedBox(
-                                      // Keep one stable decoded image at base cover
-                                      // size. The current relative scale is applied by
-                                      // the same paint transform used for gestures and
-                                      // four-edge bounds, so a pinch changes rendered
-                                      // pixels immediately instead of only state.
-                                      width: _dimensions.width * baseScale,
-                                      height: _dimensions.height * baseScale,
-                                      child: KeyedSubtree(
-                                        key: const ValueKey(
-                                          'manual-nutrition-crop-source-image',
-                                        ),
-                                        child: Image(
-                                          image: _previewImageProvider!,
-                                          fit: BoxFit.fill,
-                                          gaplessPlayback: true,
-                                          filterQuality: FilterQuality.high,
-                                          frameBuilder:
-                                              (
-                                                _,
-                                                child,
-                                                frame,
-                                                wasSynchronouslyLoaded,
-                                              ) {
-                                                if (frame != null ||
-                                                    wasSynchronouslyLoaded) {
-                                                  _markPreviewImageDrawable();
-                                                }
-                                                return child;
-                                              },
-                                          errorBuilder: (_, _, _) {
-                                            _markPreviewImageFailed();
-                                            return const ColoredBox(
-                                              color: Colors.transparent,
-                                            );
-                                          },
-                                        ),
+                                  _CropSourceImage(
+                                    dimensions: _dimensions,
+                                    imageProvider: _previewImageProvider!,
+                                    baseScale: baseScale,
+                                    relativeScale: interaction.scale,
+                                    imageOffset: imageOffset,
+                                    onDrawable: _markPreviewImageDrawable,
+                                    onFailed: _markPreviewImageFailed,
+                                  ),
+                                  _CropMask(viewport: viewport),
+                                  if (!_previewImageDrawable)
+                                    Positioned.fill(
+                                      child: _CropImageLoadingState(
+                                        failed: _previewLoadFailed,
                                       ),
                                     ),
+                                  Positioned.fill(
+                                    child: _CropViewportControls(
+                                      viewport: viewport,
+                                      onMove: (delta) => _moveViewport(
+                                        canvas: canvas,
+                                        viewport: viewport,
+                                        delta: delta,
+                                      ),
+                                      onResize: (edge, delta) =>
+                                          _resizeViewport(
+                                            canvas: canvas,
+                                            viewport: viewport,
+                                            edge: edge,
+                                            delta: delta,
+                                          ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
                             ),
-                            _CropMask(viewport: viewport),
-                            if (!_previewImageDrawable)
-                              Positioned.fill(
-                                child: _CropImageLoadingState(
-                                  failed: _previewLoadFailed,
-                                ),
-                              ),
-                            Positioned.fill(
-                              child: _CropViewportControls(
-                                viewport: viewport,
-                                onMove: (delta) => _moveViewport(
-                                  canvas: canvas,
-                                  viewport: viewport,
-                                  delta: delta,
-                                ),
-                                onResize: (edge, delta) => _resizeViewport(
-                                  canvas: canvas,
-                                  viewport: viewport,
-                                  edge: edge,
-                                  delta: delta,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -459,7 +418,35 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     );
     return FoodManualCropInteraction.clampViewport(
       canvas: canvas,
-      candidate: _cropViewport ?? defaultViewport,
+      candidate: _interaction.value.viewport ?? defaultViewport,
+    );
+  }
+
+  void _updateImageGesture({
+    required ScaleUpdateDetails details,
+    required Rect canvas,
+    required Rect viewport,
+    required double baseScale,
+  }) {
+    final next = (_startScale * details.scale).clamp(1.0, 5.0).toDouble();
+    final nextActualScale = baseScale * next;
+    // Map the source point under the gesture's initial focal point to its
+    // current focal point. With one finger this is direct finger-delta pan.
+    final nextOffset = FoodManualCropInteraction.offsetForGesture(
+      startImageOffset: _startImageOffset,
+      startFocalPoint: _startFocalPoint,
+      currentFocalPoint: details.localFocalPoint,
+      startScale: baseScale * _startScale,
+      currentScale: nextActualScale,
+    );
+    final initial = _initialImageOffset(canvas, nextActualScale);
+    final acceptedOffset = FoodManualCropInteraction.translationBounds(
+      viewport: viewport,
+      imageSize: _imageSize(nextActualScale),
+    ).clamp(nextOffset);
+    _interaction.value = _interaction.value.copyWith(
+      scale: next,
+      pan: acceptedOffset - initial,
     );
   }
 
@@ -520,9 +507,10 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       candidate: candidate,
     );
     final previousBaseScale = _baseScale(previous);
-    final previousActualScale = previousBaseScale * _scale;
+    final interaction = _interaction.value;
+    final previousActualScale = previousBaseScale * interaction.scale;
     final currentOffset =
-        _initialImageOffset(canvas, previousActualScale) + _pan;
+        _initialImageOffset(canvas, previousActualScale) + interaction.pan;
     final nextBaseScale = _baseScale(next);
     final nextRelativeScale = (previousActualScale / nextBaseScale)
         .clamp(1.0, 5.0)
@@ -533,11 +521,11 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       imageSize: _imageSize(nextActualScale),
       candidate: currentOffset,
     );
-    setState(() {
-      _cropViewport = next;
-      _scale = nextRelativeScale;
-      _pan = acceptedOffset - _initialImageOffset(canvas, nextActualScale);
-    });
+    _interaction.value = interaction.copyWith(
+      viewport: next,
+      scale: nextRelativeScale,
+      pan: acceptedOffset - _initialImageOffset(canvas, nextActualScale),
+    );
   }
 
   double _baseScale(Rect viewport) =>
@@ -559,12 +547,14 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     required Rect viewport,
     required double baseScale,
   }) {
-    final currentScale = baseScale * _scale;
+    final interaction = _interaction.value;
+    final currentScale = baseScale * interaction.scale;
     final normalizedScale = FoodManualCropInteraction.normalizedRelativeScale(
-      _scale,
+      interaction.scale,
     );
     final targetScale = baseScale * normalizedScale;
-    final currentOffset = _initialImageOffset(canvas, currentScale) + _pan;
+    final currentOffset =
+        _initialImageOffset(canvas, currentScale) + interaction.pan;
     final scaledOffset = FoodManualCropInteraction.offsetForScaleAtFocalPoint(
       imageOffset: currentOffset,
       focalPoint: viewport.center,
@@ -577,10 +567,10 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       candidate: scaledOffset,
     );
     final targetPan = targetOffset - _initialImageOffset(canvas, targetScale);
-    setState(() {
-      _scale = normalizedScale;
-      _pan = targetPan;
-    });
+    _interaction.value = interaction.copyWith(
+      scale: normalizedScale,
+      pan: targetPan,
+    );
   }
 
   Future<void> _confirmCrop() async {
@@ -588,12 +578,14 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
     final canvas = Offset.zero & box.size;
     final viewport = _viewportFor(canvas);
     final baseScale = _baseScale(viewport);
-    final currentScale = baseScale * _scale;
+    final interaction = _interaction.value;
+    final currentScale = baseScale * interaction.scale;
     final normalizedScale = FoodManualCropInteraction.normalizedRelativeScale(
-      _scale,
+      interaction.scale,
     );
     final actualScale = baseScale * normalizedScale;
-    final currentOffset = _initialImageOffset(canvas, currentScale) + _pan;
+    final currentOffset =
+        _initialImageOffset(canvas, currentScale) + interaction.pan;
     final offset = FoodManualCropInteraction.clampToCoverage(
       viewport: viewport,
       imageSize: _imageSize(actualScale),
@@ -627,6 +619,69 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       if (mounted) setState(() => _submitting = false);
     }
   }
+}
+
+class _CropSourceImage extends StatelessWidget {
+  const _CropSourceImage({
+    required this.dimensions,
+    required this.imageProvider,
+    required this.baseScale,
+    required this.relativeScale,
+    required this.imageOffset,
+    required this.onDrawable,
+    required this.onFailed,
+  });
+
+  final FoodImageDimensions dimensions;
+  final ImageProvider<Object> imageProvider;
+  final double baseScale;
+  final double relativeScale;
+  final Offset imageOffset;
+  final VoidCallback onDrawable;
+  final VoidCallback onFailed;
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: RepaintBoundary(
+      child: Transform(
+        key: const ValueKey('manual-nutrition-crop-image-transform'),
+        transform: Matrix4.identity()
+          ..translateByDouble(imageOffset.dx, imageOffset.dy, 0, 1)
+          ..scaleByDouble(relativeScale, relativeScale, 1, 1),
+        // Transform receives the canvas's tight constraints. Release them for
+        // the stable decoded bitmap so paint geometry and source mapping share
+        // the exact same base dimensions.
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          minWidth: 0,
+          maxWidth: double.infinity,
+          minHeight: 0,
+          maxHeight: double.infinity,
+          child: SizedBox(
+            width: dimensions.width * baseScale,
+            height: dimensions.height * baseScale,
+            child: KeyedSubtree(
+              key: const ValueKey('manual-nutrition-crop-source-image'),
+              child: Image(
+                image: imageProvider,
+                fit: BoxFit.fill,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.high,
+                frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+                  if (frame != null || wasSynchronouslyLoaded) onDrawable();
+                  return child;
+                },
+                errorBuilder: (_, _, _) {
+                  onFailed();
+                  return const ColoredBox(color: Colors.transparent);
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _CropImageLoadingState extends StatelessWidget {

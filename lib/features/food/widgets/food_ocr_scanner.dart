@@ -443,6 +443,17 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
   late final TextEditingController _protein;
   late final TextEditingController _fat;
   late final TextEditingController _carbohydrate;
+  late final FocusNode _caloriesFocus;
+  late final FocusNode _proteinFocus;
+  late final FocusNode _fatFocus;
+  late final FocusNode _carbohydrateFocus;
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _fieldKeys = {
+    'ENERGY': GlobalKey(),
+    'PROTEIN': GlobalKey(),
+    'FAT': GlobalKey(),
+    'CARBOHYDRATE': GlobalKey(),
+  };
   late final Set<String> _observedFields;
 
   @override
@@ -452,6 +463,10 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     _protein = _numberController(widget.draft.protein);
     _fat = _numberController(widget.draft.fat);
     _carbohydrate = _numberController(widget.draft.carbohydrate);
+    _caloriesFocus = _focusNodeFor('ENERGY');
+    _proteinFocus = _focusNodeFor('PROTEIN');
+    _fatFocus = _focusNodeFor('FAT');
+    _carbohydrateFocus = _focusNodeFor('CARBOHYDRATE');
     _observedFields = {
       if (widget.draft.calories != null) 'ENERGY',
       if (widget.draft.protein != null) 'PROTEIN',
@@ -466,7 +481,34 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     _protein.dispose();
     _fat.dispose();
     _carbohydrate.dispose();
+    _caloriesFocus.dispose();
+    _proteinFocus.dispose();
+    _fatFocus.dispose();
+    _carbohydrateFocus.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  FocusNode _focusNodeFor(String field) {
+    final node = FocusNode();
+    node.addListener(() {
+      if (node.hasFocus) _ensureFieldVisible(field);
+    });
+    return node;
+  }
+
+  void _ensureFieldVisible(String field) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _fieldKeys[field]?.currentContext;
+      if (mounted && context != null) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: .35,
+        );
+      }
+    });
   }
 
   @override
@@ -479,19 +521,30 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
           children: [
             Padding(
               padding: AppSpacing.cardPadding,
-              child: SizedBox(
-                height: MediaQuery.viewInsetsOf(context).bottom > 0 ? 132 : 220,
-                child: DecoratedBox(
-                  key: const ValueKey('nutrition-preview-source-image'),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Theme.of(context).dividerColor),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  height: MediaQuery.viewInsetsOf(context).bottom > 0
+                      ? 120
+                      : 220,
+                  child: DecoratedBox(
+                    key: const ValueKey('nutrition-preview-source-image'),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                    ),
+                    child: InteractiveViewer(
+                      child: _previewImage(widget.image.dataUrl),
+                    ),
                   ),
-                  child: InteractiveViewer(child: _previewImage(widget.image.dataUrl)),
                 ),
               ),
             ),
             Expanded(
               child: SingleChildScrollView(
+                controller: _scrollController,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md,
                   0,
@@ -505,17 +558,44 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                       padding: EdgeInsets.only(bottom: AppSpacing.sm),
                       child: Text('OBSERVED NUTRITION'),
                     ),
-                    _metricRow('ENERGY', 'ENERGY', _calories, 'kcal'),
+                    _metricRow(
+                      'ENERGY',
+                      'ENERGY',
+                      _calories,
+                      _caloriesFocus,
+                      'kcal',
+                      TextInputAction.next,
+                      () => _proteinFocus.requestFocus(),
+                    ),
                     const SizedBox(height: AppSpacing.xs),
-                    _metricRow('PROTEIN', 'PROTEIN', _protein, 'g'),
+                    _metricRow(
+                      'PROTEIN',
+                      'PROTEIN',
+                      _protein,
+                      _proteinFocus,
+                      'g',
+                      TextInputAction.next,
+                      () => _fatFocus.requestFocus(),
+                    ),
                     const SizedBox(height: AppSpacing.xs),
-                    _metricRow('FAT', 'FAT', _fat, 'g'),
+                    _metricRow(
+                      'FAT',
+                      'FAT',
+                      _fat,
+                      _fatFocus,
+                      'g',
+                      TextInputAction.next,
+                      () => _carbohydrateFocus.requestFocus(),
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     _metricRow(
                       'CARBOHYDRATE',
                       'CARBOHYDRATE',
                       _carbohydrate,
+                      _carbohydrateFocus,
                       'g',
+                      TextInputAction.done,
+                      () => FocusScope.of(context).unfocus(),
                     ),
                   ],
                 ),
@@ -551,13 +631,16 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
     String label,
     String field,
     TextEditingController controller,
+    FocusNode focusNode,
     String unit,
+    TextInputAction textInputAction,
+    VoidCallback onEditingComplete,
   ) {
     final status = _previewStatus(field);
-    const labelWidth = 116.0;
-    const statusWidth = 82.0;
+    const labelWidth = 92.0;
     const unitWidth = 34.0;
     return DecoratedBox(
+      key: _fieldKeys[field],
       decoration: BoxDecoration(
         border: Border.all(color: Theme.of(context).dividerColor),
         borderRadius: BorderRadius.circular(8),
@@ -591,10 +674,12 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                     child: TextField(
                       key: ValueKey('nutrition-preview-$field'),
                       controller: controller,
-                      onChanged: (_) => setState(() {}),
+                      focusNode: focusNode,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
+                      textInputAction: textInputAction,
+                      onEditingComplete: onEditingComplete,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleSmall,
                       decoration: const InputDecoration(
@@ -615,9 +700,9 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
               ),
             ),
             const SizedBox(width: AppSpacing.xs),
-            SizedBox(
-              width: statusWidth,
-              child: Center(child: _OcrStatusChip(status: status)),
+            Padding(
+              padding: const EdgeInsets.only(left: AppSpacing.xs),
+              child: _OcrStatusChip(status: status),
             ),
           ],
         ),

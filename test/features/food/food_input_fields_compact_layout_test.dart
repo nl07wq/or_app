@@ -32,11 +32,13 @@ void main() {
       _centerY(tester, _field('FAT')),
       _centerY(tester, _field('CARBOHYDRATE')),
     );
-    expect(
-      (_top(tester, _amount()) - _top(tester, _field('MEMO'))).abs(),
-      lessThan(16),
-    );
+    final amountBounds = tester.getRect(_amount());
+    final memoBounds = tester.getRect(_field('MEMO'));
+    expect(amountBounds.top, memoBounds.top);
+    expect(amountBounds.bottom, memoBounds.bottom);
     expect(find.text('栄養成分の基準量を設定'), findsOneWidget);
+    expect(find.text('100gあたりの栄養成分'), findsOneWidget);
+    expect(find.text('NUTRITION PER 100g'), findsNothing);
     expect(find.text('SET PACKAGE QUANTITY AND UNIT'), findsNothing);
     expect(tester.getSize(_field('NAME')).height, lessThan(56));
     expect(tester.takeException(), isNull);
@@ -92,10 +94,12 @@ void main() {
     addTearDown(controllers.dispose);
     await tester.pumpWidget(_subject(controllers, width: 320));
     expect(find.text('100gあたりに換算'), findsOneWidget);
+    expect(find.text('100gあたりの栄養成分'), findsOneWidget);
 
     controllers.base.text = '50';
     await tester.pumpWidget(_subject(controllers, width: 320));
     expect(find.text('50gあたりに換算'), findsOneWidget);
+    expect(find.text('50gあたりの栄養成分'), findsOneWidget);
 
     await tester.pumpWidget(
       _subject(controllers, width: 320, baseUnit: FoodQuantityUnit.milliliter),
@@ -105,6 +109,7 @@ void main() {
       _subject(controllers, width: 320, baseUnit: FoodQuantityUnit.milliliter),
     );
     expect(find.text('250mLあたりに換算'), findsOneWidget);
+    expect(find.text('250mLあたりの栄養成分'), findsOneWidget);
   });
 }
 
