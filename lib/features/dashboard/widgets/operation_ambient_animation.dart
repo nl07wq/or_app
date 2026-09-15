@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/engine/operation_status.dart';
@@ -8,7 +7,11 @@ enum OperationAmbientPreset { statusPulse }
 
 enum OperationAmbientPulsePreset { green, yellow, red, neutral }
 
-enum OperationAmbientSweepPhase { draw, hold, reset }
+enum OperationAmbientSweepPhase { initialize, sweep }
+
+/// Each trace uses one restrained ECG family member. Selection occurs once per
+/// completed sweep, never while a trace is being painted.
+enum OperationAmbientEcgVariant { a, b, c }
 
 OperationAmbientPulsePreset operationAmbientPulsePresetFor(
   OperationStatus? s,
@@ -28,7 +31,6 @@ class OperationAmbientAnimation extends StatefulWidget {
   });
   static const height = 10.0;
   static const drawDuration = Duration(seconds: 6);
-  static const holdDuration = Duration(milliseconds: 1300);
   static const loopDuration = drawDuration;
   final OperationStatus? status;
   final OperationAmbientPreset preset;
@@ -43,9 +45,11 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     vsync: this,
     duration: OperationAmbientAnimation.drawDuration,
   )..addStatusListener(_completed);
-  Timer? _holdTimer;
   bool _reducedMotion = false, _tickerEnabled = true, _appActive = true;
-  OperationAmbientSweepPhase _sweepPhase = OperationAmbientSweepPhase.draw;
+  OperationAmbientSweepPhase _sweepPhase =
+      OperationAmbientSweepPhase.initialize;
+  OperationAmbientEcgVariant _currentVariant = OperationAmbientEcgVariant.a;
+  OperationAmbientEcgVariant _nextVariant = OperationAmbientEcgVariant.b;
   bool get _recorded =>
       operationAmbientPulsePresetFor(widget.status) !=
       OperationAmbientPulsePreset.neutral;
@@ -81,55 +85,60 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
 
   void _sync({bool restart = false}) {
     if (!mounted) return;
-    _holdTimer?.cancel();
     if (!_motionAllowed) {
       _controller.stop();
       return;
     }
     if (!_recorded) {
-      _sweepPhase = OperationAmbientSweepPhase.draw;
       _controller.repeat(period: OperationAmbientAnimation.loopDuration);
       return;
     }
     if (restart) {
-      _startDraw();
-    } else if (_sweepPhase == OperationAmbientSweepPhase.hold) {
-      _scheduleReset();
+      _startRecordedInitialization();
     } else if (!_controller.isAnimating) {
       _controller.forward();
     }
   }
 
-  void _startDraw() {
-    _holdTimer?.cancel();
+  void _startRecordedInitialization() {
     if (!mounted || !_motionAllowed || !_recorded) return;
-    setState(() => _sweepPhase = OperationAmbientSweepPhase.draw);
+    setState(() {
+      _sweepPhase = OperationAmbientSweepPhase.initialize;
+      _currentVariant = OperationAmbientEcgVariant.a;
+      _nextVariant = OperationAmbientEcgVariant.b;
+    });
     _controller.forward(from: 0);
   }
 
   void _completed(AnimationStatus status) {
     if (status != AnimationStatus.completed || !_recorded || !mounted) return;
-    setState(() => _sweepPhase = OperationAmbientSweepPhase.hold);
-    _scheduleReset();
+    // Let the fully established/replaced trace render at progress 1 before a
+    // new left-edge seam starts. This avoids a right-edge frame being skipped.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_motionAllowed || !_recorded) return;
+      _beginNextSweep();
+    });
   }
 
-  void _scheduleReset() {
-    _holdTimer?.cancel();
-    if (!_motionAllowed || !_recorded) return;
-    _holdTimer = Timer(OperationAmbientAnimation.holdDuration, () {
-      if (!mounted || !_motionAllowed || !_recorded) return;
+  void _beginNextSweep() {
+    if (_sweepPhase == OperationAmbientSweepPhase.initialize) {
       setState(() {
-        _sweepPhase = OperationAmbientSweepPhase.reset;
-        _controller.value = 0;
+        _sweepPhase = OperationAmbientSweepPhase.sweep;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startDraw());
-    });
+    } else {
+      setState(() {
+        _currentVariant = _nextVariant;
+        _nextVariant = OperationAmbientPulsePainter.nextVariantAfter(
+          _nextVariant,
+        );
+      });
+    }
+    _controller.forward(from: 0);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _holdTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -155,6 +164,8 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                 preset: preset,
                 staticFrame: staticFrame,
                 sweepPhase: _sweepPhase,
+                currentVariant: _currentVariant,
+                nextVariant: _nextVariant,
               ),
               willChange: !staticFrame,
             ),
@@ -213,32 +224,78 @@ class OperationAmbientPulseGeometry {
 
 enum OperationAmbientWaveform { sine, ecg }
 
-/// ECG geometry stays in viewport coordinates. DRAW clips it from the left;
-/// HOLD keeps progress at one; RESET explicitly clears it before the next draw.
+/// Recorded ECG geometry stays in fixed viewport coordinates. The first pass
+/// establishes a trace, then each sweep replaces it behind a small clear seam.
 class OperationAmbientPulsePainter extends CustomPainter {
-  static const ecgPulseStartFraction = .42, ecgPulseEndFraction = .64;
+  static const clearWindowWidth = 12.0;
+  static OperationAmbientEcgVariant nextVariantAfter(
+    OperationAmbientEcgVariant variant,
+  ) => switch (variant) {
+    OperationAmbientEcgVariant.a => OperationAmbientEcgVariant.b,
+    OperationAmbientEcgVariant.b => OperationAmbientEcgVariant.c,
+    OperationAmbientEcgVariant.c => OperationAmbientEcgVariant.a,
+  };
   OperationAmbientPulsePainter({
     required this.phase,
     required this.geometry,
     required this.preset,
     required this.staticFrame,
     required this.sweepPhase,
+    required this.currentVariant,
+    required this.nextVariant,
   }) : super(repaint: phase);
   final Animation<double> phase;
   final OperationAmbientPulseGeometry geometry;
   final OperationAmbientPulsePreset preset;
   final bool staticFrame;
   final OperationAmbientSweepPhase sweepPhase;
-  Path? _cachedPath;
+  final OperationAmbientEcgVariant currentVariant;
+  final OperationAmbientEcgVariant nextVariant;
+  final Map<OperationAmbientEcgVariant, Path> _cachedPaths = {};
   Size? _cachedSize;
   double get revealProgress =>
-      staticFrame ||
-          geometry.waveform == OperationAmbientWaveform.sine ||
-          sweepPhase == OperationAmbientSweepPhase.hold
+      staticFrame || geometry.waveform == OperationAmbientWaveform.sine
       ? 1
-      : sweepPhase == OperationAmbientSweepPhase.reset
-      ? 0
       : phase.value;
+
+  List<double> pulseFractionsFor(
+    OperationAmbientEcgVariant variant,
+  ) => switch (variant) {
+    // Baseline, small pre-deflection, peak, negative return, recovery,
+    // baseline. Variants differ only horizontally, preserving amplitude.
+    OperationAmbientEcgVariant.a => const [.42, .46, .49, .52, .56, .60, .64],
+    OperationAmbientEcgVariant.b => const [.30, .35, .39, .43, .47, .52, .58],
+    OperationAmbientEcgVariant.c => const [.54, .58, .61, .64, .68, .72, .78],
+  };
+
+  OperationAmbientSweepRegions sweepRegionsFor(
+    Size size, {
+    double? phaseValue,
+  }) {
+    final progress = (phaseValue ?? phase.value).clamp(0.0, 1.0);
+    if (staticFrame || sweepPhase == OperationAmbientSweepPhase.initialize) {
+      return OperationAmbientSweepRegions(
+        newTrace: Rect.fromLTWH(0, 0, size.width * progress, size.height),
+        clear: Rect.zero,
+        oldTrace: Rect.zero,
+      );
+    }
+    if (progress >= 1) {
+      return OperationAmbientSweepRegions(
+        newTrace: Rect.fromLTWH(0, 0, size.width, size.height),
+        clear: Rect.zero,
+        oldTrace: Rect.zero,
+      );
+    }
+    final head = size.width * progress;
+    final clearRight = math.min(size.width, head + clearWindowWidth);
+    return OperationAmbientSweepRegions(
+      newTrace: Rect.fromLTWH(0, 0, head, size.height),
+      clear: Rect.fromLTRB(head, 0, clearRight, size.height),
+      oldTrace: Rect.fromLTRB(clearRight, 0, size.width, size.height),
+    );
+  }
+
   OperationAmbientWaveformCoverage coverageFor(
     Size size, {
     double? phaseValue,
@@ -249,12 +306,11 @@ class OperationAmbientPulsePainter extends CustomPainter {
         right: size.width + geometry.waveLength * 2,
       );
     }
-    final p = staticFrame || sweepPhase == OperationAmbientSweepPhase.hold
-        ? 1.0
-        : sweepPhase == OperationAmbientSweepPhase.reset
-        ? 0.0
-        : (phaseValue ?? phase.value);
-    return OperationAmbientWaveformCoverage(left: 0, right: size.width * p);
+    final regions = sweepRegionsFor(size, phaseValue: phaseValue);
+    return OperationAmbientWaveformCoverage(
+      left: regions.newTrace.left,
+      right: regions.newTrace.right,
+    );
   }
 
   @override
@@ -269,11 +325,29 @@ class OperationAmbientPulsePainter extends CustomPainter {
       canvas.drawPath(_sine(size), paint);
       return;
     }
+    if (staticFrame) {
+      canvas.drawPath(_ecg(size, currentVariant), paint);
+      return;
+    }
+    final regions = sweepRegionsFor(size);
+    if (sweepPhase == OperationAmbientSweepPhase.initialize) {
+      _paintClipped(
+        canvas,
+        _ecg(size, currentVariant),
+        regions.newTrace,
+        paint,
+      );
+      return;
+    }
+    _paintClipped(canvas, _ecg(size, currentVariant), regions.oldTrace, paint);
+    _paintClipped(canvas, _ecg(size, nextVariant), regions.newTrace, paint);
+  }
+
+  void _paintClipped(Canvas canvas, Path path, Rect rect, Paint paint) {
+    if (rect.isEmpty) return;
     canvas.save();
-    canvas.clipRect(
-      Rect.fromLTWH(0, 0, size.width * revealProgress.clamp(0, 1), size.height),
-    );
-    canvas.drawPath(_ecg(size), paint);
+    canvas.clipRect(rect);
+    canvas.drawPath(path, paint);
     canvas.restore();
   }
 
@@ -297,28 +371,33 @@ class OperationAmbientPulsePainter extends CustomPainter {
     return path;
   }
 
-  Path _ecg(Size size) {
-    if (_cachedSize == size && _cachedPath != null) return _cachedPath!;
+  Path _ecg(Size size, OperationAmbientEcgVariant variant) {
+    if (_cachedSize != size) {
+      _cachedSize = size;
+      _cachedPaths.clear();
+    }
+    final existing = _cachedPaths[variant];
+    if (existing != null) return existing;
     final path = Path();
     final mid = size.height / 2, period = geometry.waveLength;
     path.moveTo(0, mid);
+    final fractions = pulseFractionsFor(variant);
     for (var start = 0.0; start < size.width; start += period) {
       void line(double f, double y) {
         final x = start + period * f;
         if (x <= size.width) path.lineTo(x, y);
       }
 
-      line(ecgPulseStartFraction, mid);
-      line(.46, mid - geometry.amplitude * .25);
-      line(.49, mid + geometry.amplitude * .12);
-      line(.52, mid - geometry.amplitude);
-      line(.56, mid + geometry.amplitude * .55);
-      line(.60, mid - geometry.amplitude * .30);
-      line(ecgPulseEndFraction, mid);
+      line(fractions[0], mid);
+      line(fractions[1], mid - geometry.amplitude * .25);
+      line(fractions[2], mid + geometry.amplitude * .12);
+      line(fractions[3], mid - geometry.amplitude);
+      line(fractions[4], mid + geometry.amplitude * .55);
+      line(fractions[5], mid - geometry.amplitude * .30);
+      line(fractions[6], mid);
       path.lineTo(math.min(start + period, size.width), mid);
     }
-    _cachedSize = size;
-    return _cachedPath = path..moveTo(size.width, mid);
+    return _cachedPaths[variant] = path..lineTo(size.width, mid);
   }
 
   double _remainder(double v) {
@@ -334,7 +413,18 @@ class OperationAmbientPulsePainter extends CustomPainter {
       old.geometry.waveform != geometry.waveform ||
       old.preset != preset ||
       old.staticFrame != staticFrame ||
-      old.sweepPhase != sweepPhase;
+      old.sweepPhase != sweepPhase ||
+      old.currentVariant != currentVariant ||
+      old.nextVariant != nextVariant;
+}
+
+class OperationAmbientSweepRegions {
+  const OperationAmbientSweepRegions({
+    required this.newTrace,
+    required this.clear,
+    required this.oldTrace,
+  });
+  final Rect newTrace, clear, oldTrace;
 }
 
 class OperationAmbientWaveformCoverage {

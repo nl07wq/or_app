@@ -66,11 +66,10 @@ void main() {
       expect(geometries[0].waveLength, geometries[1].waveLength);
       expect(geometries[1].waveLength, geometries[2].waveLength);
       expect(geometries.first.waveLength, 240);
-      expect(
-        OperationAmbientPulsePainter.ecgPulseEndFraction -
-            OperationAmbientPulsePainter.ecgPulseStartFraction,
-        lessThan(.5),
-      );
+      final fractions = painter(
+        tester,
+      ).pulseFractionsFor(OperationAmbientEcgVariant.a);
+      expect(fractions.last - fractions.first, lessThan(.5));
       expect(geometries[0].amplitude, greaterThan(geometries[1].amplitude));
       expect(geometries[1].amplitude, greaterThan(geometries[2].amplitude));
       expect(geometries.map((geometry) => geometry.color), [
@@ -123,43 +122,89 @@ void main() {
     },
   );
 
+  testWidgets('recorded ECG initializes from the left to the right edge', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject(OperationStatus.green));
+    final activePainter = painter(tester);
+    const size = Size(390, OperationAmbientAnimation.height);
+    var previous = -1.0;
+    for (final progress in [0.0, .25, .5, .75, 1.0]) {
+      final extent = activePainter.coverageFor(size, phaseValue: progress);
+      expect(extent.left, 0);
+      expect(extent.right, greaterThanOrEqualTo(previous));
+      expect(extent.right, moreOrLessEquals(size.width * progress));
+      previous = extent.right;
+    }
+    expect(activePainter.coverageFor(size, phaseValue: 1).right, size.width);
+    expect(activePainter.sweepPhase, OperationAmbientSweepPhase.initialize);
+  });
+
   testWidgets(
-    'recorded ECG progressively reveals fixed geometry to the right edge',
+    'initial trace becomes a continuous rewrite sweep without a blank reset',
     (tester) async {
-      await tester.pumpWidget(subject(OperationStatus.green));
+      await tester.pumpWidget(subject(OperationStatus.red));
+      await tester.pump(
+        OperationAmbientAnimation.drawDuration +
+            const Duration(milliseconds: 20),
+      );
+      await tester.pump();
       final activePainter = painter(tester);
+      expect(activePainter.sweepPhase, OperationAmbientSweepPhase.sweep);
+      expect(activePainter.currentVariant, OperationAmbientEcgVariant.a);
+      expect(activePainter.nextVariant, OperationAmbientEcgVariant.b);
+
       const size = Size(390, OperationAmbientAnimation.height);
-      var previous = -1.0;
-      for (final progress in [0.0, .25, .5, .75, 1.0]) {
-        final extent = activePainter.coverageFor(size, phaseValue: progress);
-        expect(extent.left, 0);
-        expect(extent.right, greaterThanOrEqualTo(previous));
-        expect(extent.right, moreOrLessEquals(size.width * progress));
-        previous = extent.right;
+      for (final progress in [0.0, .25, .5, .75]) {
+        final regions = activePainter.sweepRegionsFor(
+          size,
+          phaseValue: progress,
+        );
+        expect(regions.newTrace.width + regions.oldTrace.width, greaterThan(0));
+        expect(
+          regions.clear.width,
+          lessThanOrEqualTo(OperationAmbientPulsePainter.clearWindowWidth),
+        );
       }
-      expect(activePainter.coverageFor(size, phaseValue: 1).right, size.width);
+      final complete = activePainter.sweepRegionsFor(size, phaseValue: 1);
+      expect(complete.newTrace.right, size.width);
+      expect(complete.clear, Rect.zero);
+      expect(complete.oldTrace, Rect.zero);
+      expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'DRAW holds complete ECG then explicitly resets before the next draw',
+    'variants are distinct, deterministic, and never change per frame',
     (tester) async {
-      await tester.pumpWidget(subject(OperationStatus.red));
-      await tester.pump(
-        OperationAmbientAnimation.drawDuration + const Duration(milliseconds: 20),
+      await tester.pumpWidget(subject(OperationStatus.green));
+      final activePainter = painter(tester);
+      expect(
+        activePainter.pulseFractionsFor(OperationAmbientEcgVariant.a),
+        isNot(activePainter.pulseFractionsFor(OperationAmbientEcgVariant.b)),
       );
-      await tester.pump();
-      expect(painter(tester).sweepPhase, OperationAmbientSweepPhase.hold);
-      expect(painter(tester).revealProgress, 1);
+      expect(
+        activePainter.pulseFractionsFor(OperationAmbientEcgVariant.b),
+        isNot(activePainter.pulseFractionsFor(OperationAmbientEcgVariant.c)),
+      );
+      final current = activePainter.currentVariant;
+      final next = activePainter.nextVariant;
+      await tester.pump(const Duration(seconds: 1));
+      expect(activePainter.currentVariant, current);
+      expect(activePainter.nextVariant, next);
 
-      await tester.pump(const Duration(milliseconds: 1000));
-      expect(painter(tester).sweepPhase, OperationAmbientSweepPhase.hold);
-      expect(painter(tester).revealProgress, 1);
-
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump();
-      expect(painter(tester).revealProgress, 0);
-      expect(tester.takeException(), isNull);
+      final sequence = [
+        OperationAmbientEcgVariant.a,
+        OperationAmbientEcgVariant.b,
+        OperationAmbientEcgVariant.c,
+        OperationAmbientEcgVariant.a,
+      ];
+      for (var index = 0; index < sequence.length - 1; index++) {
+        expect(
+          OperationAmbientPulsePainter.nextVariantAfter(sequence[index]),
+          sequence[index + 1],
+        );
+      }
     },
   );
 
@@ -169,12 +214,12 @@ void main() {
       for (final width in [320.0, 390.0, 900.0]) {
         await tester.binding.setSurfaceSize(Size(width, 844));
         await tester.pumpWidget(subject(OperationStatus.yellow, width: width));
-        final extent = painter(tester).coverageFor(
+        final extent = painter(tester).sweepRegionsFor(
           Size(width, OperationAmbientAnimation.height),
           phaseValue: 1,
         );
-        expect(extent.left, 0);
-        expect(extent.right, width);
+        expect(extent.newTrace.left, 0);
+        expect(extent.newTrace.right, width);
       }
       await tester.binding.setSurfaceSize(null);
     },
