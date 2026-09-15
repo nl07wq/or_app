@@ -407,21 +407,25 @@ class FoodInputFields extends StatelessWidget {
 
           LayoutBuilder(
             builder: (context, constraints) {
-              final amount = FoodNumericStepperRow(
-                key: const ValueKey('food-amount-stepper-row'),
-                inputKey: const ValueKey('food-amount-input'),
+              final amount = OperationTextField(
+                key: const ValueKey('food-amount-input'),
                 controller: amountController,
                 label: recipeSelected
                     ? 'SERVINGS'
                     : '実使用量 (${_quantityUnitLabel(baseUnit)})',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 onChanged: onChanged,
+              );
+              final stepper = FoodNumericStepper(
+                key: const ValueKey('food-amount-stepper-column'),
                 incrementKey: const ValueKey('food-amount-increment'),
                 incrementTooltip: 'Increase amount',
                 onIncrement: () => _stepAmount(1),
                 decrementKey: const ValueKey('food-amount-decrement'),
                 decrementTooltip: 'Decrease amount',
                 onDecrement: _canDecrement ? () => _stepAmount(-1) : null,
-                matchFieldHeight: true,
               );
               final memo = OperationTextField(
                 controller: foodMemoController,
@@ -431,29 +435,39 @@ class FoodInputFields extends StatelessWidget {
                 onChanged: onChanged,
               );
               if (constraints.maxWidth < 300) {
-                return Column(children: [amount, _compactGap, memo]);
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: amount),
+                        stepper,
+                      ],
+                    ),
+                    _compactGap,
+                    memo,
+                  ],
+                );
               }
               return ValueListenableBuilder<TextEditingValue>(
                 valueListenable: foodMemoController,
                 builder: (context, value, _) {
-                  // The compact amount stepper is 56px tall. Give both visible
-                  // surfaces one explicit row contract; a newline grows both
-                  // sides together to the approved two-line Memo height.
+                  // All three lower controls share one explicit outer row.
+                  // A newline grows the field, stepper column, and Memo
+                  // together to the approved two-line height.
                   final lines = '\n'.allMatches(value.text).length + 1;
                   final rowHeight = lines > 1 ? 72.0 : 56.0;
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: SizedBox(height: rowHeight, child: amount),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        flex: 4,
-                        child: SizedBox(height: rowHeight, child: memo),
-                      ),
-                    ],
+                  return SizedBox(
+                    height: rowHeight,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(flex: 5, child: amount),
+                        const SizedBox(width: AppSpacing.xs),
+                        stepper,
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(flex: 4, child: memo),
+                      ],
+                    ),
                   );
                 },
               );
@@ -639,27 +653,63 @@ class FoodNumericStepperRow extends StatelessWidget {
         children: [
           Expanded(child: matchedField),
           const SizedBox(width: AppSpacing.xs),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FoodNumericStepButton(
-                key: incrementKey,
-                icon: Icons.keyboard_arrow_up,
-                tooltip: incrementTooltip,
-                onPressed: onIncrement,
-              ),
-              FoodNumericStepButton(
-                key: decrementKey,
-                icon: Icons.keyboard_arrow_down,
-                tooltip: decrementTooltip,
-                onPressed: onDecrement,
-              ),
-            ],
+          FoodNumericStepper(
+            incrementKey: incrementKey,
+            incrementTooltip: incrementTooltip,
+            onIncrement: onIncrement,
+            decrementKey: decrementKey,
+            decrementTooltip: decrementTooltip,
+            onDecrement: onDecrement,
           ),
         ],
       );
     },
+  );
+}
+
+/// Fixed-width middle column shared by compact numeric controls. Its outer
+/// height is supplied by the parent row, keeping the arrows visibly within
+/// the same bounds as the neighboring field surfaces.
+class FoodNumericStepper extends StatelessWidget {
+  const FoodNumericStepper({
+    super.key,
+    required this.incrementKey,
+    required this.incrementTooltip,
+    required this.onIncrement,
+    required this.decrementKey,
+    required this.decrementTooltip,
+    required this.onDecrement,
+  });
+
+  static const width = 44.0;
+
+  final Key incrementKey;
+  final String incrementTooltip;
+  final VoidCallback? onIncrement;
+  final Key decrementKey;
+  final String decrementTooltip;
+  final VoidCallback? onDecrement;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: width,
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FoodNumericStepButton(
+          key: incrementKey,
+          icon: Icons.keyboard_arrow_up,
+          tooltip: incrementTooltip,
+          onPressed: onIncrement,
+        ),
+        FoodNumericStepButton(
+          key: decrementKey,
+          icon: Icons.keyboard_arrow_down,
+          tooltip: decrementTooltip,
+          onPressed: onDecrement,
+        ),
+      ],
+    ),
   );
 }
 
@@ -677,8 +727,8 @@ class FoodNumericStepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 40,
-    height: 22,
+    width: FoodNumericStepper.width,
+    height: 24,
     child: IconButton(
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,

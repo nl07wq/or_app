@@ -125,7 +125,16 @@ class FoodManualCropInteraction {
   }
 }
 
-enum _CropViewportEdge { left, top, right, bottom }
+enum _CropViewportEdge {
+  left,
+  top,
+  right,
+  bottom,
+  topLeft,
+  topRight,
+  bottomLeft,
+  bottomRight,
+}
 
 /// Ephemeral gesture state. Updating this notifier repaints only the crop
 /// canvas; the app bar, instructions, and confirmation controls remain out of
@@ -305,72 +314,81 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                           final imageOffset =
                               _initialImageOffset(canvas, actualScale) +
                               interaction.pan;
-                          return GestureDetector(
-                            key: const ValueKey(
-                              'manual-nutrition-crop-gesture-area',
-                            ),
-                            onScaleStart: (details) {
-                              _startScale = interaction.scale;
-                              _startImageOffset = imageOffset;
-                              _startFocalPoint = details.localFocalPoint;
-                            },
-                            onScaleUpdate: (details) => _updateImageGesture(
-                              details: details,
-                              canvas: canvas,
-                              viewport: viewport,
-                              baseScale: baseScale,
-                            ),
-                            onScaleEnd: (_) => _normalizeAfterInteraction(
-                              canvas: canvas,
-                              viewport: viewport,
-                              baseScale: baseScale,
-                            ),
-                            child: RepaintBoundary(
-                              child: Stack(
-                                key: _cropCanvasKey,
-                                fit: StackFit.expand,
-                                children: [
-                                  ColoredBox(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.surface,
-                                  ),
-                                  _CropSourceImage(
-                                    dimensions: _dimensions,
-                                    imageProvider: _previewImageProvider!,
-                                    baseScale: baseScale,
-                                    relativeScale: interaction.scale,
-                                    imageOffset: imageOffset,
-                                    onDrawable: _markPreviewImageDrawable,
-                                    onFailed: _markPreviewImageFailed,
-                                  ),
-                                  _CropMask(viewport: viewport),
-                                  if (!_previewImageDrawable)
-                                    Positioned.fill(
-                                      child: _CropImageLoadingState(
-                                        failed: _previewLoadFailed,
+                          return Stack(
+                            key: _cropCanvasKey,
+                            fit: StackFit.expand,
+                            children: [
+                              // The image recognizer is deliberately a sibling
+                              // beneath crop controls. A resize/move hit never
+                              // enters its gesture arena, so handle priority is
+                              // structural rather than timing-dependent.
+                              GestureDetector(
+                                key: const ValueKey(
+                                  'manual-nutrition-crop-gesture-area',
+                                ),
+                                onScaleStart: (details) {
+                                  _startScale = interaction.scale;
+                                  _startImageOffset = imageOffset;
+                                  _startFocalPoint = details.localFocalPoint;
+                                },
+                                onScaleUpdate: (details) => _updateImageGesture(
+                                  details: details,
+                                  canvas: canvas,
+                                  viewport: viewport,
+                                  baseScale: baseScale,
+                                ),
+                                onScaleEnd: (_) => _normalizeAfterInteraction(
+                                  canvas: canvas,
+                                  viewport: viewport,
+                                  baseScale: baseScale,
+                                ),
+                                child: RepaintBoundary(
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ColoredBox(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.surface,
                                       ),
-                                    ),
-                                  Positioned.fill(
-                                    child: _CropViewportControls(
-                                      viewport: viewport,
-                                      onMove: (delta) => _moveViewport(
-                                        canvas: canvas,
-                                        viewport: viewport,
-                                        delta: delta,
+                                      _CropSourceImage(
+                                        sourceDimensions: _dimensions,
+                                        previewDimensions:
+                                            _preview!.displayDimensions,
+                                        imageProvider: _previewImageProvider!,
+                                        actualScale: actualScale,
+                                        imageOffset: imageOffset,
+                                        onDrawable: _markPreviewImageDrawable,
+                                        onFailed: _markPreviewImageFailed,
                                       ),
-                                      onResize: (edge, delta) =>
-                                          _resizeViewport(
-                                            canvas: canvas,
-                                            viewport: viewport,
-                                            edge: edge,
-                                            delta: delta,
+                                      _CropMask(viewport: viewport),
+                                      if (!_previewImageDrawable)
+                                        Positioned.fill(
+                                          child: _CropImageLoadingState(
+                                            failed: _previewLoadFailed,
                                           ),
-                                    ),
+                                        ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
+                              Positioned.fill(
+                                child: _CropViewportControls(
+                                  viewport: viewport,
+                                  onMove: (delta) => _moveViewport(
+                                    canvas: canvas,
+                                    viewport: viewport,
+                                    delta: delta,
+                                  ),
+                                  onResize: (edge, delta) => _resizeViewport(
+                                    canvas: canvas,
+                                    viewport: viewport,
+                                    edge: edge,
+                                    delta: delta,
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       );
@@ -491,6 +509,30 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
         viewport.left,
         viewport.top,
         viewport.right,
+        viewport.bottom + delta.dy,
+      ),
+      _CropViewportEdge.topLeft => Rect.fromLTRB(
+        viewport.left + delta.dx,
+        viewport.top + delta.dy,
+        viewport.right,
+        viewport.bottom,
+      ),
+      _CropViewportEdge.topRight => Rect.fromLTRB(
+        viewport.left,
+        viewport.top + delta.dy,
+        viewport.right + delta.dx,
+        viewport.bottom,
+      ),
+      _CropViewportEdge.bottomLeft => Rect.fromLTRB(
+        viewport.left + delta.dx,
+        viewport.top,
+        viewport.right,
+        viewport.bottom + delta.dy,
+      ),
+      _CropViewportEdge.bottomRight => Rect.fromLTRB(
+        viewport.left,
+        viewport.top,
+        viewport.right + delta.dx,
         viewport.bottom + delta.dy,
       ),
     };
@@ -623,68 +665,74 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
 
 class _CropSourceImage extends StatelessWidget {
   const _CropSourceImage({
-    required this.dimensions,
+    required this.sourceDimensions,
+    required this.previewDimensions,
     required this.imageProvider,
-    required this.baseScale,
-    required this.relativeScale,
+    required this.actualScale,
     required this.imageOffset,
     required this.onDrawable,
     required this.onFailed,
   });
 
-  final FoodImageDimensions dimensions;
+  final FoodImageDimensions sourceDimensions;
+  final FoodImageDimensions previewDimensions;
   final ImageProvider<Object> imageProvider;
-  final double baseScale;
-  final double relativeScale;
+  final double actualScale;
   final Offset imageOffset;
   final VoidCallback onDrawable;
   final VoidCallback onFailed;
 
   @override
-  Widget build(BuildContext context) => ClipRect(
-    child: RepaintBoundary(
-      child: Transform(
-        key: const ValueKey('manual-nutrition-crop-image-transform'),
-        transform: Matrix4.identity()
-          ..translateByDouble(imageOffset.dx, imageOffset.dy, 0, 1)
-          ..scaleByDouble(relativeScale, relativeScale, 1, 1),
-        // Transform receives the canvas's tight constraints. Release them for
-        // the stable decoded bitmap so paint geometry and source mapping share
-        // the exact same base dimensions.
-        child: OverflowBox(
-          alignment: Alignment.topLeft,
-          minWidth: 0,
-          maxWidth: double.infinity,
-          minHeight: 0,
-          maxHeight: double.infinity,
-          child: SizedBox(
-            width: dimensions.width * baseScale,
-            height: dimensions.height * baseScale,
-            child: KeyedSubtree(
-              key: const ValueKey('manual-nutrition-crop-source-image'),
-              child: Image(
-                image: imageProvider,
-                fit: BoxFit.fill,
-                gaplessPlayback: true,
-                // The browser bridge supplies a 1024px interaction preview.
-                // Medium sampling keeps pan/pinch responsive without changing
-                // the original-pixel crop used after confirmation.
-                filterQuality: FilterQuality.medium,
-                frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
-                  if (frame != null || wasSynchronouslyLoaded) onDrawable();
-                  return child;
-                },
-                errorBuilder: (_, _, _) {
-                  onFailed();
-                  return const ColoredBox(color: Colors.transparent);
-                },
+  Widget build(BuildContext context) {
+    // Keep the decoded preview at its own pixel size. The transform expresses
+    // logical original-image coordinates, so crop move/resize can preserve an
+    // unchanged image layer instead of relaying it out at a new base scale.
+    final previewToCanvasScale =
+        actualScale * sourceDimensions.width / previewDimensions.width;
+    return ClipRect(
+      child: RepaintBoundary(
+        child: Transform(
+          key: const ValueKey('manual-nutrition-crop-image-transform'),
+          transform: Matrix4.identity()
+            ..translateByDouble(imageOffset.dx, imageOffset.dy, 0, 1)
+            ..scaleByDouble(previewToCanvasScale, previewToCanvasScale, 1, 1),
+          // Transform receives tight canvas constraints. The child remains the
+          // stable display bitmap; source dimensions are used only for mapping.
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: 0,
+            maxWidth: double.infinity,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: SizedBox(
+              width: previewDimensions.width.toDouble(),
+              height: previewDimensions.height.toDouble(),
+              child: KeyedSubtree(
+                key: const ValueKey('manual-nutrition-crop-source-image'),
+                child: Image(
+                  image: imageProvider,
+                  fit: BoxFit.fill,
+                  gaplessPlayback: true,
+                  // The browser bridge supplies a 1024px interaction preview.
+                  // Medium sampling keeps pan/pinch responsive without changing
+                  // the original-pixel crop used after confirmation.
+                  filterQuality: FilterQuality.medium,
+                  frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+                    if (frame != null || wasSynchronouslyLoaded) onDrawable();
+                    return child;
+                  },
+                  errorBuilder: (_, _, _) {
+                    onFailed();
+                    return const ColoredBox(color: Colors.transparent);
+                  },
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _CropImageLoadingState extends StatelessWidget {
@@ -719,73 +767,146 @@ class _CropViewportControls extends StatelessWidget {
   final ValueChanged<Offset> onMove;
   final void Function(_CropViewportEdge edge, Offset delta) onResize;
 
+  static const _edgeHit = 36.0;
+  static const _cornerHit = 52.0;
+  static const _moveHitWidth = 104.0;
+  static const _moveHitHeight = 36.0;
+
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: [
-      Positioned(
-        left: viewport.center.dx - 52,
-        top: viewport.top + 6,
-        width: 104,
-        height: 28,
-        child: _CropViewportHandle(
-          key: const ValueKey('manual-nutrition-crop-move-handle'),
-          semanticLabel: 'Move crop area',
-          icon: Icons.open_with,
-          onPanUpdate: onMove,
-        ),
-      ),
-      Positioned(
-        left: viewport.left - 14,
-        top: viewport.center.dy - 14,
-        width: 28,
-        height: 28,
-        child: _CropViewportHandle(
+  Widget build(BuildContext context) {
+    final moveRect = Rect.fromLTWH(
+      viewport.center.dx - _moveHitWidth / 2,
+      viewport.top + _cornerHit / 2,
+      _moveHitWidth,
+      _moveHitHeight,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // The move surface stays inside the crop body and excludes practical
+        // resize zones. Later Stack children receive hit testing first:
+        // corners, edges, then this move region, then image pan.
+        if (!moveRect.isEmpty)
+          Positioned.fromRect(
+            rect: moveRect,
+            child: _CropViewportHandle(
+              key: const ValueKey('manual-nutrition-crop-move-handle'),
+              semanticLabel: 'Move crop area',
+              onPanUpdate: onMove,
+              cursor: SystemMouseCursors.move,
+              showIndicator: false,
+            ),
+          ),
+        _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-left'),
-          semanticLabel: 'Resize crop width',
-          icon: Icons.drag_handle,
-          onPanUpdate: (delta) => onResize(_CropViewportEdge.left, delta),
+          rect: Rect.fromLTWH(
+            viewport.left - _edgeHit / 2,
+            viewport.top + _cornerHit / 2,
+            _edgeHit,
+            viewport.height - _cornerHit,
+          ),
+          edge: _CropViewportEdge.left,
+          cursor: SystemMouseCursors.resizeLeftRight,
         ),
-      ),
-      Positioned(
-        left: viewport.right - 14,
-        top: viewport.center.dy - 14,
-        width: 28,
-        height: 28,
-        child: _CropViewportHandle(
+        _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-right'),
-          semanticLabel: 'Resize crop width',
-          icon: Icons.drag_handle,
-          onPanUpdate: (delta) => onResize(_CropViewportEdge.right, delta),
+          rect: Rect.fromLTWH(
+            viewport.right - _edgeHit / 2,
+            viewport.top + _cornerHit / 2,
+            _edgeHit,
+            viewport.height - _cornerHit,
+          ),
+          edge: _CropViewportEdge.right,
+          cursor: SystemMouseCursors.resizeLeftRight,
         ),
-      ),
-      Positioned(
-        left: viewport.center.dx - 14,
-        top: viewport.top - 14,
-        width: 28,
-        height: 28,
-        child: _CropViewportHandle(
+        _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-top'),
-          semanticLabel: 'Resize crop height',
-          icon: Icons.drag_handle,
+          rect: Rect.fromLTWH(
+            viewport.left + _cornerHit / 2,
+            viewport.top - _edgeHit / 2,
+            viewport.width - _cornerHit,
+            _edgeHit,
+          ),
+          edge: _CropViewportEdge.top,
+          cursor: SystemMouseCursors.resizeUpDown,
           rotate: true,
-          onPanUpdate: (delta) => onResize(_CropViewportEdge.top, delta),
         ),
-      ),
-      Positioned(
-        left: viewport.center.dx - 14,
-        top: viewport.bottom - 14,
-        width: 28,
-        height: 28,
-        child: _CropViewportHandle(
+        _edgeHandle(
           key: const ValueKey('manual-nutrition-crop-resize-bottom'),
-          semanticLabel: 'Resize crop height',
-          icon: Icons.drag_handle,
+          rect: Rect.fromLTWH(
+            viewport.left + _cornerHit / 2,
+            viewport.bottom - _edgeHit / 2,
+            viewport.width - _cornerHit,
+            _edgeHit,
+          ),
+          edge: _CropViewportEdge.bottom,
+          cursor: SystemMouseCursors.resizeUpDown,
           rotate: true,
-          onPanUpdate: (delta) => onResize(_CropViewportEdge.bottom, delta),
         ),
-      ),
-    ],
+        _cornerHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-top-left'),
+          center: viewport.topLeft,
+          edge: _CropViewportEdge.topLeft,
+          cursor: SystemMouseCursors.resizeUpLeftDownRight,
+        ),
+        _cornerHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-top-right'),
+          center: viewport.topRight,
+          edge: _CropViewportEdge.topRight,
+          cursor: SystemMouseCursors.resizeUpRightDownLeft,
+        ),
+        _cornerHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-bottom-left'),
+          center: viewport.bottomLeft,
+          edge: _CropViewportEdge.bottomLeft,
+          cursor: SystemMouseCursors.resizeUpRightDownLeft,
+        ),
+        _cornerHandle(
+          key: const ValueKey('manual-nutrition-crop-resize-bottom-right'),
+          center: viewport.bottomRight,
+          edge: _CropViewportEdge.bottomRight,
+          cursor: SystemMouseCursors.resizeUpLeftDownRight,
+        ),
+      ],
+    );
+  }
+
+  Widget _edgeHandle({
+    required Key key,
+    required Rect rect,
+    required _CropViewportEdge edge,
+    required MouseCursor cursor,
+    bool rotate = false,
+  }) => Positioned.fromRect(
+    rect: rect,
+    child: _CropViewportHandle(
+      key: key,
+      semanticLabel: 'Resize crop area',
+      icon: Icons.drag_handle,
+      rotate: rotate,
+      cursor: cursor,
+      onPanUpdate: (delta) => onResize(edge, delta),
+    ),
+  );
+
+  Widget _cornerHandle({
+    required Key key,
+    required Offset center,
+    required _CropViewportEdge edge,
+    required MouseCursor cursor,
+  }) => Positioned.fromRect(
+    rect: Rect.fromCenter(
+      center: center,
+      width: _cornerHit,
+      height: _cornerHit,
+    ),
+    child: _CropViewportHandle(
+      key: key,
+      semanticLabel: 'Resize crop area',
+      icon: Icons.open_in_full,
+      cursor: cursor,
+      onPanUpdate: (delta) => onResize(edge, delta),
+    ),
   );
 }
 
@@ -793,34 +914,49 @@ class _CropViewportHandle extends StatelessWidget {
   const _CropViewportHandle({
     required super.key,
     required this.semanticLabel,
-    required this.icon,
     required this.onPanUpdate,
+    required this.cursor,
+    this.icon,
     this.rotate = false,
+    this.showIndicator = true,
   });
 
   final String semanticLabel;
-  final IconData icon;
   final ValueChanged<Offset> onPanUpdate;
+  final MouseCursor cursor;
+  final IconData? icon;
   final bool rotate;
+  final bool showIndicator;
 
   @override
   Widget build(BuildContext context) => Semantics(
     label: semanticLabel,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onPanUpdate: (details) => onPanUpdate(details.delta),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Transform.rotate(
-          angle: rotate ? 1.5707963267948966 : 0,
-          child: Icon(
-            icon,
-            size: 16,
-            color: Theme.of(context).colorScheme.onPrimary,
-          ),
+    child: MouseRegion(
+      cursor: cursor,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (details) => onPanUpdate(details.delta),
+        child: Center(
+          child: showIndicator
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Transform.rotate(
+                      angle: rotate ? 1.5707963267948966 : 0,
+                      child: Icon(
+                        icon,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.expand(),
         ),
       ),
     ),

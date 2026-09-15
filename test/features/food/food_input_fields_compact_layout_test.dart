@@ -34,8 +34,14 @@ void main() {
     );
     final amountBounds = tester.getRect(_amount());
     final memoBounds = tester.getRect(_field('MEMO'));
+    final stepperBounds = tester.getRect(
+      find.byKey(const ValueKey('food-amount-stepper-column')),
+    );
     expect(amountBounds.top, memoBounds.top);
     expect(amountBounds.bottom, memoBounds.bottom);
+    expect(stepperBounds.top, amountBounds.top);
+    expect(stepperBounds.bottom, amountBounds.bottom);
+    expect(stepperBounds.width, FoodNumericStepper.width);
     final incrementBounds = tester.getRect(
       find.byKey(const ValueKey('food-amount-increment')),
     );
@@ -87,6 +93,12 @@ void main() {
     await tester.enterText(memo, 'first line\nsecond line');
     await tester.pump();
     final twoLineHeight = tester.getSize(memo).height;
+    final twoLineStepper = tester.getRect(
+      find.byKey(const ValueKey('food-amount-stepper-column')),
+    );
+    final twoLineAmount = tester.getRect(_amount());
+    expect(twoLineStepper.top, twoLineAmount.top);
+    expect(twoLineStepper.bottom, twoLineAmount.bottom);
 
     await tester.enterText(memo, 'first line\nsecond line\nthird line');
     await tester.pump();
@@ -94,6 +106,27 @@ void main() {
     expect(tester.getSize(memo).height, twoLineHeight);
     expect(controllers.memo.text, contains('third line'));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('900px retains the explicit three-part amount row', (
+    tester,
+  ) async {
+    final controllers = _Controllers();
+    addTearDown(controllers.dispose);
+    await tester.binding.setSurfaceSize(const Size(900, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_subject(controllers, width: 560));
+
+    final amount = tester.getRect(_amount());
+    final stepper = tester.getRect(
+      find.byKey(const ValueKey('food-amount-stepper-column')),
+    );
+    final memo = tester.getRect(_field('MEMO'));
+    expect(amount.top, stepper.top);
+    expect(stepper.top, memo.top);
+    expect(amount.bottom, stepper.bottom);
+    expect(stepper.bottom, memo.bottom);
+    expect(amount.center.dx, lessThan(memo.center.dx));
   });
 
   testWidgets('dynamic conversion label preserves its target basis', (

@@ -548,6 +548,52 @@ void main() {
     expect(gateway.lastRect!.height, greaterThan(1));
   });
 
+  testWidgets(
+    'interaction renders the cached preview but exports source pixels',
+    (tester) async {
+      final gateway = _CropGateway(
+        dimensions: const FoodImageDimensions(width: 2400, height: 1600),
+        previewDimensions: const FoodImageDimensions(width: 600, height: 400),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showManualNutritionCrop(
+                context: context,
+                gateway: gateway,
+                image: const FoodCapturedImage('data:image/png;base64,AA=='),
+              ),
+              child: const Text('OPEN'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('OPEN'));
+      await _pumpCropFrames(tester);
+
+      final image = find.byKey(
+        const ValueKey('manual-nutrition-crop-source-image'),
+      );
+      expect(tester.getSize(image), const Size(600, 400));
+      expect(gateway.cropCalls, 0);
+
+      await tester.tap(
+        find.byKey(const ValueKey('manual-nutrition-crop-confirm')),
+      );
+      await _pumpCropFrames(tester);
+      expect(gateway.cropCalls, 1);
+      expect(
+        gateway.lastRect!.x + gateway.lastRect!.width,
+        lessThanOrEqualTo(2400),
+      );
+      expect(
+        gateway.lastRect!.y + gateway.lastRect!.height,
+        lessThanOrEqualTo(1600),
+      );
+    },
+  );
+
   testWidgets('crop frame moves and resizes before selecting source pixels', (
     tester,
   ) async {
@@ -599,6 +645,111 @@ void main() {
     expect(selected.height, greaterThan(1));
     expect(selected.x + selected.width, lessThanOrEqualTo(1200));
     expect(selected.y + selected.height, lessThanOrEqualTo(800));
+  });
+
+  testWidgets('corner resize targets override move and remain locked', (
+    tester,
+  ) async {
+    final gateway = _CropGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showManualNutritionCrop(
+              context: context,
+              gateway: gateway,
+              image: const FoodCapturedImage('data:image/png;base64,AA=='),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN'));
+    await _pumpCropFrames(tester);
+
+    final topLeft = find.byKey(
+      const ValueKey('manual-nutrition-crop-resize-top-left'),
+    );
+    final bottomRight = find.byKey(
+      const ValueKey('manual-nutrition-crop-resize-bottom-right'),
+    );
+    final edge = find.byKey(
+      const ValueKey('manual-nutrition-crop-resize-right'),
+    );
+    expect(tester.getSize(topLeft), const Size(52, 52));
+    expect(tester.getSize(edge).width, 36);
+    final beforeTopLeft = tester.getCenter(topLeft);
+    final beforeBottomRight = tester.getCenter(bottomRight);
+
+    final gesture = await tester.startGesture(beforeTopLeft);
+    await gesture.moveBy(const Offset(14, 10));
+    // The pointer is now well inside the crop body; resize remains locked.
+    await gesture.moveBy(const Offset(38, 26));
+    await gesture.up();
+    await tester.pump();
+
+    final afterTopLeft = tester.getCenter(topLeft);
+    final afterBottomRight = tester.getCenter(bottomRight);
+    // Flutter's touch slop precedes the first drag update; the remaining
+    // movement is still applied as a resize after crossing the crop interior.
+    expect(afterTopLeft.dx - beforeTopLeft.dx, greaterThan(30));
+    expect(afterTopLeft.dy - beforeTopLeft.dy, greaterThan(20));
+    expect(afterBottomRight.dx, closeTo(beforeBottomRight.dx, 1));
+    expect(afterBottomRight.dy, closeTo(beforeBottomRight.dy, 1));
+    expect(gateway.cropCalls, 0);
+  });
+
+  testWidgets('crop move remains locked after crossing a resize boundary', (
+    tester,
+  ) async {
+    final gateway = _CropGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showManualNutritionCrop(
+              context: context,
+              gateway: gateway,
+              image: const FoodCapturedImage('data:image/png;base64,AA=='),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN'));
+    await _pumpCropFrames(tester);
+
+    final move = find.byKey(
+      const ValueKey('manual-nutrition-crop-move-handle'),
+    );
+    final topLeft = find.byKey(
+      const ValueKey('manual-nutrition-crop-resize-top-left'),
+    );
+    final bottomRight = find.byKey(
+      const ValueKey('manual-nutrition-crop-resize-bottom-right'),
+    );
+    final beforeTopLeft = tester.getCenter(topLeft);
+    final beforeBottomRight = tester.getCenter(bottomRight);
+
+    final gesture = await tester.startGesture(tester.getCenter(move));
+    await gesture.moveBy(const Offset(20, 0));
+    // Continue across the former edge position: move stays move for the
+    // entire pointer lifecycle instead of changing into a resize gesture.
+    await gesture.moveBy(const Offset(70, 0));
+    await gesture.up();
+    await tester.pump();
+
+    final topLeftDelta = tester.getCenter(topLeft) - beforeTopLeft;
+    final bottomRightDelta = tester.getCenter(bottomRight) - beforeBottomRight;
+    // Touch slop is consumed before Flutter starts the pan recognizer, but
+    // both crop corners must receive the same move-only delta thereafter.
+    expect(topLeftDelta.dx, greaterThan(40));
+    expect(topLeftDelta.dy, closeTo(0, 1));
+    expect(bottomRightDelta.dx, closeTo(topLeftDelta.dx, 1));
+    expect(bottomRightDelta.dy, closeTo(topLeftDelta.dy, 1));
+    expect(gateway.cropCalls, 0);
   });
 
   testWidgets('source image stays visible and pans during active touch', (
@@ -787,12 +938,14 @@ Future<void> _pumpCropFrames(WidgetTester tester) async {
 class _CropGateway implements FoodManualNutritionCropGateway {
   _CropGateway({
     this.dimensions = const FoodImageDimensions(width: 1200, height: 800),
+    this.previewDimensions,
     this.preparePreview,
   });
 
   int cropCalls = 0;
   FoodImageCropRect? lastRect;
   final FoodImageDimensions dimensions;
+  final FoodImageDimensions? previewDimensions;
   final Future<FoodNutritionCropPreview> Function()? preparePreview;
 
   @override
@@ -818,6 +971,7 @@ class _CropGateway implements FoodManualNutritionCropGateway {
           previewDataUrl:
               'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JQJ0AAAAASUVORK5CYII=',
           originalDimensions: dimensions,
+          previewDimensions: previewDimensions,
         ),
       );
 }

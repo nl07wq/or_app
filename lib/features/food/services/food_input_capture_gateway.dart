@@ -75,10 +75,18 @@ class FoodNutritionCropPreview {
   const FoodNutritionCropPreview({
     required this.previewDataUrl,
     required this.originalDimensions,
+    this.previewDimensions,
   });
 
   final String previewDataUrl;
   final FoodImageDimensions originalDimensions;
+
+  /// Decoded preview pixels, separate from the original source coordinate
+  /// system. Legacy/non-web gateways may omit this and use the original size.
+  final FoodImageDimensions? previewDimensions;
+
+  FoodImageDimensions get displayDimensions =>
+      previewDimensions ?? originalDimensions;
 }
 
 class FoodBarcodeCandidate {

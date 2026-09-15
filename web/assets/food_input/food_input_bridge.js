@@ -5687,6 +5687,8 @@
     return JSON.stringify({
       width: image.naturalWidth,
       height: image.naturalHeight,
+      previewWidth: width,
+      previewHeight: height,
       previewDataUrl: canvas.toDataURL('image/jpeg', 0.92),
     });
   }

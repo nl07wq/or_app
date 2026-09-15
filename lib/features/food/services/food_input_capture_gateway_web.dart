@@ -76,6 +76,10 @@ class WebFoodInputCaptureGateway
         width: payload['width'] as int,
         height: payload['height'] as int,
       ),
+      previewDimensions: FoodImageDimensions(
+        width: payload['previewWidth'] as int,
+        height: payload['previewHeight'] as int,
+      ),
     );
   }
 
