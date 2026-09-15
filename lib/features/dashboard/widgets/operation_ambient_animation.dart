@@ -29,7 +29,7 @@ class OperationAmbientAnimation extends StatefulWidget {
     required this.status,
     this.preset = OperationAmbientPreset.statusPulse,
   });
-  static const height = 10.0;
+  static const height = 20.0;
   static const drawDuration = Duration(seconds: 6);
   static const loopDuration = drawDuration;
   final OperationStatus? status;
@@ -192,22 +192,22 @@ class OperationAmbientPulseGeometry {
   ) => switch (p) {
     OperationAmbientPulsePreset.green => const OperationAmbientPulseGeometry(
       color: AppColors.success,
-      amplitude: 4,
-      waveLength: 200,
+      amplitude: 8,
+      waveLength: 100,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'GREEN stable',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
       color: AppColors.warning,
-      amplitude: 3,
-      waveLength: 120,
+      amplitude: 6,
+      waveLength: 60,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'YELLOW monitoring',
     ),
     OperationAmbientPulsePreset.red => const OperationAmbientPulseGeometry(
       color: AppColors.danger,
-      amplitude: 2,
-      waveLength: 70,
+      amplitude: 4,
+      waveLength: 35,
       waveform: OperationAmbientWaveform.ecg,
       semanticLabel: 'RED elevated',
     ),

@@ -163,7 +163,7 @@ void main() {
   });
 
   test('production marquee configuration is the sole timing source', () {
-    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 80);
+    expect(InformationMarqueeConfiguration.scrollSpeedPxPerSecond, 40);
     expect(InformationMarqueeConfiguration.exitSafetyMargin, 12);
     expect(
       InformationMarqueeConfiguration.initialPause,
@@ -183,10 +183,10 @@ void main() {
       scrollSpeedPxPerSecond:
           InformationMarqueeConfiguration.scrollSpeedPxPerSecond,
     );
-    expect(timing.effectivePixelsPerSecond, moreOrLessEquals(80, epsilon: .01));
+    expect(timing.effectivePixelsPerSecond, moreOrLessEquals(40, epsilon: .01));
   });
 
-  testWidgets('renders 80px per second for short, medium, and long notices', (
+  testWidgets('renders 40px per second for short, medium, and long notices', (
     tester,
   ) async {
     const titles = [
@@ -381,7 +381,7 @@ void main() {
     (tester) async {
       const title =
           'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ 1234567890';
-      const speeds = [150.0, 120.0, 100.0, 90.0, 80.0];
+      const speeds = [150.0, 120.0, 100.0, 90.0, 80.0, 60.0, 40.0];
       final snapshots = <InformationMarqueeRuntimeSnapshot>[];
       final terminalRights = <double>[];
       final durations = <Duration>[];
@@ -469,6 +469,8 @@ void main() {
       expect(durations[1], lessThan(durations[2]));
       expect(durations[2], lessThan(durations[3]));
       expect(durations[3], lessThan(durations[4]));
+      expect(durations[4], lessThan(durations[5]));
+      expect(durations[5], lessThan(durations[6]));
     },
   );
 
@@ -480,7 +482,7 @@ void main() {
         'TEST INFORMATION',
         'TEST INFORMATION — DAILY BRIEF V2 REVIEW READY / アップデートのお知らせ',
       ];
-      const speeds = [150.0, 120.0, 100.0, 90.0, 80.0];
+      const speeds = [150.0, 120.0, 100.0, 90.0, 80.0, 60.0, 40.0];
 
       for (final title in titles) {
         InformationMarqueeRuntimeSnapshot? firstTerminal;
@@ -670,7 +672,7 @@ Future<void> _advanceToTerminal(
 }) async {
   for (
     var step = 0;
-    step < 2000 &&
+    step < 5000 &&
         InformationMarqueeRuntimeDiagnostics.snapshot.value!.phase !=
             InformationMarqueePhase.terminalPause;
     step++

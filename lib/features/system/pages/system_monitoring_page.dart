@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/engine/operation_status.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../dashboard/widgets/operation_ambient_animation.dart';
 import '../../report_sync/services/daily_brief_plantar_risk_review_service.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 import '../models/information_notice.dart';
@@ -169,6 +171,8 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
           ),
         ),
         AppSpacing.gapSM,
+        const _AmbientPulseDebugCard(),
+        AppSpacing.gapSM,
         const OperationCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,6 +312,85 @@ class _InformationHistoryCard extends StatelessWidget {
 
   String _format(DateTime value) =>
       '${value.year}/${value.month}/${value.day} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+}
+
+/// Presentation-only comparison surface. Each row uses the production ambient
+/// renderer with an explicit status argument; it never reads or mutates the
+/// current Daily Command state.
+class _AmbientPulseDebugCard extends StatelessWidget {
+  const _AmbientPulseDebugCard();
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'AMBIENT PULSE DEBUG',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        const Text('Dashboard renderer / presentation-only forced states'),
+        const SizedBox(height: AppSpacing.sm),
+        const _AmbientPulseDebugRow(label: 'NO STATUS', status: null),
+        const SizedBox(height: AppSpacing.sm),
+        const _AmbientPulseDebugRow(
+          label: 'GREEN',
+          status: OperationStatus.green,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        const _AmbientPulseDebugRow(
+          label: 'YELLOW',
+          status: OperationStatus.yellow,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        const _AmbientPulseDebugRow(label: 'RED', status: OperationStatus.red),
+      ],
+    ),
+  );
+}
+
+class _AmbientPulseDebugRow extends StatelessWidget {
+  const _AmbientPulseDebugRow({required this.label, required this.status});
+
+  final String label;
+  final OperationStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final preset = operationAmbientPulsePresetFor(status);
+    final geometry = OperationAmbientPulseGeometry.forPreset(preset);
+    final details = preset == OperationAmbientPulsePreset.neutral
+        ? 'NEUTRAL'
+        : 'AMP ${geometry.amplitude.toStringAsFixed(0)}px / ${geometry.waveLength.toStringAsFixed(0)}px';
+    return Semantics(
+      container: true,
+      label: 'Ambient pulse debug $label',
+      child: Row(
+        key: ValueKey('ambient-pulse-debug-${preset.name}'),
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelLarge),
+                Text(details, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: SizedBox(
+              height: OperationAmbientAnimation.height,
+              child: OperationAmbientAnimation(status: status),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _InformationDebugCard extends StatelessWidget {

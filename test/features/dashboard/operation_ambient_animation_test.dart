@@ -38,7 +38,7 @@ void main() {
     expect(activePainter.preset, OperationAmbientPulsePreset.green);
     expect(activePainter.geometry.waveform, OperationAmbientWaveform.ecg);
     expect(activePainter.geometry.color, AppColors.success);
-    expect(activePainter.geometry.amplitude, 4);
+    expect(activePainter.geometry.amplitude, 8);
     expect(activePainter.staticFrame, isFalse);
     await tester.pump(const Duration(seconds: 1));
     expect(activePainter.phase.value, greaterThan(0));
@@ -65,9 +65,10 @@ void main() {
       );
       expect(geometries[0].waveLength, greaterThan(geometries[1].waveLength));
       expect(geometries[1].waveLength, greaterThan(geometries[2].waveLength));
-      expect(geometries[0].waveLength, 200);
-      expect(geometries[1].waveLength, 120);
-      expect(geometries[2].waveLength, 70);
+      expect(geometries[0].waveLength, 100);
+      expect(geometries[1].waveLength, 60);
+      expect(geometries[2].waveLength, 35);
+      expect(geometries.map((geometry) => geometry.amplitude), [8, 6, 4]);
       final fractions = painter(
         tester,
       ).pulseFractionsFor(OperationAmbientEcgVariant.a);
@@ -230,6 +231,10 @@ void main() {
     }
     expect(counts[0], lessThan(counts[1]));
     expect(counts[1], lessThan(counts[2]));
+    expect(counts, [4, 7, 12]);
+    expect(counts[0], 2 * 2);
+    expect(counts[1], greaterThanOrEqualTo(2 * 4 - 1));
+    expect(counts[2], 2 * 6);
   });
 
   testWidgets('steady sweep keeps an eight pixel clear window and local head', (
@@ -281,29 +286,35 @@ void main() {
   ) async {
     for (final width in [320.0, 390.0, 900.0]) {
       await tester.binding.setSurfaceSize(Size(width, 844));
-      await tester.pumpWidget(subject(OperationStatus.yellow, width: width));
-      final slot = find.byKey(
-        const ValueKey('operation-ambient-animation-slot'),
-      );
-      expect(tester.getSize(slot).height, OperationAmbientAnimation.height);
-      expect(tester.getSize(slot).width, width);
-      final geometry = painter(tester).geometry;
-      final center = OperationAmbientAnimation.height / 2;
-      expect(center - geometry.amplitude, greaterThanOrEqualTo(.5));
-      expect(
-        center + geometry.amplitude * .55,
-        lessThanOrEqualTo(OperationAmbientAnimation.height - .5),
-      );
-      expect(
-        find.descendant(
-          of: find.byType(OperationAmbientAnimation),
-          matching: find.byWidgetPredicate(
-            (widget) => widget is IgnorePointer && widget.ignoring,
+      for (final status in const [
+        OperationStatus.green,
+        OperationStatus.yellow,
+        OperationStatus.red,
+      ]) {
+        await tester.pumpWidget(subject(status, width: width));
+        final slot = find.byKey(
+          const ValueKey('operation-ambient-animation-slot'),
+        );
+        expect(tester.getSize(slot).height, OperationAmbientAnimation.height);
+        expect(tester.getSize(slot).width, width);
+        final geometry = painter(tester).geometry;
+        final center = OperationAmbientAnimation.height / 2;
+        expect(center - geometry.amplitude, greaterThanOrEqualTo(.5));
+        expect(
+          center + geometry.amplitude * .55,
+          lessThanOrEqualTo(OperationAmbientAnimation.height - .5),
+        );
+        expect(
+          find.descendant(
+            of: find.byType(OperationAmbientAnimation),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is IgnorePointer && widget.ignoring,
+            ),
           ),
-        ),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
     }
     await tester.binding.setSurfaceSize(null);
   });

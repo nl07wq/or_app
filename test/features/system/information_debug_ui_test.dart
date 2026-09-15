@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
+import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
+import 'package:or_app/core/engine/operation_status.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/models/information_notice.dart';
 import 'package:or_app/features/system/pages/system_monitoring_page.dart';
@@ -29,28 +31,65 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MaterialApp(home: SystemMonitoringPage()));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
 
     expect(find.text('INFORMATION DEBUG'), findsOneWidget);
     expect(find.text('INFORMATION MARQUEE RUNTIME'), findsOneWidget);
-    expect(find.text('SPEED  80 px/s'), findsOneWidget);
+    expect(find.text('SPEED  40 px/s'), findsOneWidget);
+    expect(find.text('AMBIENT PULSE DEBUG'), findsOneWidget);
+    expect(find.byType(OperationAmbientAnimation), findsNWidgets(4));
+    expect(
+      find.byKey(const ValueKey('ambient-pulse-debug-neutral')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-pulse-debug-green')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-pulse-debug-yellow')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-pulse-debug-red')),
+      findsOneWidget,
+    );
+    expect(
+      OperationAmbientPulseGeometry.forPreset(
+        operationAmbientPulsePresetFor(OperationStatus.green),
+      ).amplitude,
+      8,
+    );
+    expect(
+      tester
+          .widgetList<OperationAmbientAnimation>(
+            find.byType(OperationAmbientAnimation),
+          )
+          .map((animation) => animation.status),
+      [
+        null,
+        OperationStatus.green,
+        OperationStatus.yellow,
+        OperationStatus.red,
+      ],
+    );
     expect(find.text('DAILY BRIEF V2 REVIEW'), findsOneWidget);
     await tester.tap(find.text('CREATE TEST NOTICE'));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(find.text('INFORMATION TEST'), findsOneWidget);
     expect(find.text('PRIORITY'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '作成'));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(find.text('TEST'), findsWidgets);
     expect(find.text('INFORMATION TEST'), findsOneWidget);
     expect(find.text('CLEAR TEST NOTICES'), findsOneWidget);
 
     await tester.tap(find.text('CLEAR TEST NOTICES'));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(find.text('テスト通知をすべて削除しますか？'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, '削除'));
-    await tester.pumpAndSettle();
+    await _settleUi(tester);
     expect(find.text('CLEAR TEST NOTICES'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -97,10 +136,12 @@ void main() {
       tester.view.physicalSize = Size(width, 844);
       tester.view.devicePixelRatio = 1;
       await tester.pumpWidget(const MaterialApp(home: SystemMonitoringPage()));
-      await tester.pumpAndSettle();
-
+      await _settleUi(tester);
       expect(find.text('INFORMATION DEBUG'), findsOneWidget);
       expect(find.text('CREATE TEST NOTICE'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('AMBIENT PULSE DEBUG'), 300);
+      await tester.pump();
+      expect(find.byType(OperationAmbientAnimation), findsNWidgets(4));
       expect(tester.takeException(), isNull);
     }
     addTearDown(tester.view.resetPhysicalSize);
