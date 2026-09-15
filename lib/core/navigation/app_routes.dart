@@ -3,6 +3,10 @@ class AppRoutes {
 
   static const dashboard = '/';
 
+  /// A named Dashboard route for flows that must replace the current stack.
+  /// The root dashboard remains [dashboard].
+  static const finalizedDashboard = '/dashboard/finalized';
+
   static const morning = '/morning';
 
   static const food = '/food';

@@ -48,6 +48,7 @@ import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/models/operation_state.dart';
 import '../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../operation_date/state/finalize_date_transition.dart';
 import '../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../report_sync/models/daily_debrief_record.dart';
 import '../report_sync/models/morning_brief_state.dart';
@@ -64,8 +65,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  late Future<OperationLocalDate> _operationDateFuture =
-      const OperationDateService().current();
+  late Future<OperationLocalDate> _operationDateFuture;
   late final InformationNoticeService _informationService =
       InformationNoticeService();
   late Future<List<InformationNotice>> _informationNoticesFuture;
@@ -75,9 +75,18 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    final finalizeTransition = FinalizeDateTransitionStore.take();
+    _operationDateFuture = finalizeTransition == null
+        ? const OperationDateService().current()
+        : Future.value(finalizeTransition.fromDate);
     _informationNoticesFuture = _informationService.activeNotices();
     informationNoticeRevision.addListener(_refreshInformation);
     morningBriefRevisionNotifier.addListener(_refreshInformation);
+    if (finalizeTransition != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _playFinalizeDateTransition(finalizeTransition);
+      });
+    }
   }
 
   @override
@@ -257,45 +266,39 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // Retained with the hidden Dashboard Daily Log flow for rollback/comparison.
-  // ignore: unused_element
-  Future<void> _showFinalizeDateTransition(
-    OperationLocalDate previousOperationDate,
+  Future<void> _playFinalizeDateTransition(
+    FinalizeDateTransition transition,
   ) async {
-    final nextOperationDate = await const OperationDateService().current();
     if (!mounted) return;
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
-    setState(() {
-      _operationDateFuture = Future.value(previousOperationDate);
-    });
     await _waitUntilDashboardIsVisible();
     if (!mounted) return;
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     setState(() {
-      _operationDateFuture = Future.value(nextOperationDate);
+      _operationDateFuture = Future.value(transition.toDate);
       _operationDateTransitionToken++;
     });
   }
 
   Future<void> _waitUntilDashboardIsVisible() async {
-    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
-    if (secondaryAnimation == null ||
-        secondaryAnimation.status == AnimationStatus.dismissed) {
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    if (routeAnimation == null ||
+        routeAnimation.status == AnimationStatus.completed) {
       return;
     }
     final completer = Completer<void>();
     void listener(AnimationStatus status) {
-      if (status == AnimationStatus.dismissed && !completer.isCompleted) {
-        secondaryAnimation.removeStatusListener(listener);
+      if (status == AnimationStatus.completed && !completer.isCompleted) {
+        routeAnimation.removeStatusListener(listener);
         completer.complete();
       }
     }
 
-    secondaryAnimation.addStatusListener(listener);
-    listener(secondaryAnimation.status);
+    routeAnimation.addStatusListener(listener);
+    listener(routeAnimation.status);
     await completer.future;
   }
 

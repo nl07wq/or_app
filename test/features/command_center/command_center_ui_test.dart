@@ -5,7 +5,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
-import 'package:or_app/core/widgets/operation_flip_tile.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
@@ -22,6 +21,7 @@ import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
+import 'package:or_app/features/operation_date/state/finalize_date_transition.dart';
 import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
@@ -84,6 +84,7 @@ void main() {
   });
 
   setUp(() {
+    FinalizeDateTransitionStore.resetForTesting();
     morningFactNotifier.value = null;
     foodSummaryNotifier.value = null;
     trainingSummaryNotifier.value = null;
@@ -462,7 +463,7 @@ void main() {
   });
 
   testWidgets(
-    'Command Center finalize returns to top and flips its shared calendar once',
+    'Command Center hands FINALIZE date transition to Dashboard once',
     (tester) async {
       seedOperationState(database, '2026-08-11');
       await _pump(tester, width: 390);
@@ -481,83 +482,17 @@ void main() {
       final transition = owner.onReviewCompleted!(
         OperationLocalDate.parse('2026-08-11'),
       );
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
-
-      expect(_dailyCommandScrollPosition(tester).pixels, 0);
-      expect(find.widgetWithText(AppBar, 'COMMAND CENTER'), findsOneWidget);
-      expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsNothing);
-      expect(find.text('AUG'), findsOneWidget);
-      final dayTile = find.byKey(const ValueKey('operation-date-tile-1'));
-      final weekdayTile = find.byKey(const ValueKey('operation-date-tile-2'));
-      expect(
-        find.descendant(
-          of: dayTile,
-          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: weekdayTile,
-          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
-        ),
-        findsNothing,
-      );
-      final tiles = [
-        for (var index = 0; index < 3; index++)
-          tester.widget<OperationMechanicalFlipTile>(
-            find.byKey(ValueKey('operation-date-tile-$index')),
-          ),
-      ];
-      expect(tiles[0].animationDuration, const Duration(milliseconds: 320));
-      expect(tiles[1].animationDuration, const Duration(milliseconds: 360));
-      expect(tiles[2].animationDuration, const Duration(milliseconds: 320));
-      expect(tiles[1].firstPhaseRatio, closeTo(200 / 360, 0.0001));
-      expect(tiles[1].startDelay, Duration.zero);
-      expect(tiles[2].startDelay, const Duration(milliseconds: 60));
-
-      await tester.pump(const Duration(milliseconds: 60));
-      await tester.pump();
-      expect(
-        find.descendant(
-          of: weekdayTile,
-          matching: find.byKey(const ValueKey('mechanical-flip-old-upper')),
-        ),
-        findsOneWidget,
-      );
-      await tester.pumpAndSettle();
       await transition;
-      expect(find.text('12'), findsOneWidget);
-      expect(find.text('WED'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: dayTile,
-          matching: find.byKey(const ValueKey('mechanical-flip-static')),
-        ),
-        findsOneWidget,
-      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 301));
+      await tester.pump();
 
-      morningFactNotifier.value = _status();
-      await tester.pumpAndSettle();
-      expect(
-        find.descendant(
-          of: dayTile,
-          matching: find.byKey(const ValueKey('mechanical-flip-static')),
-        ),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(AppBar, 'O.R.L.O.'), findsOneWidget);
+      expect(find.text('AUG'), findsOneWidget);
+      await _settleDashboard(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('12'), findsOneWidget);
-
-      await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
-      await _tapCommandCenterTab(tester, 'DAILY COMMAND');
-      expect(find.text('12'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('mechanical-flip-old-upper')),
-        findsNothing,
-      );
     },
   );
 
@@ -2295,16 +2230,24 @@ Future<void> _pump(
     MaterialApp(
       theme: theme,
       home: const CommandCenterPage(),
-      onGenerateRoute: reviewPageBuilder == null
-          ? null
-          : (settings) => settings.name == AppRoutes.logConfirmationReview
-                ? PageRouteBuilder<Object?>(
-                    settings: settings,
-                    transitionDuration: Duration.zero,
-                    reverseTransitionDuration: Duration.zero,
-                    pageBuilder: (context, _, _) => reviewPageBuilder(context),
-                  )
-                : null,
+      onGenerateRoute: (settings) {
+        if (settings.name == AppRoutes.finalizedDashboard) {
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => const DashboardPage(),
+          );
+        }
+        if (settings.name == AppRoutes.logConfirmationReview &&
+            reviewPageBuilder != null) {
+          return PageRouteBuilder<Object?>(
+            settings: settings,
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            pageBuilder: (context, _, _) => reviewPageBuilder(context),
+          );
+        }
+        return null;
+      },
       routes: {
         AppRoutes.morning: (_) => const Scaffold(body: Text('STATUS ROUTE')),
         AppRoutes.food: (_) => const Scaffold(body: Text('FOOD ROUTE')),

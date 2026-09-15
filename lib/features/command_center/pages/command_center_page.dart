@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/widgets/operation_button.dart';
@@ -16,6 +15,7 @@ import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../operation_date/services/operation_date_service.dart';
+import '../../operation_date/state/finalize_date_transition.dart';
 import '../../operation_date/widgets/operation_date_flip_calendar.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
@@ -191,7 +191,7 @@ class _DailyCommandPage extends StatefulWidget {
 }
 
 class _DailyCommandPageState extends State<_DailyCommandPage> {
-  late Future<OperationLocalDate> _operationDateFuture =
+  late final Future<OperationLocalDate> _operationDateFuture =
       const OperationDateService().current();
   late Future<({DailyCommandReadModel model, DailyAssessment assessment})>
   _modelFuture = _loadModel();
@@ -202,10 +202,7 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     activitySummaryNotifier,
     morningBriefRevisionNotifier,
   ];
-  int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
-  Completer<void>? _dateDisplayedCompleter;
-  OperationLocalDate? _expectedDisplayedDate;
 
   @override
   void initState() {
@@ -250,10 +247,8 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
             model: result.model,
             assessment: result.assessment,
             operationDateFuture: _operationDateFuture,
-            operationDateTransitionToken: _operationDateTransitionToken,
             scrollController: _scrollController,
-            onReviewCompleted: _showFinalizeDateTransition,
-            onOperationDateDisplayed: _handleOperationDateDisplayed,
+            onReviewCompleted: _handoffFinalizeDateTransition,
           );
         },
       );
@@ -315,59 +310,20 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     }
   }
 
-  Future<void> _showFinalizeDateTransition(
+  Future<void> _handoffFinalizeDateTransition(
     OperationLocalDate previousOperationDate,
   ) async {
     final nextOperationDate = await const OperationDateService().current();
     if (!mounted) return;
-    if (_scrollController.hasClients) {
-      _scrollController.jumpTo(0);
-    }
-    final dateDisplayedCompleter = Completer<void>();
-    _dateDisplayedCompleter = dateDisplayedCompleter;
-    _expectedDisplayedDate = previousOperationDate;
-    setState(() {
-      _operationDateFuture = Future.value(previousOperationDate);
-    });
-    await _waitUntilCommandCenterIsVisible();
-    if (!mounted) return;
-    await dateDisplayedCompleter.future;
-    if (!mounted) return;
-    setState(() {
-      _operationDateFuture = Future.value(nextOperationDate);
-      _operationDateTransitionToken++;
-    });
-    await Future<void>.delayed(
-      OperationDateFlipCalendar.maximumTransitionDuration,
+    FinalizeDateTransitionStore.publish(
+      FinalizeDateTransition(
+        fromDate: previousOperationDate,
+        toDate: nextOperationDate,
+      ),
     );
-    if (mounted) widget.onRefresh();
-  }
-
-  void _handleOperationDateDisplayed(OperationLocalDate date) {
-    final completer = _dateDisplayedCompleter;
-    if (date != _expectedDisplayedDate || completer == null) return;
-    _dateDisplayedCompleter = null;
-    _expectedDisplayedDate = null;
-    if (!completer.isCompleted) completer.complete();
-  }
-
-  Future<void> _waitUntilCommandCenterIsVisible() async {
-    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
-    if (secondaryAnimation == null ||
-        secondaryAnimation.status == AnimationStatus.dismissed) {
-      return;
-    }
-    final completer = Completer<void>();
-    void listener(AnimationStatus status) {
-      if (status == AnimationStatus.dismissed && !completer.isCompleted) {
-        secondaryAnimation.removeStatusListener(listener);
-        completer.complete();
-      }
-    }
-
-    secondaryAnimation.addStatusListener(listener);
-    listener(secondaryAnimation.status);
-    await completer.future;
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.finalizedDashboard, (_) => false);
   }
 }
 
@@ -376,19 +332,15 @@ class _DailyCommandContent extends StatelessWidget {
     required this.model,
     required this.assessment,
     required this.operationDateFuture,
-    required this.operationDateTransitionToken,
     required this.scrollController,
     required this.onReviewCompleted,
-    required this.onOperationDateDisplayed,
   });
 
   final DailyCommandReadModel model;
   final DailyAssessment assessment;
   final Future<OperationLocalDate> operationDateFuture;
-  final int operationDateTransitionToken;
   final ScrollController scrollController;
   final DailyLogReviewCompleted onReviewCompleted;
-  final ValueChanged<OperationLocalDate> onOperationDateDisplayed;
 
   @override
   Widget build(BuildContext context) {
@@ -404,9 +356,7 @@ class _DailyCommandContent extends StatelessWidget {
         AppSpacing.gapSM,
         _CurrentOperationCard(
           operationDateFuture: operationDateFuture,
-          operationDateTransitionToken: operationDateTransitionToken,
           cycleState: model.cycleState,
-          onOperationDateDisplayed: onOperationDateDisplayed,
         ),
         AppSpacing.gapXL,
         const SectionHeader(
@@ -433,15 +383,11 @@ class _DailyCommandContent extends StatelessWidget {
 class _CurrentOperationCard extends StatelessWidget {
   _CurrentOperationCard({
     required this.operationDateFuture,
-    required this.operationDateTransitionToken,
     required this.cycleState,
-    required this.onOperationDateDisplayed,
   }) : _visibleAnchorKey = GlobalKey();
 
   final Future<OperationLocalDate> operationDateFuture;
-  final int operationDateTransitionToken;
   final DailyCommandCycleState cycleState;
-  final ValueChanged<OperationLocalDate> onOperationDateDisplayed;
   final GlobalKey _visibleAnchorKey;
 
   @override
@@ -473,8 +419,7 @@ class _CurrentOperationCard extends StatelessWidget {
             AppSpacing.gapSM,
             OperationDateFlipCalendar(
               operationDateFuture: operationDateFuture,
-              transitionToken: operationDateTransitionToken,
-              onDateDisplayed: onOperationDateDisplayed,
+              transitionToken: 0,
             ),
           ],
         ),

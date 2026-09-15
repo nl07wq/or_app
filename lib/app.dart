@@ -124,6 +124,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
 
       routes: {
         AppRoutes.dashboard: (_) => const DashboardPage(),
+        AppRoutes.finalizedDashboard: (_) => const DashboardPage(),
         AppRoutes.logConfirmationReview: (context) {
           final page = ModalRoute.of(context)?.settings.arguments;
           return page is LogConfirmationReviewPage

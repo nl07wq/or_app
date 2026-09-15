@@ -27,6 +27,7 @@ import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
+import 'package:or_app/features/operation_date/state/finalize_date_transition.dart';
 import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
@@ -66,6 +67,7 @@ void main() {
   });
 
   setUp(() {
+    FinalizeDateTransitionStore.resetForTesting();
     appInitializationController.markReady();
     dailyLogConfirmationNotifier.value = DailyLogConfirmationStatus.unconfirmed(
       DateTime(2026, 7, 28),
@@ -125,6 +127,111 @@ void main() {
 
     expect(backedUp, 0);
     expect(consumed, 0);
+  });
+
+  test(
+    'Finalize date transition intent preserves canonical boundary dates',
+    () {
+      const transitions = [
+        ('2026-09-30', '2026-10-01'),
+        ('2026-12-31', '2027-01-01'),
+      ];
+      for (final dates in transitions) {
+        FinalizeDateTransitionStore.publish(
+          FinalizeDateTransition(
+            fromDate: OperationLocalDate.parse(dates.$1),
+            toDate: OperationLocalDate.parse(dates.$2),
+          ),
+        );
+        final transition = FinalizeDateTransitionStore.take();
+        expect(transition?.fromDate.value, dates.$1);
+        expect(transition?.toDate.value, dates.$2);
+        expect(FinalizeDateTransitionStore.take(), isNull);
+      }
+    },
+  );
+
+  testWidgets('Dashboard consumes a FINALIZE transition once', (tester) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-09-15');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    FinalizeDateTransitionStore.publish(
+      FinalizeDateTransition(
+        fromDate: OperationLocalDate.parse('2026-09-14'),
+        toDate: OperationLocalDate.parse('2026-09-15'),
+      ),
+    );
+
+    await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
+    await tester.pump();
+    expect(find.text('14'), findsOneWidget);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      findsWidgets,
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('15'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
+    await tester.pump();
+    expect(find.text('15'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('Reduced Motion consumes FINALIZE transition without a flip', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-09-15');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    FinalizeDateTransitionStore.publish(
+      FinalizeDateTransition(
+        fromDate: OperationLocalDate.parse('2026-09-14'),
+        toDate: OperationLocalDate.parse('2026-09-15'),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: const DashboardPage(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('15'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
+    await tester.pump();
+    expect(find.text('15'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('mechanical-flip-old-upper')),
+      findsNothing,
+    );
   });
 
   test(
