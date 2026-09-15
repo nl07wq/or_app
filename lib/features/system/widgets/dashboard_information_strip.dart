@@ -331,7 +331,7 @@ abstract final class InformationMarqueeConfiguration {
   static const initialPause = Duration(milliseconds: 900);
   static const terminalPause = Duration(milliseconds: 1300);
   static const exitSafetyMargin = 12.0;
-  static const scrollSpeedPxPerSecond = 40.0;
+  static const scrollSpeedPxPerSecond = 50.0;
 }
 
 /// The ticker's one local coordinate contract. It deliberately excludes the

@@ -35,7 +35,7 @@ void main() {
 
     expect(find.text('INFORMATION DEBUG'), findsOneWidget);
     expect(find.text('INFORMATION MARQUEE RUNTIME'), findsOneWidget);
-    expect(find.text('SPEED  40 px/s'), findsOneWidget);
+    expect(find.text('SPEED  50 px/s'), findsOneWidget);
     expect(find.text('AMBIENT PULSE DEBUG'), findsOneWidget);
     expect(find.byType(OperationAmbientAnimation), findsNWidgets(4));
     expect(
