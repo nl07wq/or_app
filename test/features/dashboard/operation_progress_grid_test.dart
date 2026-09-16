@@ -1606,6 +1606,16 @@ void main() {
       find.byKey(const ValueKey('dashboard-neon-brand-mark')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('dashboard-neon-physical-sign')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('dashboard-neon-physical-sign')))
+          .height,
+      42,
+    );
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),

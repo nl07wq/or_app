@@ -70,6 +70,7 @@ class DashboardNeonFaultPhase {
     required this.innerGlowIntensity,
     required this.outerGlowIntensity,
     required this.logoIntensity,
+    required this.frameReflectionIntensity,
   });
 
   final Duration duration;
@@ -77,15 +78,31 @@ class DashboardNeonFaultPhase {
   final double innerGlowIntensity;
   final double outerGlowIntensity;
   final double logoIntensity;
+  final double frameReflectionIntensity;
 
   bool get isFullyIlluminated =>
       coreIntensity == 1 &&
       innerGlowIntensity == 1 &&
       outerGlowIntensity == 1 &&
-      logoIntensity == 1;
+      logoIntensity == 1 &&
+      frameReflectionIntensity == 1;
 }
 
-/// The small set of irregular, old-neon fault plans used by the header.
+/// A named, weighted electrical fault plan for the physical Dashboard sign.
+@immutable
+class DashboardNeonFaultFamily {
+  const DashboardNeonFaultFamily({
+    required this.name,
+    required this.weight,
+    required this.phases,
+  });
+
+  final String name;
+  final int weight;
+  final List<DashboardNeonFaultPhase> phases;
+}
+
+/// Pre-planned, irregular old-neon fault plans used by the header.
 class DashboardNeonFaultPatterns {
   DashboardNeonFaultPatterns._();
 
@@ -98,44 +115,223 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: 1,
     outerGlowIntensity: 1,
     logoIntensity: 1,
+    frameReflectionIntensity: 1,
   );
 
-  static const _dim = DashboardNeonFaultPhase(
-    duration: Duration(milliseconds: 70),
-    coreIntensity: .28,
-    innerGlowIntensity: .16,
+  static const _sharedDip = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 85),
+    coreIntensity: .4,
+    innerGlowIntensity: .2,
     outerGlowIntensity: .05,
-    logoIntensity: .3,
+    logoIntensity: .35,
+    frameReflectionIntensity: .16,
   );
-  static const _off = DashboardNeonFaultPhase(
-    duration: Duration(milliseconds: 42),
+  static const _sharedDark = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 92),
     coreIntensity: 0,
-    innerGlowIntensity: 0,
+    innerGlowIntensity: .02,
     outerGlowIntensity: 0,
-    logoIntensity: .08,
+    logoIntensity: .03,
+    frameReflectionIntensity: .05,
   );
-  static const _recovery = DashboardNeonFaultPhase(
-    duration: Duration(milliseconds: 90),
+  static const _weakRestrike = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 65),
+    coreIntensity: .55,
+    innerGlowIntensity: .18,
+    outerGlowIntensity: .07,
+    logoIntensity: .45,
+    frameReflectionIntensity: .18,
+  );
+  static const _sharedRecovery = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 110),
     coreIntensity: 1,
     innerGlowIntensity: .72,
     outerGlowIntensity: .5,
     logoIntensity: .72,
+    frameReflectionIntensity: .46,
   );
-  static const _partial = DashboardNeonFaultPhase(
-    duration: Duration(milliseconds: 74),
-    coreIntensity: .14,
-    innerGlowIntensity: .08,
-    outerGlowIntensity: .02,
-    logoIntensity: .55,
+  static const _wordmarkWeak = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 78),
+    coreIntensity: .2,
+    innerGlowIntensity: .06,
+    outerGlowIntensity: .01,
+    logoIntensity: .56,
+    frameReflectionIntensity: .2,
+  );
+  static const _wordmarkDark = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 58),
+    coreIntensity: 0,
+    innerGlowIntensity: 0,
+    outerGlowIntensity: 0,
+    logoIntensity: .42,
+    frameReflectionIntensity: .12,
+  );
+  static const _logoContact = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 120),
+    coreIntensity: .9,
+    innerGlowIntensity: .6,
+    outerGlowIntensity: .38,
+    logoIntensity: .05,
+    frameReflectionIntensity: .32,
+  );
+  static const _logoReturn = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 78),
+    coreIntensity: 1,
+    innerGlowIntensity: .82,
+    outerGlowIntensity: .62,
+    logoIntensity: .46,
+    frameReflectionIntensity: .55,
+  );
+  static const _logoFirst = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 96),
+    coreIntensity: .12,
+    innerGlowIntensity: .03,
+    outerGlowIntensity: 0,
+    logoIntensity: .62,
+    frameReflectionIntensity: .26,
+  );
+  static const _nearRecovery = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 140),
+    coreIntensity: 1,
+    innerGlowIntensity: .65,
+    outerGlowIntensity: .42,
+    logoIntensity: .8,
+    frameReflectionIntensity: .4,
   );
 
-  /// Each plan is 150--600ms, begins stable, and always settles stable.
-  static const patterns = <List<DashboardNeonFaultPhase>>[
-    [stable, _dim, _recovery, stable],
-    [stable, _off, _recovery, _dim, _recovery, stable],
-    [stable, _dim, _off, _recovery, stable],
-    [stable, _partial, _off, _recovery, _dim, _recovery, stable],
+  /// Each plan is 350--900ms, begins stable, and settles in its stable state.
+  static const families = <DashboardNeonFaultFamily>[
+    DashboardNeonFaultFamily(
+      name: 'shared_transformer_dip',
+      weight: 34,
+      phases: [
+        stable,
+        _sharedDip,
+        _sharedDark,
+        _weakRestrike,
+        _sharedRecovery,
+        stable,
+      ],
+    ),
+    DashboardNeonFaultFamily(
+      name: 'failed_shared_restrike',
+      weight: 28,
+      phases: [
+        stable,
+        _sharedDark,
+        _weakRestrike,
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 70),
+          coreIntensity: 0,
+          innerGlowIntensity: 0,
+          outerGlowIntensity: 0,
+          logoIntensity: .02,
+          frameReflectionIntensity: .05,
+        ),
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 60),
+          coreIntensity: .7,
+          innerGlowIntensity: .25,
+          outerGlowIntensity: .1,
+          logoIntensity: .55,
+          frameReflectionIntensity: .22,
+        ),
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 45),
+          coreIntensity: .12,
+          innerGlowIntensity: .03,
+          outerGlowIntensity: 0,
+          logoIntensity: .1,
+          frameReflectionIntensity: .08,
+        ),
+        _nearRecovery,
+        stable,
+      ],
+    ),
+    DashboardNeonFaultFamily(
+      name: 'wordmark_tube_instability',
+      weight: 20,
+      phases: [
+        stable,
+        _wordmarkWeak,
+        _wordmarkDark,
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 55),
+          coreIntensity: .64,
+          innerGlowIntensity: .14,
+          outerGlowIntensity: .04,
+          logoIntensity: .64,
+          frameReflectionIntensity: .22,
+        ),
+        _wordmarkWeak,
+        _sharedRecovery,
+        stable,
+      ],
+    ),
+    DashboardNeonFaultFamily(
+      name: 'logo_emblem_contact',
+      weight: 8,
+      phases: [
+        stable,
+        _logoContact,
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 48),
+          coreIntensity: .94,
+          innerGlowIntensity: .7,
+          outerGlowIntensity: .45,
+          logoIntensity: .32,
+          frameReflectionIntensity: .42,
+        ),
+        _logoContact,
+        _logoReturn,
+        stable,
+      ],
+    ),
+    DashboardNeonFaultFamily(
+      name: 'staged_logo_first_recovery',
+      weight: 10,
+      phases: [
+        stable,
+        _sharedDip,
+        _sharedDark,
+        _logoFirst,
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 62),
+          coreIntensity: .62,
+          innerGlowIntensity: .13,
+          outerGlowIntensity: .03,
+          logoIntensity: .72,
+          frameReflectionIntensity: .28,
+        ),
+        _wordmarkWeak,
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 110),
+          coreIntensity: 1,
+          innerGlowIntensity: .78,
+          outerGlowIntensity: .54,
+          logoIntensity: .85,
+          frameReflectionIntensity: .52,
+        ),
+        stable,
+      ],
+    ),
   ];
+
+  static List<List<DashboardNeonFaultPhase>> get patterns =>
+      families.map((family) => family.phases).toList(growable: false);
+
+  static DashboardNeonFaultFamily choose(math.Random random) {
+    final totalWeight = families.fold<int>(
+      0,
+      (total, family) => total + family.weight,
+    );
+    var selection = random.nextInt(totalWeight);
+    for (final family in families) {
+      selection -= family.weight;
+      if (selection < 0) return family;
+    }
+    return families.last;
+  }
 
   static Duration intervalFor(math.Random random) {
     final span =
@@ -2001,9 +2197,7 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
 
   void _startFault() {
     if (!mounted || !_motionAllowed) return;
-    final plan = DashboardNeonFaultPatterns
-        .patterns[_random.nextInt(DashboardNeonFaultPatterns.patterns.length)];
-    _playPhase(plan, 1);
+    _playPhase(DashboardNeonFaultPatterns.choose(_random).phases, 1);
   }
 
   void _playPhase(List<DashboardNeonFaultPhase> plan, int index) {
@@ -2036,6 +2230,11 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
       _phase.coreIntensity,
     )!;
     final glowColor = AppColors.information;
+    final frameColor = Color.lerp(
+      const Color(0xFF28414C),
+      glowColor.withValues(alpha: .65),
+      _phase.frameReflectionIntensity,
+    )!;
     final wordmarkStyle = defaultStyle.copyWith(
       color: coreColor,
       shadows: [
@@ -2058,45 +2257,124 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
       key: const ValueKey('dashboard-neon-brand-mark'),
       child: Semantics(
         label: 'O.R.L.O.',
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 35,
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  Opacity(
-                    opacity: .34 * _phase.outerGlowIntensity,
-                    child: Image.asset(
-                      'assets/icons/orlo_logo_1024_transparent.png',
-                      height: 35,
-                      fit: BoxFit.contain,
-                      color: glowColor,
-                      colorBlendMode: BlendMode.srcIn,
+        child: Container(
+          key: const ValueKey('dashboard-neon-physical-sign'),
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFF07141B),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: frameColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withValues(
+                  alpha: .12 * _phase.frameReflectionIntensity,
+                ),
+                blurRadius: 7,
+                spreadRadius: .2,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(5),
+                      gradient: RadialGradient(
+                        center: const Alignment(.35, 0),
+                        radius: 1.25,
+                        colors: [
+                          glowColor.withValues(
+                            alpha: .08 * _phase.frameReflectionIntensity,
+                          ),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
                   ),
-                  Opacity(
-                    opacity: _phase.logoIntensity,
-                    child: Image.asset(
-                      'assets/icons/orlo_logo_1024_transparent.png',
-                      key: const ValueKey('dashboard-brand-logo'),
+                ),
+              ),
+              const _DashboardNeonSignFasteners(),
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
                       height: 35,
-                      fit: BoxFit.contain,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          Opacity(
+                            opacity: .28 * _phase.outerGlowIntensity,
+                            child: Image.asset(
+                              'assets/icons/orlo_logo_1024_transparent.png',
+                              height: 35,
+                              fit: BoxFit.contain,
+                              color: glowColor,
+                              colorBlendMode: BlendMode.srcIn,
+                            ),
+                          ),
+                          Opacity(
+                            opacity: .78 * _phase.logoIntensity,
+                            child: Image.asset(
+                              'assets/icons/orlo_logo_1024_transparent.png',
+                              key: const ValueKey('dashboard-brand-logo'),
+                              height: 35,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'O.R.L.O.',
+                      key: const ValueKey('dashboard-brand-wordmark'),
+                      style: wordmarkStyle,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Static mechanical anchors which remain visible when the neon loses power.
+class _DashboardNeonSignFasteners extends StatelessWidget {
+  const _DashboardNeonSignFasteners();
+
+  @override
+  Widget build(BuildContext context) {
+    const positions = [
+      Alignment.topLeft,
+      Alignment.topRight,
+      Alignment.bottomLeft,
+      Alignment.bottomRight,
+    ];
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          for (final alignment in positions)
+            Align(
+              alignment: alignment,
+              child: Container(
+                width: 2,
+                height: 2,
+                margin: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF3A4D55),
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              'O.R.L.O.',
-              key: const ValueKey('dashboard-brand-wordmark'),
-              style: wordmarkStyle,
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
