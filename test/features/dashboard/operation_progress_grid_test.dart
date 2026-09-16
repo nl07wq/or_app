@@ -40,6 +40,39 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
+  test('Ambient monitor HUD geometry stays compact and symmetric', () {
+    expect(DailyCommandAmbientHudGeometry.cornerArmLength, 4);
+    expect(DailyCommandAmbientHudGeometry.cornerStrokeWidth, 1);
+    expect(DailyCommandAmbientHudGeometry.cornerInset, 2.25);
+    expect(DailyCommandAmbientHudGeometry.bracketOpacity, .58);
+    expect(DailyCommandAmbientHudGeometry.identifierFontSize, 6);
+    expect(DailyCommandAmbientHudGeometry.identifierOpacity, .58);
+    expect(DailyCommandAmbientHudGeometry.barWidths, [7, 10, 5]);
+
+    final bounds = DailyCommandAmbientHudGeometry.cornerBoundsFor(
+      const Size(
+        390,
+        OperationAmbientAnimation.height +
+            DailyCommandAmbientHudGeometry.verticalPadding * 2,
+      ),
+    );
+    expect(bounds, hasLength(4));
+    for (final bound in bounds) {
+      expect(bound.width, 5);
+      expect(bound.height, 5);
+      expect(bound.left, greaterThanOrEqualTo(0));
+      expect(bound.top, greaterThanOrEqualTo(0));
+      expect(bound.right, lessThanOrEqualTo(390));
+      expect(
+        bound.bottom,
+        lessThanOrEqualTo(
+          OperationAmbientAnimation.height +
+              DailyCommandAmbientHudGeometry.verticalPadding * 2,
+        ),
+      );
+    }
+  });
+
   test('context popover edge selection uses the actual viewport center', () {
     for (final width in [320.0, 390.0, 900.0]) {
       final viewport = Size(width, 844);
@@ -1537,7 +1570,7 @@ void main() {
         identifierText.style!.fontFamily,
         AppTextStyles.bootTechnicalFontFamily,
       );
-      expect(identifierText.style!.fontSize, 7.5);
+      expect(identifierText.style!.fontSize, 6);
       for (final prohibitedLabel in ['HR', 'SYS', 'DIA', 'BPM', 'SpO2']) {
         expect(
           find.descendant(of: monitor, matching: find.text(prohibitedLabel)),
@@ -1565,10 +1598,11 @@ void main() {
       expect(monitorBounds.height, OperationAmbientAnimation.height + 8);
       expect(ambientBounds.left, greaterThan(monitorBounds.left));
       expect(ambientBounds.right, lessThan(monitorBounds.right));
-      expect(hudBounds.left, ambientBounds.left);
-      expect(hudBounds.right, ambientBounds.right);
-      expect(hudBounds.top, ambientBounds.top);
-      expect(hudBounds.bottom, ambientBounds.bottom);
+      expect(hudBounds.left, lessThan(ambientBounds.left));
+      expect(hudBounds.right, greaterThan(ambientBounds.right));
+      expect(hudBounds.top, lessThan(ambientBounds.top));
+      expect(hudBounds.bottom, greaterThan(ambientBounds.bottom));
+      _expectRightHudClearance(tester, hudBounds);
       expect(
         ambientBounds.top,
         greaterThan(tester.getBottomLeft(find.text('STANDBY')).dy),
@@ -1581,6 +1615,48 @@ void main() {
       AppRepositoryRegistry.resetForTesting();
     }
   });
+
+  testWidgets(
+    'compact HUD clears every recorded status label at target widths',
+    (tester) async {
+      for (final statusCase in [
+        (status: MorningBriefOperationStatus.green, label: 'FINE'),
+        (status: MorningBriefOperationStatus.yellow, label: 'CAUTION'),
+        (status: MorningBriefOperationStatus.red, label: 'DANGER'),
+      ]) {
+        for (final width in [320.0, 390.0, 900.0]) {
+          final database = FakeIndexedDbDatabase();
+          seedOperationState(database, '2026-07-28');
+          AppRepositoryRegistry.install(
+            AppRepositoryContainer.indexedDb(database),
+          );
+          await AppRepositoryRegistry.container.morningBriefs.create(
+            _brief(
+              '2026-07-28',
+              intent: 'LIVE COMMANDER INTENT',
+              status: statusCase.status,
+            ),
+          );
+          await _pumpDashboard(
+            tester,
+            width: width,
+            dashboardKey: ValueKey('${statusCase.status.name}-$width'),
+          );
+          await _settleDashboard(tester);
+
+          _expectStatusLabelClearance(tester, statusCase.label);
+          _expectRightHudClearance(
+            tester,
+            tester.getRect(
+              find.byKey(const ValueKey('daily-command-ambient-monitor-grid')),
+            ),
+          );
+          expect(tester.takeException(), isNull);
+          AppRepositoryRegistry.resetForTesting();
+        }
+      }
+    },
+  );
 
   testWidgets('Cycle State help popover uses its binary edge mode', (
     tester,
@@ -1812,7 +1888,8 @@ void main() {
         matching: find.text('O.R.L.O.'),
       ),
     );
-    expect(identifier.style!.color, AppColors.success.withValues(alpha: .72));
+    expect(identifier.style!.color, AppColors.success.withValues(alpha: .58));
+    _expectStatusLabelClearance(tester, 'FINE');
     expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
     expect(find.text('COMMANDER INTENT'), findsOneWidget);
     expect(find.text('ARGO COMMENT'), findsNothing);
@@ -1871,7 +1948,13 @@ void main() {
         );
         expect(
           identifier.style!.color,
-          statusCase.color.withValues(alpha: .72),
+          statusCase.color.withValues(alpha: .58),
+        );
+        _expectStatusLabelClearance(
+          tester,
+          statusCase.status == MorningBriefOperationStatus.yellow
+              ? 'CAUTION'
+              : 'DANGER',
         );
       },
     );
@@ -2588,6 +2671,42 @@ double? _progress(WidgetTester tester, String label) {
       .value;
 }
 
+void _expectStatusLabelClearance(WidgetTester tester, String label) {
+  final hudBounds = tester.getRect(
+    find.byKey(const ValueKey('daily-command-ambient-monitor-grid')),
+  );
+  final bottomLeftBracket = DailyCommandAmbientHudGeometry.cornerBoundsFor(
+    hudBounds.size,
+  )[2].shift(hudBounds.topLeft);
+  final labelBounds = tester.getRect(find.text(label));
+  expect(
+    labelBounds.overlaps(bottomLeftBracket),
+    isFalse,
+    reason: '$label label=$labelBounds bracket=$bottomLeftBracket',
+  );
+  expect(
+    labelBounds.left - bottomLeftBracket.right,
+    greaterThan(0),
+    reason: '$label label=$labelBounds bracket=$bottomLeftBracket',
+  );
+}
+
+void _expectRightHudClearance(WidgetTester tester, Rect hudBounds) {
+  final topRightBracket = DailyCommandAmbientHudGeometry.cornerBoundsFor(
+    hudBounds.size,
+  )[1].shift(hudBounds.topLeft);
+  final barsBounds = DailyCommandAmbientHudGeometry.barsBoundsFor(
+    hudBounds.size,
+  ).shift(hudBounds.topLeft);
+  final identifierBounds = tester.getRect(
+    find.byKey(const ValueKey('daily-command-ambient-monitor-identifier')),
+  );
+  expect(identifierBounds.overlaps(topRightBracket), isFalse);
+  expect(identifierBounds.overlaps(barsBounds), isFalse);
+  expect(identifierBounds.right, lessThan(topRightBracket.left));
+  expect(identifierBounds.bottom, lessThan(barsBounds.top));
+}
+
 void _expectProgressTilesFit(WidgetTester tester) {
   for (final label in _labels) {
     final tileRect = tester.getRect(_tile(label));
@@ -2621,6 +2740,7 @@ Future<void> _pumpDashboard(
   required double width,
   ThemeData? theme,
   RouteFactory? onGenerateRoute,
+  Key? dashboardKey,
 }) async {
   tester.view.physicalSize = Size(width, 3000);
   tester.view.devicePixelRatio = 1;
@@ -2630,7 +2750,7 @@ Future<void> _pumpDashboard(
   await tester.pumpWidget(
     MaterialApp(
       theme: theme,
-      home: const DashboardPage(),
+      home: DashboardPage(key: dashboardKey),
       onGenerateRoute: onGenerateRoute,
     ),
   );

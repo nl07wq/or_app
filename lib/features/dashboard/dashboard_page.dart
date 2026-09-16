@@ -781,8 +781,6 @@ class _DailyCommandAmbientMonitor extends StatelessWidget {
 
   static const _borderWidth = 1.0;
   static const _radius = 6.0;
-  static const _horizontalPadding = 6.0;
-  static const _verticalPadding = 3.0;
 
   final OperationStatus? status;
 
@@ -799,12 +797,10 @@ class _DailyCommandAmbientMonitor extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(_radius),
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: _horizontalPadding,
-        vertical: _verticalPadding,
-      ),
       child: SizedBox(
-        height: OperationAmbientAnimation.height,
+        height:
+            OperationAmbientAnimation.height +
+            DailyCommandAmbientHudGeometry.verticalPadding * 2,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -814,16 +810,28 @@ class _DailyCommandAmbientMonitor extends StatelessWidget {
                 painter: _DailyCommandAmbientGridPainter(color),
               ),
             ),
-            OperationAmbientAnimation(status: status),
+            Positioned(
+              left: DailyCommandAmbientHudGeometry.horizontalPadding,
+              right: DailyCommandAmbientHudGeometry.horizontalPadding,
+              top: DailyCommandAmbientHudGeometry.verticalPadding,
+              height: OperationAmbientAnimation.height,
+              child: OperationAmbientAnimation(status: status),
+            ),
             Positioned(
               key: const ValueKey('daily-command-ambient-monitor-identifier'),
-              right: 4,
-              top: 2,
+              right:
+                  DailyCommandAmbientHudGeometry.horizontalPadding +
+                  DailyCommandAmbientHudGeometry.rightHudRightInset,
+              top:
+                  DailyCommandAmbientHudGeometry.verticalPadding +
+                  DailyCommandAmbientHudGeometry.identifierTop,
               child: Text(
                 'O.R.L.O.',
                 style: AppTextStyles.bootTechnical.copyWith(
-                  color: color.withValues(alpha: .72),
-                  fontSize: 7.5,
+                  color: color.withValues(
+                    alpha: DailyCommandAmbientHudGeometry.identifierOpacity,
+                  ),
+                  fontSize: DailyCommandAmbientHudGeometry.identifierFontSize,
                   height: 1,
                   letterSpacing: .15,
                 ),
@@ -846,14 +854,6 @@ Color _monitorColorFor(OperationStatus? status) => switch (status) {
 class _DailyCommandAmbientGridPainter extends CustomPainter {
   const _DailyCommandAmbientGridPainter(this.color);
 
-  static const _cornerArmLength = 7.0;
-  static const _cornerInset = 2.0;
-  static const _cornerStrokeWidth = 1.5;
-  static const _rightBarsRightInset = 6.0;
-  static const _rightBarsTop = 16.0;
-  static const _rightBarHeight = 1.0;
-  static const _rightBarGap = 3.0;
-
   final Color color;
 
   @override
@@ -863,74 +863,127 @@ class _DailyCommandAmbientGridPainter extends CustomPainter {
       ..strokeWidth = 1;
     const verticalSpacing = 24.0;
     const horizontalSpacing = 10.0;
-    for (var x = 0.0; x <= size.width; x += verticalSpacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    final lane = DailyCommandAmbientHudGeometry.laneBoundsFor(size);
+    for (var x = lane.left; x <= lane.right; x += verticalSpacing) {
+      canvas.drawLine(Offset(x, lane.top), Offset(x, lane.bottom), gridPaint);
     }
-    for (var y = 0.0; y <= size.height; y += horizontalSpacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    for (var y = lane.top; y <= lane.bottom; y += horizontalSpacing) {
+      canvas.drawLine(Offset(lane.left, y), Offset(lane.right, y), gridPaint);
     }
 
     final bracketPaint = Paint()
-      ..color = color.withValues(alpha: .72)
-      ..strokeWidth = _cornerStrokeWidth
+      ..color = color.withValues(
+        alpha: DailyCommandAmbientHudGeometry.bracketOpacity,
+      )
+      ..strokeWidth = DailyCommandAmbientHudGeometry.cornerStrokeWidth
       ..strokeCap = StrokeCap.square;
     _drawCornerBrackets(canvas, size, bracketPaint);
 
-    final bars = [12.0, 18.0, 8.0];
+    final bars = DailyCommandAmbientHudGeometry.barWidths;
     for (var index = 0; index < bars.length; index++) {
       final width = bars[index];
-      final top = _rightBarsTop + index * (_rightBarHeight + _rightBarGap);
+      final top =
+          DailyCommandAmbientHudGeometry.verticalPadding +
+          DailyCommandAmbientHudGeometry.rightBarsTop +
+          index *
+              (DailyCommandAmbientHudGeometry.rightBarHeight +
+                  DailyCommandAmbientHudGeometry.rightBarGap);
       final paint = Paint()
-        ..color = color.withValues(alpha: index == 1 ? .58 : .36)
-        ..strokeWidth = _rightBarHeight;
-      final right = size.width - _rightBarsRightInset;
+        ..color = color.withValues(
+          alpha: index == 1
+              ? DailyCommandAmbientHudGeometry.primaryBarOpacity
+              : DailyCommandAmbientHudGeometry.secondaryBarOpacity,
+        )
+        ..strokeWidth = DailyCommandAmbientHudGeometry.rightBarHeight;
+      final right =
+          size.width -
+          DailyCommandAmbientHudGeometry.horizontalPadding -
+          DailyCommandAmbientHudGeometry.rightHudRightInset;
       canvas.drawLine(Offset(right - width, top), Offset(right, top), paint);
     }
   }
 
   void _drawCornerBrackets(Canvas canvas, Size size, Paint paint) {
-    final left = _cornerInset;
-    final right = size.width - _cornerInset;
-    final top = _cornerInset;
-    final bottom = size.height - _cornerInset;
+    final left = DailyCommandAmbientHudGeometry.cornerInset;
+    final right = size.width - DailyCommandAmbientHudGeometry.cornerInset;
+    final top = DailyCommandAmbientHudGeometry.cornerInset;
+    final bottom = size.height - DailyCommandAmbientHudGeometry.cornerInset;
+    final arm = DailyCommandAmbientHudGeometry.cornerArmLength;
     canvas
-      ..drawLine(Offset(left, top + _cornerArmLength), Offset(left, top), paint)
-      ..drawLine(Offset(left, top), Offset(left + _cornerArmLength, top), paint)
-      ..drawLine(
-        Offset(right - _cornerArmLength, top),
-        Offset(right, top),
-        paint,
-      )
-      ..drawLine(
-        Offset(right, top),
-        Offset(right, top + _cornerArmLength),
-        paint,
-      )
-      ..drawLine(
-        Offset(left, bottom - _cornerArmLength),
-        Offset(left, bottom),
-        paint,
-      )
-      ..drawLine(
-        Offset(left, bottom),
-        Offset(left + _cornerArmLength, bottom),
-        paint,
-      )
-      ..drawLine(
-        Offset(right - _cornerArmLength, bottom),
-        Offset(right, bottom),
-        paint,
-      )
-      ..drawLine(
-        Offset(right, bottom - _cornerArmLength),
-        Offset(right, bottom),
-        paint,
-      );
+      ..drawLine(Offset(left, top + arm), Offset(left, top), paint)
+      ..drawLine(Offset(left, top), Offset(left + arm, top), paint)
+      ..drawLine(Offset(right - arm, top), Offset(right, top), paint)
+      ..drawLine(Offset(right, top), Offset(right, top + arm), paint)
+      ..drawLine(Offset(left, bottom - arm), Offset(left, bottom), paint)
+      ..drawLine(Offset(left, bottom), Offset(left + arm, bottom), paint)
+      ..drawLine(Offset(right - arm, bottom), Offset(right, bottom), paint)
+      ..drawLine(Offset(right, bottom - arm), Offset(right, bottom), paint);
   }
 
   @override
   bool shouldRepaint(covariant _DailyCommandAmbientGridPainter oldDelegate) =>
       oldDelegate.color != color;
+}
+
+class DailyCommandAmbientHudGeometry {
+  const DailyCommandAmbientHudGeometry._();
+
+  static const horizontalPadding = 6.0;
+  static const verticalPadding = 3.0;
+  static const cornerArmLength = 4.0;
+  static const cornerInset = 2.25;
+  static const cornerStrokeWidth = 1.0;
+  static const bracketOpacity = .58;
+  static const identifierFontSize = 6.0;
+  static const identifierOpacity = .58;
+  static const identifierTop = 3.0;
+  static const rightHudRightInset = 8.0;
+  static const rightBarsTop = 16.0;
+  static const rightBarHeight = 1.0;
+  static const rightBarGap = 2.0;
+  static const primaryBarOpacity = .46;
+  static const secondaryBarOpacity = .28;
+  static const barWidths = <double>[7, 10, 5];
+
+  static Rect laneBoundsFor(Size size) => Rect.fromLTWH(
+    horizontalPadding,
+    verticalPadding,
+    size.width - horizontalPadding * 2,
+    OperationAmbientAnimation.height,
+  );
+
+  static List<Rect> cornerBoundsFor(Size size) {
+    final halfStroke = cornerStrokeWidth / 2;
+    final left = cornerInset - halfStroke;
+    final right = size.width - cornerInset + halfStroke;
+    final top = cornerInset - halfStroke;
+    final bottom = size.height - cornerInset + halfStroke;
+    final arm = cornerArmLength + cornerStrokeWidth;
+    return [
+      Rect.fromLTRB(left, top, left + arm, top + arm),
+      Rect.fromLTRB(right - arm, top, right, top + arm),
+      Rect.fromLTRB(left, bottom - arm, left + arm, bottom),
+      Rect.fromLTRB(right - arm, bottom - arm, right, bottom),
+    ];
+  }
+
+  static Rect barsBoundsFor(Size size) {
+    final right =
+        size.width -
+        horizontalPadding -
+        rightHudRightInset +
+        rightBarHeight / 2;
+    final lastBarTop =
+        verticalPadding +
+        rightBarsTop +
+        (barWidths.length - 1) * (rightBarHeight + rightBarGap);
+    return Rect.fromLTRB(
+      right - barWidths.reduce((a, b) => a > b ? a : b),
+      verticalPadding + rightBarsTop - rightBarHeight / 2,
+      right,
+      lastBarTop + rightBarHeight / 2,
+    );
+  }
 }
 
 class _ProgressCard extends StatefulWidget {
