@@ -27,6 +27,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_state.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -387,14 +388,14 @@ void main() {
     expect(find.text('FINALIZE DAY'), findsNothing);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('daily-command-list')),
+        of: find.byKey(const PageStorageKey('daily-command-list')),
         matching: find.text('DATA CENTER'),
       ),
       findsNothing,
     );
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('daily-command-list')),
+        of: find.byKey(const PageStorageKey('daily-command-list')),
         matching: find.text('BACKUP & RESTORE'),
       ),
       findsNothing,
@@ -496,6 +497,30 @@ void main() {
     },
   );
 
+  testWidgets('Daily Log viewport survives a Finalize-style source refresh', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+    await tester.scrollUntilVisible(
+      find.byType(DailyLogSection),
+      300,
+      scrollable: _dailyCommandScrollable(),
+    );
+    await tester.pump();
+    final offsetBeforeRefresh = _dailyCommandScrollPosition(tester).pixels;
+    expect(offsetBeforeRefresh, greaterThan(0));
+
+    morningBriefRevisionNotifier.value++;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(
+      _dailyCommandScrollPosition(tester).pixels,
+      closeTo(offsetBeforeRefresh, 0.5),
+    );
+    expect(find.byType(DailyLogSection), findsOneWidget);
+  });
+
   testWidgets('Command Center cancelled review preserves scroll and date', (
     tester,
   ) async {
@@ -554,7 +579,10 @@ void main() {
             )
             .toList();
     expect(topTabPositions, orderedEquals([...topTabPositions]..sort()));
-    expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+    expect(
+      find.byKey(const PageStorageKey('daily-command-list')),
+      findsOneWidget,
+    );
     final dailyCommandTab = tester.widget<AnimatedContainer>(
       find.byKey(const ValueKey('command-center-tab-2')),
     );
@@ -617,7 +645,10 @@ void main() {
     await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
     expect(find.byKey(const ValueKey('morning-brief-content')), findsOneWidget);
     await _tapCommandCenterTab(tester, 'DAILY COMMAND');
-    expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+    expect(
+      find.byKey(const PageStorageKey('daily-command-list')),
+      findsOneWidget,
+    );
     await _tapCommandCenterTab(tester, 'DATA CENTER');
     expect(find.byKey(const ValueKey('data-center-content')), findsOneWidget);
 
@@ -795,7 +826,10 @@ void main() {
     await _tapCommandCenterTab(tester, 'DAILY COMMAND');
     expect(bottomBorder(1).color, Colors.transparent);
     expect(bottomBorder(2).color, isNot(Colors.transparent));
-    expect(find.byKey(const ValueKey('daily-command-list')), findsOneWidget);
+    expect(
+      find.byKey(const PageStorageKey('daily-command-list')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('opens periodic reports under one independent top tab', (
@@ -1936,7 +1970,7 @@ void _expectBalancedBriefDebriefTabs(WidgetTester tester) {
 }
 
 Finder _dailyCommandScrollable() => find.descendant(
-  of: find.byKey(const ValueKey('daily-command-list')),
+  of: find.byKey(const PageStorageKey('daily-command-list')),
   matching: find.byType(Scrollable),
 );
 
@@ -2161,7 +2195,7 @@ MorningBriefRecord _morningBriefV2(
 
 Future<void> _scrollDailyCommand(WidgetTester tester, double dy) async {
   await tester.drag(
-    find.byKey(const ValueKey('daily-command-list')),
+    find.byKey(const PageStorageKey('daily-command-list')),
     Offset(0, dy),
   );
   await tester.pumpAndSettle();

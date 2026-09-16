@@ -345,7 +345,10 @@ class _DailyCommandContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      key: const ValueKey('daily-command-list'),
+      // FINALIZE refreshes daily summaries while the Backup dialog is open.
+      // Keep the operator's current Daily Log viewport when that refresh
+      // temporarily replaces this ListView, until Dashboard takes over.
+      key: const PageStorageKey('daily-command-list'),
       controller: scrollController,
       padding: AppSpacing.cardPadding,
       children: [
