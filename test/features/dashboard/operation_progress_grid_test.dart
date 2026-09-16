@@ -22,6 +22,7 @@ import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
+import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/food/data/water_quick_presets.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
@@ -1485,6 +1486,31 @@ void main() {
         find.byKey(const ValueKey('daily-command-status-lamp-standby')),
         findsOneWidget,
       );
+      expect(find.byType(OperationAmbientAnimation), findsOneWidget);
+      final dailyCommandCard = find.ancestor(
+        of: find.text('OPERATION STATUS'),
+        matching: find.byType(OperationCard),
+      );
+      final ambient = find.byKey(
+        const ValueKey('operation-ambient-animation-slot'),
+      );
+      expect(
+        find.descendant(of: dailyCommandCard, matching: ambient),
+        findsOneWidget,
+      );
+      final commanderIntent = find.text('COMMANDER INTENT');
+      final cardBounds = tester.getRect(dailyCommandCard);
+      final ambientBounds = tester.getRect(ambient);
+      expect(ambientBounds.left, greaterThanOrEqualTo(cardBounds.left));
+      expect(ambientBounds.right, lessThanOrEqualTo(cardBounds.right));
+      expect(
+        ambientBounds.top,
+        greaterThan(tester.getBottomLeft(find.text('STANDBY')).dy),
+      );
+      expect(
+        ambientBounds.bottom,
+        lessThan(tester.getTopLeft(commanderIntent).dy),
+      );
       expect(tester.takeException(), isNull);
       AppRepositoryRegistry.resetForTesting();
     }
@@ -1689,7 +1715,7 @@ void main() {
     );
     expect(standbyLamp.icon, Symbols.circle);
     expect(standbyLamp.fill, 0);
-    expect(standbyLamp.size, 12);
+    expect(standbyLamp.size, 14);
     expect(standbyLamp.color, AppColors.secondary);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
 
@@ -1705,6 +1731,7 @@ void main() {
     );
     expect(greenLamp.icon, Symbols.circle);
     expect(greenLamp.fill, 1);
+    expect(greenLamp.size, 14);
     expect(greenLamp.color, AppColors.success);
     expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
     expect(find.text('COMMANDER INTENT'), findsOneWidget);
@@ -1747,6 +1774,7 @@ void main() {
         );
         expect(lamp.icon, Symbols.circle);
         expect(lamp.fill, 1);
+        expect(lamp.size, 14);
         expect(lamp.color, statusCase.color);
       },
     );

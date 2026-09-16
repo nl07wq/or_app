@@ -600,8 +600,6 @@ class _DashboardOperationOverviewState
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          OperationAmbientAnimation(status: model?.operationStatus),
-          AppSpacing.gapSM,
           const SectionHeader(
             icon: Icons.dashboard_outlined,
             title: 'DAILY COMMAND',
@@ -705,6 +703,8 @@ class _DailyCommandSummaryCard extends StatelessWidget {
             ),
           ],
         ),
+        AppSpacing.gapMD,
+        OperationAmbientAnimation(status: model.operationStatus),
         AppSpacing.gapMD,
         DailyCommandItem(
           icon: Icons.flag_outlined,
