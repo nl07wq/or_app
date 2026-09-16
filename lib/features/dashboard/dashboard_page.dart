@@ -11,13 +11,11 @@ import '../../core/engine/operation_input.dart';
 import '../../core/engine/training_summary.dart';
 import '../../core/models/meal_data.dart';
 import '../../core/navigation/app_routes.dart';
-import '../../core/services/app_clock.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
-import '../../core/widgets/operation_flip_tile.dart';
 import '../../core/widgets/section_header.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../system/models/information_notice.dart';
@@ -51,7 +49,7 @@ import '../operation_date/models/operation_state.dart';
 import '../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../operation_date/state/finalize_date_transition.dart';
-import '../operation_date/widgets/operation_date_flip_calendar.dart';
+import '../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../report_sync/models/daily_debrief_record.dart';
 import '../report_sync/models/morning_brief_state.dart';
 
@@ -71,6 +69,7 @@ class _DashboardPageState extends State<DashboardPage> {
   late final InformationNoticeService _informationService =
       InformationNoticeService();
   late Future<List<InformationNotice>> _informationNoticesFuture;
+  late final FinalizeDateTransition? _dashboardFinalizeTransition;
   int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
 
@@ -78,6 +77,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     final finalizeTransition = FinalizeDateTransitionStore.take();
+    _dashboardFinalizeTransition = finalizeTransition;
     _operationDateFuture = finalizeTransition == null
         ? const OperationDateService().current()
         : Future.value(finalizeTransition.fromDate);
@@ -179,6 +179,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 _operationDateFuture,
                                             transitionToken:
                                                 _operationDateTransitionToken,
+                                            finalizeTransition:
+                                                _dashboardFinalizeTransition,
                                           ),
                                           FutureBuilder<
                                             List<InformationNotice>
@@ -334,10 +336,12 @@ class _OperationDateCard extends StatelessWidget {
   const _OperationDateCard({
     required this.operationDateFuture,
     required this.transitionToken,
+    required this.finalizeTransition,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
+  final FinalizeDateTransition? finalizeTransition;
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -358,195 +362,14 @@ class _OperationDateCard extends StatelessWidget {
           ],
         ),
         AppSpacing.gapSM,
-        Wrap(
-          key: const ValueKey('dashboard-date-time-row'),
-          spacing: 0,
-          runSpacing: AppSpacing.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-              child: OperationDateFlipCalendar(
-                operationDateFuture: operationDateFuture,
-                transitionToken: transitionToken,
-                tileWidth: 42,
-              ),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                  ),
-                  child: SizedBox(
-                    height:
-                        OperationDateFlipCalendar.defaultTileHeight +
-                        AppSpacing.xs * 2,
-                    child: VerticalDivider(
-                      key: const ValueKey('dashboard-date-time-divider'),
-                      width: 1,
-                      thickness: 1,
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                  child: _DashboardLiveFlipClock(),
-                ),
-              ],
-            ),
-          ],
+        OperationDatePresentationSwitcher(
+          operationDateFuture: operationDateFuture,
+          transitionToken: transitionToken,
+          finalizeTransition: finalizeTransition,
         ),
       ],
     ),
   );
-}
-
-class _DashboardLiveFlipClock extends StatefulWidget {
-  const _DashboardLiveFlipClock();
-
-  static const tileWidth = 24.0;
-  static const tileHeight = OperationDateFlipCalendar.defaultTileHeight;
-  static const tileGap = 6.0;
-  static const pairGap = 3.0;
-
-  @override
-  State<_DashboardLiveFlipClock> createState() =>
-      _DashboardLiveFlipClockState();
-}
-
-class _DashboardLiveFlipClockState extends State<_DashboardLiveFlipClock>
-    with WidgetsBindingObserver {
-  late DateTime _displayedTime = AppClock.now();
-  Timer? _timer;
-  Animation<double>? _secondaryAnimation;
-  bool _routeVisible = true;
-  bool _appActive = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final nextAnimation = ModalRoute.of(context)?.secondaryAnimation;
-    if (_secondaryAnimation != nextAnimation) {
-      _secondaryAnimation?.removeStatusListener(_handleRouteStatus);
-      _secondaryAnimation = nextAnimation;
-      _secondaryAnimation?.addStatusListener(_handleRouteStatus);
-    }
-    _routeVisible =
-        nextAnimation == null ||
-        nextAnimation.status == AnimationStatus.dismissed;
-    if (_routeVisible && _appActive) {
-      _displayedTime = AppClock.now();
-      _scheduleNextTick();
-    } else {
-      _timer?.cancel();
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _appActive = state == AppLifecycleState.resumed;
-    if (_appActive && _routeVisible) {
-      _syncAndSchedule();
-    } else {
-      _timer?.cancel();
-    }
-  }
-
-  void _handleRouteStatus(AnimationStatus status) {
-    final visible = status == AnimationStatus.dismissed;
-    if (_routeVisible == visible) return;
-    _routeVisible = visible;
-    if (visible && _appActive) {
-      _syncAndSchedule();
-    } else {
-      _timer?.cancel();
-    }
-  }
-
-  void _syncAndSchedule() {
-    if (!mounted) return;
-    final now = AppClock.now();
-    if (_secondStamp(now) != _secondStamp(_displayedTime)) {
-      setState(() => _displayedTime = now);
-    }
-    _scheduleNextTick();
-  }
-
-  void _scheduleNextTick() {
-    _timer?.cancel();
-    if (!_routeVisible || !_appActive) return;
-    final now = AppClock.now();
-    final delay = Duration(milliseconds: 1000 - now.millisecond);
-    _timer = Timer(delay, _syncAndSchedule);
-  }
-
-  int _secondStamp(DateTime value) => value.millisecondsSinceEpoch ~/ 1000;
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _secondaryAnimation?.removeStatusListener(_handleRouteStatus);
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final values = [
-      _displayedTime.hour.toString().padLeft(2, '0'),
-      _displayedTime.minute.toString().padLeft(2, '0'),
-      _displayedTime.second.toString().padLeft(2, '0'),
-    ].expand((value) => value.split('')).toList(growable: false);
-    return Semantics(
-      label:
-          'CURRENT TIME ${values[0]}${values[1]}:'
-          '${values[2]}${values[3]}:${values[4]}${values[5]}',
-      child: ExcludeSemantics(
-        child: Row(
-          key: const ValueKey('dashboard-live-flip-clock'),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < values.length; index++) ...[
-              if (index > 0)
-                SizedBox(
-                  width: index.isOdd
-                      ? _DashboardLiveFlipClock.pairGap
-                      : _DashboardLiveFlipClock.tileGap,
-                  child: index == 2 || index == 4
-                      ? Center(
-                          child: Text(
-                            ':',
-                            key: ValueKey('dashboard-time-colon-${index ~/ 2}'),
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
-                                ),
-                          ),
-                        )
-                      : null,
-                ),
-              OperationMechanicalFlipTile(
-                key: ValueKey('dashboard-time-tile-$index'),
-                value: values[index],
-                width: _DashboardLiveFlipClock.tileWidth,
-                height: _DashboardLiveFlipClock.tileHeight,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _DashboardOperationOverview extends StatefulWidget {

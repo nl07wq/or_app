@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/digestive_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
@@ -30,7 +31,9 @@ import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/operation_date/models/operation_local_date.dart';
 import 'package:or_app/features/operation_date/state/finalize_date_transition.dart';
+import 'package:or_app/features/operation_date/services/operation_date_display_mode_preference.dart';
 import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_nixie_display.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_state.dart';
@@ -40,6 +43,8 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('Ambient monitor HUD geometry stays compact and symmetric', () {
     expect(DailyCommandAmbientHudGeometry.cornerArmLength, 4);
     expect(DailyCommandAmbientHudGeometry.cornerStrokeWidth, 1);
@@ -810,6 +815,96 @@ void main() {
       );
     }
   });
+
+  test(
+    'Operation Date display preference defaults to FLIP and persists NIXIE',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final preference = OperationDateDisplayModePreference();
+      expect(await preference.load(), OperationDateDisplayMode.flip);
+
+      await preference.save(OperationDateDisplayMode.nixie);
+      expect(
+        await OperationDateDisplayModePreference().load(),
+        OperationDateDisplayMode.nixie,
+      );
+    },
+  );
+
+  testWidgets(
+    'Operation Date switches FLIP and NIXIE by tap or horizontal swipe',
+    (tester) async {
+      AppClock.setSystemNowForTesting(() => DateTime(2026, 8, 11, 1, 36, 29));
+      SharedPreferences.setMockInitialValues({});
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-28');
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+
+      await _pumpDashboard(tester, width: 390);
+      await _settleDashboard(tester);
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(find.byType(OperationDateNixieDisplay), findsNothing);
+
+      await tester.tap(switcher);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(OperationDateFlipCalendar), findsNothing);
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      expect(find.text('JUL'), findsOneWidget);
+      expect(find.text('28'), findsOneWidget);
+      expect(find.text('TUE'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('dashboard-live-nixie-clock')),
+        findsOneWidget,
+      );
+
+      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(find.byType(OperationDateNixieDisplay), findsNothing);
+
+      await tester.drag(switcher, const Offset(0, -72));
+      await tester.pump();
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'NIXIE consumes FINALIZE date transition without a mechanical flip',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        OperationDateDisplayModePreference.storageKey: 'nixie',
+      });
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-09-15');
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+      FinalizeDateTransitionStore.publish(
+        FinalizeDateTransition(
+          fromDate: OperationLocalDate.parse('2026-09-14'),
+          toDate: OperationLocalDate.parse('2026-09-15'),
+        ),
+      );
+
+      await _pumpDashboard(tester, width: 390);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      expect(find.byType(OperationDateFlipCalendar), findsNothing);
+      expect(find.text('15'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        findsNothing,
+      );
+      expect(FinalizeDateTransitionStore.take(), isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('live time resyncs after Dashboard route becomes visible', (
     tester,
