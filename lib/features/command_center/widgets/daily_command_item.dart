@@ -13,6 +13,8 @@ class DailyCommandItem extends StatelessWidget {
     required this.value,
     this.status,
     this.showStatusLamp,
+    this.onValueTap,
+    this.valueKey,
   });
 
   final IconData icon;
@@ -20,6 +22,11 @@ class DailyCommandItem extends StatelessWidget {
   final String value;
   final OperationStatus? status;
   final bool? showStatusLamp;
+  final VoidCallback? onValueTap;
+  final Key? valueKey;
+
+  static Color statusColor(OperationStatus? status) =>
+      _statusLamp(status).color;
 
   @override
   Widget build(BuildContext context) {
@@ -44,24 +51,41 @@ class DailyCommandItem extends StatelessWidget {
           ),
         ),
         AppSpacing.gapXS,
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (showStatusLamp ?? status != null) ...[
-              Icon(
-                Symbols.circle,
-                key: ValueKey('daily-command-status-lamp-${lamp.name}'),
-                fill: lamp.filled ? 1 : 0,
-                size: 18,
-                color: lamp.color,
-                semanticLabel: '${lamp.name} status lamp',
-              ),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Expanded(child: Text(value)),
-          ],
-        ),
+        _valueRow(context, lamp),
       ],
+    );
+  }
+
+  Widget _valueRow(BuildContext context, _StatusLamp lamp) {
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (showStatusLamp ?? status != null) ...[
+          Icon(
+            Symbols.circle,
+            key: ValueKey('daily-command-status-lamp-${lamp.name}'),
+            fill: lamp.filled ? 1 : 0,
+            size: 18,
+            color: lamp.color,
+            semanticLabel: '${lamp.name} status lamp',
+          ),
+          const SizedBox(width: AppSpacing.xs),
+        ],
+        Expanded(child: Text(value)),
+      ],
+    );
+    final onTap = onValueTap;
+    if (onTap == null) return row;
+    return Semantics(
+      button: true,
+      label: '$label $value',
+      hint: '判定理由を表示',
+      child: GestureDetector(
+        key: valueKey,
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: row,
+      ),
     );
   }
 

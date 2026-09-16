@@ -519,6 +519,8 @@ class _DailyCommandSummaryCard extends StatelessWidget {
                 value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
                 status: model.operationStatus,
                 showStatusLamp: true,
+                valueKey: const ValueKey('daily-command-status-value'),
+                onValueTap: () => _showStatusReasonPreview(context, model),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -539,6 +541,66 @@ class _DailyCommandSummaryCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+Future<void> _showStatusReasonPreview(
+  BuildContext context,
+  DailyCommandReadModel model,
+) => showModalBottomSheet<void>(
+  context: context,
+  showDragHandle: true,
+  isScrollControlled: true,
+  builder: (context) => SafeArea(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .65,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+        child: _DailyCommandStatusReasonPreview(model: model),
+      ),
+    ),
+  ),
+);
+
+class _DailyCommandStatusReasonPreview extends StatelessWidget {
+  const _DailyCommandStatusReasonPreview({required this.model});
+
+  final DailyCommandReadModel model;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = model.operationStatus;
+    final title = status?.name.toUpperCase() ?? 'STANDBY';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('OPERATION STATUS', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Icon(
+              Symbols.circle,
+              fill: status == null ? 0 : 1,
+              size: 18,
+              color: DailyCommandItem.statusColor(status),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text('判定理由', style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          status == null ? 'DAILY BRIEF未作成\n判定理由はまだありません' : model.statusReason,
+          key: const ValueKey('daily-command-status-reason-preview'),
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ],
+    );
+  }
 }
 
 class _DailyCommandCycleState extends StatelessWidget {

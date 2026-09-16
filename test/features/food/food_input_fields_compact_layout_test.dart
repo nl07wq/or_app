@@ -134,6 +134,31 @@ void main() {
     expect(memo.width, greaterThan(amount.width));
   });
 
+  testWidgets(
+    '390px keeps every canonical unit clear of its selector chevron',
+    (tester) async {
+      for (final unit in FoodQuantityUnit.values) {
+        final controllers = _Controllers();
+        addTearDown(controllers.dispose);
+        await tester.binding.setSurfaceSize(const Size(390, 844));
+        await tester.pumpWidget(
+          _subject(controllers, width: 320, packageUnit: unit, baseUnit: unit),
+        );
+        final label = _unitLabel(unit);
+        for (final field in [_packageUnit(), _baseUnit()]) {
+          final bounds = tester.getRect(field);
+          final text = find.descendant(of: field, matching: find.text(label));
+          expect(text, findsOneWidget);
+          expect(
+            tester.getRect(text).right,
+            lessThanOrEqualTo(bounds.right - 20),
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
   testWidgets('dynamic conversion label preserves its target basis', (
     tester,
   ) async {
@@ -208,6 +233,7 @@ Widget _subject(
   _Controllers controllers, {
   required double width,
   FoodQuantityUnit baseUnit = FoodQuantityUnit.gram,
+  FoodQuantityUnit packageUnit = FoodQuantityUnit.gram,
   String? recalculationBlockReason,
 }) => MaterialApp(
   theme: StandardTheme.theme,
@@ -228,7 +254,7 @@ Widget _subject(
           amountController: controllers.amount,
           foodMemoController: controllers.memo,
           category: FoodCatalogCategory.preparedFood,
-          packageUnit: FoodQuantityUnit.gram,
+          packageUnit: packageUnit,
           baseUnit: baseUnit,
           onChanged: (_) {},
           onBaseAmountChanged: (_) {},
@@ -256,9 +282,27 @@ Finder _field(String label) => find.byWidgetPredicate(
 Finder _category() =>
     find.byKey(const ValueKey('food-entry-category-preparedFood'));
 Finder _scan() => find.byKey(const ValueKey('food-entry-barcode-scan'));
-Finder _packageUnit() =>
-    find.byKey(const ValueKey('food-entry-package-unit-gram'));
-Finder _baseUnit() => find.byKey(const ValueKey('food-entry-base-unit-gram'));
+Finder _packageUnit() => find.byWidgetPredicate(
+  (widget) =>
+      widget.key is ValueKey &&
+      (widget.key! as ValueKey).value.toString().startsWith(
+        'food-entry-package-unit-',
+      ),
+);
+Finder _baseUnit() => find.byWidgetPredicate(
+  (widget) =>
+      widget.key is ValueKey &&
+      (widget.key! as ValueKey).value.toString().startsWith(
+        'food-entry-base-unit-',
+      ),
+);
+String _unitLabel(FoodQuantityUnit unit) => switch (unit) {
+  FoodQuantityUnit.gram => 'g',
+  FoodQuantityUnit.milliliter => 'mL',
+  FoodQuantityUnit.piece => 'piece',
+  FoodQuantityUnit.pack => 'pack',
+  FoodQuantityUnit.serving => 'serving',
+};
 Finder _amount() => find.byKey(const ValueKey('food-amount-input'));
 double _top(WidgetTester tester, Finder finder) => tester.getTopLeft(finder).dy;
 double _centerY(WidgetTester tester, Finder finder) =>

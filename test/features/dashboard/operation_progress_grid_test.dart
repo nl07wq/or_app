@@ -1955,6 +1955,12 @@ void main() {
     expect(standbyLamp.size, 18);
     expect(standbyLamp.color, AppColors.secondary);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('daily-command-status-value')));
+    await _settleDashboard(tester);
+    expect(find.textContaining('DAILY BRIEF未作成'), findsOneWidget);
+    expect(find.textContaining('判定理由はまだありません'), findsOneWidget);
+    await tester.tapAt(const Offset(2, 2));
+    await _settleDashboard(tester);
 
     await AppRepositoryRegistry.container.morningBriefs.create(
       _brief('2026-07-28', intent: 'LIVE COMMANDER INTENT'),
@@ -1992,6 +1998,13 @@ void main() {
     expect(find.text('RECOVERY'), findsNothing);
     expect(find.text('CARRYOVER'), findsNothing);
     expect(find.text('OVERALL'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('daily-command-status-value')));
+    await _settleDashboard(tester);
+    expect(
+      find.byKey(const ValueKey('daily-command-status-reason-preview')),
+      findsOneWidget,
+    );
+    expect(find.text('FORMAL SITUATION'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

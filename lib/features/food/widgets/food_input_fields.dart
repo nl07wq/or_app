@@ -283,13 +283,13 @@ class FoodInputFields extends StatelessWidget {
               }
               return Row(
                 children: [
-                  Expanded(flex: 30, child: quantity),
+                  Expanded(flex: 23, child: quantity),
                   const SizedBox(width: AppSpacing.xs),
-                  Expanded(flex: 18, child: unit),
+                  Expanded(flex: 27, child: unit),
                   const SizedBox(width: AppSpacing.xs),
-                  Expanded(flex: 34, child: baseQuantity),
+                  Expanded(flex: 23, child: baseQuantity),
                   const SizedBox(width: AppSpacing.xs),
-                  Expanded(flex: 18, child: baseUnitField),
+                  Expanded(flex: 27, child: baseUnitField),
                 ],
               );
             },
