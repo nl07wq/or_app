@@ -14,6 +14,7 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/services/app_clock.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_flip_tile.dart';
@@ -814,6 +815,20 @@ class _DailyCommandAmbientMonitor extends StatelessWidget {
               ),
             ),
             OperationAmbientAnimation(status: status),
+            Positioned(
+              key: const ValueKey('daily-command-ambient-monitor-identifier'),
+              right: 4,
+              top: 2,
+              child: Text(
+                'O.R.L.O.',
+                style: AppTextStyles.bootTechnical.copyWith(
+                  color: color.withValues(alpha: .72),
+                  fontSize: 7.5,
+                  height: 1,
+                  letterSpacing: .15,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -831,21 +846,86 @@ Color _monitorColorFor(OperationStatus? status) => switch (status) {
 class _DailyCommandAmbientGridPainter extends CustomPainter {
   const _DailyCommandAmbientGridPainter(this.color);
 
+  static const _cornerArmLength = 7.0;
+  static const _cornerInset = 2.0;
+  static const _cornerStrokeWidth = 1.5;
+  static const _rightBarsRightInset = 6.0;
+  static const _rightBarsTop = 16.0;
+  static const _rightBarHeight = 1.0;
+  static const _rightBarGap = 3.0;
+
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final gridPaint = Paint()
       ..color = color.withValues(alpha: .10)
       ..strokeWidth = 1;
     const verticalSpacing = 24.0;
     const horizontalSpacing = 10.0;
     for (var x = 0.0; x <= size.width; x += verticalSpacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
     for (var y = 0.0; y <= size.height; y += horizontalSpacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
+
+    final bracketPaint = Paint()
+      ..color = color.withValues(alpha: .72)
+      ..strokeWidth = _cornerStrokeWidth
+      ..strokeCap = StrokeCap.square;
+    _drawCornerBrackets(canvas, size, bracketPaint);
+
+    final bars = [12.0, 18.0, 8.0];
+    for (var index = 0; index < bars.length; index++) {
+      final width = bars[index];
+      final top = _rightBarsTop + index * (_rightBarHeight + _rightBarGap);
+      final paint = Paint()
+        ..color = color.withValues(alpha: index == 1 ? .58 : .36)
+        ..strokeWidth = _rightBarHeight;
+      final right = size.width - _rightBarsRightInset;
+      canvas.drawLine(Offset(right - width, top), Offset(right, top), paint);
+    }
+  }
+
+  void _drawCornerBrackets(Canvas canvas, Size size, Paint paint) {
+    final left = _cornerInset;
+    final right = size.width - _cornerInset;
+    final top = _cornerInset;
+    final bottom = size.height - _cornerInset;
+    canvas
+      ..drawLine(Offset(left, top + _cornerArmLength), Offset(left, top), paint)
+      ..drawLine(Offset(left, top), Offset(left + _cornerArmLength, top), paint)
+      ..drawLine(
+        Offset(right - _cornerArmLength, top),
+        Offset(right, top),
+        paint,
+      )
+      ..drawLine(
+        Offset(right, top),
+        Offset(right, top + _cornerArmLength),
+        paint,
+      )
+      ..drawLine(
+        Offset(left, bottom - _cornerArmLength),
+        Offset(left, bottom),
+        paint,
+      )
+      ..drawLine(
+        Offset(left, bottom),
+        Offset(left + _cornerArmLength, bottom),
+        paint,
+      )
+      ..drawLine(
+        Offset(right - _cornerArmLength, bottom),
+        Offset(right, bottom),
+        paint,
+      )
+      ..drawLine(
+        Offset(right, bottom - _cornerArmLength),
+        Offset(right, bottom),
+        paint,
+      );
   }
 
   @override

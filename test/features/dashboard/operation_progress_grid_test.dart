@@ -14,6 +14,7 @@ import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/theme/app_text_styles.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
@@ -1522,10 +1523,34 @@ void main() {
         find.byKey(const ValueKey('daily-command-ambient-monitor-grid')),
         findsOneWidget,
       );
+      final identifier = find.descendant(
+        of: monitor,
+        matching: find.byKey(
+          const ValueKey('daily-command-ambient-monitor-identifier'),
+        ),
+      );
+      expect(identifier, findsOneWidget);
+      final identifierText = tester.widget<Text>(
+        find.descendant(of: identifier, matching: find.text('O.R.L.O.')),
+      );
+      expect(
+        identifierText.style!.fontFamily,
+        AppTextStyles.bootTechnicalFontFamily,
+      );
+      expect(identifierText.style!.fontSize, 7.5);
+      for (final prohibitedLabel in ['HR', 'SYS', 'DIA', 'BPM', 'SpO2']) {
+        expect(
+          find.descendant(of: monitor, matching: find.text(prohibitedLabel)),
+          findsNothing,
+        );
+      }
       final commanderIntent = find.text('COMMANDER INTENT');
       final cardBounds = tester.getRect(dailyCommandCard);
       final monitorBounds = tester.getRect(monitor);
       final ambientBounds = tester.getRect(ambient);
+      final hudBounds = tester.getRect(
+        find.byKey(const ValueKey('daily-command-ambient-monitor-grid')),
+      );
       final monitorDecoration =
           tester.widget<Container>(monitor).decoration! as BoxDecoration;
       expect(
@@ -1540,6 +1565,10 @@ void main() {
       expect(monitorBounds.height, OperationAmbientAnimation.height + 8);
       expect(ambientBounds.left, greaterThan(monitorBounds.left));
       expect(ambientBounds.right, lessThan(monitorBounds.right));
+      expect(hudBounds.left, ambientBounds.left);
+      expect(hudBounds.right, ambientBounds.right);
+      expect(hudBounds.top, ambientBounds.top);
+      expect(hudBounds.bottom, ambientBounds.bottom);
       expect(
         ambientBounds.top,
         greaterThan(tester.getBottomLeft(find.text('STANDBY')).dy),
@@ -1777,6 +1806,13 @@ void main() {
       (monitor.decoration! as BoxDecoration).border!.top.color,
       AppColors.success.withValues(alpha: .56),
     );
+    final identifier = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('daily-command-ambient-monitor')),
+        matching: find.text('O.R.L.O.'),
+      ),
+    );
+    expect(identifier.style!.color, AppColors.success.withValues(alpha: .72));
     expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
     expect(find.text('COMMANDER INTENT'), findsOneWidget);
     expect(find.text('ARGO COMMENT'), findsNothing);
@@ -1826,6 +1862,16 @@ void main() {
         expect(
           (monitor.decoration! as BoxDecoration).border!.top.color,
           statusCase.color.withValues(alpha: .56),
+        );
+        final identifier = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const ValueKey('daily-command-ambient-monitor')),
+            matching: find.text('O.R.L.O.'),
+          ),
+        );
+        expect(
+          identifier.style!.color,
+          statusCase.color.withValues(alpha: .72),
         );
       },
     );
