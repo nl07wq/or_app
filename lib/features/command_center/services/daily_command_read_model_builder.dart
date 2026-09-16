@@ -113,7 +113,7 @@ abstract final class DailyCommandReadModelBuilder {
   /// arbitrary characters.
   static String _statusReasonSummary(MorningBriefRecord? morningBrief) {
     final overall = morningBrief?.situationAnalysisV2?.overall.trim();
-    if (overall != null && overall.isNotEmpty) return overall;
+    if (overall != null && overall.isNotEmpty) return _firstSentences(overall);
     return _firstSentences(
       morningBrief?.situationAnalysis ?? '当日のMORNING BRIEFが未登録です。',
     );

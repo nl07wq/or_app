@@ -87,6 +87,14 @@ void main() {
       NixiePresentationColors.activeShadows.map((shadow) => shadow.blurRadius),
       [3, 7, 11],
     );
+    expect(
+      NixiePresentationColors.textualShadows.map((shadow) => shadow.blurRadius),
+      [3, 7, 11],
+    );
+    expect(
+      NixiePresentationColors.textualShadows.first.color.a,
+      lessThan(NixiePresentationColors.activeShadows.first.color.a),
+    );
   });
 
   test('context popover edge selection uses the actual viewport center', () {
@@ -1968,6 +1976,8 @@ void main() {
     expect(find.text('OTHER DATE INTENT'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('daily-command-status-value')));
     await _settleDashboard(tester);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
     expect(find.textContaining('DAILY BRIEF未作成'), findsOneWidget);
     expect(find.textContaining('判定理由はまだありません'), findsOneWidget);
     await tester.tapAt(const Offset(2, 2));

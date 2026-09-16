@@ -82,7 +82,19 @@ void main() {
 
       expect(model.operationStatus?.name, 'red');
       expect(model.statusReason, contains('BODY: formal body'));
-      expect(model.statusReasonSummary, '優先度を落として回復を優先してください。');
+      expect(model.statusReasonSummary, '睡眠不足を主要制約としてRED判定。勤務外の追加負荷を避けてください。');
+      expect(model.statusReasonSummary, isNot(contains('二次的な監視事項')));
+    });
+
+    test('keeps only two complete legacy sentences for the quick reason', () {
+      final model = _build(
+        status: _status(),
+        morningBrief: _morningBrief(
+          situation: '主要制約を確認しました。追加負荷を避けてください。二次的な監視事項です。',
+        ),
+      );
+
+      expect(model.statusReasonSummary, '主要制約を確認しました。追加負荷を避けてください。');
     });
 
     test('derives REVIEW READY when required modules are valid', () {
@@ -206,25 +218,27 @@ DailyCommandReadModel _build({
   );
 }
 
-MorningBriefRecord _morningBrief({String localDate = '2026-08-01'}) =>
-    MorningBriefRecord(
-      localDate: localDate,
-      requestId: 'request-1',
-      requestDigest:
-          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      responseDigest:
-          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-      generatedAt: DateTime.utc(2026, 8, 1),
-      importedAt: DateTime.utc(2026, 8, 1),
-      situationAnalysis: 'formal situation',
-      operationStatus: MorningBriefOperationStatus.yellow,
-      commanderIntent: 'formal intent',
-      argoComment: 'formal argo comment',
-      strategicResourceDecision: 'formal resource decision',
-      actions: const [],
-      createdAt: DateTime.utc(2026, 8, 1),
-      updatedAt: DateTime.utc(2026, 8, 1),
-    );
+MorningBriefRecord _morningBrief({
+  String localDate = '2026-08-01',
+  String situation = 'formal situation',
+}) => MorningBriefRecord(
+  localDate: localDate,
+  requestId: 'request-1',
+  requestDigest:
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  responseDigest:
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  generatedAt: DateTime.utc(2026, 8, 1),
+  importedAt: DateTime.utc(2026, 8, 1),
+  situationAnalysis: situation,
+  operationStatus: MorningBriefOperationStatus.yellow,
+  commanderIntent: 'formal intent',
+  argoComment: 'formal argo comment',
+  strategicResourceDecision: 'formal resource decision',
+  actions: const [],
+  createdAt: DateTime.utc(2026, 8, 1),
+  updatedAt: DateTime.utc(2026, 8, 1),
+);
 
 MorningBriefRecord _morningBriefV2() {
   final timestamp = DateTime.utc(2026, 8, 1);
@@ -246,7 +260,7 @@ MorningBriefRecord _morningBriefV2() {
       condition: 'formal condition',
       work: 'formal work',
       carryover: 'formal carryover',
-      overall: '優先度を落として回復を優先してください。',
+      overall: '睡眠不足を主要制約としてRED判定。勤務外の追加負荷を避けてください。二次的な監視事項です。',
     ),
     operatingPolicy: 'formal policy',
     strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(

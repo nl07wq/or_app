@@ -83,6 +83,14 @@ class NixiePresentationColors {
     Shadow(color: glow, blurRadius: 7),
     Shadow(color: outerGlow, blurRadius: 11),
   ];
+
+  /// Textual date fields use the same tube-light layers at 75% intensity so
+  /// the numeric cathodes remain the brightest elements.
+  static const textualShadows = <Shadow>[
+    Shadow(color: Color(0x99FF6A26), blurRadius: 3),
+    Shadow(color: Color(0x86F35A24), blurRadius: 7),
+    Shadow(color: Color(0x4DD9431F), blurRadius: 11),
+  ];
 }
 
 class _OperationDateNixieCalendar extends StatefulWidget {
@@ -456,9 +464,7 @@ class _NixieTechnicalLabel extends StatelessWidget {
             fontSize: 13,
             height: 1,
             color: NixiePresentationColors.active,
-            shadows: [
-              Shadow(color: NixiePresentationColors.glow, blurRadius: 3),
-            ],
+            shadows: NixiePresentationColors.textualShadows,
           ),
         ),
       ),

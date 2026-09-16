@@ -546,17 +546,15 @@ class _DailyCommandSummaryCard extends StatelessWidget {
 Future<void> _showStatusReasonPreview(
   BuildContext context,
   DailyCommandReadModel model,
-) => showModalBottomSheet<void>(
+) => showDialog<void>(
   context: context,
-  showDragHandle: true,
-  isScrollControlled: true,
-  builder: (context) => SafeArea(
-    child: ConstrainedBox(
+  builder: (context) => AlertDialog(
+    content: ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .65,
+        maxWidth: 360,
+        maxHeight: MediaQuery.sizeOf(context).height * .45,
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
         child: _DailyCommandStatusReasonPreview(model: model),
       ),
     ),
