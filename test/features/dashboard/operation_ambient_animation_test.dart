@@ -97,6 +97,30 @@ void main() {
     expect(painter(tester).staticFrame, isTrue);
   });
 
+  testWidgets('every waveform is clipped to its local 30px lane', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      for (final status in <OperationStatus?>[
+        null,
+        OperationStatus.green,
+        OperationStatus.yellow,
+        OperationStatus.red,
+      ]) {
+        await tester.pumpWidget(subject(status, width: width));
+        final lane = find.byKey(
+          const ValueKey('operation-ambient-animation-slot'),
+        );
+        final clip = find.byKey(
+          const ValueKey('operation-ambient-animation-clip'),
+        );
+        expect(clip, findsOneWidget);
+        expect(tester.getRect(clip), tester.getRect(lane));
+        expect(tester.getSize(clip).height, OperationAmbientAnimation.height);
+      }
+    }
+  });
+
   testWidgets('scaled status text stays centered in its scaled quiet zone', (
     tester,
   ) async {

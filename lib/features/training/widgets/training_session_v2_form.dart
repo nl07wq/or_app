@@ -100,13 +100,13 @@ class TrainingSessionV2Form extends StatelessWidget {
           AppSpacing.gapSM,
           TextField(
             controller: controller.sessionName,
-            decoration: const InputDecoration(labelText: 'Session Name'),
+            decoration: const InputDecoration(labelText: 'SESSION NAME'),
             onChanged: (_) => onChanged(),
           ),
           AppSpacing.gapSM,
           TextField(
             controller: controller.sessionMemo,
-            decoration: const InputDecoration(labelText: 'Session Memo'),
+            decoration: const InputDecoration(labelText: 'SESSION MEMO'),
             minLines: 1,
             maxLines: 2,
             onChanged: (_) => onChanged(),
@@ -115,7 +115,7 @@ class TrainingSessionV2Form extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final dynamicStretch = _TriStateField(
-                label: 'Dynamic Stretch',
+                label: 'DYNAMIC STRETCH',
                 value: controller.dynamicStretchCompleted,
                 onChanged: (value) {
                   controller.dynamicStretchCompleted = value;
@@ -123,7 +123,7 @@ class TrainingSessionV2Form extends StatelessWidget {
                 },
               );
               final cooldownStretch = _TriStateField(
-                label: 'Cooldown Stretch',
+                label: 'COOLDOWN STRETCH',
                 value: controller.cooldownStretchCompleted,
                 onChanged: (value) {
                   controller.cooldownStretchCompleted = value;
@@ -560,15 +560,15 @@ class _TriStateField extends StatelessWidget {
       items: const [
         DropdownMenuItem(
           value: 'notRecorded',
-          child: Text('Not recorded', overflow: TextOverflow.ellipsis),
+          child: Text('NOT RECORDED', overflow: TextOverflow.ellipsis),
         ),
         DropdownMenuItem(
           value: 'completed',
-          child: Text('Completed', overflow: TextOverflow.ellipsis),
+          child: Text('COMPLETED', overflow: TextOverflow.ellipsis),
         ),
         DropdownMenuItem(
           value: 'notCompleted',
-          child: Text('Not completed', overflow: TextOverflow.ellipsis),
+          child: Text('NOT COMPLETED', overflow: TextOverflow.ellipsis),
         ),
       ],
       onChanged: (value) => onChanged(switch (value) {

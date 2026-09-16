@@ -175,19 +175,22 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CustomPaint(
-                  key: const ValueKey('operation-ambient-animation-paint'),
-                  painter: OperationAmbientPulsePainter(
-                    phase: _controller,
-                    geometry: geometry,
-                    preset: preset,
-                    staticFrame: staticFrame,
-                    sweepPhase: _sweepPhase,
-                    currentTraceIndex: _currentTraceIndex,
-                    nextTraceIndex: _nextTraceIndex,
-                    noWaveInset: noWaveInset,
+                ClipRect(
+                  key: const ValueKey('operation-ambient-animation-clip'),
+                  child: CustomPaint(
+                    key: const ValueKey('operation-ambient-animation-paint'),
+                    painter: OperationAmbientPulsePainter(
+                      phase: _controller,
+                      geometry: geometry,
+                      preset: preset,
+                      staticFrame: staticFrame,
+                      sweepPhase: _sweepPhase,
+                      currentTraceIndex: _currentTraceIndex,
+                      nextTraceIndex: _nextTraceIndex,
+                      noWaveInset: noWaveInset,
+                    ),
+                    willChange: !staticFrame,
                   ),
-                  willChange: !staticFrame,
                 ),
                 if (geometry.statusLabel case final label?)
                   Positioned(

@@ -33,21 +33,21 @@ void main() {
   ) async {
     await _pump(tester, width: 320);
 
-    expect(find.text('Session Name'), findsOneWidget);
+    expect(find.text('SESSION NAME'), findsOneWidget);
     expect(find.text('Session Grade'), findsNothing);
-    expect(find.text('Session Memo'), findsOneWidget);
-    expect(find.text('Dynamic Stretch'), findsOneWidget);
-    expect(find.text('Cooldown Stretch'), findsOneWidget);
+    expect(find.text('SESSION MEMO'), findsOneWidget);
+    expect(find.text('DYNAMIC STRETCH'), findsOneWidget);
+    expect(find.text('COOLDOWN STRETCH'), findsOneWidget);
     expect(find.text('Overall Evaluation'), findsNothing);
     expect(find.text('Evaluation'), findsNothing);
     expect(find.text('Next Target'), findsNothing);
     expect(find.text('PROGRESSION'), findsNothing);
     expect(find.text('PERSONAL RECORD'), findsNothing);
-    expect(find.text('Select Exercise'), findsOneWidget);
-    expect(find.text('Equipment'), findsOneWidget);
-    expect(find.text('Set Type'), findsOneWidget);
+    expect(find.text('SELECT EXERCISE'), findsOneWidget);
+    expect(find.text('EQUIPMENT'), findsOneWidget);
+    expect(find.text('SET TYPE'), findsOneWidget);
     expect(find.text('RPE'), findsOneWidget);
-    expect(find.text('Rest'), findsOneWidget);
+    expect(find.text('REST'), findsOneWidget);
     expect(find.text('30'), findsOneWidget);
     expect(find.text('120'), findsOneWidget);
     expect(
@@ -192,7 +192,9 @@ void main() {
     );
   }
 
-  testWidgets('390px uses the compact 3 plus 2 set input grid', (tester) async {
+  testWidgets('390px keeps set type in the header and numeric inputs paired', (
+    tester,
+  ) async {
     await _pump(tester, width: 390);
 
     final setType = tester.getRect(find.byKey(const Key('v2-set-0-type')));
@@ -201,10 +203,10 @@ void main() {
     final rpe = tester.getRect(find.byKey(const Key('v2-set-0-rpe')));
     final rest = tester.getRect(find.byKey(const Key('v2-set-0-rest')));
 
-    expect(setType.top, closeTo(weight.top, 2));
+    expect(setType.bottom, lessThanOrEqualTo(weight.top));
     expect(weight.top, closeTo(reps.top, 2));
-    expect(setType.right, lessThan(weight.left));
     expect(weight.right, lessThan(reps.left));
+    expect(weight.width, closeTo(reps.width, 1));
     expect(rpe.top, closeTo(rest.top, 2));
     expect(rpe.right, lessThan(rest.left));
     expect(rpe.top, greaterThan(weight.bottom));
@@ -248,8 +250,8 @@ void main() {
           await tester.tap(find.text('ADD CARDIO'));
           await tester.pumpAndSettle();
 
-          expect(find.text('Select Cardio'), findsOneWidget);
-          expect(find.text('Select Purpose'), findsOneWidget);
+          expect(find.text('SELECT CARDIO'), findsOneWidget);
+          expect(find.text('SELECT PURPOSE'), findsOneWidget);
           expect(find.text('時間'), findsOneWidget);
           expect(find.text('距離'), findsOneWidget);
           expect(find.text('METs'), findsOneWidget);
@@ -306,16 +308,20 @@ void main() {
 
     await tester.tap(purposeField);
     await tester.pumpAndSettle();
-    expect(find.text('Warm-up'), findsOneWidget);
-    expect(find.text('Main'), findsOneWidget);
-    expect(find.text('Cool-down'), findsOneWidget);
-    await tester.tap(find.text('Main'));
+    expect(find.text('WARM-UP'), findsOneWidget);
+    expect(find.text('MAIN'), findsOneWidget);
+    expect(find.text('COOL-DOWN'), findsOneWidget);
+    await tester.tap(find.text('MAIN'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byKey(const Key('v2-cardio-0-duration')),
-      '5:00',
-    );
+    await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('05').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('APPLY'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('SAVE TRAINING'));
     await tester.pumpAndSettle();
 
@@ -333,8 +339,8 @@ void main() {
   ) async {
     await _pump(tester);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '8');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '8');
     await tester.tap(find.text('90'));
     await tester.tap(find.text('ADD SET'));
     await tester.pumpAndSettle();
@@ -407,14 +413,14 @@ void main() {
   ) async {
     await _pump(tester);
 
-    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('なし'), findsNothing);
     _setExercise(tester, 'BenchPress');
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
     await tester.pumpAndSettle();
     expect(find.text('なし'), findsOneWidget);
-    expect(find.text('Custom Equipment'), findsOneWidget);
+    expect(find.text('CUSTOM EQUIPMENT'), findsOneWidget);
     expect(find.text('45°レッグプレス'), findsNothing);
     final builtIn = find.text('パワーラック').first;
     await tester.tap(builtIn);
@@ -423,10 +429,10 @@ void main() {
 
     await tester.tap(find.byKey(const Key('v2-exercise-0-equipment')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Custom Equipment'));
+    await tester.tap(find.text('CUSTOM EQUIPMENT'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextField, 'Equipment Name'),
+      find.widgetWithText(TextField, 'EQUIPMENT NAME'),
       'Custom Handle',
     );
     await tester.tap(find.text('ADD'));
@@ -457,7 +463,7 @@ void main() {
 
     _setExercise(tester, 'LegPress');
     await tester.pumpAndSettle();
-    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('なし'), findsNothing);
   });
 
@@ -558,7 +564,7 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('ベンチプレス, collapsed'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '6');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '6');
     await tester.tap(find.text('UPDATE TRAINING'));
     await tester.pumpAndSettle();
 
@@ -605,7 +611,7 @@ void main() {
     expect(find.text('UPDATE TRAINING'), findsOneWidget);
     expect(
       tester
-          .widget<TextField>(find.widgetWithText(TextField, 'Session Name'))
+          .widget<TextField>(find.widgetWithText(TextField, 'SESSION NAME'))
           .controller!
           .text,
       'Express',
@@ -621,11 +627,11 @@ void main() {
       '2:05',
     );
     expect(find.text('推定消費カロリー'), findsOneWidget);
-    expect(find.text('Equipment'), findsNothing);
+    expect(find.text('EQUIPMENT'), findsNothing);
     expect(find.text('Minutes'), findsNothing);
     expect(find.text('Seconds'), findsNothing);
-    expect(find.text('Select Cardio'), findsNothing);
-    expect(find.text('Select Purpose'), findsNothing);
+    expect(find.text('SELECT CARDIO'), findsNothing);
+    expect(find.text('SELECT PURPOSE'), findsNothing);
     expect(find.text('距離'), findsOneWidget);
     expect(find.text('平均心拍'), findsOneWidget);
     expect(find.text('最大心拍'), findsOneWidget);
@@ -650,8 +656,8 @@ void main() {
             .controller
             .text =
         'Squat';
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '5');
 
     final save = find.text('SAVE TRAINING');
     await tester.tap(save);
@@ -668,8 +674,8 @@ void main() {
   ) async {
     final database = await _pump(tester);
     _setExercise(tester, 'Squat');
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '5');
 
     await tester.tap(find.text('SAVE TRAINING'));
     await tester.pumpAndSettle();
@@ -724,16 +730,16 @@ void main() {
       isEmpty,
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Session Name'),
+      find.widgetWithText(TextField, 'SESSION NAME'),
       'Persisted Session',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Session Memo'),
+      find.widgetWithText(TextField, 'SESSION MEMO'),
       'Reload-safe memo',
     );
     _setExercise(tester, 'Squat');
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '5');
     await tester.ensureVisible(find.text('ADD SET'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ADD SET'));
@@ -758,14 +764,14 @@ void main() {
     );
     expect(
       tester
-          .widget<TextField>(find.widgetWithText(TextField, 'Session Name'))
+          .widget<TextField>(find.widgetWithText(TextField, 'SESSION NAME'))
           .controller
           ?.text,
       'Persisted Session',
     );
     expect(
       tester
-          .widget<TextField>(find.widgetWithText(TextField, 'Session Memo'))
+          .widget<TextField>(find.widgetWithText(TextField, 'SESSION MEMO'))
           .controller
           ?.text,
       'Reload-safe memo',
@@ -974,8 +980,8 @@ void main() {
     await tester.tap(find.text('START TRAINING'));
     await tester.pump();
     _setExercise(tester, 'Squat');
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '5');
     database.failNextPutForStore = IndexedDbStoreNames.trainingRecords;
 
     await tester.ensureVisible(find.text('SAVE TRAINING'));
@@ -1134,8 +1140,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('パワーラック'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '80');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '80');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '5');
 
     await tester.tap(find.text('SAVE TRAINING'));
     await tester.pumpAndSettle();
@@ -1184,7 +1190,14 @@ void main() {
 
     await tester.tap(find.text('ADD CARDIO'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, '時間'), '5:00');
+    await tester.tap(find.widgetWithText(TextField, '時間'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('05').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('APPLY'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'METs'), '4');
     await tester.pump();
 

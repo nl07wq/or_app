@@ -5,6 +5,7 @@ import '../../../core/models/cardio_entry_v2.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../models/training_v2_form_controller.dart';
 import '../services/training_cardio_calorie_calculator.dart';
+import '../services/training_v2_form_mapper.dart';
 import 'training_collapsible_card.dart';
 
 class TrainingCardioV2Editor extends StatelessWidget {
@@ -57,7 +58,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                   items: [
                     const DropdownMenuItem(
                       value: null,
-                      child: Text('Select Cardio'),
+                      child: Text('SELECT CARDIO'),
                     ),
                     for (final type in CardioType.values)
                       DropdownMenuItem(
@@ -92,7 +93,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _pair(useTwoColumns, _purposeField(), _durationField()),
+                _pair(useTwoColumns, _purposeField(), _durationField(context)),
                 AppSpacing.gapXS,
                 _pair(
                   useTwoColumns,
@@ -182,10 +183,10 @@ class TrainingCardioV2Editor extends StatelessWidget {
     isExpanded: true,
     decoration: const InputDecoration(),
     items: const [
-      DropdownMenuItem(value: null, child: Text('Select Purpose')),
-      DropdownMenuItem(value: CardioPurpose.warmUp, child: Text('Warm-up')),
-      DropdownMenuItem(value: CardioPurpose.main, child: Text('Main')),
-      DropdownMenuItem(value: CardioPurpose.cooldown, child: Text('Cool-down')),
+      DropdownMenuItem(value: null, child: Text('SELECT PURPOSE')),
+      DropdownMenuItem(value: CardioPurpose.warmUp, child: Text('WARM-UP')),
+      DropdownMenuItem(value: CardioPurpose.main, child: Text('MAIN')),
+      DropdownMenuItem(value: CardioPurpose.cooldown, child: Text('COOL-DOWN')),
     ],
     onChanged: (value) {
       controller.purpose = value;
@@ -193,13 +194,32 @@ class TrainingCardioV2Editor extends StatelessWidget {
     },
   );
 
-  Widget _durationField() => TextField(
+  Widget _durationField(BuildContext context) => TextField(
     key: Key('v2-cardio-$index-duration'),
     controller: controller.duration,
-    decoration: const InputDecoration(labelText: '時間', hintText: 'mm:ss'),
-    keyboardType: TextInputType.text,
-    onChanged: (_) => onChanged(),
+    readOnly: true,
+    decoration: const InputDecoration(
+      labelText: '時間',
+      hintText: 'mm:ss',
+      suffixIcon: Icon(Icons.timer_outlined),
+    ),
+    onTap: () => _pickDuration(context),
   );
+
+  Future<void> _pickDuration(BuildContext context) async {
+    final initialSeconds =
+        TrainingV2FormMapper.tryParseDurationSeconds(
+          controller.duration.text,
+        ) ??
+        0;
+    final duration = await showDialog<Duration>(
+      context: context,
+      builder: (_) => _CardioDurationPicker(initialSeconds: initialSeconds),
+    );
+    if (duration == null) return;
+    controller.duration.text = _formatDuration(duration);
+    onChanged();
+  }
 
   Widget _numberField(
     TextEditingController value,
@@ -221,6 +241,118 @@ class TrainingCardioV2Editor extends StatelessWidget {
     return '$duration'
         '${controller.distance.text.trim().isEmpty ? '' : '   ${controller.distance.text.trim()} km'}';
   }
+}
+
+class _CardioDurationPicker extends StatefulWidget {
+  const _CardioDurationPicker({required this.initialSeconds});
+
+  final int initialSeconds;
+
+  @override
+  State<_CardioDurationPicker> createState() => _CardioDurationPickerState();
+}
+
+class _CardioDurationPickerState extends State<_CardioDurationPicker> {
+  late var _hours = widget.initialSeconds ~/ 3600;
+  late var _minutes = (widget.initialSeconds % 3600) ~/ 60;
+  late var _seconds = widget.initialSeconds % 60;
+
+  Duration get _duration =>
+      Duration(hours: _hours, minutes: _minutes, seconds: _seconds);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('CARDIO DURATION'),
+      content: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _hoursPicker(),
+          const SizedBox(width: AppSpacing.sm),
+          _unitPicker(
+            label: 'MINUTES',
+            value: _minutes,
+            onChanged: (value) => setState(() => _minutes = value),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _unitPicker(
+            label: 'SECONDS',
+            value: _seconds,
+            onChanged: (value) => setState(() => _seconds = value),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('CANCEL'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_duration),
+          child: const Text('APPLY'),
+        ),
+      ],
+    );
+  }
+
+  Widget _hoursPicker() => Semantics(
+    label: 'Hours',
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('HOURS'),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Decrease hours',
+              onPressed: _hours == 0 ? null : () => setState(() => _hours -= 1),
+              icon: const Icon(Icons.remove),
+            ),
+            Text('$_hours', key: const ValueKey('cardio-duration-hours')),
+            IconButton(
+              tooltip: 'Increase hours',
+              onPressed: () => setState(() => _hours += 1),
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _unitPicker({
+    required String label,
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) => SizedBox(
+    width: 72,
+    child: DropdownButtonFormField<int>(
+      key: ValueKey('cardio-duration-${label.toLowerCase()}'),
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        for (var unit = 0; unit < 60; unit++)
+          DropdownMenuItem(
+            value: unit,
+            child: Text(unit.toString().padLeft(2, '0')),
+          ),
+      ],
+      onChanged: (next) {
+        if (next != null) onChanged(next);
+      },
+    ),
+  );
+}
+
+String _formatDuration(Duration duration) {
+  final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return duration.inHours > 0
+      ? '${duration.inHours}:$minutes:$seconds'
+      : '${duration.inMinutes}:$seconds';
 }
 
 String _calculationHelp(TrainingCardioCalculationFailure? reason) {

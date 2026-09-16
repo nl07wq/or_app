@@ -25,7 +25,7 @@ class ExerciseSelector extends StatelessWidget {
             ),
             child: Text(
               selectedName.isEmpty
-                  ? 'Select Exercise'
+                  ? 'SELECT EXERCISE'
                   : exerciseDisplayName(selectedName),
             ),
           ),
@@ -133,7 +133,7 @@ class _AddCustomExerciseDialogState extends State<_AddCustomExerciseDialog> {
       content: TextField(
         controller: _nameController,
         autofocus: true,
-        decoration: const InputDecoration(labelText: 'Exercise name'),
+        decoration: const InputDecoration(labelText: 'EXERCISE NAME'),
         textCapitalization: TextCapitalization.words,
         onChanged: (_) => setState(() {}),
         onSubmitted: (value) => _registerAndClose(value),

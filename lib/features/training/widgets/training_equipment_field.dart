@@ -28,13 +28,13 @@ class TrainingEquipmentField extends StatelessWidget {
       onTap: () => _select(context),
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: hasSelection ? 'Equipment' : null,
+          labelText: hasSelection ? 'EQUIPMENT' : null,
           suffixIcon: Icon(Icons.arrow_drop_down),
         ),
         isEmpty: !hasSelection,
         child: Text(
           !hasSelection
-              ? 'Equipment'
+              ? 'EQUIPMENT'
               : value == null
               ? 'なし'
               : trainingEquipmentDisplayLabel(value!),
@@ -100,7 +100,7 @@ class _EquipmentSheet extends StatelessWidget {
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.add),
-                title: const Text('Custom Equipment'),
+                title: const Text('CUSTOM EQUIPMENT'),
                 onTap: () => _custom(context),
               ),
             ],
@@ -115,11 +115,11 @@ class _EquipmentSheet extends StatelessWidget {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Custom Equipment'),
+        title: const Text('CUSTOM EQUIPMENT'),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Equipment Name'),
+          decoration: const InputDecoration(labelText: 'EQUIPMENT NAME'),
         ),
         actions: [
           TextButton(

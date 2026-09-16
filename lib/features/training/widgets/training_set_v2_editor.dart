@@ -113,15 +113,13 @@ class _SetEditor extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final title = Text(
                   'SET ${index + 1}',
                   style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Row(
+                );
+                final actions = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (previous != null)
@@ -144,46 +142,54 @@ class _SetEditor extends StatelessWidget {
                       onPressed: onDelete,
                     ),
                   ],
-                ),
-              ],
-            ),
-            LayoutBuilder(
-              builder: (context, constraints) {
+                );
                 final setType = _setTypeField();
-                final weight = _numberField(
-                  key: Key('v2-set-$index-weight'),
-                  controller: set.weight,
-                  label: 'Weight',
-                  suffix: 'kg',
-                  decimal: true,
-                );
-                final reps = _numberField(
-                  key: Key('v2-set-$index-reps'),
-                  controller: set.reps,
-                  label: 'Reps',
-                );
-                if (constraints.maxWidth < 300) {
+                if (constraints.maxWidth < 320) {
                   return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      setType,
-                      AppSpacing.gapSM,
                       Row(
                         children: [
-                          Expanded(child: weight),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(child: reps),
+                          Expanded(child: title),
+                          actions,
                         ],
+                      ),
+                      AppSpacing.gapXS,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(width: 112, child: setType),
                       ),
                     ],
                   );
                 }
                 return Row(
                   children: [
-                    Expanded(flex: 4, child: setType),
+                    Expanded(child: title),
+                    SizedBox(width: 112, child: setType),
+                    actions,
+                  ],
+                );
+              },
+            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final weight = _numberField(
+                  key: Key('v2-set-$index-weight'),
+                  controller: set.weight,
+                  label: 'WEIGHT',
+                  suffix: 'kg',
+                  decimal: true,
+                );
+                final reps = _numberField(
+                  key: Key('v2-set-$index-reps'),
+                  controller: set.reps,
+                  label: 'REPS',
+                );
+                return Row(
+                  children: [
+                    Expanded(child: weight),
                     const SizedBox(width: AppSpacing.sm),
-                    Expanded(flex: 3, child: weight),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(flex: 3, child: reps),
+                    Expanded(child: reps),
                   ],
                 );
               },
@@ -219,12 +225,7 @@ class _SetEditor extends StatelessWidget {
               builder: (context, constraints) => Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (constraints.maxWidth >= 300) ...[
-                    const Spacer(flex: 4),
-                    const SizedBox(width: AppSpacing.sm),
-                  ],
                   Expanded(
-                    flex: constraints.maxWidth >= 300 ? 3 : 1,
                     child: Column(
                       children: [
                         _AdjustmentGrid(
@@ -244,7 +245,6 @@ class _SetEditor extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    flex: constraints.maxWidth >= 300 ? 3 : 1,
                     child: Column(
                       children: [
                         _AdjustmentGrid(
@@ -275,13 +275,13 @@ class _SetEditor extends StatelessWidget {
                   items: [
                     const DropdownMenuItem(
                       value: null,
-                      child: Text('Not recorded'),
+                      child: Text('NOT RECORDED'),
                     ),
                     for (var value = 1; value <= 10; value++)
                       DropdownMenuItem(value: value, child: Text('$value')),
                   ],
                   selectedItemBuilder: (context) => [
-                    const Text('Not recorded', overflow: TextOverflow.ellipsis),
+                    const Text('NOT RECORDED', overflow: TextOverflow.ellipsis),
                     for (var value = 1; value <= 10; value++) Text('$value'),
                   ],
                   onChanged: (value) {
@@ -292,7 +292,7 @@ class _SetEditor extends StatelessWidget {
                 final rest = _numberField(
                   key: Key('v2-set-$index-rest'),
                   controller: set.rest,
-                  label: 'Rest',
+                  label: 'REST',
                   suffix: 'sec',
                 );
                 return constraints.maxWidth < 300
@@ -357,13 +357,13 @@ class _SetEditor extends StatelessWidget {
     initialValue: set.setType,
     isExpanded: true,
     decoration: const InputDecoration(
-      labelText: 'Set Type',
+      labelText: 'SET TYPE',
       isDense: true,
-      contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+      contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
     ),
     items: const [
-      DropdownMenuItem(value: TrainingSetType.warmUp, child: Text('Warm-up')),
-      DropdownMenuItem(value: TrainingSetType.main, child: Text('Main')),
+      DropdownMenuItem(value: TrainingSetType.warmUp, child: Text('WARM-UP')),
+      DropdownMenuItem(value: TrainingSetType.main, child: Text('MAIN')),
     ],
     onChanged: (value) {
       if (value == null) return;

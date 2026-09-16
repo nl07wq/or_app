@@ -60,7 +60,7 @@ class _EquipmentSelectorState extends State<EquipmentSelector> {
               onTap: () => _openSelector(context, equipment),
               child: InputDecorator(
                 decoration: const InputDecoration(
-                  labelText: 'Equipment',
+                  labelText: 'EQUIPMENT',
                   suffixIcon: Icon(Icons.arrow_drop_down),
                   constraints: BoxConstraints(minHeight: 56),
                 ),

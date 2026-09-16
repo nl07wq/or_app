@@ -52,30 +52,30 @@ void main() {
       find.byKey(const ValueKey('reps-adjust--10')),
     );
     final weightField = tester.getRect(
-      find.widgetWithText(TextField, 'Weight'),
+      find.widgetWithText(TextField, 'WEIGHT'),
     );
-    final repsField = tester.getRect(find.widgetWithText(TextField, 'Reps'));
+    final repsField = tester.getRect(find.widgetWithText(TextField, 'REPS'));
     expect(weightField.center.dy, closeTo(repsField.center.dy, 0.1));
     expect(weightButton.top, greaterThan(weightField.bottom));
     expect(weightButton.right, lessThan(repButton.left));
 
     await tester.tap(find.byKey(const ValueKey('weight-adjust-2.5')));
     expect(weightController.text, '82.5');
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '81.25');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '81.25');
     await tester.tap(find.byKey(const ValueKey('weight-adjust--2.5')));
     expect(weightController.text, '78.75');
 
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '5');
     await tester.tap(find.byKey(const ValueKey('weight-adjust--10.0')));
     expect(weightController.text, '0');
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '2.5');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '2.5');
     await tester.tap(find.byKey(const ValueKey('weight-adjust--5.0')));
     expect(weightController.text, '0');
 
     await tester.tap(find.byKey(const ValueKey('reps-adjust-5')));
     expect(repsController.text, '15');
 
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '3');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '3');
     await tester.tap(find.byKey(const ValueKey('reps-adjust-1')));
     expect(repsController.text, '4');
 
@@ -88,7 +88,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('reps-adjust--5')));
     expect(repsController.text, '0');
 
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '20');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '20');
     await tester.tap(find.byKey(const ValueKey('reps-adjust--1')));
     expect(repsController.text, '19');
     expect(activations, greaterThan(0));
@@ -121,7 +121,7 @@ void main() {
 
     expect(find.byType(OutlinedButton), findsNothing);
 
-    final repsFields = find.widgetWithText(TextField, 'Reps');
+    final repsFields = find.widgetWithText(TextField, 'REPS');
     await tester.tap(repsFields.first);
     await tester.pumpAndSettle();
 
@@ -224,13 +224,13 @@ void main() {
         .getSize(find.byKey(const Key('exercise-selector')))
         .height;
     final weightFieldHeight = tester
-        .getSize(find.widgetWithText(TextField, 'Weight'))
+        .getSize(find.widgetWithText(TextField, 'WEIGHT'))
         .height;
     final equipmentSelectorHeight = tester
         .getSize(find.byKey(const Key('equipment-selector')))
         .height;
     final repsFieldHeight = tester
-        .getSize(find.widgetWithText(TextField, 'Reps'))
+        .getSize(find.widgetWithText(TextField, 'REPS'))
         .height;
     final addSetButtonHeight = tester
         .getSize(find.widgetWithText(ElevatedButton, 'ADD SET'))
@@ -251,7 +251,7 @@ void main() {
       find.byKey(const Key('training-history-preview')),
     );
     final firstSetFieldRect = tester.getRect(
-      find.widgetWithText(TextField, 'Weight'),
+      find.widgetWithText(TextField, 'WEIGHT'),
     );
     expect(equipmentRect.top, greaterThan(selectorRect.bottom));
     expect(previousRect.top, greaterThan(equipmentRect.bottom));

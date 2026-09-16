@@ -345,7 +345,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Delete exercise'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Weight'), findsNWidgets(3));
+    expect(find.widgetWithText(TextField, 'WEIGHT'), findsNWidgets(3));
 
     await tester.tap(
       find.byKey(ValueKey('exercise-header-${identityHashCode(controller)}')),
@@ -356,7 +356,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final weightFields = find.widgetWithText(TextField, 'Weight');
+    final weightFields = find.widgetWithText(TextField, 'WEIGHT');
     expect(tester.widget<TextField>(weightFields.at(0)).controller!.text, '65');
     expect(tester.widget<TextField>(weightFields.at(1)).controller!.text, '60');
     expect(
@@ -477,8 +477,8 @@ void main() {
         .widget<ExerciseSelector>(find.byType(ExerciseSelector))
         .controller;
     exerciseController.text = 'BenchPress';
-    await tester.enterText(find.widgetWithText(TextField, 'Weight'), '65');
-    await tester.enterText(find.widgetWithText(TextField, 'Reps'), '10');
+    await tester.enterText(find.widgetWithText(TextField, 'WEIGHT'), '65');
+    await tester.enterText(find.widgetWithText(TextField, 'REPS'), '10');
     await tester.tap(find.bySemanticsLabel('ベンチプレス, expanded'));
     await tester.pumpAndSettle();
 

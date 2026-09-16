@@ -217,7 +217,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('なし'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('equipment-selector')));
@@ -283,7 +283,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Equipment'), findsOneWidget);
+    expect(find.text('EQUIPMENT'), findsOneWidget);
     expect(find.text('TECHNOGYM ラットプルダウン'), findsOneWidget);
     expect(controller.value, 'technogym_lat_pulldown');
     expect(tester.takeException(), isNull);
