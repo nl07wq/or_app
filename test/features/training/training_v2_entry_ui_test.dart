@@ -17,8 +17,10 @@ import 'package:or_app/features/training/models/active_training_draft.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/repository/active_training_draft_repository.dart';
 import 'package:or_app/features/training/repository/indexed_db_active_training_draft_repository.dart';
+import 'package:or_app/features/training/services/training_v2_form_mapper.dart';
 import 'package:or_app/features/training/training_entry_page.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
+import 'package:or_app/features/training/widgets/training_cardio_v2_editor.dart';
 import 'package:or_app/features/training/widgets/training_exercise_v2_editor.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -212,6 +214,65 @@ void main() {
     expect(rpe.top, greaterThan(weight.bottom));
   });
 
+  for (final width in <double>[320, 390, 900]) {
+    testWidgets('session memo keeps a balanced multiline field at '
+        '${width.toInt()}px', (tester) async {
+      await _pump(tester, width: width);
+
+      final sessionName = find.widgetWithText(TextField, 'SESSION NAME');
+      final sessionMemo = find.widgetWithText(TextField, 'SESSION MEMO');
+      final memoField = tester.widget<TextField>(sessionMemo);
+
+      expect(memoField.minLines, 2);
+      expect(memoField.maxLines, 3);
+      expect(
+        tester.getSize(sessionMemo).height,
+        greaterThan(tester.getSize(sessionName).height * 1.35),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('training selectors use the compact 14px value typography', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+    const compactValueSize = 14.0;
+
+    TextStyle? selectedStyle(Finder field) {
+      final dropdown = find.descendant(
+        of: field,
+        matching: find.byWidgetPredicate((widget) => widget is DropdownButton),
+      );
+      return tester.widget<DropdownButton<dynamic>>(dropdown).style;
+    }
+
+    for (final field in [
+      find.byType(DropdownButtonFormField<String>).first,
+      find.byType(DropdownButtonFormField<TrainingSetType>),
+      find.byType(DropdownButtonFormField<int?>),
+    ]) {
+      expect(selectedStyle(field)!.fontSize, compactValueSize);
+    }
+    expect(
+      tester.widget<Text>(find.text('SELECT EXERCISE')).style!.fontSize,
+      compactValueSize,
+    );
+    expect(
+      tester.widget<Text>(find.text('EQUIPMENT')).style!.fontSize,
+      compactValueSize,
+    );
+
+    await tester.tap(find.text('ADD CARDIO'));
+    await tester.pumpAndSettle();
+    for (final field in [
+      find.byType(DropdownButtonFormField<CardioType?>),
+      find.byType(DropdownButtonFormField<CardioPurpose?>),
+    ]) {
+      expect(selectedStyle(field)!.fontSize, compactValueSize);
+    }
+  });
+
   for (final width in <double>[320, 390]) {
     testWidgets('weight and reps controls stay paired in compact grids at '
         '${width.toInt()}px', (tester) async {
@@ -332,6 +393,107 @@ void main() {
     expect(cardio['type'], CardioType.running.name);
     expect(cardio['purpose'], CardioPurpose.main.stableId);
     expect(cardio['durationSeconds'], 300);
+  });
+
+  testWidgets('cardio duration picker updates draft values live and commits '
+      'only on APPLY', (tester) async {
+    await _pump(tester, width: 390);
+    await tester.tap(find.text('ADD CARDIO'));
+    await tester.pumpAndSettle();
+
+    final cardio = tester.widget<TrainingCardioV2Editor>(
+      find.byType(TrainingCardioV2Editor),
+    );
+    await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('06').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('cardio-duration-minutes-value-6')),
+      findsOneWidget,
+    );
+    expect(cardio.controller.duration.text, isEmpty);
+
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-seconds')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('cardio-duration-seconds-value-30')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Increase hours'));
+    await tester.pump();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('cardio-duration-hours')))
+          .data,
+      '1',
+    );
+    await tester.tap(find.byTooltip('Increase hours'));
+    await tester.pump();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('cardio-duration-hours')))
+          .data,
+      '2',
+    );
+
+    await tester.tap(find.text('CANCEL'));
+    await tester.pumpAndSettle();
+    expect(cardio.controller.duration.text, isEmpty);
+
+    await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('cardio-duration-minutes-value-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('cardio-duration-seconds-value-0')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Increase hours'));
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('06').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-seconds')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('APPLY'));
+    await tester.pumpAndSettle();
+
+    expect(cardio.controller.duration.text, '1:06:30');
+    expect(
+      TrainingV2FormMapper.parseDurationSeconds(
+        cardio.controller.duration.text,
+      ),
+      3990,
+    );
+
+    await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('cardio-duration-hours')))
+          .data,
+      '1',
+    );
+    expect(
+      find.byKey(const ValueKey('cardio-duration-minutes-value-6')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('cardio-duration-seconds-value-30')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('ADD SET preserves copy actions and rest presets', (

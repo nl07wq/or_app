@@ -38,6 +38,7 @@ class TrainingEquipmentField extends StatelessWidget {
               : value == null
               ? 'なし'
               : trainingEquipmentDisplayLabel(value!),
+          style: Theme.of(context).textTheme.bodyLarge,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

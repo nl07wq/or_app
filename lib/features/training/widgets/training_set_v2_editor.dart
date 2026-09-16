@@ -143,7 +143,7 @@ class _SetEditor extends StatelessWidget {
                     ),
                   ],
                 );
-                final setType = _setTypeField();
+                final setType = _setTypeField(context);
                 if (constraints.maxWidth < 320) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -271,6 +271,7 @@ class _SetEditor extends StatelessWidget {
                   key: Key('v2-set-$index-rpe'),
                   initialValue: set.rpe,
                   isExpanded: true,
+                  style: Theme.of(context).textTheme.bodyLarge,
                   decoration: const InputDecoration(labelText: 'RPE'),
                   items: [
                     const DropdownMenuItem(
@@ -352,25 +353,30 @@ class _SetEditor extends StatelessWidget {
     );
   }
 
-  Widget _setTypeField() => DropdownButtonFormField<TrainingSetType>(
-    key: Key('v2-set-$index-type'),
-    initialValue: set.setType,
-    isExpanded: true,
-    decoration: const InputDecoration(
-      labelText: 'SET TYPE',
-      isDense: true,
-      contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-    ),
-    items: const [
-      DropdownMenuItem(value: TrainingSetType.warmUp, child: Text('WARM-UP')),
-      DropdownMenuItem(value: TrainingSetType.main, child: Text('MAIN')),
-    ],
-    onChanged: (value) {
-      if (value == null) return;
-      set.setType = value;
-      onChanged();
-    },
-  );
+  Widget _setTypeField(BuildContext context) =>
+      DropdownButtonFormField<TrainingSetType>(
+        key: Key('v2-set-$index-type'),
+        initialValue: set.setType,
+        isExpanded: true,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: const InputDecoration(
+          labelText: 'SET TYPE',
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        ),
+        items: const [
+          DropdownMenuItem(
+            value: TrainingSetType.warmUp,
+            child: Text('WARM-UP'),
+          ),
+          DropdownMenuItem(value: TrainingSetType.main, child: Text('MAIN')),
+        ],
+        onChanged: (value) {
+          if (value == null) return;
+          set.setType = value;
+          onChanged();
+        },
+      );
 
   void _copy(TextEditingController source, TextEditingController target) {
     target.text = source.text;

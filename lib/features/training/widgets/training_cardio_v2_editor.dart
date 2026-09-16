@@ -54,6 +54,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                   key: Key('v2-cardio-$index-type'),
                   initialValue: controller.type,
                   isExpanded: true,
+                  style: Theme.of(context).textTheme.bodyLarge,
                   decoration: const InputDecoration(),
                   items: [
                     const DropdownMenuItem(
@@ -93,7 +94,11 @@ class TrainingCardioV2Editor extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _pair(useTwoColumns, _purposeField(), _durationField(context)),
+                _pair(
+                  useTwoColumns,
+                  _purposeField(context),
+                  _durationField(context),
+                ),
                 AppSpacing.gapXS,
                 _pair(
                   useTwoColumns,
@@ -177,22 +182,27 @@ class TrainingCardioV2Editor extends StatelessWidget {
     );
   }
 
-  Widget _purposeField() => DropdownButtonFormField<CardioPurpose?>(
-    key: Key('v2-cardio-$index-purpose'),
-    initialValue: controller.purpose,
-    isExpanded: true,
-    decoration: const InputDecoration(),
-    items: const [
-      DropdownMenuItem(value: null, child: Text('SELECT PURPOSE')),
-      DropdownMenuItem(value: CardioPurpose.warmUp, child: Text('WARM-UP')),
-      DropdownMenuItem(value: CardioPurpose.main, child: Text('MAIN')),
-      DropdownMenuItem(value: CardioPurpose.cooldown, child: Text('COOL-DOWN')),
-    ],
-    onChanged: (value) {
-      controller.purpose = value;
-      onChanged();
-    },
-  );
+  Widget _purposeField(BuildContext context) =>
+      DropdownButtonFormField<CardioPurpose?>(
+        key: Key('v2-cardio-$index-purpose'),
+        initialValue: controller.purpose,
+        isExpanded: true,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: const InputDecoration(),
+        items: const [
+          DropdownMenuItem(value: null, child: Text('SELECT PURPOSE')),
+          DropdownMenuItem(value: CardioPurpose.warmUp, child: Text('WARM-UP')),
+          DropdownMenuItem(value: CardioPurpose.main, child: Text('MAIN')),
+          DropdownMenuItem(
+            value: CardioPurpose.cooldown,
+            child: Text('COOL-DOWN'),
+          ),
+        ],
+        onChanged: (value) {
+          controller.purpose = value;
+          onChanged();
+        },
+      );
 
   Widget _durationField(BuildContext context) => TextField(
     key: Key('v2-cardio-$index-duration'),
@@ -326,25 +336,30 @@ class _CardioDurationPickerState extends State<_CardioDurationPicker> {
     required String label,
     required int value,
     required ValueChanged<int> onChanged,
-  }) => SizedBox(
-    width: 72,
-    child: DropdownButtonFormField<int>(
-      key: ValueKey('cardio-duration-${label.toLowerCase()}'),
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: label),
-      items: [
-        for (var unit = 0; unit < 60; unit++)
-          DropdownMenuItem(
-            value: unit,
-            child: Text(unit.toString().padLeft(2, '0')),
-          ),
-      ],
-      onChanged: (next) {
-        if (next != null) onChanged(next);
-      },
-    ),
-  );
+  }) {
+    final fieldKey = 'cardio-duration-${label.toLowerCase()}';
+    return SizedBox(
+      key: ValueKey(fieldKey),
+      width: 64,
+      child: DropdownButtonFormField<int>(
+        key: ValueKey('$fieldKey-value-$value'),
+        initialValue: value,
+        isExpanded: true,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: InputDecoration(labelText: label),
+        items: [
+          for (var unit = 0; unit < 60; unit++)
+            DropdownMenuItem(
+              value: unit,
+              child: Text(unit.toString().padLeft(2, '0')),
+            ),
+        ],
+        onChanged: (next) {
+          if (next != null) onChanged(next);
+        },
+      ),
+    );
+  }
 }
 
 String _formatDuration(Duration duration) {

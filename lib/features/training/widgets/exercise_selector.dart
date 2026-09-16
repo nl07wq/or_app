@@ -27,6 +27,7 @@ class ExerciseSelector extends StatelessWidget {
               selectedName.isEmpty
                   ? 'SELECT EXERCISE'
                   : exerciseDisplayName(selectedName),
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
         );

@@ -107,8 +107,8 @@ class TrainingSessionV2Form extends StatelessWidget {
           TextField(
             controller: controller.sessionMemo,
             decoration: const InputDecoration(labelText: 'SESSION MEMO'),
-            minLines: 1,
-            maxLines: 2,
+            minLines: 2,
+            maxLines: 3,
             onChanged: (_) => onChanged(),
           ),
           AppSpacing.gapSM,
@@ -551,6 +551,7 @@ class _TriStateField extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       isExpanded: true,
+      style: Theme.of(context).textTheme.bodyLarge,
       initialValue: switch (value) {
         true => 'completed',
         false => 'notCompleted',
