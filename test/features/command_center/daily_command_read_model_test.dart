@@ -58,6 +58,7 @@ void main() {
       for (final model in [first, afterOtherStatusUpdate]) {
         expect(model.operationStatus?.name, 'yellow');
         expect(model.statusReason, 'formal situation');
+        expect(model.statusReasonSummary, 'formal situation');
         expect(model.commanderIntent, 'formal intent');
         expect(model.morningBriefSummary, 'formal argo comment');
       }
@@ -71,8 +72,17 @@ void main() {
 
       expect(model.operationStatus, isNull);
       expect(model.statusReason, '当日のMORNING BRIEFが未登録です。');
+      expect(model.statusReasonSummary, '当日のMORNING BRIEFが未登録です。');
       expect(model.commanderIntent, isNull);
       expect(model.morningBriefSummary, isNull);
+    });
+
+    test('uses the current-format OVERALL judgement for the quick reason', () {
+      final model = _build(status: _status(), morningBrief: _morningBriefV2());
+
+      expect(model.operationStatus?.name, 'red');
+      expect(model.statusReason, contains('BODY: formal body'));
+      expect(model.statusReasonSummary, '優先度を落として回復を優先してください。');
     });
 
     test('derives REVIEW READY when required modules are valid', () {
@@ -215,6 +225,43 @@ MorningBriefRecord _morningBrief({String localDate = '2026-08-01'}) =>
       createdAt: DateTime.utc(2026, 8, 1),
       updatedAt: DateTime.utc(2026, 8, 1),
     );
+
+MorningBriefRecord _morningBriefV2() {
+  final timestamp = DateTime.utc(2026, 8, 1);
+  return MorningBriefRecord.v2(
+    localDate: '2026-08-01',
+    sourceType: 'status',
+    sourceOperationDate: '2026-08-01',
+    sourceRecordId: 'status-1',
+    sourceDigest:
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    responseDigest:
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    exchangeId: 'exchange-1',
+    generatedAt: timestamp,
+    importedAt: timestamp,
+    situationAnalysisV2: const MorningBriefSituationAnalysis(
+      body: 'formal body',
+      recovery: 'formal recovery',
+      condition: 'formal condition',
+      work: 'formal work',
+      carryover: 'formal carryover',
+      overall: '優先度を落として回復を優先してください。',
+    ),
+    operatingPolicy: 'formal policy',
+    strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
+      decision: 'formal decision',
+      targetResource: null,
+      rationale: 'formal rationale',
+      execution: null,
+    ),
+    operationStatus: MorningBriefOperationStatus.red,
+    commanderIntent: 'formal intent',
+    actions: const [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
+}
 
 MorningFact _status({double weight = 80}) => MorningFact(
   date: DateTime(2026, 8, 1),

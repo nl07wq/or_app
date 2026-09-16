@@ -46,6 +46,11 @@ class DailyCommandReadModel {
   final DailyCommandCycleState cycleState;
   final OperationStatus? operationStatus;
   final String statusReason;
+
+  /// The canonical concise status rationale when the current DAILY BRIEF
+  /// provides one. The full [statusReason] remains available to the surfaces
+  /// that need the complete analysis.
+  final String statusReasonSummary;
   final String? commanderIntent;
   final String? morningBriefSummary;
   final DailyCommandModuleState statusModuleState;
@@ -65,6 +70,7 @@ class DailyCommandReadModel {
     required this.cycleState,
     required this.operationStatus,
     required this.statusReason,
+    required this.statusReasonSummary,
     required this.commanderIntent,
     required this.morningBriefSummary,
     required this.statusModuleState,

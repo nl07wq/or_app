@@ -594,7 +594,9 @@ class _DailyCommandStatusReasonPreview extends StatelessWidget {
         Text('判定理由', style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          status == null ? 'DAILY BRIEF未作成\n判定理由はまだありません' : model.statusReason,
+          status == null
+              ? 'DAILY BRIEF未作成\n判定理由はまだありません'
+              : model.statusReasonSummary,
           key: const ValueKey('daily-command-status-reason-preview'),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
@@ -816,7 +818,7 @@ class DailyCommandAmbientHudGeometry {
   static const horizontalPadding = 6.0;
   static const verticalPadding = 3.0;
   static const cornerArmLength = 4.0;
-  static const cornerInset = 3.0;
+  static const cornerInset = 3.5;
   static const cornerStrokeWidth = 1.0;
   static const bracketOpacity = .58;
   static const identifierFontSize = 6.0;

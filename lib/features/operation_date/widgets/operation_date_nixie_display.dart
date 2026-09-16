@@ -71,10 +71,18 @@ class NixiePresentationColors {
   NixiePresentationColors._();
 
   static const active = Color(0xFFFFA24A);
-  static const glow = Color(0x99F35A24);
+  static const innerGlow = Color(0xCCFF6A26);
+  static const glow = Color(0xB3F35A24);
+  static const outerGlow = Color(0x66D9431F);
   static const inactive = Color(0x05FF8A3D);
   static const frame = Color(0x66F06A32);
   static const surface = Color(0xFF17100E);
+
+  static const activeShadows = <Shadow>[
+    Shadow(color: innerGlow, blurRadius: 3),
+    Shadow(color: glow, blurRadius: 7),
+    Shadow(color: outerGlow, blurRadius: 11),
+  ];
 }
 
 class _OperationDateNixieCalendar extends StatefulWidget {
@@ -400,10 +408,7 @@ class NixieTubeCell extends StatelessWidget {
                 fontSize: 20,
                 height: 1,
                 color: NixiePresentationColors.active,
-                shadows: [
-                  Shadow(color: NixiePresentationColors.glow, blurRadius: 3),
-                  Shadow(color: NixiePresentationColors.glow, blurRadius: 7),
-                ],
+                shadows: NixiePresentationColors.activeShadows,
               ),
             ),
           ),

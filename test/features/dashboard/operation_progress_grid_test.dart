@@ -48,7 +48,7 @@ void main() {
   test('Ambient monitor HUD geometry stays compact and symmetric', () {
     expect(DailyCommandAmbientHudGeometry.cornerArmLength, 4);
     expect(DailyCommandAmbientHudGeometry.cornerStrokeWidth, 1);
-    expect(DailyCommandAmbientHudGeometry.cornerInset, 3);
+    expect(DailyCommandAmbientHudGeometry.cornerInset, 3.5);
     expect(DailyCommandAmbientHudGeometry.bracketOpacity, .58);
     expect(DailyCommandAmbientHudGeometry.identifierFontSize, 6);
     expect(DailyCommandAmbientHudGeometry.identifierOpacity, .58);
@@ -76,6 +76,17 @@ void main() {
         ),
       );
     }
+  });
+
+  test('NIXIE active digits keep a crisp core with stronger layered glow', () {
+    expect(NixiePresentationColors.active, const Color(0xFFFFA24A));
+    expect(NixiePresentationColors.innerGlow, const Color(0xCCFF6A26));
+    expect(NixiePresentationColors.glow, const Color(0xB3F35A24));
+    expect(NixiePresentationColors.outerGlow, const Color(0x66D9431F));
+    expect(
+      NixiePresentationColors.activeShadows.map((shadow) => shadow.blurRadius),
+      [3, 7, 11],
+    );
   });
 
   test('context popover edge selection uses the actual viewport center', () {

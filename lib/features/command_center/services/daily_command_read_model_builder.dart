@@ -54,6 +54,7 @@ abstract final class DailyCommandReadModelBuilder {
             ),
       statusReason:
           currentMorningBrief?.situationAnalysis ?? '当日のMORNING BRIEFが未登録です。',
+      statusReasonSummary: _statusReasonSummary(currentMorningBrief),
       commanderIntent: currentMorningBrief?.commanderIntent,
       morningBriefSummary: currentMorningBrief?.argoComment,
       statusModuleState: _requiredState(validation.statusCompleteness),
@@ -104,6 +105,29 @@ abstract final class DailyCommandReadModelBuilder {
     if (!validation.statusValid) return DailyCommandCycleState.standby;
     if (validation.canFinalize) return DailyCommandCycleState.reviewReady;
     return DailyCommandCycleState.active;
+  }
+
+  /// The current-format Brief stores OVERALL as the canonical concise
+  /// judgement. Legacy records have no equivalent field, so keep complete
+  /// sentence boundaries from their canonical analysis rather than clipping
+  /// arbitrary characters.
+  static String _statusReasonSummary(MorningBriefRecord? morningBrief) {
+    final overall = morningBrief?.situationAnalysisV2?.overall.trim();
+    if (overall != null && overall.isNotEmpty) return overall;
+    return _firstSentences(
+      morningBrief?.situationAnalysis ?? '当日のMORNING BRIEFが未登録です。',
+    );
+  }
+
+  static String _firstSentences(String source) {
+    final normalized = source.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final sentences = RegExp(r'[^。！？!?]+[。！？!?]?')
+        .allMatches(normalized)
+        .map((match) => match.group(0)!.trim())
+        .where((sentence) => sentence.isNotEmpty)
+        .take(2)
+        .toList();
+    return sentences.isEmpty ? normalized : sentences.join();
   }
 
   static DailyCommandModuleState _requiredState(
