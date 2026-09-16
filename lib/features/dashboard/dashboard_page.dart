@@ -931,7 +931,7 @@ class DailyCommandAmbientHudGeometry {
   static const horizontalPadding = 6.0;
   static const verticalPadding = 3.0;
   static const cornerArmLength = 4.0;
-  static const cornerInset = 2.25;
+  static const cornerInset = 3.0;
   static const cornerStrokeWidth = 1.0;
   static const bracketOpacity = .58;
   static const identifierFontSize = 6.0;

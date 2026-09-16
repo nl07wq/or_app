@@ -43,7 +43,7 @@ void main() {
   test('Ambient monitor HUD geometry stays compact and symmetric', () {
     expect(DailyCommandAmbientHudGeometry.cornerArmLength, 4);
     expect(DailyCommandAmbientHudGeometry.cornerStrokeWidth, 1);
-    expect(DailyCommandAmbientHudGeometry.cornerInset, 2.25);
+    expect(DailyCommandAmbientHudGeometry.cornerInset, 3);
     expect(DailyCommandAmbientHudGeometry.bracketOpacity, .58);
     expect(DailyCommandAmbientHudGeometry.identifierFontSize, 6);
     expect(DailyCommandAmbientHudGeometry.identifierOpacity, .58);
