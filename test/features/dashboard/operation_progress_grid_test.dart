@@ -1597,6 +1597,15 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
       35,
     );
+    final neonWordmark = tester.widget<Text>(
+      find.byKey(const ValueKey('dashboard-brand-wordmark')),
+    );
+    expect(neonWordmark.style!.shadows, hasLength(3));
+    expect(neonWordmark.style!.color, const Color(0xFFE2F9FF));
+    expect(
+      find.byKey(const ValueKey('dashboard-neon-brand-mark')),
+      findsOneWidget,
+    );
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),

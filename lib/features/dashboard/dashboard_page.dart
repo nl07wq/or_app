@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -56,6 +57,94 @@ import '../report_sync/models/morning_brief_state.dart';
 import 'models/dynamic_daily_target.dart';
 import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
+
+/// A single, pre-planned electrical phase for the Dashboard brand sign.
+///
+/// The phases are intentionally data rather than frame-time randomness: an
+/// event chooses one plan once, then plays it deterministically to recovery.
+@immutable
+class DashboardNeonFaultPhase {
+  const DashboardNeonFaultPhase({
+    required this.duration,
+    required this.coreIntensity,
+    required this.innerGlowIntensity,
+    required this.outerGlowIntensity,
+    required this.logoIntensity,
+  });
+
+  final Duration duration;
+  final double coreIntensity;
+  final double innerGlowIntensity;
+  final double outerGlowIntensity;
+  final double logoIntensity;
+
+  bool get isFullyIlluminated =>
+      coreIntensity == 1 &&
+      innerGlowIntensity == 1 &&
+      outerGlowIntensity == 1 &&
+      logoIntensity == 1;
+}
+
+/// The small set of irregular, old-neon fault plans used by the header.
+class DashboardNeonFaultPatterns {
+  DashboardNeonFaultPatterns._();
+
+  static const minimumInterval = Duration(seconds: 20);
+  static const maximumInterval = Duration(seconds: 60);
+
+  static const stable = DashboardNeonFaultPhase(
+    duration: Duration.zero,
+    coreIntensity: 1,
+    innerGlowIntensity: 1,
+    outerGlowIntensity: 1,
+    logoIntensity: 1,
+  );
+
+  static const _dim = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 70),
+    coreIntensity: .28,
+    innerGlowIntensity: .16,
+    outerGlowIntensity: .05,
+    logoIntensity: .3,
+  );
+  static const _off = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 42),
+    coreIntensity: 0,
+    innerGlowIntensity: 0,
+    outerGlowIntensity: 0,
+    logoIntensity: .08,
+  );
+  static const _recovery = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 90),
+    coreIntensity: 1,
+    innerGlowIntensity: .72,
+    outerGlowIntensity: .5,
+    logoIntensity: .72,
+  );
+  static const _partial = DashboardNeonFaultPhase(
+    duration: Duration(milliseconds: 74),
+    coreIntensity: .14,
+    innerGlowIntensity: .08,
+    outerGlowIntensity: .02,
+    logoIntensity: .55,
+  );
+
+  /// Each plan is 150--600ms, begins stable, and always settles stable.
+  static const patterns = <List<DashboardNeonFaultPhase>>[
+    [stable, _dim, _recovery, stable],
+    [stable, _off, _recovery, _dim, _recovery, stable],
+    [stable, _dim, _off, _recovery, stable],
+    [stable, _partial, _off, _recovery, _dim, _recovery, stable],
+  ];
+
+  static Duration intervalFor(math.Random random) {
+    final span =
+        maximumInterval.inMilliseconds - minimumInterval.inMilliseconds;
+    return Duration(
+      milliseconds: minimumInterval.inMilliseconds + random.nextInt(span + 1),
+    );
+  }
+}
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -138,19 +227,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
                         return Scaffold(
                           appBar: AppBar(
-                            title: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(
-                                  'assets/icons/orlo_logo_1024_transparent.png',
-                                  key: const ValueKey('dashboard-brand-logo'),
-                                  height: 35,
-                                  fit: BoxFit.contain,
-                                ),
-                                const SizedBox(width: AppSpacing.xs),
-                                const Text('O.R.L.O.'),
-                              ],
-                            ),
+                            title: const _DashboardNeonBrandMark(),
                             actions: const [SystemMenuButton()],
                           ),
                           body: LayoutBuilder(
@@ -1845,6 +1922,182 @@ class _CommandCenterButton extends StatelessWidget {
       onPressed: () {
         Navigator.pushNamed(context, AppRoutes.commandCenter);
       },
+    );
+  }
+}
+
+/// Isolated AppBar-title renderer for the O.R.L.O. neon sign.  It remains
+/// idle while lit normally; timers exist only to schedule and play rare fault
+/// events, so the Dashboard itself is never rebuilt for the effect.
+class _DashboardNeonBrandMark extends StatefulWidget {
+  const _DashboardNeonBrandMark();
+
+  @override
+  State<_DashboardNeonBrandMark> createState() =>
+      _DashboardNeonBrandMarkState();
+}
+
+class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
+    with WidgetsBindingObserver {
+  final math.Random _random = math.Random();
+  Timer? _nextFaultTimer;
+  Timer? _phaseTimer;
+  DashboardNeonFaultPhase _phase = DashboardNeonFaultPatterns.stable;
+  bool _reducedMotion = false;
+  bool _appActive = true;
+  bool _tickerEnabled = true;
+  var _dependenciesReady = false;
+
+  bool get _motionAllowed => !_reducedMotion && _appActive && _tickerEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final tickerEnabled = TickerMode.valuesOf(context).enabled;
+    if (_dependenciesReady &&
+        _reducedMotion == reducedMotion &&
+        _tickerEnabled == tickerEnabled) {
+      return;
+    }
+    _dependenciesReady = true;
+    _reducedMotion = reducedMotion;
+    _tickerEnabled = tickerEnabled;
+    _resetAndSchedule();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
+    _resetAndSchedule();
+  }
+
+  void _resetAndSchedule() {
+    _nextFaultTimer?.cancel();
+    _phaseTimer?.cancel();
+    if (mounted && _phase != DashboardNeonFaultPatterns.stable) {
+      setState(() => _phase = DashboardNeonFaultPatterns.stable);
+    } else {
+      _phase = DashboardNeonFaultPatterns.stable;
+    }
+    if (_motionAllowed) _scheduleNextFault();
+  }
+
+  void _scheduleNextFault() {
+    _nextFaultTimer?.cancel();
+    if (!mounted || !_motionAllowed) return;
+    _nextFaultTimer = Timer(
+      DashboardNeonFaultPatterns.intervalFor(_random),
+      _startFault,
+    );
+  }
+
+  void _startFault() {
+    if (!mounted || !_motionAllowed) return;
+    final plan = DashboardNeonFaultPatterns
+        .patterns[_random.nextInt(DashboardNeonFaultPatterns.patterns.length)];
+    _playPhase(plan, 1);
+  }
+
+  void _playPhase(List<DashboardNeonFaultPhase> plan, int index) {
+    if (!mounted || !_motionAllowed) return;
+    if (index >= plan.length) {
+      setState(() => _phase = DashboardNeonFaultPatterns.stable);
+      _scheduleNextFault();
+      return;
+    }
+    setState(() => _phase = plan[index]);
+    _phaseTimer = Timer(plan[index].duration, () {
+      _playPhase(plan, index + 1);
+    });
+  }
+
+  @override
+  void dispose() {
+    _nextFaultTimer?.cancel();
+    _phaseTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultStyle = DefaultTextStyle.of(context).style;
+    final coreColor = Color.lerp(
+      AppColors.information.withValues(alpha: .45),
+      const Color(0xFFE2F9FF),
+      _phase.coreIntensity,
+    )!;
+    final glowColor = AppColors.information;
+    final wordmarkStyle = defaultStyle.copyWith(
+      color: coreColor,
+      shadows: [
+        Shadow(
+          color: glowColor.withValues(alpha: .72 * _phase.innerGlowIntensity),
+          blurRadius: 3,
+        ),
+        Shadow(
+          color: glowColor.withValues(alpha: .5 * _phase.outerGlowIntensity),
+          blurRadius: 9,
+        ),
+        Shadow(
+          color: glowColor.withValues(alpha: .18 * _phase.outerGlowIntensity),
+          blurRadius: 16,
+        ),
+      ],
+    );
+
+    return RepaintBoundary(
+      key: const ValueKey('dashboard-neon-brand-mark'),
+      child: Semantics(
+        label: 'O.R.L.O.',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 35,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: .34 * _phase.outerGlowIntensity,
+                    child: Image.asset(
+                      'assets/icons/orlo_logo_1024_transparent.png',
+                      height: 35,
+                      fit: BoxFit.contain,
+                      color: glowColor,
+                      colorBlendMode: BlendMode.srcIn,
+                    ),
+                  ),
+                  Opacity(
+                    opacity: _phase.logoIntensity,
+                    child: Image.asset(
+                      'assets/icons/orlo_logo_1024_transparent.png',
+                      key: const ValueKey('dashboard-brand-logo'),
+                      height: 35,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              'O.R.L.O.',
+              key: const ValueKey('dashboard-brand-wordmark'),
+              style: wordmarkStyle,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
