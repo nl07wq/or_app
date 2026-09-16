@@ -33,8 +33,12 @@ class DailyCommandItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary),
-              SizedBox(width: AppSpacing.sm),
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: AppSpacing.xs),
               Text(label, style: Theme.of(context).textTheme.labelLarge),
             ],
           ),
@@ -48,7 +52,7 @@ class DailyCommandItem extends StatelessWidget {
                 Symbols.circle,
                 key: ValueKey('daily-command-status-lamp-${lamp.name}'),
                 fill: lamp.filled ? 1 : 0,
-                size: 14,
+                size: 18,
                 color: lamp.color,
                 semanticLabel: '${lamp.name} status lamp',
               ),

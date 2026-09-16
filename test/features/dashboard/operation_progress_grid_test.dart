@@ -1469,6 +1469,23 @@ void main() {
       ),
       findsOneWidget,
     );
+    for (final icon in [
+      find.descendant(
+        of: dailyCommandCard,
+        matching: find.byIcon(Icons.cancel_outlined),
+      ),
+      find.descendant(
+        of: dailyCommandCard,
+        matching: find.byIcon(Symbols.page_info),
+      ),
+      find.byKey(const ValueKey('dashboard-cycle-state-visible-icon')),
+      find.descendant(
+        of: dailyCommandCard,
+        matching: find.byIcon(Icons.flag_outlined),
+      ),
+    ]) {
+      expect(tester.widget<Icon>(icon).size, 18);
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -1494,15 +1511,35 @@ void main() {
       final ambient = find.byKey(
         const ValueKey('operation-ambient-animation-slot'),
       );
+      final monitor = find.byKey(
+        const ValueKey('daily-command-ambient-monitor'),
+      );
       expect(
         find.descendant(of: dailyCommandCard, matching: ambient),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('daily-command-ambient-monitor-grid')),
+        findsOneWidget,
+      );
       final commanderIntent = find.text('COMMANDER INTENT');
       final cardBounds = tester.getRect(dailyCommandCard);
+      final monitorBounds = tester.getRect(monitor);
       final ambientBounds = tester.getRect(ambient);
+      final monitorDecoration =
+          tester.widget<Container>(monitor).decoration! as BoxDecoration;
+      expect(
+        monitorDecoration.border!.top.color,
+        AppColors.information.withValues(alpha: .56),
+      );
+      expect(monitorDecoration.border!.top.width, 1);
       expect(ambientBounds.left, greaterThanOrEqualTo(cardBounds.left));
       expect(ambientBounds.right, lessThanOrEqualTo(cardBounds.right));
+      expect(monitorBounds.left, greaterThanOrEqualTo(cardBounds.left));
+      expect(monitorBounds.right, lessThanOrEqualTo(cardBounds.right));
+      expect(monitorBounds.height, OperationAmbientAnimation.height + 8);
+      expect(ambientBounds.left, greaterThan(monitorBounds.left));
+      expect(ambientBounds.right, lessThan(monitorBounds.right));
       expect(
         ambientBounds.top,
         greaterThan(tester.getBottomLeft(find.text('STANDBY')).dy),
@@ -1715,7 +1752,7 @@ void main() {
     );
     expect(standbyLamp.icon, Symbols.circle);
     expect(standbyLamp.fill, 0);
-    expect(standbyLamp.size, 14);
+    expect(standbyLamp.size, 18);
     expect(standbyLamp.color, AppColors.secondary);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
 
@@ -1731,8 +1768,15 @@ void main() {
     );
     expect(greenLamp.icon, Symbols.circle);
     expect(greenLamp.fill, 1);
-    expect(greenLamp.size, 14);
+    expect(greenLamp.size, 18);
     expect(greenLamp.color, AppColors.success);
+    final monitor = tester.widget<Container>(
+      find.byKey(const ValueKey('daily-command-ambient-monitor')),
+    );
+    expect(
+      (monitor.decoration! as BoxDecoration).border!.top.color,
+      AppColors.success.withValues(alpha: .56),
+    );
     expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
     expect(find.text('COMMANDER INTENT'), findsOneWidget);
     expect(find.text('ARGO COMMENT'), findsNothing);
@@ -1774,8 +1818,15 @@ void main() {
         );
         expect(lamp.icon, Symbols.circle);
         expect(lamp.fill, 1);
-        expect(lamp.size, 14);
+        expect(lamp.size, 18);
         expect(lamp.color, statusCase.color);
+        final monitor = tester.widget<Container>(
+          find.byKey(const ValueKey('daily-command-ambient-monitor')),
+        );
+        expect(
+          (monitor.decoration! as BoxDecoration).border!.top.color,
+          statusCase.color.withValues(alpha: .56),
+        );
       },
     );
   }

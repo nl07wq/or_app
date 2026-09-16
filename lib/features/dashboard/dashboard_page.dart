@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
+import '../../core/engine/operation_status.dart';
 import '../../core/engine/operation_engine.dart';
 import '../../core/engine/operation_input.dart';
 import '../../core/engine/training_summary.dart';
@@ -704,7 +705,7 @@ class _DailyCommandSummaryCard extends StatelessWidget {
           ],
         ),
         AppSpacing.gapMD,
-        OperationAmbientAnimation(status: model.operationStatus),
+        _DailyCommandAmbientMonitor(status: model.operationStatus),
         AppSpacing.gapMD,
         DailyCommandItem(
           icon: Icons.flag_outlined,
@@ -761,9 +762,10 @@ class _DailyCommandCycleState extends StatelessWidget {
                 child: Icon(
                   cycleStateIconFor(cycleState),
                   key: const ValueKey('dashboard-cycle-state-visible-icon'),
+                  size: 18,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.xs),
               Text(cycleStateShortLabelFor(cycleState)),
             ],
           ),
@@ -771,6 +773,84 @@ class _DailyCommandCycleState extends StatelessWidget {
       ),
     ],
   );
+}
+
+class _DailyCommandAmbientMonitor extends StatelessWidget {
+  const _DailyCommandAmbientMonitor({required this.status});
+
+  static const _borderWidth = 1.0;
+  static const _radius = 6.0;
+  static const _horizontalPadding = 6.0;
+  static const _verticalPadding = 3.0;
+
+  final OperationStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _monitorColorFor(status);
+    return Container(
+      key: const ValueKey('daily-command-ambient-monitor'),
+      decoration: BoxDecoration(
+        color: AppColors.background.withValues(alpha: .28),
+        border: Border.all(
+          color: color.withValues(alpha: .56),
+          width: _borderWidth,
+        ),
+        borderRadius: BorderRadius.circular(_radius),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _horizontalPadding,
+        vertical: _verticalPadding,
+      ),
+      child: SizedBox(
+        height: OperationAmbientAnimation.height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            RepaintBoundary(
+              child: CustomPaint(
+                key: const ValueKey('daily-command-ambient-monitor-grid'),
+                painter: _DailyCommandAmbientGridPainter(color),
+              ),
+            ),
+            OperationAmbientAnimation(status: status),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Color _monitorColorFor(OperationStatus? status) => switch (status) {
+  OperationStatus.green => AppColors.success,
+  OperationStatus.yellow => AppColors.warning,
+  OperationStatus.red => AppColors.danger,
+  OperationStatus.black || null => AppColors.information,
+};
+
+class _DailyCommandAmbientGridPainter extends CustomPainter {
+  const _DailyCommandAmbientGridPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: .10)
+      ..strokeWidth = 1;
+    const verticalSpacing = 24.0;
+    const horizontalSpacing = 10.0;
+    for (var x = 0.0; x <= size.width; x += verticalSpacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (var y = 0.0; y <= size.height; y += horizontalSpacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DailyCommandAmbientGridPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _ProgressCard extends StatefulWidget {
