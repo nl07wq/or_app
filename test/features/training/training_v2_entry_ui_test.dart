@@ -150,7 +150,7 @@ void main() {
 
   for (final width in <double>[320, 390]) {
     testWidgets(
-      'rest presets keep one 48px hit row and seconds at ${width.toInt()}px',
+      'rest presets keep one compact hit row and seconds at ${width.toInt()}px',
       (tester) async {
         await _pump(tester, width: width);
         final restField = find.byKey(const Key('v2-set-0-rest'));
@@ -163,7 +163,7 @@ void main() {
           final rect = tester.getRect(button);
           rowTop ??= rect.top;
           expect(rect.top, rowTop);
-          expect(rect.height, greaterThanOrEqualTo(48));
+          expect(rect.height, greaterThanOrEqualTo(38));
           final outlined = tester.widget<OutlinedButton>(button);
           final shape = outlined.style!.shape!.resolve({});
           expect(shape, isA<RoundedRectangleBorder>());
@@ -192,8 +192,26 @@ void main() {
     );
   }
 
+  testWidgets('390px uses the compact 3 plus 2 set input grid', (tester) async {
+    await _pump(tester, width: 390);
+
+    final setType = tester.getRect(find.byKey(const Key('v2-set-0-type')));
+    final weight = tester.getRect(find.byKey(const Key('v2-set-0-weight')));
+    final reps = tester.getRect(find.byKey(const Key('v2-set-0-reps')));
+    final rpe = tester.getRect(find.byKey(const Key('v2-set-0-rpe')));
+    final rest = tester.getRect(find.byKey(const Key('v2-set-0-rest')));
+
+    expect(setType.top, closeTo(weight.top, 2));
+    expect(weight.top, closeTo(reps.top, 2));
+    expect(setType.right, lessThan(weight.left));
+    expect(weight.right, lessThan(reps.left));
+    expect(rpe.top, closeTo(rest.top, 2));
+    expect(rpe.right, lessThan(rest.left));
+    expect(rpe.top, greaterThan(weight.bottom));
+  });
+
   for (final width in <double>[320, 390]) {
-    testWidgets('weight and reps controls stay paired in framed 48px grids at '
+    testWidgets('weight and reps controls stay paired in compact grids at '
         '${width.toInt()}px', (tester) async {
       await _pump(tester, width: width);
       final weightGrid = find.byKey(const Key('v2-set-0-weight-adjustments'));
@@ -1198,7 +1216,7 @@ void _expectAdjustmentGrid(
     );
     expect(button, findsOneWidget);
     final rect = tester.getRect(button);
-    expect(rect.height, greaterThanOrEqualTo(48));
+    expect(rect.height, greaterThanOrEqualTo(38));
     rowTops.add(rect.top);
 
     final outlined = tester.widget<OutlinedButton>(button);

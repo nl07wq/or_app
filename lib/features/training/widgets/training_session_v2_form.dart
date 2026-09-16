@@ -86,7 +86,7 @@ class TrainingSessionV2Form extends StatelessWidget {
                 ),
             ],
           ),
-          AppSpacing.gapMD,
+          AppSpacing.gapSM,
           _TrainingTimeActions(
             controller: controller,
             onChanged: onChanged,
@@ -107,26 +107,41 @@ class TrainingSessionV2Form extends StatelessWidget {
           TextField(
             controller: controller.sessionMemo,
             decoration: const InputDecoration(labelText: 'Session Memo'),
-            minLines: 2,
-            maxLines: 3,
+            minLines: 1,
+            maxLines: 2,
             onChanged: (_) => onChanged(),
           ),
           AppSpacing.gapSM,
-          _TriStateField(
-            label: 'Dynamic Stretch',
-            value: controller.dynamicStretchCompleted,
-            onChanged: (value) {
-              controller.dynamicStretchCompleted = value;
-              onChanged();
-            },
-          ),
-          AppSpacing.gapSM,
-          _TriStateField(
-            label: 'Cooldown Stretch',
-            value: controller.cooldownStretchCompleted,
-            onChanged: (value) {
-              controller.cooldownStretchCompleted = value;
-              onChanged();
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final dynamicStretch = _TriStateField(
+                label: 'Dynamic Stretch',
+                value: controller.dynamicStretchCompleted,
+                onChanged: (value) {
+                  controller.dynamicStretchCompleted = value;
+                  onChanged();
+                },
+              );
+              final cooldownStretch = _TriStateField(
+                label: 'Cooldown Stretch',
+                value: controller.cooldownStretchCompleted,
+                onChanged: (value) {
+                  controller.cooldownStretchCompleted = value;
+                  onChanged();
+                },
+              );
+              if (constraints.maxWidth < 300) {
+                return Column(
+                  children: [dynamicStretch, AppSpacing.gapSM, cooldownStretch],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: dynamicStretch),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(child: cooldownStretch),
+                ],
+              );
             },
           ),
         ],
@@ -535,6 +550,7 @@ class _TriStateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: switch (value) {
         true => 'completed',
         false => 'notCompleted',
@@ -542,9 +558,18 @@ class _TriStateField extends StatelessWidget {
       },
       decoration: InputDecoration(labelText: label),
       items: const [
-        DropdownMenuItem(value: 'notRecorded', child: Text('Not recorded')),
-        DropdownMenuItem(value: 'completed', child: Text('Completed')),
-        DropdownMenuItem(value: 'notCompleted', child: Text('Not completed')),
+        DropdownMenuItem(
+          value: 'notRecorded',
+          child: Text('Not recorded', overflow: TextOverflow.ellipsis),
+        ),
+        DropdownMenuItem(
+          value: 'completed',
+          child: Text('Completed', overflow: TextOverflow.ellipsis),
+        ),
+        DropdownMenuItem(
+          value: 'notCompleted',
+          child: Text('Not completed', overflow: TextOverflow.ellipsis),
+        ),
       ],
       onChanged: (value) => onChanged(switch (value) {
         'completed' => true,

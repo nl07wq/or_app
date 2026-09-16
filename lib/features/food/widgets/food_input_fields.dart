@@ -216,6 +216,7 @@ class FoodInputFields extends StatelessWidget {
                         value: unit,
                         child: Text(
                           unit == null ? 'NOT SET' : _quantityUnitLabel(unit),
+                          style: const TextStyle(fontSize: 12.5),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -252,7 +253,11 @@ class FoodInputFields extends StatelessWidget {
                     .map(
                       (unit) => DropdownMenuItem(
                         value: unit,
-                        child: Text(_quantityUnitLabel(unit)),
+                        child: Text(
+                          _quantityUnitLabel(unit),
+                          style: const TextStyle(fontSize: 12.5),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(growable: false),

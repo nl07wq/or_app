@@ -55,11 +55,11 @@ class TrainingCollapsibleCard extends StatelessWidget {
               excludeFromSemantics: true,
               onTap: handleToggle,
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(icon, color: colorScheme.primary, size: 22),
+                    Icon(icon, color: colorScheme.primary, size: 18),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Column(
@@ -71,7 +71,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
                             ),
@@ -111,7 +111,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
             child: isExpanded
                 ? Padding(
                     key: contentKey,
-                    padding: const EdgeInsets.only(top: AppSpacing.md),
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
                     child: child,
                   )
                 : SizedBox.shrink(key: contentKey),

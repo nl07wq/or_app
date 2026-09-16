@@ -36,7 +36,7 @@ class TrainingSetV2Editor extends StatelessWidget {
             ),
           ),
         SizedBox(
-          height: 56,
+          height: 44,
           child: OperationButton(
             icon: Icons.add,
             text: 'ADD SET',
@@ -147,24 +147,45 @@ class _SetEditor extends StatelessWidget {
                 ),
               ],
             ),
-            DropdownButtonFormField<TrainingSetType>(
-              key: Key('v2-set-$index-type'),
-              initialValue: set.setType,
-              decoration: const InputDecoration(labelText: 'Set Type'),
-              items: const [
-                DropdownMenuItem(
-                  value: TrainingSetType.warmUp,
-                  child: Text('Warm-up'),
-                ),
-                DropdownMenuItem(
-                  value: TrainingSetType.main,
-                  child: Text('Main'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                set.setType = value;
-                onChanged();
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final setType = _setTypeField();
+                final weight = _numberField(
+                  key: Key('v2-set-$index-weight'),
+                  controller: set.weight,
+                  label: 'Weight',
+                  suffix: 'kg',
+                  decimal: true,
+                );
+                final reps = _numberField(
+                  key: Key('v2-set-$index-reps'),
+                  controller: set.reps,
+                  label: 'Reps',
+                );
+                if (constraints.maxWidth < 300) {
+                  return Column(
+                    children: [
+                      setType,
+                      AppSpacing.gapSM,
+                      Row(
+                        children: [
+                          Expanded(child: weight),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(child: reps),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(flex: 4, child: setType),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(flex: 3, child: weight),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(flex: 3, child: reps),
+                  ],
+                );
               },
             ),
             if (set.plannedWeightKg != null || set.targetMinReps != null) ...[
@@ -194,66 +215,62 @@ class _SetEditor extends StatelessWidget {
               ),
             ],
             AppSpacing.gapSM,
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      _numberField(
-                        key: Key('v2-set-$index-weight'),
-                        controller: set.weight,
-                        label: 'Weight',
-                        suffix: 'kg',
-                        decimal: true,
-                      ),
-                      AppSpacing.gapXS,
-                      _AdjustmentGrid(
-                        key: Key('v2-set-$index-weight-adjustments'),
-                        values: const [-10, -5, -2.5, 2.5, 5, 10],
-                        onSelected: (value) {
-                          final current =
-                              double.tryParse(set.weight.text.trim()) ?? 0;
-                          set.weight.text = _formatDouble(
-                            (current + value).clamp(0, double.infinity),
-                          );
-                          onChanged();
-                        },
-                      ),
-                    ],
+            LayoutBuilder(
+              builder: (context, constraints) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (constraints.maxWidth >= 300) ...[
+                    const Spacer(flex: 4),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
+                  Expanded(
+                    flex: constraints.maxWidth >= 300 ? 3 : 1,
+                    child: Column(
+                      children: [
+                        _AdjustmentGrid(
+                          key: Key('v2-set-$index-weight-adjustments'),
+                          values: const [-10, -5, -2.5, 2.5, 5, 10],
+                          onSelected: (value) {
+                            final current =
+                                double.tryParse(set.weight.text.trim()) ?? 0;
+                            set.weight.text = _formatDouble(
+                              (current + value).clamp(0, double.infinity),
+                            );
+                            onChanged();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _numberField(
-                        key: Key('v2-set-$index-reps'),
-                        controller: set.reps,
-                        label: 'Reps',
-                      ),
-                      AppSpacing.gapXS,
-                      _AdjustmentGrid(
-                        key: Key('v2-set-$index-reps-adjustments'),
-                        values: const [-10, -5, -1, 1, 5, 10],
-                        onSelected: (value) {
-                          final current =
-                              int.tryParse(set.reps.text.trim()) ?? 0;
-                          set.reps.text =
-                              '${(current + value.toInt()).clamp(0, 1 << 31)}';
-                          onChanged();
-                        },
-                      ),
-                    ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    flex: constraints.maxWidth >= 300 ? 3 : 1,
+                    child: Column(
+                      children: [
+                        _AdjustmentGrid(
+                          key: Key('v2-set-$index-reps-adjustments'),
+                          values: const [-10, -5, -1, 1, 5, 10],
+                          onSelected: (value) {
+                            final current =
+                                int.tryParse(set.reps.text.trim()) ?? 0;
+                            set.reps.text =
+                                '${(current + value.toInt()).clamp(0, 1 << 31)}';
+                            onChanged();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             AppSpacing.gapSM,
             LayoutBuilder(
               builder: (context, constraints) {
                 final rpe = DropdownButtonFormField<int?>(
+                  key: Key('v2-set-$index-rpe'),
                   initialValue: set.rpe,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'RPE'),
                   items: [
                     const DropdownMenuItem(
@@ -262,6 +279,10 @@ class _SetEditor extends StatelessWidget {
                     ),
                     for (var value = 1; value <= 10; value++)
                       DropdownMenuItem(value: value, child: Text('$value')),
+                  ],
+                  selectedItemBuilder: (context) => [
+                    const Text('Not recorded', overflow: TextOverflow.ellipsis),
+                    for (var value = 1; value <= 10; value++) Text('$value'),
                   ],
                   onChanged: (value) {
                     set.rpe = value;
@@ -274,7 +295,7 @@ class _SetEditor extends StatelessWidget {
                   label: 'Rest',
                   suffix: 'sec',
                 );
-                return constraints.maxWidth < 400
+                return constraints.maxWidth < 300
                     ? Column(children: [rpe, AppSpacing.gapSM, rest])
                     : Row(
                         children: [
@@ -331,6 +352,26 @@ class _SetEditor extends StatelessWidget {
     );
   }
 
+  Widget _setTypeField() => DropdownButtonFormField<TrainingSetType>(
+    key: Key('v2-set-$index-type'),
+    initialValue: set.setType,
+    isExpanded: true,
+    decoration: const InputDecoration(
+      labelText: 'Set Type',
+      isDense: true,
+      contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+    ),
+    items: const [
+      DropdownMenuItem(value: TrainingSetType.warmUp, child: Text('Warm-up')),
+      DropdownMenuItem(value: TrainingSetType.main, child: Text('Main')),
+    ],
+    onChanged: (value) {
+      if (value == null) return;
+      set.setType = value;
+      onChanged();
+    },
+  );
+
   void _copy(TextEditingController source, TextEditingController target) {
     target.text = source.text;
     target.selection = TextSelection.collapsed(offset: target.text.length);
@@ -380,8 +421,10 @@ class _AdjustmentGrid extends StatelessWidget {
 ButtonStyle _controlButtonStyle(BuildContext context, {bool selected = false}) {
   final colors = Theme.of(context).colorScheme;
   return OutlinedButton.styleFrom(
-    minimumSize: const Size(0, 48),
+    minimumSize: const Size(0, 38),
     padding: EdgeInsets.zero,
+    textStyle: const TextStyle(fontSize: 13),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     backgroundColor: selected ? colors.primaryContainer : null,
     foregroundColor: selected ? colors.onPrimaryContainer : null,
     side: BorderSide(color: selected ? colors.primary : colors.outline),

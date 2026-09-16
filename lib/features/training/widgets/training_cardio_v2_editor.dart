@@ -32,7 +32,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
     final title = controller.type == null
         ? 'CARDIO ${index + 1}'
         : _typeLabel(controller.type!);
-    final useTwoColumns = MediaQuery.sizeOf(context).width >= 390;
+    final useTwoColumns = MediaQuery.sizeOf(context).width >= 360;
     return TrainingCollapsibleCard(
       cardKey: ValueKey('training-cardio-card-$index'),
       icon: Icons.directions_run,
@@ -46,34 +46,44 @@ class TrainingCardioV2Editor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              key: ValueKey('training-cardio-delete-$index'),
-              icon: Icon(
-                Icons.delete_outline,
-                color: Theme.of(context).colorScheme.error,
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<CardioType?>(
+                  key: Key('v2-cardio-$index-type'),
+                  initialValue: controller.type,
+                  isExpanded: true,
+                  decoration: const InputDecoration(),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Select Cardio'),
+                    ),
+                    for (final type in CardioType.values)
+                      DropdownMenuItem(
+                        value: type,
+                        child: Text(_typeLabel(type)),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    controller.type = value;
+                    onChanged();
+                  },
+                ),
               ),
-              tooltip: 'Delete cardio',
-              onPressed: onDelete,
-            ),
-          ),
-          DropdownButtonFormField<CardioType?>(
-            key: Key('v2-cardio-$index-type'),
-            initialValue: controller.type,
-            isExpanded: true,
-            decoration: const InputDecoration(),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Select Cardio')),
-              for (final type in CardioType.values)
-                DropdownMenuItem(value: type, child: Text(_typeLabel(type))),
+              const SizedBox(width: AppSpacing.xs),
+              IconButton(
+                key: ValueKey('training-cardio-delete-$index'),
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                tooltip: 'Delete cardio',
+                onPressed: onDelete,
+              ),
             ],
-            onChanged: (value) {
-              controller.type = value;
-              onChanged();
-            },
           ),
-          AppSpacing.gapSM,
+          AppSpacing.gapXS,
           Container(
             key: ValueKey(
               useTwoColumns
@@ -83,7 +93,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
             child: Column(
               children: [
                 _pair(useTwoColumns, _purposeField(), _durationField()),
-                AppSpacing.gapSM,
+                AppSpacing.gapXS,
                 _pair(
                   useTwoColumns,
                   _numberField(
@@ -94,7 +104,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                   ),
                   _numberField(controller.mets, 'METs', decimal: true),
                 ),
-                AppSpacing.gapSM,
+                AppSpacing.gapXS,
                 _pair(
                   useTwoColumns,
                   _numberField(
@@ -108,7 +118,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                     suffix: 'bpm',
                   ),
                 ),
-                AppSpacing.gapSM,
+                AppSpacing.gapXS,
                 _pair(
                   useTwoColumns,
                   TextField(
@@ -140,12 +150,12 @@ class TrainingCardioV2Editor extends StatelessWidget {
                 : _calculationHelp(calorieResult.failureReason),
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          AppSpacing.gapSM,
+          AppSpacing.gapXS,
           TextField(
             controller: controller.notes,
             decoration: const InputDecoration(labelText: 'メモ'),
-            minLines: 2,
-            maxLines: 4,
+            minLines: 1,
+            maxLines: 2,
             onChanged: (_) => onChanged(),
           ),
         ],
@@ -155,7 +165,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
 
   Widget _pair(bool useTwoColumns, Widget first, Widget second) {
     if (!useTwoColumns) {
-      return Column(children: [first, AppSpacing.gapSM, second]);
+      return Column(children: [first, AppSpacing.gapXS, second]);
     }
     return Row(
       children: [

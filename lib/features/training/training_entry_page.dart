@@ -605,7 +605,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     onEditStartTime: _editStartTime,
                     onEditEndTime: _editEndTime,
                   ),
-                  AppSpacing.gapXL,
+                  AppSpacing.gapMD,
                   const SectionHeader(
                     icon: Icons.fitness_center,
                     title: 'EXERCISE',
@@ -613,7 +613,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                   AppSpacing.gapMD,
                   for (final (index, exercise) in _form.exercises.indexed)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
                       child: TrainingExerciseV2Editor(
                         index: index,
                         controller: exercise,
@@ -635,7 +635,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     icon: const Icon(Icons.add),
                     label: const Text('ADD EXERCISE'),
                   ),
-                  AppSpacing.gapXL,
+                  AppSpacing.gapMD,
                   const SectionHeader(
                     icon: Icons.directions_run,
                     title: 'CARDIO',
@@ -643,7 +643,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                   AppSpacing.gapMD,
                   for (final (index, cardio) in _form.cardioEntries.indexed)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
                       child: TrainingCardioV2Editor(
                         index: index,
                         controller: cardio,
@@ -663,9 +663,9 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     icon: const Icon(Icons.add),
                     label: const Text('ADD CARDIO'),
                   ),
-                  AppSpacing.gapXL,
+                  AppSpacing.gapMD,
                   SizedBox(
-                    height: 56,
+                    height: 48,
                     child: OperationButton(
                       icon: Icons.save,
                       text: _isEditing ? 'UPDATE TRAINING' : 'SAVE TRAINING',
@@ -995,6 +995,15 @@ ThemeData _trainingEntryTheme(
         base.withValues(alpha: 0.42),
         colors.outlineVariant,
       ),
+    ),
+    inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      labelStyle: const TextStyle(fontSize: 12),
+      floatingLabelStyle: const TextStyle(fontSize: 12),
+    ),
+    textTheme: theme.textTheme.copyWith(
+      bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: 14),
     ),
   );
 }

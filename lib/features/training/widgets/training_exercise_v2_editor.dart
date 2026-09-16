@@ -110,7 +110,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
               ),
             ],
           ),
-          AppSpacing.gapSM,
+          AppSpacing.gapXS,
           TrainingEquipmentField(
             fieldKey: 'v2-exercise-${widget.index}-equipment',
             value: controller.equipment,
@@ -126,7 +126,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
             },
           ),
           if (name.isNotEmpty) ...[
-            AppSpacing.gapMD,
+            AppSpacing.gapSM,
             TrainingV2EntryInsightPanel(
               controller: controller,
               preferredRecords: widget.preferredRecords,
@@ -134,7 +134,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
               sessionDate: widget.sessionDate,
             ),
           ],
-          AppSpacing.gapMD,
+          AppSpacing.gapSM,
           TrainingSetV2Editor(
             activeBase: Theme.of(context).colorScheme.primary,
             controller: controller,
