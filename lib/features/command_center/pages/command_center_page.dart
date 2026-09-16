@@ -3,6 +3,9 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/engine/activity_summary.dart';
+import '../../../core/engine/food_summary.dart';
+import '../../../core/engine/training_summary.dart';
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -11,6 +14,7 @@ import '../../activity/models/activity_summary_state.dart';
 import '../../dashboard/widgets/daily_log_card.dart';
 import '../../food/models/food_summary_state.dart';
 import '../../morning/models/morning_fact_state.dart';
+import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
@@ -190,11 +194,29 @@ class _DailyCommandPage extends StatefulWidget {
   State<_DailyCommandPage> createState() => _DailyCommandPageState();
 }
 
+class _DailyCommandPresentation {
+  const _DailyCommandPresentation({
+    required this.result,
+    required this.morningFact,
+    required this.foodSummary,
+    required this.activitySummary,
+    required this.trainingSummary,
+  });
+
+  final ({DailyCommandReadModel model, DailyAssessment assessment}) result;
+  final MorningFact? morningFact;
+  final FoodSummary? foodSummary;
+  final ActivitySummary activitySummary;
+  final TrainingSummary? trainingSummary;
+}
+
 class _DailyCommandPageState extends State<_DailyCommandPage> {
   late final Future<OperationLocalDate> _operationDateFuture =
       const OperationDateService().current();
   late Future<({DailyCommandReadModel model, DailyAssessment assessment})>
   _modelFuture = _loadModel();
+  _DailyCommandPresentation? _visiblePresentation;
+  var _freezeFinalizeViewport = false;
   late final List<Listenable> _modelSources = [
     morningFactNotifier,
     foodSummaryNotifier,
@@ -236,18 +258,42 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
       >(
         future: _modelFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.done &&
+              (snapshot.hasError || !snapshot.hasData)) {
             return _ErrorContent(onRetry: widget.onRefresh);
           }
-          final result = snapshot.requireData;
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          // DailyStateRestore refreshes these facts after FINALIZE. Keep the
+          // existing ListView mounted while that replacement future resolves:
+          // the Backup modal can then close over the same operating viewport
+          // instead of exposing a loading frame followed by PageStorage's
+          // scroll restoration.
+          final loadedPresentation = _DailyCommandPresentation(
+            result: snapshot.requireData,
+            morningFact: morningFactNotifier.value,
+            foodSummary: foodSummaryNotifier.value,
+            activitySummary: activitySummaryNotifier.value,
+            trainingSummary: trainingSummaryNotifier.value,
+          );
+          if (!_freezeFinalizeViewport) {
+            _visiblePresentation = loadedPresentation;
+          }
+          final presentation = _freezeFinalizeViewport
+              ? _visiblePresentation ?? loadedPresentation
+              : loadedPresentation;
           return _DailyCommandContent(
-            model: result.model,
-            assessment: result.assessment,
+            model: presentation.result.model,
+            assessment: presentation.result.assessment,
             operationDateFuture: _operationDateFuture,
             scrollController: _scrollController,
+            morningFact: presentation.morningFact,
+            foodSummary: presentation.foodSummary,
+            activitySummary: presentation.activitySummary,
+            trainingSummary: presentation.trainingSummary,
+            onFinalizeStarted: _freezeViewportForFinalize,
+            onFinalizePresentationReleased: _releaseFinalizeViewport,
             onReviewCompleted: _handoffFinalizeDateTransition,
           );
         },
@@ -258,6 +304,16 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     setState(() {
       _modelFuture = _loadModel();
     });
+  }
+
+  void _freezeViewportForFinalize() {
+    if (!mounted || _freezeFinalizeViewport) return;
+    setState(() => _freezeFinalizeViewport = true);
+  }
+
+  void _releaseFinalizeViewport() {
+    if (!mounted || !_freezeFinalizeViewport) return;
+    setState(() => _freezeFinalizeViewport = false);
   }
 
   Future<({DailyCommandReadModel model, DailyAssessment assessment})>
@@ -333,6 +389,12 @@ class _DailyCommandContent extends StatelessWidget {
     required this.assessment,
     required this.operationDateFuture,
     required this.scrollController,
+    required this.morningFact,
+    required this.foodSummary,
+    required this.activitySummary,
+    required this.trainingSummary,
+    required this.onFinalizeStarted,
+    required this.onFinalizePresentationReleased,
     required this.onReviewCompleted,
   });
 
@@ -340,6 +402,12 @@ class _DailyCommandContent extends StatelessWidget {
   final DailyAssessment assessment;
   final Future<OperationLocalDate> operationDateFuture;
   final ScrollController scrollController;
+  final MorningFact? morningFact;
+  final FoodSummary? foodSummary;
+  final ActivitySummary activitySummary;
+  final TrainingSummary? trainingSummary;
+  final VoidCallback onFinalizeStarted;
+  final VoidCallback onFinalizePresentationReleased;
   final DailyLogReviewCompleted onReviewCompleted;
 
   @override
@@ -370,11 +438,13 @@ class _DailyCommandContent extends StatelessWidget {
         DailyAssessmentView(assessment: assessment),
         AppSpacing.gapXL,
         DailyLogSection(
-          morningFact: morningFactNotifier.value,
-          foodSummary: foodSummaryNotifier.value,
-          activitySummary: activitySummaryNotifier.value,
-          trainingSummary: trainingSummaryNotifier.value,
+          morningFact: morningFact,
+          foodSummary: foodSummary,
+          activitySummary: activitySummary,
+          trainingSummary: trainingSummary,
           estimatedTotalBurn: model.estimatedTotalBurnKcal,
+          onFinalizeStarted: onFinalizeStarted,
+          onFinalizePresentationReleased: onFinalizePresentationReleased,
           onReviewCompleted: onReviewCompleted,
         ),
         AppSpacing.gapLG,

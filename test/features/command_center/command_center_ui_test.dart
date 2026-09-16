@@ -507,16 +507,43 @@ void main() {
       scrollable: _dailyCommandScrollable(),
     );
     await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
     final offsetBeforeRefresh = _dailyCommandScrollPosition(tester).pixels;
+    final dailyLogBeforeRefresh = tester.getTopLeft(
+      find.byType(DailyLogSection),
+    );
     expect(offsetBeforeRefresh, greaterThan(0));
+
+    final dailyLog = tester.widget<DailyLogSection>(
+      find.byType(DailyLogSection),
+    );
+    dailyLog.onFinalizeStarted!();
+    await tester.pump();
+    expect(
+      tester.getTopLeft(find.byType(DailyLogSection)).dy,
+      closeTo(dailyLogBeforeRefresh.dy, 0.5),
+    );
 
     morningBriefRevisionNotifier.value++;
     await tester.pump();
+    expect(find.byType(DailyLogSection), findsOneWidget);
+    expect(
+      _dailyCommandScrollPosition(tester).pixels,
+      closeTo(offsetBeforeRefresh, 0.5),
+    );
+    expect(
+      tester.getTopLeft(find.byType(DailyLogSection)).dy,
+      closeTo(dailyLogBeforeRefresh.dy, 0.5),
+    );
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(
       _dailyCommandScrollPosition(tester).pixels,
       closeTo(offsetBeforeRefresh, 0.5),
+    );
+    expect(
+      tester.getTopLeft(find.byType(DailyLogSection)).dy,
+      closeTo(dailyLogBeforeRefresh.dy, 0.5),
     );
     expect(find.byType(DailyLogSection), findsOneWidget);
   });

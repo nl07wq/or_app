@@ -127,6 +127,8 @@ class DailyLogSection extends StatefulWidget {
     required this.activitySummary,
     required this.trainingSummary,
     required this.estimatedTotalBurn,
+    this.onFinalizeStarted,
+    this.onFinalizePresentationReleased,
     this.onReviewCompleted,
     this.backupExportService,
   });
@@ -136,6 +138,8 @@ class DailyLogSection extends StatefulWidget {
   final ActivitySummary activitySummary;
   final TrainingSummary? trainingSummary;
   final double? estimatedTotalBurn;
+  final VoidCallback? onFinalizeStarted;
+  final VoidCallback? onFinalizePresentationReleased;
   final DailyLogReviewCompleted? onReviewCompleted;
   final BackupFileExportService? backupExportService;
 
@@ -243,6 +247,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
         .requireCurrent();
     if (!mounted) return;
     final previousDate = state.operationDate;
+    widget.onFinalizeStarted?.call();
     setState(() => _isFinalizing = true);
     var formalFinalizeSucceeded = false;
     try {
@@ -274,6 +279,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       if (!mounted) return;
       _reloadCloseState();
     } catch (error) {
+      widget.onFinalizePresentationReleased?.call();
       if (formalFinalizeSucceeded && promptNavigator.mounted) {
         ScaffoldMessenger.maybeOf(
           promptNavigator.context,
