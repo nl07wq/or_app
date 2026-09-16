@@ -1276,9 +1276,47 @@ void main() {
       expect(gateway.exportCount, 1);
       expect(find.text('Backup exported'), findsOneWidget);
       await tester.tap(find.text('CLOSE'));
+      await tester.pump();
+      expect(order, ['finalize']);
       await tester.pumpAndSettle();
       expect(order, ['finalize', 'origin']);
       expect(find.text('BACKUP'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'NOT NOW waits for Backup route removal before origin completion',
+    (tester) async {
+      final order = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                final navigator = Navigator.of(context, rootNavigator: true);
+                await executeDailyLogFinalize(
+                  finalize: () async => order.add('finalize'),
+                  previousOperationDate: OperationLocalDate.parse('2026-07-27'),
+                  afterFinalize: () => presentDailyFinalizeBackupPrompt(
+                    navigator: navigator,
+                    exportService: _backupService(_RecordingBackupGateway()),
+                  ),
+                  onReviewCompleted: (_) async => order.add('origin'),
+                );
+              },
+              child: const Text('FINALIZE'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('FINALIZE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('NOT NOW'));
+      await tester.pump();
+      expect(order, ['finalize']);
+      await tester.pumpAndSettle();
+      expect(order, ['finalize', 'origin']);
     },
   );
 

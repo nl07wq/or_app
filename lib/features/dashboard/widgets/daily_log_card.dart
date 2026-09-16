@@ -37,16 +37,20 @@ typedef DailyLogFinalizeCompleted = Future<void> Function();
 Future<void> presentDailyFinalizeBackupPrompt({
   required NavigatorState navigator,
   required BackupFileExportService exportService,
-}) {
+}) async {
   if (!navigator.mounted) {
-    return Future.error(StateError('Backup prompt navigator is unavailable.'));
+    throw StateError('Backup prompt navigator is unavailable.');
   }
-  return showDialog<void>(
+  final route = DialogRoute<void>(
     context: navigator.context,
-    useRootNavigator: false,
     barrierDismissible: true,
     builder: (_) => BackupPromptDialog(exportService: exportService),
   );
+  await navigator.push(route);
+  // Navigator.pop completes the dialog result before its exit transition has
+  // finished. Finalize hands off to Dashboard immediately afterwards, so wait
+  // for the DialogRoute itself to leave the overlay before starting that route.
+  await route.completed;
 }
 
 /// Sunday finalization is the only weekly invitation trigger. It runs before
