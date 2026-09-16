@@ -1471,6 +1471,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('DAILY COMMAND standby lamp fits supported widths', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-28');
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+      await _pumpDashboard(tester, width: width);
+      await _settleDashboard(tester);
+
+      expect(
+        find.byKey(const ValueKey('daily-command-status-lamp-standby')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      AppRepositoryRegistry.resetForTesting();
+    }
+  });
+
   testWidgets('Cycle State help popover uses its binary edge mode', (
     tester,
   ) async {
@@ -1665,6 +1684,13 @@ void main() {
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
     expect(find.text('STANDBY'), findsOneWidget);
+    final standbyLamp = tester.widget<Icon>(
+      find.byKey(const ValueKey('daily-command-status-lamp-standby')),
+    );
+    expect(standbyLamp.icon, Symbols.circle);
+    expect(standbyLamp.fill, 0);
+    expect(standbyLamp.size, 12);
+    expect(standbyLamp.color, AppColors.secondary);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
 
     await AppRepositoryRegistry.container.morningBriefs.create(
@@ -1674,6 +1700,12 @@ void main() {
     await _settleDashboard(tester);
 
     expect(find.text('GREEN'), findsOneWidget);
+    final greenLamp = tester.widget<Icon>(
+      find.byKey(const ValueKey('daily-command-status-lamp-green')),
+    );
+    expect(greenLamp.icon, Symbols.circle);
+    expect(greenLamp.fill, 1);
+    expect(greenLamp.color, AppColors.success);
     expect(find.text('LIVE COMMANDER INTENT'), findsOneWidget);
     expect(find.text('COMMANDER INTENT'), findsOneWidget);
     expect(find.text('ARGO COMMENT'), findsNothing);
@@ -1683,6 +1715,42 @@ void main() {
     expect(find.text('OVERALL'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  for (final statusCase in [
+    (status: MorningBriefOperationStatus.yellow, color: AppColors.warning),
+    (status: MorningBriefOperationStatus.red, color: AppColors.danger),
+  ]) {
+    testWidgets(
+      'DAILY COMMAND uses a canonical ${statusCase.status.name} lamp',
+      (tester) async {
+        final database = FakeIndexedDbDatabase();
+        seedOperationState(database, '2026-07-28');
+        AppRepositoryRegistry.install(
+          AppRepositoryContainer.indexedDb(database),
+        );
+        addTearDown(AppRepositoryRegistry.resetForTesting);
+        await AppRepositoryRegistry.container.morningBriefs.create(
+          _brief(
+            '2026-07-28',
+            intent: 'LIVE COMMANDER INTENT',
+            status: statusCase.status,
+          ),
+        );
+
+        await _pumpDashboard(tester, width: 390);
+        await _settleDashboard(tester);
+
+        final lamp = tester.widget<Icon>(
+          find.byKey(
+            ValueKey('daily-command-status-lamp-${statusCase.status.name}'),
+          ),
+        );
+        expect(lamp.icon, Symbols.circle);
+        expect(lamp.fill, 1);
+        expect(lamp.color, statusCase.color);
+      },
+    );
+  }
 
   testWidgets('keeps missing STATUS, FOOD, TRAINING, and ACTIVITY contracts', (
     tester,
@@ -2499,7 +2567,11 @@ MorningFact _morning() {
   );
 }
 
-MorningBriefRecord _brief(String date, {required String intent}) {
+MorningBriefRecord _brief(
+  String date, {
+  required String intent,
+  MorningBriefOperationStatus status = MorningBriefOperationStatus.green,
+}) {
   final timestamp = DateTime.utc(2026, 7, 28);
   return MorningBriefRecord(
     localDate: date,
@@ -2511,7 +2583,7 @@ MorningBriefRecord _brief(String date, {required String intent}) {
     generatedAt: timestamp,
     importedAt: timestamp,
     situationAnalysis: 'FORMAL SITUATION',
-    operationStatus: MorningBriefOperationStatus.green,
+    operationStatus: status,
     commanderIntent: intent,
     argoComment: 'MUST NOT DISPLAY',
     strategicResourceDecision: 'FORMAL RESOURCE',

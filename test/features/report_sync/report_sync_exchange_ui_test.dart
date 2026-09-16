@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
@@ -19,6 +20,45 @@ import 'package:or_app/features/report_sync/services/report_sync_codec.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
 
 void main() {
+  test('STATUS SOURCE visual states follow semantic preparation data', () {
+    final ready = ReportSyncRequestPreparation(
+      statusSourceExport: _statusSourceExport(),
+      statusLabel: 'READY',
+    );
+    const failure = ReportSyncRequestPreparation(
+      statusSourceError: StatusReportSyncSourceException(
+        code: 'statusSourceInvalid',
+        stage: 'validation',
+        message: 'invalid',
+        operationDate: '2026-08-02',
+      ),
+      statusLabel: 'INVALID',
+    );
+    const neutral = ReportSyncRequestPreparation(statusLabel: 'NOT READY');
+
+    expect(statusSourceVisualStateFor(ready), StatusSourceVisualState.success);
+    expect(
+      statusSourceVisualColor(statusSourceVisualStateFor(ready)),
+      AppColors.primary,
+    );
+    expect(
+      statusSourceVisualStateFor(failure),
+      StatusSourceVisualState.failure,
+    );
+    expect(
+      statusSourceVisualColor(statusSourceVisualStateFor(failure)),
+      AppColors.danger,
+    );
+    expect(
+      statusSourceVisualStateFor(neutral),
+      StatusSourceVisualState.neutral,
+    );
+    expect(
+      statusSourceVisualColor(statusSourceVisualStateFor(neutral)),
+      isNull,
+    );
+  });
+
   testWidgets('daily debrief eligible date selection reports the new target', (
     tester,
   ) async {
@@ -1053,8 +1093,12 @@ void main() {
     );
     expect(find.text('現在の回答はアプリへインポートしません。'), findsNothing);
     expect(find.text('COPY STATUS SOURCE'), findsNothing);
-    expect(find.text('状態  READY'), findsOneWidget);
-    expect(find.text('前日比較  AVAILABLE'), findsOneWidget);
+    expect(find.text('状態  '), findsOneWidget);
+    expect(find.text('前日比較  '), findsOneWidget);
+    final readyValue = tester.widget<Text>(find.text('READY'));
+    final availableValue = tester.widget<Text>(find.text('AVAILABLE'));
+    expect(readyValue.style?.color, AppColors.primary);
+    expect(availableValue.style?.color, AppColors.primary);
     var prompt = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
     );

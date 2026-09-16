@@ -695,6 +695,7 @@ class _DailyCommandSummaryCard extends StatelessWidget {
                 label: 'OPERATION STATUS',
                 value: model.operationStatus?.name.toUpperCase() ?? 'STANDBY',
                 status: model.operationStatus,
+                showStatusLamp: true,
               ),
             ),
             const SizedBox(width: AppSpacing.md),

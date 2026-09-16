@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/food_item.dart';
 import '../../../core/models/meal_data.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -26,6 +27,40 @@ import '../services/report_sync_persistence_service.dart';
 import '../widgets/report_sync_action_bar.dart';
 
 typedef ReportSyncClipboardWriter = Future<void> Function(String text);
+
+enum StatusSourceVisualState { success, failure, neutral }
+
+@visibleForTesting
+StatusSourceVisualState statusSourceVisualStateFor(
+  ReportSyncRequestPreparation? preparation,
+) {
+  if (preparation?.statusSourceExport != null) {
+    return StatusSourceVisualState.success;
+  }
+  if (preparation?.statusSourceError != null) {
+    return StatusSourceVisualState.failure;
+  }
+  return StatusSourceVisualState.neutral;
+}
+
+@visibleForTesting
+StatusSourceVisualState previousStatusComparisonVisualStateFor(
+  ReportSyncRequestPreparation? preparation,
+) {
+  final source = preparation?.statusSourceExport?.source;
+  if (source == null) return StatusSourceVisualState.neutral;
+  return source.previousDayComparison.previousStatusAvailable
+      ? StatusSourceVisualState.success
+      : StatusSourceVisualState.failure;
+}
+
+@visibleForTesting
+Color? statusSourceVisualColor(StatusSourceVisualState state) =>
+    switch (state) {
+      StatusSourceVisualState.success => AppColors.primary,
+      StatusSourceVisualState.failure => AppColors.danger,
+      StatusSourceVisualState.neutral => null,
+    };
 
 class ReportSyncExchangePage extends StatelessWidget {
   const ReportSyncExchangePage({
@@ -645,11 +680,25 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     'STATUS SOURCE',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text('状態  ${request?.statusLabel ?? 'NOT READY'}'),
+                  _StatusSourceResultRow(
+                    label: '状態',
+                    value: request?.statusLabel ?? 'NOT READY',
+                    visualState: statusSourceVisualStateFor(request),
+                  ),
                   if (request?.statusSourceExport != null)
-                    Text(
-                      '前日比較  '
-                      '${request!.statusSourceExport!.source.previousDayComparison.previousStatusAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}',
+                    _StatusSourceResultRow(
+                      label: '前日比較',
+                      value:
+                          request!
+                              .statusSourceExport!
+                              .source
+                              .previousDayComparison
+                              .previousStatusAvailable
+                          ? 'AVAILABLE'
+                          : 'NOT AVAILABLE',
+                      visualState: previousStatusComparisonVisualStateFor(
+                        request,
+                      ),
                     ),
                   if (request?.blockingReason != null)
                     Text(request!.blockingReason!),
@@ -931,6 +980,29 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
 }
 
 enum _ExportAction { generate, prompt, source }
+
+class _StatusSourceResultRow extends StatelessWidget {
+  const _StatusSourceResultRow({
+    required this.label,
+    required this.value,
+    required this.visualState,
+  });
+
+  final String label;
+  final String value;
+  final StatusSourceVisualState visualState;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Text('$label  '),
+      Text(
+        value,
+        style: TextStyle(color: statusSourceVisualColor(visualState)),
+      ),
+    ],
+  );
+}
 
 class _DailyDebriefReadiness extends StatelessWidget {
   const _DailyDebriefReadiness({

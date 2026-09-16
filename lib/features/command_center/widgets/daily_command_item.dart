@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/engine/operation_status.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 
 class DailyCommandItem extends StatelessWidget {
@@ -10,16 +12,18 @@ class DailyCommandItem extends StatelessWidget {
     required this.label,
     required this.value,
     this.status,
+    this.showStatusLamp,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final OperationStatus? status;
+  final bool? showStatusLamp;
 
   @override
   Widget build(BuildContext context) {
-    final lampColor = _lampColor(status);
+    final lamp = _statusLamp(status);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -37,20 +41,18 @@ class DailyCommandItem extends StatelessWidget {
         ),
         AppSpacing.gapXS,
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (lampColor != null) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Icon(
-                  Icons.circle,
-                  key: ValueKey('daily-command-status-lamp-${status!.name}'),
-                  size: 18,
-                  color: lampColor,
-                  semanticLabel: '${status!.name} status lamp',
-                ),
+            if (showStatusLamp ?? status != null) ...[
+              Icon(
+                Symbols.circle,
+                key: ValueKey('daily-command-status-lamp-${lamp.name}'),
+                fill: lamp.filled ? 1 : 0,
+                size: 12,
+                color: lamp.color,
+                semanticLabel: '${lamp.name} status lamp',
               ),
-              SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.xs),
             ],
             Expanded(child: Text(value)),
           ],
@@ -59,10 +61,38 @@ class DailyCommandItem extends StatelessWidget {
     );
   }
 
-  static Color? _lampColor(OperationStatus? status) => switch (status) {
-    OperationStatus.green => Colors.green,
-    OperationStatus.yellow => Colors.amber,
-    OperationStatus.red => Colors.red,
-    OperationStatus.black || null => null,
+  static _StatusLamp _statusLamp(OperationStatus? status) => switch (status) {
+    OperationStatus.green => const _StatusLamp(
+      name: 'green',
+      color: AppColors.success,
+      filled: true,
+    ),
+    OperationStatus.yellow => const _StatusLamp(
+      name: 'yellow',
+      color: AppColors.warning,
+      filled: true,
+    ),
+    OperationStatus.red => const _StatusLamp(
+      name: 'red',
+      color: AppColors.danger,
+      filled: true,
+    ),
+    OperationStatus.black || null => const _StatusLamp(
+      name: 'standby',
+      color: AppColors.secondary,
+      filled: false,
+    ),
   };
+}
+
+class _StatusLamp {
+  const _StatusLamp({
+    required this.name,
+    required this.color,
+    required this.filled,
+  });
+
+  final String name;
+  final Color color;
+  final bool filled;
 }
