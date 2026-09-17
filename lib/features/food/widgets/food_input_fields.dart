@@ -786,6 +786,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                         contentPadding: EdgeInsets.symmetric(horizontal: 6),
                       ),
                       textAlignVertical: TextAlignVertical.center,
+                      textAlign: TextAlign.center,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -807,7 +808,8 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                         key: unitKey,
                         value: value,
                         isExpanded: true,
-                        padding: const EdgeInsets.only(left: 8, right: 4),
+                        alignment: AlignmentDirectional.center,
+                        padding: const EdgeInsets.only(right: 4),
                         style: Theme.of(
                           context,
                         ).textTheme.bodyLarge?.copyWith(fontSize: 14),

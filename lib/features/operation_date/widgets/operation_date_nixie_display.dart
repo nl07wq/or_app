@@ -101,9 +101,9 @@ abstract final class NixieRearCathodePresentation {
   static const digits = <String>['8', '9'];
   static const eightOffset = Offset(-.5, .5);
   static const nineOffset = Offset(.75, -.6);
-  static const opacity = .22;
-  static const matchingActiveOpacity = .11;
-  static const strokeWidth = .6;
+  static const opacity = .28;
+  static const matchingActiveOpacity = .16;
+  static const strokeWidth = .7;
 
   static double opacityFor(String activeDigit, String cathode) =>
       activeDigit == cathode ? matchingActiveOpacity : opacity;

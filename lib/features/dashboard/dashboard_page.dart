@@ -411,7 +411,7 @@ class DashboardNeonFaultPatterns {
 /// Keeping it data-backed lets the visual contract be tested without relying
 /// on blur-fringe pixels.
 abstract final class DashboardNeonTubeGeometry {
-  static const signWidth = 110.0;
+  static const signWidth = 106.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
   static const perimeterInset = 1.0;
@@ -419,35 +419,42 @@ abstract final class DashboardNeonTubeGeometry {
   static const signHorizontalPadding = 4.0;
   static const logoSize = 28.0;
   static const logoWordmarkGap = 2.0;
-  static const lockupOffsetX = -.5;
+  static const lockupOffsetX = 0.0;
 
-  static const wordmarkWidth = 67.0;
+  static const wordmarkWidth = 66.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
   static const wordmarkPaintLeft = 1.0;
-  static const wordmarkPaintRight = 66.0;
+  static const wordmarkPaintRight = 65.0;
   static const ovalWidth = 12.0;
   static const rWidth = 12.0;
   static const lFootWidth = 10.0;
   static const chamferLength = 2.0;
+  static const topLeftChamferLength = 0.0;
+  static const topRightChamferLength = 2.0;
+  static const bottomRightChamferLength = 0.0;
+  static const bottomLeftChamferLength = 0.0;
+  static const rLegStart = Offset(24, 10);
+  static const rLegEnd = Offset(30, 20);
+  static const previousRLegEnd = Offset(33, 20);
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
   static const periodRadius = .4;
   static const periodBaselineY = 18.4;
   static const periodCenters = <Offset>[
-    Offset(15.5, periodBaselineY),
-    Offset(33.5, periodBaselineY),
-    Offset(49, periodBaselineY),
+    Offset(16.55, periodBaselineY),
+    Offset(34.55, periodBaselineY),
+    Offset(49.8, periodBaselineY),
   ];
 
   static const lockupWidth = logoSize + logoWordmarkGap + wordmarkWidth;
-  static const innerSignWidth = signWidth - (signHorizontalPadding * 2);
+  static const innerSignWidth = signWidth - (signHorizontalPadding * 2) - 2;
   static const leftContentClearance =
-      ((innerSignWidth - lockupWidth) / 2) + lockupOffsetX - perimeterInset;
+      ((innerSignWidth - lockupWidth) / 2) + lockupOffsetX;
   static const rightContentClearance =
-      ((innerSignWidth - lockupWidth) / 2) - lockupOffsetX - perimeterInset;
+      ((innerSignWidth - lockupWidth) / 2) - lockupOffsetX;
 }
 
 class DashboardPage extends StatefulWidget {
@@ -2413,6 +2420,7 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
+                        key: const ValueKey('dashboard-brand-logo-slot'),
                         height: DashboardNeonTubeGeometry.logoSize,
                         width: DashboardNeonTubeGeometry.logoSize,
                         child: Stack(
@@ -2572,36 +2580,31 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
   static const _dots = DashboardNeonTubeGeometry.periodCenters;
 
   static List<Path> _buildTubes() => [
-    _octagonalO(1),
+    _singleChamferO(1),
     Path()
       ..moveTo(19, 20)
       ..lineTo(19, 2),
     Path()
       ..moveTo(19, 2)
-      ..lineTo(29, 2)
-      ..lineTo(31, 4)
-      ..lineTo(31, 8)
-      ..lineTo(29, 10)
+      ..lineTo(31, 2)
+      ..lineTo(31, 10)
       ..lineTo(19, 10),
     Path()
       ..moveTo(24, 10)
-      ..lineTo(33, 20),
+      ..lineTo(30, 20),
     Path()
       ..moveTo(37, 2)
       ..lineTo(37, 20)
       ..lineTo(47, 20),
-    _octagonalO(54),
+    _singleChamferO(53),
   ];
 
-  static Path _octagonalO(double left) => Path()
-    ..moveTo(left + 2, 2)
+  static Path _singleChamferO(double left) => Path()
+    ..moveTo(left, 2)
     ..lineTo(left + 10, 2)
     ..lineTo(left + 12, 4)
-    ..lineTo(left + 12, 18)
-    ..lineTo(left + 10, 20)
-    ..lineTo(left + 2, 20)
-    ..lineTo(left, 18)
-    ..lineTo(left, 4)
+    ..lineTo(left + 12, 20)
+    ..lineTo(left, 20)
     ..close();
 
   @override

@@ -1630,8 +1630,8 @@ void main() {
     final signRect = tester.getRect(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
     );
-    final logoRect = tester.getRect(
-      find.byKey(const ValueKey('dashboard-brand-logo')),
+    final logoSlotRect = tester.getRect(
+      find.byKey(const ValueKey('dashboard-brand-logo-slot')),
     );
     final wordmarkRect = tester.getRect(neonWordmark);
     final perimeterLeft =
@@ -1646,8 +1646,8 @@ void main() {
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoRect.left - perimeterLeft, inInclusiveRange(0, 8));
-    expect(wordmarkCoreLeft - logoRect.right, inInclusiveRange(0, 8));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(0, 2));
+    expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
     expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(0, 8));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),

@@ -19,11 +19,15 @@ void main() {
       expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(12));
       expect(DashboardNeonTubeGeometry.lFootWidth, 10);
       expect(DashboardNeonTubeGeometry.chamferLength, 2);
-      expect(DashboardNeonTubeGeometry.signWidth, 110);
+      expect(DashboardNeonTubeGeometry.topLeftChamferLength, 0);
+      expect(DashboardNeonTubeGeometry.topRightChamferLength, 2);
+      expect(DashboardNeonTubeGeometry.bottomRightChamferLength, 0);
+      expect(DashboardNeonTubeGeometry.bottomLeftChamferLength, 0);
+      expect(DashboardNeonTubeGeometry.signWidth, 106);
       expect(
         DashboardNeonTubeGeometry.wordmarkPaintRight -
             DashboardNeonTubeGeometry.wordmarkPaintLeft,
-        65,
+        64,
       );
       expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
       expect(
@@ -38,14 +42,32 @@ void main() {
         );
       }
       expect(DashboardNeonTubeGeometry.periodRadius, .4);
-      expect(DashboardNeonTubeGeometry.leftContentClearance, 1);
-      expect(DashboardNeonTubeGeometry.rightContentClearance, 2);
+      expect(DashboardNeonTubeGeometry.leftContentClearance, 0);
+      expect(DashboardNeonTubeGeometry.rightContentClearance, 0);
       expect(
         DashboardNeonTubeGeometry.lockupWidth,
         DashboardNeonTubeGeometry.logoSize +
             DashboardNeonTubeGeometry.logoWordmarkGap +
             DashboardNeonTubeGeometry.wordmarkWidth,
       );
+      final previousLegRun =
+          DashboardNeonTubeGeometry.previousRLegEnd.dx -
+          DashboardNeonTubeGeometry.rLegStart.dx;
+      final finalLegRun =
+          DashboardNeonTubeGeometry.rLegEnd.dx -
+          DashboardNeonTubeGeometry.rLegStart.dx;
+      expect(finalLegRun, lessThan(previousLegRun));
+      expect(
+        DashboardNeonTubeGeometry.rLegEnd.dy -
+            DashboardNeonTubeGeometry.rLegStart.dy,
+        10,
+      );
+      const previousLetterPeriodGap = 2.1;
+      final finalLetterPeriodGap =
+          DashboardNeonTubeGeometry.periodCenters.first.dx -
+          DashboardNeonTubeGeometry.periodRadius -
+          13;
+      expect(finalLetterPeriodGap, closeTo(previousLetterPeriodGap * 1.5, .05));
     });
 
     test('keeps the luminous perimeter parallel and subordinate', () {

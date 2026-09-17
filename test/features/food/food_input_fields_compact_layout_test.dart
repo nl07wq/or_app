@@ -85,6 +85,7 @@ void main() {
     );
     for (final quantity in [_field('表示量'), _field('登録基準量')]) {
       final decoration = tester.widget<TextField>(quantity).decoration!;
+      expect(tester.widget<TextField>(quantity).textAlign, TextAlign.center);
       expect(decoration.border, InputBorder.none);
       expect(decoration.enabledBorder, InputBorder.none);
       expect(decoration.focusedBorder, InputBorder.none);
@@ -98,7 +99,10 @@ void main() {
       );
     }
     for (final unit in [_packageUnit(), _baseUnit()]) {
-      expect(tester.widget<DropdownButton>(unit).isExpanded, isTrue);
+      final dropdown = tester.widget<DropdownButton>(unit);
+      expect(dropdown.isExpanded, isTrue);
+      expect(dropdown.alignment, AlignmentDirectional.center);
+      expect(dropdown.padding, const EdgeInsets.only(right: 4));
     }
     final packageQuantityBounds = tester.getRect(_field('表示量'));
     final packageUnitBounds = tester.getRect(_packageUnit());
