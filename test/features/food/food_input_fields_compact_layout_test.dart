@@ -100,6 +100,20 @@ void main() {
     for (final unit in [_packageUnit(), _baseUnit()]) {
       expect(tester.widget<DropdownButton>(unit).isExpanded, isTrue);
     }
+    final packageQuantityBounds = tester.getRect(_field('表示量'));
+    final packageUnitBounds = tester.getRect(_packageUnit());
+    final baseQuantityBounds = tester.getRect(_field('登録基準量'));
+    final baseUnitBounds = tester.getRect(_baseUnit());
+    expect(
+      packageQuantityBounds.width /
+          (packageQuantityBounds.width + packageUnitBounds.width),
+      closeTo(.4, .01),
+    );
+    expect(
+      baseQuantityBounds.width /
+          (baseQuantityBounds.width + baseUnitBounds.width),
+      closeTo(.4, .01),
+    );
     for (final module in [packageModule, baseModule]) {
       expect(tester.getSize(module).height, 70);
     }
@@ -163,6 +177,25 @@ void main() {
     }
   });
 
+  testWidgets('40:60 quantity modules keep practical numeric editing width', (
+    tester,
+  ) async {
+    final controllers = _Controllers();
+    addTearDown(controllers.dispose);
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_subject(controllers, width: 320));
+
+    for (final value in ['1', '55', '100', '250', '500', '1000', '10000']) {
+      for (final quantity in [_field('表示量'), _field('登録基準量')]) {
+        await tester.enterText(quantity, value);
+        await tester.pump();
+        expect(tester.getRect(quantity).width, greaterThan(50));
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
   testWidgets('Memo grows from one line to two visible lines and then caps', (
     tester,
   ) async {
@@ -218,15 +251,23 @@ void main() {
   testWidgets(
     '390px keeps every canonical unit clear of its selector chevron',
     (tester) async {
-      for (final unit in FoodQuantityUnit.values) {
+      for (final unit in <FoodQuantityUnit?>[
+        null,
+        ...FoodQuantityUnit.values,
+      ]) {
         final controllers = _Controllers();
         addTearDown(controllers.dispose);
         await tester.binding.setSurfaceSize(const Size(390, 844));
         await tester.pumpWidget(
-          _subject(controllers, width: 320, packageUnit: unit, baseUnit: unit),
+          _subject(
+            controllers,
+            width: 320,
+            packageUnit: unit,
+            baseUnit: unit ?? FoodQuantityUnit.gram,
+          ),
         );
-        final label = _unitLabel(unit);
-        for (final field in [_packageUnit(), _baseUnit()]) {
+        final label = unit == null ? 'NOT SET' : _unitLabel(unit);
+        for (final field in [_packageUnit(), if (unit != null) _baseUnit()]) {
           final bounds = tester.getRect(field);
           final text = find.descendant(of: field, matching: find.text(label));
           expect(text, findsOneWidget);
@@ -320,7 +361,7 @@ Widget _subject(
   _Controllers controllers, {
   required double width,
   FoodQuantityUnit baseUnit = FoodQuantityUnit.gram,
-  FoodQuantityUnit packageUnit = FoodQuantityUnit.gram,
+  FoodQuantityUnit? packageUnit = FoodQuantityUnit.gram,
   String? recalculationBlockReason,
 }) => MaterialApp(
   theme: StandardTheme.theme,

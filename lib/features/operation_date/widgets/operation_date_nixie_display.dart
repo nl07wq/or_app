@@ -75,7 +75,7 @@ class NixiePresentationColors {
   static const glow = Color(0xB3F35A24);
   static const outerGlow = Color(0x66D9431F);
   static const inactive = Color(0x05FF8A3D);
-  static const rearCathode = Color(0xFF79402B);
+  static const rearCathode = Color(0xFFA65A35);
   static const frame = Color(0x66F06A32);
   static const surface = Color(0xFF17100E);
 
@@ -99,11 +99,11 @@ class NixiePresentationColors {
 /// deliberately have no glow/shadow stack.
 abstract final class NixieRearCathodePresentation {
   static const digits = <String>['8', '9'];
-  static const eightOffset = Offset(-.35, .35);
-  static const nineOffset = Offset(.55, -.45);
-  static const opacity = .14;
-  static const matchingActiveOpacity = .065;
-  static const strokeWidth = .45;
+  static const eightOffset = Offset(-.5, .5);
+  static const nineOffset = Offset(.75, -.6);
+  static const opacity = .22;
+  static const matchingActiveOpacity = .11;
+  static const strokeWidth = .6;
 
   static double opacityFor(String activeDigit, String cathode) =>
       activeDigit == cathode ? matchingActiveOpacity : opacity;

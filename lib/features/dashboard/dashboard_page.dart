@@ -411,35 +411,43 @@ class DashboardNeonFaultPatterns {
 /// Keeping it data-backed lets the visual contract be tested without relying
 /// on blur-fringe pixels.
 abstract final class DashboardNeonTubeGeometry {
-  static const signWidth = 118.0;
+  static const signWidth = 110.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
   static const perimeterInset = 1.0;
   static const perimeterRadius = 5.0;
-  static const signHorizontalPadding = 6.0;
+  static const signHorizontalPadding = 4.0;
   static const logoSize = 28.0;
-  static const logoWordmarkGap = 3.0;
-  static const lockupOffsetX = 1.0;
+  static const logoWordmarkGap = 2.0;
+  static const lockupOffsetX = -.5;
 
-  static const wordmarkWidth = 63.0;
+  static const wordmarkWidth = 67.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
-  static const wordmarkPaintLeft = 2.0;
-  static const wordmarkPaintRight = 61.0;
+  static const wordmarkPaintLeft = 1.0;
+  static const wordmarkPaintRight = 66.0;
   static const ovalWidth = 12.0;
   static const rWidth = 12.0;
-  static const lFootWidth = 9.0;
+  static const lFootWidth = 10.0;
+  static const chamferLength = 2.0;
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
-  static const periodRadius = .45;
+  static const periodRadius = .4;
   static const periodBaselineY = 18.4;
   static const periodCenters = <Offset>[
-    Offset(15.8, periodBaselineY),
-    Offset(32.5, periodBaselineY),
-    Offset(46.5, periodBaselineY),
+    Offset(15.5, periodBaselineY),
+    Offset(33.5, periodBaselineY),
+    Offset(49, periodBaselineY),
   ];
+
+  static const lockupWidth = logoSize + logoWordmarkGap + wordmarkWidth;
+  static const innerSignWidth = signWidth - (signHorizontalPadding * 2);
+  static const leftContentClearance =
+      ((innerSignWidth - lockupWidth) / 2) + lockupOffsetX - perimeterInset;
+  static const rightContentClearance =
+      ((innerSignWidth - lockupWidth) / 2) - lockupOffsetX - perimeterInset;
 }
 
 class DashboardPage extends StatefulWidget {
@@ -2564,35 +2572,37 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
   static const _dots = DashboardNeonTubeGeometry.periodCenters;
 
   static List<Path> _buildTubes() => [
-    Path()..addRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(2, 2, 12, 18),
-        const Radius.circular(2.25),
-      ),
-    ),
+    _octagonalO(1),
     Path()
-      ..moveTo(18, 20)
-      ..lineTo(18, 2),
+      ..moveTo(19, 20)
+      ..lineTo(19, 2),
     Path()
-      ..moveTo(18, 2)
-      ..lineTo(27, 2)
-      ..quadraticBezierTo(30, 2, 30, 6)
-      ..quadraticBezierTo(30, 10, 27, 10)
-      ..lineTo(18, 10),
+      ..moveTo(19, 2)
+      ..lineTo(29, 2)
+      ..lineTo(31, 4)
+      ..lineTo(31, 8)
+      ..lineTo(29, 10)
+      ..lineTo(19, 10),
     Path()
-      ..moveTo(22, 10)
-      ..lineTo(31, 20),
+      ..moveTo(24, 10)
+      ..lineTo(33, 20),
     Path()
-      ..moveTo(35, 2)
-      ..lineTo(35, 20)
-      ..lineTo(44, 20),
-    Path()..addRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(49, 2, 12, 18),
-        const Radius.circular(2.25),
-      ),
-    ),
+      ..moveTo(37, 2)
+      ..lineTo(37, 20)
+      ..lineTo(47, 20),
+    _octagonalO(54),
   ];
+
+  static Path _octagonalO(double left) => Path()
+    ..moveTo(left + 2, 2)
+    ..lineTo(left + 10, 2)
+    ..lineTo(left + 12, 4)
+    ..lineTo(left + 12, 18)
+    ..lineTo(left + 10, 20)
+    ..lineTo(left + 2, 20)
+    ..lineTo(left, 18)
+    ..lineTo(left, 4)
+    ..close();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2643,7 +2653,14 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
     for (final dot in _dots) {
-      canvas.drawCircle(dot, DashboardNeonTubeGeometry.periodRadius, paint);
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: dot,
+          width: DashboardNeonTubeGeometry.periodRadius * 2,
+          height: DashboardNeonTubeGeometry.periodRadius * 2,
+        ),
+        paint,
+      );
     }
   }
 

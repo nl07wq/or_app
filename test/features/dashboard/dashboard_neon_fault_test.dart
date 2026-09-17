@@ -5,42 +5,48 @@ import 'package:or_app/features/dashboard/dashboard_page.dart';
 
 void main() {
   group('DashboardNeonTubeGeometry', () {
-    test(
-      'uses industrial condensed monoline glyph and baseline period geometry',
-      () {
+    test('uses an angular technical alphabet and baseline period geometry', () {
+      expect(
+        DashboardNeonTubeGeometry.glyphHeight,
+        greaterThan(DashboardNeonTubeGeometry.ovalWidth),
+      );
+      expect(DashboardNeonTubeGeometry.ovalWidth, greaterThan(9));
+      expect(
+        DashboardNeonTubeGeometry.ovalWidth /
+            DashboardNeonTubeGeometry.glyphHeight,
+        inInclusiveRange(.6, .72),
+      );
+      expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(12));
+      expect(DashboardNeonTubeGeometry.lFootWidth, 10);
+      expect(DashboardNeonTubeGeometry.chamferLength, 2);
+      expect(DashboardNeonTubeGeometry.signWidth, 110);
+      expect(
+        DashboardNeonTubeGeometry.wordmarkPaintRight -
+            DashboardNeonTubeGeometry.wordmarkPaintLeft,
+        65,
+      );
+      expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
+      expect(
+        DashboardNeonTubeGeometry.hotCoreWidth,
+        lessThan(DashboardNeonTubeGeometry.tubeWidth),
+      );
+      expect(DashboardNeonTubeGeometry.periodCenters, hasLength(3));
+      for (final center in DashboardNeonTubeGeometry.periodCenters) {
         expect(
-          DashboardNeonTubeGeometry.glyphHeight,
-          greaterThan(DashboardNeonTubeGeometry.ovalWidth),
+          center.dy,
+          greaterThan(DashboardNeonTubeGeometry.wordmarkHeight / 2),
         );
-        expect(DashboardNeonTubeGeometry.ovalWidth, greaterThan(9));
-        expect(
-          DashboardNeonTubeGeometry.ovalWidth /
-              DashboardNeonTubeGeometry.glyphHeight,
-          inInclusiveRange(.6, .72),
-        );
-        expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(12));
-        expect(DashboardNeonTubeGeometry.lFootWidth, lessThanOrEqualTo(9));
-        expect(DashboardNeonTubeGeometry.signWidth, 118);
-        expect(
-          DashboardNeonTubeGeometry.wordmarkPaintRight -
-              DashboardNeonTubeGeometry.wordmarkPaintLeft,
-          59,
-        );
-        expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
-        expect(
-          DashboardNeonTubeGeometry.hotCoreWidth,
-          lessThan(DashboardNeonTubeGeometry.tubeWidth),
-        );
-        expect(DashboardNeonTubeGeometry.periodCenters, hasLength(3));
-        for (final center in DashboardNeonTubeGeometry.periodCenters) {
-          expect(
-            center.dy,
-            greaterThan(DashboardNeonTubeGeometry.wordmarkHeight / 2),
-          );
-        }
-        expect(DashboardNeonTubeGeometry.periodRadius, lessThan(.5));
-      },
-    );
+      }
+      expect(DashboardNeonTubeGeometry.periodRadius, .4);
+      expect(DashboardNeonTubeGeometry.leftContentClearance, 1);
+      expect(DashboardNeonTubeGeometry.rightContentClearance, 2);
+      expect(
+        DashboardNeonTubeGeometry.lockupWidth,
+        DashboardNeonTubeGeometry.logoSize +
+            DashboardNeonTubeGeometry.logoWordmarkGap +
+            DashboardNeonTubeGeometry.wordmarkWidth,
+      );
+    });
 
     test('keeps the luminous perimeter parallel and subordinate', () {
       expect(
