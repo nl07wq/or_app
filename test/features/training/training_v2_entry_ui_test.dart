@@ -395,7 +395,7 @@ void main() {
     expect(cardio['durationSeconds'], 300);
   });
 
-  testWidgets('cardio duration picker updates draft values live and commits '
+  testWidgets('cardio duration selectors update draft values live and commit '
       'only on APPLY', (tester) async {
     await _pump(tester, width: 390);
     await tester.tap(find.text('ADD CARDIO'));
@@ -407,40 +407,37 @@ void main() {
     await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-hours')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('06').last);
+    await tester.tap(find.text('12').last);
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('cardio-duration-minutes-value-6')),
+      find.byKey(const ValueKey('cardio-duration-hours-value-12')),
       findsOneWidget,
     );
     expect(cardio.controller.duration.text, isEmpty);
 
-    await tester.tap(find.byKey(const ValueKey('cardio-duration-seconds')));
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('30').last);
+    await tester.tap(find.text('34').last);
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('cardio-duration-seconds-value-30')),
+      find.byKey(const ValueKey('cardio-duration-minutes-value-34')),
       findsOneWidget,
     );
 
-    await tester.tap(find.byTooltip('Increase hours'));
-    await tester.pump();
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('cardio-duration-hours')))
-          .data,
-      '1',
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-seconds')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('56'),
+      180,
+      scrollable: find.byType(Scrollable).last,
     );
-    await tester.tap(find.byTooltip('Increase hours'));
-    await tester.pump();
+    await tester.tap(find.text('56').last);
+    await tester.pumpAndSettle();
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('cardio-duration-hours')))
-          .data,
-      '2',
+      find.byKey(const ValueKey('cardio-duration-seconds-value-56')),
+      findsOneWidget,
     );
 
     await tester.tap(find.text('CANCEL'));
@@ -450,6 +447,10 @@ void main() {
     await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
     await tester.pumpAndSettle();
     expect(
+      find.byKey(const ValueKey('cardio-duration-hours-value-0')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('cardio-duration-minutes-value-0')),
       findsOneWidget,
     );
@@ -458,10 +459,13 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byTooltip('Increase hours'));
+    await tester.tap(find.byKey(const ValueKey('cardio-duration-hours')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('02').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('cardio-duration-minutes')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('06').last);
+    await tester.tap(find.text('15').last);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('cardio-duration-seconds')));
     await tester.pumpAndSettle();
@@ -470,24 +474,22 @@ void main() {
     await tester.tap(find.text('APPLY'));
     await tester.pumpAndSettle();
 
-    expect(cardio.controller.duration.text, '1:06:30');
+    expect(cardio.controller.duration.text, '2:15:30');
     expect(
       TrainingV2FormMapper.parseDurationSeconds(
         cardio.controller.duration.text,
       ),
-      3990,
+      8130,
     );
 
     await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('cardio-duration-hours')))
-          .data,
-      '1',
+      find.byKey(const ValueKey('cardio-duration-hours-value-2')),
+      findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('cardio-duration-minutes-value-6')),
+      find.byKey(const ValueKey('cardio-duration-minutes-value-15')),
       findsOneWidget,
     );
     expect(
@@ -495,6 +497,62 @@ void main() {
       findsOneWidget,
     );
   });
+
+  for (final width in <double>[320, 390, 900]) {
+    testWidgets('cardio duration selector geometry remains readable at '
+        '${width.toInt()}px', (tester) async {
+      await _pump(tester, width: width);
+      await tester.tap(find.text('ADD CARDIO'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('v2-cardio-0-duration')));
+      await tester.pumpAndSettle();
+
+      final fields = [
+        find.byKey(const ValueKey('cardio-duration-hours')),
+        find.byKey(const ValueKey('cardio-duration-minutes')),
+        find.byKey(const ValueKey('cardio-duration-seconds')),
+      ];
+      final labels = ['HOURS', 'MINUTES', 'SECONDS'];
+      for (var index = 0; index < fields.length; index++) {
+        final fieldRect = tester.getRect(fields[index]);
+        expect(fieldRect.width, 76);
+        final label = find.descendant(
+          of: fields[index],
+          matching: find.text(labels[index]),
+        );
+        final value = find.descendant(
+          of: fields[index],
+          matching: find.text('00'),
+        );
+        final chevron = find.descendant(
+          of: fields[index],
+          matching: find.byIcon(Icons.arrow_drop_down),
+        );
+        expect(label, findsOneWidget);
+        expect(value, findsOneWidget);
+        expect(chevron, findsOneWidget);
+        expect(tester.getRect(label).right, lessThanOrEqualTo(fieldRect.right));
+        expect(
+          tester.getRect(value).right,
+          lessThan(tester.getRect(chevron).left),
+        );
+      }
+
+      final hours = tester.getRect(fields[0]);
+      final minutes = tester.getRect(fields[1]);
+      final seconds = tester.getRect(fields[2]);
+      if (width < 360) {
+        expect(hours.top, closeTo(minutes.top, 1));
+        expect(seconds.top, greaterThan(hours.bottom));
+      } else {
+        expect(hours.top, closeTo(minutes.top, 1));
+        expect(minutes.top, closeTo(seconds.top, 1));
+      }
+      expect(find.byTooltip('Increase hours'), findsNothing);
+      expect(find.byTooltip('Decrease hours'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('ADD SET preserves copy actions and rest presets', (
     tester,

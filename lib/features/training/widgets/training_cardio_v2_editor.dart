@@ -263,6 +263,10 @@ class _CardioDurationPicker extends StatefulWidget {
 }
 
 class _CardioDurationPickerState extends State<_CardioDurationPicker> {
+  static const _minimumSelectorWidth = 76.0;
+  static const _selectorGap = AppSpacing.sm;
+  static const _maximumHours = 99;
+
   late var _hours = widget.initialSeconds ~/ 3600;
   late var _minutes = (widget.initialSeconds % 3600) ~/ 60;
   late var _seconds = widget.initialSeconds % 60;
@@ -274,25 +278,7 @@ class _CardioDurationPickerState extends State<_CardioDurationPicker> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('CARDIO DURATION'),
-      content: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _hoursPicker(),
-          const SizedBox(width: AppSpacing.sm),
-          _unitPicker(
-            label: 'MINUTES',
-            value: _minutes,
-            onChanged: (value) => setState(() => _minutes = value),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _unitPicker(
-            label: 'SECONDS',
-            value: _seconds,
-            onChanged: (value) => setState(() => _seconds = value),
-          ),
-        ],
-      ),
+      content: _selectorContent(context),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -306,49 +292,86 @@ class _CardioDurationPickerState extends State<_CardioDurationPicker> {
     );
   }
 
-  Widget _hoursPicker() => Semantics(
-    label: 'Hours',
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('HOURS'),
-        Row(
+  Widget _selectorContent(BuildContext context) {
+    final useTwoRows = MediaQuery.sizeOf(context).width < 360;
+    final hours = _unitPicker(
+      label: 'HOURS',
+      value: _hours,
+      maximum: _hours > _maximumHours ? _hours : _maximumHours,
+      onChanged: (value) => setState(() => _hours = value),
+    );
+    final minutes = _unitPicker(
+      label: 'MINUTES',
+      value: _minutes,
+      maximum: 59,
+      onChanged: (value) => setState(() => _minutes = value),
+    );
+    final seconds = _unitPicker(
+      label: 'SECONDS',
+      value: _seconds,
+      maximum: 59,
+      onChanged: (value) => setState(() => _seconds = value),
+    );
+    if (useTwoRows) {
+      return SizedBox(
+        width: (_minimumSelectorWidth * 2) + _selectorGap,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IconButton(
-              tooltip: 'Decrease hours',
-              onPressed: _hours == 0 ? null : () => setState(() => _hours -= 1),
-              icon: const Icon(Icons.remove),
+            Row(
+              children: [
+                hours,
+                const SizedBox(width: _selectorGap),
+                minutes,
+              ],
             ),
-            Text('$_hours', key: const ValueKey('cardio-duration-hours')),
-            IconButton(
-              tooltip: 'Increase hours',
-              onPressed: () => setState(() => _hours += 1),
-              icon: const Icon(Icons.add),
-            ),
+            const SizedBox(height: AppSpacing.sm),
+            seconds,
           ],
         ),
-      ],
-    ),
-  );
+      );
+    }
+    return SizedBox(
+      width: (_minimumSelectorWidth * 3) + (_selectorGap * 2),
+      child: Row(
+        children: [
+          hours,
+          const SizedBox(width: _selectorGap),
+          minutes,
+          const SizedBox(width: _selectorGap),
+          seconds,
+        ],
+      ),
+    );
+  }
 
   Widget _unitPicker({
     required String label,
     required int value,
+    required int maximum,
     required ValueChanged<int> onChanged,
   }) {
     final fieldKey = 'cardio-duration-${label.toLowerCase()}';
     return SizedBox(
       key: ValueKey(fieldKey),
-      width: 64,
+      width: _minimumSelectorWidth,
       child: DropdownButtonFormField<int>(
         key: ValueKey('$fieldKey-value-$value'),
         initialValue: value,
         isExpanded: true,
         style: Theme.of(context).textTheme.bodyLarge,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(fontSize: 10),
+          floatingLabelStyle: const TextStyle(fontSize: 10),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 10,
+          ),
+        ),
         items: [
-          for (var unit = 0; unit < 60; unit++)
+          for (var unit = 0; unit <= maximum; unit++)
             DropdownMenuItem(
               value: unit,
               child: Text(unit.toString().padLeft(2, '0')),
