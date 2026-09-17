@@ -124,7 +124,7 @@ class _SetEditor extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 );
                 final setType = _setTypeField(context);
-                if (constraints.maxWidth < 320) {
+                if (constraints.maxWidth < 304) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
