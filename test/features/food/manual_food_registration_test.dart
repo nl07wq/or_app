@@ -46,8 +46,13 @@ void main() {
       await tester.enterText(_field('CARBOHYDRATE'), '20');
       await tester.enterText(_usedAmountField(), '75');
 
-      final packageUnit = find.byType(
-        DropdownButtonFormField<FoodQuantityUnit?>,
+      final packageUnit = find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButton<FoodQuantityUnit?> &&
+            widget.key is ValueKey &&
+            (widget.key! as ValueKey).value.toString().startsWith(
+              'food-entry-package-unit-',
+            ),
       );
       await tester.ensureVisible(packageUnit);
       await tester.tap(packageUnit);

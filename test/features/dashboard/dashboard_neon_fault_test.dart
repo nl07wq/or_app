@@ -19,7 +19,13 @@ void main() {
           inInclusiveRange(.6, .72),
         );
         expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(12));
-        expect(DashboardNeonTubeGeometry.lFootWidth, lessThanOrEqualTo(8));
+        expect(DashboardNeonTubeGeometry.lFootWidth, lessThanOrEqualTo(9));
+        expect(DashboardNeonTubeGeometry.signWidth, 118);
+        expect(
+          DashboardNeonTubeGeometry.wordmarkPaintRight -
+              DashboardNeonTubeGeometry.wordmarkPaintLeft,
+          59,
+        );
         expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
         expect(
           DashboardNeonTubeGeometry.hotCoreWidth,

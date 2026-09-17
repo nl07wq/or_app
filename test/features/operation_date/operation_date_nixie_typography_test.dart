@@ -6,8 +6,8 @@ import 'package:or_app/features/operation_date/widgets/operation_date_nixie_disp
 
 void main() {
   test('NIXIE textual labels increase by one pixel without changing cells', () {
-    expect(NixiePresentationTypography.previousTextualFontSize, 14);
-    expect(NixiePresentationTypography.textualFontSize, 15);
+    expect(NixiePresentationTypography.previousTextualFontSize, 15);
+    expect(NixiePresentationTypography.textualFontSize, 16);
     expect(
       NixiePresentationTypography.textualFontSize,
       NixiePresentationTypography.previousTextualFontSize + 1,

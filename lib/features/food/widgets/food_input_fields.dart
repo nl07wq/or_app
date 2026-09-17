@@ -732,80 +732,91 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
   final ValueChanged<String> onQuantityChanged;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      ExcludeSemantics(
-        child: Center(
-          child: Text(
-            label,
-            key: ValueKey(
-              'food-entry-${label == '表示量' ? 'package' : 'base'}-group-label',
-            ),
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(fontSize: 10.5),
-          ),
-        ),
+  Widget build(BuildContext context) {
+    final group = label == '表示量' ? 'package' : 'base';
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: ValueKey('food-entry-$group-quantity-module'),
+      height: 70,
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.outline),
+        borderRadius: BorderRadius.circular(4),
       ),
-      const SizedBox(height: AppSpacing.xs),
-      SizedBox(
-        height: 52,
-        child: Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: Semantics(
-                label: '$label 数値',
-                textField: true,
-                child: TextField(
-                  key: quantityKey,
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  onChanged: onQuantityChanged,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              flex: 3,
-              child: Semantics(
-                label: '$label 単位',
-                child: DropdownButtonFormField<T>(
-                  key: unitKey,
-                  initialValue: value,
-                  isExpanded: true,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 22,
+            child: ExcludeSemantics(
+              child: Center(
+                child: Text(
+                  label,
+                  key: ValueKey('food-entry-$group-group-label'),
                   style: Theme.of(
                     context,
-                  ).textTheme.bodyLarge?.copyWith(fontSize: 14),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                  ),
-                  items: items,
-                  onChanged: onUnitChanged,
+                  ).textTheme.labelSmall?.copyWith(fontSize: 10.5),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          Container(
+            key: ValueKey('food-entry-$group-horizontal-divider'),
+            height: 1,
+            color: colors.outlineVariant,
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Semantics(
+                    label: '$label 数値',
+                    textField: true,
+                    child: TextField(
+                      key: quantityKey,
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: onQuantityChanged,
+                    ),
+                  ),
+                ),
+                Container(
+                  key: ValueKey('food-entry-$group-vertical-divider'),
+                  width: 1,
+                  color: colors.outlineVariant,
+                ),
+                Expanded(
+                  flex: 7,
+                  child: Semantics(
+                    label: '$label 単位',
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<T>(
+                        key: unitKey,
+                        value: value,
+                        isExpanded: true,
+                        padding: const EdgeInsets.only(left: 8, right: 4),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(fontSize: 14),
+                        items: items,
+                        onChanged: onUnitChanged,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-    ],
-  );
+    );
+  }
 }
 
 class FoodNumericStepButton extends StatelessWidget {

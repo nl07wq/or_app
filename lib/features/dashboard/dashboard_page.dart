@@ -411,7 +411,7 @@ class DashboardNeonFaultPatterns {
 /// Keeping it data-backed lets the visual contract be tested without relying
 /// on blur-fringe pixels.
 abstract final class DashboardNeonTubeGeometry {
-  static const signWidth = 124.0;
+  static const signWidth = 118.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
   static const perimeterInset = 2.0;
@@ -421,24 +421,24 @@ abstract final class DashboardNeonTubeGeometry {
   static const logoWordmarkGap = 3.0;
   static const lockupOffsetX = 1.0;
 
-  static const wordmarkWidth = 71.0;
+  static const wordmarkWidth = 63.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
   static const wordmarkPaintLeft = 2.0;
-  static const wordmarkPaintRight = 68.0;
+  static const wordmarkPaintRight = 61.0;
   static const ovalWidth = 12.0;
   static const rWidth = 12.0;
-  static const lFootWidth = 8.0;
+  static const lFootWidth = 9.0;
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
-  static const periodRadius = .4;
+  static const periodRadius = .45;
   static const periodBaselineY = 18.4;
   static const periodCenters = <Offset>[
-    Offset(16.5, periodBaselineY),
-    Offset(35, periodBaselineY),
-    Offset(50.5, periodBaselineY),
+    Offset(15.8, periodBaselineY),
+    Offset(32.5, periodBaselineY),
+    Offset(46.5, periodBaselineY),
   ];
 }
 
@@ -2567,29 +2567,29 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
     Path()..addRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(2, 2, 12, 18),
-        const Radius.circular(3),
+        const Radius.circular(2.25),
       ),
     ),
     Path()
-      ..moveTo(21, 20)
-      ..lineTo(21, 2),
+      ..moveTo(18, 20)
+      ..lineTo(18, 2),
     Path()
-      ..moveTo(21, 2)
-      ..lineTo(29, 2)
-      ..quadraticBezierTo(32, 2, 32, 6)
-      ..quadraticBezierTo(32, 10, 29, 10)
-      ..lineTo(21, 10),
+      ..moveTo(18, 2)
+      ..lineTo(27, 2)
+      ..quadraticBezierTo(30, 2, 30, 6)
+      ..quadraticBezierTo(30, 10, 27, 10)
+      ..lineTo(18, 10),
     Path()
-      ..moveTo(24, 10)
-      ..lineTo(33, 20),
+      ..moveTo(22, 10)
+      ..lineTo(31, 20),
     Path()
-      ..moveTo(40, 2)
-      ..lineTo(40, 20)
-      ..lineTo(48, 20),
+      ..moveTo(35, 2)
+      ..lineTo(35, 20)
+      ..lineTo(44, 20),
     Path()..addRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(56, 2, 12, 18),
-        const Radius.circular(3),
+        const Rect.fromLTWH(49, 2, 12, 18),
+        const Radius.circular(2.25),
       ),
     ),
   ];

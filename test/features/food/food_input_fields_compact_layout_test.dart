@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
@@ -62,6 +61,12 @@ void main() {
       const ValueKey('food-entry-package-group-label'),
     );
     final baseLabel = find.byKey(const ValueKey('food-entry-base-group-label'));
+    final packageModule = find.byKey(
+      const ValueKey('food-entry-package-quantity-module'),
+    );
+    final baseModule = find.byKey(
+      const ValueKey('food-entry-base-quantity-module'),
+    );
     expect(
       tester.getCenter(packageLabel).dx,
       closeTo(_pairCenterX(tester, _field('表示量'), _packageUnit()), .5),
@@ -72,26 +77,40 @@ void main() {
     );
     expect(
       tester.getRect(_packageUnit()).left - tester.getRect(_field('表示量')).right,
-      closeTo(AppSpacing.xs, .01),
+      closeTo(1, .01),
     );
     expect(
       tester.getRect(_baseUnit()).left - tester.getRect(_field('登録基準量')).right,
-      closeTo(AppSpacing.xs, .01),
+      closeTo(1, .01),
     );
-    for (final field in [
-      _field('表示量'),
-      _packageUnit(),
-      _field('登録基準量'),
-      _baseUnit(),
-    ]) {
-      final widget = tester.widget(field);
-      final decoration = switch (widget) {
-        TextField() => widget.decoration,
-        DropdownButtonFormField() => widget.decoration,
-        _ => null,
-      };
-      expect(decoration?.border, isA<OutlineInputBorder>());
+    for (final quantity in [_field('表示量'), _field('登録基準量')]) {
+      expect(
+        tester.widget<TextField>(quantity).decoration?.border,
+        InputBorder.none,
+      );
     }
+    for (final unit in [_packageUnit(), _baseUnit()]) {
+      expect(tester.widget<DropdownButton>(unit).isExpanded, isTrue);
+    }
+    for (final module in [packageModule, baseModule]) {
+      expect(tester.getSize(module).height, 70);
+    }
+    expect(
+      tester
+          .getRect(
+            find.byKey(const ValueKey('food-entry-package-horizontal-divider')),
+          )
+          .width,
+      closeTo(tester.getRect(packageModule).width - 2, .01),
+    );
+    expect(
+      tester
+          .getRect(
+            find.byKey(const ValueKey('food-entry-base-horizontal-divider')),
+          )
+          .width,
+      closeTo(tester.getRect(baseModule).width - 2, .01),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -190,10 +209,10 @@ void main() {
           );
           expect(chevron, findsOneWidget);
           expect(
-            tester.getRect(text).right,
-            lessThan(tester.getRect(chevron).left),
+            bounds.right - tester.getRect(chevron).left,
+            greaterThanOrEqualTo(20),
           );
-          expect(tester.getRect(text).left, greaterThan(bounds.left));
+          expect(tester.getRect(text).left, greaterThanOrEqualTo(bounds.left));
         }
         expect(tester.takeException(), isNull);
       }

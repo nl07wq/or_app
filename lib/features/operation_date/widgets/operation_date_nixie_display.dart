@@ -97,8 +97,8 @@ class NixiePresentationColors {
 /// remains separate from the numeric cathode style so cell geometry and clock
 /// digit hierarchy are not affected by label-only tuning.
 abstract final class NixiePresentationTypography {
-  static const previousTextualFontSize = 14.0;
-  static const textualFontSize = 15.0;
+  static const previousTextualFontSize = 15.0;
+  static const textualFontSize = 16.0;
   static const textualFontWeight = FontWeight.normal;
   static const textualLetterSpacing = 0.0;
 }
