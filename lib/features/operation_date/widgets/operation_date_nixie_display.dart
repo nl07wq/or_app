@@ -93,6 +93,16 @@ class NixiePresentationColors {
   ];
 }
 
+/// Typography for the textual month and weekday cells.  It intentionally
+/// remains separate from the numeric cathode style so cell geometry and clock
+/// digit hierarchy are not affected by label-only tuning.
+abstract final class NixiePresentationTypography {
+  static const previousTextualFontSize = 13.0;
+  static const textualFontSize = 14.0;
+  static const textualFontWeight = FontWeight.normal;
+  static const textualLetterSpacing = 0.0;
+}
+
 class _OperationDateNixieCalendar extends StatefulWidget {
   const _OperationDateNixieCalendar({
     required this.operationDateFuture,
@@ -461,7 +471,9 @@ class _NixieTechnicalLabel extends StatelessWidget {
           key: ValueKey('nixie-label-$value'),
           style: const TextStyle(
             fontFamily: AppTextStyles.bootTechnicalFontFamily,
-            fontSize: 13,
+            fontSize: NixiePresentationTypography.textualFontSize,
+            fontWeight: NixiePresentationTypography.textualFontWeight,
+            letterSpacing: NixiePresentationTypography.textualLetterSpacing,
             height: 1,
             color: NixiePresentationColors.active,
             shadows: NixiePresentationColors.textualShadows,

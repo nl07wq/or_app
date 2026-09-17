@@ -1595,7 +1595,7 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
-      28,
+      DashboardNeonTubeGeometry.logoSize,
     );
     final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
     expect(
@@ -1625,8 +1625,30 @@ void main() {
       tester
           .getSize(find.byKey(const ValueKey('dashboard-neon-physical-sign')))
           .height,
-      42,
+      DashboardNeonTubeGeometry.signHeight,
     );
+    final signRect = tester.getRect(
+      find.byKey(const ValueKey('dashboard-neon-physical-sign')),
+    );
+    final logoRect = tester.getRect(
+      find.byKey(const ValueKey('dashboard-brand-logo')),
+    );
+    final wordmarkRect = tester.getRect(neonWordmark);
+    final perimeterLeft =
+        signRect.left +
+        DashboardNeonTubeGeometry.signHorizontalPadding +
+        DashboardNeonTubeGeometry.perimeterInset;
+    final perimeterRight =
+        signRect.right -
+        DashboardNeonTubeGeometry.signHorizontalPadding -
+        DashboardNeonTubeGeometry.perimeterInset;
+    final wordmarkCoreLeft =
+        wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
+    final wordmarkCoreRight =
+        wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
+    expect(logoRect.left - perimeterLeft, inInclusiveRange(0, 8));
+    expect(wordmarkCoreLeft - logoRect.right, inInclusiveRange(0, 8));
+    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(0, 8));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),

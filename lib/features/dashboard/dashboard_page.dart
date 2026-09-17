@@ -416,23 +416,29 @@ abstract final class DashboardNeonTubeGeometry {
   static const physicalFrameRadius = 6.0;
   static const perimeterInset = 2.0;
   static const perimeterRadius = 4.0;
+  static const signHorizontalPadding = 7.0;
+  static const logoSize = 28.0;
+  static const logoWordmarkGap = 4.0;
+  static const lockupOffsetX = 1.5;
 
-  static const wordmarkWidth = 65.0;
+  static const wordmarkWidth = 68.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
-  static const ovalWidth = 9.0;
+  static const wordmarkPaintLeft = 2.0;
+  static const wordmarkPaintRight = 65.0;
+  static const ovalWidth = 11.0;
   static const rWidth = 11.0;
-  static const lFootWidth = 7.0;
+  static const lFootWidth = 8.0;
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
-  static const periodRadius = .32;
-  static const periodBaselineY = 18.5;
+  static const periodRadius = .4;
+  static const periodBaselineY = 18.4;
   static const periodCenters = <Offset>[
-    Offset(14, periodBaselineY),
-    Offset(32, periodBaselineY),
-    Offset(47, periodBaselineY),
+    Offset(15, periodBaselineY),
+    Offset(33.5, periodBaselineY),
+    Offset(48.5, periodBaselineY),
   ];
 }
 
@@ -2337,7 +2343,9 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
           key: const ValueKey('dashboard-neon-physical-sign'),
           height: DashboardNeonTubeGeometry.signHeight,
           width: DashboardNeonTubeGeometry.signWidth,
-          padding: const EdgeInsets.symmetric(horizontal: 7),
+          padding: const EdgeInsets.symmetric(
+            horizontal: DashboardNeonTubeGeometry.signHorizontalPadding,
+          ),
           decoration: BoxDecoration(
             color: const Color(0xFF07141B),
             borderRadius: BorderRadius.circular(
@@ -2388,46 +2396,54 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
               ),
               const _DashboardNeonSignFasteners(),
               Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 28,
-                      width: 28,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.center,
-                        children: [
-                          Opacity(
-                            opacity: .22 * _phase.outerGlowIntensity,
-                            child: Image.asset(
-                              'assets/icons/orlo_logo_1024_transparent.png',
-                              height: 28,
-                              fit: BoxFit.contain,
-                              color: glowColor,
-                              colorBlendMode: BlendMode.srcIn,
+                child: Transform.translate(
+                  offset: const Offset(
+                    DashboardNeonTubeGeometry.lockupOffsetX,
+                    0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: DashboardNeonTubeGeometry.logoSize,
+                        width: DashboardNeonTubeGeometry.logoSize,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            Opacity(
+                              opacity: .22 * _phase.outerGlowIntensity,
+                              child: Image.asset(
+                                'assets/icons/orlo_logo_1024_transparent.png',
+                                height: DashboardNeonTubeGeometry.logoSize,
+                                fit: BoxFit.contain,
+                                color: glowColor,
+                                colorBlendMode: BlendMode.srcIn,
+                              ),
                             ),
-                          ),
-                          Opacity(
-                            opacity: .78 * _phase.logoIntensity,
-                            child: Image.asset(
-                              'assets/icons/orlo_logo_1024_transparent.png',
-                              key: const ValueKey('dashboard-brand-logo'),
-                              height: 28,
-                              fit: BoxFit.contain,
-                              color: coreColor,
-                              colorBlendMode: BlendMode.srcIn,
+                            Opacity(
+                              opacity: .78 * _phase.logoIntensity,
+                              child: Image.asset(
+                                'assets/icons/orlo_logo_1024_transparent.png',
+                                key: const ValueKey('dashboard-brand-logo'),
+                                height: DashboardNeonTubeGeometry.logoSize,
+                                fit: BoxFit.contain,
+                                color: coreColor,
+                                colorBlendMode: BlendMode.srcIn,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 5),
-                    _DashboardNeonTubeWordmark(
-                      key: const ValueKey('dashboard-brand-wordmark'),
-                      phase: _phase,
-                    ),
-                  ],
+                      const SizedBox(
+                        width: DashboardNeonTubeGeometry.logoWordmarkGap,
+                      ),
+                      _DashboardNeonTubeWordmark(
+                        key: const ValueKey('dashboard-brand-wordmark'),
+                        phase: _phase,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -2548,21 +2564,34 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
   static const _dots = DashboardNeonTubeGeometry.periodCenters;
 
   static List<Path> _buildTubes() => [
-    Path()..addOval(const Rect.fromLTWH(2, 2, 9, 18)),
+    Path()..addRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(2, 2, 11, 18),
+        const Radius.circular(5.5),
+      ),
+    ),
     Path()
-      ..moveTo(19, 20)
-      ..lineTo(19, 2),
+      ..moveTo(20, 20)
+      ..lineTo(20, 2),
     Path()
-      ..moveTo(19, 2)
-      ..cubicTo(29, 1.5, 29, 10, 19, 10),
+      ..moveTo(20, 2)
+      ..lineTo(27, 2)
+      ..quadraticBezierTo(30, 2, 30, 6)
+      ..quadraticBezierTo(30, 10, 27, 10)
+      ..lineTo(20, 10),
     Path()
-      ..moveTo(22, 10)
-      ..lineTo(30, 20),
+      ..moveTo(23, 10)
+      ..lineTo(31, 20),
     Path()
-      ..moveTo(37, 2)
-      ..lineTo(37, 20)
-      ..lineTo(44, 20),
-    Path()..addOval(const Rect.fromLTWH(52, 2, 9, 18)),
+      ..moveTo(38, 2)
+      ..lineTo(38, 20)
+      ..lineTo(46, 20),
+    Path()..addRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(54, 2, 11, 18),
+        const Radius.circular(5.5),
+      ),
+    ),
   ];
 
   @override

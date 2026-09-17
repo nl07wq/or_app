@@ -6,14 +6,20 @@ import 'package:or_app/features/dashboard/dashboard_page.dart';
 void main() {
   group('DashboardNeonTubeGeometry', () {
     test(
-      'uses tall, condensed monoline glyph and baseline period geometry',
+      'uses industrial condensed monoline glyph and baseline period geometry',
       () {
         expect(
           DashboardNeonTubeGeometry.glyphHeight,
           greaterThan(DashboardNeonTubeGeometry.ovalWidth),
         );
-        expect(DashboardNeonTubeGeometry.rWidth, lessThan(12));
-        expect(DashboardNeonTubeGeometry.lFootWidth, lessThan(8));
+        expect(DashboardNeonTubeGeometry.ovalWidth, greaterThan(9));
+        expect(
+          DashboardNeonTubeGeometry.ovalWidth /
+              DashboardNeonTubeGeometry.glyphHeight,
+          inInclusiveRange(.55, .7),
+        );
+        expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(11));
+        expect(DashboardNeonTubeGeometry.lFootWidth, lessThanOrEqualTo(8));
         expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
         expect(
           DashboardNeonTubeGeometry.hotCoreWidth,
