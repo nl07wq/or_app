@@ -776,9 +776,16 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                       controller: controller,
                       decoration: const InputDecoration(
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        filled: false,
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 6),
                       ),
+                      textAlignVertical: TextAlignVertical.center,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),

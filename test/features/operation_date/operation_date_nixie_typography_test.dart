@@ -19,6 +19,66 @@ void main() {
     expect(OperationDateNixieDisplay.tileGap, 6);
   });
 
+  test('rear cathodes are limited, dark wire electrodes without glow', () {
+    expect(NixieRearCathodePresentation.digits, ['8', '9']);
+    expect(NixieRearCathodePresentation.opacity, lessThan(.18));
+    expect(
+      NixieRearCathodePresentation.matchingActiveOpacity,
+      lessThan(NixieRearCathodePresentation.opacity),
+    );
+    expect(NixieRearCathodePresentation.strokeWidth, greaterThan(0));
+  });
+
+  testWidgets('rear cathodes remain subordinate for every active digit', (
+    tester,
+  ) async {
+    for (var digit = 0; digit < 10; digit++) {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: NixieTubeCell(value: '0', width: 42, height: 36),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: NixieTubeCell(
+                value: '$digit',
+                width: 42,
+                height: 36,
+                animate: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rearEight = find.byKey(const ValueKey('nixie-rear-cathode-8'));
+      final rearNine = find.byKey(const ValueKey('nixie-rear-cathode-9'));
+      expect(rearEight, findsOneWidget);
+      expect(rearNine, findsOneWidget);
+      expect(find.byKey(ValueKey('nixie-active-$digit')), findsOneWidget);
+
+      final rearStyle = tester.widget<Text>(rearEight).style!;
+      expect(rearStyle.foreground, isNotNull);
+      expect(rearStyle.shadows, isNull);
+      expect(
+        tester
+            .getRect(rearEight)
+            .overlaps(
+              tester.getRect(find.byKey(ValueKey('nixie-active-$digit'))),
+            ),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets(
     'all NIXIE month labels fit their unchanged cells at all widths',
     (tester) async {

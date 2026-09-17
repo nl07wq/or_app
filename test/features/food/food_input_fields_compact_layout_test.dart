@@ -84,9 +84,17 @@ void main() {
       closeTo(1, .01),
     );
     for (final quantity in [_field('表示量'), _field('登録基準量')]) {
+      final decoration = tester.widget<TextField>(quantity).decoration!;
+      expect(decoration.border, InputBorder.none);
+      expect(decoration.enabledBorder, InputBorder.none);
+      expect(decoration.focusedBorder, InputBorder.none);
+      expect(decoration.disabledBorder, InputBorder.none);
+      expect(decoration.errorBorder, InputBorder.none);
+      expect(decoration.focusedErrorBorder, InputBorder.none);
+      expect(decoration.filled, isFalse);
       expect(
-        tester.widget<TextField>(quantity).decoration?.border,
-        InputBorder.none,
+        decoration.contentPadding,
+        const EdgeInsets.symmetric(horizontal: 6),
       );
     }
     for (final unit in [_packageUnit(), _baseUnit()]) {
@@ -135,6 +143,25 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('quantity editors stay borderless while focused', (tester) async {
+    final controllers = _Controllers();
+    addTearDown(controllers.dispose);
+    await tester.pumpWidget(_subject(controllers, width: 320));
+
+    for (final quantity in [_field('表示量'), _field('登録基準量')]) {
+      await tester.tap(quantity);
+      await tester.pump();
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      final decoration = tester.widget<TextField>(quantity).decoration!;
+      expect(decoration.focusedBorder, InputBorder.none);
+      expect(decoration.focusedErrorBorder, InputBorder.none);
+      expect(
+        decoration.contentPadding,
+        const EdgeInsets.symmetric(horizontal: 6),
+      );
+    }
+  });
 
   testWidgets('Memo grows from one line to two visible lines and then caps', (
     tester,

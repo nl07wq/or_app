@@ -48,7 +48,7 @@ void main() {
             DashboardNeonTubeGeometry.perimeterInset,
         DashboardNeonTubeGeometry.perimeterRadius,
       );
-      expect(DashboardNeonTubeGeometry.perimeterInset, 2);
+      expect(DashboardNeonTubeGeometry.perimeterInset, 1);
     });
   });
 

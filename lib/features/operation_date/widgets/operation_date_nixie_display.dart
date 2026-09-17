@@ -75,6 +75,7 @@ class NixiePresentationColors {
   static const glow = Color(0xB3F35A24);
   static const outerGlow = Color(0x66D9431F);
   static const inactive = Color(0x05FF8A3D);
+  static const rearCathode = Color(0xFF79402B);
   static const frame = Color(0x66F06A32);
   static const surface = Color(0xFF17100E);
 
@@ -91,6 +92,21 @@ class NixiePresentationColors {
     Shadow(color: Color(0x86F35A24), blurRadius: 7),
     Shadow(color: Color(0x4DD9431F), blurRadius: 11),
   ];
+}
+
+/// Static physical-electrode treatment for the two deliberately restrained
+/// rear cathodes. These are wire outlines, not dim alternate digits, so they
+/// deliberately have no glow/shadow stack.
+abstract final class NixieRearCathodePresentation {
+  static const digits = <String>['8', '9'];
+  static const eightOffset = Offset(-.35, .35);
+  static const nineOffset = Offset(.55, -.45);
+  static const opacity = .14;
+  static const matchingActiveOpacity = .065;
+  static const strokeWidth = .45;
+
+  static double opacityFor(String activeDigit, String cathode) =>
+      activeDigit == cathode ? matchingActiveOpacity : opacity;
 }
 
 /// Typography for the textual month and weekday cells.  It intentionally
@@ -400,16 +416,7 @@ class NixieTubeCell extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          for (var index = 0; index < 10; index++)
-            Text(
-              '$index',
-              style: const TextStyle(
-                fontFamily: AppTextStyles.bootTechnicalFontFamily,
-                fontSize: 20,
-                height: 1,
-                color: NixiePresentationColors.inactive,
-              ),
-            ),
+          _NixieRearCathodes(activeDigit: value),
           AnimatedSwitcher(
             duration: disabled || !animate
                 ? Duration.zero
@@ -434,6 +441,45 @@ class NixieTubeCell extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NixieRearCathodes extends StatelessWidget {
+  const _NixieRearCathodes({required this.activeDigit});
+
+  final String activeDigit;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: ClipRect(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          _cathode('8', NixieRearCathodePresentation.eightOffset),
+          _cathode('9', NixieRearCathodePresentation.nineOffset),
+        ],
+      ),
+    ),
+  );
+
+  Widget _cathode(String digit, Offset offset) => Transform.translate(
+    offset: offset,
+    child: Opacity(
+      opacity: NixieRearCathodePresentation.opacityFor(activeDigit, digit),
+      child: Text(
+        digit,
+        key: ValueKey('nixie-rear-cathode-$digit'),
+        style: TextStyle(
+          fontFamily: AppTextStyles.bootTechnicalFontFamily,
+          fontSize: 20,
+          height: 1,
+          foreground: Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = NixieRearCathodePresentation.strokeWidth
+            ..color = NixiePresentationColors.rearCathode,
+        ),
+      ),
+    ),
+  );
 }
 
 class _NixieTechnicalLabel extends StatelessWidget {

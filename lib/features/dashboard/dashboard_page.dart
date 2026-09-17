@@ -414,9 +414,9 @@ abstract final class DashboardNeonTubeGeometry {
   static const signWidth = 118.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
-  static const perimeterInset = 2.0;
-  static const perimeterRadius = 4.0;
-  static const signHorizontalPadding = 7.0;
+  static const perimeterInset = 1.0;
+  static const perimeterRadius = 5.0;
+  static const signHorizontalPadding = 6.0;
   static const logoSize = 28.0;
   static const logoWordmarkGap = 3.0;
   static const lockupOffsetX = 1.0;
