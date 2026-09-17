@@ -1595,19 +1595,24 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
-      35,
+      28,
     );
-    final neonWordmark = tester.widget<Text>(
-      find.byKey(const ValueKey('dashboard-brand-wordmark')),
+    final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
+    expect(tester.getSize(neonWordmark), const Size(75, 22));
+    expect(
+      find.descendant(of: neonWordmark, matching: find.byType(CustomPaint)),
+      findsOneWidget,
     );
-    expect(neonWordmark.style!.shadows, hasLength(3));
-    expect(neonWordmark.style!.color, const Color(0xFFE2F9FF));
     expect(
       find.byKey(const ValueKey('dashboard-neon-brand-mark')),
       findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-neon-perimeter-tube')),
       findsOneWidget,
     );
     expect(
@@ -1654,6 +1659,40 @@ void main() {
       expect(tester.widget<Icon>(icon).size, 18);
     }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('neon physical sign retains its compact geometry at supported widths', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      final database = FakeIndexedDbDatabase();
+      seedOperationState(database, '2026-07-28');
+      AppRepositoryRegistry.install(
+        AppRepositoryContainer.indexedDb(database),
+      );
+      await _pumpDashboard(tester, width: width);
+      await _settleDashboard(tester);
+
+      final sign = find.byKey(
+        const ValueKey('dashboard-neon-physical-sign'),
+      );
+      final perimeter = find.byKey(
+        const ValueKey('dashboard-neon-perimeter-tube'),
+      );
+      final mark = find.byKey(const ValueKey('dashboard-neon-brand-mark'));
+      expect(sign, findsOneWidget);
+      expect(perimeter, findsOneWidget);
+      expect(tester.getSize(sign), const Size(124, 42));
+      expect(
+        tester.getRect(sign).left,
+        greaterThanOrEqualTo(tester.getRect(mark).left),
+      );
+      expect(
+        tester.getRect(sign).right,
+        lessThanOrEqualTo(tester.getRect(mark).right),
+      );
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('DAILY COMMAND standby lamp fits supported widths', (

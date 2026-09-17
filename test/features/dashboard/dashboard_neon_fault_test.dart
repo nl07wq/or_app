@@ -5,10 +5,10 @@ import 'package:or_app/features/dashboard/dashboard_page.dart';
 
 void main() {
   group('DashboardNeonFaultPatterns', () {
-    test('provides five irregular plans which always recover fully', () {
+    test('provides irregular plans which always recover fully', () {
       expect(
         DashboardNeonFaultPatterns.families,
-        hasLength(greaterThanOrEqualTo(5)),
+        hasLength(greaterThanOrEqualTo(6)),
       );
       expect(
         DashboardNeonFaultPatterns.families.any(
@@ -45,6 +45,7 @@ void main() {
           expect(phase.innerGlowIntensity, inInclusiveRange(0, 1));
           expect(phase.outerGlowIntensity, inInclusiveRange(0, 1));
           expect(phase.logoIntensity, inInclusiveRange(0, 1));
+          expect(phase.frameTubeIntensity, inInclusiveRange(0, 1));
           expect(phase.frameReflectionIntensity, inInclusiveRange(0, 1));
           if (phase.duration != Duration.zero) {
             expect(phase.duration.inMilliseconds, inInclusiveRange(25, 220));
@@ -64,6 +65,7 @@ void main() {
             activePhases.any(
               (phase) =>
                   phase.coreIntensity != phase.logoIntensity ||
+                  phase.frameTubeIntensity != phase.coreIntensity ||
                   phase.outerGlowIntensity != phase.coreIntensity,
             ),
             isTrue,
@@ -127,6 +129,35 @@ void main() {
       expect(
         wordmarkOnly.phases.any(
           (phase) => phase.coreIntensity < .1 && phase.logoIntensity > .3,
+        ),
+        isTrue,
+      );
+    });
+
+    test('neon perimeter has a dedicated rare contact-fault channel', () {
+      final frameOnly = DashboardNeonFaultPatterns.families.firstWhere(
+        (family) => family.name == 'frame_perimeter_contact',
+      );
+      expect(frameOnly.weight, lessThan(10));
+      expect(
+        frameOnly.phases.any(
+          (phase) =>
+              phase.coreIntensity > .8 &&
+              phase.logoIntensity > .6 &&
+              phase.frameTubeIntensity < .1,
+        ),
+        isTrue,
+      );
+
+      final shared = DashboardNeonFaultPatterns.families.firstWhere(
+        (family) => family.name == 'shared_transformer_dip',
+      );
+      expect(
+        shared.phases.any(
+          (phase) =>
+              phase.coreIntensity < .1 &&
+              phase.logoIntensity < .1 &&
+              phase.frameTubeIntensity < .1,
         ),
         isTrue,
       );

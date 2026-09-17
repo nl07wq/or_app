@@ -70,6 +70,7 @@ class DashboardNeonFaultPhase {
     required this.innerGlowIntensity,
     required this.outerGlowIntensity,
     required this.logoIntensity,
+    required this.frameTubeIntensity,
     required this.frameReflectionIntensity,
   });
 
@@ -78,6 +79,7 @@ class DashboardNeonFaultPhase {
   final double innerGlowIntensity;
   final double outerGlowIntensity;
   final double logoIntensity;
+  final double frameTubeIntensity;
   final double frameReflectionIntensity;
 
   bool get isFullyIlluminated =>
@@ -85,6 +87,7 @@ class DashboardNeonFaultPhase {
       innerGlowIntensity == 1 &&
       outerGlowIntensity == 1 &&
       logoIntensity == 1 &&
+      frameTubeIntensity == 1 &&
       frameReflectionIntensity == 1;
 }
 
@@ -115,6 +118,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: 1,
     outerGlowIntensity: 1,
     logoIntensity: 1,
+    frameTubeIntensity: 1,
     frameReflectionIntensity: 1,
   );
 
@@ -124,6 +128,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .2,
     outerGlowIntensity: .05,
     logoIntensity: .35,
+    frameTubeIntensity: .2,
     frameReflectionIntensity: .16,
   );
   static const _sharedDark = DashboardNeonFaultPhase(
@@ -132,6 +137,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .02,
     outerGlowIntensity: 0,
     logoIntensity: .03,
+    frameTubeIntensity: .02,
     frameReflectionIntensity: .05,
   );
   static const _weakRestrike = DashboardNeonFaultPhase(
@@ -140,6 +146,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .18,
     outerGlowIntensity: .07,
     logoIntensity: .45,
+    frameTubeIntensity: .18,
     frameReflectionIntensity: .18,
   );
   static const _sharedRecovery = DashboardNeonFaultPhase(
@@ -148,6 +155,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .72,
     outerGlowIntensity: .5,
     logoIntensity: .72,
+    frameTubeIntensity: .55,
     frameReflectionIntensity: .46,
   );
   static const _wordmarkWeak = DashboardNeonFaultPhase(
@@ -156,6 +164,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .06,
     outerGlowIntensity: .01,
     logoIntensity: .56,
+    frameTubeIntensity: .74,
     frameReflectionIntensity: .2,
   );
   static const _wordmarkDark = DashboardNeonFaultPhase(
@@ -164,6 +173,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: 0,
     outerGlowIntensity: 0,
     logoIntensity: .42,
+    frameTubeIntensity: .66,
     frameReflectionIntensity: .12,
   );
   static const _logoContact = DashboardNeonFaultPhase(
@@ -172,6 +182,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .6,
     outerGlowIntensity: .38,
     logoIntensity: .05,
+    frameTubeIntensity: .86,
     frameReflectionIntensity: .32,
   );
   static const _logoReturn = DashboardNeonFaultPhase(
@@ -180,6 +191,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .82,
     outerGlowIntensity: .62,
     logoIntensity: .46,
+    frameTubeIntensity: .92,
     frameReflectionIntensity: .55,
   );
   static const _logoFirst = DashboardNeonFaultPhase(
@@ -188,6 +200,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .03,
     outerGlowIntensity: 0,
     logoIntensity: .62,
+    frameTubeIntensity: .34,
     frameReflectionIntensity: .26,
   );
   static const _nearRecovery = DashboardNeonFaultPhase(
@@ -196,6 +209,7 @@ class DashboardNeonFaultPatterns {
     innerGlowIntensity: .65,
     outerGlowIntensity: .42,
     logoIntensity: .8,
+    frameTubeIntensity: .62,
     frameReflectionIntensity: .4,
   );
 
@@ -226,6 +240,7 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: 0,
           outerGlowIntensity: 0,
           logoIntensity: .02,
+          frameTubeIntensity: .04,
           frameReflectionIntensity: .05,
         ),
         DashboardNeonFaultPhase(
@@ -234,6 +249,7 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: .25,
           outerGlowIntensity: .1,
           logoIntensity: .55,
+          frameTubeIntensity: .26,
           frameReflectionIntensity: .22,
         ),
         DashboardNeonFaultPhase(
@@ -242,6 +258,7 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: .03,
           outerGlowIntensity: 0,
           logoIntensity: .1,
+          frameTubeIntensity: .08,
           frameReflectionIntensity: .08,
         ),
         _nearRecovery,
@@ -261,6 +278,7 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: .14,
           outerGlowIntensity: .04,
           logoIntensity: .64,
+          frameTubeIntensity: .76,
           frameReflectionIntensity: .22,
         ),
         _wordmarkWeak,
@@ -280,6 +298,7 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: .7,
           outerGlowIntensity: .45,
           logoIntensity: .32,
+          frameTubeIntensity: .9,
           frameReflectionIntensity: .42,
         ),
         _logoContact,
@@ -301,6 +320,7 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: .13,
           outerGlowIntensity: .03,
           logoIntensity: .72,
+          frameTubeIntensity: .38,
           frameReflectionIntensity: .28,
         ),
         _wordmarkWeak,
@@ -310,7 +330,52 @@ class DashboardNeonFaultPatterns {
           innerGlowIntensity: .78,
           outerGlowIntensity: .54,
           logoIntensity: .85,
+          frameTubeIntensity: .7,
           frameReflectionIntensity: .52,
+        ),
+        stable,
+      ],
+    ),
+    DashboardNeonFaultFamily(
+      name: 'frame_perimeter_contact',
+      weight: 7,
+      phases: [
+        stable,
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 74),
+          coreIntensity: .92,
+          innerGlowIntensity: .72,
+          outerGlowIntensity: .48,
+          logoIntensity: .76,
+          frameTubeIntensity: .18,
+          frameReflectionIntensity: .22,
+        ),
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 49),
+          coreIntensity: .88,
+          innerGlowIntensity: .68,
+          outerGlowIntensity: .45,
+          logoIntensity: .72,
+          frameTubeIntensity: .48,
+          frameReflectionIntensity: .34,
+        ),
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 67),
+          coreIntensity: .94,
+          innerGlowIntensity: .74,
+          outerGlowIntensity: .52,
+          logoIntensity: .78,
+          frameTubeIntensity: .04,
+          frameReflectionIntensity: .14,
+        ),
+        DashboardNeonFaultPhase(
+          duration: Duration(milliseconds: 165),
+          coreIntensity: 1,
+          innerGlowIntensity: .84,
+          outerGlowIntensity: .62,
+          logoIntensity: .84,
+          frameTubeIntensity: .58,
+          frameReflectionIntensity: .44,
         ),
         stable,
       ],
@@ -2223,7 +2288,6 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
 
   @override
   Widget build(BuildContext context) {
-    final defaultStyle = DefaultTextStyle.of(context).style;
     final coreColor = Color.lerp(
       AppColors.information.withValues(alpha: .45),
       const Color(0xFFE2F9FF),
@@ -2235,23 +2299,6 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
       glowColor.withValues(alpha: .65),
       _phase.frameReflectionIntensity,
     )!;
-    final wordmarkStyle = defaultStyle.copyWith(
-      color: coreColor,
-      shadows: [
-        Shadow(
-          color: glowColor.withValues(alpha: .72 * _phase.innerGlowIntensity),
-          blurRadius: 3,
-        ),
-        Shadow(
-          color: glowColor.withValues(alpha: .5 * _phase.outerGlowIntensity),
-          blurRadius: 9,
-        ),
-        Shadow(
-          color: glowColor.withValues(alpha: .18 * _phase.outerGlowIntensity),
-          blurRadius: 16,
-        ),
-      ],
-    );
 
     return RepaintBoundary(
       key: const ValueKey('dashboard-neon-brand-mark'),
@@ -2260,6 +2307,7 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
         child: Container(
           key: const ValueKey('dashboard-neon-physical-sign'),
           height: 42,
+          width: 124,
           padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
             color: const Color(0xFF07141B),
@@ -2276,6 +2324,7 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
             ],
           ),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Positioned.fill(
                 child: IgnorePointer(
@@ -2296,22 +2345,34 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                   ),
                 ),
               ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('dashboard-neon-perimeter-tube'),
+                    painter: _DashboardNeonPerimeterPainter(
+                      intensity: _phase.frameTubeIntensity,
+                      outerGlowIntensity: _phase.outerGlowIntensity,
+                    ),
+                  ),
+                ),
+              ),
               const _DashboardNeonSignFasteners(),
               Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(
-                      height: 35,
+                      height: 28,
+                      width: 28,
                       child: Stack(
                         clipBehavior: Clip.none,
                         alignment: Alignment.center,
                         children: [
                           Opacity(
-                            opacity: .28 * _phase.outerGlowIntensity,
+                            opacity: .22 * _phase.outerGlowIntensity,
                             child: Image.asset(
                               'assets/icons/orlo_logo_1024_transparent.png',
-                              height: 35,
+                              height: 28,
                               fit: BoxFit.contain,
                               color: glowColor,
                               colorBlendMode: BlendMode.srcIn,
@@ -2322,18 +2383,19 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                             child: Image.asset(
                               'assets/icons/orlo_logo_1024_transparent.png',
                               key: const ValueKey('dashboard-brand-logo'),
-                              height: 35,
+                              height: 28,
                               fit: BoxFit.contain,
+                              color: coreColor,
+                              colorBlendMode: BlendMode.srcIn,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      'O.R.L.O.',
+                    const SizedBox(width: 5),
+                    _DashboardNeonTubeWordmark(
                       key: const ValueKey('dashboard-brand-wordmark'),
-                      style: wordmarkStyle,
+                      phase: _phase,
                     ),
                   ],
                 ),
@@ -2344,6 +2406,184 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
       ),
     );
   }
+}
+
+/// Fixed vector tubing for the brand wordmark.  ShareTechMono was audited but
+/// rejected here because its filled glyphs do not read as a single bent tube.
+class _DashboardNeonTubeWordmark extends StatelessWidget {
+  const _DashboardNeonTubeWordmark({super.key, required this.phase});
+
+  final DashboardNeonFaultPhase phase;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: SizedBox(
+      width: 75,
+      height: 22,
+      child: CustomPaint(
+        painter: _DashboardNeonTubeWordmarkPainter(phase: phase),
+      ),
+    ),
+  );
+}
+
+/// The perimeter is a separate low-intensity neon tube, inset from the
+/// physical frame so the sign retains visible mechanical depth when unlit.
+class _DashboardNeonPerimeterPainter extends CustomPainter {
+  const _DashboardNeonPerimeterPainter({
+    required this.intensity,
+    required this.outerGlowIntensity,
+  });
+
+  final double intensity;
+  final double outerGlowIntensity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final insetRect = Rect.fromLTWH(3, 3, size.width - 6, size.height - 6);
+    final tube = RRect.fromRectAndRadius(insetRect, const Radius.circular(4));
+    const cyan = AppColors.information;
+
+    _stroke(
+      canvas,
+      tube,
+      color: cyan.withValues(alpha: .12 * intensity * outerGlowIntensity),
+      width: 5,
+      blur: 4,
+    );
+    _stroke(
+      canvas,
+      tube,
+      color: cyan.withValues(alpha: .35 * intensity),
+      width: 2.3,
+      blur: 1.5,
+    );
+    _stroke(
+      canvas,
+      tube,
+      color: cyan.withValues(alpha: .62 * intensity),
+      width: 1.35,
+    );
+    _stroke(
+      canvas,
+      tube,
+      color: const Color(0xFFE2F9FF).withValues(alpha: .48 * intensity),
+      width: .55,
+    );
+  }
+
+  void _stroke(
+    Canvas canvas,
+    RRect tube, {
+    required Color color,
+    required double width,
+    double? blur,
+  }) {
+    canvas.drawRRect(
+      tube,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..color = color
+        ..isAntiAlias = true
+        ..maskFilter = blur == null
+            ? null
+            : MaskFilter.blur(BlurStyle.normal, blur),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DashboardNeonPerimeterPainter oldDelegate) =>
+      oldDelegate.intensity != intensity ||
+      oldDelegate.outerGlowIntensity != outerGlowIntensity;
+}
+
+/// A cached, deliberately fixed vector alphabet for the single O.R.L.O.
+/// sign.  The paths are invariant; fault phases only repaint light layers.
+class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
+  const _DashboardNeonTubeWordmarkPainter({required this.phase});
+
+  final DashboardNeonFaultPhase phase;
+
+  static final _tubes = _buildTubes();
+  static const _dots = <Offset>[Offset(18, 10), Offset(37, 10), Offset(55, 10)];
+
+  static List<Path> _buildTubes() => [
+    Path()..addOval(const Rect.fromLTWH(2, 3, 12, 14)),
+    Path()
+      ..moveTo(22, 17)
+      ..lineTo(22, 3),
+    Path()
+      ..moveTo(22, 3)
+      ..cubicTo(34, 2, 34, 10, 22, 10),
+    Path()
+      ..moveTo(25, 10)
+      ..lineTo(33, 17),
+    Path()
+      ..moveTo(41, 3)
+      ..lineTo(41, 17)
+      ..lineTo(51, 17),
+    Path()..addOval(const Rect.fromLTWH(60, 3, 12, 14)),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cyan = AppColors.information;
+    final hotCore = Color.lerp(cyan, const Color(0xFFE2F9FF), .86)!;
+
+    _drawLayer(
+      canvas,
+      color: cyan.withValues(alpha: .16 * phase.outerGlowIntensity),
+      strokeWidth: 7,
+      blur: 6,
+    );
+    _drawLayer(
+      canvas,
+      color: cyan.withValues(alpha: .58 * phase.innerGlowIntensity),
+      strokeWidth: 4.1,
+      blur: 2.1,
+    );
+    _drawLayer(
+      canvas,
+      color: cyan.withValues(alpha: .9 * phase.coreIntensity),
+      strokeWidth: 2.35,
+    );
+    _drawLayer(
+      canvas,
+      color: hotCore.withValues(alpha: phase.coreIntensity),
+      strokeWidth: .85,
+    );
+  }
+
+  void _drawLayer(
+    Canvas canvas, {
+    required Color color,
+    required double strokeWidth,
+    double? blur,
+  }) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = color
+      ..isAntiAlias = true
+      ..maskFilter = blur == null
+          ? null
+          : MaskFilter.blur(BlurStyle.normal, blur);
+    for (final path in _tubes) {
+      canvas.drawPath(path, paint);
+    }
+    for (final dot in _dots) {
+      canvas.drawCircle(dot, .7, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashboardNeonTubeWordmarkPainter oldDelegate) =>
+      oldDelegate.phase.coreIntensity != phase.coreIntensity ||
+      oldDelegate.phase.innerGlowIntensity != phase.innerGlowIntensity ||
+      oldDelegate.phase.outerGlowIntensity != phase.outerGlowIntensity;
 }
 
 /// Static mechanical anchors which remain visible when the neon loses power.
