@@ -83,6 +83,10 @@ class TrainingSetV2Editor extends StatelessWidget {
 }
 
 class _SetEditor extends StatelessWidget {
+  static const _setTypeSlotWidth = 112.0;
+  static const _headerActionSlotWidth = 48.0;
+  static const _wideTitleSlotMaximum = 96.0;
+
   final int index;
   final Color activeBase;
   final TrainingV2SetFormController set;
@@ -119,30 +123,6 @@ class _SetEditor extends StatelessWidget {
                   'SET ${index + 1}',
                   style: Theme.of(context).textTheme.titleMedium,
                 );
-                final actions = Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (previous != null)
-                      IconButton(
-                        icon: const Icon(Icons.monitor_weight_outlined),
-                        tooltip: 'Copy previous weight',
-                        onPressed: () => _copy(previous!.weight, set.weight),
-                      ),
-                    if (previous != null)
-                      IconButton(
-                        icon: const Icon(Icons.repeat),
-                        tooltip: 'Copy previous reps',
-                        onPressed: () => _copy(previous!.reps, set.reps),
-                      ),
-                    IconButton(
-                      key: Key('v2-set-$index-delete'),
-                      color: Theme.of(context).colorScheme.error,
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Delete set',
-                      onPressed: onDelete,
-                    ),
-                  ],
-                );
                 final setType = _setTypeField(context);
                 if (constraints.maxWidth < 320) {
                   return Column(
@@ -151,22 +131,34 @@ class _SetEditor extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(child: title),
-                          actions,
+                          _deleteSlot(context),
                         ],
                       ),
                       AppSpacing.gapXS,
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(width: 112, child: setType),
+                      Row(
+                        children: [
+                          SizedBox(width: _setTypeSlotWidth, child: setType),
+                          const Spacer(),
+                          _copyWeightSlot(),
+                          _copyRepsSlot(),
+                        ],
                       ),
                     ],
                   );
                 }
+                final titleSlotWidth =
+                    (constraints.maxWidth -
+                            _setTypeSlotWidth -
+                            (_headerActionSlotWidth * 3))
+                        .clamp(0.0, _wideTitleSlotMaximum)
+                        .toDouble();
                 return Row(
                   children: [
-                    Expanded(child: title),
-                    SizedBox(width: 112, child: setType),
-                    actions,
+                    SizedBox(width: titleSlotWidth, child: title),
+                    SizedBox(width: _setTypeSlotWidth, child: setType),
+                    _copyWeightSlot(),
+                    _copyRepsSlot(),
+                    _deleteSlot(context),
                   ],
                 );
               },
@@ -377,6 +369,42 @@ class _SetEditor extends StatelessWidget {
           onChanged();
         },
       );
+
+  Widget _copyWeightSlot() => SizedBox(
+    width: _headerActionSlotWidth,
+    height: _headerActionSlotWidth,
+    child: previous == null
+        ? null
+        : IconButton(
+            icon: const Icon(Icons.monitor_weight_outlined),
+            tooltip: 'Copy previous weight',
+            onPressed: () => _copy(previous!.weight, set.weight),
+          ),
+  );
+
+  Widget _copyRepsSlot() => SizedBox(
+    width: _headerActionSlotWidth,
+    height: _headerActionSlotWidth,
+    child: previous == null
+        ? null
+        : IconButton(
+            icon: const Icon(Icons.repeat),
+            tooltip: 'Copy previous reps',
+            onPressed: () => _copy(previous!.reps, set.reps),
+          ),
+  );
+
+  Widget _deleteSlot(BuildContext context) => SizedBox(
+    width: _headerActionSlotWidth,
+    height: _headerActionSlotWidth,
+    child: IconButton(
+      key: Key('v2-set-$index-delete'),
+      color: Theme.of(context).colorScheme.error,
+      icon: const Icon(Icons.delete_outline),
+      tooltip: 'Delete set',
+      onPressed: onDelete,
+    ),
+  );
 
   void _copy(TextEditingController source, TextEditingController target) {
     target.text = source.text;

@@ -4,6 +4,42 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 
 void main() {
+  group('DashboardNeonTubeGeometry', () {
+    test(
+      'uses tall, condensed monoline glyph and baseline period geometry',
+      () {
+        expect(
+          DashboardNeonTubeGeometry.glyphHeight,
+          greaterThan(DashboardNeonTubeGeometry.ovalWidth),
+        );
+        expect(DashboardNeonTubeGeometry.rWidth, lessThan(12));
+        expect(DashboardNeonTubeGeometry.lFootWidth, lessThan(8));
+        expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
+        expect(
+          DashboardNeonTubeGeometry.hotCoreWidth,
+          lessThan(DashboardNeonTubeGeometry.tubeWidth),
+        );
+        expect(DashboardNeonTubeGeometry.periodCenters, hasLength(3));
+        for (final center in DashboardNeonTubeGeometry.periodCenters) {
+          expect(
+            center.dy,
+            greaterThan(DashboardNeonTubeGeometry.wordmarkHeight / 2),
+          );
+        }
+        expect(DashboardNeonTubeGeometry.periodRadius, lessThan(.5));
+      },
+    );
+
+    test('keeps the luminous perimeter parallel and subordinate', () {
+      expect(
+        DashboardNeonTubeGeometry.physicalFrameRadius -
+            DashboardNeonTubeGeometry.perimeterInset,
+        DashboardNeonTubeGeometry.perimeterRadius,
+      );
+      expect(DashboardNeonTubeGeometry.perimeterInset, 2);
+    });
+  });
+
   group('DashboardNeonFaultPatterns', () {
     test('provides irregular plans which always recover fully', () {
       expect(

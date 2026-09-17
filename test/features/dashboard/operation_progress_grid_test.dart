@@ -1598,7 +1598,13 @@ void main() {
       28,
     );
     final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
-    expect(tester.getSize(neonWordmark), const Size(75, 22));
+    expect(
+      tester.getSize(neonWordmark),
+      const Size(
+        DashboardNeonTubeGeometry.wordmarkWidth,
+        DashboardNeonTubeGeometry.wordmarkHeight,
+      ),
+    );
     expect(
       find.descendant(of: neonWordmark, matching: find.byType(CustomPaint)),
       findsOneWidget,
@@ -1661,39 +1667,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('neon physical sign retains its compact geometry at supported widths', (
-    tester,
-  ) async {
-    for (final width in [320.0, 390.0, 900.0]) {
-      final database = FakeIndexedDbDatabase();
-      seedOperationState(database, '2026-07-28');
-      AppRepositoryRegistry.install(
-        AppRepositoryContainer.indexedDb(database),
-      );
-      await _pumpDashboard(tester, width: width);
-      await _settleDashboard(tester);
+  testWidgets(
+    'neon physical sign retains its compact geometry at supported widths',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        final database = FakeIndexedDbDatabase();
+        seedOperationState(database, '2026-07-28');
+        AppRepositoryRegistry.install(
+          AppRepositoryContainer.indexedDb(database),
+        );
+        await _pumpDashboard(tester, width: width);
+        await _settleDashboard(tester);
 
-      final sign = find.byKey(
-        const ValueKey('dashboard-neon-physical-sign'),
-      );
-      final perimeter = find.byKey(
-        const ValueKey('dashboard-neon-perimeter-tube'),
-      );
-      final mark = find.byKey(const ValueKey('dashboard-neon-brand-mark'));
-      expect(sign, findsOneWidget);
-      expect(perimeter, findsOneWidget);
-      expect(tester.getSize(sign), const Size(124, 42));
-      expect(
-        tester.getRect(sign).left,
-        greaterThanOrEqualTo(tester.getRect(mark).left),
-      );
-      expect(
-        tester.getRect(sign).right,
-        lessThanOrEqualTo(tester.getRect(mark).right),
-      );
-      expect(tester.takeException(), isNull);
-    }
-  });
+        final sign = find.byKey(const ValueKey('dashboard-neon-physical-sign'));
+        final perimeter = find.byKey(
+          const ValueKey('dashboard-neon-perimeter-tube'),
+        );
+        final mark = find.byKey(const ValueKey('dashboard-neon-brand-mark'));
+        expect(sign, findsOneWidget);
+        expect(perimeter, findsOneWidget);
+        expect(
+          tester.getSize(sign),
+          const Size(
+            DashboardNeonTubeGeometry.signWidth,
+            DashboardNeonTubeGeometry.signHeight,
+          ),
+        );
+        expect(
+          tester.getRect(sign).left,
+          greaterThanOrEqualTo(tester.getRect(mark).left),
+        );
+        expect(
+          tester.getRect(sign).right,
+          lessThanOrEqualTo(tester.getRect(mark).right),
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets('DAILY COMMAND standby lamp fits supported widths', (
     tester,

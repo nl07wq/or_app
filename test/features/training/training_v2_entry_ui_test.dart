@@ -593,6 +593,65 @@ void main() {
     );
   });
 
+  testWidgets('SET TYPE retains one fixed header slot across set counts', (
+    tester,
+  ) async {
+    await _pump(tester, width: 390);
+    for (var index = 0; index < 9; index++) {
+      await tester.ensureVisible(find.text('ADD SET'));
+      await tester.tap(find.text('ADD SET'));
+      await tester.pumpAndSettle();
+    }
+
+    final typeRects = <Rect>[
+      for (final index in [0, 1, 2, 9])
+        tester.getRect(find.byKey(Key('v2-set-$index-type'))),
+    ];
+    for (final rect in typeRects.skip(1)) {
+      expect(rect.left, closeTo(typeRects.first.left, .1));
+      expect(rect.width, closeTo(typeRects.first.width, .1));
+    }
+
+    final deleteRects = <Rect>[
+      for (final index in [0, 1, 2, 9])
+        tester.getRect(find.byKey(Key('v2-set-$index-delete'))),
+    ];
+    for (final rect in deleteRects.skip(1)) {
+      expect(rect.left, closeTo(deleteRects.first.left, .1));
+    }
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('training-set-card-0')),
+        matching: find.byType(IconButton),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('training-set-card-1')),
+        matching: find.byType(IconButton),
+      ),
+      findsNWidgets(3),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SET TYPE header slots remain stable at supported widths', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pump(tester, width: width);
+      await tester.tap(find.text('ADD SET'));
+      await tester.pumpAndSettle();
+
+      final first = tester.getRect(find.byKey(const Key('v2-set-0-type')));
+      final second = tester.getRect(find.byKey(const Key('v2-set-1-type')));
+      expect(first.left, closeTo(second.left, .1));
+      expect(first.width, closeTo(second.width, .1));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('weight and reps adjustment buttons update safely', (
     tester,
   ) async {

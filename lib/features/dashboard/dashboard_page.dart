@@ -407,6 +407,35 @@ class DashboardNeonFaultPatterns {
   }
 }
 
+/// Fixed, device-independent geometry for the compact physical neon sign.
+/// Keeping it data-backed lets the visual contract be tested without relying
+/// on blur-fringe pixels.
+abstract final class DashboardNeonTubeGeometry {
+  static const signWidth = 124.0;
+  static const signHeight = 42.0;
+  static const physicalFrameRadius = 6.0;
+  static const perimeterInset = 2.0;
+  static const perimeterRadius = 4.0;
+
+  static const wordmarkWidth = 65.0;
+  static const wordmarkHeight = 22.0;
+  static const glyphTop = 2.0;
+  static const glyphBottom = 20.0;
+  static const glyphHeight = glyphBottom - glyphTop;
+  static const ovalWidth = 9.0;
+  static const rWidth = 11.0;
+  static const lFootWidth = 7.0;
+  static const tubeWidth = 2.1;
+  static const hotCoreWidth = .75;
+  static const periodRadius = .32;
+  static const periodBaselineY = 18.5;
+  static const periodCenters = <Offset>[
+    Offset(14, periodBaselineY),
+    Offset(32, periodBaselineY),
+    Offset(47, periodBaselineY),
+  ];
+}
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -2294,9 +2323,9 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
       _phase.coreIntensity,
     )!;
     final glowColor = AppColors.information;
-    final frameColor = Color.lerp(
-      const Color(0xFF28414C),
-      glowColor.withValues(alpha: .65),
+    final physicalFrameColor = Color.lerp(
+      const Color(0xFF18262C),
+      const Color(0xFF24414A),
       _phase.frameReflectionIntensity,
     )!;
 
@@ -2306,20 +2335,21 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
         label: 'O.R.L.O.',
         child: Container(
           key: const ValueKey('dashboard-neon-physical-sign'),
-          height: 42,
-          width: 124,
+          height: DashboardNeonTubeGeometry.signHeight,
+          width: DashboardNeonTubeGeometry.signWidth,
           padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
             color: const Color(0xFF07141B),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: frameColor, width: 1),
+            borderRadius: BorderRadius.circular(
+              DashboardNeonTubeGeometry.physicalFrameRadius,
+            ),
+            border: Border.all(color: physicalFrameColor, width: 1),
             boxShadow: [
               BoxShadow(
                 color: glowColor.withValues(
-                  alpha: .12 * _phase.frameReflectionIntensity,
+                  alpha: .035 * _phase.frameReflectionIntensity,
                 ),
-                blurRadius: 7,
-                spreadRadius: .2,
+                blurRadius: 5,
               ),
             ],
           ),
@@ -2336,7 +2366,7 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                         radius: 1.25,
                         colors: [
                           glowColor.withValues(
-                            alpha: .08 * _phase.frameReflectionIntensity,
+                            alpha: .045 * _phase.frameReflectionIntensity,
                           ),
                           Colors.transparent,
                         ],
@@ -2418,8 +2448,8 @@ class _DashboardNeonTubeWordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
     child: SizedBox(
-      width: 75,
-      height: 22,
+      width: DashboardNeonTubeGeometry.wordmarkWidth,
+      height: DashboardNeonTubeGeometry.wordmarkHeight,
       child: CustomPaint(
         painter: _DashboardNeonTubeWordmarkPainter(phase: phase),
       ),
@@ -2440,35 +2470,44 @@ class _DashboardNeonPerimeterPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final insetRect = Rect.fromLTWH(3, 3, size.width - 6, size.height - 6);
-    final tube = RRect.fromRectAndRadius(insetRect, const Radius.circular(4));
+    final inset = DashboardNeonTubeGeometry.perimeterInset;
+    final insetRect = Rect.fromLTWH(
+      inset,
+      inset,
+      size.width - (inset * 2),
+      size.height - (inset * 2),
+    );
+    final tube = RRect.fromRectAndRadius(
+      insetRect,
+      const Radius.circular(DashboardNeonTubeGeometry.perimeterRadius),
+    );
     const cyan = AppColors.information;
 
     _stroke(
       canvas,
       tube,
       color: cyan.withValues(alpha: .12 * intensity * outerGlowIntensity),
-      width: 5,
-      blur: 4,
+      width: 4.5,
+      blur: 3.5,
     );
     _stroke(
       canvas,
       tube,
       color: cyan.withValues(alpha: .35 * intensity),
-      width: 2.3,
-      blur: 1.5,
+      width: 2.1,
+      blur: 1.3,
     );
     _stroke(
       canvas,
       tube,
       color: cyan.withValues(alpha: .62 * intensity),
-      width: 1.35,
+      width: 1.2,
     );
     _stroke(
       canvas,
       tube,
       color: const Color(0xFFE2F9FF).withValues(alpha: .48 * intensity),
-      width: .55,
+      width: .5,
     );
   }
 
@@ -2506,24 +2545,24 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
   final DashboardNeonFaultPhase phase;
 
   static final _tubes = _buildTubes();
-  static const _dots = <Offset>[Offset(18, 10), Offset(37, 10), Offset(55, 10)];
+  static const _dots = DashboardNeonTubeGeometry.periodCenters;
 
   static List<Path> _buildTubes() => [
-    Path()..addOval(const Rect.fromLTWH(2, 3, 12, 14)),
+    Path()..addOval(const Rect.fromLTWH(2, 2, 9, 18)),
     Path()
-      ..moveTo(22, 17)
-      ..lineTo(22, 3),
+      ..moveTo(19, 20)
+      ..lineTo(19, 2),
     Path()
-      ..moveTo(22, 3)
-      ..cubicTo(34, 2, 34, 10, 22, 10),
+      ..moveTo(19, 2)
+      ..cubicTo(29, 1.5, 29, 10, 19, 10),
     Path()
-      ..moveTo(25, 10)
-      ..lineTo(33, 17),
+      ..moveTo(22, 10)
+      ..lineTo(30, 20),
     Path()
-      ..moveTo(41, 3)
-      ..lineTo(41, 17)
-      ..lineTo(51, 17),
-    Path()..addOval(const Rect.fromLTWH(60, 3, 12, 14)),
+      ..moveTo(37, 2)
+      ..lineTo(37, 20)
+      ..lineTo(44, 20),
+    Path()..addOval(const Rect.fromLTWH(52, 2, 9, 18)),
   ];
 
   @override
@@ -2534,24 +2573,24 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
     _drawLayer(
       canvas,
       color: cyan.withValues(alpha: .16 * phase.outerGlowIntensity),
-      strokeWidth: 7,
+      strokeWidth: 6,
       blur: 6,
     );
     _drawLayer(
       canvas,
       color: cyan.withValues(alpha: .58 * phase.innerGlowIntensity),
-      strokeWidth: 4.1,
+      strokeWidth: 3.7,
       blur: 2.1,
     );
     _drawLayer(
       canvas,
       color: cyan.withValues(alpha: .9 * phase.coreIntensity),
-      strokeWidth: 2.35,
+      strokeWidth: DashboardNeonTubeGeometry.tubeWidth,
     );
     _drawLayer(
       canvas,
       color: hotCore.withValues(alpha: phase.coreIntensity),
-      strokeWidth: .85,
+      strokeWidth: DashboardNeonTubeGeometry.hotCoreWidth,
     );
   }
 
@@ -2575,7 +2614,7 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
     for (final dot in _dots) {
-      canvas.drawCircle(dot, .7, paint);
+      canvas.drawCircle(dot, DashboardNeonTubeGeometry.periodRadius, paint);
     }
   }
 
