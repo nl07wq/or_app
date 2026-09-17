@@ -916,7 +916,11 @@ void main() {
   });
 }
 
-Finder _field(String label) => find.widgetWithText(TextField, label);
+Finder _field(String label) => switch (label) {
+  '表示量' => find.byKey(const ValueKey('food-entry-package-quantity')),
+  '登録基準量' => find.byKey(const ValueKey('food-entry-base-quantity')),
+  _ => find.widgetWithText(TextField, label),
+};
 
 const _realLabelRawText = '''
 栄 養 成 分 表 示：1袋38g当たり

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
@@ -57,6 +58,40 @@ void main() {
     expect(find.text('NUTRITION PER 100g'), findsNothing);
     expect(find.text('SET PACKAGE QUANTITY AND UNIT'), findsNothing);
     expect(tester.getSize(_field('NAME')).height, lessThan(56));
+    final packageLabel = find.byKey(
+      const ValueKey('food-entry-package-group-label'),
+    );
+    final baseLabel = find.byKey(const ValueKey('food-entry-base-group-label'));
+    expect(
+      tester.getCenter(packageLabel).dx,
+      closeTo(_pairCenterX(tester, _field('表示量'), _packageUnit()), .5),
+    );
+    expect(
+      tester.getCenter(baseLabel).dx,
+      closeTo(_pairCenterX(tester, _field('登録基準量'), _baseUnit()), .5),
+    );
+    expect(
+      tester.getRect(_packageUnit()).left - tester.getRect(_field('表示量')).right,
+      closeTo(AppSpacing.xs, .01),
+    );
+    expect(
+      tester.getRect(_baseUnit()).left - tester.getRect(_field('登録基準量')).right,
+      closeTo(AppSpacing.xs, .01),
+    );
+    for (final field in [
+      _field('表示量'),
+      _packageUnit(),
+      _field('登録基準量'),
+      _baseUnit(),
+    ]) {
+      final widget = tester.widget(field);
+      final decoration = switch (widget) {
+        TextField() => widget.decoration,
+        DropdownButtonFormField() => widget.decoration,
+        _ => null,
+      };
+      expect(decoration?.border, isA<OutlineInputBorder>());
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -149,10 +184,16 @@ void main() {
           final bounds = tester.getRect(field);
           final text = find.descendant(of: field, matching: find.text(label));
           expect(text, findsOneWidget);
+          final chevron = find.descendant(
+            of: field,
+            matching: find.byIcon(Icons.arrow_drop_down),
+          );
+          expect(chevron, findsOneWidget);
           expect(
             tester.getRect(text).right,
-            lessThanOrEqualTo(bounds.right - 20),
+            lessThan(tester.getRect(chevron).left),
           );
+          expect(tester.getRect(text).left, greaterThan(bounds.left));
         }
         expect(tester.takeException(), isNull);
       }
@@ -274,10 +315,14 @@ Widget _subject(
   ),
 );
 
-Finder _field(String label) => find.byWidgetPredicate(
-  (widget) => widget is TextField && widget.decoration?.labelText == label,
-  description: 'TextField with label $label',
-);
+Finder _field(String label) => switch (label) {
+  '表示量' => find.byKey(const ValueKey('food-entry-package-quantity')),
+  '登録基準量' => find.byKey(const ValueKey('food-entry-base-quantity')),
+  _ => find.byWidgetPredicate(
+    (widget) => widget is TextField && widget.decoration?.labelText == label,
+    description: 'TextField with label $label',
+  ),
+};
 
 Finder _category() =>
     find.byKey(const ValueKey('food-entry-category-preparedFood'));
@@ -307,6 +352,12 @@ Finder _amount() => find.byKey(const ValueKey('food-amount-input'));
 double _top(WidgetTester tester, Finder finder) => tester.getTopLeft(finder).dy;
 double _centerY(WidgetTester tester, Finder finder) =>
     tester.getCenter(finder).dy;
+
+double _pairCenterX(WidgetTester tester, Finder first, Finder second) {
+  final firstBounds = tester.getRect(first);
+  final secondBounds = tester.getRect(second);
+  return (firstBounds.left + secondBounds.right) / 2;
+}
 
 class _Controllers {
   final name = TextEditingController();

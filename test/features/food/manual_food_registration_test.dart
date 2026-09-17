@@ -82,10 +82,14 @@ void main() {
   );
 }
 
-Finder _field(String label) => find.byWidgetPredicate(
-  (widget) => widget is TextField && widget.decoration?.labelText == label,
-  description: 'TextField with label $label',
-);
+Finder _field(String label) => switch (label) {
+  '表示量' => find.byKey(const ValueKey('food-entry-package-quantity')),
+  '登録基準量' => find.byKey(const ValueKey('food-entry-base-quantity')),
+  _ => find.byWidgetPredicate(
+    (widget) => widget is TextField && widget.decoration?.labelText == label,
+    description: 'TextField with label $label',
+  ),
+};
 
 Finder _usedAmountField() => find.byWidgetPredicate(
   (widget) =>

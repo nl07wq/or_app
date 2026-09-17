@@ -195,10 +195,11 @@ class FoodInputFields extends StatelessWidget {
 
           LayoutBuilder(
             builder: (context, constraints) {
-              final quantity = _QuantityUnitCompound<FoodQuantityUnit?>(
+              final quantity = _QuantityUnitGroup<FoodQuantityUnit?>(
                 key: const ValueKey('food-entry-package-compound'),
                 controller: packageQuantityController,
                 label: '表示量',
+                quantityKey: const ValueKey('food-entry-package-quantity'),
                 unitKey: ValueKey(
                   'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
                 ),
@@ -223,10 +224,11 @@ class FoodInputFields extends StatelessWidget {
                 }
                 return quantity;
               }
-              final baseQuantity = _QuantityUnitCompound<FoodQuantityUnit>(
+              final baseQuantity = _QuantityUnitGroup<FoodQuantityUnit>(
                 key: const ValueKey('food-entry-base-compound'),
                 controller: baseAmountController,
                 label: '登録基準量',
+                quantityKey: const ValueKey('food-entry-base-quantity'),
                 unitKey: ValueKey('food-entry-base-unit-${baseUnit.name}'),
                 value: baseUnit,
                 items: FoodQuantityUnit.values
@@ -707,11 +709,12 @@ class FoodNumericStepper extends StatelessWidget {
   );
 }
 
-class _QuantityUnitCompound<T> extends StatelessWidget {
-  const _QuantityUnitCompound({
+class _QuantityUnitGroup<T> extends StatelessWidget {
+  const _QuantityUnitGroup({
     super.key,
     required this.controller,
     required this.label,
+    required this.quantityKey,
     required this.unitKey,
     required this.value,
     required this.items,
@@ -721,6 +724,7 @@ class _QuantityUnitCompound<T> extends StatelessWidget {
 
   final TextEditingController controller;
   final String label;
+  final Key quantityKey;
   final Key unitKey;
   final T value;
   final List<DropdownMenuItem<T>> items;
@@ -728,69 +732,80 @@ class _QuantityUnitCompound<T> extends StatelessWidget {
   final ValueChanged<String> onQuantityChanged;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      container: true,
-      label: label,
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          border: Border.all(color: colors.outline),
-          borderRadius: BorderRadius.circular(4),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      ExcludeSemantics(
+        child: Center(
+          child: Text(
+            label,
+            key: ValueKey(
+              'food-entry-${label == '表示量' ? 'package' : 'base'}-group-label',
+            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontSize: 10.5),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      ),
+      const SizedBox(height: AppSpacing.xs),
+      SizedBox(
+        height: 52,
+        child: Row(
           children: [
             Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: controller,
-                      decoration: InputDecoration(
-                        labelText: label,
-                        floatingLabelBehavior: FloatingLabelBehavior.always,
-                        labelStyle: const TextStyle(fontSize: 12),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: onQuantityChanged,
+              flex: 2,
+              child: Semantics(
+                label: '$label 数値',
+                textField: true,
+                child: TextField(
+                  key: quantityKey,
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
                     ),
                   ),
-                  Container(width: 1, color: colors.outlineVariant),
-                  Expanded(
-                    flex: 3,
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<T>(
-                        key: unitKey,
-                        value: value,
-                        isExpanded: true,
-                        padding: const EdgeInsets.only(left: 8, right: 4),
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.copyWith(fontSize: 14),
-                        items: items,
-                        onChanged: onUnitChanged,
-                      ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: onQuantityChanged,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              flex: 3,
+              child: Semantics(
+                label: '$label 単位',
+                child: DropdownButtonFormField<T>(
+                  key: unitKey,
+                  initialValue: value,
+                  isExpanded: true,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontSize: 14),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
                     ),
                   ),
-                ],
+                  items: items,
+                  onChanged: onUnitChanged,
+                ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
+    ],
+  );
 }
 
 class FoodNumericStepButton extends StatelessWidget {

@@ -418,27 +418,27 @@ abstract final class DashboardNeonTubeGeometry {
   static const perimeterRadius = 4.0;
   static const signHorizontalPadding = 7.0;
   static const logoSize = 28.0;
-  static const logoWordmarkGap = 4.0;
-  static const lockupOffsetX = 1.5;
+  static const logoWordmarkGap = 3.0;
+  static const lockupOffsetX = 1.0;
 
-  static const wordmarkWidth = 68.0;
+  static const wordmarkWidth = 71.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
   static const wordmarkPaintLeft = 2.0;
-  static const wordmarkPaintRight = 65.0;
-  static const ovalWidth = 11.0;
-  static const rWidth = 11.0;
+  static const wordmarkPaintRight = 68.0;
+  static const ovalWidth = 12.0;
+  static const rWidth = 12.0;
   static const lFootWidth = 8.0;
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
   static const periodRadius = .4;
   static const periodBaselineY = 18.4;
   static const periodCenters = <Offset>[
-    Offset(15, periodBaselineY),
-    Offset(33.5, periodBaselineY),
-    Offset(48.5, periodBaselineY),
+    Offset(16.5, periodBaselineY),
+    Offset(35, periodBaselineY),
+    Offset(50.5, periodBaselineY),
   ];
 }
 
@@ -2566,30 +2566,30 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
   static List<Path> _buildTubes() => [
     Path()..addRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(2, 2, 11, 18),
-        const Radius.circular(5.5),
+        const Rect.fromLTWH(2, 2, 12, 18),
+        const Radius.circular(3),
       ),
     ),
     Path()
-      ..moveTo(20, 20)
-      ..lineTo(20, 2),
+      ..moveTo(21, 20)
+      ..lineTo(21, 2),
     Path()
-      ..moveTo(20, 2)
-      ..lineTo(27, 2)
-      ..quadraticBezierTo(30, 2, 30, 6)
-      ..quadraticBezierTo(30, 10, 27, 10)
-      ..lineTo(20, 10),
+      ..moveTo(21, 2)
+      ..lineTo(29, 2)
+      ..quadraticBezierTo(32, 2, 32, 6)
+      ..quadraticBezierTo(32, 10, 29, 10)
+      ..lineTo(21, 10),
     Path()
-      ..moveTo(23, 10)
-      ..lineTo(31, 20),
+      ..moveTo(24, 10)
+      ..lineTo(33, 20),
     Path()
-      ..moveTo(38, 2)
-      ..lineTo(38, 20)
-      ..lineTo(46, 20),
+      ..moveTo(40, 2)
+      ..lineTo(40, 20)
+      ..lineTo(48, 20),
     Path()..addRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(54, 2, 11, 18),
-        const Radius.circular(5.5),
+        const Rect.fromLTWH(56, 2, 12, 18),
+        const Radius.circular(3),
       ),
     ),
   ];
