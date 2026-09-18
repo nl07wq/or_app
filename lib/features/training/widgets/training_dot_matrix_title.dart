@@ -12,8 +12,11 @@ abstract final class TrainingDotMatrixGeometry {
   // available height without stretching the fixed 5 by 7 glyphs.
   static const dotPitch = 3.0;
   static const dotRadius = 1.0;
-  static const characterGap = 1.35;
-  static const horizontalPadding = 14.0;
+  // Narrow the static word margins without removing the physical board space.
+  // The modestly wider inter-character pitch keeps the word centered in the
+  // same 150px module instead of making either edge read as empty panel.
+  static const characterGap = 16 / 7;
+  static const horizontalPadding = 11.0;
   static const verticalPadding = 8.0;
   static const activeStagingRightInset = .2;
 
@@ -27,6 +30,12 @@ abstract final class TrainingDotMatrixGeometry {
   // staging region; animated LEDs never leave this physical panel.
   static const panelWidth = 150.0;
   static const panelHeight = glyphHeight + verticalPadding * 2;
+  static const surfaceMatrixOriginX = 0.0;
+  static const surfaceMatrixOriginY = 0.0;
+  static const surfaceMatrixColumnCount = 50;
+  static const surfaceMatrixRowCount = 12;
+  static const inactiveSurfaceDotCount =
+      surfaceMatrixColumnCount * surfaceMatrixRowCount;
 
   static const activeBodyColor = Color(0xFFFF9E3D);
   static const activeCoreColor = Color(0xFFFFD49A);
@@ -192,30 +201,25 @@ class _InactiveTrainingMatrixPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = TrainingDotMatrixGeometry.inactiveDotColor;
     for (
-      var glyph = 0;
-      glyph < TrainingDotMatrixGeometry.word.length;
-      glyph++
+      var row = 0;
+      row < TrainingDotMatrixGeometry.surfaceMatrixRowCount;
+      row++
     ) {
-      final left = TrainingDotMatrixGeometry.glyphLeft(glyph);
-      for (var row = 0; row < TrainingDotMatrixGeometry.rowCount; row++) {
-        for (
-          var column = 0;
-          column < TrainingDotMatrixGeometry.columnCount;
-          column++
-        ) {
-          canvas.drawCircle(
-            Offset(
-              left +
-                  column * TrainingDotMatrixGeometry.dotPitch +
-                  TrainingDotMatrixGeometry.dotRadius,
-              TrainingDotMatrixGeometry.verticalPadding +
-                  row * TrainingDotMatrixGeometry.dotPitch +
-                  TrainingDotMatrixGeometry.dotRadius,
-            ),
-            TrainingDotMatrixGeometry.dotRadius * .72,
-            paint,
-          );
-        }
+      for (
+        var column = 0;
+        column < TrainingDotMatrixGeometry.surfaceMatrixColumnCount;
+        column++
+      ) {
+        canvas.drawCircle(
+          Offset(
+            TrainingDotMatrixGeometry.surfaceMatrixOriginX +
+                column * TrainingDotMatrixGeometry.dotPitch,
+            TrainingDotMatrixGeometry.surfaceMatrixOriginY +
+                row * TrainingDotMatrixGeometry.dotPitch,
+          ),
+          TrainingDotMatrixGeometry.dotRadius * .72,
+          paint,
+        );
       }
     }
   }

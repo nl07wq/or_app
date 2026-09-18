@@ -36,10 +36,15 @@ class _OperationDatePresentationSwitcherState
   OperationDateDisplayMode _mode = OperationDateDisplayMode.flip;
   bool _userSelectedMode = false;
   bool _modeLocked = false;
+  bool _toggleModeAfterTransition = false;
   double _horizontalDragDistance = 0;
   bool _horizontalDragTriggered = false;
   int? _nixieTransitionToken;
+  int _previewTransitionToken = 0;
   late final AnimationController _transitionLockController;
+
+  static const _flipTransitionDuration = Duration(milliseconds: 500);
+  static const _nixieTransitionDuration = Duration(milliseconds: 260);
 
   OperationDateDisplayModePreference get _preference =>
       widget.preference ?? OperationDateDisplayModePreference();
@@ -59,19 +64,23 @@ class _OperationDatePresentationSwitcherState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.transitionToken != widget.transitionToken) {
       _modeLocked = true;
+      _toggleModeAfterTransition = false;
       if (widget.finalizeTransition != null) {
         _nixieTransitionToken = widget.transitionToken;
       }
-      _transitionLockController.forward(from: 0);
+      _runTransitionLock();
     }
   }
 
   void _handleTransitionLockStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
+    final toggleMode = _toggleModeAfterTransition;
     setState(() {
       _modeLocked = false;
       _nixieTransitionToken = null;
+      _toggleModeAfterTransition = false;
     });
+    if (toggleMode) _applyModeToggle();
   }
 
   Future<void> _loadMode() async {
@@ -82,8 +91,7 @@ class _OperationDatePresentationSwitcherState
     }
   }
 
-  void _toggleMode() {
-    if (_modeLocked) return;
+  void _applyModeToggle() {
     final next = _mode == OperationDateDisplayMode.flip
         ? OperationDateDisplayMode.nixie
         : OperationDateDisplayMode.flip;
@@ -92,6 +100,28 @@ class _OperationDatePresentationSwitcherState
       _userSelectedMode = true;
     });
     unawaited(_preference.save(next));
+  }
+
+  void _previewThenToggleMode() {
+    if (_modeLocked) return;
+    setState(() {
+      _modeLocked = true;
+      _toggleModeAfterTransition = true;
+      _previewTransitionToken++;
+      _userSelectedMode = true;
+    });
+    _runTransitionLock();
+  }
+
+  void _runTransitionLock() {
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    _transitionLockController.duration = reducedMotion
+        ? Duration.zero
+        : _mode == OperationDateDisplayMode.flip
+        ? _flipTransitionDuration
+        : _nixieTransitionDuration;
+    _transitionLockController.forward(from: 0);
   }
 
   @override
@@ -107,13 +137,13 @@ class _OperationDatePresentationSwitcherState
     final modeName = _mode.name.toUpperCase();
     return Semantics(
       label: 'OPERATION DATE DISPLAY $modeName',
-      hint: 'Tap or swipe horizontally to switch display mode',
+      hint: 'Tap or swipe horizontally to test the display transition',
       button: true,
-      onTap: _toggleMode,
+      onTap: _previewThenToggleMode,
       child: GestureDetector(
         key: const ValueKey('operation-date-display-switcher'),
         behavior: HitTestBehavior.translucent,
-        onTap: _toggleMode,
+        onTap: _previewThenToggleMode,
         onHorizontalDragStart: (_) {
           _horizontalDragDistance = 0;
           _horizontalDragTriggered = false;
@@ -124,7 +154,7 @@ class _OperationDatePresentationSwitcherState
             return;
           }
           _horizontalDragTriggered = true;
-          _toggleMode();
+          _previewThenToggleMode();
         },
         child: KeyedSubtree(
           key: ValueKey('operation-date-display-$modeName'),
@@ -132,10 +162,12 @@ class _OperationDatePresentationSwitcherState
               ? _FlipDatePresentation(
                   operationDateFuture: widget.operationDateFuture,
                   transitionToken: widget.transitionToken,
+                  previewTransitionToken: _previewTransitionToken,
                 )
               : OperationDateNixieDisplay(
                   operationDateFuture: widget.operationDateFuture,
                   transitionToken: widget.transitionToken,
+                  previewTransitionToken: _previewTransitionToken,
                   initialTransitionFrom:
                       _nixieTransitionToken == widget.transitionToken
                       ? widget.finalizeTransition?.fromDate
@@ -151,10 +183,12 @@ class _FlipDatePresentation extends StatelessWidget {
   const _FlipDatePresentation({
     required this.operationDateFuture,
     required this.transitionToken,
+    required this.previewTransitionToken,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
+  final int previewTransitionToken;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -168,6 +202,7 @@ class _FlipDatePresentation extends StatelessWidget {
         child: OperationDateFlipCalendar(
           operationDateFuture: operationDateFuture,
           transitionToken: transitionToken,
+          previewTransitionToken: previewTransitionToken,
           tileWidth: 42,
         ),
       ),

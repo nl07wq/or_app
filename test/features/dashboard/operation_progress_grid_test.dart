@@ -870,7 +870,16 @@ void main() {
       expect(find.byType(OperationDateNixieDisplay), findsNothing);
 
       await tester.tap(switcher);
+      // A second immediate request is ignored while the first preview owns
+      // the renderer; it must not queue a conflicting mode transition.
+      await tester.tap(switcher);
       await tester.pump();
+      expect(
+        find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        findsWidgets,
+      );
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.pump();
       expect(find.byType(OperationDateFlipCalendar), findsNothing);
       expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
@@ -883,6 +892,12 @@ void main() {
       );
 
       await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-transition-active')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 320));
       await tester.pump();
       expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
       expect(find.byType(OperationDateNixieDisplay), findsNothing);

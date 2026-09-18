@@ -9,7 +9,10 @@ void main() {
     expect(TrainingDotMatrixGeometry.panelHeight, 36);
     expect(TrainingDotMatrixGeometry.glyphHeight, 20);
     expect(TrainingDotMatrixGeometry.dotPitch, 3);
-    expect(TrainingDotMatrixGeometry.horizontalPadding, 14);
+    expect(TrainingDotMatrixGeometry.horizontalPadding, 11);
+    expect(TrainingDotMatrixGeometry.surfaceMatrixColumnCount, 50);
+    expect(TrainingDotMatrixGeometry.surfaceMatrixRowCount, 12);
+    expect(TrainingDotMatrixGeometry.inactiveSurfaceDotCount, 600);
   });
 
   test('TRAINING uses complete 5 by 7 LED glyph definitions', () {

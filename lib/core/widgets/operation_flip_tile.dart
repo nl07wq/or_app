@@ -112,6 +112,7 @@ class OperationMechanicalFlipTile extends StatefulWidget {
     this.startDelay = Duration.zero,
     this.animationDuration = duration,
     this.firstPhaseRatio = defaultFirstPhaseRatio,
+    this.replayToken = 0,
   }) : assert(firstPhaseRatio > 0 && firstPhaseRatio < 1);
 
   static const duration = Duration(milliseconds: 320);
@@ -128,6 +129,7 @@ class OperationMechanicalFlipTile extends StatefulWidget {
   final Duration startDelay;
   final Duration animationDuration;
   final double firstPhaseRatio;
+  final int replayToken;
 
   @override
   State<OperationMechanicalFlipTile> createState() =>
@@ -159,9 +161,17 @@ class _OperationMechanicalFlipTileState
     if (oldWidget.animationDuration != widget.animationDuration) {
       _controller.duration = widget.animationDuration;
     }
-    if (oldWidget.value == widget.value) return;
+    final replayRequested = oldWidget.replayToken != widget.replayToken;
+    if (oldWidget.value == widget.value && !replayRequested) return;
     _startTimer?.cancel();
     _controller.reset();
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _settledValue = widget.value;
+      _oldValue = null;
+      _targetValue = null;
+      _started = false;
+      return;
+    }
     if (!widget.animate) {
       _settledValue = widget.value;
       _oldValue = null;

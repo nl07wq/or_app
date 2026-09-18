@@ -9,6 +9,7 @@ class OperationDateFlipCalendar extends StatefulWidget {
   const OperationDateFlipCalendar({
     required this.operationDateFuture,
     required this.transitionToken,
+    this.previewTransitionToken = 0,
     super.key,
     this.onDateDisplayed,
     this.tileWidth = defaultTileWidth,
@@ -24,6 +25,7 @@ class OperationDateFlipCalendar extends StatefulWidget {
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
+  final int previewTransitionToken;
   final ValueChanged<OperationLocalDate>? onDateDisplayed;
   final double tileWidth;
   final double tileHeight;
@@ -39,6 +41,7 @@ class _OperationDateFlipCalendarState extends State<OperationDateFlipCalendar> {
   late Future<JapaneseHolidayDataStatus> _holidayFuture;
   OperationLocalDate? _displayedDate;
   int _consumedTransitionToken = 0;
+  int _consumedPreviewTransitionToken = 0;
 
   JapaneseHolidayReferenceService get _holidayService =>
       widget.holidayService ?? JapaneseHolidayReferenceService.instance;
@@ -80,6 +83,7 @@ class _OperationDateFlipCalendarState extends State<OperationDateFlipCalendar> {
     future: widget.operationDateFuture,
     builder: (context, snapshot) {
       var animate = false;
+      var replayToken = 0;
       if (snapshot.connectionState == ConnectionState.done &&
           snapshot.hasData) {
         final nextDate = snapshot.requireData;
@@ -89,6 +93,11 @@ class _OperationDateFlipCalendarState extends State<OperationDateFlipCalendar> {
             _displayedDate != nextDate;
         _displayedDate = nextDate;
         _consumedTransitionToken = widget.transitionToken;
+        if (widget.previewTransitionToken != _consumedPreviewTransitionToken) {
+          animate = true;
+          replayToken = widget.previewTransitionToken;
+          _consumedPreviewTransitionToken = widget.previewTransitionToken;
+        }
         final onDateDisplayed = widget.onDateDisplayed;
         if (onDateDisplayed != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -108,6 +117,7 @@ class _OperationDateFlipCalendarState extends State<OperationDateFlipCalendar> {
         builder: (context, holidaySnapshot) => _OperationDateFlipRow(
           date: date,
           animate: animate,
+          replayToken: replayToken,
           holidayMatch:
               holidaySnapshot.data?.snapshot?.classify(date.value) ??
               _holidayService.classifyCached(date.value),
@@ -124,6 +134,7 @@ class _OperationDateFlipRow extends StatefulWidget {
   const _OperationDateFlipRow({
     required this.date,
     required this.animate,
+    required this.replayToken,
     required this.tileWidth,
     required this.tileHeight,
     required this.tileGap,
@@ -148,6 +159,7 @@ class _OperationDateFlipRow extends StatefulWidget {
 
   final OperationLocalDate date;
   final bool animate;
+  final int replayToken;
   final double tileWidth;
   final double tileHeight;
   final double tileGap;
@@ -163,7 +175,10 @@ class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
   @override
   void didUpdateWidget(covariant _OperationDateFlipRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.animate || oldWidget.date == widget.date) {
+    final replayRequested =
+        widget.replayToken != 0 && widget.replayToken != oldWidget.replayToken;
+    if (!widget.animate ||
+        (oldWidget.date == widget.date && !replayRequested)) {
       _startDelays = const {};
       return;
     }
@@ -171,7 +186,8 @@ class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
     final nextValues = _values(widget.date);
     final changedIndices = [
       for (var index = 0; index < nextValues.length; index++)
-        if (previousValues[index] != nextValues[index]) index,
+        if (replayRequested || previousValues[index] != nextValues[index])
+          index,
     ];
     _startDelays = {
       for (var order = 0; order < changedIndices.length; order++)
@@ -209,6 +225,7 @@ class _OperationDateFlipRowState extends State<_OperationDateFlipRow> {
                 width: widget.tileWidth,
                 height: widget.tileHeight,
                 animate: widget.animate,
+                replayToken: widget.replayToken,
                 startDelay: _startDelays[index] ?? Duration.zero,
                 animationDuration: index == 1
                     ? OperationMechanicalFlipTile.dayDuration

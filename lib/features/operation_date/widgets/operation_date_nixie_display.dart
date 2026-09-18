@@ -13,6 +13,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
   const OperationDateNixieDisplay({
     required this.operationDateFuture,
     required this.transitionToken,
+    this.previewTransitionToken = 0,
     super.key,
     this.initialTransitionFrom,
   });
@@ -23,6 +24,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
+  final int previewTransitionToken;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -38,6 +40,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
           child: _OperationDateNixieCalendar(
             operationDateFuture: operationDateFuture,
             transitionToken: transitionToken,
+            previewTransitionToken: previewTransitionToken,
             initialTransitionFrom: initialTransitionFrom,
           ),
         ),
@@ -125,11 +128,13 @@ class _OperationDateNixieCalendar extends StatefulWidget {
   const _OperationDateNixieCalendar({
     required this.operationDateFuture,
     required this.transitionToken,
+    required this.previewTransitionToken,
     this.initialTransitionFrom,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
+  final int previewTransitionToken;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -140,9 +145,10 @@ class _OperationDateNixieCalendar extends StatefulWidget {
 class _OperationDateNixieCalendarState
     extends State<_OperationDateNixieCalendar>
     with SingleTickerProviderStateMixin {
-  static const transitionDuration = Duration(milliseconds: 90);
+  static const transitionDuration = Duration(milliseconds: 260);
   OperationLocalDate? _displayedDate;
   int _consumedTransitionToken = 0;
+  int _consumedPreviewTransitionToken = 0;
   late final AnimationController _transitionController;
   bool _dateTransitionActive = false;
   bool _showingInitialTransitionFrom = false;
@@ -213,41 +219,52 @@ class _OperationDateNixieCalendarState
         parsed.day.toString().padLeft(2, '0'),
         _weekdays[parsed.weekday - 1],
       ];
+      if (widget.previewTransitionToken != _consumedPreviewTransitionToken) {
+        _consumedPreviewTransitionToken = widget.previewTransitionToken;
+        _beginTransition();
+      }
       return Semantics(
         label: 'OPERATION DATE ${date.value}',
         child: ExcludeSemantics(
-          child: Row(
-            key: ValueKey(
-              _dateTransitionActive
-                  ? 'operation-date-nixie-transition-active'
-                  : 'operation-date-nixie-calendar',
-            ),
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < values.length; index++) ...[
-                if (index > 0)
-                  const SizedBox(width: OperationDateNixieDisplay.tileGap),
-                index == 1
-                    ? NixieTubeCell(
-                        key: ValueKey('operation-date-nixie-field-$index'),
-                        value: values[index],
-                        width: OperationDateNixieDisplay.dateTileWidth,
-                        height: OperationDateNixieDisplay.tileHeight,
-                        animate: _dateTransitionActive,
-                        rearCathodePattern:
-                            NixieRearCathodePresentation.dayPattern,
-                        rearCathodeKeyPrefix: 'day',
-                      )
-                    : _NixieTechnicalLabel(
-                        key: ValueKey('operation-date-nixie-field-$index'),
-                        value: values[index],
-                        width: OperationDateNixieDisplay.dateTileWidth,
-                        height: OperationDateNixieDisplay.tileHeight,
-                        animate: _dateTransitionActive,
-                        rearCathodeKeyPrefix: index == 0 ? 'month' : 'weekday',
-                      ),
+          child: AnimatedBuilder(
+            animation: _transitionController,
+            builder: (context, _) => Row(
+              key: ValueKey(
+                _dateTransitionActive
+                    ? 'operation-date-nixie-transition-active'
+                    : 'operation-date-nixie-calendar',
+              ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var index = 0; index < values.length; index++) ...[
+                  if (index > 0)
+                    const SizedBox(width: OperationDateNixieDisplay.tileGap),
+                  index == 1
+                      ? NixieTubeCell(
+                          key: ValueKey('operation-date-nixie-field-$index'),
+                          value: values[index],
+                          width: OperationDateNixieDisplay.dateTileWidth,
+                          height: OperationDateNixieDisplay.tileHeight,
+                          animate: _dateTransitionActive,
+                          foregroundOpacity: _foregroundOpacity,
+                          rearCathodePattern:
+                              NixieRearCathodePresentation.dayPattern,
+                          rearCathodeKeyPrefix: 'day',
+                        )
+                      : _NixieTechnicalLabel(
+                          key: ValueKey('operation-date-nixie-field-$index'),
+                          value: values[index],
+                          width: OperationDateNixieDisplay.dateTileWidth,
+                          height: OperationDateNixieDisplay.tileHeight,
+                          animate: _dateTransitionActive,
+                          foregroundOpacity: _foregroundOpacity,
+                          rearCathodeKeyPrefix: index == 0
+                              ? 'month'
+                              : 'weekday',
+                        ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       );
@@ -269,6 +286,14 @@ class _OperationDateNixieCalendarState
     'DEC',
   ];
   static const _weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+  double get _foregroundOpacity {
+    if (!_dateTransitionActive) return 1;
+    final progress = _transitionController.value;
+    if (progress < .32) return 1 - progress / .32;
+    if (progress < .52) return 0;
+    return .35 + ((progress - .52) / .48) * .65;
+  }
 }
 
 class _OperationDateNixieClock extends StatefulWidget {
@@ -400,6 +425,7 @@ class NixieTubeCell extends StatelessWidget {
     required this.height,
     super.key,
     this.animate = true,
+    this.foregroundOpacity = 1,
     this.rearCathodePattern,
     this.rearCathodeKeyPrefix,
   });
@@ -408,6 +434,7 @@ class NixieTubeCell extends StatelessWidget {
   final double width;
   final double height;
   final bool animate;
+  final double foregroundOpacity;
   final List<String>? rearCathodePattern;
   final String? rearCathodeKeyPrefix;
 
@@ -434,23 +461,26 @@ class NixieTubeCell extends StatelessWidget {
                   fontSize: 20,
                   keyPrefix: rearCathodeKeyPrefix!,
                 ),
-          AnimatedSwitcher(
-            duration: disabled || !animate
-                ? Duration.zero
-                : const Duration(milliseconds: 80),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) =>
-                FadeTransition(opacity: animation, child: child),
-            child: Text(
-              value,
-              key: ValueKey('nixie-active-$value'),
-              style: const TextStyle(
-                fontFamily: AppTextStyles.bootTechnicalFontFamily,
-                fontSize: 20,
-                height: 1,
-                color: NixiePresentationColors.active,
-                shadows: NixiePresentationColors.activeShadows,
+          Opacity(
+            opacity: foregroundOpacity,
+            child: AnimatedSwitcher(
+              duration: disabled || !animate
+                  ? Duration.zero
+                  : const Duration(milliseconds: 80),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
+              child: Text(
+                value,
+                key: ValueKey('nixie-active-$value'),
+                style: const TextStyle(
+                  fontFamily: AppTextStyles.bootTechnicalFontFamily,
+                  fontSize: 20,
+                  height: 1,
+                  color: NixiePresentationColors.active,
+                  shadows: NixiePresentationColors.activeShadows,
+                ),
               ),
             ),
           ),
@@ -571,6 +601,7 @@ class _NixieTechnicalLabel extends StatelessWidget {
     required this.width,
     required this.height,
     required this.animate,
+    required this.foregroundOpacity,
     required this.rearCathodeKeyPrefix,
     super.key,
   });
@@ -579,6 +610,7 @@ class _NixieTechnicalLabel extends StatelessWidget {
   final double width;
   final double height;
   final bool animate;
+  final double foregroundOpacity;
   final String rearCathodeKeyPrefix;
 
   @override
@@ -601,21 +633,25 @@ class _NixieTechnicalLabel extends StatelessWidget {
             fontSize: NixiePresentationTypography.textualFontSize,
             keyPrefix: rearCathodeKeyPrefix,
           ),
-          AnimatedSwitcher(
-            duration: disabled || !animate
-                ? Duration.zero
-                : const Duration(milliseconds: 80),
-            child: Text(
-              value,
-              key: ValueKey('nixie-label-$value'),
-              style: const TextStyle(
-                fontFamily: AppTextStyles.bootTechnicalFontFamily,
-                fontSize: NixiePresentationTypography.textualFontSize,
-                fontWeight: NixiePresentationTypography.textualFontWeight,
-                letterSpacing: NixiePresentationTypography.textualLetterSpacing,
-                height: 1,
-                color: NixiePresentationColors.active,
-                shadows: NixiePresentationColors.textualShadows,
+          Opacity(
+            opacity: foregroundOpacity,
+            child: AnimatedSwitcher(
+              duration: disabled || !animate
+                  ? Duration.zero
+                  : const Duration(milliseconds: 80),
+              child: Text(
+                value,
+                key: ValueKey('nixie-label-$value'),
+                style: const TextStyle(
+                  fontFamily: AppTextStyles.bootTechnicalFontFamily,
+                  fontSize: NixiePresentationTypography.textualFontSize,
+                  fontWeight: NixiePresentationTypography.textualFontWeight,
+                  letterSpacing:
+                      NixiePresentationTypography.textualLetterSpacing,
+                  height: 1,
+                  color: NixiePresentationColors.active,
+                  shadows: NixiePresentationColors.textualShadows,
+                ),
               ),
             ),
           ),
