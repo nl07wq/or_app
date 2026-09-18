@@ -9,6 +9,7 @@ import '../repositories/app_repository_container.dart';
 
 import 'widgets/morning_history_button.dart';
 import 'widgets/morning_manual_card.dart';
+import 'widgets/status_crt_monitor_title.dart';
 
 class MorningPage extends StatefulWidget {
   const MorningPage({super.key});
@@ -37,7 +38,7 @@ class _MorningPageState extends State<MorningPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('STATUS')),
+      appBar: AppBar(centerTitle: true, title: const StatusCrtMonitorTitle()),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(

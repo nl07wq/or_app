@@ -18,6 +18,7 @@ import 'widgets/foot_card.dart';
 import 'widgets/memo_input_card.dart';
 import 'widgets/morning_submit_button.dart';
 import 'widgets/recovery_card.dart';
+import 'widgets/status_crt_monitor_title.dart';
 import 'widgets/work_card.dart';
 
 import '../../core/models/morning_data.dart';
@@ -259,7 +260,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('STATUS')),
+      appBar: AppBar(centerTitle: true, title: const StatusCrtMonitorTitle()),
       body: _operationDateError != null
           ? const Center(child: Text('Operation Dateを取得できませんでした。'))
           : !_initialValuesLoaded
