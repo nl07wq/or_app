@@ -436,7 +436,8 @@ abstract final class DashboardNeonTubeGeometry {
   static const wordmarkPaintLeft = 1.0;
   static const wordmarkPaintRight = 69.0;
   static const ovalWidth = 12.0;
-  static const rWidth = 12.0;
+  static const rWidth = 8.0;
+  static const rBowlWidth = 8.0;
   static const rBowlHeight = 8.0;
   static const rTopLeftChamferLength = 0.0;
   static const rTopRightChamferLength = 2.0;
@@ -2643,9 +2644,9 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
       ..lineTo(19, 2),
     Path()
       ..moveTo(19, 2)
-      ..lineTo(29, 2)
-      ..lineTo(31, 4)
-      ..lineTo(31, 10)
+      ..lineTo(25, 2)
+      ..lineTo(27, 4)
+      ..lineTo(27, 10)
       ..lineTo(19, 10),
     Path()
       ..moveTo(24, 10)

@@ -16,7 +16,8 @@ void main() {
             DashboardNeonTubeGeometry.glyphHeight,
         inInclusiveRange(.6, .72),
       );
-      expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(12));
+      expect(DashboardNeonTubeGeometry.rWidth, 8);
+      expect(DashboardNeonTubeGeometry.rBowlWidth, 8);
       expect(DashboardNeonTubeGeometry.rBowlHeight, 8);
       expect(DashboardNeonTubeGeometry.rTopLeftChamferLength, 0);
       expect(DashboardNeonTubeGeometry.rTopRightChamferLength, 2);

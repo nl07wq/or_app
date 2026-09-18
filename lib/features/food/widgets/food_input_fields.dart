@@ -789,10 +789,10 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                         focusedErrorBorder: InputBorder.none,
                         filled: false,
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 6),
+                        contentPadding: EdgeInsets.only(left: 6, right: 10),
                       ),
                       textAlignVertical: TextAlignVertical.center,
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.right,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -822,17 +822,16 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                           textDirection: Directionality.of(context),
                           textScaler: MediaQuery.textScalerOf(context),
                         )..layout(maxWidth: constraints.maxWidth);
-                        final centeredRight =
-                            (constraints.maxWidth + textPainter.width) / 2;
                         final chevronExclusionLeft =
                             constraints.maxWidth -
                             chevronWidth -
                             chevronRightPadding;
-                        final collisionCorrection =
-                            (centeredRight +
-                                        chevronClearance -
-                                        chevronExclusionLeft)
-                                    .clamp(0.0, double.infinity);
+                        const preferredDividerPadding = 10.0;
+                        final unitTextLeft =
+                            (chevronExclusionLeft -
+                                    chevronClearance -
+                                    textPainter.width)
+                                .clamp(0.0, preferredDividerPadding);
 
                         return Stack(
                           fit: StackFit.expand,
@@ -842,7 +841,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                                 key: unitKey,
                                 value: value,
                                 isExpanded: true,
-                                alignment: AlignmentDirectional.center,
+                                alignment: AlignmentDirectional.centerStart,
                                 padding: const EdgeInsets.only(right: 4),
                                 style: textStyle,
                                 selectedItemBuilder: (context) => items
@@ -852,11 +851,18 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                                 onChanged: onUnitChanged,
                               ),
                             ),
-                            ExcludeSemantics(
-                              child: IgnorePointer(
-                                child: Center(
-                                  child: Transform.translate(
-                                    offset: Offset(-collisionCorrection, 0),
+                            Positioned(
+                              left: unitTextLeft,
+                              right:
+                                  chevronWidth +
+                                  chevronRightPadding +
+                                  chevronClearance,
+                              top: 0,
+                              bottom: 0,
+                              child: ExcludeSemantics(
+                                child: IgnorePointer(
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
                                     child: Text(
                                       valueLabel,
                                       key: ValueKey(

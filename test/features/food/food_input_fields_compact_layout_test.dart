@@ -85,7 +85,7 @@ void main() {
     );
     for (final quantity in [_field('表示量'), _field('登録基準量')]) {
       final decoration = tester.widget<TextField>(quantity).decoration!;
-      expect(tester.widget<TextField>(quantity).textAlign, TextAlign.center);
+      expect(tester.widget<TextField>(quantity).textAlign, TextAlign.right);
       expect(decoration.border, InputBorder.none);
       expect(decoration.enabledBorder, InputBorder.none);
       expect(decoration.focusedBorder, InputBorder.none);
@@ -95,13 +95,13 @@ void main() {
       expect(decoration.filled, isFalse);
       expect(
         decoration.contentPadding,
-        const EdgeInsets.symmetric(horizontal: 6),
+        const EdgeInsets.only(left: 6, right: 10),
       );
     }
     for (final unit in [_packageUnit(), _baseUnit()]) {
       final dropdown = tester.widget<DropdownButton>(unit);
       expect(dropdown.isExpanded, isTrue);
-      expect(dropdown.alignment, AlignmentDirectional.center);
+      expect(dropdown.alignment, AlignmentDirectional.centerStart);
       expect(dropdown.padding, const EdgeInsets.only(right: 4));
     }
     final packageQuantityBounds = tester.getRect(_field('表示量'));
@@ -176,7 +176,7 @@ void main() {
       expect(decoration.focusedErrorBorder, InputBorder.none);
       expect(
         decoration.contentPadding,
-        const EdgeInsets.symmetric(horizontal: 6),
+        const EdgeInsets.only(left: 6, right: 10),
       );
     }
   });
@@ -305,7 +305,7 @@ void main() {
     },
   );
 
-  testWidgets('short unit values center against the full unit segment', (
+  testWidgets('short unit values begin from the divider-side group origin', (
     tester,
   ) async {
     for (final unit in [FoodQuantityUnit.gram, FoodQuantityUnit.milliliter]) {
@@ -324,8 +324,8 @@ void main() {
         (_baseUnit(), find.byKey(const ValueKey('food-entry-base-unit-value'))),
       ]) {
         expect(
-          tester.getCenter(valueText).dx,
-          closeTo(tester.getCenter(field).dx, .5),
+          tester.getRect(valueText).left - tester.getRect(field).left,
+          closeTo(10, .5),
         );
       }
     }
