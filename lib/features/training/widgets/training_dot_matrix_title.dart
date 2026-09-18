@@ -38,9 +38,7 @@ abstract final class TrainingDotMatrixGeometry {
       surfaceMatrixColumnCount * surfaceMatrixRowCount;
 
   static const normalActiveColor = Color(0xFFF4F7FF);
-  static const inactiveDotColor = Color(0xFF4B2B1B);
   static const substrateColor = Color(0xFF17110E);
-  static const substrateBorderColor = Color(0xFF4A2A1B);
 
   static const glyphs = <String, List<String>>{
     'T': <String>[
@@ -188,11 +186,41 @@ abstract final class TrainingDotMatrixGeometry {
       : glyphWidth * title.length + characterGap * (title.length - 1);
 }
 
+/// A single luminance hierarchy keeps every electronic part of a Training
+/// display in the same hue family without brightening the physical board.
+class TrainingDotMatrixPalette {
+  const TrainingDotMatrixPalette({
+    required this.active,
+    required this.inactive,
+    required this.frame,
+  });
+
+  final Color active;
+  final Color inactive;
+  final Color frame;
+
+  factory TrainingDotMatrixPalette.fromActiveColor(Color active) =>
+      TrainingDotMatrixPalette(
+        active: active,
+        inactive: Color.lerp(const Color(0xFF17110E), active, .22)!,
+        frame: active.withValues(alpha: .34),
+      );
+}
+
 /// The physical LED panel: a dark substrate plus every inactive matrix point.
 class TrainingDotMatrixFrame extends StatelessWidget {
-  const TrainingDotMatrixFrame({super.key, required this.child});
+  const TrainingDotMatrixFrame({
+    super.key,
+    required this.child,
+    this.palette = const TrainingDotMatrixPalette(
+      active: TrainingDotMatrixGeometry.normalActiveColor,
+      inactive: Color(0xFF4B4A4A),
+      frame: Color(0x665C6066),
+    ),
+  });
 
   final Widget child;
+  final TrainingDotMatrixPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -205,12 +233,10 @@ class TrainingDotMatrixFrame extends StatelessWidget {
           decoration: BoxDecoration(
             color: TrainingDotMatrixGeometry.substrateColor,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: TrainingDotMatrixGeometry.substrateBorderColor,
-            ),
+            border: Border.all(color: palette.frame),
           ),
           child: CustomPaint(
-            painter: const _InactiveTrainingMatrixPainter(),
+            painter: _InactiveTrainingMatrixPainter(palette.inactive),
             child: child,
           ),
         ),
@@ -242,12 +268,14 @@ class TrainingDotMatrixTitle extends StatefulWidget {
 class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
     with SingleTickerProviderStateMixin {
   static const _startHold = Duration(milliseconds: 900);
-  static const _endHold = Duration(milliseconds: 900);
-  static const _resetGap = Duration(milliseconds: 500);
+  static const _streamGapColumns = 8;
   static const _pixelsPerSecond = 24.0;
 
   late final AnimationController _controller;
   bool? _marqueeEnabled;
+
+  TrainingDotMatrixPalette get _palette =>
+      TrainingDotMatrixPalette.fromActiveColor(widget.activeColor);
 
   bool get _isLong =>
       TrainingDotMatrixGeometry.widthFor(widget.title) >
@@ -255,18 +283,18 @@ class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
           TrainingDotMatrixGeometry.horizontalPadding * 2;
 
   double get _startLeft => TrainingDotMatrixGeometry.horizontalPadding;
-  double get _endLeft =>
-      TrainingDotMatrixGeometry.panelWidth -
-      TrainingDotMatrixGeometry.horizontalPadding -
-      TrainingDotMatrixGeometry.widthFor(widget.title);
+  double get _streamGap =>
+      _streamGapColumns * TrainingDotMatrixGeometry.dotPitch;
+  double get _streamWidth =>
+      TrainingDotMatrixGeometry.widthFor(widget.title) + _streamGap;
 
   Duration get _scrollDuration {
-    final distance = (_startLeft - _endLeft).abs();
-    return Duration(milliseconds: (distance / _pixelsPerSecond * 1000).round());
+    return Duration(
+      milliseconds: (_streamWidth / _pixelsPerSecond * 1000).round(),
+    );
   }
 
-  Duration get _cycleDuration =>
-      _startHold + _scrollDuration + _endHold + _resetGap;
+  Duration get _cycleDuration => _startHold + _scrollDuration;
 
   @override
   void initState() {
@@ -304,21 +332,12 @@ class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
     super.dispose();
   }
 
-  double _leftFor(double progress) {
+  double _offsetFor(double progress) {
     final elapsed = progress * _cycleDuration.inMilliseconds;
     final startEnd = _startHold.inMilliseconds;
-    final scrollEnd = startEnd + _scrollDuration.inMilliseconds;
-    final endHoldEnd = scrollEnd + _endHold.inMilliseconds;
-    if (elapsed <= startEnd) return _startLeft;
-    if (elapsed <= scrollEnd) {
-      final t = (elapsed - startEnd) / _scrollDuration.inMilliseconds;
-      return _startLeft + (_endLeft - _startLeft) * t;
-    }
-    if (elapsed <= endHoldEnd) return _endLeft;
-    // A short, completely blank matrix interval keeps looped strings from
-    // appearing visually concatenated.
-    return TrainingDotMatrixGeometry.panelWidth +
-        TrainingDotMatrixGeometry.horizontalPadding;
+    if (elapsed <= startEnd) return 0;
+    final t = (elapsed - startEnd) / _scrollDuration.inMilliseconds;
+    return _streamWidth * t;
   }
 
   @override
@@ -338,6 +357,7 @@ class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
             width: TrainingDotMatrixGeometry.panelWidth,
             height: TrainingDotMatrixGeometry.panelHeight,
             child: TrainingDotMatrixFrame(
+              palette: _palette,
               child: Stack(
                 clipBehavior: Clip.hardEdge,
                 children: [
@@ -345,15 +365,30 @@ class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
                     AnimatedBuilder(
                       key: const ValueKey('training-dot-matrix-marquee'),
                       animation: _controller,
-                      builder: (context, child) => Positioned(
-                        left: _leftFor(_controller.value),
-                        top: TrainingDotMatrixGeometry.verticalPadding,
-                        child: child!,
-                      ),
-                      child: _TitleGlyphRun(
-                        title: widget.title,
-                        activeColor: widget.activeColor,
-                      ),
+                      builder: (context, _) {
+                        final left = _startLeft - _offsetFor(_controller.value);
+                        return Stack(
+                          clipBehavior: Clip.hardEdge,
+                          children: [
+                            Positioned(
+                              left: left,
+                              top: TrainingDotMatrixGeometry.verticalPadding,
+                              child: _TitleGlyphRun(
+                                title: widget.title,
+                                activeColor: widget.activeColor,
+                              ),
+                            ),
+                            Positioned(
+                              left: left + _streamWidth,
+                              top: TrainingDotMatrixGeometry.verticalPadding,
+                              child: _TitleGlyphRun(
+                                title: widget.title,
+                                activeColor: widget.activeColor,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     )
                   else
                     Positioned(
@@ -423,11 +458,13 @@ class TrainingDotMatrixGlyph extends StatelessWidget {
 }
 
 class _InactiveTrainingMatrixPainter extends CustomPainter {
-  const _InactiveTrainingMatrixPainter();
+  const _InactiveTrainingMatrixPainter(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = TrainingDotMatrixGeometry.inactiveDotColor;
+    final paint = Paint()..color = color;
     for (
       var row = 0;
       row < TrainingDotMatrixGeometry.surfaceMatrixRowCount;
@@ -454,7 +491,7 @@ class _InactiveTrainingMatrixPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _InactiveTrainingMatrixPainter oldDelegate) =>
-      false;
+      oldDelegate.color != color;
 }
 
 class _ActiveTrainingGlyphPainter extends CustomPainter {

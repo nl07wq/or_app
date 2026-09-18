@@ -811,6 +811,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
         child: SizedBox(
           key: const ValueKey('training-appbar-title'),
           child: TrainingDotMatrixFrame(
+            palette: TrainingDotMatrixPalette.fromActiveColor(activeColor),
             child: Stack(
               clipBehavior: Clip.hardEdge,
               children: [

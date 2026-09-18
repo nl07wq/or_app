@@ -72,6 +72,11 @@ void main() {
 
       expect(find.bySemanticsLabel('TRAINING ANALYSIS REPORT'), findsOneWidget);
       expect(find.byType(TrainingDotMatrixFrame), findsOneWidget);
+      final frame = tester.widget<TrainingDotMatrixFrame>(
+        find.byType(TrainingDotMatrixFrame),
+      );
+      expect(frame.palette.active, TrainingDotMatrixGeometry.normalActiveColor);
+      expect(frame.palette.inactive, isNot(const Color(0xFF4B2B1B)));
       expect(
         find.byKey(const ValueKey('training-dot-matrix-marquee')),
         findsOneWidget,
@@ -114,6 +119,10 @@ void main() {
         find.byType(TrainingDotMatrixGlyph).first,
       );
       expect(glyph.activeColor, AppColors.primary);
+      final frame = tester.widget<TrainingDotMatrixFrame>(
+        find.byType(TrainingDotMatrixFrame),
+      );
+      expect(frame.palette.frame, AppColors.primary.withValues(alpha: .34));
       expect(tester.takeException(), isNull);
     },
   );

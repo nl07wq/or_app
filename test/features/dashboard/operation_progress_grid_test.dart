@@ -906,7 +906,13 @@ void main() {
         find.byKey(const ValueKey('operation-date-nixie-transition-active')),
         findsOneWidget,
       );
-      await tester.pump(const Duration(milliseconds: 320));
+      expect(
+        find.byKey(
+          const ValueKey('dashboard-live-nixie-clock-transition-active'),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 420));
       await tester.pump();
       expect(find.byType(OperationDateFlipCalendar), findsNothing);
       expect(find.byType(OperationDateNixieDisplay), findsOneWidget);

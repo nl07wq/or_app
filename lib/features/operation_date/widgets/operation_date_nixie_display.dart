@@ -59,9 +59,12 @@ class OperationDateNixieDisplay extends StatelessWidget {
                 ),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: _OperationDateNixieClock(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: _OperationDateNixieClock(
+                transitionToken: transitionToken,
+                previewTransitionToken: previewTransitionToken,
+              ),
             ),
           ],
         ),
@@ -95,6 +98,25 @@ class NixiePresentationColors {
     Shadow(color: Color(0x86F35A24), blurRadius: 7),
     Shadow(color: Color(0x4DD9431F), blurRadius: 11),
   ];
+}
+
+/// Deterministic whole-display cathode sequence: all foregrounds shut down,
+/// rear structures remain, then fields ignite from visual left to right.
+abstract final class NixieTransitionMotion {
+  static const duration = Duration(milliseconds: 360);
+
+  static double foregroundOpacity({
+    required double progress,
+    required int ignitionOrder,
+  }) {
+    if (progress < .24) return 1 - progress / .24;
+    if (progress < .42) return 0;
+    final start = .42 + ignitionOrder * .055;
+    const ignitionLength = .13;
+    if (progress <= start) return 0;
+    if (progress >= start + ignitionLength) return 1;
+    return .35 + ((progress - start) / ignitionLength) * .65;
+  }
 }
 
 /// Static physical-electrode treatment for the two deliberately restrained
@@ -145,7 +167,6 @@ class _OperationDateNixieCalendar extends StatefulWidget {
 class _OperationDateNixieCalendarState
     extends State<_OperationDateNixieCalendar>
     with SingleTickerProviderStateMixin {
-  static const transitionDuration = Duration(milliseconds: 260);
   OperationLocalDate? _displayedDate;
   int _consumedTransitionToken = 0;
   int _consumedPreviewTransitionToken = 0;
@@ -162,13 +183,17 @@ class _OperationDateNixieCalendarState
   @override
   void initState() {
     super.initState();
+    _consumedTransitionToken = widget.transitionToken;
+    _consumedPreviewTransitionToken = widget.previewTransitionToken;
     _transitionController =
-        AnimationController(vsync: this, duration: transitionDuration)
-          ..addStatusListener((status) {
-            if (status == AnimationStatus.completed && mounted) {
-              setState(() => _dateTransitionActive = false);
-            }
-          });
+        AnimationController(
+          vsync: this,
+          duration: NixieTransitionMotion.duration,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed && mounted) {
+            setState(() => _dateTransitionActive = false);
+          }
+        });
     _showingInitialTransitionFrom = widget.initialTransitionFrom != null;
     if (_showingInitialTransitionFrom) {
       _displayedDate = widget.initialTransitionFrom;
@@ -246,7 +271,7 @@ class _OperationDateNixieCalendarState
                           width: OperationDateNixieDisplay.dateTileWidth,
                           height: OperationDateNixieDisplay.tileHeight,
                           animate: _dateTransitionActive,
-                          foregroundOpacity: _foregroundOpacity,
+                          foregroundOpacity: _foregroundOpacity(index),
                           rearCathodePattern:
                               NixieRearCathodePresentation.dayPattern,
                           rearCathodeKeyPrefix: 'day',
@@ -257,7 +282,7 @@ class _OperationDateNixieCalendarState
                           width: OperationDateNixieDisplay.dateTileWidth,
                           height: OperationDateNixieDisplay.tileHeight,
                           animate: _dateTransitionActive,
-                          foregroundOpacity: _foregroundOpacity,
+                          foregroundOpacity: _foregroundOpacity(index),
                           rearCathodeKeyPrefix: index == 0
                               ? 'month'
                               : 'weekday',
@@ -287,17 +312,23 @@ class _OperationDateNixieCalendarState
   ];
   static const _weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-  double get _foregroundOpacity {
+  double _foregroundOpacity(int ignitionOrder) {
     if (!_dateTransitionActive) return 1;
-    final progress = _transitionController.value;
-    if (progress < .32) return 1 - progress / .32;
-    if (progress < .52) return 0;
-    return .35 + ((progress - .52) / .48) * .65;
+    return NixieTransitionMotion.foregroundOpacity(
+      progress: _transitionController.value,
+      ignitionOrder: ignitionOrder,
+    );
   }
 }
 
 class _OperationDateNixieClock extends StatefulWidget {
-  const _OperationDateNixieClock();
+  const _OperationDateNixieClock({
+    required this.transitionToken,
+    required this.previewTransitionToken,
+  });
+
+  final int transitionToken;
+  final int previewTransitionToken;
 
   @override
   State<_OperationDateNixieClock> createState() =>
@@ -305,16 +336,31 @@ class _OperationDateNixieClock extends StatefulWidget {
 }
 
 class _OperationDateNixieClockState extends State<_OperationDateNixieClock>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late DateTime _displayedTime = AppClock.now();
   Timer? _timer;
   Animation<double>? _secondaryAnimation;
   bool _routeVisible = true;
   bool _appActive = true;
+  late final AnimationController _transitionController;
+  int _consumedTransitionToken = 0;
+  int _consumedPreviewTransitionToken = 0;
+  bool _transitionActive = false;
 
   @override
   void initState() {
     super.initState();
+    _consumedTransitionToken = widget.transitionToken;
+    _consumedPreviewTransitionToken = widget.previewTransitionToken;
+    _transitionController =
+        AnimationController(
+          vsync: this,
+          duration: NixieTransitionMotion.duration,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed && mounted) {
+            setState(() => _transitionActive = false);
+          }
+        });
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -367,6 +413,7 @@ class _OperationDateNixieClockState extends State<_OperationDateNixieClock>
   @override
   void dispose() {
     _timer?.cancel();
+    _transitionController.dispose();
     _secondaryAnimation?.removeStatusListener(_handleRouteStatus);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -374,6 +421,14 @@ class _OperationDateNixieClockState extends State<_OperationDateNixieClock>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.transitionToken != _consumedTransitionToken) {
+      _consumedTransitionToken = widget.transitionToken;
+      _beginTransition();
+    }
+    if (widget.previewTransitionToken != _consumedPreviewTransitionToken) {
+      _consumedPreviewTransitionToken = widget.previewTransitionToken;
+      _beginTransition();
+    }
     final values = [
       _displayedTime.hour.toString().padLeft(2, '0'),
       _displayedTime.minute.toString().padLeft(2, '0'),
@@ -383,38 +438,57 @@ class _OperationDateNixieClockState extends State<_OperationDateNixieClock>
       label:
           'CURRENT TIME ${values[0]}${values[1]}:${values[2]}${values[3]}:${values[4]}${values[5]}',
       child: ExcludeSemantics(
-        child: Row(
-          key: const ValueKey('dashboard-live-nixie-clock'),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < values.length; index++) ...[
-              if (index > 0)
-                SizedBox(
-                  width: index.isOdd ? 3 : 6,
-                  child: index == 2 || index == 4
-                      ? const Center(
-                          child: Text(
-                            ':',
-                            style: TextStyle(
-                              color: NixiePresentationColors.active,
-                              fontWeight: FontWeight.w700,
-                              height: 1,
+        child: AnimatedBuilder(
+          animation: _transitionController,
+          builder: (context, _) => Row(
+            key: ValueKey(
+              _transitionActive
+                  ? 'dashboard-live-nixie-clock-transition-active'
+                  : 'dashboard-live-nixie-clock',
+            ),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < values.length; index++) ...[
+                if (index > 0)
+                  SizedBox(
+                    width: index.isOdd ? 3 : 6,
+                    child: index == 2 || index == 4
+                        ? const Center(
+                            child: Text(
+                              ':',
+                              style: TextStyle(
+                                color: NixiePresentationColors.active,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
                             ),
-                          ),
+                          )
+                        : null,
+                  ),
+                NixieTubeCell(
+                  key: ValueKey('dashboard-nixie-time-cell-$index'),
+                  value: values[index],
+                  width: 24,
+                  height: OperationDateNixieDisplay.tileHeight,
+                  foregroundOpacity: _transitionActive
+                      ? NixieTransitionMotion.foregroundOpacity(
+                          progress: _transitionController.value,
+                          ignitionOrder: index + 3,
                         )
-                      : null,
+                      : 1,
                 ),
-              NixieTubeCell(
-                key: ValueKey('dashboard-nixie-time-cell-$index'),
-                value: values[index],
-                width: 24,
-                height: OperationDateNixieDisplay.tileHeight,
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  void _beginTransition() {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return;
+    _transitionActive = true;
+    _transitionController.forward(from: 0);
   }
 }
 

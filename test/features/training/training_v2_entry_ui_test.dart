@@ -84,6 +84,13 @@ void main() {
             .activeColor,
         AppColors.primary,
       );
+      expect(
+        tester
+            .widget<TrainingDotMatrixFrame>(find.byType(TrainingDotMatrixFrame))
+            .palette
+            .frame,
+        AppColors.primary.withValues(alpha: .34),
+      );
 
       await tester.tap(find.text('START TRAINING'));
       await tester.pump();
@@ -95,6 +102,13 @@ void main() {
             )
             .activeColor,
         AppColors.success,
+      );
+      expect(
+        tester
+            .widget<TrainingDotMatrixFrame>(find.byType(TrainingDotMatrixFrame))
+            .palette
+            .frame,
+        AppColors.success.withValues(alpha: .34),
       );
 
       final travellingT = find.byKey(
@@ -163,6 +177,13 @@ void main() {
             )
             .activeColor,
         AppColors.warning,
+      );
+      expect(
+        tester
+            .widget<TrainingDotMatrixFrame>(find.byType(TrainingDotMatrixFrame))
+            .palette
+            .frame,
+        AppColors.warning.withValues(alpha: .34),
       );
       expect(tester.getCenter(title).dx, closeTo(195, 0.5));
     },

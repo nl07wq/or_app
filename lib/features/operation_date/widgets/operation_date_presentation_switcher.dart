@@ -222,9 +222,12 @@ class _FlipDatePresentation extends StatelessWidget {
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4),
-            child: OperationDateLiveFlipClock(),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: OperationDateLiveFlipClock(
+              transitionToken: transitionToken,
+              previewTransitionToken: previewTransitionToken,
+            ),
           ),
         ],
       ),
@@ -233,12 +236,19 @@ class _FlipDatePresentation extends StatelessWidget {
 }
 
 class OperationDateLiveFlipClock extends StatefulWidget {
-  const OperationDateLiveFlipClock({super.key});
+  const OperationDateLiveFlipClock({
+    required this.transitionToken,
+    required this.previewTransitionToken,
+    super.key,
+  });
 
   static const tileWidth = 24.0;
   static const tileHeight = OperationDateFlipCalendar.defaultTileHeight;
   static const tileGap = 6.0;
   static const pairGap = 3.0;
+
+  final int transitionToken;
+  final int previewTransitionToken;
 
   @override
   State<OperationDateLiveFlipClock> createState() =>
@@ -252,6 +262,9 @@ class _OperationDateLiveFlipClockState extends State<OperationDateLiveFlipClock>
   Animation<double>? _secondaryAnimation;
   bool _routeVisible = true;
   bool _appActive = true;
+  int _consumedTransitionToken = 0;
+  int _consumedPreviewTransitionToken = 0;
+  int _replayToken = 0;
 
   @override
   void initState() {
@@ -329,6 +342,14 @@ class _OperationDateLiveFlipClockState extends State<OperationDateLiveFlipClock>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.transitionToken != _consumedTransitionToken) {
+      _consumedTransitionToken = widget.transitionToken;
+      _replayToken++;
+    }
+    if (widget.previewTransitionToken != _consumedPreviewTransitionToken) {
+      _consumedPreviewTransitionToken = widget.previewTransitionToken;
+      _replayToken++;
+    }
     final values = [
       _displayedTime.hour.toString().padLeft(2, '0'),
       _displayedTime.minute.toString().padLeft(2, '0'),
@@ -368,6 +389,8 @@ class _OperationDateLiveFlipClockState extends State<OperationDateLiveFlipClock>
                 value: values[index],
                 width: OperationDateLiveFlipClock.tileWidth,
                 height: OperationDateLiveFlipClock.tileHeight,
+                replayToken: _replayToken,
+                startDelay: OperationMechanicalFlipTile.stagger * index,
               ),
             ],
           ],
