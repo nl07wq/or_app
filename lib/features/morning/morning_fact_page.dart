@@ -260,7 +260,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: const StatusCrtMonitorTitle()),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const StatusCrtMonitorTitle(mode: StatusCrtMonitorMode.entry),
+      ),
       body: _operationDateError != null
           ? const Center(child: Text('Operation Dateを取得できませんでした。'))
           : !_initialValuesLoaded
