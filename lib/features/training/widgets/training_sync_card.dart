@@ -6,6 +6,7 @@ import '../../../core/state/app_initialization_state.dart';
 import '../../../core/services/daily_state_restore_service.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
+import 'training_dot_matrix_title.dart';
 
 class TrainingSyncCard extends StatelessWidget {
   const TrainingSyncCard({super.key});
@@ -24,6 +25,9 @@ class TrainingSyncCard extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => const ReportSyncExchangePage(
                       exchangeType: ReportSyncExchangeType.training,
+                      appBarTitle: TrainingDotMatrixTitle(
+                        title: 'TRAINING REPORT SYNC',
+                      ),
                     ),
                   ),
                 );

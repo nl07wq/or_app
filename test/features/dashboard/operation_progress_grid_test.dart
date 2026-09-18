@@ -852,7 +852,7 @@ void main() {
   );
 
   testWidgets(
-    'Operation Date switches FLIP and NIXIE by tap or horizontal swipe',
+    'Operation Date reserves tap previews for the current mode and swipes for mode changes',
     (tester) async {
       AppClock.setSystemNowForTesting(() => DateTime(2026, 8, 11, 1, 36, 29));
       SharedPreferences.setMockInitialValues({});
@@ -871,7 +871,7 @@ void main() {
 
       await tester.tap(switcher);
       // A second immediate request is ignored while the first preview owns
-      // the renderer; it must not queue a conflicting mode transition.
+      // the renderer; it must not queue a conflicting preview.
       await tester.tap(switcher);
       await tester.pump();
       expect(
@@ -881,17 +881,26 @@ void main() {
       expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump();
-      expect(find.byType(OperationDateFlipCalendar), findsNothing);
-      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(find.byType(OperationDateNixieDisplay), findsNothing);
       expect(find.text('JUL'), findsOneWidget);
       expect(find.text('28'), findsOneWidget);
       expect(find.text('TUE'), findsOneWidget);
+
+      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      expect(find.byType(OperationDateFlipCalendar), findsNothing);
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-transition-active')),
+        findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('dashboard-live-nixie-clock')),
         findsOneWidget,
       );
 
-      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.tap(switcher);
       await tester.pump();
       expect(
         find.byKey(const ValueKey('operation-date-nixie-transition-active')),
@@ -899,12 +908,16 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 320));
       await tester.pump();
-      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
-      expect(find.byType(OperationDateNixieDisplay), findsNothing);
+      expect(find.byType(OperationDateFlipCalendar), findsNothing);
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
 
-      await tester.drag(switcher, const Offset(0, -72));
+      await tester.drag(switcher, const Offset(72, 0));
       await tester.pump();
       expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
     },
   );

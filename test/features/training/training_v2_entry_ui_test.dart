@@ -76,10 +76,26 @@ void main() {
       expect(tester.getCenter(title).dx, closeTo(195, 0.5));
       expect(find.byType(TrainingDotMatrixFrame), findsOneWidget);
       expect(find.bySemanticsLabel('TRAINING'), findsOneWidget);
+      expect(
+        tester
+            .widget<TrainingDotMatrixGlyph>(
+              find.byType(TrainingDotMatrixGlyph).first,
+            )
+            .activeColor,
+        AppColors.primary,
+      );
 
       await tester.tap(find.text('START TRAINING'));
       await tester.pump();
       expect(find.text('ACTIVE'), findsWidgets);
+      expect(
+        tester
+            .widget<TrainingDotMatrixGlyph>(
+              find.byType(TrainingDotMatrixGlyph).first,
+            )
+            .activeColor,
+        AppColors.success,
+      );
 
       final travellingT = find.byKey(
         const ValueKey('training-title-travelling-0'),
@@ -140,6 +156,14 @@ void main() {
       await tester.tap(find.text('PAUSE TRAINING'));
       await tester.pump();
       expect(find.text('PAUSED'), findsWidgets);
+      expect(
+        tester
+            .widget<TrainingDotMatrixGlyph>(
+              find.byType(TrainingDotMatrixGlyph).first,
+            )
+            .activeColor,
+        AppColors.warning,
+      );
       expect(tester.getCenter(title).dx, closeTo(195, 0.5));
     },
   );

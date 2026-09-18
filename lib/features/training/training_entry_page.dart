@@ -492,7 +492,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     }
     if (_dateLoadError != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('TRAINING')),
+        appBar: AppBar(title: const TrainingDotMatrixTitle()),
         body: const Center(child: Text('Operation Dateを取得できませんでした。')),
       );
     }
@@ -515,7 +515,8 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           child: IgnorePointer(
             child: Center(
               child: _TrainingAppBarTitle(
-                active:
+                state: presentationState,
+                animateArrival:
                     presentationState == TrainingPresentationState.active &&
                     !_confirmationOpen,
               ),
@@ -703,9 +704,13 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
 }
 
 class _TrainingAppBarTitle extends StatefulWidget {
-  const _TrainingAppBarTitle({required this.active});
+  const _TrainingAppBarTitle({
+    required this.state,
+    required this.animateArrival,
+  });
 
-  final bool active;
+  final TrainingPresentationState state;
+  final bool animateArrival;
 
   @override
   State<_TrainingAppBarTitle> createState() => _TrainingAppBarTitleState();
@@ -750,12 +755,12 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
   @override
   void didUpdateWidget(covariant _TrainingAppBarTitle oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.active != widget.active) _syncAnimation();
+    if (oldWidget.animateArrival != widget.animateArrival) _syncAnimation();
   }
 
   void _syncAnimation() {
     final enabled =
-        widget.active &&
+        widget.animateArrival &&
         !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
     if (_animationEnabled == enabled) return;
     _animationEnabled = enabled;
@@ -793,6 +798,11 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
   @override
   Widget build(BuildContext context) {
     final staticTitle = !(_animationEnabled ?? false);
+    final activeColor = switch (widget.state) {
+      TrainingPresentationState.active => AppColors.success,
+      TrainingPresentationState.paused => AppColors.warning,
+      _ => AppColors.primary,
+    };
 
     return Semantics(
       header: true,
@@ -824,7 +834,10 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
                     Positioned(
                       left: _slotOffsets[index],
                       top: TrainingDotMatrixGeometry.verticalPadding,
-                      child: TrainingDotMatrixGlyph(character: _word[index]),
+                      child: TrainingDotMatrixGlyph(
+                        character: _word[index],
+                        activeColor: activeColor,
+                      ),
                     )
                 else
                   AnimatedBuilder(
@@ -845,6 +858,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
                               top: TrainingDotMatrixGeometry.verticalPadding,
                               child: TrainingDotMatrixGlyph(
                                 character: _word[index],
+                                activeColor: activeColor,
                               ),
                             ),
                           if (frame.settledCount > 0)
@@ -868,6 +882,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
                               top: TrainingDotMatrixGeometry.verticalPadding,
                               child: TrainingDotMatrixGlyph(
                                 character: _word[travelling],
+                                activeColor: activeColor,
                               ),
                             ),
                         ],

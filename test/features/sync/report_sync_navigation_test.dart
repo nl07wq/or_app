@@ -93,17 +93,22 @@ void main() {
 
     await tester.ensureVisible(find.text('TRAINING PLAN'));
     await tester.tap(find.text('TRAINING PLAN'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(TrainingPlanImportPage), findsOneWidget);
 
     Navigator.of(tester.element(find.byType(TrainingPlanImportPage))).pop();
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     await tester.ensureVisible(find.text('SYNC TRAINING'));
     await tester.tap(find.text('SYNC TRAINING'));
-    await tester.pumpAndSettle();
+    // TRAINING REPORT SYNC intentionally owns a repeating physical-panel
+    // marquee; settle the route transition without waiting for that ticker.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(ReportSyncExchangePage), findsOneWidget);
-    expect(find.text('TRAINING REPORT SYNC'), findsWidgets);
+    expect(find.bySemanticsLabel('TRAINING REPORT SYNC'), findsWidgets);
     expect(find.text('OPEN ORLO SYNC'), findsNothing);
   });
 

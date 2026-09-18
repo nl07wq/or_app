@@ -10,6 +10,7 @@ import '../report_sync/widgets/report_sync_action_bar.dart';
 import 'models/training_plan_proposal.dart';
 import 'services/training_plan_service.dart';
 import 'training_entry_page.dart';
+import 'widgets/training_dot_matrix_title.dart';
 
 class TrainingPlanImportPage extends StatefulWidget {
   const TrainingPlanImportPage({super.key, this.sourceRecordId, this.service});
@@ -129,7 +130,10 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('TRAINING PLAN')),
+    appBar: AppBar(
+      centerTitle: true,
+      title: const TrainingDotMatrixTitle(title: 'TRAINING PLAN'),
+    ),
     body: FutureBuilder<TrainingPlanPreparation>(
       future: _preparation,
       builder: (context, snapshot) {

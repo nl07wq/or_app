@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/data/default_training_templates.dart';
 import '../../core/widgets/operation_card.dart';
+import 'widgets/training_dot_matrix_title.dart';
 
 class TrainingPlanPage extends StatelessWidget {
   final Function(List<String>) onSelect;
@@ -11,7 +12,10 @@ class TrainingPlanPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('TRAINING')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: TrainingDotMatrixTitle(title: 'TRAINING PLAN'),
+      ),
       body: ListView.builder(
         itemCount: defaultTrainingTemplates.length,
         itemBuilder: (context, index) {

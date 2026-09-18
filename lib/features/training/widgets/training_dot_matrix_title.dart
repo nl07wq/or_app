@@ -37,9 +37,7 @@ abstract final class TrainingDotMatrixGeometry {
   static const inactiveSurfaceDotCount =
       surfaceMatrixColumnCount * surfaceMatrixRowCount;
 
-  static const activeBodyColor = Color(0xFFFF9E3D);
-  static const activeCoreColor = Color(0xFFFFD49A);
-  static const activeBloomColor = Color(0x3DFF8C2E);
+  static const normalActiveColor = Color(0xFFF4F7FF);
   static const inactiveDotColor = Color(0xFF4B2B1B);
   static const substrateColor = Color(0xFF17110E);
   static const substrateBorderColor = Color(0xFF4A2A1B);
@@ -99,10 +97,95 @@ abstract final class TrainingDotMatrixGeometry {
       '10001',
       '01110',
     ],
+    'H': <String>[
+      '10001',
+      '10001',
+      '10001',
+      '11111',
+      '10001',
+      '10001',
+      '10001',
+    ],
+    'C': <String>[
+      '01111',
+      '10000',
+      '10000',
+      '10000',
+      '10000',
+      '10000',
+      '01111',
+    ],
+    'E': <String>[
+      '11111',
+      '10000',
+      '10000',
+      '11110',
+      '10000',
+      '10000',
+      '11111',
+    ],
+    'L': <String>[
+      '10000',
+      '10000',
+      '10000',
+      '10000',
+      '10000',
+      '10000',
+      '11111',
+    ],
+    'O': <String>[
+      '01110',
+      '10001',
+      '10001',
+      '10001',
+      '10001',
+      '10001',
+      '01110',
+    ],
+    'P': <String>[
+      '11110',
+      '10001',
+      '10001',
+      '11110',
+      '10000',
+      '10000',
+      '10000',
+    ],
+    'S': <String>[
+      '01111',
+      '10000',
+      '10000',
+      '01110',
+      '00001',
+      '00001',
+      '11110',
+    ],
+    'Y': <String>[
+      '10001',
+      '10001',
+      '01010',
+      '00100',
+      '00100',
+      '00100',
+      '00100',
+    ],
+    ' ': <String>[
+      '00000',
+      '00000',
+      '00000',
+      '00000',
+      '00000',
+      '00000',
+      '00000',
+    ],
   };
 
   static double glyphLeft(int index) =>
       horizontalPadding + characterAdvance * index;
+
+  static double widthFor(String title) => title.isEmpty
+      ? 0
+      : glyphWidth * title.length + characterGap * (title.length - 1);
 }
 
 /// The physical LED panel: a dark substrate plus every inactive matrix point.
@@ -136,36 +219,149 @@ class TrainingDotMatrixFrame extends StatelessWidget {
   }
 }
 
-/// Stable, accessibility-labelled Training title for non-active entry views.
-class TrainingDotMatrixTitle extends StatelessWidget {
-  const TrainingDotMatrixTitle({super.key, this.titleKey});
+/// A fixed physical LED panel for Training AppBars.
+///
+/// Short labels are centered and static.  Long labels retain the established
+/// 5 by 7 scale and travel only inside the matrix, like a station board.
+class TrainingDotMatrixTitle extends StatefulWidget {
+  const TrainingDotMatrixTitle({
+    super.key,
+    this.title = TrainingDotMatrixGeometry.word,
+    this.titleKey,
+    this.activeColor = TrainingDotMatrixGeometry.normalActiveColor,
+  });
 
+  final String title;
   final Key? titleKey;
+  final Color activeColor;
+
+  @override
+  State<TrainingDotMatrixTitle> createState() => _TrainingDotMatrixTitleState();
+}
+
+class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
+    with SingleTickerProviderStateMixin {
+  static const _startHold = Duration(milliseconds: 900);
+  static const _endHold = Duration(milliseconds: 900);
+  static const _resetGap = Duration(milliseconds: 500);
+  static const _pixelsPerSecond = 24.0;
+
+  late final AnimationController _controller;
+  bool? _marqueeEnabled;
+
+  bool get _isLong =>
+      TrainingDotMatrixGeometry.widthFor(widget.title) >
+      TrainingDotMatrixGeometry.panelWidth -
+          TrainingDotMatrixGeometry.horizontalPadding * 2;
+
+  double get _startLeft => TrainingDotMatrixGeometry.horizontalPadding;
+  double get _endLeft =>
+      TrainingDotMatrixGeometry.panelWidth -
+      TrainingDotMatrixGeometry.horizontalPadding -
+      TrainingDotMatrixGeometry.widthFor(widget.title);
+
+  Duration get _scrollDuration {
+    final distance = (_startLeft - _endLeft).abs();
+    return Duration(milliseconds: (distance / _pixelsPerSecond * 1000).round());
+  }
+
+  Duration get _cycleDuration =>
+      _startHold + _scrollDuration + _endHold + _resetGap;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMarquee();
+  }
+
+  @override
+  void didUpdateWidget(covariant TrainingDotMatrixTitle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title) _syncMarquee(force: true);
+  }
+
+  void _syncMarquee({bool force = false}) {
+    final enabled =
+        _isLong && !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+    if (!force && _marqueeEnabled == enabled) return;
+    _marqueeEnabled = enabled;
+    _controller
+      ..stop()
+      ..reset()
+      ..duration = _cycleDuration;
+    if (enabled) _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double _leftFor(double progress) {
+    final elapsed = progress * _cycleDuration.inMilliseconds;
+    final startEnd = _startHold.inMilliseconds;
+    final scrollEnd = startEnd + _scrollDuration.inMilliseconds;
+    final endHoldEnd = scrollEnd + _endHold.inMilliseconds;
+    if (elapsed <= startEnd) return _startLeft;
+    if (elapsed <= scrollEnd) {
+      final t = (elapsed - startEnd) / _scrollDuration.inMilliseconds;
+      return _startLeft + (_endLeft - _startLeft) * t;
+    }
+    if (elapsed <= endHoldEnd) return _endLeft;
+    // A short, completely blank matrix interval keeps looped strings from
+    // appearing visually concatenated.
+    return TrainingDotMatrixGeometry.panelWidth +
+        TrainingDotMatrixGeometry.horizontalPadding;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final staticLeft = _isLong
+        ? _startLeft
+        : (TrainingDotMatrixGeometry.panelWidth -
+                  TrainingDotMatrixGeometry.widthFor(widget.title)) /
+              2;
     return Semantics(
       header: true,
-      label: TrainingDotMatrixGeometry.word,
+      label: widget.title,
       child: ExcludeSemantics(
         child: RepaintBoundary(
           child: SizedBox(
-            key: titleKey,
+            key: widget.titleKey,
             width: TrainingDotMatrixGeometry.panelWidth,
             height: TrainingDotMatrixGeometry.panelHeight,
             child: TrainingDotMatrixFrame(
               child: Stack(
+                clipBehavior: Clip.hardEdge,
                 children: [
-                  for (
-                    var index = 0;
-                    index < TrainingDotMatrixGeometry.word.length;
-                    index++
-                  )
+                  if (_marqueeEnabled ?? false)
+                    AnimatedBuilder(
+                      key: const ValueKey('training-dot-matrix-marquee'),
+                      animation: _controller,
+                      builder: (context, child) => Positioned(
+                        left: _leftFor(_controller.value),
+                        top: TrainingDotMatrixGeometry.verticalPadding,
+                        child: child!,
+                      ),
+                      child: _TitleGlyphRun(
+                        title: widget.title,
+                        activeColor: widget.activeColor,
+                      ),
+                    )
+                  else
                     Positioned(
-                      left: TrainingDotMatrixGeometry.glyphLeft(index),
+                      left: staticLeft,
                       top: TrainingDotMatrixGeometry.verticalPadding,
-                      child: TrainingDotMatrixGlyph(
-                        character: TrainingDotMatrixGeometry.word[index],
+                      child: _TitleGlyphRun(
+                        title: widget.title,
+                        activeColor: widget.activeColor,
                       ),
                     ),
                 ],
@@ -178,18 +374,50 @@ class TrainingDotMatrixTitle extends StatelessWidget {
   }
 }
 
+class _TitleGlyphRun extends StatelessWidget {
+  const _TitleGlyphRun({required this.title, required this.activeColor});
+
+  final String title;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: TrainingDotMatrixGeometry.widthFor(title),
+    height: TrainingDotMatrixGeometry.glyphHeight,
+    child: Stack(
+      children: [
+        for (var index = 0; index < title.length; index++)
+          Positioned(
+            left: TrainingDotMatrixGeometry.characterAdvance * index,
+            child: TrainingDotMatrixGlyph(
+              character: title[index],
+              activeColor: activeColor,
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 /// One foreground glyph. Dots are painted rather than represented as widgets.
 class TrainingDotMatrixGlyph extends StatelessWidget {
-  const TrainingDotMatrixGlyph({super.key, required this.character});
+  const TrainingDotMatrixGlyph({
+    super.key,
+    required this.character,
+    this.activeColor = TrainingDotMatrixGeometry.normalActiveColor,
+  });
 
   final String character;
+  final Color activeColor;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: TrainingDotMatrixGeometry.glyphWidth,
       height: TrainingDotMatrixGeometry.glyphHeight,
-      child: CustomPaint(painter: _ActiveTrainingGlyphPainter(character)),
+      child: CustomPaint(
+        painter: _ActiveTrainingGlyphPainter(character, activeColor),
+      ),
     );
   }
 }
@@ -230,17 +458,19 @@ class _InactiveTrainingMatrixPainter extends CustomPainter {
 }
 
 class _ActiveTrainingGlyphPainter extends CustomPainter {
-  const _ActiveTrainingGlyphPainter(this.character);
+  const _ActiveTrainingGlyphPainter(this.character, this.activeColor);
 
   final String character;
+  final Color activeColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final matrix = TrainingDotMatrixGeometry.glyphs[character];
     if (matrix == null) return;
-    final bloom = Paint()..color = TrainingDotMatrixGeometry.activeBloomColor;
-    final body = Paint()..color = TrainingDotMatrixGeometry.activeBodyColor;
-    final core = Paint()..color = TrainingDotMatrixGeometry.activeCoreColor;
+    final bloom = Paint()..color = activeColor.withValues(alpha: .24);
+    final body = Paint()..color = activeColor;
+    final core = Paint()
+      ..color = Color.lerp(activeColor, Colors.white, .72) ?? Colors.white;
     for (var row = 0; row < matrix.length; row++) {
       for (var column = 0; column < matrix[row].length; column++) {
         if (matrix[row][column] != '1') continue;
@@ -264,5 +494,6 @@ class _ActiveTrainingGlyphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ActiveTrainingGlyphPainter oldDelegate) =>
-      oldDelegate.character != character;
+      oldDelegate.character != character ||
+      oldDelegate.activeColor != activeColor;
 }

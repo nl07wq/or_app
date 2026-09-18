@@ -20,6 +20,7 @@ import 'services/training_exercise_identity.dart';
 import 'services/training_history_domain_service.dart';
 import 'services/training_recovery_evidence_adapter.dart';
 import 'widgets/body_map_svg_prototype.dart';
+import 'widgets/training_dot_matrix_title.dart';
 
 /// Data Center analytics. The existing TrainingHistoryPage remains the raw
 /// formal-record list and is intentionally not reused as this page.
@@ -117,7 +118,10 @@ class _DataCenterTrainingHistoryPageState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('TRAINING HISTORY')),
+    appBar: AppBar(
+      centerTitle: true,
+      title: const TrainingDotMatrixTitle(title: 'TRAINING HISTORY'),
+    ),
     body: FutureBuilder<DateTime>(
       future: _referenceDate,
       builder: (context, referenceSnapshot) {
@@ -212,7 +216,7 @@ class _DataCenterTrainingHistoryPageState
                     period: _period,
                     referenceDate: referenceDate,
                     customRange: _customRange,
-                now: widget.clock?.call() ?? DateTime.now(),
+                    now: widget.clock?.call() ?? DateTime.now(),
                     adapter: _recoveryAdapter,
                   )
                 else ...[

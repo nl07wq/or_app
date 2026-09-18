@@ -36,7 +36,6 @@ class _OperationDatePresentationSwitcherState
   OperationDateDisplayMode _mode = OperationDateDisplayMode.flip;
   bool _userSelectedMode = false;
   bool _modeLocked = false;
-  bool _toggleModeAfterTransition = false;
   double _horizontalDragDistance = 0;
   bool _horizontalDragTriggered = false;
   int? _nixieTransitionToken;
@@ -64,7 +63,6 @@ class _OperationDatePresentationSwitcherState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.transitionToken != widget.transitionToken) {
       _modeLocked = true;
-      _toggleModeAfterTransition = false;
       if (widget.finalizeTransition != null) {
         _nixieTransitionToken = widget.transitionToken;
       }
@@ -74,13 +72,10 @@ class _OperationDatePresentationSwitcherState
 
   void _handleTransitionLockStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
-    final toggleMode = _toggleModeAfterTransition;
     setState(() {
       _modeLocked = false;
       _nixieTransitionToken = null;
-      _toggleModeAfterTransition = false;
     });
-    if (toggleMode) _applyModeToggle();
   }
 
   Future<void> _loadMode() async {
@@ -102,15 +97,20 @@ class _OperationDatePresentationSwitcherState
     unawaited(_preference.save(next));
   }
 
-  void _previewThenToggleMode() {
+  /// A tap exercises the installed physical display without changing its
+  /// selected presentation.  Mode selection belongs exclusively to swipes.
+  void _runPreview() {
     if (_modeLocked) return;
     setState(() {
       _modeLocked = true;
-      _toggleModeAfterTransition = true;
       _previewTransitionToken++;
-      _userSelectedMode = true;
     });
     _runTransitionLock();
+  }
+
+  void _switchModeFromSwipe() {
+    if (_modeLocked) return;
+    _applyModeToggle();
   }
 
   void _runTransitionLock() {
@@ -137,13 +137,14 @@ class _OperationDatePresentationSwitcherState
     final modeName = _mode.name.toUpperCase();
     return Semantics(
       label: 'OPERATION DATE DISPLAY $modeName',
-      hint: 'Tap or swipe horizontally to test the display transition',
+      hint:
+          'Tap to test the current display transition. Swipe horizontally to switch display mode.',
       button: true,
-      onTap: _previewThenToggleMode,
+      onTap: _runPreview,
       child: GestureDetector(
         key: const ValueKey('operation-date-display-switcher'),
         behavior: HitTestBehavior.translucent,
-        onTap: _previewThenToggleMode,
+        onTap: _runPreview,
         onHorizontalDragStart: (_) {
           _horizontalDragDistance = 0;
           _horizontalDragTriggered = false;
@@ -154,7 +155,7 @@ class _OperationDatePresentationSwitcherState
             return;
           }
           _horizontalDragTriggered = true;
-          _previewThenToggleMode();
+          _switchModeFromSwipe();
         },
         child: KeyedSubtree(
           key: ValueKey('operation-date-display-$modeName'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_dot_matrix_title.dart';
 
@@ -26,7 +27,23 @@ void main() {
       'N',
       'G',
     ]);
-    for (final character in <String>{'T', 'R', 'A', 'I', 'N', 'G'}) {
+    for (final character in <String>{
+      'T',
+      'R',
+      'A',
+      'I',
+      'N',
+      'G',
+      'P',
+      'L',
+      'Y',
+      'S',
+      'E',
+      'O',
+      'C',
+      'H',
+      ' ',
+    }) {
       final glyph = TrainingDotMatrixGeometry.glyphs[character]!;
       expect(glyph, hasLength(TrainingDotMatrixGeometry.rowCount));
       expect(
@@ -35,9 +52,71 @@ void main() {
         ),
         isTrue,
       );
-      expect(glyph.join().contains('1'), isTrue);
+      expect(glyph.join().contains('1'), character == ' ' ? isFalse : isTrue);
     }
   });
+
+  testWidgets(
+    'normal titles use white LEDs and long titles scroll inside the fixed panel',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            appBar: AppBar(
+              centerTitle: true,
+              title: TrainingDotMatrixTitle(title: 'TRAINING ANALYSIS REPORT'),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('TRAINING ANALYSIS REPORT'), findsOneWidget);
+      expect(find.byType(TrainingDotMatrixFrame), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('training-dot-matrix-marquee')),
+        findsOneWidget,
+      );
+      final glyph = tester.widget<TrainingDotMatrixGlyph>(
+        find.byType(TrainingDotMatrixGlyph).first,
+      );
+      expect(glyph.activeColor, TrainingDotMatrixGeometry.normalActiveColor);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Reduced Motion keeps long titles static and state colors remain configurable',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            appBar: AppBar(
+              centerTitle: true,
+              title: TrainingDotMatrixTitle(
+                title: 'TRAINING REPORT SYNC',
+                activeColor: AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('TRAINING REPORT SYNC'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('training-dot-matrix-marquee')),
+        findsNothing,
+      );
+      final glyph = tester.widget<TrainingDotMatrixGlyph>(
+        find.byType(TrainingDotMatrixGlyph).first,
+      );
+      expect(glyph.activeColor, AppColors.primary);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final width in <double>[320, 390, 900]) {
     testWidgets(
