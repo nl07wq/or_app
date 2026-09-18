@@ -334,7 +334,7 @@ class _MechanicalCounterCell extends StatelessWidget {
       return _DrumStep(
         from: _offsetCharacter(completed - currentPlan.detents),
         to: _offsetCharacter(completed - currentPlan.detents + 1),
-        progress: scaled - scaled.floor(),
+        progress: _detentProgress(scaled - scaled.floor()),
       );
     }
     final stages = currentPlan.detents + 1;
@@ -346,7 +346,19 @@ class _MechanicalCounterCell extends StatelessWidget {
           ? _offsetCharacter(currentPlan.detents)
           : _offsetCharacter(completed),
       to: isReturn ? character : _offsetCharacter(completed + 1),
-      progress: scaled - scaled.floor(),
+      progress: _detentProgress(scaled - scaled.floor()),
+    );
+  }
+
+  /// Keeps each indexed character legible at its registered detent before
+  /// the drum moves it through the narrow viewport aperture.
+  double _detentProgress(double value) {
+    const lockFraction = .18;
+    const travelFraction = 1 - lockFraction * 2;
+    if (value <= lockFraction) return 0;
+    if (value >= 1 - lockFraction) return 1;
+    return Curves.easeInOutCubic.transform(
+      (value - lockFraction) / travelFraction,
     );
   }
 
@@ -385,7 +397,8 @@ class _MechanicalCounterCell extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final travel = constraints.maxHeight * .72;
+              final viewportHeight = constraints.maxHeight * .66;
+              final travel = viewportHeight;
               final step = indexing ? _drumStep(progress) : null;
               return Stack(
                 fit: StackFit.expand,
@@ -397,26 +410,44 @@ class _MechanicalCounterCell extends StatelessWidget {
                       child: ColoredBox(color: Color(0x77464B4E)),
                     ),
                   ),
-                  if (step != null)
-                    Transform.translate(
-                      key: ValueKey(
-                        currentPlan!.kind == _CounterMotionKind.initial
-                            ? 'activity-counter-indexing-$index'
-                            : 'activity-counter-periodic-$index',
-                      ),
-                      offset: Offset(0, -travel * step.progress),
-                      child: Center(child: Text(step.from, style: textStyle)),
-                    ),
-                  Transform.translate(
-                    offset: Offset(
-                      0,
-                      step == null ? 0 : travel * (1 - step.progress),
-                    ),
-                    child: Center(
-                      child: Text(
-                        step?.to ?? character,
-                        key: ValueKey('activity-counter-character-$index'),
-                        style: textStyle,
+                  Center(
+                    child: SizedBox(
+                      height: viewportHeight,
+                      child: ClipRect(
+                        key: ValueKey('activity-counter-viewport-$index'),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (step != null)
+                              Transform.translate(
+                                key: ValueKey(
+                                  currentPlan!.kind ==
+                                          _CounterMotionKind.initial
+                                      ? 'activity-counter-indexing-$index'
+                                      : 'activity-counter-periodic-$index',
+                                ),
+                                offset: Offset(0, -travel * step.progress),
+                                child: Center(
+                                  child: Text(step.from, style: textStyle),
+                                ),
+                              ),
+                            Transform.translate(
+                              offset: Offset(
+                                0,
+                                step == null ? 0 : travel * (1 - step.progress),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  step?.to ?? character,
+                                  key: ValueKey(
+                                    'activity-counter-character-$index',
+                                  ),
+                                  style: textStyle,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

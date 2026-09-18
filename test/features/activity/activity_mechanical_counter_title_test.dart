@@ -25,6 +25,20 @@ void main() {
         find.byKey(ValueKey('activity-counter-character-$index')),
         findsOneWidget,
       );
+      final window = tester.getRect(
+        find.byKey(ValueKey('activity-counter-window-$index')),
+      );
+      final viewportFinder = find.byKey(
+        ValueKey('activity-counter-viewport-$index'),
+      );
+      final viewport = tester.getRect(viewportFinder);
+      expect(viewport.height, lessThan(window.height));
+      expect(viewport.top, greaterThan(window.top));
+      expect(viewport.bottom, lessThan(window.bottom));
+      expect(
+        tester.widget<ClipRect>(viewportFinder).clipBehavior,
+        Clip.hardEdge,
+      );
     }
     expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
     expect(find.bySemanticsLabel('A'), findsNothing);
@@ -64,6 +78,25 @@ void main() {
 
     await tester.pump(const Duration(seconds: 1));
     _expectNoMotion(tester);
+  });
+
+  testWidgets('moving drum glyphs use the shared clipped viewport', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    final movingGlyph = find.byKey(
+      const ValueKey('activity-counter-indexing-0'),
+    );
+    expect(movingGlyph, findsOneWidget);
+    expect(
+      find.ancestor(
+        of: movingGlyph,
+        matching: find.byKey(const ValueKey('activity-counter-viewport-0')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('entry performs bounded periodic indexing only after settle', (
