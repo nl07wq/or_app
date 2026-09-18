@@ -17,6 +17,10 @@ void main() {
         inInclusiveRange(.6, .72),
       );
       expect(DashboardNeonTubeGeometry.rWidth, lessThanOrEqualTo(12));
+      expect(DashboardNeonTubeGeometry.rBowlHeight, 8);
+      expect(DashboardNeonTubeGeometry.rTopLeftChamferLength, 0);
+      expect(DashboardNeonTubeGeometry.rTopRightChamferLength, 2);
+      expect(DashboardNeonTubeGeometry.rBottomRightChamferLength, 0);
       expect(DashboardNeonTubeGeometry.lFootWidth, 10);
       expect(DashboardNeonTubeGeometry.chamferLength, 2);
       expect(DashboardNeonTubeGeometry.topLeftChamferLength, 0);
@@ -27,14 +31,14 @@ void main() {
       expect(
         DashboardNeonTubeGeometry.wordmarkPaintRight -
             DashboardNeonTubeGeometry.wordmarkPaintLeft,
-        64,
+        68,
       );
       expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
       expect(
         DashboardNeonTubeGeometry.hotCoreWidth,
         lessThan(DashboardNeonTubeGeometry.tubeWidth),
       );
-      expect(DashboardNeonTubeGeometry.periodCenters, hasLength(3));
+      expect(DashboardNeonTubeGeometry.periodCenters, hasLength(4));
       for (final center in DashboardNeonTubeGeometry.periodCenters) {
         expect(
           center.dy,
@@ -42,8 +46,16 @@ void main() {
         );
       }
       expect(DashboardNeonTubeGeometry.periodRadius, .4);
-      expect(DashboardNeonTubeGeometry.signHorizontalPadding, 2);
-      expect(DashboardNeonTubeGeometry.leftContentClearance, 4);
+      expect(
+        DashboardNeonTubeGeometry.finalPeriodTubeRight,
+        lessThan(DashboardNeonTubeGeometry.contentSafeBounds.right),
+      );
+      expect(
+        DashboardNeonTubeGeometry.finalPeriodTubeRight,
+        lessThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right),
+      );
+      expect(DashboardNeonTubeGeometry.signHorizontalPadding, 1);
+      expect(DashboardNeonTubeGeometry.leftContentClearance, 3.5);
       expect(DashboardNeonTubeGeometry.rightContentClearance, 4);
       expect(
         DashboardNeonTubeGeometry.lockupWidth,
@@ -72,12 +84,24 @@ void main() {
     });
 
     test('keeps the luminous perimeter parallel and subordinate', () {
+      expect(DashboardNeonTubeGeometry.perimeterHorizontalInset, .5);
+      expect(DashboardNeonTubeGeometry.perimeterVerticalInset, 1);
       expect(
-        DashboardNeonTubeGeometry.physicalFrameRadius -
-            DashboardNeonTubeGeometry.perimeterInset,
-        DashboardNeonTubeGeometry.perimeterRadius,
+        DashboardNeonTubeGeometry.innerNeonPerimeterBounds.left,
+        greaterThan(DashboardNeonTubeGeometry.outerPhysicalFrameBounds.left),
       );
-      expect(DashboardNeonTubeGeometry.perimeterInset, 1);
+      expect(
+        DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right,
+        lessThan(DashboardNeonTubeGeometry.outerPhysicalFrameBounds.right),
+      );
+      expect(
+        DashboardNeonTubeGeometry.contentSafeBounds.left,
+        greaterThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.left),
+      );
+      expect(
+        DashboardNeonTubeGeometry.contentSafeBounds.right,
+        lessThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right),
+      );
     });
   });
 

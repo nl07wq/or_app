@@ -411,29 +411,36 @@ class DashboardNeonFaultPatterns {
 /// Keeping it data-backed lets the visual contract be tested without relying
 /// on blur-fringe pixels.
 abstract final class DashboardNeonTubeGeometry {
-  // The outer structural seam is intentionally tighter horizontally, while
-  // the illuminated perimeter retains a deliberate dark buffer around the
-  // lockup. Keeping these dimensions separate prevents frame tightening from
-  // crowding the final punctuation.
+  // The physical body, illuminated perimeter, and content envelope are three
+  // distinct layers. Frame/perimeter tightening must never consume the
+  // wordmark's safe breathing room.
   static const signWidth = 112.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
-  static const perimeterInset = 1.0;
+  static const physicalFrameStrokeWidth = 1.0;
+  static const perimeterHorizontalInset = .5;
+  static const perimeterVerticalInset = 1.0;
   static const perimeterRadius = 5.0;
-  static const signHorizontalPadding = 2.0;
+  static const signHorizontalPadding = 1.0;
+  static const contentSafeHorizontalClearance = 3.0;
+  static const contentSafeVerticalClearance = 2.0;
   static const logoSize = 28.0;
   static const logoWordmarkGap = 2.0;
   static const lockupOffsetX = 0.0;
 
-  static const wordmarkWidth = 66.0;
+  static const wordmarkWidth = 70.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
   static const wordmarkPaintLeft = 1.0;
-  static const wordmarkPaintRight = 65.0;
+  static const wordmarkPaintRight = 69.0;
   static const ovalWidth = 12.0;
   static const rWidth = 12.0;
+  static const rBowlHeight = 8.0;
+  static const rTopLeftChamferLength = 0.0;
+  static const rTopRightChamferLength = 2.0;
+  static const rBottomRightChamferLength = 0.0;
   static const lFootWidth = 10.0;
   static const chamferLength = 2.0;
   static const topLeftChamferLength = 0.0;
@@ -447,18 +454,63 @@ abstract final class DashboardNeonTubeGeometry {
   static const hotCoreWidth = .75;
   static const periodRadius = .4;
   static const periodBaselineY = 18.4;
+  static const finalPeriodCenterX = 68.55;
+  static const finalPeriodCenter = Offset(finalPeriodCenterX, periodBaselineY);
   static const periodCenters = <Offset>[
     Offset(16.55, periodBaselineY),
     Offset(34.55, periodBaselineY),
     Offset(49.8, periodBaselineY),
+    finalPeriodCenter,
   ];
 
   static const lockupWidth = logoSize + logoWordmarkGap + wordmarkWidth;
-  static const innerSignWidth = signWidth - (signHorizontalPadding * 2) - 2;
+  static const paintedLockupWidth =
+      logoSize + logoWordmarkGap + wordmarkPaintRight;
+  static const lockupLeft =
+      physicalFrameStrokeWidth +
+      signHorizontalPadding +
+      ((innerSignWidth - lockupWidth) / 2) +
+      lockupOffsetX;
+  static const wordmarkOriginX = lockupLeft + logoSize + logoWordmarkGap;
+  static const finalPeriodTubeRight =
+      wordmarkOriginX + finalPeriodCenterX + periodRadius;
+  static final outerPhysicalFrameBounds = Rect.fromLTWH(
+    0,
+    0,
+    signWidth,
+    signHeight,
+  );
+  static final outerPhysicalFrameInnerBounds = Rect.fromLTWH(
+    physicalFrameStrokeWidth,
+    physicalFrameStrokeWidth,
+    signWidth - (physicalFrameStrokeWidth * 2),
+    signHeight - (physicalFrameStrokeWidth * 2),
+  );
+  static final innerNeonPerimeterBounds = Rect.fromLTWH(
+    outerPhysicalFrameInnerBounds.left +
+        signHorizontalPadding +
+        perimeterHorizontalInset,
+    outerPhysicalFrameInnerBounds.top + perimeterVerticalInset,
+    outerPhysicalFrameInnerBounds.width -
+        ((signHorizontalPadding + perimeterHorizontalInset) * 2),
+    outerPhysicalFrameInnerBounds.height - (perimeterVerticalInset * 2),
+  );
+  static final contentSafeBounds = Rect.fromLTWH(
+    innerNeonPerimeterBounds.left + contentSafeHorizontalClearance,
+    innerNeonPerimeterBounds.top + contentSafeVerticalClearance,
+    innerNeonPerimeterBounds.width - (contentSafeHorizontalClearance * 2),
+    innerNeonPerimeterBounds.height - (contentSafeVerticalClearance * 2),
+  );
+  static const innerSignWidth =
+      signWidth - (signHorizontalPadding * 2) - (physicalFrameStrokeWidth * 2);
   static const leftContentClearance =
-      ((innerSignWidth - lockupWidth) / 2) + lockupOffsetX - perimeterInset;
+      ((innerSignWidth - lockupWidth) / 2) +
+      lockupOffsetX -
+      perimeterHorizontalInset;
   static const rightContentClearance =
-      ((innerSignWidth - lockupWidth) / 2) - lockupOffsetX - perimeterInset;
+      ((innerSignWidth - paintedLockupWidth) / 2) -
+      lockupOffsetX -
+      perimeterHorizontalInset;
 }
 
 class DashboardPage extends StatefulWidget {
@@ -2506,12 +2558,13 @@ class _DashboardNeonPerimeterPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final inset = DashboardNeonTubeGeometry.perimeterInset;
+    final horizontalInset = DashboardNeonTubeGeometry.perimeterHorizontalInset;
+    final verticalInset = DashboardNeonTubeGeometry.perimeterVerticalInset;
     final insetRect = Rect.fromLTWH(
-      inset,
-      inset,
-      size.width - (inset * 2),
-      size.height - (inset * 2),
+      horizontalInset,
+      verticalInset,
+      size.width - (horizontalInset * 2),
+      size.height - (verticalInset * 2),
     );
     final tube = RRect.fromRectAndRadius(
       insetRect,
@@ -2590,7 +2643,8 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
       ..lineTo(19, 2),
     Path()
       ..moveTo(19, 2)
-      ..lineTo(31, 2)
+      ..lineTo(29, 2)
+      ..lineTo(31, 4)
       ..lineTo(31, 10)
       ..lineTo(19, 10),
     Path()

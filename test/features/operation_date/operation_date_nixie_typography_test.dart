@@ -21,6 +21,8 @@ void main() {
 
   test('rear cathodes are limited, dark wire electrodes without glow', () {
     expect(NixieRearCathodePresentation.digits, ['8', '9']);
+    expect(NixieRearCathodePresentation.monthWeekdayPattern, ['0', '8', '0']);
+    expect(NixieRearCathodePresentation.dayPattern, ['0', '8']);
     expect(NixieRearCathodePresentation.opacity, .32);
     expect(
       NixieRearCathodePresentation.matchingActiveOpacity,
@@ -84,6 +86,23 @@ void main() {
     }
   });
 
+  testWidgets('date fields distribute static rear electrodes by character', (
+    tester,
+  ) async {
+    await _pumpNixie(
+      tester,
+      width: 390,
+      date: OperationLocalDate.parse('2026-09-18'),
+    );
+
+    _expectDateRearPattern(tester, 'month', ['0', '8', '0']);
+    _expectDateRearPattern(tester, 'day', ['0', '8']);
+    _expectDateRearPattern(tester, 'weekday', ['0', '8', '0']);
+    expect(find.byKey(const ValueKey('nixie-label-SEP')), findsOneWidget);
+    expect(find.byKey(const ValueKey('nixie-active-18')), findsOneWidget);
+    expect(find.byKey(const ValueKey('nixie-label-FRI')), findsOneWidget);
+  });
+
   testWidgets(
     'all NIXIE month labels fit their unchanged cells at all widths',
     (tester) async {
@@ -94,6 +113,7 @@ void main() {
           );
           await _pumpNixie(tester, width: width, date: date);
           _expectLabelFits(tester, _monthLabels[month - 1], fieldIndex: 0);
+          _expectDateRearPattern(tester, 'month', ['0', '8', '0']);
         }
       }
     },
@@ -107,10 +127,25 @@ void main() {
         for (var day = 0; day < _weekdayLabels.length; day++) {
           await _pumpNixie(tester, width: width, date: monday.addDays(day));
           _expectLabelFits(tester, _weekdayLabels[day], fieldIndex: 2);
+          _expectDateRearPattern(tester, 'weekday', ['0', '8', '0']);
         }
       }
     },
   );
+
+  testWidgets('representative day values retain two rear cathode positions', (
+    tester,
+  ) async {
+    for (final day in ['01', '08', '10', '18', '28', '31']) {
+      await _pumpNixie(
+        tester,
+        width: 390,
+        date: OperationLocalDate.parse('2026-01-$day'),
+      );
+      _expectDateRearPattern(tester, 'day', ['0', '8']);
+      expect(find.byKey(ValueKey('nixie-active-$day')), findsOneWidget);
+    }
+  });
 }
 
 const _monthLabels = [
@@ -180,4 +215,20 @@ void _expectLabelFits(
   expect(labelRect.right, lessThan(fieldRect.right));
   expect(labelRect.top, greaterThan(fieldRect.top));
   expect(labelRect.bottom, lessThan(fieldRect.bottom));
+}
+
+void _expectDateRearPattern(
+  WidgetTester tester,
+  String field,
+  List<String> pattern,
+) {
+  for (var index = 0; index < pattern.length; index++) {
+    final cathode = find.byKey(
+      ValueKey('nixie-date-rear-$field-$index-${pattern[index]}'),
+    );
+    expect(cathode, findsOneWidget);
+    final style = tester.widget<Text>(cathode).style!;
+    expect(style.foreground, isNotNull);
+    expect(style.shadows, isNull);
+  }
 }

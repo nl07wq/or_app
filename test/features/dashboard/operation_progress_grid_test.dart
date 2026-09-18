@@ -1636,19 +1636,21 @@ void main() {
     final wordmarkRect = tester.getRect(neonWordmark);
     final perimeterLeft =
         signRect.left +
+        DashboardNeonTubeGeometry.physicalFrameStrokeWidth +
         DashboardNeonTubeGeometry.signHorizontalPadding +
-        DashboardNeonTubeGeometry.perimeterInset;
+        DashboardNeonTubeGeometry.perimeterHorizontalInset;
     final perimeterRight =
         signRect.right -
+        DashboardNeonTubeGeometry.physicalFrameStrokeWidth -
         DashboardNeonTubeGeometry.signHorizontalPadding -
-        DashboardNeonTubeGeometry.perimeterInset;
+        DashboardNeonTubeGeometry.perimeterHorizontalInset;
     final wordmarkCoreLeft =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(3, 5));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(3, 4));
     expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
-    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(4, 6));
+    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(4, 5));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),

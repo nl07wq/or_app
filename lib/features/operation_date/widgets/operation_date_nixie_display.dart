@@ -99,6 +99,8 @@ class NixiePresentationColors {
 /// deliberately have no glow/shadow stack.
 abstract final class NixieRearCathodePresentation {
   static const digits = <String>['8', '9'];
+  static const monthWeekdayPattern = <String>['0', '8', '0'];
+  static const dayPattern = <String>['0', '8'];
   static const eightOffset = Offset(-.5, .5);
   static const nineOffset = Offset(.75, -.6);
   static const opacity = .32;
@@ -232,6 +234,9 @@ class _OperationDateNixieCalendarState
                         width: OperationDateNixieDisplay.dateTileWidth,
                         height: OperationDateNixieDisplay.tileHeight,
                         animate: _dateTransitionActive,
+                        rearCathodePattern:
+                            NixieRearCathodePresentation.dayPattern,
+                        rearCathodeKeyPrefix: 'day',
                       )
                     : _NixieTechnicalLabel(
                         key: ValueKey('operation-date-nixie-field-$index'),
@@ -239,6 +244,7 @@ class _OperationDateNixieCalendarState
                         width: OperationDateNixieDisplay.dateTileWidth,
                         height: OperationDateNixieDisplay.tileHeight,
                         animate: _dateTransitionActive,
+                        rearCathodeKeyPrefix: index == 0 ? 'month' : 'weekday',
                       ),
               ],
             ],
@@ -394,12 +400,16 @@ class NixieTubeCell extends StatelessWidget {
     required this.height,
     super.key,
     this.animate = true,
+    this.rearCathodePattern,
+    this.rearCathodeKeyPrefix,
   });
 
   final String value;
   final double width;
   final double height;
   final bool animate;
+  final List<String>? rearCathodePattern;
+  final String? rearCathodeKeyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +426,14 @@ class NixieTubeCell extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          _NixieRearCathodes(activeDigit: value),
+          rearCathodePattern == null
+              ? _NixieRearCathodes(activeDigit: value)
+              : _NixieDateRearCathodes(
+                  activeValue: value,
+                  digits: rearCathodePattern!,
+                  fontSize: 20,
+                  keyPrefix: rearCathodeKeyPrefix!,
+                ),
           AnimatedSwitcher(
             duration: disabled || !animate
                 ? Duration.zero
@@ -482,12 +499,79 @@ class _NixieRearCathodes extends StatelessWidget {
   );
 }
 
+/// Static inactive numeral electrodes distributed across a date field's
+/// visible character positions. They deliberately reuse the time-side wire
+/// treatment but never participate in the foreground glow stack.
+class _NixieDateRearCathodes extends StatelessWidget {
+  const _NixieDateRearCathodes({
+    required this.activeValue,
+    required this.digits,
+    required this.fontSize,
+    required this.keyPrefix,
+  });
+
+  final String activeValue;
+  final List<String> digits;
+  final double fontSize;
+  final String keyPrefix;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: ClipRect(
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < digits.length; index++)
+              SizedBox(
+                width: fontSize * .66,
+                child: Center(child: _cathode(index, digits[index])),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _cathode(int index, String digit) {
+    final offset = index.isEven
+        ? NixieRearCathodePresentation.eightOffset
+        : NixieRearCathodePresentation.nineOffset;
+    final activeCharacter = index < activeValue.length
+        ? activeValue[index]
+        : '';
+    return Transform.translate(
+      offset: offset,
+      child: Opacity(
+        opacity: NixieRearCathodePresentation.opacityFor(
+          activeCharacter,
+          digit,
+        ),
+        child: Text(
+          digit,
+          key: ValueKey('nixie-date-rear-$keyPrefix-$index-$digit'),
+          style: TextStyle(
+            fontFamily: AppTextStyles.bootTechnicalFontFamily,
+            fontSize: fontSize,
+            height: 1,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = NixieRearCathodePresentation.strokeWidth
+              ..color = NixiePresentationColors.rearCathode,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NixieTechnicalLabel extends StatelessWidget {
   const _NixieTechnicalLabel({
     required this.value,
     required this.width,
     required this.height,
     required this.animate,
+    required this.rearCathodeKeyPrefix,
     super.key,
   });
 
@@ -495,6 +579,7 @@ class _NixieTechnicalLabel extends StatelessWidget {
   final double width;
   final double height;
   final bool animate;
+  final String rearCathodeKeyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -507,24 +592,34 @@ class _NixieTechnicalLabel extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: NixiePresentationColors.frame),
       ),
-      alignment: Alignment.center,
-      child: AnimatedSwitcher(
-        duration: disabled || !animate
-            ? Duration.zero
-            : const Duration(milliseconds: 80),
-        child: Text(
-          value,
-          key: ValueKey('nixie-label-$value'),
-          style: const TextStyle(
-            fontFamily: AppTextStyles.bootTechnicalFontFamily,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          _NixieDateRearCathodes(
+            activeValue: value,
+            digits: NixieRearCathodePresentation.monthWeekdayPattern,
             fontSize: NixiePresentationTypography.textualFontSize,
-            fontWeight: NixiePresentationTypography.textualFontWeight,
-            letterSpacing: NixiePresentationTypography.textualLetterSpacing,
-            height: 1,
-            color: NixiePresentationColors.active,
-            shadows: NixiePresentationColors.textualShadows,
+            keyPrefix: rearCathodeKeyPrefix,
           ),
-        ),
+          AnimatedSwitcher(
+            duration: disabled || !animate
+                ? Duration.zero
+                : const Duration(milliseconds: 80),
+            child: Text(
+              value,
+              key: ValueKey('nixie-label-$value'),
+              style: const TextStyle(
+                fontFamily: AppTextStyles.bootTechnicalFontFamily,
+                fontSize: NixiePresentationTypography.textualFontSize,
+                fontWeight: NixiePresentationTypography.textualFontWeight,
+                letterSpacing: NixiePresentationTypography.textualLetterSpacing,
+                height: 1,
+                color: NixiePresentationColors.active,
+                shadows: NixiePresentationColors.textualShadows,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
