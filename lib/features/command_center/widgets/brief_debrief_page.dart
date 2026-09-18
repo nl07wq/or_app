@@ -5,9 +5,11 @@ import '../../../core/state/app_initialization_state.dart';
 import '../../../core/services/daily_log_confirmation_service.dart';
 import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/status_lamp.dart';
 import '../../report_sync/models/morning_brief_record.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
@@ -61,9 +63,9 @@ _CommanderIntentOutcomePresentation _commanderIntentOutcomePresentation(
 
 Color _morningBriefBackNumberColor(MorningBriefOperationStatus status) =>
     switch (status) {
-      MorningBriefOperationStatus.green => Colors.green,
-      MorningBriefOperationStatus.yellow => Colors.amber,
-      MorningBriefOperationStatus.red => Colors.red,
+      MorningBriefOperationStatus.green => AppColors.success,
+      MorningBriefOperationStatus.yellow => AppColors.operationStatusYellow,
+      MorningBriefOperationStatus.red => AppColors.danger,
     };
 
 class BriefDebriefPage extends StatelessWidget {
@@ -1531,9 +1533,9 @@ class _OperationStatusLamp extends StatelessWidget {
   final bool prominent;
 
   Color get _color => switch (status) {
-    MorningBriefOperationStatus.green => Colors.green,
-    MorningBriefOperationStatus.yellow => Colors.amber,
-    MorningBriefOperationStatus.red => Colors.red,
+    MorningBriefOperationStatus.green => AppColors.success,
+    MorningBriefOperationStatus.yellow => AppColors.operationStatusYellow,
+    MorningBriefOperationStatus.red => AppColors.danger,
   };
 
   @override
@@ -1561,17 +1563,7 @@ class _ColoredStatusLamp extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Container(
-        width: prominent ? 20 : 18,
-        height: prominent ? 20 : 18,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          boxShadow: [
-            BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 6),
-          ],
-        ),
-      ),
+      StatusLamp(color: color, size: prominent ? 20 : 18),
       const SizedBox(width: 9),
       Text(
         label,

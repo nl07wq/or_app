@@ -15,6 +15,10 @@ class AppColors {
 
   static const warning = Color(0xFFF59E0B);
 
+  /// Canonical yellow used by operation-status lamps. This stays distinct
+  /// from the warmer warning/action accent above.
+  static const operationStatusYellow = Colors.amber;
+
   static const danger = Color(0xFFEF4444);
 
   static const information = Color(0xFF38BDF8);

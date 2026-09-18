@@ -7,6 +7,7 @@ import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/section_header.dart';
+import 'package:or_app/core/widgets/status_lamp.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
@@ -1904,7 +1905,7 @@ void main() {
         find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
         findsOneWidget,
       );
-      final lamp = tester.widget<Icon>(
+      final lamp = tester.widget<StatusLamp>(
         find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
       );
       expect(lamp.size, 18);

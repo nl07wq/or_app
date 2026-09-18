@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/engine/operation_status.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/status_lamp.dart';
 
 class DailyCommandItem extends StatelessWidget {
   const DailyCommandItem({
@@ -61,12 +61,10 @@ class DailyCommandItem extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (showStatusLamp ?? status != null) ...[
-          Icon(
-            Symbols.circle,
+          StatusLamp(
             key: ValueKey('daily-command-status-lamp-${lamp.name}'),
-            fill: lamp.filled ? 1 : 0,
-            size: 18,
             color: lamp.color,
+            illuminated: lamp.filled,
             semanticLabel: '${lamp.name} status lamp',
           ),
           const SizedBox(width: AppSpacing.xs),
@@ -97,7 +95,7 @@ class DailyCommandItem extends StatelessWidget {
     ),
     OperationStatus.yellow => const _StatusLamp(
       name: 'yellow',
-      color: AppColors.warning,
+      color: AppColors.operationStatusYellow,
       filled: true,
     ),
     OperationStatus.red => const _StatusLamp(

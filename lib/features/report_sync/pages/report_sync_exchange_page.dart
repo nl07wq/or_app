@@ -40,6 +40,10 @@ StatusSourceVisualState statusSourceVisualStateFor(
   if (preparation?.statusSourceError != null) {
     return StatusSourceVisualState.failure;
   }
+  final statusLabel = preparation?.statusLabel;
+  if (statusLabel == 'NOT READY' || statusLabel == 'INVALID') {
+    return StatusSourceVisualState.failure;
+  }
   return StatusSourceVisualState.neutral;
 }
 
@@ -57,10 +61,14 @@ StatusSourceVisualState previousStatusComparisonVisualStateFor(
 @visibleForTesting
 Color? statusSourceVisualColor(StatusSourceVisualState state) =>
     switch (state) {
-      StatusSourceVisualState.success => AppColors.primary,
+      StatusSourceVisualState.success => AppColors.success,
       StatusSourceVisualState.failure => AppColors.danger,
       StatusSourceVisualState.neutral => null,
     };
+
+@visibleForTesting
+Color reportSyncReadinessColor(bool isReady) =>
+    isReady ? AppColors.success : AppColors.danger;
 
 class ReportSyncExchangePage extends StatelessWidget {
   const ReportSyncExchangePage({
@@ -1017,7 +1025,6 @@ class _DailyDebriefReadiness extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final reasons = blockers.isNotEmpty
         ? blockers
         : fallbackReason == null
@@ -1030,7 +1037,7 @@ class _DailyDebriefReadiness extends StatelessWidget {
         Text(
           isReady ? 'IMPORT READY' : 'SOURCE NOT READY',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: isReady ? colors.primary : colors.error,
+            color: reportSyncReadinessColor(isReady),
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -1040,7 +1047,7 @@ class _DailyDebriefReadiness extends StatelessWidget {
             child: Text(
               reason,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isReady ? null : colors.error,
+                color: isReady ? null : reportSyncReadinessColor(false),
               ),
             ),
           ),

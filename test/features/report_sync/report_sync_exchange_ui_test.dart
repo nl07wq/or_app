@@ -34,12 +34,12 @@ void main() {
       ),
       statusLabel: 'INVALID',
     );
-    const neutral = ReportSyncRequestPreparation(statusLabel: 'NOT READY');
+    const missing = ReportSyncRequestPreparation(statusLabel: 'NOT READY');
 
     expect(statusSourceVisualStateFor(ready), StatusSourceVisualState.success);
     expect(
       statusSourceVisualColor(statusSourceVisualStateFor(ready)),
-      AppColors.primary,
+      AppColors.success,
     );
     expect(
       statusSourceVisualStateFor(failure),
@@ -50,13 +50,15 @@ void main() {
       AppColors.danger,
     );
     expect(
-      statusSourceVisualStateFor(neutral),
-      StatusSourceVisualState.neutral,
+      statusSourceVisualStateFor(missing),
+      StatusSourceVisualState.failure,
     );
     expect(
-      statusSourceVisualColor(statusSourceVisualStateFor(neutral)),
-      isNull,
+      statusSourceVisualColor(statusSourceVisualStateFor(missing)),
+      AppColors.danger,
     );
+    expect(reportSyncReadinessColor(true), AppColors.success);
+    expect(reportSyncReadinessColor(false), AppColors.danger);
   });
 
   testWidgets('daily debrief eligible date selection reports the new target', (

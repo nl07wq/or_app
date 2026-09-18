@@ -239,7 +239,7 @@ class OperationAmbientPulseGeometry {
       statusLabel: 'FINE',
     ),
     OperationAmbientPulsePreset.yellow => const OperationAmbientPulseGeometry(
-      color: AppColors.warning,
+      color: AppColors.operationStatusYellow,
       amplitude: 10,
       waveLength: 40,
       waveform: OperationAmbientWaveform.ecg,

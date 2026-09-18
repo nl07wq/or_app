@@ -18,6 +18,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../../core/widgets/status_lamp.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../system/models/information_notice.dart';
 import '../system/services/information_notice_service.dart';
@@ -1023,11 +1024,10 @@ class _DailyCommandStatusReasonPreview extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            Icon(
-              Symbols.circle,
-              fill: status == null ? 0 : 1,
-              size: 18,
+            StatusLamp(
               color: DailyCommandItem.statusColor(status),
+              illuminated: status != null,
+              semanticLabel: '${title.toLowerCase()} status lamp',
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
@@ -1176,7 +1176,7 @@ class _DailyCommandAmbientMonitor extends StatelessWidget {
 
 Color _monitorColorFor(OperationStatus? status) => switch (status) {
   OperationStatus.green => AppColors.success,
-  OperationStatus.yellow => AppColors.warning,
+  OperationStatus.yellow => AppColors.operationStatusYellow,
   OperationStatus.red => AppColors.danger,
   OperationStatus.black || null => AppColors.information,
 };

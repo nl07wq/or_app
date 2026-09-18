@@ -19,6 +19,7 @@ import 'package:or_app/core/theme/app_text_styles.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_flip_tile.dart';
+import 'package:or_app/core/widgets/status_lamp.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
@@ -2059,13 +2060,12 @@ void main() {
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
     expect(find.text('STANDBY'), findsOneWidget);
-    final standbyLamp = tester.widget<Icon>(
+    final standbyLamp = tester.widget<StatusLamp>(
       find.byKey(const ValueKey('daily-command-status-lamp-standby')),
     );
-    expect(standbyLamp.icon, Symbols.circle);
-    expect(standbyLamp.fill, 0);
     expect(standbyLamp.size, 18);
     expect(standbyLamp.color, AppColors.secondary);
+    expect(standbyLamp.illuminated, isFalse);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('daily-command-status-value')));
     await _settleDashboard(tester);
@@ -2083,13 +2083,12 @@ void main() {
     await _settleDashboard(tester);
 
     expect(find.text('GREEN'), findsOneWidget);
-    final greenLamp = tester.widget<Icon>(
+    final greenLamp = tester.widget<StatusLamp>(
       find.byKey(const ValueKey('daily-command-status-lamp-green')),
     );
-    expect(greenLamp.icon, Symbols.circle);
-    expect(greenLamp.fill, 1);
     expect(greenLamp.size, 18);
     expect(greenLamp.color, AppColors.success);
+    expect(greenLamp.illuminated, isTrue);
     final monitor = tester.widget<Container>(
       find.byKey(const ValueKey('daily-command-ambient-monitor')),
     );
@@ -2123,7 +2122,10 @@ void main() {
   });
 
   for (final statusCase in [
-    (status: MorningBriefOperationStatus.yellow, color: AppColors.warning),
+    (
+      status: MorningBriefOperationStatus.yellow,
+      color: AppColors.operationStatusYellow,
+    ),
     (status: MorningBriefOperationStatus.red, color: AppColors.danger),
   ]) {
     testWidgets(
@@ -2146,15 +2148,14 @@ void main() {
         await _pumpDashboard(tester, width: 390);
         await _settleDashboard(tester);
 
-        final lamp = tester.widget<Icon>(
+        final lamp = tester.widget<StatusLamp>(
           find.byKey(
             ValueKey('daily-command-status-lamp-${statusCase.status.name}'),
           ),
         );
-        expect(lamp.icon, Symbols.circle);
-        expect(lamp.fill, 1);
         expect(lamp.size, 18);
         expect(lamp.color, statusCase.color);
+        expect(lamp.illuminated, isTrue);
         final monitor = tester.widget<Container>(
           find.byKey(const ValueKey('daily-command-ambient-monitor')),
         );
