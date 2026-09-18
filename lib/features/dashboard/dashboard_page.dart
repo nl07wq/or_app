@@ -415,7 +415,9 @@ abstract final class DashboardNeonTubeGeometry {
   // The physical body, illuminated perimeter, and content envelope are three
   // distinct layers. Frame/perimeter tightening must never consume the
   // wordmark's safe breathing room.
-  static const signWidth = 112.0;
+  // The wider body grows the illuminated perimeter and content envelope
+  // together. The physical-frame/perimeter seam intentionally stays fixed.
+  static const signWidth = 128.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
   static const physicalFrameStrokeWidth = 1.0;
@@ -429,13 +431,13 @@ abstract final class DashboardNeonTubeGeometry {
   static const logoWordmarkGap = 2.0;
   static const lockupOffsetX = 0.0;
 
-  static const wordmarkWidth = 70.0;
+  static const wordmarkWidth = 80.0;
   static const wordmarkHeight = 22.0;
   static const glyphTop = 2.0;
   static const glyphBottom = 20.0;
   static const glyphHeight = glyphBottom - glyphTop;
   static const wordmarkPaintLeft = 1.0;
-  static const wordmarkPaintRight = 69.0;
+  static const wordmarkPaintRight = 78.6;
   static const ovalWidth = 12.0;
   // The R bowl deliberately fills the upper half of the character.  It is
   // wide like the technical O, rather than a small box above a separate leg.
@@ -451,22 +453,24 @@ abstract final class DashboardNeonTubeGeometry {
   static const topRightChamferLength = 2.0;
   static const bottomRightChamferLength = 0.0;
   static const bottomLeftChamferLength = 0.0;
-  static const rLegStart = Offset(25.8, 13);
-  static const rLegEnd = Offset(30, 20);
-  static const previousRLegEnd = Offset(33, 20);
+  // The accepted R is translated as part of the expanded punctuation rhythm;
+  // its local bowl and steep-leg geometry are otherwise unchanged.
+  static const rLegStart = Offset(29, 13);
+  static const rLegEnd = Offset(33.2, 20);
+  static const previousRLegEnd = Offset(36.2, 20);
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
   static const periodRadius = .4;
   static const periodBaselineY = 18.4;
-  static const finalPeriodCenterX = 68.55;
+  static const finalPeriodCenterX = 78.2;
   static const finalPeriodCenter = Offset(finalPeriodCenterX, periodBaselineY);
   static const periodCenters = <Offset>[
-    // Frozen content-safe bounds prevent a literal 2x expansion. Center the
-    // internal periods between adjacent technical glyphs instead, so neither
-    // side visually attaches to its punctuation.
-    Offset(16, periodBaselineY),
-    Offset(34, periodBaselineY),
-    Offset(50, periodBaselineY),
+    // The enlarged content envelope gives each low punctuation point a clear,
+    // technically even dark gap on both sides without changing its size or
+    // baseline.
+    Offset(17.6, periodBaselineY),
+    Offset(38.6, periodBaselineY),
+    Offset(57.4, periodBaselineY),
     finalPeriodCenter,
   ];
 
@@ -2646,22 +2650,22 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
   static List<Path> _buildTubes() => [
     _singleChamferO(1),
     Path()
-      ..moveTo(19, 20)
-      ..lineTo(19, 2),
+      ..moveTo(22.2, 20)
+      ..lineTo(22.2, 2),
     Path()
-      ..moveTo(19, 2)
-      ..lineTo(29, 2)
-      ..lineTo(31, 4)
-      ..lineTo(31, 13)
-      ..lineTo(19, 13),
+      ..moveTo(22.2, 2)
+      ..lineTo(32.2, 2)
+      ..lineTo(34.2, 4)
+      ..lineTo(34.2, 13)
+      ..lineTo(22.2, 13),
     Path()
-      ..moveTo(25.8, 13)
-      ..lineTo(30, 20),
+      ..moveTo(29, 13)
+      ..lineTo(33.2, 20),
     Path()
-      ..moveTo(37, 2)
-      ..lineTo(37, 20)
-      ..lineTo(47, 20),
-    _singleChamferO(53),
+      ..moveTo(43, 2)
+      ..lineTo(43, 20)
+      ..lineTo(53, 20),
+    _singleChamferO(61.8),
   ];
 
   static Path _singleChamferO(double left) => Path()

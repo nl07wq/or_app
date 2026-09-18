@@ -10,19 +10,22 @@ abstract final class TrainingDotMatrixGeometry {
   static const columnCount = 5;
   // Scale the complete matrix coherently so the title uses the AppBar's
   // available height without stretching the fixed 5 by 7 glyphs.
-  static const dotPitch = 2.65;
-  static const dotRadius = 0.9;
-  static const characterGap = 3.05;
-  static const horizontalPadding = 20.0;
-  static const verticalPadding = 5.2;
-  static const activeStagingRightInset = 4.0;
+  static const dotPitch = 3.0;
+  static const dotRadius = 1.0;
+  static const characterGap = 1.35;
+  static const horizontalPadding = 14.0;
+  static const verticalPadding = 8.0;
+  static const activeStagingRightInset = .2;
 
   static const glyphWidth = (columnCount - 1) * dotPitch + dotRadius * 2;
   static const glyphHeight = (rowCount - 1) * dotPitch + dotRadius * 2;
   static const characterAdvance = glyphWidth + characterGap;
   static const wordWidth =
       glyphWidth * word.length + characterGap * (word.length - 1);
-  static const panelWidth = wordWidth + horizontalPadding * 2;
+  // Keep the panel clear of the mobile actions while increasing vertical LED
+  // presence. The remaining right-side board space is the internal ACTIVE
+  // staging region; animated LEDs never leave this physical panel.
+  static const panelWidth = 150.0;
   static const panelHeight = glyphHeight + verticalPadding * 2;
 
   static const activeBodyColor = Color(0xFFFF9E3D);

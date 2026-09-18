@@ -1908,7 +1908,7 @@ void main() {
       final lamp = tester.widget<StatusLamp>(
         find.byKey(ValueKey('daily-command-status-lamp-${statusCase.name}')),
       );
-      expect(lamp.size, 16);
+      expect(lamp.size, 14);
       expect(find.text(statusCase.name.toUpperCase()), findsOneWidget);
     });
   }

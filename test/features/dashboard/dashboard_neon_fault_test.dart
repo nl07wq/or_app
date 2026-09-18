@@ -28,11 +28,11 @@ void main() {
       expect(DashboardNeonTubeGeometry.topRightChamferLength, 2);
       expect(DashboardNeonTubeGeometry.bottomRightChamferLength, 0);
       expect(DashboardNeonTubeGeometry.bottomLeftChamferLength, 0);
-      expect(DashboardNeonTubeGeometry.signWidth, 112);
+      expect(DashboardNeonTubeGeometry.signWidth, 128);
       expect(
         DashboardNeonTubeGeometry.wordmarkPaintRight -
             DashboardNeonTubeGeometry.wordmarkPaintLeft,
-        68,
+        77.6,
       );
       expect(DashboardNeonTubeGeometry.tubeWidth, lessThanOrEqualTo(2.2));
       expect(
@@ -56,8 +56,11 @@ void main() {
         lessThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right),
       );
       expect(DashboardNeonTubeGeometry.signHorizontalPadding, 1);
-      expect(DashboardNeonTubeGeometry.leftContentClearance, 3.5);
-      expect(DashboardNeonTubeGeometry.rightContentClearance, 4);
+      expect(DashboardNeonTubeGeometry.leftContentClearance, 6.5);
+      expect(
+        DashboardNeonTubeGeometry.rightContentClearance,
+        closeTo(7.2, .01),
+      );
       expect(
         DashboardNeonTubeGeometry.lockupWidth,
         DashboardNeonTubeGeometry.logoSize +
@@ -76,8 +79,8 @@ void main() {
             DashboardNeonTubeGeometry.rLegStart.dy,
         7,
       );
-      const technicalGlyphRightEdges = [13.0, 31.0, 47.0];
-      const technicalGlyphLeftEdges = [19.0, 37.0, 53.0];
+      const technicalGlyphRightEdges = [13.0, 34.2, 53.0];
+      const technicalGlyphLeftEdges = [22.2, 43.0, 61.8];
       for (var index = 0; index < technicalGlyphRightEdges.length; index++) {
         final period = DashboardNeonTubeGeometry.periodCenters[index];
         final leftGap =
@@ -87,8 +90,8 @@ void main() {
         final rightGap =
             technicalGlyphLeftEdges[index] -
             (period.dx + DashboardNeonTubeGeometry.periodRadius);
-        expect(leftGap, closeTo(2.6, .01));
-        expect(rightGap, closeTo(2.6, .01));
+        expect(leftGap, closeTo(index == 0 ? 4.2 : 4, .01));
+        expect(rightGap, closeTo(index == 0 ? 4.2 : 4, .01));
       }
     });
 

@@ -4,6 +4,14 @@ import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_dot_matrix_title.dart';
 
 void main() {
+  test('uses a 150px physical panel with a larger coherent LED matrix', () {
+    expect(TrainingDotMatrixGeometry.panelWidth, 150);
+    expect(TrainingDotMatrixGeometry.panelHeight, 36);
+    expect(TrainingDotMatrixGeometry.glyphHeight, 20);
+    expect(TrainingDotMatrixGeometry.dotPitch, 3);
+    expect(TrainingDotMatrixGeometry.horizontalPadding, 14);
+  });
+
   test('TRAINING uses complete 5 by 7 LED glyph definitions', () {
     expect(TrainingDotMatrixGeometry.word.split(''), <String>[
       'T',

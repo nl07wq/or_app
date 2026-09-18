@@ -1649,9 +1649,9 @@ void main() {
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(3, 4));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(6, 7));
     expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
-    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(4, 5));
+    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(7, 8));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),
@@ -2063,7 +2063,7 @@ void main() {
     final standbyLamp = tester.widget<StatusLamp>(
       find.byKey(const ValueKey('daily-command-status-lamp-standby')),
     );
-    expect(standbyLamp.size, 16);
+    expect(standbyLamp.size, 14);
     expect(standbyLamp.color, AppColors.secondary);
     expect(standbyLamp.illuminated, isFalse);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
@@ -2086,7 +2086,7 @@ void main() {
     final greenLamp = tester.widget<StatusLamp>(
       find.byKey(const ValueKey('daily-command-status-lamp-green')),
     );
-    expect(greenLamp.size, 16);
+    expect(greenLamp.size, 14);
     expect(greenLamp.color, AppColors.success);
     expect(greenLamp.illuminated, isTrue);
     final monitor = tester.widget<Container>(
@@ -2153,7 +2153,7 @@ void main() {
             ValueKey('daily-command-status-lamp-${statusCase.status.name}'),
           ),
         );
-        expect(lamp.size, 16);
+        expect(lamp.size, 14);
         expect(lamp.color, statusCase.color);
         expect(lamp.illuminated, isTrue);
         final monitor = tester.widget<Container>(
