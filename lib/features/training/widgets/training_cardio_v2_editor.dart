@@ -247,7 +247,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
 
   String? _summary() {
     final duration = controller.duration.text.trim();
-    if (duration.isEmpty) return 'Not configured';
+    if (duration.isEmpty) return 'NOT CONFIGURED';
     return '$duration'
         '${controller.distance.text.trim().isEmpty ? '' : '   ${controller.distance.text.trim()} km'}';
   }

@@ -37,6 +37,10 @@ void main() {
     await _pump(tester, width: 320);
 
     expect(find.text('SESSION NAME'), findsOneWidget);
+    expect(find.text('START TIME'), findsOneWidget);
+    expect(find.text('END TIME'), findsOneWidget);
+    expect(find.text('Start Time'), findsNothing);
+    expect(find.text('End Time'), findsNothing);
     expect(find.text('Session Grade'), findsNothing);
     expect(find.text('SESSION MEMO'), findsOneWidget);
     expect(find.text('DYNAMIC STRETCH'), findsOneWidget);
@@ -833,7 +837,7 @@ void main() {
     await tester.tap(find.text('なし'));
     await tester.pumpAndSettle();
 
-    final previous = tester.getTopLeft(find.text('Previous')).dy;
+    final previous = tester.getTopLeft(find.text('PREVIOUS')).dy;
     final progression = tester.getTopLeft(find.text('PROGRESSION')).dy;
     final personalRecord = tester.getTopLeft(find.text('PERSONAL RECORD')).dy;
     final firstSet = tester.getTopLeft(find.text('SET 1')).dy;

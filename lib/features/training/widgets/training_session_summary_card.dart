@@ -34,16 +34,16 @@ class TrainingSessionSummaryCard extends StatelessWidget {
           const Divider(),
           AppSpacing.gapMD,
 
-          SummaryRow(title: 'Exercise', value: '$exerciseCount'),
+          SummaryRow(title: 'EXERCISE', value: '$exerciseCount'),
 
-          SummaryRow(title: 'Set', value: '$setCount'),
+          SummaryRow(title: 'SET', value: '$setCount'),
 
           SummaryRow(
-            title: 'Volume',
+            title: 'VOLUME',
             value: '${totalVolume.toStringAsFixed(0)} kg',
           ),
 
-          SummaryRow(title: 'Rep', value: '$totalRep'),
+          SummaryRow(title: 'REP', value: '$totalRep'),
         ],
       ),
     );

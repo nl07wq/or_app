@@ -169,7 +169,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
     if (exerciseName.isEmpty) {
       return _ExerciseHeader(
         title: 'EXERCISE ${widget.index + 1}',
-        summary: 'Not configured',
+        summary: 'NOT CONFIGURED',
       );
     }
 

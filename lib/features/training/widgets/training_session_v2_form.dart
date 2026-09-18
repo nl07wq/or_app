@@ -223,7 +223,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _TimeField(
-          label: 'Start Time',
+          label: 'START TIME',
           value: _displayTime(start),
           onEdit: start == null ? null : () => _editStart(context, start),
         ),
@@ -245,7 +245,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
         ),
         AppSpacing.gapSM,
         _TimeField(
-          label: 'End Time',
+          label: 'END TIME',
           value: _displayTime(end, startTime: start),
           onEdit: end == null ? null : () => _editEnd(context, end),
         ),

@@ -56,17 +56,17 @@ class TrainingExerciseDetailCard extends StatelessWidget {
           AppSpacing.gapSM,
 
           Text(
-            'Exercise Summary',
+            'EXERCISE SUMMARY',
             style: Theme.of(context).textTheme.titleSmall,
           ),
 
           AppSpacing.gapSM,
 
-          SummaryRow(title: 'Volume', value: '${volume.toStringAsFixed(0)} kg'),
+          SummaryRow(title: 'VOLUME', value: '${volume.toStringAsFixed(0)} kg'),
 
-          SummaryRow(title: 'Rep', value: '$totalRep'),
+          SummaryRow(title: 'REP', value: '$totalRep'),
 
-          SummaryRow(title: 'Max', value: '${maxWeight.toStringAsFixed(1)} kg'),
+          SummaryRow(title: 'MAX', value: '${maxWeight.toStringAsFixed(1)} kg'),
         ],
       ),
     );

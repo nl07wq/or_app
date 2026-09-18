@@ -52,7 +52,7 @@ class TrainingDetailPage extends StatelessWidget {
                 !appInitializationController.value.isReadOnly)
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit',
+                tooltip: 'EDIT',
                 onPressed: () async {
                   final updated = await Navigator.push<bool>(
                     context,
@@ -161,7 +161,7 @@ class _CardioDetailCard extends StatelessWidget {
         children: [
           const SectionHeader(
             icon: Icons.directions_run_outlined,
-            title: 'Cardio',
+            title: 'CARDIO',
           ),
           AppSpacing.gapMD,
           for (var index = 0; index < entries.length; index++) ...[

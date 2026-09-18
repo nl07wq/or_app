@@ -37,7 +37,7 @@ class TrainingV2EntryInsightPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _InsightCard(
-          title: 'Previous',
+          title: 'PREVIOUS',
           child: insights.previous == null
               ? const Text('記録なし')
               : Wrap(

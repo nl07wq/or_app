@@ -40,7 +40,8 @@ void main() {
 
     expect(find.byType(ExerciseSelector), findsOneWidget);
     expect(find.text('EXERCISE 1'), findsOneWidget);
-    expect(find.text('Not configured'), findsOneWidget);
+    expect(find.text('NOT CONFIGURED'), findsOneWidget);
+    expect(find.text('Not configured'), findsNothing);
     expect(find.byTooltip('Delete cardio'), findsNothing);
     expect(find.bySemanticsLabel('EXERCISE 1, expanded'), findsOneWidget);
   });

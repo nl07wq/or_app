@@ -185,7 +185,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
       reps += valueReps;
       if (heaviest == null || weight > heaviest) heaviest = weight;
     }
-    if (mainSets == 0) return 'Not configured';
+    if (mainSets == 0) return 'NOT CONFIGURED';
     return '${_number(heaviest!)} kg   $mainSets Main Sets   $reps Reps';
   }
 }

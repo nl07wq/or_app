@@ -76,7 +76,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Previous'), findsOneWidget);
+    expect(find.text('PREVIOUS'), findsOneWidget);
+    expect(find.text('Previous'), findsNothing);
     expect(find.text('60kg × 10 / 60kg × 14'), findsOneWidget);
 
     controller.text = 'Squat';
@@ -88,7 +89,8 @@ void main() {
     controller.text = 'Unknown Exercise';
     await tester.pumpAndSettle();
 
-    expect(find.text('No previous record'), findsOneWidget);
+    expect(find.text('NO PREVIOUS RECORD'), findsOneWidget);
+    expect(find.text('No previous record'), findsNothing);
   });
 }
 

@@ -243,7 +243,7 @@ void main() {
     final selectorRect = tester.getRect(
       find.byKey(const Key('exercise-selector')),
     );
-    final previousRect = tester.getRect(find.text('Previous'));
+    final previousRect = tester.getRect(find.text('PREVIOUS'));
     final equipmentRect = tester.getRect(
       find.byKey(const Key('equipment-selector')),
     );

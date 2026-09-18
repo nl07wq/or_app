@@ -14,14 +14,14 @@ class TrainingHistoryPreview extends StatelessWidget {
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
     final sets = summary.historySummary?.sets;
     final text = sets == null || sets.isEmpty
-        ? 'No previous record'
+        ? 'NO PREVIOUS RECORD'
         : sets.map(_formatSet).join(' / ');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Previous',
+          'PREVIOUS',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
         ),
         AppSpacing.gapXS,

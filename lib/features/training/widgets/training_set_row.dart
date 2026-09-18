@@ -37,7 +37,7 @@ class TrainingSetRow extends StatelessWidget {
                 },
                 child: OperationTextField(
                   controller: weightController,
-                  label: 'Weight',
+                  label: 'WEIGHT',
                   hint: 'kg',
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
@@ -55,7 +55,7 @@ class TrainingSetRow extends StatelessWidget {
                 },
                 child: OperationTextField(
                   controller: repsController,
-                  label: 'Reps',
+                  label: 'REPS',
                   hint: '回',
                   keyboardType: TextInputType.number,
                 ),

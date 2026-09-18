@@ -41,8 +41,8 @@ class TrainingV2RecordDetail extends StatelessWidget {
                   ),
                   AppSpacing.gapSM,
                   const Text('READ ONLY — Training Record v2'),
-                  Text('Start Time ${session.startTime ?? 'Not recorded'}'),
-                  Text('End Time ${session.endTime ?? 'Not recorded'}'),
+                  Text('START TIME ${session.startTime ?? 'NOT RECORDED'}'),
+                  Text('END TIME ${session.endTime ?? 'NOT RECORDED'}'),
                   Text(
                     'Session Duration ${_duration(session.sessionDuration)}',
                   ),
@@ -170,8 +170,8 @@ class _ExerciseCard extends StatelessWidget {
           ),
           Text(
             analysis?.previous == null
-                ? 'Previous: Not available'
-                : 'Previous ${analysis!.previous!.record.localDate}   '
+                ? 'PREVIOUS: NOT AVAILABLE'
+                : 'PREVIOUS ${analysis!.previous!.record.localDate}   '
                       '${_number(analysis!.previous!.statistics.topSet!.weightKg)} kg '
                       'x ${analysis!.previous!.statistics.topSet!.reps}',
           ),
