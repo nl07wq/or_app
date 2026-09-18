@@ -86,10 +86,11 @@ void main() {
       );
       final tSlot = find.byKey(const ValueKey('training-title-slot-0'));
       expect(travellingT, findsOneWidget);
-      expect(
-        tester.getTopLeft(travellingT).dx,
-        greaterThan(tester.getTopLeft(tSlot).dx + 40),
-      );
+      final titleBounds = tester.getRect(title);
+      final tStart = tester.getRect(travellingT);
+      expect(tStart.left, greaterThan(tester.getTopLeft(tSlot).dx + 40));
+      expect(tStart.left, greaterThanOrEqualTo(titleBounds.left));
+      expect(tStart.right, lessThanOrEqualTo(titleBounds.right));
 
       // T lands after its 420ms travel, then R starts only after the 120ms
       // settle. The R glyph is independently translated rather than faded in.
@@ -103,6 +104,14 @@ void main() {
       final rStart = tester.getTopLeft(travellingR).dx;
       final rDestination = tester.getTopLeft(rSlot).dx;
       expect(rStart, greaterThan(rDestination + 40));
+      expect(
+        tester.getRect(travellingR).left,
+        greaterThanOrEqualTo(titleBounds.left),
+      );
+      expect(
+        tester.getRect(travellingR).right,
+        lessThanOrEqualTo(titleBounds.right),
+      );
 
       await tester.pump(const Duration(milliseconds: 210));
       final rMidpoint = tester.getTopLeft(travellingR).dx;

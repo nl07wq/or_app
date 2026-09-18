@@ -717,14 +717,16 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
   static const _characterTravel = Duration(milliseconds: 420);
   static const _characterSettle = Duration(milliseconds: 120);
   static const _fullWordHold = Duration(milliseconds: 900);
-  static const _travelLead = 24.0;
 
   late final AnimationController _controller;
   bool? _animationEnabled;
   List<double> get _slotOffsets =>
       List<double>.generate(_word.length, TrainingDotMatrixGeometry.glyphLeft);
 
-  double get _wordWidth => TrainingDotMatrixGeometry.panelWidth;
+  double get _internalTravelStart =>
+      TrainingDotMatrixGeometry.panelWidth -
+      TrainingDotMatrixGeometry.horizontalPadding -
+      TrainingDotMatrixGeometry.glyphWidth;
 
   Duration get _cycleDuration => Duration(
     milliseconds:
@@ -800,7 +802,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
           key: const ValueKey('training-appbar-title'),
           child: TrainingDotMatrixFrame(
             child: Stack(
-              clipBehavior: Clip.none,
+              clipBehavior: Clip.hardEdge,
               children: [
                 for (var index = 0; index < _word.length; index++)
                   Positioned(
@@ -831,7 +833,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
                       final frame = _frameFor(_controller.value);
                       final travelling = frame.travellingIndex;
                       return Stack(
-                        clipBehavior: Clip.none,
+                        clipBehavior: Clip.hardEdge,
                         children: [
                           for (
                             var index = 0;
@@ -882,8 +884,10 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
 
   double _travelLeft(int index, double progress) {
     final destination = _slotOffsets[index];
-    final start =
-        _wordWidth + _travelLead - TrainingDotMatrixGeometry.glyphWidth;
+    // The right-side panel margin is the physical staging area.  Keeping the
+    // start inside the local panel coordinate system prevents a glyph from
+    // appearing to fly across the AppBar before it reaches the display.
+    final start = _internalTravelStart;
     return start + (destination - start) * Curves.linear.transform(progress);
   }
 }

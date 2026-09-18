@@ -437,9 +437,11 @@ abstract final class DashboardNeonTubeGeometry {
   static const wordmarkPaintLeft = 1.0;
   static const wordmarkPaintRight = 69.0;
   static const ovalWidth = 12.0;
-  static const rWidth = 8.0;
-  static const rBowlWidth = 8.0;
-  static const rBowlHeight = 8.0;
+  // The R bowl deliberately fills the upper half of the character.  It is
+  // wide like the technical O, rather than a small box above a separate leg.
+  static const rWidth = 12.0;
+  static const rBowlWidth = 12.0;
+  static const rBowlHeight = 9.0;
   static const rTopLeftChamferLength = 0.0;
   static const rTopRightChamferLength = 2.0;
   static const rBottomRightChamferLength = 0.0;
@@ -449,8 +451,8 @@ abstract final class DashboardNeonTubeGeometry {
   static const topRightChamferLength = 2.0;
   static const bottomRightChamferLength = 0.0;
   static const bottomLeftChamferLength = 0.0;
-  static const rLegStart = Offset(24, 10);
-  static const rLegEnd = Offset(30, 20);
+  static const rLegStart = Offset(25, 11);
+  static const rLegEnd = Offset(30.4, 20);
   static const previousRLegEnd = Offset(33, 20);
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
@@ -2644,13 +2646,13 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
       ..lineTo(19, 2),
     Path()
       ..moveTo(19, 2)
-      ..lineTo(25, 2)
-      ..lineTo(27, 4)
-      ..lineTo(27, 10)
-      ..lineTo(19, 10),
+      ..lineTo(29, 2)
+      ..lineTo(31, 4)
+      ..lineTo(31, 11)
+      ..lineTo(19, 11),
     Path()
-      ..moveTo(24, 10)
-      ..lineTo(30, 20),
+      ..moveTo(25, 11)
+      ..lineTo(30.4, 20),
     Path()
       ..moveTo(37, 2)
       ..lineTo(37, 20)

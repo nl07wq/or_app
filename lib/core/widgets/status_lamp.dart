@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Static physical status indicator shared by operation-status surfaces.
 ///
-/// A compact bright core and low-intensity halo keep the light readable
-/// without introducing a ticker, animation, or neon treatment.
+/// A compact colored disc with the restrained local illumination used by the
+/// Brief/Debrief status header. It deliberately has no white hot core or
+/// multi-stage halo, and never introduces animation or a ticker.
 class StatusLamp extends StatelessWidget {
   const StatusLamp({
     super.key,
@@ -24,7 +25,7 @@ class StatusLamp extends StatelessWidget {
       width: size,
       height: size,
       child: illuminated
-          ? _IlluminatedLamp(color: color, size: size)
+          ? _IlluminatedLamp(color: color)
           : DecoratedBox(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -38,50 +39,18 @@ class StatusLamp extends StatelessWidget {
 }
 
 class _IlluminatedLamp extends StatelessWidget {
-  const _IlluminatedLamp({required this.color, required this.size});
+  const _IlluminatedLamp({required this.color});
 
   final Color color;
-  final double size;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      color: color.withValues(alpha: .18),
+      color: color,
       boxShadow: [
-        BoxShadow(
-          color: color.withValues(alpha: .30),
-          blurRadius: size * .38,
-          spreadRadius: size * .04,
-        ),
+        BoxShadow(color: color.withValues(alpha: .35), blurRadius: 6),
       ],
-    ),
-    child: Center(
-      child: SizedBox(
-        width: size * .58,
-        height: size * .58,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              center: const Alignment(-.25, -.3),
-              radius: .9,
-              colors: [
-                Colors.white.withValues(alpha: .88),
-                color,
-                color.withValues(alpha: .82),
-              ],
-              stops: const [.0, .28, 1],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: .42),
-                blurRadius: size * .3,
-              ),
-            ],
-          ),
-        ),
-      ),
     ),
   );
 }

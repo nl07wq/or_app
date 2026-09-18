@@ -8,11 +8,13 @@ abstract final class TrainingDotMatrixGeometry {
   static const word = 'TRAINING';
   static const rowCount = 7;
   static const columnCount = 5;
-  static const dotPitch = 2.0;
-  static const dotRadius = 0.68;
-  static const characterGap = 2.5;
-  static const horizontalPadding = 4.0;
-  static const verticalPadding = 3.0;
+  // Scale the complete matrix coherently so the title uses the AppBar's
+  // available height without stretching the fixed 5 by 7 glyphs.
+  static const dotPitch = 2.4;
+  static const dotRadius = 0.82;
+  static const characterGap = 2.8;
+  static const horizontalPadding = 10.0;
+  static const verticalPadding = 4.5;
 
   static const glyphWidth = (columnCount - 1) * dotPitch + dotRadius * 2;
   static const glyphHeight = (rowCount - 1) * dotPitch + dotRadius * 2;
@@ -101,17 +103,20 @@ class TrainingDotMatrixFrame extends StatelessWidget {
     return SizedBox(
       width: TrainingDotMatrixGeometry.panelWidth,
       height: TrainingDotMatrixGeometry.panelHeight,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: TrainingDotMatrixGeometry.substrateColor,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: TrainingDotMatrixGeometry.substrateBorderColor,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: TrainingDotMatrixGeometry.substrateColor,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: TrainingDotMatrixGeometry.substrateBorderColor,
+            ),
           ),
-        ),
-        child: CustomPaint(
-          painter: const _InactiveTrainingMatrixPainter(),
-          child: child,
+          child: CustomPaint(
+            painter: const _InactiveTrainingMatrixPainter(),
+            child: child,
+          ),
         ),
       ),
     );

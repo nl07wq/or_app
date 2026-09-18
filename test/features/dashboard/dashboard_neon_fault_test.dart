@@ -16,9 +16,9 @@ void main() {
             DashboardNeonTubeGeometry.glyphHeight,
         inInclusiveRange(.6, .72),
       );
-      expect(DashboardNeonTubeGeometry.rWidth, 8);
-      expect(DashboardNeonTubeGeometry.rBowlWidth, 8);
-      expect(DashboardNeonTubeGeometry.rBowlHeight, 8);
+      expect(DashboardNeonTubeGeometry.rWidth, 12);
+      expect(DashboardNeonTubeGeometry.rBowlWidth, 12);
+      expect(DashboardNeonTubeGeometry.rBowlHeight, 9);
       expect(DashboardNeonTubeGeometry.rTopLeftChamferLength, 0);
       expect(DashboardNeonTubeGeometry.rTopRightChamferLength, 2);
       expect(DashboardNeonTubeGeometry.rBottomRightChamferLength, 0);
@@ -74,7 +74,7 @@ void main() {
       expect(
         DashboardNeonTubeGeometry.rLegEnd.dy -
             DashboardNeonTubeGeometry.rLegStart.dy,
-        10,
+        9,
       );
       const previousLetterPeriodGap = 2.1;
       final finalLetterPeriodGap =

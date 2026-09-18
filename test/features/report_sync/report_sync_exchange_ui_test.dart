@@ -39,7 +39,7 @@ void main() {
     expect(statusSourceVisualStateFor(ready), StatusSourceVisualState.success);
     expect(
       statusSourceVisualColor(statusSourceVisualStateFor(ready)),
-      AppColors.success,
+      AppColors.primary,
     );
     expect(
       statusSourceVisualStateFor(failure),
@@ -57,7 +57,7 @@ void main() {
       statusSourceVisualColor(statusSourceVisualStateFor(missing)),
       AppColors.danger,
     );
-    expect(reportSyncReadinessColor(true), AppColors.success);
+    expect(reportSyncReadinessColor(true), AppColors.primary);
     expect(reportSyncReadinessColor(false), AppColors.danger);
   });
 

@@ -61,14 +61,16 @@ StatusSourceVisualState previousStatusComparisonVisualStateFor(
 @visibleForTesting
 Color? statusSourceVisualColor(StatusSourceVisualState state) =>
     switch (state) {
-      StatusSourceVisualState.success => AppColors.success,
+      // These are source-state *text* labels. Match OPERATION PROGRESS'
+      // recorded/missing text language, not its green progress treatment.
+      StatusSourceVisualState.success => AppColors.primary,
       StatusSourceVisualState.failure => AppColors.danger,
       StatusSourceVisualState.neutral => null,
     };
 
 @visibleForTesting
 Color reportSyncReadinessColor(bool isReady) =>
-    isReady ? AppColors.success : AppColors.danger;
+    isReady ? AppColors.primary : AppColors.danger;
 
 class ReportSyncExchangePage extends StatelessWidget {
   const ReportSyncExchangePage({
