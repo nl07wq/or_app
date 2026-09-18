@@ -8,6 +8,7 @@ import '../../core/widgets/section_header.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
 import 'widgets/training_history_button.dart';
+import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_manual_card.dart';
 import 'widgets/training_sync_card.dart';
 import 'training_plan_import_page.dart';
@@ -18,7 +19,12 @@ class TrainingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('TRAINING')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const TrainingDotMatrixTitle(
+          titleKey: ValueKey('training-page-appbar-title'),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: MediaQuery.sizeOf(context).width < 360
             ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)

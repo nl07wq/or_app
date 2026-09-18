@@ -22,6 +22,7 @@ import 'package:or_app/features/training/training_entry_page.dart';
 import 'package:or_app/features/training/widgets/exercise_selector.dart';
 import 'package:or_app/features/training/widgets/training_cardio_v2_editor.dart';
 import 'package:or_app/features/training/widgets/training_exercise_v2_editor.dart';
+import 'package:or_app/features/training/widgets/training_dot_matrix_title.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
@@ -73,6 +74,8 @@ void main() {
       await _pump(tester, width: 390, disableAnimations: false);
       final title = find.byKey(const ValueKey('training-appbar-title'));
       expect(tester.getCenter(title).dx, closeTo(195, 0.5));
+      expect(find.byType(TrainingDotMatrixFrame), findsOneWidget);
+      expect(find.bySemanticsLabel('TRAINING'), findsOneWidget);
 
       await tester.tap(find.text('START TRAINING'));
       await tester.pump();
@@ -131,6 +134,25 @@ void main() {
       expect(tester.getCenter(title).dx, closeTo(195, 0.5));
     },
   );
+
+  for (final width in <double>[320, 390, 900]) {
+    testWidgets(
+      'dot-matrix entry title clears the overflow action at ${width.toInt()}px',
+      (tester) async {
+        await _pump(tester, width: width, disableAnimations: false);
+        await tester.tap(find.text('START TRAINING'));
+        await tester.pump();
+
+        final title = tester.getRect(
+          find.byKey(const ValueKey('training-appbar-title')),
+        );
+        final overflow = tester.getRect(find.byIcon(Icons.more_vert));
+        expect(title.center.dx, closeTo(width / 2, .5));
+        expect(title.right, lessThan(overflow.left));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   for (final width in <double>[390, 900, 1280]) {
     testWidgets('new v2 entry has no overflow at ${width.toInt()}px', (

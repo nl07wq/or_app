@@ -26,6 +26,7 @@ import '../operation_date/services/operation_date_service.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
+import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_exercise_v2_editor.dart';
 import 'widgets/training_session_v2_form.dart';
 
@@ -720,12 +721,10 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
 
   late final AnimationController _controller;
   bool? _animationEnabled;
-  TextStyle? _slotStyle;
-  TextDirection? _slotTextDirection;
-  List<double> _slotOffsets = const [];
-  List<double> _glyphWidths = const [];
-  double _wordWidth = 0;
-  double _wordHeight = 0;
+  List<double> get _slotOffsets =>
+      List<double>.generate(_word.length, TrainingDotMatrixGeometry.glyphLeft);
+
+  double get _wordWidth => TrainingDotMatrixGeometry.panelWidth;
 
   Duration get _cycleDuration => Duration(
     milliseconds:
@@ -770,34 +769,6 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
     super.dispose();
   }
 
-  void _ensureSlots(TextStyle style, TextDirection textDirection) {
-    if (_slotStyle == style && _slotTextDirection == textDirection) return;
-    _slotStyle = style;
-    _slotTextDirection = textDirection;
-    final widths = <double>[];
-    final offsets = <double>[];
-    for (var index = 0; index < _word.length; index++) {
-      final prefixPainter = TextPainter(
-        text: TextSpan(text: _word.substring(0, index), style: style),
-        textDirection: textDirection,
-      )..layout();
-      offsets.add(prefixPainter.width);
-      final glyphPainter = TextPainter(
-        text: TextSpan(text: _word[index], style: style),
-        textDirection: textDirection,
-      )..layout();
-      widths.add(glyphPainter.width);
-    }
-    final wordPainter = TextPainter(
-      text: TextSpan(text: _word, style: style),
-      textDirection: textDirection,
-    )..layout();
-    _wordWidth = wordPainter.width;
-    _wordHeight = wordPainter.height;
-    _slotOffsets = offsets;
-    _glyphWidths = widths;
-  }
-
   _TrainingTitleFrame _frameFor(double value) {
     final elapsed = value * _cycleDuration.inMilliseconds;
     final phaseDuration =
@@ -819,10 +790,6 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
 
   @override
   Widget build(BuildContext context) {
-    final style =
-        Theme.of(context).appBarTheme.titleTextStyle ??
-        Theme.of(context).textTheme.titleLarge!;
-    _ensureSlots(style, Directionality.of(context));
     final staticTitle = !(_animationEnabled ?? false);
 
     return Semantics(
@@ -831,41 +798,51 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
       child: ExcludeSemantics(
         child: SizedBox(
           key: const ValueKey('training-appbar-title'),
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.centerLeft,
-            children: [
-              // The full word fixes the final title envelope at the viewport
-              // center. Travelling glyphs can extend rightward without ever
-              // re-centering the settled characters.
-              Opacity(opacity: 0, child: Text(_word, style: style)),
-              if (staticTitle)
-                Text(_word, style: style)
-              else
-                AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, child) {
-                    final frame = _frameFor(_controller.value);
-                    final travelling = frame.travellingIndex;
-                    return SizedBox(
-                      width: _wordWidth,
-                      height: _wordHeight,
-                      child: Stack(
+          child: TrainingDotMatrixFrame(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                for (var index = 0; index < _word.length; index++)
+                  Positioned(
+                    key: ValueKey('training-title-slot-$index'),
+                    left: _slotOffsets[index],
+                    top: TrainingDotMatrixGeometry.verticalPadding,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: 0,
+                        child: SizedBox(
+                          width: TrainingDotMatrixGeometry.glyphWidth,
+                          height: TrainingDotMatrixGeometry.glyphHeight,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (staticTitle)
+                  for (var index = 0; index < _word.length; index++)
+                    Positioned(
+                      left: _slotOffsets[index],
+                      top: TrainingDotMatrixGeometry.verticalPadding,
+                      child: TrainingDotMatrixGlyph(character: _word[index]),
+                    )
+                else
+                  AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, child) {
+                      final frame = _frameFor(_controller.value);
+                      final travelling = frame.travellingIndex;
+                      return Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          for (var index = 0; index < _word.length; index++)
+                          for (
+                            var index = 0;
+                            index < frame.settledCount;
+                            index++
+                          )
                             Positioned(
-                              key: ValueKey('training-title-slot-$index'),
                               left: _slotOffsets[index],
-                              top: 0,
-                              child: IgnorePointer(
-                                child: Opacity(
-                                  opacity: 0,
-                                  child: SizedBox(
-                                    width: _glyphWidths[index],
-                                    height: 1,
-                                  ),
-                                ),
+                              top: TrainingDotMatrixGeometry.verticalPadding,
+                              child: TrainingDotMatrixGlyph(
+                                character: _word[index],
                               ),
                             ),
                           if (frame.settledCount > 0)
@@ -875,10 +852,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
                               ),
                               left: 0,
                               top: 0,
-                              child: Text(
-                                _word.substring(0, frame.settledCount),
-                                style: style,
-                              ),
+                              child: const SizedBox.shrink(),
                             ),
                           if (travelling != null)
                             Positioned(
@@ -889,15 +863,17 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
                                 travelling,
                                 frame.travelProgress,
                               ),
-                              top: 0,
-                              child: Text(_word[travelling], style: style),
+                              top: TrainingDotMatrixGeometry.verticalPadding,
+                              child: TrainingDotMatrixGlyph(
+                                character: _word[travelling],
+                              ),
                             ),
                         ],
-                      ),
-                    );
-                  },
-                ),
-            ],
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -906,7 +882,8 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
 
   double _travelLeft(int index, double progress) {
     final destination = _slotOffsets[index];
-    final start = _wordWidth + _travelLead - _glyphWidths[index];
+    final start =
+        _wordWidth + _travelLead - TrainingDotMatrixGeometry.glyphWidth;
     return start + (destination - start) * Curves.linear.transform(progress);
   }
 }

@@ -11,6 +11,7 @@ import 'widgets/training_summary_card.dart';
 import 'widgets/training_exercise_detail_card.dart';
 import 'widgets/training_session_summary_card.dart';
 import 'widgets/training_v2_record_detail.dart';
+import 'widgets/training_dot_matrix_title.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
 class TrainingDetailPage extends StatelessWidget {
@@ -29,9 +30,8 @@ class TrainingDetailPage extends StatelessWidget {
             bottom: false,
             child: IgnorePointer(
               child: Center(
-                child: Text(
-                  'TRAINING',
-                  key: ValueKey('training-detail-appbar-title'),
+                child: TrainingDotMatrixTitle(
+                  titleKey: ValueKey('training-detail-appbar-title'),
                 ),
               ),
             ),
@@ -101,9 +101,8 @@ class TrainingDetailPage extends StatelessWidget {
           bottom: false,
           child: IgnorePointer(
             child: Center(
-              child: Text(
-                'TRAINING',
-                key: ValueKey('training-detail-appbar-title'),
+              child: TrainingDotMatrixTitle(
+                titleKey: ValueKey('training-detail-appbar-title'),
               ),
             ),
           ),
