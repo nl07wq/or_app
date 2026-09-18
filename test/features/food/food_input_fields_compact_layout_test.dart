@@ -271,10 +271,21 @@ void main() {
           ),
         );
         final label = unit == null ? 'NOT SET' : _unitLabel(unit);
-        for (final field in [_packageUnit(), if (unit != null) _baseUnit()]) {
+        final fields = <(Finder, Finder)>[
+          (
+            _packageUnit(),
+            find.byKey(const ValueKey('food-entry-package-unit-value')),
+          ),
+          if (unit != null)
+            (
+              _baseUnit(),
+              find.byKey(const ValueKey('food-entry-base-unit-value')),
+            ),
+        ];
+        for (final (field, valueText) in fields) {
           final bounds = tester.getRect(field);
-          final text = find.descendant(of: field, matching: find.text(label));
-          expect(text, findsOneWidget);
+          expect(valueText, findsOneWidget);
+          expect(tester.widget<Text>(valueText).data, label);
           final chevron = find.descendant(
             of: field,
             matching: find.byIcon(Icons.arrow_drop_down),
@@ -284,12 +295,41 @@ void main() {
             bounds.right - tester.getRect(chevron).left,
             greaterThanOrEqualTo(20),
           );
-          expect(tester.getRect(text).left, greaterThanOrEqualTo(bounds.left));
+          expect(
+            tester.getRect(valueText).right,
+            lessThanOrEqualTo(tester.getRect(chevron).left - 4),
+          );
         }
         expect(tester.takeException(), isNull);
       }
     },
   );
+
+  testWidgets('short unit values center against the full unit segment', (
+    tester,
+  ) async {
+    for (final unit in [FoodQuantityUnit.gram, FoodQuantityUnit.milliliter]) {
+      final controllers = _Controllers();
+      addTearDown(controllers.dispose);
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      await tester.pumpWidget(
+        _subject(controllers, width: 320, packageUnit: unit, baseUnit: unit),
+      );
+
+      for (final (field, valueText) in <(Finder, Finder)>[
+        (
+          _packageUnit(),
+          find.byKey(const ValueKey('food-entry-package-unit-value')),
+        ),
+        (_baseUnit(), find.byKey(const ValueKey('food-entry-base-unit-value'))),
+      ]) {
+        expect(
+          tester.getCenter(valueText).dx,
+          closeTo(tester.getCenter(field).dx, .5),
+        );
+      }
+    }
+  });
 
   testWidgets('dynamic conversion label preserves its target basis', (
     tester,
@@ -420,6 +460,7 @@ Finder _category() =>
 Finder _scan() => find.byKey(const ValueKey('food-entry-barcode-scan'));
 Finder _packageUnit() => find.byWidgetPredicate(
   (widget) =>
+      widget is DropdownButton &&
       widget.key is ValueKey &&
       (widget.key! as ValueKey).value.toString().startsWith(
         'food-entry-package-unit-',
@@ -427,6 +468,7 @@ Finder _packageUnit() => find.byWidgetPredicate(
 );
 Finder _baseUnit() => find.byWidgetPredicate(
   (widget) =>
+      widget is DropdownButton &&
       widget.key is ValueKey &&
       (widget.key! as ValueKey).value.toString().startsWith(
         'food-entry-base-unit-',

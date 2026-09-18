@@ -1646,9 +1646,9 @@ void main() {
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(0, 2));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(3, 5));
     expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
-    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(0, 8));
+    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(4, 6));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),

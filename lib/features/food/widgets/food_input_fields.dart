@@ -204,6 +204,9 @@ class FoodInputFields extends StatelessWidget {
                   'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
                 ),
                 value: packageUnit,
+                valueLabel: packageUnit == null
+                    ? 'NOT SET'
+                    : _quantityUnitLabel(packageUnit!),
                 items: [null, ...FoodQuantityUnit.values]
                     .map(
                       (unit) => DropdownMenuItem(
@@ -231,6 +234,7 @@ class FoodInputFields extends StatelessWidget {
                 quantityKey: const ValueKey('food-entry-base-quantity'),
                 unitKey: ValueKey('food-entry-base-unit-${baseUnit.name}'),
                 value: baseUnit,
+                valueLabel: _quantityUnitLabel(baseUnit),
                 items: FoodQuantityUnit.values
                     .map(
                       (unit) => DropdownMenuItem(
@@ -717,6 +721,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
     required this.quantityKey,
     required this.unitKey,
     required this.value,
+    required this.valueLabel,
     required this.items,
     required this.onUnitChanged,
     required this.onQuantityChanged,
@@ -727,6 +732,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
   final Key quantityKey;
   final Key unitKey;
   final T value;
+  final String valueLabel;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onUnitChanged;
   final ValueChanged<String> onQuantityChanged;
@@ -803,19 +809,68 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                   flex: 6,
                   child: Semantics(
                     label: '$label 単位',
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<T>(
-                        key: unitKey,
-                        value: value,
-                        isExpanded: true,
-                        alignment: AlignmentDirectional.center,
-                        padding: const EdgeInsets.only(right: 4),
-                        style: Theme.of(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final textStyle = Theme.of(
                           context,
-                        ).textTheme.bodyLarge?.copyWith(fontSize: 14),
-                        items: items,
-                        onChanged: onUnitChanged,
-                      ),
+                        ).textTheme.bodyLarge?.copyWith(fontSize: 14);
+                        const chevronWidth = 24.0;
+                        const chevronRightPadding = 4.0;
+                        const chevronClearance = 4.0;
+                        final textPainter = TextPainter(
+                          text: TextSpan(text: valueLabel, style: textStyle),
+                          textDirection: Directionality.of(context),
+                          textScaler: MediaQuery.textScalerOf(context),
+                        )..layout(maxWidth: constraints.maxWidth);
+                        final centeredRight =
+                            (constraints.maxWidth + textPainter.width) / 2;
+                        final chevronExclusionLeft =
+                            constraints.maxWidth -
+                            chevronWidth -
+                            chevronRightPadding;
+                        final collisionCorrection =
+                            (centeredRight +
+                                        chevronClearance -
+                                        chevronExclusionLeft)
+                                    .clamp(0.0, double.infinity);
+
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            DropdownButtonHideUnderline(
+                              child: DropdownButton<T>(
+                                key: unitKey,
+                                value: value,
+                                isExpanded: true,
+                                alignment: AlignmentDirectional.center,
+                                padding: const EdgeInsets.only(right: 4),
+                                style: textStyle,
+                                selectedItemBuilder: (context) => items
+                                    .map((_) => const SizedBox.shrink())
+                                    .toList(growable: false),
+                                items: items,
+                                onChanged: onUnitChanged,
+                              ),
+                            ),
+                            ExcludeSemantics(
+                              child: IgnorePointer(
+                                child: Center(
+                                  child: Transform.translate(
+                                    offset: Offset(-collisionCorrection, 0),
+                                    child: Text(
+                                      valueLabel,
+                                      key: ValueKey(
+                                        'food-entry-$group-unit-value',
+                                      ),
+                                      style: textStyle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),

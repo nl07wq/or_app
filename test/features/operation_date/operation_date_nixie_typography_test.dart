@@ -21,7 +21,7 @@ void main() {
 
   test('rear cathodes are limited, dark wire electrodes without glow', () {
     expect(NixieRearCathodePresentation.digits, ['8', '9']);
-    expect(NixieRearCathodePresentation.opacity, .28);
+    expect(NixieRearCathodePresentation.opacity, .32);
     expect(
       NixieRearCathodePresentation.matchingActiveOpacity,
       lessThan(NixieRearCathodePresentation.opacity),
@@ -30,8 +30,8 @@ void main() {
     expect(NixieRearCathodePresentation.strokeWidth, .7);
     expect(NixieRearCathodePresentation.eightOffset, const Offset(-.5, .5));
     expect(NixieRearCathodePresentation.nineOffset, const Offset(.75, -.6));
-    expect(NixieRearCathodePresentation.opacityFor('8', '8'), .16);
-    expect(NixieRearCathodePresentation.opacityFor('1', '8'), .28);
+    expect(NixieRearCathodePresentation.opacityFor('8', '8'), .19);
+    expect(NixieRearCathodePresentation.opacityFor('1', '8'), .32);
   });
 
   testWidgets('rear cathodes remain subordinate for every active digit', (

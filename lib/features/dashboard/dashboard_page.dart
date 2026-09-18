@@ -411,12 +411,16 @@ class DashboardNeonFaultPatterns {
 /// Keeping it data-backed lets the visual contract be tested without relying
 /// on blur-fringe pixels.
 abstract final class DashboardNeonTubeGeometry {
-  static const signWidth = 106.0;
+  // The outer structural seam is intentionally tighter horizontally, while
+  // the illuminated perimeter retains a deliberate dark buffer around the
+  // lockup. Keeping these dimensions separate prevents frame tightening from
+  // crowding the final punctuation.
+  static const signWidth = 112.0;
   static const signHeight = 42.0;
   static const physicalFrameRadius = 6.0;
   static const perimeterInset = 1.0;
   static const perimeterRadius = 5.0;
-  static const signHorizontalPadding = 4.0;
+  static const signHorizontalPadding = 2.0;
   static const logoSize = 28.0;
   static const logoWordmarkGap = 2.0;
   static const lockupOffsetX = 0.0;
@@ -452,9 +456,9 @@ abstract final class DashboardNeonTubeGeometry {
   static const lockupWidth = logoSize + logoWordmarkGap + wordmarkWidth;
   static const innerSignWidth = signWidth - (signHorizontalPadding * 2) - 2;
   static const leftContentClearance =
-      ((innerSignWidth - lockupWidth) / 2) + lockupOffsetX;
+      ((innerSignWidth - lockupWidth) / 2) + lockupOffsetX - perimeterInset;
   static const rightContentClearance =
-      ((innerSignWidth - lockupWidth) / 2) - lockupOffsetX;
+      ((innerSignWidth - lockupWidth) / 2) - lockupOffsetX - perimeterInset;
 }
 
 class DashboardPage extends StatefulWidget {

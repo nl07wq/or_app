@@ -23,7 +23,7 @@ void main() {
       expect(DashboardNeonTubeGeometry.topRightChamferLength, 2);
       expect(DashboardNeonTubeGeometry.bottomRightChamferLength, 0);
       expect(DashboardNeonTubeGeometry.bottomLeftChamferLength, 0);
-      expect(DashboardNeonTubeGeometry.signWidth, 106);
+      expect(DashboardNeonTubeGeometry.signWidth, 112);
       expect(
         DashboardNeonTubeGeometry.wordmarkPaintRight -
             DashboardNeonTubeGeometry.wordmarkPaintLeft,
@@ -42,8 +42,9 @@ void main() {
         );
       }
       expect(DashboardNeonTubeGeometry.periodRadius, .4);
-      expect(DashboardNeonTubeGeometry.leftContentClearance, 0);
-      expect(DashboardNeonTubeGeometry.rightContentClearance, 0);
+      expect(DashboardNeonTubeGeometry.signHorizontalPadding, 2);
+      expect(DashboardNeonTubeGeometry.leftContentClearance, 4);
+      expect(DashboardNeonTubeGeometry.rightContentClearance, 4);
       expect(
         DashboardNeonTubeGeometry.lockupWidth,
         DashboardNeonTubeGeometry.logoSize +
