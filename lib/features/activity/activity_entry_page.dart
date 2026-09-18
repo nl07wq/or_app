@@ -626,7 +626,9 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const ActivityMechanicalCounterTitle(),
+        title: const ActivityMechanicalCounterTitle(
+          mode: ActivityMechanicalCounterMode.entry,
+        ),
       ),
       body: switch (_mode) {
         _EntryMode.loading => const Center(child: CircularProgressIndicator()),

@@ -30,7 +30,7 @@ void main() {
     expect(find.bySemanticsLabel('A'), findsNothing);
   });
 
-  testWidgets('entry index settles once and does not restart on rebuild', (
+  testWidgets('normal index settles once and remains static after rebuild', (
     tester,
   ) async {
     late StateSetter rebuild;
@@ -56,33 +56,95 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.pump(const Duration(milliseconds: 220));
+    await tester.pump(const Duration(milliseconds: 550));
     rebuild(() {});
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 650));
+    _expectNoMotion(tester);
 
-    for (
-      var index = 0;
-      index < ActivityMechanicalCounterTitle.cellCount;
-      index++
-    ) {
-      expect(
-        find.byKey(ValueKey('activity-counter-indexing-$index')),
-        findsNothing,
-      );
-    }
+    await tester.pump(const Duration(seconds: 1));
+    _expectNoMotion(tester);
   });
 
-  testWidgets('reduced motion renders the settled counter immediately', (
+  testWidgets('entry performs bounded periodic indexing only after settle', (
     tester,
   ) async {
-    await tester.pumpWidget(_app(disableAnimations: true));
+    await tester.pumpWidget(
+      _app(
+        mode: ActivityMechanicalCounterMode.entry,
+        entryEventMinDelay: const Duration(milliseconds: 20),
+        entryEventMaxDelay: const Duration(milliseconds: 20),
+        nextInt: (_) => 0,
+      ),
+    );
     await tester.pump();
-
     expect(
       find.byKey(const ValueKey('activity-counter-indexing-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('activity-counter-periodic-0')),
       findsNothing,
     );
+
+    await tester.pump(const Duration(milliseconds: 1150));
+    _expectNoMotion(tester);
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.pump();
+
+    final periodic = find.byKey(const ValueKey('activity-counter-periodic-0'));
+    expect(periodic, findsOneWidget);
+    expect(
+      find
+          .byKey(const ValueKey('activity-counter-periodic-1'))
+          .evaluate()
+          .length,
+      lessThanOrEqualTo(1),
+    );
+    expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
+
+    await tester.pump(ActivityMechanicalCounterTitle.periodicIndexDuration);
+    _expectNoMotion(tester);
+    expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
+  });
+
+  testWidgets('entry cancels pending periodic work when disposed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        mode: ActivityMechanicalCounterMode.entry,
+        entryEventMinDelay: const Duration(milliseconds: 20),
+        entryEventMaxDelay: const Duration(milliseconds: 20),
+        nextInt: (_) => 0,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1150));
+    await tester.pumpWidget(const SizedBox.expand());
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.byKey(const ValueKey('activity-mechanical-counter-title')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion keeps normal and entry titles static', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        disableAnimations: true,
+        mode: ActivityMechanicalCounterMode.entry,
+        entryEventMinDelay: Duration.zero,
+        entryEventMaxDelay: Duration.zero,
+        nextInt: (_) => 0,
+      ),
+    );
+    await tester.pump(const Duration(seconds: 2));
+
+    _expectNoMotion(tester);
     expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
   });
 
@@ -110,18 +172,59 @@ void main() {
   }
 }
 
-Widget _app({required bool disableAnimations}) => MaterialApp(
+void _expectNoMotion(WidgetTester tester) {
+  for (
+    var index = 0;
+    index < ActivityMechanicalCounterTitle.cellCount;
+    index++
+  ) {
+    expect(
+      find.byKey(ValueKey('activity-counter-indexing-$index')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(ValueKey('activity-counter-periodic-$index')),
+      findsNothing,
+    );
+  }
+}
+
+Widget _app({
+  bool disableAnimations = false,
+  ActivityMechanicalCounterMode mode = ActivityMechanicalCounterMode.normal,
+  Duration entryEventMinDelay = const Duration(seconds: 8),
+  Duration entryEventMaxDelay = const Duration(seconds: 20),
+  int Function(int max)? nextInt,
+}) => MaterialApp(
   home: MediaQuery(
     data: MediaQueryData(
       size: const Size(390, 844),
       disableAnimations: disableAnimations,
     ),
-    child: const Scaffold(appBar: _CounterAppBar(), body: SizedBox.expand()),
+    child: Scaffold(
+      appBar: _CounterAppBar(
+        mode: mode,
+        entryEventMinDelay: entryEventMinDelay,
+        entryEventMaxDelay: entryEventMaxDelay,
+        nextInt: nextInt,
+      ),
+      body: const SizedBox.expand(),
+    ),
   ),
 );
 
 class _CounterAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _CounterAppBar();
+  const _CounterAppBar({
+    this.mode = ActivityMechanicalCounterMode.normal,
+    this.entryEventMinDelay = const Duration(seconds: 8),
+    this.entryEventMaxDelay = const Duration(seconds: 20),
+    this.nextInt,
+  });
+
+  final ActivityMechanicalCounterMode mode;
+  final Duration entryEventMinDelay;
+  final Duration entryEventMaxDelay;
+  final int Function(int max)? nextInt;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -134,7 +237,12 @@ class _CounterAppBar extends StatelessWidget implements PreferredSizeWidget {
       onPressed: () {},
       icon: const Icon(Icons.arrow_back),
     ),
-    title: const ActivityMechanicalCounterTitle(),
+    title: ActivityMechanicalCounterTitle(
+      mode: mode,
+      entryEventMinDelay: entryEventMinDelay,
+      entryEventMaxDelay: entryEventMaxDelay,
+      nextInt: nextInt,
+    ),
     actions: [
       IconButton(
         key: const ValueKey('counter-action'),
