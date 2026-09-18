@@ -10,6 +10,7 @@ import '../../core/state/app_initialization_state.dart';
 import 'activity_entry_page.dart';
 import 'models/activity_summary_state.dart';
 import 'repository/activity_repository.dart';
+import 'widgets/activity_mechanical_counter_title.dart';
 
 class ActivityHistoryPage extends StatefulWidget {
   const ActivityHistoryPage({super.key});
@@ -44,7 +45,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ACTIVITY')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const ActivityMechanicalCounterTitle(),
+      ),
       body: FutureBuilder<List<ActivityData>>(
         future: _records,
         builder: (context, snapshot) {

@@ -187,7 +187,7 @@ void main() {
     await tester.tap(find.text('ACTIVITY ENTRY'));
     await tester.pumpAndSettle();
 
-    expect(find.text('ACTIVITY'), findsOneWidget);
+    expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
     expect(find.text('2026-07-23'), findsOneWidget);
     expect(find.text('-5,000 steps'), findsOneWidget);
     expect(find.text('DIGESTIVE'), findsOneWidget);
@@ -227,7 +227,7 @@ void main() {
     await tester.tap(find.text('ACTIVITY ENTRY'));
     await tester.pumpAndSettle();
 
-    expect(find.text('ACTIVITY'), findsOneWidget);
+    expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
     expect(find.text('2026-07-23'), findsOneWidget);
     expect(find.widgetWithText(TextField, '12000'), findsOneWidget);
     expect(find.text('-5,000 steps'), findsOneWidget);

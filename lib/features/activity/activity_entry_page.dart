@@ -24,6 +24,7 @@ import 'services/activity_draft_finalize_service.dart';
 import 'services/bowel_movement_resolver.dart';
 import 'widgets/bowel_card.dart';
 import 'widgets/digestive_event_card.dart';
+import 'widgets/activity_mechanical_counter_title.dart';
 
 enum _EditableStepField { measuredSteps, carryOver }
 
@@ -623,7 +624,10 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ACTIVITY')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const ActivityMechanicalCounterTitle(),
+      ),
       body: switch (_mode) {
         _EntryMode.loading => const Center(child: CircularProgressIndicator()),
         _EntryMode.error => _LoadError(

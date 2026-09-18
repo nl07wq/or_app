@@ -16,6 +16,7 @@ import 'models/activity_draft.dart';
 import 'repository/activity_repository.dart';
 import 'services/activity_draft_finalize_service.dart';
 import 'widgets/activity_draft_recovery_dialog.dart';
+import 'widgets/activity_mechanical_counter_title.dart';
 
 class ActivityPage extends StatefulWidget {
   final OperationDateService operationDateService;
@@ -177,7 +178,10 @@ class _ActivityPageState extends State<ActivityPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('ACTIVITY')),
+    appBar: AppBar(
+      centerTitle: true,
+      title: const ActivityMechanicalCounterTitle(),
+    ),
     body: SingleChildScrollView(
       padding: AppSpacing.cardPadding,
       child: Column(
