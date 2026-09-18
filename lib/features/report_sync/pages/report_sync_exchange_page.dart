@@ -59,18 +59,22 @@ StatusSourceVisualState previousStatusComparisonVisualStateFor(
 }
 
 @visibleForTesting
-Color? statusSourceVisualColor(StatusSourceVisualState state) =>
-    switch (state) {
-      // These are source-state *text* labels. Match OPERATION PROGRESS'
-      // recorded/missing text language, not its green progress treatment.
-      StatusSourceVisualState.success => AppColors.primary,
-      StatusSourceVisualState.failure => AppColors.danger,
-      StatusSourceVisualState.neutral => null,
-    };
+Color? statusSourceVisualColor(
+  StatusSourceVisualState state,
+  ColorScheme colorScheme,
+) => switch (state) {
+  // Match the exact OPERATION PROGRESS completion-popover text source.
+  StatusSourceVisualState.success =>
+    AppColors.operationProgressCompleteTextColor(colorScheme),
+  StatusSourceVisualState.failure =>
+    AppColors.operationProgressNotRecordedTextColor(colorScheme),
+  StatusSourceVisualState.neutral => null,
+};
 
 @visibleForTesting
-Color reportSyncReadinessColor(bool isReady) =>
-    isReady ? AppColors.primary : AppColors.danger;
+Color reportSyncReadinessColor(bool isReady, ColorScheme colorScheme) => isReady
+    ? AppColors.operationProgressCompleteTextColor(colorScheme)
+    : AppColors.operationProgressNotRecordedTextColor(colorScheme);
 
 class ReportSyncExchangePage extends StatelessWidget {
   const ReportSyncExchangePage({
@@ -1008,7 +1012,12 @@ class _StatusSourceResultRow extends StatelessWidget {
       Text('$label  '),
       Text(
         value,
-        style: TextStyle(color: statusSourceVisualColor(visualState)),
+        style: TextStyle(
+          color: statusSourceVisualColor(
+            visualState,
+            Theme.of(context).colorScheme,
+          ),
+        ),
       ),
     ],
   );
@@ -1039,7 +1048,10 @@ class _DailyDebriefReadiness extends StatelessWidget {
         Text(
           isReady ? 'IMPORT READY' : 'SOURCE NOT READY',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: reportSyncReadinessColor(isReady),
+            color: reportSyncReadinessColor(
+              isReady,
+              Theme.of(context).colorScheme,
+            ),
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -1049,7 +1061,12 @@ class _DailyDebriefReadiness extends StatelessWidget {
             child: Text(
               reason,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isReady ? null : reportSyncReadinessColor(false),
+                color: isReady
+                    ? null
+                    : reportSyncReadinessColor(
+                        false,
+                        Theme.of(context).colorScheme,
+                      ),
               ),
             ),
           ),

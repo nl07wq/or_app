@@ -10,11 +10,12 @@ abstract final class TrainingDotMatrixGeometry {
   static const columnCount = 5;
   // Scale the complete matrix coherently so the title uses the AppBar's
   // available height without stretching the fixed 5 by 7 glyphs.
-  static const dotPitch = 2.4;
-  static const dotRadius = 0.82;
-  static const characterGap = 2.8;
-  static const horizontalPadding = 10.0;
-  static const verticalPadding = 4.5;
+  static const dotPitch = 2.65;
+  static const dotRadius = 0.9;
+  static const characterGap = 3.05;
+  static const horizontalPadding = 20.0;
+  static const verticalPadding = 5.2;
+  static const activeStagingRightInset = 4.0;
 
   static const glyphWidth = (columnCount - 1) * dotPitch + dotRadius * 2;
   static const glyphHeight = (rowCount - 1) * dotPitch + dotRadius * 2;

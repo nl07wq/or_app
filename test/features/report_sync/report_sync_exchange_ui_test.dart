@@ -6,6 +6,7 @@ import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
@@ -21,6 +22,7 @@ import 'package:or_app/features/report_sync/services/report_sync_exchange_gatewa
 
 void main() {
   test('STATUS SOURCE visual states follow semantic preparation data', () {
+    final colorScheme = StandardTheme.theme.colorScheme;
     final ready = ReportSyncRequestPreparation(
       statusSourceExport: _statusSourceExport(),
       statusLabel: 'READY',
@@ -38,27 +40,33 @@ void main() {
 
     expect(statusSourceVisualStateFor(ready), StatusSourceVisualState.success);
     expect(
-      statusSourceVisualColor(statusSourceVisualStateFor(ready)),
-      AppColors.primary,
+      statusSourceVisualColor(statusSourceVisualStateFor(ready), colorScheme),
+      AppColors.operationProgressCompleteTextColor(colorScheme),
     );
     expect(
       statusSourceVisualStateFor(failure),
       StatusSourceVisualState.failure,
     );
     expect(
-      statusSourceVisualColor(statusSourceVisualStateFor(failure)),
-      AppColors.danger,
+      statusSourceVisualColor(statusSourceVisualStateFor(failure), colorScheme),
+      AppColors.operationProgressNotRecordedTextColor(colorScheme),
     );
     expect(
       statusSourceVisualStateFor(missing),
       StatusSourceVisualState.failure,
     );
     expect(
-      statusSourceVisualColor(statusSourceVisualStateFor(missing)),
-      AppColors.danger,
+      statusSourceVisualColor(statusSourceVisualStateFor(missing), colorScheme),
+      AppColors.operationProgressNotRecordedTextColor(colorScheme),
     );
-    expect(reportSyncReadinessColor(true), AppColors.primary);
-    expect(reportSyncReadinessColor(false), AppColors.danger);
+    expect(
+      reportSyncReadinessColor(true, colorScheme),
+      AppColors.operationProgressCompleteTextColor(colorScheme),
+    );
+    expect(
+      reportSyncReadinessColor(false, colorScheme),
+      AppColors.operationProgressNotRecordedTextColor(colorScheme),
+    );
   });
 
   testWidgets('daily debrief eligible date selection reports the new target', (
@@ -1099,8 +1107,11 @@ void main() {
     expect(find.text('前日比較  '), findsOneWidget);
     final readyValue = tester.widget<Text>(find.text('READY'));
     final availableValue = tester.widget<Text>(find.text('AVAILABLE'));
-    expect(readyValue.style?.color, AppColors.primary);
-    expect(availableValue.style?.color, AppColors.primary);
+    final operationProgressCompleteColor = Theme.of(
+      tester.element(find.text('READY')),
+    ).colorScheme.primary;
+    expect(readyValue.style?.color, operationProgressCompleteColor);
+    expect(availableValue.style?.color, operationProgressCompleteColor);
     var prompt = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'COPY CHATGPT PROMPT'),
     );

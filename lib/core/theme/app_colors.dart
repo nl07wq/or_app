@@ -28,4 +28,12 @@ class AppColors {
   static const textSecondary = Colors.white70;
 
   static const divider = Colors.white24;
+
+  /// Exact OPERATION PROGRESS completion-text sources, resolved from the
+  /// active theme rather than an approximate standalone semantic token.
+  static Color operationProgressCompleteTextColor(ColorScheme colorScheme) =>
+      colorScheme.primary;
+
+  static Color operationProgressNotRecordedTextColor(ColorScheme colorScheme) =>
+      colorScheme.error;
 }

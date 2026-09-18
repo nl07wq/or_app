@@ -2063,7 +2063,7 @@ void main() {
     final standbyLamp = tester.widget<StatusLamp>(
       find.byKey(const ValueKey('daily-command-status-lamp-standby')),
     );
-    expect(standbyLamp.size, 18);
+    expect(standbyLamp.size, 16);
     expect(standbyLamp.color, AppColors.secondary);
     expect(standbyLamp.illuminated, isFalse);
     expect(find.text('OTHER DATE INTENT'), findsNothing);
@@ -2086,7 +2086,7 @@ void main() {
     final greenLamp = tester.widget<StatusLamp>(
       find.byKey(const ValueKey('daily-command-status-lamp-green')),
     );
-    expect(greenLamp.size, 18);
+    expect(greenLamp.size, 16);
     expect(greenLamp.color, AppColors.success);
     expect(greenLamp.illuminated, isTrue);
     final monitor = tester.widget<Container>(
@@ -2153,7 +2153,7 @@ void main() {
             ValueKey('daily-command-status-lamp-${statusCase.status.name}'),
           ),
         );
-        expect(lamp.size, 18);
+        expect(lamp.size, 16);
         expect(lamp.color, statusCase.color);
         expect(lamp.illuminated, isTrue);
         final monitor = tester.widget<Container>(

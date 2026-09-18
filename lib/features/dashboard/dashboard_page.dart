@@ -441,7 +441,7 @@ abstract final class DashboardNeonTubeGeometry {
   // wide like the technical O, rather than a small box above a separate leg.
   static const rWidth = 12.0;
   static const rBowlWidth = 12.0;
-  static const rBowlHeight = 9.0;
+  static const rBowlHeight = 11.0;
   static const rTopLeftChamferLength = 0.0;
   static const rTopRightChamferLength = 2.0;
   static const rBottomRightChamferLength = 0.0;
@@ -451,8 +451,8 @@ abstract final class DashboardNeonTubeGeometry {
   static const topRightChamferLength = 2.0;
   static const bottomRightChamferLength = 0.0;
   static const bottomLeftChamferLength = 0.0;
-  static const rLegStart = Offset(25, 11);
-  static const rLegEnd = Offset(30.4, 20);
+  static const rLegStart = Offset(25.8, 13);
+  static const rLegEnd = Offset(30, 20);
   static const previousRLegEnd = Offset(33, 20);
   static const tubeWidth = 2.1;
   static const hotCoreWidth = .75;
@@ -461,9 +461,12 @@ abstract final class DashboardNeonTubeGeometry {
   static const finalPeriodCenterX = 68.55;
   static const finalPeriodCenter = Offset(finalPeriodCenterX, periodBaselineY);
   static const periodCenters = <Offset>[
-    Offset(16.55, periodBaselineY),
-    Offset(34.55, periodBaselineY),
-    Offset(49.8, periodBaselineY),
+    // Frozen content-safe bounds prevent a literal 2x expansion. Center the
+    // internal periods between adjacent technical glyphs instead, so neither
+    // side visually attaches to its punctuation.
+    Offset(16, periodBaselineY),
+    Offset(34, periodBaselineY),
+    Offset(50, periodBaselineY),
     finalPeriodCenter,
   ];
 
@@ -1985,11 +1988,11 @@ class _CompletionHelpButton extends StatelessWidget {
     final (icon, color) = switch (completion.state) {
       DailyCommandModuleState.recorded => (
         Icons.check_circle_outline,
-        colorScheme.primary,
+        AppColors.operationProgressCompleteTextColor(colorScheme),
       ),
       DailyCommandModuleState.missing || DailyCommandModuleState.invalid => (
         Icons.error_outline,
-        colorScheme.error,
+        AppColors.operationProgressNotRecordedTextColor(colorScheme),
       ),
       DailyCommandModuleState.optionalMissing => (
         Icons.radio_button_unchecked,
@@ -2004,9 +2007,10 @@ class _CompletionHelpButton extends StatelessWidget {
           ? null
           : 'Missing: ${completion.missingRequirements.join(', ')}',
       descriptionColor: switch (completion.state) {
-        DailyCommandModuleState.recorded => colorScheme.primary,
-        DailyCommandModuleState.missing ||
-        DailyCommandModuleState.invalid => colorScheme.error,
+        DailyCommandModuleState.recorded =>
+          AppColors.operationProgressCompleteTextColor(colorScheme),
+        DailyCommandModuleState.missing || DailyCommandModuleState.invalid =>
+          AppColors.operationProgressNotRecordedTextColor(colorScheme),
         DailyCommandModuleState.optionalMissing => colorScheme.onSurfaceVariant,
       },
       offset: const Offset(0, 4),
@@ -2648,11 +2652,11 @@ class _DashboardNeonTubeWordmarkPainter extends CustomPainter {
       ..moveTo(19, 2)
       ..lineTo(29, 2)
       ..lineTo(31, 4)
-      ..lineTo(31, 11)
-      ..lineTo(19, 11),
+      ..lineTo(31, 13)
+      ..lineTo(19, 13),
     Path()
-      ..moveTo(25, 11)
-      ..lineTo(30.4, 20),
+      ..moveTo(25.8, 13)
+      ..lineTo(30, 20),
     Path()
       ..moveTo(37, 2)
       ..lineTo(37, 20)

@@ -18,7 +18,7 @@ void main() {
       );
       expect(DashboardNeonTubeGeometry.rWidth, 12);
       expect(DashboardNeonTubeGeometry.rBowlWidth, 12);
-      expect(DashboardNeonTubeGeometry.rBowlHeight, 9);
+      expect(DashboardNeonTubeGeometry.rBowlHeight, 11);
       expect(DashboardNeonTubeGeometry.rTopLeftChamferLength, 0);
       expect(DashboardNeonTubeGeometry.rTopRightChamferLength, 2);
       expect(DashboardNeonTubeGeometry.rBottomRightChamferLength, 0);
@@ -74,14 +74,22 @@ void main() {
       expect(
         DashboardNeonTubeGeometry.rLegEnd.dy -
             DashboardNeonTubeGeometry.rLegStart.dy,
-        9,
+        7,
       );
-      const previousLetterPeriodGap = 2.1;
-      final finalLetterPeriodGap =
-          DashboardNeonTubeGeometry.periodCenters.first.dx -
-          DashboardNeonTubeGeometry.periodRadius -
-          13;
-      expect(finalLetterPeriodGap, closeTo(previousLetterPeriodGap * 1.5, .05));
+      const technicalGlyphRightEdges = [13.0, 31.0, 47.0];
+      const technicalGlyphLeftEdges = [19.0, 37.0, 53.0];
+      for (var index = 0; index < technicalGlyphRightEdges.length; index++) {
+        final period = DashboardNeonTubeGeometry.periodCenters[index];
+        final leftGap =
+            period.dx -
+            DashboardNeonTubeGeometry.periodRadius -
+            technicalGlyphRightEdges[index];
+        final rightGap =
+            technicalGlyphLeftEdges[index] -
+            (period.dx + DashboardNeonTubeGeometry.periodRadius);
+        expect(leftGap, closeTo(2.6, .01));
+        expect(rightGap, closeTo(2.6, .01));
+      }
     });
 
     test('keeps the luminous perimeter parallel and subordinate', () {

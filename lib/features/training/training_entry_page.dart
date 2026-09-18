@@ -725,7 +725,7 @@ class _TrainingAppBarTitleState extends State<_TrainingAppBarTitle>
 
   double get _internalTravelStart =>
       TrainingDotMatrixGeometry.panelWidth -
-      TrainingDotMatrixGeometry.horizontalPadding -
+      TrainingDotMatrixGeometry.activeStagingRightInset -
       TrainingDotMatrixGeometry.glyphWidth;
 
   Duration get _cycleDuration => Duration(
