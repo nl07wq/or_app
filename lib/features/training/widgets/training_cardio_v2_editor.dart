@@ -142,7 +142,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                     child: Text(
                       calorieResult.isComputed
                           ? '${calorieResult.estimatedCaloriesKcal!.round()} kcal'
-                          : 'Not calculated',
+                          : 'NOT CALCULATED',
                     ),
                   ),
                 ),
@@ -402,7 +402,7 @@ String _calculationHelp(TrainingCardioCalculationFailure? reason) {
     TrainingCardioCalculationFailure.missingStatusWeight ||
     TrainingCardioCalculationFailure.invalidWeight =>
       'STATUS Weight is required',
-    null => 'Not calculated',
+    null => 'NOT CALCULATED',
   };
 }
 

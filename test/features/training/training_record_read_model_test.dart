@@ -118,7 +118,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Next Target 85 kg'), findsOneWidget);
-      expect(find.text('Estimated Calories Not calculated'), findsOneWidget);
+      expect(find.text('Estimated Calories NOT CALCULATED'), findsOneWidget);
       expect(find.text('Weight Snapshot Not available'), findsOneWidget);
       expect(find.text('Calculation Not available'), findsOneWidget);
       expect(find.textContaining('25 kcal'), findsNothing);

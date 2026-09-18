@@ -257,7 +257,7 @@ class _CardioCard extends StatelessWidget {
       '${entry.equipment == null ? '' : '   ${trainingEquipmentDisplayLabel(entry.equipment!)}'}',
     ),
     Text('METs ${entry.mets == null ? 'Not recorded' : _number(entry.mets!)}'),
-    const Text('Estimated Calories Not calculated'),
+    const Text('Estimated Calories NOT CALCULATED'),
     const Text('Weight Snapshot Not available'),
     const Text('Calculation Not available'),
   ];
@@ -298,7 +298,7 @@ String _calculationLabel(CardioEntryV2 entry) {
 }
 
 String _duration(Duration? value) {
-  if (value == null) return 'Not calculated';
+  if (value == null) return 'NOT CALCULATED';
   final hours = value.inHours;
   final minutes = value.inMinutes.remainder(60);
   final seconds = value.inSeconds.remainder(60);
@@ -308,4 +308,4 @@ String _duration(Duration? value) {
 }
 
 String _calories(double? value) =>
-    value == null ? 'Not calculated' : '${_number(value)} kcal';
+    value == null ? 'NOT CALCULATED' : '${_number(value)} kcal';

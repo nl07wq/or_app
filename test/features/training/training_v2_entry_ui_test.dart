@@ -1002,7 +1002,8 @@ void main() {
           .keyboardType,
       TextInputType.text,
     );
-    expect(find.text('Not calculated'), findsOneWidget);
+    expect(find.text('NOT CALCULATED'), findsOneWidget);
+    expect(find.text('Not calculated'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
