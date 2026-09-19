@@ -7,6 +7,7 @@ import '../../../core/services/daily_state_restore_service.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
 import 'training_dot_matrix_title.dart';
+import 'training_led_back_button.dart';
 
 class TrainingSyncCard extends StatelessWidget {
   const TrainingSyncCard({super.key});
@@ -28,6 +29,7 @@ class TrainingSyncCard extends StatelessWidget {
                       appBarTitle: TrainingDotMatrixTitle(
                         title: 'TRAINING REPORT SYNC',
                       ),
+                      appBarLeading: TrainingLedBackButton(),
                     ),
                   ),
                 );

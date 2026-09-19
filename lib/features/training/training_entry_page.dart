@@ -27,6 +27,7 @@ import '../training_analysis/pages/training_analysis_page.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_dot_matrix_title.dart';
+import 'widgets/training_led_back_button.dart';
 import 'widgets/training_exercise_v2_editor.dart';
 import 'widgets/training_session_v2_form.dart';
 
@@ -492,7 +493,12 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     }
     if (_dateLoadError != null) {
       return Scaffold(
-        appBar: AppBar(title: const TrainingDotMatrixTitle()),
+        appBar: AppBar(
+          leading: Navigator.canPop(context)
+              ? const TrainingLedBackButton()
+              : null,
+          title: const TrainingDotMatrixTitle(),
+        ),
         body: const Center(child: Text('Operation Dateを取得できませんでした。')),
       );
     }
@@ -505,6 +511,15 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     );
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context)
+            ? TrainingLedBackButton(
+                activeColor: switch (presentationState) {
+                  TrainingPresentationState.active => AppColors.success,
+                  TrainingPresentationState.paused => AppColors.warning,
+                  _ => AppColors.primary,
+                },
+              )
+            : null,
         // The title is deliberately in the full-width flexible space instead
         // of AppBar.title.  AppBar lays its title out between leading and
         // trailing controls, which shifts it when the recording badge is

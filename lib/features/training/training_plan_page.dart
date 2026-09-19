@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/data/default_training_templates.dart';
 import '../../core/widgets/operation_card.dart';
 import 'widgets/training_dot_matrix_title.dart';
+import 'widgets/training_led_back_button.dart';
 
 class TrainingPlanPage extends StatelessWidget {
   final Function(List<String>) onSelect;
@@ -14,6 +15,9 @@ class TrainingPlanPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        leading: Navigator.canPop(context)
+            ? const TrainingLedBackButton()
+            : null,
         title: TrainingDotMatrixTitle(title: 'TRAINING PLAN'),
       ),
       body: ListView.builder(

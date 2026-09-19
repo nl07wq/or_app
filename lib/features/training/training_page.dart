@@ -9,6 +9,7 @@ import '../training_analysis/pages/training_analysis_page.dart';
 
 import 'widgets/training_history_button.dart';
 import 'widgets/training_dot_matrix_title.dart';
+import 'widgets/training_led_back_button.dart';
 import 'widgets/training_manual_card.dart';
 import 'widgets/training_sync_card.dart';
 import 'training_plan_import_page.dart';
@@ -21,6 +22,9 @@ class TrainingPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        leading: Navigator.canPop(context)
+            ? const TrainingLedBackButton()
+            : null,
         title: const TrainingDotMatrixTitle(
           titleKey: ValueKey('training-page-appbar-title'),
         ),

@@ -14,6 +14,7 @@ import '../repositories/app_repository_container.dart';
 import 'models/training_record_read_model.dart';
 import 'services/training_history_overview_adapter.dart';
 import 'services/training_history_range_preference.dart';
+import 'widgets/training_led_back_button.dart';
 import 'services/training_volume_formatter.dart';
 import 'services/training_exercise_history_adapter.dart';
 import 'services/training_exercise_identity.dart';
@@ -120,6 +121,7 @@ class _DataCenterTrainingHistoryPageState
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       centerTitle: true,
+      leading: Navigator.canPop(context) ? const TrainingLedBackButton() : null,
       title: const TrainingDotMatrixTitle(title: 'TRAINING HISTORY'),
     ),
     body: FutureBuilder<DateTime>(

@@ -89,6 +89,7 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.initialTargetDate,
     this.currentOperationDateValidation,
     this.appBarTitle,
+    this.appBarLeading,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -101,11 +102,13 @@ class ReportSyncExchangePage extends StatelessWidget {
   final String? initialTargetDate;
   final DailyLogValidationResult? currentOperationDateValidation;
   final Widget? appBarTitle;
+  final Widget? appBarLeading;
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       centerTitle: appBarTitle != null,
+      leading: appBarLeading,
       title: appBarTitle ?? Text(_title(exchangeType)),
     ),
     body: ReportSyncExchangePanel(

@@ -11,6 +11,7 @@ import 'activity_entry_page.dart';
 import 'models/activity_summary_state.dart';
 import 'repository/activity_repository.dart';
 import 'widgets/activity_mechanical_counter_title.dart';
+import 'widgets/activity_mechanical_back_button.dart';
 
 class ActivityHistoryPage extends StatefulWidget {
   const ActivityHistoryPage({super.key});
@@ -47,6 +48,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        leading: Navigator.canPop(context)
+            ? const ActivityMechanicalBackButton()
+            : null,
         title: const ActivityMechanicalCounterTitle(),
       ),
       body: FutureBuilder<List<ActivityData>>(

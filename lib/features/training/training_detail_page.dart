@@ -12,6 +12,7 @@ import 'widgets/training_exercise_detail_card.dart';
 import 'widgets/training_session_summary_card.dart';
 import 'widgets/training_v2_record_detail.dart';
 import 'widgets/training_dot_matrix_title.dart';
+import 'widgets/training_led_back_button.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
 class TrainingDetailPage extends StatelessWidget {
@@ -24,6 +25,9 @@ class TrainingDetailPage extends StatelessWidget {
     if (record.readModel.v2Data != null) {
       return Scaffold(
         appBar: AppBar(
+          leading: Navigator.canPop(context)
+              ? const TrainingLedBackButton()
+              : null,
           // Keep the visual title centered in the viewport rather than in
           // AppBar's remaining slot beside the analysis/edit actions.
           flexibleSpace: const SafeArea(
@@ -97,6 +101,9 @@ class TrainingDetailPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context)
+            ? const TrainingLedBackButton()
+            : null,
         flexibleSpace: const SafeArea(
           bottom: false,
           child: IgnorePointer(

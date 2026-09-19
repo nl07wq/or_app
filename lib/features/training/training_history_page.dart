@@ -16,6 +16,7 @@ import 'services/training_equipment_candidates.dart';
 import 'models/persisted_training_record.dart';
 import 'services/training_v2_statistics_service.dart';
 import 'widgets/training_dot_matrix_title.dart';
+import 'widgets/training_led_back_button.dart';
 
 class TrainingHistoryPage extends StatefulWidget {
   const TrainingHistoryPage({super.key});
@@ -62,7 +63,13 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: const TrainingDotMatrixTitle()),
+      appBar: AppBar(
+        centerTitle: true,
+        leading: Navigator.canPop(context)
+            ? const TrainingLedBackButton()
+            : null,
+        title: const TrainingDotMatrixTitle(),
+      ),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: FutureBuilder<List<TrainingRecord>>(

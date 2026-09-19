@@ -11,6 +11,7 @@ import 'models/training_plan_proposal.dart';
 import 'services/training_plan_service.dart';
 import 'training_entry_page.dart';
 import 'widgets/training_dot_matrix_title.dart';
+import 'widgets/training_led_back_button.dart';
 
 class TrainingPlanImportPage extends StatefulWidget {
   const TrainingPlanImportPage({super.key, this.sourceRecordId, this.service});
@@ -132,6 +133,7 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       centerTitle: true,
+      leading: Navigator.canPop(context) ? const TrainingLedBackButton() : null,
       title: const TrainingDotMatrixTitle(title: 'TRAINING PLAN'),
     ),
     body: FutureBuilder<TrainingPlanPreparation>(

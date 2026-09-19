@@ -24,6 +24,7 @@ import 'services/activity_draft_finalize_service.dart';
 import 'services/bowel_movement_resolver.dart';
 import 'widgets/bowel_card.dart';
 import 'widgets/digestive_event_card.dart';
+import 'widgets/activity_mechanical_back_button.dart';
 import 'widgets/activity_mechanical_counter_title.dart';
 
 enum _EditableStepField { measuredSteps, carryOver }
@@ -626,6 +627,9 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        leading: Navigator.canPop(context)
+            ? const ActivityMechanicalBackButton()
+            : null,
         title: const ActivityMechanicalCounterTitle(
           mode: ActivityMechanicalCounterMode.entry,
         ),

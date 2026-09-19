@@ -17,6 +17,7 @@ import 'repository/activity_repository.dart';
 import 'services/activity_draft_finalize_service.dart';
 import 'widgets/activity_draft_recovery_dialog.dart';
 import 'widgets/activity_mechanical_counter_title.dart';
+import 'widgets/activity_mechanical_back_button.dart';
 
 class ActivityPage extends StatefulWidget {
   final OperationDateService operationDateService;
@@ -180,6 +181,9 @@ class _ActivityPageState extends State<ActivityPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       centerTitle: true,
+      leading: Navigator.canPop(context)
+          ? const ActivityMechanicalBackButton()
+          : null,
       title: const ActivityMechanicalCounterTitle(),
     ),
     body: SingleChildScrollView(
