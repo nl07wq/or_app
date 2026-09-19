@@ -39,26 +39,38 @@ void main() {
     expect(afterglow.hasAfterglow, isTrue);
   });
 
-  test('clips the scan and afterglow to the triangle visual bounds', () {
+  test('clips every scan electrode to the canonical triangle silhouette', () {
     const size = FoodVfdBackGeometry.visualSize;
+    final trianglePath = FoodVfdBackGeometry.trianglePathFor(size);
     final triangle = FoodVfdBackGeometry.triangleVisualBoundsFor(size);
     final aperture = FoodVfdBackGeometry.scanApertureFor(size);
-    final rightScan = FoodVfdBackGeometry.scanLineBoundsFor(size, 1);
-    final leftScan = FoodVfdBackGeometry.scanLineBoundsFor(size, 0);
-    final afterglow = FoodVfdBackGeometry.afterglowBoundsFor(size);
+    final rear = FoodVfdBackGeometry.scanPathFor(size, 1).getBounds();
+    final center = FoodVfdBackGeometry.scanPathFor(size, .5).getBounds();
+    final nearTip = FoodVfdBackGeometry.scanPathFor(size, .1).getBounds();
+    final tip = FoodVfdBackGeometry.scanPathFor(size, 0).getBounds();
+    final afterglow = FoodVfdBackGeometry.afterglowPathFor(size).getBounds();
 
     expect(aperture.left, triangle.left);
     expect(aperture.top, triangle.top);
     expect(aperture.width, lessThanOrEqualTo(triangle.width));
     expect(aperture.height, lessThanOrEqualTo(triangle.height));
-    expect(rightScan.right, closeTo(aperture.right, .001));
-    expect(leftScan.left, closeTo(aperture.left, .001));
-    expect(rightScan.top, greaterThanOrEqualTo(aperture.top));
-    expect(rightScan.bottom, lessThanOrEqualTo(aperture.bottom));
-    expect(leftScan.top, greaterThanOrEqualTo(aperture.top));
-    expect(leftScan.bottom, lessThanOrEqualTo(aperture.bottom));
-    expect(afterglow.left, closeTo(aperture.left, .001));
-    expect(afterglow.right, lessThanOrEqualTo(aperture.right));
+    expect(rear.right, closeTo(aperture.right, .001));
+    expect(tip.left, closeTo(aperture.left, .001));
+    expect(rear.height, greaterThan(center.height));
+    expect(center.height, greaterThan(nearTip.height));
+    expect(nearTip.height, greaterThan(tip.height));
+    expect(tip.height, greaterThan(0));
+    expect(tip.height, lessThan(rear.height));
+    expect(afterglow, tip);
+
+    for (final scan in [rear, center, nearTip, tip]) {
+      expect(scan.left, greaterThanOrEqualTo(triangle.left - .001));
+      expect(scan.right, lessThanOrEqualTo(triangle.right + .001));
+      expect(scan.top, greaterThanOrEqualTo(triangle.top - .001));
+      expect(scan.bottom, lessThanOrEqualTo(triangle.bottom + .001));
+      expect(scan.center.dy, closeTo(triangle.center.dy, .001));
+      expect(trianglePath.contains(scan.center), isTrue);
+    }
   });
 
   testWidgets('renders a VFD triangle with normal Back semantics', (

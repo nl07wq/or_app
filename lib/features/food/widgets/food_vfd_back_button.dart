@@ -123,7 +123,7 @@ class FoodVfdBackGeometry {
   const FoodVfdBackGeometry._();
 
   static const visualSize = Size(18, 18);
-  static const scanLineWidth = .9;
+  static const scanLineWidth = 1.2;
 
   static Rect triangleVisualBoundsFor(Size size) => Rect.fromLTWH(
     size.width * .1,
@@ -150,7 +150,20 @@ class FoodVfdBackGeometry {
     return Rect.fromLTWH(left, aperture.top, width, aperture.height);
   }
 
-  static Rect afterglowBoundsFor(Size size) => scanLineBoundsFor(size, 0);
+  /// The energized VFD electrode is never a free rectangular bar: this is
+  /// its visible intersection with the very same path used for idle ◀.
+  static Path scanPathFor(Size size, double position) => Path.combine(
+    PathOperation.intersect,
+    trianglePathFor(size),
+    Path()..addRRect(
+      RRect.fromRectAndRadius(
+        scanLineBoundsFor(size, position),
+        const Radius.circular(scanLineWidth / 2),
+      ),
+    ),
+  );
+
+  static Path afterglowPathFor(Size size) => scanPathFor(size, 0);
 }
 
 /// FOOD's shared visible Back control. System and browser Back paths remain
@@ -260,44 +273,37 @@ class _FoodVfdBackPainter extends CustomPainter {
     _drawEmission(canvas, triangle, frame.triangleOpacity, blur: 1.25);
 
     if (frame.hasSweep) {
-      _paintClippedScan(
+      _paintTaperedScan(
         canvas,
-        FoodVfdBackGeometry.scanLineBoundsFor(size, frame.scanPosition),
+        triangle,
+        FoodVfdBackGeometry.scanPathFor(size, frame.scanPosition),
         frame.sweepIndex == 1 ? 1 : .9,
         blur: 1.1,
-        aperture: FoodVfdBackGeometry.scanApertureFor(size),
       );
     }
 
     if (frame.hasAfterglow) {
-      _paintClippedScan(
+      _paintTaperedScan(
         canvas,
-        FoodVfdBackGeometry.afterglowBoundsFor(size),
+        triangle,
+        FoodVfdBackGeometry.afterglowPathFor(size),
         frame.afterglowOpacity * .65,
         blur: 1.1,
-        aperture: FoodVfdBackGeometry.scanApertureFor(size),
       );
     }
   }
 
-  void _paintClippedScan(
+  void _paintTaperedScan(
     Canvas canvas,
-    Rect bounds,
+    Path triangle,
+    Path taperedColumn,
     double opacity, {
     required double blur,
-    required Rect aperture,
   }) {
     canvas
       ..save()
-      ..clipRect(aperture);
-    _drawEmission(
-      canvas,
-      Path()..addRRect(
-        RRect.fromRectAndRadius(bounds, Radius.circular(bounds.width / 2)),
-      ),
-      opacity,
-      blur: blur,
-    );
+      ..clipPath(triangle);
+    _drawEmission(canvas, taperedColumn, opacity, blur: blur);
     canvas.restore();
   }
 
