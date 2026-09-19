@@ -135,7 +135,9 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const FoodVfdScaleDisplayTitle(),
+        title: const FoodVfdScaleDisplayTitle(
+          mode: FoodVfdScaleDisplayMode.entry,
+        ),
       ),
       body: _localDate == null && _dateLoadError == null
           ? const Center(child: CircularProgressIndicator())

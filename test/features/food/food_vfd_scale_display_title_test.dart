@@ -14,11 +14,19 @@ void main() {
     );
   });
 
-  test('uses a distinct outer-bowl D without an internal cross segment', () {
+  test('uses a reinforced-stem D without an internal crossing segment', () {
     final d = FoodVfdGlyphGeometry.activeSegmentsFor('D');
     final o = FoodVfdGlyphGeometry.activeSegmentsFor('O');
 
-    expect(d, containsAll(['f', 'e', 'dTopOuterCorner', 'dRightStem']));
+    expect(
+      d,
+      containsAll([
+        'dLeftStem',
+        'dLeftStemReinforcement',
+        'dTopOuterCorner',
+        'dRightStem',
+      ]),
+    );
     expect(d, isNot(contains('g')));
     expect(d, isNot(contains('b')));
     expect(d, isNot(contains('c')));
@@ -71,6 +79,88 @@ void main() {
     expect(find.byKey(const ValueKey('food-vfd-self-test')), findsNothing);
   });
 
+  testWidgets('ENTRY re-energizes only after self-test and settles again', (
+    tester,
+  ) async {
+    var randomCalls = 0;
+    await tester.pumpWidget(
+      _app(
+        mode: FoodVfdScaleDisplayMode.entry,
+        entryEventMinDelay: const Duration(milliseconds: 20),
+        entryEventMaxDelay: const Duration(milliseconds: 20),
+        nextInt: (_) {
+          randomCalls++;
+          return 0;
+        },
+      ),
+    );
+    await tester.pump();
+    await tester.pump(FoodVfdScaleDisplayTitle.selfTestDuration);
+    await tester.pump(const Duration(milliseconds: 1));
+
+    expect(randomCalls, 1);
+    expect(find.byKey(const ValueKey('food-vfd-self-test')), findsNothing);
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsNothing);
+    await tester.pump(const Duration(milliseconds: 15));
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsOneWidget);
+    await tester.pump(FoodVfdScaleDisplayTitle.periodicEventDuration);
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsOneWidget);
+  });
+
+  testWidgets('ENTRY cancellation and Reduced Motion leave no VFD event', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        mode: FoodVfdScaleDisplayMode.entry,
+        entryEventMinDelay: const Duration(milliseconds: 10),
+        entryEventMaxDelay: const Duration(milliseconds: 10),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(FoodVfdScaleDisplayTitle.selfTestDuration);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(
+      _app(
+        disableAnimations: true,
+        mode: FoodVfdScaleDisplayMode.entry,
+        entryEventMinDelay: const Duration(milliseconds: 10),
+        entryEventMaxDelay: const Duration(milliseconds: 10),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byKey(const ValueKey('food-vfd-self-test')), findsNothing);
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsNothing);
+  });
+
+  testWidgets('normal FOOD title stays static after the self-test', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        entryEventMinDelay: const Duration(milliseconds: 20),
+        entryEventMaxDelay: const Duration(milliseconds: 20),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(FoodVfdScaleDisplayTitle.selfTestDuration);
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const ValueKey('food-vfd-self-test')), findsNothing);
+    expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsNothing);
+  });
+
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets(
       'VFD title remains clear of AppBar controls at ${width.toInt()}px',
@@ -97,18 +187,42 @@ void main() {
   }
 }
 
-Widget _app({bool disableAnimations = false}) => MaterialApp(
+Widget _app({
+  bool disableAnimations = false,
+  FoodVfdScaleDisplayMode mode = FoodVfdScaleDisplayMode.normal,
+  Duration entryEventMinDelay = const Duration(seconds: 10),
+  Duration entryEventMaxDelay = const Duration(seconds: 20),
+  int Function(int max)? nextInt,
+}) => MaterialApp(
   home: MediaQuery(
     data: MediaQueryData(
       size: const Size(390, 844),
       disableAnimations: disableAnimations,
     ),
-    child: const Scaffold(appBar: _FoodAppBar(), body: SizedBox.expand()),
+    child: Scaffold(
+      appBar: _FoodAppBar(
+        mode: mode,
+        entryEventMinDelay: entryEventMinDelay,
+        entryEventMaxDelay: entryEventMaxDelay,
+        nextInt: nextInt,
+      ),
+      body: const SizedBox.expand(),
+    ),
   ),
 );
 
 class _FoodAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _FoodAppBar();
+  const _FoodAppBar({
+    this.mode = FoodVfdScaleDisplayMode.normal,
+    this.entryEventMinDelay = const Duration(seconds: 10),
+    this.entryEventMaxDelay = const Duration(seconds: 20),
+    this.nextInt,
+  });
+
+  final FoodVfdScaleDisplayMode mode;
+  final Duration entryEventMinDelay;
+  final Duration entryEventMaxDelay;
+  final int Function(int max)? nextInt;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -121,7 +235,12 @@ class _FoodAppBar extends StatelessWidget implements PreferredSizeWidget {
       onPressed: () {},
       icon: const Icon(Icons.arrow_back),
     ),
-    title: const FoodVfdScaleDisplayTitle(),
+    title: FoodVfdScaleDisplayTitle(
+      mode: mode,
+      entryEventMinDelay: entryEventMinDelay,
+      entryEventMaxDelay: entryEventMaxDelay,
+      nextInt: nextInt,
+    ),
     actions: [
       IconButton(
         key: const ValueKey('food-vfd-action'),

@@ -1,15 +1,35 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+
+enum FoodVfdScaleDisplayMode { normal, entry }
 
 /// The shared FOOD AppBar instrument display. Its self-test is presentation
 /// only and intentionally has no connection to Food state or measurements.
 class FoodVfdScaleDisplayTitle extends StatefulWidget {
-  const FoodVfdScaleDisplayTitle({super.key});
+  const FoodVfdScaleDisplayTitle({
+    super.key,
+    this.mode = FoodVfdScaleDisplayMode.normal,
+    this.entryEventMinDelay = const Duration(seconds: 10),
+    this.entryEventMaxDelay = const Duration(seconds: 20),
+    this.nextInt,
+  });
 
   static const width = 134.0;
   static const height = 35.0;
   static const selfTestDuration = Duration(milliseconds: 760);
+  static const periodicEventDuration = Duration(milliseconds: 320);
   static const settledInactiveSegmentOpacity = .04;
   static const selfTestInactiveSegmentOpacity = .17;
+
+  final FoodVfdScaleDisplayMode mode;
+  final Duration entryEventMinDelay;
+  final Duration entryEventMaxDelay;
+
+  /// Test injection only; production uses a local bounded random source for
+  /// the ENTRY-only VFD re-energization interval.
+  final int Function(int max)? nextInt;
 
   @override
   State<FoodVfdScaleDisplayTitle> createState() =>
@@ -17,17 +37,34 @@ class FoodVfdScaleDisplayTitle extends StatefulWidget {
 }
 
 class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _selfTestController;
+  late final AnimationController _entryEventController;
+  final Random _random = Random();
+  Timer? _entryEventTimer;
   bool _selfTestRequested = false;
+  bool _selfTestCompleted = false;
+  bool _entryEventActive = false;
+  bool _motionEnabled = true;
+  bool _appActive = true;
+
+  bool get _isEntry => widget.mode == FoodVfdScaleDisplayMode.entry;
+  bool get _canAnimate =>
+      _motionEnabled && _appActive && TickerMode.valuesOf(context).enabled;
+  int _nextInt(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selfTestController = AnimationController(
       vsync: this,
       duration: FoodVfdScaleDisplayTitle.selfTestDuration,
-    );
+    )..addStatusListener(_handleSelfTestStatus);
+    _entryEventController = AnimationController(
+      vsync: this,
+      duration: FoodVfdScaleDisplayTitle.periodicEventDuration,
+    )..addStatusListener(_handleEntryEventStatus);
   }
 
   @override
@@ -35,18 +72,116 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
     super.didChangeDependencies();
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _selfTestController.value = 1;
+      _entryEventController.value = 0;
+      _entryEventTimer?.cancel();
+      _selfTestCompleted = true;
+      _entryEventActive = false;
+      _motionEnabled = false;
       return;
     }
-    if (_selfTestRequested) return;
-    _selfTestRequested = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _selfTestController.forward();
+    _motionEnabled = true;
+    if (!_canAnimate) {
+      _entryEventTimer?.cancel();
+      _entryEventController.stop();
+      _entryEventActive = false;
+      return;
+    }
+    if (!_selfTestRequested) {
+      _selfTestRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _canAnimate) _selfTestController.forward();
+      });
+    } else if (_selfTestCompleted &&
+        _isEntry &&
+        !_entryEventActive &&
+        _entryEventTimer == null) {
+      _scheduleEntryEvent();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant FoodVfdScaleDisplayTitle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.mode == widget.mode) return;
+    _entryEventTimer?.cancel();
+    if (!_isEntry) {
+      _entryEventController
+        ..stop()
+        ..value = 0;
+      _entryEventActive = false;
+      return;
+    }
+    if (_isEntry && _selfTestCompleted && _canAnimate) {
+      _scheduleEntryEvent();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final active = state == AppLifecycleState.resumed;
+    if (_appActive == active) return;
+    _appActive = active;
+    if (!active) {
+      _entryEventTimer?.cancel();
+      _entryEventController
+        ..stop()
+        ..value = 0;
+      _entryEventActive = false;
+      return;
+    }
+    if (_canAnimate && _selfTestCompleted && _isEntry) {
+      _scheduleEntryEvent();
+    }
+  }
+
+  void _handleSelfTestStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) return;
+    _selfTestCompleted = true;
+    _scheduleEntryEvent();
+  }
+
+  void _handleEntryEventStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) return;
+    setState(() {
+      _entryEventActive = false;
+      _entryEventController.value = 0;
     });
+    _scheduleEntryEvent();
+  }
+
+  void _scheduleEntryEvent() {
+    if (!_isEntry || !_selfTestCompleted || !_canAnimate) return;
+    if (_entryEventActive || _entryEventController.isAnimating) return;
+    _entryEventTimer?.cancel();
+    final minimum = widget.entryEventMinDelay.inMilliseconds;
+    final maximum = widget.entryEventMaxDelay.inMilliseconds;
+    final delay = minimum + _nextInt(maximum - minimum + 1);
+    _entryEventTimer = Timer(Duration(milliseconds: delay), _beginEntryEvent);
+  }
+
+  void _beginEntryEvent() {
+    _entryEventTimer = null;
+    if (!mounted ||
+        !_isEntry ||
+        !_canAnimate ||
+        _entryEventActive ||
+        _entryEventController.isAnimating) {
+      return;
+    }
+    setState(() => _entryEventActive = true);
+    _entryEventController.forward(from: 0);
   }
 
   @override
   void dispose() {
-    _selfTestController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _entryEventTimer?.cancel();
+    _selfTestController
+      ..removeStatusListener(_handleSelfTestStatus)
+      ..dispose();
+    _entryEventController
+      ..removeStatusListener(_handleEntryEventStatus)
+      ..dispose();
     super.dispose();
   }
 
@@ -92,7 +227,10 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
                       ),
                     ),
                     child: AnimatedBuilder(
-                      animation: _selfTestController,
+                      animation: Listenable.merge([
+                        _selfTestController,
+                        _entryEventController,
+                      ]),
                       builder: (context, _) => Stack(
                         fit: StackFit.expand,
                         children: [
@@ -100,10 +238,15 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
                             key: const ValueKey('food-vfd-inactive-structure'),
                             painter: _FoodVfdDisplayPainter(
                               selfTest: _selfTestController.value,
+                              entryEvent: _entryEventController.value,
                             ),
                           ),
                           if (_selfTestController.value < 1)
                             const SizedBox(key: ValueKey('food-vfd-self-test')),
+                          if (_entryEventActive)
+                            const SizedBox(
+                              key: ValueKey('food-vfd-entry-event'),
+                            ),
                         ],
                       ),
                     ),
@@ -119,9 +262,13 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
 }
 
 class _FoodVfdDisplayPainter extends CustomPainter {
-  const _FoodVfdDisplayPainter({required this.selfTest});
+  const _FoodVfdDisplayPainter({
+    required this.selfTest,
+    required this.entryEvent,
+  });
 
   final double selfTest;
+  final double entryEvent;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -142,6 +289,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
                 FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity) *
             structureReveal *
             (1 - structureSettle);
+    final excitation = _VfdExcitation.from(entryEvent);
     final cellWidth = size.width / glyphs.length;
     final glyphHeight = size.height * .68;
     final glyphTop = (size.height - glyphHeight) / 2;
@@ -157,7 +305,10 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       for (final segment in allSegments) {
         canvas.drawPath(
           segment,
-          Paint()..color = inactive.withValues(alpha: structureOpacity),
+          Paint()
+            ..color = inactive.withValues(
+              alpha: structureOpacity + excitation.structureReveal * .035,
+            ),
         );
       }
       final glyphProgress = (phase * glyphs.length - index).clamp(0.0, 1.0);
@@ -167,12 +318,13 @@ class _FoodVfdDisplayPainter extends CustomPainter {
         canvas.drawPath(
           segment,
           Paint()
-            ..color = bloom.withValues(alpha: opacity)
+            ..color = bloom.withValues(alpha: opacity * excitation.emission)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.4),
         );
         canvas.drawPath(
           segment,
-          Paint()..color = active.withValues(alpha: opacity),
+          Paint()
+            ..color = active.withValues(alpha: opacity * excitation.emission),
         );
       }
     }
@@ -197,6 +349,8 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       ),
     };
     segments.addAll({
+      'dLeftStem': _dLeftStem(rect, offset: 0),
+      'dLeftStemReinforcement': _dLeftStem(rect, offset: 2.15),
       'dTopOuterCorner': _dOuterCorner(rect, top: true),
       'dRightStem': _vertical(
         rect.right - 1.7,
@@ -231,6 +385,9 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       ..lineTo(rect.right - inset, rect.bottom - thickness)
       ..close();
   }
+
+  Path _dLeftStem(Rect rect, {required double offset}) =>
+      _vertical(rect.left + offset, rect.top, rect.height);
 
   Path _horizontal(double left, double top, double width) {
     const thickness = 1.7;
@@ -270,11 +427,36 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FoodVfdDisplayPainter oldDelegate) =>
-      oldDelegate.selfTest != selfTest;
+      oldDelegate.selfTest != selfTest || oldDelegate.entryEvent != entryEvent;
 }
 
-/// Active VFD segment selection. The D uses only an outer right-side bowl so
-/// its counter stays clean and cannot read as a slashed zero.
+class _VfdExcitation {
+  const _VfdExcitation({required this.emission, required this.structureReveal});
+
+  factory _VfdExcitation.from(double value) {
+    if (value <= .3) {
+      final progress = Curves.easeInCubic.transform(value / .3);
+      return _VfdExcitation(
+        emission: 1 - progress * .84,
+        structureReveal: progress,
+      );
+    }
+    if (value <= .48) {
+      return const _VfdExcitation(emission: .16, structureReveal: 1);
+    }
+    final progress = Curves.easeOutCubic.transform((value - .48) / .52);
+    return _VfdExcitation(
+      emission: .16 + progress * .84,
+      structureReveal: 1 - progress,
+    );
+  }
+
+  final double emission;
+  final double structureReveal;
+}
+
+/// Active VFD segment selection. The D has a reinforced left stem and only an
+/// outer right-side bowl, keeping its counter clean and asymmetrical to O.
 class FoodVfdGlyphGeometry {
   const FoodVfdGlyphGeometry._();
 
@@ -282,8 +464,8 @@ class FoodVfdGlyphGeometry {
   static const o = <String>['a', 'b', 'c', 'd', 'e', 'f'];
   static const d = <String>[
     'a',
-    'f',
-    'e',
+    'dLeftStem',
+    'dLeftStemReinforcement',
     'd',
     'dTopOuterCorner',
     'dRightStem',
