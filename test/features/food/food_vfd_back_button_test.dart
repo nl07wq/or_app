@@ -39,6 +39,28 @@ void main() {
     expect(afterglow.hasAfterglow, isTrue);
   });
 
+  test('clips the scan and afterglow to the triangle visual bounds', () {
+    const size = FoodVfdBackGeometry.visualSize;
+    final triangle = FoodVfdBackGeometry.triangleVisualBoundsFor(size);
+    final aperture = FoodVfdBackGeometry.scanApertureFor(size);
+    final rightScan = FoodVfdBackGeometry.scanLineBoundsFor(size, 1);
+    final leftScan = FoodVfdBackGeometry.scanLineBoundsFor(size, 0);
+    final afterglow = FoodVfdBackGeometry.afterglowBoundsFor(size);
+
+    expect(aperture.left, triangle.left);
+    expect(aperture.top, triangle.top);
+    expect(aperture.width, lessThanOrEqualTo(triangle.width));
+    expect(aperture.height, lessThanOrEqualTo(triangle.height));
+    expect(rightScan.right, closeTo(aperture.right, .001));
+    expect(leftScan.left, closeTo(aperture.left, .001));
+    expect(rightScan.top, greaterThanOrEqualTo(aperture.top));
+    expect(rightScan.bottom, lessThanOrEqualTo(aperture.bottom));
+    expect(leftScan.top, greaterThanOrEqualTo(aperture.top));
+    expect(leftScan.bottom, lessThanOrEqualTo(aperture.bottom));
+    expect(afterglow.left, closeTo(aperture.left, .001));
+    expect(afterglow.right, lessThanOrEqualTo(aperture.right));
+  });
+
   testWidgets('renders a VFD triangle with normal Back semantics', (
     tester,
   ) async {

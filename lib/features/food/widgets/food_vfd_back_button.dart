@@ -118,6 +118,41 @@ class FoodVfdBackFrame {
   double get afterglowOpacity => hasAfterglow ? 1 - phaseProgress : 0;
 }
 
+/// Shared local geometry for the static triangle and its scan aperture.
+class FoodVfdBackGeometry {
+  const FoodVfdBackGeometry._();
+
+  static const visualSize = Size(18, 18);
+  static const scanLineWidth = .9;
+
+  static Rect triangleVisualBoundsFor(Size size) => Rect.fromLTWH(
+    size.width * .1,
+    size.height * .08,
+    size.width * .8,
+    size.height * .84,
+  );
+
+  static Rect scanApertureFor(Size size) => triangleVisualBoundsFor(size);
+
+  static Path trianglePathFor(Size size) {
+    final bounds = triangleVisualBoundsFor(size);
+    return Path()
+      ..moveTo(bounds.left, bounds.center.dy)
+      ..lineTo(bounds.right, bounds.top)
+      ..lineTo(bounds.right, bounds.bottom)
+      ..close();
+  }
+
+  static Rect scanLineBoundsFor(Size size, double position) {
+    final aperture = scanApertureFor(size);
+    final width = scanLineWidth.clamp(0.0, aperture.width).toDouble();
+    final left = aperture.left + (aperture.width - width) * position;
+    return Rect.fromLTWH(left, aperture.top, width, aperture.height);
+  }
+
+  static Rect afterglowBoundsFor(Size size) => scanLineBoundsFor(size, 0);
+}
+
 /// FOOD's shared visible Back control. System and browser Back paths remain
 /// under Navigator's normal behavior; only this AppBar control animates.
 class FoodVfdBackButton extends StatefulWidget {
@@ -221,39 +256,49 @@ class _FoodVfdBackPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final triangle = Path()
-      ..moveTo(size.width * .1, size.height * .5)
-      ..lineTo(size.width * .9, size.height * .08)
-      ..lineTo(size.width * .9, size.height * .92)
-      ..close();
+    final triangle = FoodVfdBackGeometry.trianglePathFor(size);
     _drawEmission(canvas, triangle, frame.triangleOpacity, blur: 1.25);
 
     if (frame.hasSweep) {
-      final x = 1 + (size.width - 2) * frame.scanPosition;
-      final scan = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x - .75, 1.5, 1.5, size.height - 3),
-        const Radius.circular(.75),
-      );
-      _drawEmission(
+      _paintClippedScan(
         canvas,
-        Path()..addRRect(scan),
+        FoodVfdBackGeometry.scanLineBoundsFor(size, frame.scanPosition),
         frame.sweepIndex == 1 ? 1 : .9,
-        blur: 1.5,
+        blur: 1.1,
+        aperture: FoodVfdBackGeometry.scanApertureFor(size),
       );
     }
 
     if (frame.hasAfterglow) {
-      final afterglow = RRect.fromRectAndRadius(
-        Rect.fromLTWH(.25, 2, 1.35, size.height - 4),
-        const Radius.circular(.7),
-      );
-      _drawEmission(
+      _paintClippedScan(
         canvas,
-        Path()..addRRect(afterglow),
+        FoodVfdBackGeometry.afterglowBoundsFor(size),
         frame.afterglowOpacity * .65,
-        blur: 1.4,
+        blur: 1.1,
+        aperture: FoodVfdBackGeometry.scanApertureFor(size),
       );
     }
+  }
+
+  void _paintClippedScan(
+    Canvas canvas,
+    Rect bounds,
+    double opacity, {
+    required double blur,
+    required Rect aperture,
+  }) {
+    canvas
+      ..save()
+      ..clipRect(aperture);
+    _drawEmission(
+      canvas,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(bounds, Radius.circular(bounds.width / 2)),
+      ),
+      opacity,
+      blur: blur,
+    );
+    canvas.restore();
   }
 
   void _drawEmission(
