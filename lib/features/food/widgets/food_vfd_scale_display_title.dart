@@ -18,6 +18,9 @@ class FoodVfdScaleDisplayTitle extends StatefulWidget {
 
   static const width = 134.0;
   static const height = 35.0;
+  static const v14GlyphWidthFactor = .64;
+  static const activeGlyphWidthFactor = .52;
+  static const activeGlyphHeightFactor = .68;
   static const selfTestDuration = Duration(milliseconds: 760);
   static const periodicEventDuration = Duration(milliseconds: 800);
   static const settledInactiveSegmentOpacity = .04;
@@ -316,14 +319,17 @@ class _FoodVfdDisplayPainter extends CustomPainter {
             (1 - structureSettle);
     final dropout = _VfdDriverDropout.from(entryEvent, dropoutPattern);
     final cellWidth = size.width / glyphs.length;
-    final glyphHeight = size.height * .68;
+    final glyphHeight =
+        size.height * FoodVfdScaleDisplayTitle.activeGlyphHeightFactor;
     final glyphTop = (size.height - glyphHeight) / 2;
+    final glyphWidth =
+        cellWidth * FoodVfdScaleDisplayTitle.activeGlyphWidthFactor;
 
     for (var index = 0; index < glyphs.length; index++) {
       final rect = Rect.fromLTWH(
-        index * cellWidth + cellWidth * .18,
+        index * cellWidth + (cellWidth - glyphWidth) / 2,
         glyphTop,
-        cellWidth * .64,
+        glyphWidth,
         glyphHeight,
       );
       final allSegments = _inactiveSegments(rect);
@@ -384,19 +390,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       _horizontal(rect.left, rect.center.dy - .85, rect.width * .76),
     ],
     'O' => [_chamferedLoop(rect)],
-    'D' => [
-      _vfdStem(rect.left, rect.top, rect.height, thickness: 2.9),
-      _horizontal(rect.left + 1.1, rect.top, rect.width * .7),
-      _dOuterCorner(rect, top: true),
-      _vfdStem(
-        rect.right - 1.7,
-        rect.top + rect.height * .17,
-        rect.height * .66,
-        thickness: 1.7,
-      ),
-      _dOuterCorner(rect, top: false),
-      _horizontal(rect.left + 1.1, rect.bottom - 1.7, rect.width * .7),
-    ],
+    'D' => [_classicD(rect)],
     _ => const [],
   };
 
@@ -404,6 +398,32 @@ class _FoodVfdDisplayPainter extends CustomPainter {
     const stroke = 1.65;
     final outer = _octagon(rect, inset: 0);
     final inner = _octagon(rect.deflate(stroke), inset: 0);
+    return Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPolygon(outer, true)
+      ..addPolygon(inner, true);
+  }
+
+  Path _classicD(Rect rect) {
+    const stemWidth = 2.55;
+    const bowlStroke = 1.6;
+    final chamfer = (rect.width * .18).clamp(1.4, 2.8).toDouble();
+    final outer = <Offset>[
+      Offset(rect.left, rect.top),
+      Offset(rect.right - chamfer, rect.top),
+      Offset(rect.right, rect.top + chamfer),
+      Offset(rect.right, rect.bottom - chamfer),
+      Offset(rect.right - chamfer, rect.bottom),
+      Offset(rect.left, rect.bottom),
+    ];
+    final inner = <Offset>[
+      Offset(rect.left + stemWidth, rect.top + bowlStroke),
+      Offset(rect.right - chamfer, rect.top + bowlStroke),
+      Offset(rect.right - bowlStroke, rect.top + chamfer),
+      Offset(rect.right - bowlStroke, rect.bottom - chamfer),
+      Offset(rect.right - chamfer, rect.bottom - bowlStroke),
+      Offset(rect.left + stemWidth, rect.bottom - bowlStroke),
+    ];
     return Path()
       ..fillType = PathFillType.evenOdd
       ..addPolygon(outer, true)
@@ -423,29 +443,6 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       Offset(rect.left, rect.bottom - chamfer),
       Offset(rect.left, rect.top + chamfer),
     ];
-  }
-
-  Path _dOuterCorner(Rect rect, {required bool top}) {
-    const thickness = 1.7;
-    final inset = rect.width * .22;
-    final cornerHeight = rect.height * .18;
-    final edge = rect.right - thickness;
-    if (top) {
-      return Path()
-        ..moveTo(rect.right - inset, rect.top)
-        ..lineTo(rect.right - thickness / 2, rect.top)
-        ..lineTo(rect.right, rect.top + cornerHeight)
-        ..lineTo(edge, rect.top + cornerHeight)
-        ..lineTo(rect.right - inset, rect.top + thickness)
-        ..close();
-    }
-    return Path()
-      ..moveTo(rect.right - inset, rect.bottom)
-      ..lineTo(rect.right - thickness / 2, rect.bottom)
-      ..lineTo(rect.right, rect.bottom - cornerHeight)
-      ..lineTo(edge, rect.bottom - cornerHeight)
-      ..lineTo(rect.right - inset, rect.bottom - thickness)
-      ..close();
   }
 
   Path _vfdStem(
@@ -544,10 +541,8 @@ class FoodVfdGlyphGeometry {
   static const f = <String>['leftStem', 'topBar', 'middleBar'];
   static const o = <String>['chamferedLoop', 'openCounter'];
   static const d = <String>[
-    'reinforcedLeftStem',
-    'topBar',
-    'outerRightBowl',
-    'bottomBar',
+    'structuralLeftStem',
+    'continuousRightBowl',
     'openCounter',
   ];
 

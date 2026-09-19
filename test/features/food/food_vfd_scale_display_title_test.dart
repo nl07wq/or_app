@@ -14,7 +14,7 @@ void main() {
     );
   });
 
-  test('uses one coherent readable VFD alphabet for FOOD', () {
+  test('uses a narrow vertically proportioned VFD alphabet for FOOD', () {
     final f = FoodVfdGlyphGeometry.activeSegmentsFor('F');
     final d = FoodVfdGlyphGeometry.activeSegmentsFor('D');
     final firstO = FoodVfdGlyphGeometry.activeSegmentsFor('O');
@@ -25,10 +25,20 @@ void main() {
     expect(firstO, containsAll(['chamferedLoop', 'openCounter']));
     expect(
       d,
-      containsAll(['reinforcedLeftStem', 'outerRightBowl', 'openCounter']),
+      containsAll(['structuralLeftStem', 'continuousRightBowl', 'openCounter']),
     );
     expect(d, isNot(equals(firstO)));
     expect(d, isNot(contains('internalSlash')));
+    expect(d, isNot(contains('rightRecognitionGap')));
+    expect(
+      FoodVfdScaleDisplayTitle.activeGlyphWidthFactor,
+      lessThan(FoodVfdScaleDisplayTitle.v14GlyphWidthFactor),
+    );
+    expect(
+      FoodVfdScaleDisplayTitle.activeGlyphHeightFactor /
+          FoodVfdScaleDisplayTitle.activeGlyphWidthFactor,
+      greaterThan(1),
+    );
   });
 
   testWidgets('renders one VFD scale housing with FOOD semantics', (
