@@ -293,7 +293,8 @@ class FoodVfdWordLockup {
   const FoodVfdWordLockup._();
 
   static const glyphs = <String>['F', 'O', 'O', 'D'];
-  static const _gapFactors = <double>[.39, .35, .39];
+  static const v16GapFactors = <double>[.39, .35, .39];
+  static const _gapFactors = <double>[.31, .44, .44];
 
   static List<Rect> glyphRects(Size size) {
     final cellWidth = size.width / glyphs.length;

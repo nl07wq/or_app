@@ -64,6 +64,29 @@ void main() {
     }
   });
 
+  test('balances V1.7 optical kerning without returning to V1.5 spacing', () {
+    const glassSize = Size(128, 29);
+    final glyphWidth =
+        glassSize.width / 4 * FoodVfdScaleDisplayTitle.activeGlyphWidthFactor;
+    final v16Gaps = FoodVfdWordLockup.v16GapFactors
+        .map((factor) => glyphWidth * factor)
+        .toList(growable: false);
+    final v17Gaps = FoodVfdWordLockup.gapsFor(glassSize);
+    final v16LockupWidth =
+        glyphWidth * 4 + v16Gaps.fold<double>(0, (sum, gap) => sum + gap);
+    final v17LockupWidth =
+        glyphWidth * 4 + v17Gaps.fold<double>(0, (sum, gap) => sum + gap);
+    final v15Gap = glassSize.width / 4 - glyphWidth;
+    final v15LockupWidth = glyphWidth * 4 + v15Gap * 3;
+
+    expect(v17Gaps[0], lessThan(v16Gaps[0]));
+    expect(v17Gaps[1], greaterThan(v16Gaps[1]));
+    expect(v17Gaps[2], greaterThan(v16Gaps[2]));
+    expect(v17Gaps, everyElement(greaterThan(0)));
+    expect(v17LockupWidth, greaterThan(v16LockupWidth));
+    expect(v17LockupWidth, lessThan(v15LockupWidth * .85));
+  });
+
   test('self-test and every driver dropout retain compact glyph positions', () {
     const glassSize = Size(128, 29);
     final settled = FoodVfdWordLockup.glyphRects(glassSize);
