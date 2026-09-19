@@ -320,7 +320,7 @@ abstract final class _TerminalStyles {
     fontFamily: 'ShareTechMono',
     fontWeight: FontWeight.w400,
     height: 1,
-    fontSize: 18,
+    fontSize: 22,
     letterSpacing: .1,
     shadows: [Shadow(color: Color(0x7A3BCAB9), blurRadius: 2)],
   );

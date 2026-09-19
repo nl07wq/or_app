@@ -22,7 +22,18 @@ void main() {
     );
     final spans = (phosphor.textSpan! as TextSpan).children!.cast<TextSpan>();
     final status = spans.singleWhere((span) => span.text == 'STATUS');
-    expect(status.style!.fontSize, 18);
+    expect(status.style!.fontSize, 22);
+
+    final screen = tester.getRect(
+      find.byKey(const ValueKey('status-crt-screen')),
+    );
+    final phosphorBounds = tester.getRect(
+      find.byKey(const ValueKey('status-crt-phosphor')),
+    );
+    expect(phosphorBounds.top, greaterThanOrEqualTo(screen.top + 1.5));
+    expect(phosphorBounds.bottom, lessThanOrEqualTo(screen.bottom - 1.5));
+    expect(phosphorBounds.left, greaterThanOrEqualTo(screen.left));
+    expect(phosphorBounds.right, lessThanOrEqualTo(screen.right));
   });
 
   testWidgets('boot wakes once then settles to the static terminal title', (
