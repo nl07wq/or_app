@@ -27,8 +27,15 @@ void main() {
     await _openStatusRoute(tester);
 
     await tester.tap(find.byKey(const ValueKey('status-crt-back')));
-    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
     expect(find.byKey(const ValueKey('status-crt-back-exit')), findsOneWidget);
+    final clip = tester.widget<ClipRect>(
+      find.byKey(const ValueKey('status-crt-back-exit')),
+    );
+    final bounds = clip.clipper!.getClip(const Size(16, 18));
+    expect(bounds.left, 0);
+    expect(bounds.right, lessThan(16));
     expect(find.text('STATUS PAGE'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('status-crt-back')));
@@ -36,6 +43,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('ROOT PAGE'), findsOneWidget);
     expect(find.text('STATUS PAGE'), findsNothing);
+  });
+
+  testWidgets('exit erases a fixed triangle from right to left', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(appBar: _StaticBackAppBar())),
+    );
+
+    final triangle = tester.getSize(
+      find.byKey(const ValueKey('status-crt-back-triangle')),
+    );
+    await tester.tap(find.byKey(const ValueKey('status-crt-back')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+
+    final clip = tester.widget<ClipRect>(
+      find.byKey(const ValueKey('status-crt-back-exit')),
+    );
+    final midway = clip.clipper!.getClip(triangle);
+    expect(midway.left, 0);
+    expect(midway.right, greaterThan(0));
+    expect(midway.right, lessThan(triangle.width));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('status-crt-back-triangle'))),
+      triangle,
+    );
+
+    await tester.pump(StatusCrtBackButton.exitDuration);
+    final finalClip = tester.widget<ClipRect>(
+      find.byKey(const ValueKey('status-crt-back-exit')),
+    );
+    expect(finalClip.clipper!.getClip(triangle).width, 0);
   });
 
   testWidgets('Reduced Motion pops immediately without the exit motion', (
@@ -118,4 +158,15 @@ class _StatusPage extends StatelessWidget {
     ),
     body: const Center(child: Text('STATUS PAGE')),
   );
+}
+
+class _StaticBackAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _StaticBackAppBar();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) =>
+      AppBar(leading: const StatusCrtBackButton());
 }

@@ -63,23 +63,10 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
               final progress = Curves.easeInCubic.transform(
                 _exitController.value,
               );
-              final scaleX = 1 - progress * .82;
-              final opacity = 1 - progress * .9;
-              final offset = -progress * 5;
-              return Transform.translate(
-                offset: Offset(offset, 0),
-                child: Transform.scale(
-                  key: const ValueKey('status-crt-back-exit'),
-                  scaleX: scaleX,
-                  alignment: Alignment.centerLeft,
-                  child: Opacity(
-                    opacity: opacity,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: const [_StatusCrtBackTriangle()],
-                    ),
-                  ),
-                ),
+              return ClipRect(
+                key: const ValueKey('status-crt-back-exit'),
+                clipper: _RightToLeftPhosphorEraseClipper(progress),
+                child: const _StatusCrtBackTriangle(),
               );
             },
           ),
@@ -87,6 +74,24 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
       ),
     );
   }
+}
+
+class _RightToLeftPhosphorEraseClipper extends CustomClipper<Rect> {
+  const _RightToLeftPhosphorEraseClipper(this.progress);
+
+  final double progress;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTWH(
+    0,
+    0,
+    size.width * (1 - progress.clamp(0.0, 1.0)),
+    size.height,
+  );
+
+  @override
+  bool shouldReclip(covariant _RightToLeftPhosphorEraseClipper oldClipper) =>
+      oldClipper.progress != progress;
 }
 
 class _StatusCrtBackTriangle extends StatelessWidget {
