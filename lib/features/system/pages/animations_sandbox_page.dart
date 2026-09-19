@@ -9,6 +9,7 @@ import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'pixel_lab_page.dart';
 
 const _bootSequenceAssets = [
@@ -155,7 +156,191 @@ class AnimationsSandboxPage extends StatelessWidget {
             ],
           ),
         ),
+        AppSpacing.gapXL,
+        const _AmbientWildlifeSandboxSection(),
       ],
+    ),
+  );
+}
+
+class _AmbientWildlifeSandboxSection extends StatefulWidget {
+  const _AmbientWildlifeSandboxSection();
+
+  @override
+  State<_AmbientWildlifeSandboxSection> createState() =>
+      _AmbientWildlifeSandboxSectionState();
+}
+
+class _AmbientWildlifeSandboxSectionState
+    extends State<_AmbientWildlifeSandboxSection> {
+  static const _autoKinds = [
+    WildlifeKind.cat,
+    WildlifeKind.birds,
+    WildlifeKind.fox,
+    WildlifeKind.bat,
+  ];
+
+  WildlifeEventPlan? _plan;
+  var _leftToRight = true;
+  var _requestId = 0;
+  var _nextAutoKind = 0;
+
+  void _start(WildlifeKind kind) {
+    setState(() {
+      _plan = wildlifePreviewPlan(kind: kind, leftToRight: _leftToRight);
+      _requestId++;
+    });
+  }
+
+  void _startAuto() {
+    final kind = _autoKinds[_nextAutoKind];
+    _nextAutoKind = (_nextAutoKind + 1) % _autoKinds.length;
+    _start(kind);
+  }
+
+  String get _directionLabel => _leftToRight ? 'L → R' : 'R → L';
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.pets_outlined,
+          title: 'AMBIENT WILDLIFE',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('ambient-wildlife-sandbox-section'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DashboardAmbientWildlifePreviewStage(
+                plan: _plan,
+                requestId: _requestId,
+              ),
+              AppSpacing.gapMD,
+              const Text('DIRECTION'),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-direction-ltr'),
+                      label: 'L → R',
+                      selected: _leftToRight,
+                      onPressed: () => setState(() => _leftToRight = true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-direction-rtl'),
+                      label: 'R → L',
+                      selected: !_leftToRight,
+                      onPressed: () => setState(() => _leftToRight = false),
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              const Text('SPECIES'),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-cat'),
+                      label: 'CAT',
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.cat),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-fox'),
+                      label: 'FOX',
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.fox),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-birds'),
+                      label: 'BIRDS',
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.birds),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-bat'),
+                      label: 'BAT',
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.bat),
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              _SandboxActionButton(
+                key: const ValueKey('wildlife-preview-auto'),
+                text: 'AUTO',
+                icon: Icons.autorenew,
+                onPressed: reducedMotion ? null : _startAuto,
+              ),
+              AppSpacing.gapSM,
+              Text(
+                reducedMotion
+                    ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
+                    : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'IDLE'} / $_directionLabel',
+                key: const ValueKey('ambient-wildlife-preview-state'),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WildlifePreviewOption extends StatelessWidget {
+  const _WildlifePreviewOption({
+    super.key,
+    required this.label,
+    this.selected = false,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 42,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      style: selected
+          ? OutlinedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            )
+          : null,
+      child: Text(label),
     ),
   );
 }

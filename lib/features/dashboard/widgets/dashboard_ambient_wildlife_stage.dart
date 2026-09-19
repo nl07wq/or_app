@@ -22,6 +22,31 @@ List<WildlifeKind> wildlifeKindsFor(WildlifePeriod period) => switch (period) {
   WildlifePeriod.night => const [WildlifeKind.fox, WildlifeKind.bat],
 };
 
+double wildlifeSpeedFor(WildlifeKind kind) => switch (kind) {
+  WildlifeKind.cat => 140,
+  WildlifeKind.fox => 175,
+  WildlifeKind.birds => 110,
+  WildlifeKind.bat => 130,
+};
+
+/// Deterministic, scheduler-free plan used by the diagnostic Sandbox. This
+/// shares production speed/duration and renderer data while intentionally
+/// bypassing Dashboard day/night eligibility and the sparse timer.
+WildlifeEventPlan wildlifePreviewPlan({
+  required WildlifeKind kind,
+  required bool leftToRight,
+}) => WildlifeEventPlan(
+  kind: kind,
+  leftToRight: leftToRight,
+  count: switch (kind) {
+    WildlifeKind.birds => 3,
+    WildlifeKind.bat => 2,
+    WildlifeKind.cat || WildlifeKind.fox => 1,
+  },
+  phaseSeed: 0,
+  speedPixelsPerSecond: wildlifeSpeedFor(kind),
+);
+
 /// One neutral palette for all Dashboard wildlife. Day/night controls the
 /// available species only; it never changes decorative hierarchy or color.
 @immutable
@@ -202,18 +227,12 @@ class _DashboardAmbientWildlifeStageState
       WildlifeKind.bat => 1 + _next(3),
       WildlifeKind.cat || WildlifeKind.fox => 1,
     };
-    final speed = switch (kind) {
-      WildlifeKind.cat => 140.0,
-      WildlifeKind.fox => 175.0,
-      WildlifeKind.birds => 110.0,
-      WildlifeKind.bat => 130.0,
-    };
     return WildlifeEventPlan(
       kind: kind,
       leftToRight: _next(2) == 0,
       count: count,
       phaseSeed: _next(1000) / 1000,
-      speedPixelsPerSecond: speed,
+      speedPixelsPerSecond: wildlifeSpeedFor(kind),
     );
   }
 
@@ -284,6 +303,112 @@ class _DashboardAmbientWildlifeStageState
       ),
     );
   }
+}
+
+/// Explicit-event diagnostic lane for the Animations Sandbox. It deliberately
+/// owns no sparse scheduler: a changed [requestId] restarts the supplied plan.
+class DashboardAmbientWildlifePreviewStage extends StatefulWidget {
+  const DashboardAmbientWildlifePreviewStage({
+    super.key,
+    required this.plan,
+    required this.requestId,
+  });
+
+  final WildlifeEventPlan? plan;
+  final int requestId;
+
+  @override
+  State<DashboardAmbientWildlifePreviewStage> createState() =>
+      _DashboardAmbientWildlifePreviewStageState();
+}
+
+class _DashboardAmbientWildlifePreviewStageState
+    extends State<DashboardAmbientWildlifePreviewStage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this)
+    ..addStatusListener(_onAnimationStatus);
+  WildlifeEventPlan? _activePlan;
+  double _stageWidth = 0;
+  bool _reducedMotion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reducedMotion) {
+      _controller.stop();
+      _activePlan = null;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardAmbientWildlifePreviewStage old) {
+    super.didUpdateWidget(old);
+    if (old.requestId != widget.requestId) {
+      _startPlan(widget.plan);
+    }
+  }
+
+  void _startPlan(WildlifeEventPlan? plan) {
+    if (_reducedMotion || plan == null) return;
+    if (_stageWidth <= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startPlan(plan);
+      });
+      return;
+    }
+    setState(() => _activePlan = plan);
+    _controller
+      ..duration = plan.durationForWidth(_stageWidth)
+      ..forward(from: 0);
+  }
+
+  void _onAnimationStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && mounted) {
+      setState(() => _activePlan = null);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: ExcludeSemantics(
+      child: RepaintBoundary(
+        child: SizedBox(
+          key: const ValueKey('ambient-wildlife-preview-stage'),
+          height: DashboardAmbientWildlifeStage.height,
+          width: double.infinity,
+          child: ColoredBox(
+            color: DashboardAmbientWildlifePalette.productionBackground,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                _stageWidth = constraints.maxWidth;
+                return ClipRect(
+                  key: const ValueKey('ambient-wildlife-preview-clip'),
+                  child: CustomPaint(
+                    key: ValueKey(
+                      'ambient-wildlife-preview-${_activePlan?.kind.name ?? 'idle'}',
+                    ),
+                    painter: DashboardAmbientWildlifePainter(
+                      plan: _reducedMotion ? null : _activePlan,
+                      progress: _controller,
+                      palette: DashboardAmbientWildlifePalette.dark,
+                    ),
+                    willChange: _activePlan != null,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Custom-programmatic wildlife silhouettes. The painter has no asset or

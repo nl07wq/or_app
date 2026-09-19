@@ -106,6 +106,24 @@ void main() {
   });
 
   test(
+    'explicit preview plans retain production speeds and representative counts',
+    () {
+      const expectedCounts = {
+        WildlifeKind.cat: 1,
+        WildlifeKind.fox: 1,
+        WildlifeKind.birds: 3,
+        WildlifeKind.bat: 2,
+      };
+      for (final kind in WildlifeKind.values) {
+        final plan = wildlifePreviewPlan(kind: kind, leftToRight: false);
+        expect(plan.leftToRight, isFalse);
+        expect(plan.count, expectedCounts[kind]);
+        expect(plan.speedPixelsPerSecond, wildlifeSpeedFor(kind));
+      }
+    },
+  );
+
+  test(
     'event plans clamp responsive travel duration while retaining speed',
     () {
       const cat = WildlifeEventPlan(
