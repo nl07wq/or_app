@@ -76,18 +76,7 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
                     opacity: opacity,
                     child: Stack(
                       alignment: Alignment.center,
-                      children: const [
-                        Icon(
-                          Icons.arrow_back,
-                          color: Color(0x423BCAB9),
-                          size: 25,
-                        ),
-                        Icon(
-                          Icons.arrow_back,
-                          color: Color(0xFF6EBAAD),
-                          size: 24,
-                        ),
-                      ],
+                      children: const [_StatusCrtBackTriangle()],
                     ),
                   ),
                 ),
@@ -98,4 +87,39 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
       ),
     );
   }
+}
+
+class _StatusCrtBackTriangle extends StatelessWidget {
+  const _StatusCrtBackTriangle();
+
+  @override
+  Widget build(BuildContext context) => const CustomPaint(
+    key: ValueKey('status-crt-back-triangle'),
+    size: Size(16, 18),
+    painter: _StatusCrtBackTrianglePainter(),
+  );
+}
+
+class _StatusCrtBackTrianglePainter extends CustomPainter {
+  const _StatusCrtBackTrianglePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final triangle = Path()
+      ..moveTo(size.width * .1, size.height * .5)
+      ..lineTo(size.width * .9, size.height * .08)
+      ..lineTo(size.width * .9, size.height * .92)
+      ..close();
+    canvas.drawPath(
+      triangle,
+      Paint()
+        ..color = const Color(0x423BCAB9)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.4),
+    );
+    canvas.drawPath(triangle, Paint()..color = const Color(0xFF6EBAAD));
+  }
+
+  @override
+  bool shouldRepaint(covariant _StatusCrtBackTrianglePainter oldDelegate) =>
+      false;
 }

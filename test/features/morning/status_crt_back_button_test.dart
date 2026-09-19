@@ -4,15 +4,19 @@ import 'package:or_app/features/morning/widgets/status_crt_back_button.dart';
 import 'package:or_app/features/morning/widgets/status_crt_monitor_title.dart';
 
 void main() {
-  testWidgets('renders standard Back semantics with CRT phosphor treatment', (
+  testWidgets('renders a solid CRT triangle with standard Back semantics', (
     tester,
   ) async {
     await tester.pumpWidget(_app());
     await _openStatusRoute(tester);
 
     expect(find.byKey(const ValueKey('status-crt-back')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('status-crt-back-triangle')),
+      findsOneWidget,
+    );
     expect(find.byTooltip('Back'), findsOneWidget);
-    expect(find.byIcon(Icons.arrow_back), findsNWidgets(2));
+    expect(find.byIcon(Icons.arrow_back), findsNothing);
     expect(find.bySemanticsLabel('Back'), findsOneWidget);
   });
 
