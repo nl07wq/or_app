@@ -41,6 +41,44 @@ void main() {
     );
   });
 
+  test('uses one compact centered lockup without changing V1.5 glyphs', () {
+    const glassSize = Size(128, 29);
+    final compactRects = FoodVfdWordLockup.glyphRects(glassSize);
+    final compactBounds = FoodVfdWordLockup.boundsFor(glassSize);
+    final compactGaps = FoodVfdWordLockup.gapsFor(glassSize);
+    final legacyCellWidth = glassSize.width / 4;
+    final legacyGlyphWidth =
+        legacyCellWidth * FoodVfdScaleDisplayTitle.activeGlyphWidthFactor;
+    final legacyGap = legacyCellWidth - legacyGlyphWidth;
+    final legacyLockupWidth = legacyGlyphWidth * 4 + legacyGap * 3;
+
+    expect(compactRects, hasLength(4));
+    expect(compactBounds.width, lessThan(legacyLockupWidth * .85));
+    expect(compactBounds.center.dx, closeTo(glassSize.width / 2, .01));
+    expect(compactBounds.left, greaterThan(0));
+    expect(glassSize.width - compactBounds.right, greaterThan(0));
+    expect(compactGaps, everyElement(lessThan(legacyGap)));
+    expect(compactGaps, everyElement(greaterThan(0)));
+    for (var index = 0; index < compactRects.length - 1; index++) {
+      expect(compactRects[index].right, lessThan(compactRects[index + 1].left));
+    }
+  });
+
+  test('self-test and every driver dropout retain compact glyph positions', () {
+    const glassSize = Size(128, 29);
+    final settled = FoodVfdWordLockup.glyphRects(glassSize);
+    final selfTest = FoodVfdWordLockup.glyphRects(glassSize);
+
+    expect(selfTest, equals(settled));
+    for (final dropoutCharacter in [0, 1, 2, 3]) {
+      final dropout = FoodVfdWordLockup.glyphRects(glassSize);
+      for (var index = 0; index < settled.length; index++) {
+        if (index == dropoutCharacter) continue;
+        expect(dropout[index], equals(settled[index]));
+      }
+    }
+  });
+
   testWidgets('renders one VFD scale housing with FOOD semantics', (
     tester,
   ) async {

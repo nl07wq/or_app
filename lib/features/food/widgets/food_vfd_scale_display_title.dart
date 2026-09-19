@@ -287,6 +287,51 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
   }
 }
 
+/// Canonical compact active-word layout. Every visual state uses these fixed
+/// positions so a driver dropout darkens a character without reflowing FOOD.
+class FoodVfdWordLockup {
+  const FoodVfdWordLockup._();
+
+  static const glyphs = <String>['F', 'O', 'O', 'D'];
+  static const _gapFactors = <double>[.39, .35, .39];
+
+  static List<Rect> glyphRects(Size size) {
+    final cellWidth = size.width / glyphs.length;
+    final glyphWidth =
+        cellWidth * FoodVfdScaleDisplayTitle.activeGlyphWidthFactor;
+    final glyphHeight =
+        size.height * FoodVfdScaleDisplayTitle.activeGlyphHeightFactor;
+    final gaps = _gapFactors
+        .map((factor) => glyphWidth * factor)
+        .toList(growable: false);
+    final lockupWidth =
+        glyphWidth * glyphs.length +
+        gaps.fold<double>(0, (sum, gap) => sum + gap);
+    final top = (size.height - glyphHeight) / 2;
+    var left = (size.width - lockupWidth) / 2;
+
+    return List<Rect>.generate(glyphs.length, (index) {
+      final rect = Rect.fromLTWH(left, top, glyphWidth, glyphHeight);
+      if (index < gaps.length) left += glyphWidth + gaps[index];
+      return rect;
+    }, growable: false);
+  }
+
+  static Rect boundsFor(Size size) {
+    final rects = glyphRects(size);
+    return rects.reduce((bounds, rect) => bounds.expandToInclude(rect));
+  }
+
+  static List<double> gapsFor(Size size) {
+    final rects = glyphRects(size);
+    return List<double>.generate(
+      rects.length - 1,
+      (index) => rects[index + 1].left - rects[index].right,
+      growable: false,
+    );
+  }
+}
+
 class _FoodVfdDisplayPainter extends CustomPainter {
   const _FoodVfdDisplayPainter({
     required this.selfTest,
@@ -300,7 +345,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const glyphs = ['F', 'O', 'O', 'D'];
+    const glyphs = FoodVfdWordLockup.glyphs;
     const inactive = Color(0xFF55B5A7);
     const bloom = Color(0x4539E0C7);
     const active = Color(0xFF78E9D5);
@@ -318,21 +363,12 @@ class _FoodVfdDisplayPainter extends CustomPainter {
             structureReveal *
             (1 - structureSettle);
     final dropout = _VfdDriverDropout.from(entryEvent, dropoutPattern);
-    final cellWidth = size.width / glyphs.length;
-    final glyphHeight =
-        size.height * FoodVfdScaleDisplayTitle.activeGlyphHeightFactor;
-    final glyphTop = (size.height - glyphHeight) / 2;
-    final glyphWidth =
-        cellWidth * FoodVfdScaleDisplayTitle.activeGlyphWidthFactor;
+    final glyphRects = FoodVfdWordLockup.glyphRects(size);
+    final inactiveRects = _inactiveElectrodeRects(size);
 
     for (var index = 0; index < glyphs.length; index++) {
-      final rect = Rect.fromLTWH(
-        index * cellWidth + (cellWidth - glyphWidth) / 2,
-        glyphTop,
-        glyphWidth,
-        glyphHeight,
-      );
-      final allSegments = _inactiveSegments(rect);
+      final rect = glyphRects[index];
+      final allSegments = _inactiveSegments(inactiveRects[index]);
       for (final segment in allSegments) {
         canvas.drawPath(
           segment,
@@ -381,6 +417,26 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       ),
     };
     return segments.values.toList(growable: false);
+  }
+
+  List<Rect> _inactiveElectrodeRects(Size size) {
+    const characterCount = 4;
+    final cellWidth = size.width / characterCount;
+    final glyphWidth =
+        cellWidth * FoodVfdScaleDisplayTitle.activeGlyphWidthFactor;
+    final glyphHeight =
+        size.height * FoodVfdScaleDisplayTitle.activeGlyphHeightFactor;
+    final top = (size.height - glyphHeight) / 2;
+    return List<Rect>.generate(
+      characterCount,
+      (index) => Rect.fromLTWH(
+        index * cellWidth + (cellWidth - glyphWidth) / 2,
+        top,
+        glyphWidth,
+        glyphHeight,
+      ),
+      growable: false,
+    );
   }
 
   List<Path> _activeGlyphPaths(String glyph, Rect rect) => switch (glyph) {
