@@ -289,7 +289,7 @@ void main() {
       cycleStateShortLabelFor(DailyCommandCycleState.finalizeReady),
       'READY',
     );
-    expect(cycleStateShortLabelFor(DailyCommandCycleState.reviewReady), 'DONE');
+    expect(cycleStateShortLabelFor(DailyCommandCycleState.reviewReady), 'PASS');
     expect(cycleStateShortLabelFor(DailyCommandCycleState.finalizing), 'LOAD');
     expect(
       cycleStateShortLabelFor(DailyCommandCycleState.recoveryRequired),
@@ -309,7 +309,14 @@ void main() {
       cycleStateHelp(DailyCommandCycleState.finalizeReady),
       contains('FINALIZE DAY'),
     );
-    expect(cycleStateHelp(DailyCommandCycleState.active), contains('日次項目'));
+    expect(
+      cycleStateHelp(DailyCommandCycleState.active),
+      '当日の記録を進めています。必要な日次項目が揃うと日次確定準備へ進みます。',
+    );
+    expect(
+      cycleStateHelp(DailyCommandCycleState.reviewReady),
+      '必要な日次項目が揃いました。DAILY DEBRIEFを作成して日次確定へ進めます。',
+    );
   });
 
   testWidgets('Cycle State opens and dismisses semantic help', (tester) async {

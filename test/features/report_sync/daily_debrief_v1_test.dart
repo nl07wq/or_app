@@ -11,6 +11,7 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/operation_date/models/operation_active_attempt.dart';
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
+import 'package:or_app/features/report_sync/models/daily_debrief_state.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
 import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
 import 'package:or_app/features/report_sync/repository/indexed_db_report_sync_repositories.dart';
@@ -74,7 +75,12 @@ void main() {
       targetDate: date,
     );
     expect(preview.operationDate, date);
+    final revisionBeforeImport = dailyDebriefRevisionNotifier.value.revision;
     await gateway.apply(preview);
+    expect(dailyDebriefRevisionNotifier.value, (
+      revision: revisionBeforeImport + 1,
+      operationDate: date,
+    ));
     final record = (await container.dailyDebriefs.readByLocalDate(date))!;
     expect(
       await container.dailyDebriefSources.projectLifecycle(record),

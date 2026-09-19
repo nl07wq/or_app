@@ -53,6 +53,7 @@ import '../operation_date/services/operation_date_service.dart';
 import '../operation_date/state/finalize_date_transition.dart';
 import '../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../report_sync/models/daily_debrief_record.dart';
+import '../report_sync/models/daily_debrief_state.dart';
 import '../report_sync/models/morning_brief_state.dart';
 
 import 'models/dynamic_daily_target.dart';
@@ -858,6 +859,29 @@ class _DashboardOperationOverview extends StatefulWidget {
 class _DashboardOperationOverviewState
     extends State<_DashboardOperationOverview> {
   late Future<DailyCommandReadModel> _model = _load();
+  String? _loadedOperationDate;
+
+  @override
+  void initState() {
+    super.initState();
+    dailyDebriefRevisionNotifier.addListener(_reloadForDailyDebriefChange);
+  }
+
+  @override
+  void dispose() {
+    dailyDebriefRevisionNotifier.removeListener(_reloadForDailyDebriefChange);
+    super.dispose();
+  }
+
+  void _reloadForDailyDebriefChange() {
+    if (!mounted) return;
+    if (_loadedOperationDate != null &&
+        _loadedOperationDate !=
+            dailyDebriefRevisionNotifier.value.operationDate) {
+      return;
+    }
+    setState(() => _model = _load());
+  }
 
   @override
   void didUpdateWidget(covariant _DashboardOperationOverview oldWidget) {
@@ -918,6 +942,7 @@ class _DashboardOperationOverviewState
   Future<DailyCommandReadModel> _load() async {
     final state = await AppRepositoryRegistry.container.operationState
         .requireCurrent();
+    _loadedOperationDate = state.operationDate.value;
     final morningBrief = await AppRepositoryRegistry.container.morningBriefs
         .readByLocalDate(state.operationDate.value);
     final burnWeight = await TrainingStatusWeightResolver(

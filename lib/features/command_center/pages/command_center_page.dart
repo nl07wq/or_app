@@ -35,6 +35,7 @@ import '../widgets/brief_debrief_page.dart';
 import '../widgets/semantic_help_popover.dart';
 import '../../report_sync/models/morning_brief_state.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
+import '../../report_sync/models/daily_debrief_state.dart';
 import '../../periodic_report/models/periodic_report.dart';
 import '../../periodic_report/pages/periodic_report_page.dart';
 
@@ -81,7 +82,7 @@ Future<void> runPeriodicReportWorkflowForFinalizedDate({
 String cycleStateHelp(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.standby =>
     '有効なSTATUSがまだありません。STATUSが確定すると当日の運用を開始します。',
-  DailyCommandCycleState.active => '当日の記録を進めています。必要な日次項目が揃うとFINALIZE準備へ進みます。',
+  DailyCommandCycleState.active => '当日の記録を進めています。必要な日次項目が揃うと日次確定準備へ進みます。',
   DailyCommandCycleState.reviewReady =>
     '必要な日次項目が揃いました。DAILY DEBRIEFを作成して日次確定へ進めます。',
   DailyCommandCycleState.awaitingDebrief =>
@@ -232,6 +233,7 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     for (final source in _modelSources) {
       source.addListener(_reloadModel);
     }
+    dailyDebriefRevisionNotifier.addListener(_reloadForDailyDebriefChange);
   }
 
   @override
@@ -247,6 +249,7 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     for (final source in _modelSources) {
       source.removeListener(_reloadModel);
     }
+    dailyDebriefRevisionNotifier.removeListener(_reloadForDailyDebriefChange);
     _scrollController.dispose();
     super.dispose();
   }
@@ -304,6 +307,17 @@ class _DailyCommandPageState extends State<_DailyCommandPage> {
     setState(() {
       _modelFuture = _loadModel();
     });
+  }
+
+  void _reloadForDailyDebriefChange() {
+    final currentOperationDate =
+        _visiblePresentation?.result.model.operationDate;
+    if (currentOperationDate != null &&
+        currentOperationDate !=
+            dailyDebriefRevisionNotifier.value.operationDate) {
+      return;
+    }
+    _reloadModel();
   }
 
   void _freezeViewportForFinalize() {
@@ -718,7 +732,7 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
 String cycleStateShortLabelFor(DailyCommandCycleState state) => switch (state) {
   DailyCommandCycleState.standby => 'IDLE',
   DailyCommandCycleState.active => 'RUN',
-  DailyCommandCycleState.reviewReady => 'DONE',
+  DailyCommandCycleState.reviewReady => 'PASS',
   DailyCommandCycleState.awaitingDebrief => 'WAIT',
   DailyCommandCycleState.finalizeReady => 'READY',
   DailyCommandCycleState.finalizing => 'LOAD',

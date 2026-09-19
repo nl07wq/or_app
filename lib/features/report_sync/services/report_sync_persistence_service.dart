@@ -8,6 +8,7 @@ import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../food/models/persisted_food_record.dart';
 import '../models/morning_brief_record.dart';
 import '../models/daily_debrief_record.dart';
+import '../models/daily_debrief_state.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/report_sync_issue.dart';
@@ -583,7 +584,7 @@ class ReportSyncPersistenceService {
     final responseDigest = ReportSyncCanonicalService.digest(response.payload);
     final now = clock().toUtc();
     var history = _history(response, completedAt: now);
-    return database.runTransaction<ReportSyncHistory>(
+    final savedHistory = await database.runTransaction<ReportSyncHistory>(
       storeNames: const [
         IndexedDbStoreNames.dailyDebriefRecords,
         IndexedDbStoreNames.reportSyncHistory,
@@ -681,6 +682,10 @@ class ReportSyncPersistenceService {
         return history;
       },
     );
+    // A successful transaction is only a refresh signal. Consumers still
+    // re-read lifecycle and source readiness before resolving READY.
+    notifyDailyDebriefChanged(response.operationDate);
+    return savedHistory;
   }
 
   Future<ReportSyncHistory> _apply(

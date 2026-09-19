@@ -16,7 +16,6 @@ import '../../operation_date/models/operation_local_date.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/daily_debrief_record.dart';
-import '../models/daily_debrief_state.dart';
 import '../models/report_sync_issue.dart';
 import '../models/morning_brief_state.dart';
 import '../models/status_report_sync_source.dart';
@@ -558,9 +557,6 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       );
       _request = request;
       _history = await _gateway.history(widget.exchangeType);
-      if (widget.exchangeType == ReportSyncExchangeType.dailyDebrief) {
-        notifyDailyDebriefChanged(preview.operationDate);
-      }
       widget.onApplied?.call();
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
