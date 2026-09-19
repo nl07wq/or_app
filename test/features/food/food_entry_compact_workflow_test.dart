@@ -360,21 +360,15 @@ void main() {
     },
   );
 
-  testWidgets('successful Food add clears search and restores compact list', (
+  testWidgets('Food database search session survives repeated adds and clears explicitly', (
     tester,
   ) async {
     await _installFoods(6);
     await tester.pumpWidget(subject());
     await tester.tap(find.byKey(const ValueKey('food-entry-tab-databaseFood')));
     await tester.pumpAndSettle();
-    final expand = find.byKey(const ValueKey('food-entry-expand-databaseFood'));
-    await tester.ensureVisible(expand);
-    await tester.tap(expand);
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const ValueKey('food-entry-search-databaseFood')),
-      'Food 5',
-    );
+    final search = find.byKey(const ValueKey('food-entry-search-databaseFood'));
+    await tester.enterText(search, 'Food 5');
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
@@ -383,15 +377,38 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('food-db-add')));
     await tester.pumpAndSettle();
 
-    final search = tester.widget<TextField>(
-      find.byKey(const ValueKey('food-entry-search-databaseFood')),
-    );
-    expect(search.controller!.text, isEmpty);
+    expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
     expect(
       find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-      findsNothing,
+      findsOneWidget,
     );
+
+    expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
+    await tester.tap(
+      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('food-db-add')));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
+    expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
+
+    final clear = find.byKey(
+      const ValueKey('food-entry-clear-search-databaseFood'),
+    );
+    expect(
+      tester.getRect(clear).center.dx,
+      greaterThan(tester.getRect(search).center.dx),
+    );
+    await tester.tap(clear);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(search).controller!.text, isEmpty);
+    expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
     expect(find.text('さらに表示'), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
   });
 
   testWidgets(

@@ -107,6 +107,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final foodMemoController = TextEditingController();
   final _pendingQuantityController = TextEditingController();
   final _foodSearchController = TextEditingController();
+  final _foodSearchFocusNode = FocusNode();
   final _recipeSearchController = TextEditingController();
   final _mealSearchController = TextEditingController();
   final _mealItemUsedAmountController = TextEditingController();
@@ -238,6 +239,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     foodMemoController.dispose();
     _pendingQuantityController.dispose();
     _foodSearchController.dispose();
+    _foodSearchFocusNode.dispose();
     _recipeSearchController.dispose();
     _mealSearchController.dispose();
     _mealItemUsedAmountController.dispose();
@@ -964,8 +966,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void _resetDatabaseDiscovery(_FoodEntryInputMode mode) {
     switch (mode) {
       case _FoodEntryInputMode.databaseFood:
-        _foodSearchController.clear();
-        _foodListExpanded = false;
+        // FOOD search is a temporary Entry-session concern. It intentionally
+        // survives a quantity confirmation so several matching catalog items
+        // can be added without recreating the search.
         return;
       case _FoodEntryInputMode.databaseRecipe:
         _recipeSearchController.clear();
@@ -1612,6 +1615,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   Widget _masterSearch({
     required _FoodEntryInputMode mode,
     required String hint,
+    FocusNode? focusNode,
+    VoidCallback? onClear,
   }) {
     final controller = _searchControllerFor(mode);
     return SizedBox(
@@ -1619,6 +1624,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       child: TextField(
         key: ValueKey('food-entry-search-${mode.name}'),
         controller: controller,
+        focusNode: focusNode,
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           hintText: hint,
@@ -1630,7 +1636,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   key: ValueKey('food-entry-clear-search-${mode.name}'),
                   icon: const Icon(Icons.close, size: 18),
                   tooltip: 'CLEAR SEARCH',
-                  onPressed: () => setState(controller.clear),
+                  onPressed: onClear ?? () => setState(controller.clear),
                 ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 10,
@@ -1640,6 +1646,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
       ),
     );
+  }
+
+  void _clearFoodSearchSession() {
+    setState(() {
+      _foodSearchController.clear();
+      _foodListExpanded = false;
+    });
+    _foodSearchFocusNode.requestFocus();
   }
 
   Widget _masterListDisclosure({
@@ -1697,7 +1711,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
       return Column(
         key: const ValueKey('food-entry-inline-food-list'),
         children: [
-          _masterSearch(mode: _FoodEntryInputMode.databaseFood, hint: '食品を検索'),
+          _masterSearch(
+            mode: _FoodEntryInputMode.databaseFood,
+            hint: '食品を検索',
+            focusNode: _foodSearchFocusNode,
+            onClear: _clearFoodSearchSession,
+          ),
           AppSpacing.gapSM,
           if (entries.isEmpty)
             const Text('食品が見つかりません')
