@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/morning/widgets/status_crt_back_button.dart';
 import 'package:or_app/features/morning/widgets/status_crt_monitor_title.dart';
 
 void main() {
@@ -207,11 +208,7 @@ class _StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) => AppBar(
     centerTitle: true,
-    leading: IconButton(
-      key: const ValueKey('status-back'),
-      onPressed: () {},
-      icon: const Icon(Icons.arrow_back),
-    ),
+    leading: const StatusCrtBackButton(key: ValueKey('status-back')),
     title: StatusCrtMonitorTitle(
       mode: mode,
       refreshMinDelay: refreshMinDelay,

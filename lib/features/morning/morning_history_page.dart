@@ -11,6 +11,7 @@ import '../../core/state/app_initialization_state.dart';
 
 import 'models/morning_fact_state.dart';
 import 'morning_fact_page.dart';
+import 'widgets/status_crt_back_button.dart';
 import 'widgets/status_crt_monitor_title.dart';
 
 class MorningHistoryPage extends StatefulWidget {
@@ -69,7 +70,11 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: const StatusCrtMonitorTitle()),
+      appBar: AppBar(
+        centerTitle: true,
+        leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
+        title: const StatusCrtMonitorTitle(),
+      ),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: FutureBuilder<List<MorningData>>(

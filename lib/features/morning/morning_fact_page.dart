@@ -19,6 +19,7 @@ import 'widgets/memo_input_card.dart';
 import 'widgets/morning_submit_button.dart';
 import 'widgets/recovery_card.dart';
 import 'widgets/status_crt_monitor_title.dart';
+import 'widgets/status_crt_back_button.dart';
 import 'widgets/work_card.dart';
 
 import '../../core/models/morning_data.dart';
@@ -262,6 +263,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
         title: const StatusCrtMonitorTitle(mode: StatusCrtMonitorMode.entry),
       ),
       body: _operationDateError != null
