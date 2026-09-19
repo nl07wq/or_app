@@ -10,6 +10,7 @@ import 'services/daily_meal_v2_editor.dart';
 import 'models/daily_meal_v2_models.dart';
 import 'models/food_entry_sources.dart';
 import 'widgets/food_input_form.dart';
+import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
 
 class FoodEditPage extends StatelessWidget {
@@ -56,6 +57,8 @@ class FoodEditPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
         title: const FoodVfdScaleDisplayTitle(),
       ),
       body: Padding(

@@ -10,6 +10,7 @@ import '../../core/widgets/section_header.dart';
 import 'widgets/food_history_button.dart';
 import 'widgets/food_manual_card.dart';
 import 'widgets/food_sync_card.dart';
+import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
 import 'food_catalog_page.dart';
 
@@ -21,6 +22,8 @@ class FoodPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
         title: const FoodVfdScaleDisplayTitle(),
       ),
       body: SingleChildScrollView(

@@ -17,6 +17,7 @@ import 'services/food_catalog_meal_mapper.dart';
 
 import 'widgets/food_input_form.dart';
 import 'widgets/food_summary_card.dart';
+import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
 
 class FoodEntryPage extends StatefulWidget {
@@ -135,6 +136,8 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
         title: const FoodVfdScaleDisplayTitle(
           mode: FoodVfdScaleDisplayMode.entry,
         ),

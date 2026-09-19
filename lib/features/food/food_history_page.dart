@@ -29,6 +29,7 @@ import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'models/recipe_models_v2.dart';
 import 'widgets/food_thumbnail.dart';
+import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
 import 'widgets/nutrition_analysis_visuals.dart';
 
@@ -522,6 +523,8 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
         title: const FoodVfdScaleDisplayTitle(),
       ),
       body: Padding(padding: AppSpacing.cardPadding, child: _buildBody()),

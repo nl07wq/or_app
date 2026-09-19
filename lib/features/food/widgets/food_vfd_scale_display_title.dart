@@ -25,6 +25,8 @@ class FoodVfdScaleDisplayTitle extends StatefulWidget {
   static const periodicEventDuration = Duration(milliseconds: 800);
   static const settledInactiveSegmentOpacity = .04;
   static const selfTestInactiveSegmentOpacity = .17;
+  static const activeEmissionColor = Color(0xFF78E9D5);
+  static const bloomEmissionColor = Color(0x4539E0C7);
 
   final FoodVfdScaleDisplayMode mode;
   final Duration entryEventMinDelay;
@@ -348,8 +350,8 @@ class _FoodVfdDisplayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const glyphs = FoodVfdWordLockup.glyphs;
     const inactive = Color(0xFF55B5A7);
-    const bloom = Color(0x4539E0C7);
-    const active = Color(0xFF78E9D5);
+    const bloom = FoodVfdScaleDisplayTitle.bloomEmissionColor;
+    const active = FoodVfdScaleDisplayTitle.activeEmissionColor;
     final phase = ((selfTest - .3) / .55).clamp(0.0, 1.0);
     final structureReveal = Curves.easeOut.transform(
       ((selfTest - .1) / .2).clamp(0.0, 1.0),
