@@ -10,6 +10,7 @@ import '../../core/widgets/section_header.dart';
 import 'widgets/food_history_button.dart';
 import 'widgets/food_manual_card.dart';
 import 'widgets/food_sync_card.dart';
+import 'widgets/food_vfd_scale_display_title.dart';
 import 'food_catalog_page.dart';
 
 class FoodPage extends StatelessWidget {
@@ -18,7 +19,10 @@ class FoodPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('FOOD')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const FoodVfdScaleDisplayTitle(),
+      ),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(

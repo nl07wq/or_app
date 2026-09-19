@@ -17,6 +17,7 @@ import 'services/food_catalog_meal_mapper.dart';
 
 import 'widgets/food_input_form.dart';
 import 'widgets/food_summary_card.dart';
+import 'widgets/food_vfd_scale_display_title.dart';
 
 class FoodEntryPage extends StatefulWidget {
   final OperationDateService operationDateService;
@@ -132,7 +133,10 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("FOOD")),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const FoodVfdScaleDisplayTitle(),
+      ),
       body: _localDate == null && _dateLoadError == null
           ? const Center(child: CircularProgressIndicator())
           : _dateLoadError != null

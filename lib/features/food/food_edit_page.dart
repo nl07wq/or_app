@@ -10,6 +10,7 @@ import 'services/daily_meal_v2_editor.dart';
 import 'models/daily_meal_v2_models.dart';
 import 'models/food_entry_sources.dart';
 import 'widgets/food_input_form.dart';
+import 'widgets/food_vfd_scale_display_title.dart';
 
 class FoodEditPage extends StatelessWidget {
   final MealData meal;
@@ -53,7 +54,10 @@ class FoodEditPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('FOOD')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const FoodVfdScaleDisplayTitle(),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
