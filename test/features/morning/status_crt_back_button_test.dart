@@ -4,6 +4,10 @@ import 'package:or_app/features/morning/widgets/status_crt_back_button.dart';
 import 'package:or_app/features/morning/widgets/status_crt_monitor_title.dart';
 
 void main() {
+  test('uses a visually trackable phosphor erase duration', () {
+    expect(StatusCrtBackButton.exitDuration, const Duration(milliseconds: 280));
+  });
+
   testWidgets('renders a solid CRT triangle with standard Back semantics', (
     tester,
   ) async {
@@ -57,7 +61,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('status-crt-back')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 90));
+    await tester.pump(const Duration(milliseconds: 140));
 
     final clip = tester.widget<ClipRect>(
       find.byKey(const ValueKey('status-crt-back-exit')),

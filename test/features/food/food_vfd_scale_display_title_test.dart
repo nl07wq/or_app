@@ -3,6 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/widgets/food_vfd_scale_display_title.dart';
 
 void main() {
+  test('keeps settled inactive VFD segments subordinate to self-test', () {
+    expect(
+      FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity,
+      lessThanOrEqualTo(.04),
+    );
+    expect(
+      FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity,
+      lessThan(FoodVfdScaleDisplayTitle.selfTestInactiveSegmentOpacity),
+    );
+  });
+
   testWidgets('renders one VFD scale housing with FOOD semantics', (
     tester,
   ) async {
@@ -37,6 +48,8 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.byKey(const ValueKey('food-vfd-self-test')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.byKey(const ValueKey('food-vfd-self-test')), findsOneWidget);
     await tester.pump(FoodVfdScaleDisplayTitle.selfTestDuration);
     expect(find.byKey(const ValueKey('food-vfd-self-test')), findsNothing);

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class StatusCrtBackButton extends StatefulWidget {
   const StatusCrtBackButton({super.key});
 
-  static const exitDuration = Duration(milliseconds: 180);
+  static const exitDuration = Duration(milliseconds: 280);
 
   @override
   State<StatusCrtBackButton> createState() => _StatusCrtBackButtonState();
@@ -60,7 +60,7 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
           child: AnimatedBuilder(
             animation: _exitController,
             builder: (context, child) {
-              final progress = Curves.easeInCubic.transform(
+              final progress = Curves.easeOutCubic.transform(
                 _exitController.value,
               );
               return ClipRect(

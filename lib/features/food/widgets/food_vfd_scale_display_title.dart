@@ -8,6 +8,8 @@ class FoodVfdScaleDisplayTitle extends StatefulWidget {
   static const width = 134.0;
   static const height = 35.0;
   static const selfTestDuration = Duration(milliseconds: 760);
+  static const settledInactiveSegmentOpacity = .04;
+  static const selfTestInactiveSegmentOpacity = .17;
 
   @override
   State<FoodVfdScaleDisplayTitle> createState() =>
@@ -124,11 +126,22 @@ class _FoodVfdDisplayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const glyphs = ['F', 'O', 'O', 'D'];
-    const inactive = Color(0x2C55B5A7);
+    const inactive = Color(0xFF55B5A7);
     const bloom = Color(0x4539E0C7);
     const active = Color(0xFF78E9D5);
     final phase = ((selfTest - .3) / .55).clamp(0.0, 1.0);
-    final structureBoost = ((selfTest - .1) / .2).clamp(0.0, 1.0);
+    final structureReveal = Curves.easeOut.transform(
+      ((selfTest - .1) / .2).clamp(0.0, 1.0),
+    );
+    final structureSettle = Curves.easeIn.transform(
+      ((selfTest - .38) / .25).clamp(0.0, 1.0),
+    );
+    final structureOpacity =
+        FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity +
+        (FoodVfdScaleDisplayTitle.selfTestInactiveSegmentOpacity -
+                FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity) *
+            structureReveal *
+            (1 - structureSettle);
     final cellWidth = size.width / glyphs.length;
     final glyphHeight = size.height * .68;
     final glyphTop = (size.height - glyphHeight) / 2;
@@ -144,8 +157,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       for (final segment in allSegments) {
         canvas.drawPath(
           segment,
-          Paint()
-            ..color = inactive.withValues(alpha: .75 + structureBoost * .25),
+          Paint()..color = inactive.withValues(alpha: structureOpacity),
         );
       }
       final glyphProgress = (phase * glyphs.length - index).clamp(0.0, 1.0);
