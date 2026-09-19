@@ -196,13 +196,40 @@ class _FoodVfdDisplayPainter extends CustomPainter {
         rect.width * .72,
       ),
     };
-    final enabled = switch (glyph) {
-      'F' => const ['a', 'f', 'g', 'e'],
-      'O' => const ['a', 'b', 'c', 'd', 'e', 'f'],
-      'D' => const ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-      _ => const ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-    };
+    segments.addAll({
+      'dTopOuterCorner': _dOuterCorner(rect, top: true),
+      'dRightStem': _vertical(
+        rect.right - 1.7,
+        rect.top + rect.height * .16,
+        rect.height * .68,
+      ),
+      'dBottomOuterCorner': _dOuterCorner(rect, top: false),
+    });
+    final enabled = FoodVfdGlyphGeometry.activeSegmentsFor(glyph);
     return enabled.map((key) => segments[key]!).toList(growable: false);
+  }
+
+  Path _dOuterCorner(Rect rect, {required bool top}) {
+    const thickness = 1.7;
+    final inset = rect.width * .22;
+    final cornerHeight = rect.height * .18;
+    final edge = rect.right - thickness;
+    if (top) {
+      return Path()
+        ..moveTo(rect.right - inset, rect.top)
+        ..lineTo(rect.right - thickness / 2, rect.top)
+        ..lineTo(rect.right, rect.top + cornerHeight)
+        ..lineTo(edge, rect.top + cornerHeight)
+        ..lineTo(rect.right - inset, rect.top + thickness)
+        ..close();
+    }
+    return Path()
+      ..moveTo(rect.right - inset, rect.bottom)
+      ..lineTo(rect.right - thickness / 2, rect.bottom)
+      ..lineTo(rect.right, rect.bottom - cornerHeight)
+      ..lineTo(edge, rect.bottom - cornerHeight)
+      ..lineTo(rect.right - inset, rect.bottom - thickness)
+      ..close();
   }
 
   Path _horizontal(double left, double top, double width) {
@@ -244,4 +271,38 @@ class _FoodVfdDisplayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _FoodVfdDisplayPainter oldDelegate) =>
       oldDelegate.selfTest != selfTest;
+}
+
+/// Active VFD segment selection. The D uses only an outer right-side bowl so
+/// its counter stays clean and cannot read as a slashed zero.
+class FoodVfdGlyphGeometry {
+  const FoodVfdGlyphGeometry._();
+
+  static const f = <String>['a', 'f', 'g', 'e'];
+  static const o = <String>['a', 'b', 'c', 'd', 'e', 'f'];
+  static const d = <String>[
+    'a',
+    'f',
+    'e',
+    'd',
+    'dTopOuterCorner',
+    'dRightStem',
+    'dBottomOuterCorner',
+  ];
+  static const allInactiveSegments = <String>[
+    'a',
+    'b',
+    'c',
+    'd',
+    'e',
+    'f',
+    'g',
+  ];
+
+  static List<String> activeSegmentsFor(String glyph) => switch (glyph) {
+    'F' => f,
+    'O' => o,
+    'D' => d,
+    _ => allInactiveSegments,
+  };
 }

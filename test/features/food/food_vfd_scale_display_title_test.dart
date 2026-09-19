@@ -14,6 +14,17 @@ void main() {
     );
   });
 
+  test('uses a distinct outer-bowl D without an internal cross segment', () {
+    final d = FoodVfdGlyphGeometry.activeSegmentsFor('D');
+    final o = FoodVfdGlyphGeometry.activeSegmentsFor('O');
+
+    expect(d, containsAll(['f', 'e', 'dTopOuterCorner', 'dRightStem']));
+    expect(d, isNot(contains('g')));
+    expect(d, isNot(contains('b')));
+    expect(d, isNot(contains('c')));
+    expect(d, isNot(equals(o)));
+  });
+
   testWidgets('renders one VFD scale housing with FOOD semantics', (
     tester,
   ) async {
