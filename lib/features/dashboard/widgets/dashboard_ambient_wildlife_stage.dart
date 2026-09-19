@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 /// The local-clock periods used exclusively by Dashboard wildlife selection.
 enum WildlifePeriod { day, night }
 
@@ -19,6 +21,40 @@ List<WildlifeKind> wildlifeKindsFor(WildlifePeriod period) => switch (period) {
   WildlifePeriod.day => const [WildlifeKind.cat, WildlifeKind.birds],
   WildlifePeriod.night => const [WildlifeKind.fox, WildlifeKind.bat],
 };
+
+/// One neutral palette for all Dashboard wildlife. Day/night controls the
+/// available species only; it never changes decorative hierarchy or color.
+@immutable
+class DashboardAmbientWildlifePalette {
+  const DashboardAmbientWildlifePalette({
+    required this.silhouette,
+    required this.groundLine,
+  });
+
+  /// Light-gray rather than white: clear on #101010 while remaining below
+  /// primary foreground text and module/status accents.
+  static const dark = DashboardAmbientWildlifePalette(
+    silhouette: Color(0xFFB8B8B8),
+    groundLine: Color(0xFF383838),
+  );
+
+  /// The same subdued neutral relationship when the app is previewed using a
+  /// light ThemeData in tests or future appearance modes.
+  static const light = DashboardAmbientWildlifePalette(
+    silhouette: Color(0xFF565656),
+    groundLine: Color(0xFFD6D6D6),
+  );
+
+  final Color silhouette;
+  final Color groundLine;
+
+  static DashboardAmbientWildlifePalette forTheme(ThemeData theme) =>
+      theme.brightness == Brightness.dark ? dark : light;
+
+  /// The production Dashboard's settled background, kept here so contrast
+  /// checks use the actual compositing surface rather than a generic black.
+  static const productionBackground = AppColors.background;
+}
 
 /// Immutable, pre-selected motion data. Painting only reads this plan; it
 /// never performs frame-time random selection.
@@ -234,7 +270,9 @@ class _DashboardAmbientWildlifeStageState
                     painter: DashboardAmbientWildlifePainter(
                       plan: _reducedMotion ? null : _activePlan,
                       progress: _controller,
-                      color: Theme.of(context).colorScheme.onSurface,
+                      palette: DashboardAmbientWildlifePalette.forTheme(
+                        Theme.of(context),
+                      ),
                     ),
                     willChange: _activePlan != null,
                   ),
@@ -254,17 +292,17 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
   DashboardAmbientWildlifePainter({
     required this.plan,
     required this.progress,
-    required this.color,
+    required this.palette,
   }) : super(repaint: progress);
 
   final WildlifeEventPlan? plan;
   final Animation<double> progress;
-  final Color color;
+  final DashboardAmbientWildlifePalette palette;
 
   @override
   void paint(Canvas canvas, Size size) {
     final ground = Paint()
-      ..color = color.withValues(alpha: .10)
+      ..color = palette.groundLine
       ..strokeWidth = 1;
     canvas.drawLine(
       Offset(0, size.height - DashboardAmbientWildlifeStage.groundInset),
@@ -282,7 +320,7 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     final x = event.leftToRight
         ? -30 + travel * t
         : size.width + 30 - travel * t;
-    final silhouette = Paint()..color = color.withValues(alpha: .36);
+    final silhouette = Paint()..color = palette.silhouette;
     switch (event.kind) {
       case WildlifeKind.cat:
         _withDirection(canvas, Offset(x, size.height - 5), direction, () {
@@ -472,5 +510,5 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant DashboardAmbientWildlifePainter oldDelegate) =>
-      oldDelegate.plan != plan || oldDelegate.color != color;
+      oldDelegate.plan != plan || oldDelegate.palette != palette;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 
 void main() {
@@ -54,6 +55,54 @@ void main() {
       WildlifeKind.fox,
       WildlifeKind.bat,
     ]);
+  });
+
+  test(
+    'shared neutral palette separates every wildlife silhouette from production dark background',
+    () {
+      const palette = DashboardAmbientWildlifePalette.dark;
+      final background = DashboardAmbientWildlifePalette.productionBackground;
+      final effectiveWildlife = Color.alphaBlend(
+        palette.silhouette,
+        background,
+      );
+      final effectiveGround = Color.alphaBlend(palette.groundLine, background);
+
+      expect(palette.silhouette, isNot(Colors.black));
+      expect(palette.silhouette, isNot(background));
+      expect(effectiveWildlife.computeLuminance(), greaterThan(.25));
+      expect(
+        effectiveWildlife.computeLuminance() - background.computeLuminance(),
+        greaterThan(.20),
+      );
+      expect(
+        AppColors.textPrimary.computeLuminance(),
+        greaterThan(effectiveWildlife.computeLuminance()),
+      );
+      expect(
+        effectiveWildlife.computeLuminance(),
+        greaterThan(effectiveGround.computeLuminance()),
+      );
+    },
+  );
+
+  test('cat, fox, birds, and bat plans resolve through one shared palette', () {
+    const palette = DashboardAmbientWildlifePalette.dark;
+    for (final kind in WildlifeKind.values) {
+      final painter = DashboardAmbientWildlifePainter(
+        plan: WildlifeEventPlan(
+          kind: kind,
+          leftToRight: true,
+          count: 1,
+          phaseSeed: 0,
+          speedPixelsPerSecond: 100,
+        ),
+        progress: const AlwaysStoppedAnimation(0),
+        palette: palette,
+      );
+      expect(painter.palette.silhouette, palette.silhouette);
+      expect(painter.palette.groundLine, palette.groundLine);
+    }
   });
 
   test(
