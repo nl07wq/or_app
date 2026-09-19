@@ -14,23 +14,21 @@ void main() {
     );
   });
 
-  test('uses a reinforced-stem D without an internal crossing segment', () {
+  test('uses one coherent readable VFD alphabet for FOOD', () {
+    final f = FoodVfdGlyphGeometry.activeSegmentsFor('F');
     final d = FoodVfdGlyphGeometry.activeSegmentsFor('D');
-    final o = FoodVfdGlyphGeometry.activeSegmentsFor('O');
+    final firstO = FoodVfdGlyphGeometry.activeSegmentsFor('O');
+    final secondO = FoodVfdGlyphGeometry.activeSegmentsFor('O');
 
+    expect(f, equals(['leftStem', 'topBar', 'middleBar']));
+    expect(firstO, equals(secondO));
+    expect(firstO, containsAll(['chamferedLoop', 'openCounter']));
     expect(
       d,
-      containsAll([
-        'dLeftStem',
-        'dLeftStemReinforcement',
-        'dTopOuterCorner',
-        'dRightStem',
-      ]),
+      containsAll(['reinforcedLeftStem', 'outerRightBowl', 'openCounter']),
     );
-    expect(d, isNot(contains('g')));
-    expect(d, isNot(contains('b')));
-    expect(d, isNot(contains('c')));
-    expect(d, isNot(equals(o)));
+    expect(d, isNot(equals(firstO)));
+    expect(d, isNot(contains('internalSlash')));
   });
 
   testWidgets('renders one VFD scale housing with FOOD semantics', (
@@ -107,12 +105,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 25));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsOneWidget);
-    await tester.pump(FoodVfdScaleDisplayTitle.periodicEventDuration);
+    expect(find.byKey(const ValueKey('food-vfd-driver-off-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('food-vfd-driver-off-1')), findsNothing);
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 25));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byKey(const ValueKey('food-vfd-entry-event')), findsOneWidget);
+    expect(find.byKey(const ValueKey('food-vfd-driver-off-3')), findsOneWidget);
   });
 
   testWidgets('ENTRY cancellation and Reduced Motion leave no VFD event', (

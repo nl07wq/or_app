@@ -19,7 +19,7 @@ class FoodVfdScaleDisplayTitle extends StatefulWidget {
   static const width = 134.0;
   static const height = 35.0;
   static const selfTestDuration = Duration(milliseconds: 760);
-  static const periodicEventDuration = Duration(milliseconds: 320);
+  static const periodicEventDuration = Duration(milliseconds: 800);
   static const settledInactiveSegmentOpacity = .04;
   static const selfTestInactiveSegmentOpacity = .17;
 
@@ -47,6 +47,15 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
   bool _entryEventActive = false;
   bool _motionEnabled = true;
   bool _appActive = true;
+  int _nextDropoutPattern = 0;
+  List<int> _activeDropoutPattern = const [0, 1, 2, 3];
+
+  static const _dropoutPatterns = <List<int>>[
+    [0, 1, 2, 3],
+    [3, 2, 1, 0],
+    [1, 3, 0, 2],
+    [2, 0, 3, 1],
+  ];
 
   bool get _isEntry => widget.mode == FoodVfdScaleDisplayMode.entry;
   bool get _canAnimate =>
@@ -168,7 +177,11 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
         _entryEventController.isAnimating) {
       return;
     }
-    setState(() => _entryEventActive = true);
+    setState(() {
+      _entryEventActive = true;
+      _activeDropoutPattern = _dropoutPatterns[_nextDropoutPattern];
+      _nextDropoutPattern = (_nextDropoutPattern + 1) % _dropoutPatterns.length;
+    });
     _entryEventController.forward(from: 0);
   }
 
@@ -239,6 +252,7 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
                             painter: _FoodVfdDisplayPainter(
                               selfTest: _selfTestController.value,
                               entryEvent: _entryEventController.value,
+                              dropoutPattern: _activeDropoutPattern,
                             ),
                           ),
                           if (_selfTestController.value < 1)
@@ -246,6 +260,15 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
                           if (_entryEventActive)
                             const SizedBox(
                               key: ValueKey('food-vfd-entry-event'),
+                            ),
+                          if (_entryEventActive)
+                            ..._VfdDriverDropout.from(
+                              _entryEventController.value,
+                              _activeDropoutPattern,
+                            ).offCharacters.map(
+                              (index) => SizedBox(
+                                key: ValueKey('food-vfd-driver-off-$index'),
+                              ),
                             ),
                         ],
                       ),
@@ -265,10 +288,12 @@ class _FoodVfdDisplayPainter extends CustomPainter {
   const _FoodVfdDisplayPainter({
     required this.selfTest,
     required this.entryEvent,
+    required this.dropoutPattern,
   });
 
   final double selfTest;
   final double entryEvent;
+  final List<int> dropoutPattern;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -289,7 +314,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
                 FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity) *
             structureReveal *
             (1 - structureSettle);
-    final excitation = _VfdExcitation.from(entryEvent);
+    final dropout = _VfdDriverDropout.from(entryEvent, dropoutPattern);
     final cellWidth = size.width / glyphs.length;
     final glyphHeight = size.height * .68;
     final glyphTop = (size.height - glyphHeight) / 2;
@@ -301,36 +326,37 @@ class _FoodVfdDisplayPainter extends CustomPainter {
         cellWidth * .64,
         glyphHeight,
       );
-      final allSegments = _segmentsFor('8', rect);
+      final allSegments = _inactiveSegments(rect);
       for (final segment in allSegments) {
         canvas.drawPath(
           segment,
-          Paint()
-            ..color = inactive.withValues(
-              alpha: structureOpacity + excitation.structureReveal * .035,
-            ),
+          Paint()..color = inactive.withValues(alpha: structureOpacity),
         );
       }
       final glyphProgress = (phase * glyphs.length - index).clamp(0.0, 1.0);
       if (glyphProgress == 0) continue;
       final opacity = Curves.easeOut.transform(glyphProgress);
-      for (final segment in _segmentsFor(glyphs[index], rect)) {
+      for (final segment in _activeGlyphPaths(glyphs[index], rect)) {
         canvas.drawPath(
           segment,
           Paint()
-            ..color = bloom.withValues(alpha: opacity * excitation.emission)
+            ..color = bloom.withValues(
+              alpha: opacity * dropout.emissionFor(index),
+            )
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.4),
         );
         canvas.drawPath(
           segment,
           Paint()
-            ..color = active.withValues(alpha: opacity * excitation.emission),
+            ..color = active.withValues(
+              alpha: opacity * dropout.emissionFor(index),
+            ),
         );
       }
     }
   }
 
-  List<Path> _segmentsFor(String glyph, Rect rect) {
+  List<Path> _inactiveSegments(Rect rect) {
     final segments = <String, Path>{
       'a': _horizontal(rect.left, rect.top, rect.width),
       'b': _diagonal(rect.right - rect.width * .18, rect.top, rect.height / 2),
@@ -348,19 +374,55 @@ class _FoodVfdDisplayPainter extends CustomPainter {
         rect.width * .72,
       ),
     };
-    segments.addAll({
-      'dLeftStem': _dLeftStem(rect, offset: 0),
-      'dLeftStemReinforcement': _dLeftStem(rect, offset: 2.15),
-      'dTopOuterCorner': _dOuterCorner(rect, top: true),
-      'dRightStem': _vertical(
+    return segments.values.toList(growable: false);
+  }
+
+  List<Path> _activeGlyphPaths(String glyph, Rect rect) => switch (glyph) {
+    'F' => [
+      _vfdStem(rect.left, rect.top, rect.height, thickness: 2.15),
+      _horizontal(rect.left, rect.top, rect.width * .92),
+      _horizontal(rect.left, rect.center.dy - .85, rect.width * .76),
+    ],
+    'O' => [_chamferedLoop(rect)],
+    'D' => [
+      _vfdStem(rect.left, rect.top, rect.height, thickness: 2.9),
+      _horizontal(rect.left + 1.1, rect.top, rect.width * .7),
+      _dOuterCorner(rect, top: true),
+      _vfdStem(
         rect.right - 1.7,
-        rect.top + rect.height * .16,
-        rect.height * .68,
+        rect.top + rect.height * .17,
+        rect.height * .66,
+        thickness: 1.7,
       ),
-      'dBottomOuterCorner': _dOuterCorner(rect, top: false),
-    });
-    final enabled = FoodVfdGlyphGeometry.activeSegmentsFor(glyph);
-    return enabled.map((key) => segments[key]!).toList(growable: false);
+      _dOuterCorner(rect, top: false),
+      _horizontal(rect.left + 1.1, rect.bottom - 1.7, rect.width * .7),
+    ],
+    _ => const [],
+  };
+
+  Path _chamferedLoop(Rect rect) {
+    const stroke = 1.65;
+    final outer = _octagon(rect, inset: 0);
+    final inner = _octagon(rect.deflate(stroke), inset: 0);
+    return Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPolygon(outer, true)
+      ..addPolygon(inner, true);
+  }
+
+  List<Offset> _octagon(Rect rect, {required double inset}) {
+    final chamfer = ((rect.width * .17).clamp(1.5, 3.2) + inset * .15)
+        .toDouble();
+    return [
+      Offset(rect.left + chamfer, rect.top),
+      Offset(rect.right - chamfer, rect.top),
+      Offset(rect.right, rect.top + chamfer),
+      Offset(rect.right, rect.bottom - chamfer),
+      Offset(rect.right - chamfer, rect.bottom),
+      Offset(rect.left + chamfer, rect.bottom),
+      Offset(rect.left, rect.bottom - chamfer),
+      Offset(rect.left, rect.top + chamfer),
+    ];
   }
 
   Path _dOuterCorner(Rect rect, {required bool top}) {
@@ -386,8 +448,22 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       ..close();
   }
 
-  Path _dLeftStem(Rect rect, {required double offset}) =>
-      _vertical(rect.left + offset, rect.top, rect.height);
+  Path _vfdStem(
+    double left,
+    double top,
+    double height, {
+    required double thickness,
+  }) {
+    const bevel = 1.15;
+    return Path()
+      ..moveTo(left, top + bevel)
+      ..lineTo(left + thickness / 2, top)
+      ..lineTo(left + thickness, top + bevel)
+      ..lineTo(left + thickness, top + height - bevel)
+      ..lineTo(left + thickness / 2, top + height)
+      ..lineTo(left, top + height - bevel)
+      ..close();
+  }
 
   Path _horizontal(double left, double top, double width) {
     const thickness = 1.7;
@@ -427,64 +503,58 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FoodVfdDisplayPainter oldDelegate) =>
-      oldDelegate.selfTest != selfTest || oldDelegate.entryEvent != entryEvent;
+      oldDelegate.selfTest != selfTest ||
+      oldDelegate.entryEvent != entryEvent ||
+      oldDelegate.dropoutPattern != dropoutPattern;
 }
 
-class _VfdExcitation {
-  const _VfdExcitation({required this.emission, required this.structureReveal});
+class _VfdDriverDropout {
+  const _VfdDriverDropout._(this.offCharacters, this._emissions);
 
-  factory _VfdExcitation.from(double value) {
-    if (value <= .3) {
-      final progress = Curves.easeInCubic.transform(value / .3);
-      return _VfdExcitation(
-        emission: 1 - progress * .84,
-        structureReveal: progress,
-      );
+  factory _VfdDriverDropout.from(double value, List<int> pattern) {
+    final emissions = List<double>.filled(4, 1);
+    final offCharacters = <int>[];
+    for (var order = 0; order < pattern.length; order++) {
+      final character = pattern[order];
+      final start = .04 + order * .22;
+      final local = ((value - start) / .16).clamp(0.0, 1.0);
+      if (value < start || local >= 1) continue;
+      final emission = switch (local) {
+        < .22 => 1 - Curves.easeInCubic.transform(local / .22),
+        < .76 => 0.0,
+        _ => Curves.easeOutCubic.transform((local - .76) / .24),
+      };
+      emissions[character] = emission;
+      if (emission < .02) offCharacters.add(character);
     }
-    if (value <= .48) {
-      return const _VfdExcitation(emission: .16, structureReveal: 1);
-    }
-    final progress = Curves.easeOutCubic.transform((value - .48) / .52);
-    return _VfdExcitation(
-      emission: .16 + progress * .84,
-      structureReveal: 1 - progress,
-    );
+    return _VfdDriverDropout._(offCharacters, emissions);
   }
 
-  final double emission;
-  final double structureReveal;
+  final List<int> offCharacters;
+  final List<double> _emissions;
+
+  double emissionFor(int index) => _emissions[index];
 }
 
-/// Active VFD segment selection. The D has a reinforced left stem and only an
-/// outer right-side bowl, keeping its counter clean and asymmetrical to O.
+/// Explicit active geometry for the readable custom VFD alphabet. The
+/// inactive electrode field remains intentionally separate from these paths.
 class FoodVfdGlyphGeometry {
   const FoodVfdGlyphGeometry._();
 
-  static const f = <String>['a', 'f', 'g', 'e'];
-  static const o = <String>['a', 'b', 'c', 'd', 'e', 'f'];
+  static const f = <String>['leftStem', 'topBar', 'middleBar'];
+  static const o = <String>['chamferedLoop', 'openCounter'];
   static const d = <String>[
-    'a',
-    'dLeftStem',
-    'dLeftStemReinforcement',
-    'd',
-    'dTopOuterCorner',
-    'dRightStem',
-    'dBottomOuterCorner',
-  ];
-  static const allInactiveSegments = <String>[
-    'a',
-    'b',
-    'c',
-    'd',
-    'e',
-    'f',
-    'g',
+    'reinforcedLeftStem',
+    'topBar',
+    'outerRightBowl',
+    'bottomBar',
+    'openCounter',
   ];
 
   static List<String> activeSegmentsFor(String glyph) => switch (glyph) {
     'F' => f,
     'O' => o,
     'D' => d,
-    _ => allInactiveSegments,
+    _ => const [],
   };
 }
