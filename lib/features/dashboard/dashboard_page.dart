@@ -59,6 +59,7 @@ import '../report_sync/models/morning_brief_state.dart';
 import 'models/dynamic_daily_target.dart';
 import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
+import 'widgets/dashboard_ambient_wildlife_stage.dart';
 
 /// A single, pre-planned electrical phase for the Dashboard brand sign.
 ///
@@ -705,6 +706,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                           AppSpacing.gapMD,
                                           _CommandCenterButton(),
                                           AppSpacing.gapMD,
+                                          const DashboardAmbientWildlifeStage(),
                                         ],
                                       ),
                                     ),
