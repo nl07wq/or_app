@@ -435,6 +435,9 @@ class WildlifePoseSample {
     this.wingUp = 0,
     this.wingDown = 0,
     this.wingFold = 0,
+    this.farWingSpan = 0,
+    this.headForward = 0,
+    this.tailRear = 0,
     this.isFlight = false,
   });
 
@@ -455,6 +458,9 @@ class WildlifePoseSample {
   final double wingUp;
   final double wingDown;
   final double wingFold;
+  final double farWingSpan;
+  final double headForward;
+  final double tailRear;
   final bool isFlight;
 
   static WildlifePoseSample lerp(
@@ -479,271 +485,338 @@ class WildlifePoseSample {
     wingUp: _lerp(a.wingUp, b.wingUp, t),
     wingDown: _lerp(a.wingDown, b.wingDown, t),
     wingFold: _lerp(a.wingFold, b.wingFold, t),
+    farWingSpan: _lerp(a.farWingSpan, b.farWingSpan, t),
+    headForward: _lerp(a.headForward, b.headForward, t),
+    tailRear: _lerp(a.tailRear, b.tailRear, t),
     isFlight: t < .5 ? a.isFlight : b.isFlight,
   );
 }
 
 double _lerp(double a, double b, double t) => a + (b - a) * t;
 
+// V3 keeps identity stable: CAT changes 0.88–1.02 (15.9%), FOX 0.86–1.04
+// (20.9%). The previous V2 ranges were 0.76–1.22 and 0.70–1.42.
 const _catPoses = [
   WildlifePoseSample(
-    bodyLength: .84,
-    bodyHeight: .64,
-    headOffset: -.03,
-    earHeight: .30,
-    foreReach: -.18,
-    hindReach: .28,
-    tailLength: .82,
-    tailLift: -.18,
+    bodyLength: .91,
+    bodyHeight: .59,
+    headOffset: -.02,
+    earHeight: .29,
+    foreReach: -.12,
+    hindReach: .20,
+    tailLength: .88,
+    tailLift: -.06,
     tailThickness: .11,
+    headForward: .30,
+    tailRear: .88,
   ),
   WildlifePoseSample(
-    bodyLength: .76,
-    bodyHeight: .70,
-    headOffset: -.10,
-    earHeight: .31,
-    foreReach: -.05,
-    hindReach: .42,
-    tailLength: .76,
-    tailLift: -.30,
-    tailThickness: .12,
+    bodyLength: .88,
+    bodyHeight: .61,
+    headOffset: -.05,
+    earHeight: .29,
+    foreReach: -.02,
+    hindReach: .28,
+    tailLength: .86,
+    tailLift: -.12,
+    tailThickness: .11,
+    headForward: .30,
+    tailRear: .86,
   ),
   WildlifePoseSample(
     bodyLength: .94,
-    bodyHeight: .54,
-    bodyLift: .10,
-    headOffset: .04,
-    earHeight: .29,
-    foreReach: .16,
-    hindReach: -.42,
+    bodyHeight: .56,
+    bodyLift: .07,
+    headOffset: .02,
+    earHeight: .28,
+    foreReach: .14,
+    hindReach: -.28,
     tailLength: .90,
-    tailLift: .05,
-    tailThickness: .12,
+    tailLift: .01,
+    tailThickness: .11,
+    headForward: .31,
+    tailRear: .90,
   ),
   WildlifePoseSample(
-    bodyLength: 1.22,
-    bodyHeight: .42,
-    bodyLift: .44,
-    headOffset: .11,
-    earHeight: .27,
-    foreReach: .64,
-    hindReach: -.58,
-    foreLift: .42,
-    hindLift: .52,
-    tailLength: 1.04,
-    tailLift: .24,
+    bodyLength: 1.02,
+    bodyHeight: .53,
+    bodyLift: .30,
+    headOffset: .06,
+    earHeight: .28,
+    foreReach: .46,
+    hindReach: -.40,
+    foreLift: .28,
+    hindLift: .34,
+    tailLength: .94,
+    tailLift: .12,
     tailThickness: .11,
+    headForward: .32,
+    tailRear: .94,
     isFlight: true,
   ),
   WildlifePoseSample(
-    bodyLength: 1.10,
-    bodyHeight: .46,
-    bodyLift: .24,
-    headOffset: .10,
+    bodyLength: .99,
+    bodyHeight: .54,
+    bodyLift: .16,
+    headOffset: .05,
     earHeight: .28,
-    foreReach: .70,
-    hindReach: -.20,
-    foreLift: .08,
-    hindLift: .24,
-    tailLength: .98,
-    tailLift: .14,
+    foreReach: .52,
+    hindReach: -.12,
+    foreLift: .05,
+    hindLift: .16,
+    tailLength: .92,
+    tailLift: .08,
     tailThickness: .11,
+    headForward: .32,
+    tailRear: .92,
   ),
   WildlifePoseSample(
-    bodyLength: .90,
+    bodyLength: .93,
     bodyHeight: .58,
-    bodyLift: .04,
-    earHeight: .30,
-    foreReach: .28,
-    hindReach: .10,
-    tailLength: .85,
-    tailLift: -.08,
-    tailThickness: .12,
+    bodyLift: .03,
+    earHeight: .29,
+    foreReach: .20,
+    hindReach: .04,
+    tailLength: .89,
+    tailLift: -.03,
+    tailThickness: .11,
+    headForward: .30,
+    tailRear: .89,
   ),
 ];
 
 const _foxPoses = [
   WildlifePoseSample(
-    bodyLength: .78,
-    bodyHeight: .68,
-    headOffset: -.08,
+    bodyLength: .90,
+    bodyHeight: .63,
+    headOffset: -.03,
     muzzleLength: .52,
-    earHeight: .46,
-    foreReach: -.22,
-    hindReach: .36,
-    tailLength: 1.18,
-    tailLift: -.25,
-    tailThickness: .28,
-  ),
-  WildlifePoseSample(
-    bodyLength: .70,
-    bodyHeight: .76,
-    headOffset: -.16,
-    muzzleLength: .54,
-    earHeight: .48,
-    foreReach: -.08,
-    hindReach: .52,
-    tailLength: 1.10,
-    tailLift: -.40,
-    tailThickness: .30,
-  ),
-  WildlifePoseSample(
-    bodyLength: 1.02,
-    bodyHeight: .52,
-    bodyLift: .14,
-    headOffset: .06,
-    muzzleLength: .55,
-    earHeight: .45,
-    foreReach: .20,
-    hindReach: -.50,
-    tailLength: 1.28,
-    tailLift: .04,
-    tailThickness: .29,
-  ),
-  WildlifePoseSample(
-    bodyLength: 1.42,
-    bodyHeight: .40,
-    bodyLift: .54,
-    headOffset: .15,
-    muzzleLength: .58,
-    earHeight: .42,
-    foreReach: .78,
-    hindReach: -.72,
-    foreLift: .48,
-    hindLift: .60,
-    tailLength: 1.42,
-    tailLift: .30,
-    tailThickness: .30,
-    isFlight: true,
-  ),
-  WildlifePoseSample(
-    bodyLength: 1.26,
-    bodyHeight: .45,
-    bodyLift: .28,
-    headOffset: .14,
-    muzzleLength: .56,
-    earHeight: .43,
-    foreReach: .82,
-    hindReach: -.28,
-    foreLift: .10,
-    hindLift: .30,
-    tailLength: 1.36,
-    tailLift: .16,
-    tailThickness: .30,
-  ),
-  WildlifePoseSample(
-    bodyLength: .92,
-    bodyHeight: .62,
-    bodyLift: .06,
-    muzzleLength: .53,
-    earHeight: .46,
-    foreReach: .30,
-    hindReach: .08,
+    earHeight: .44,
+    foreReach: -.14,
+    hindReach: .24,
     tailLength: 1.22,
     tailLift: -.08,
     tailThickness: .29,
+    headForward: .60,
+    tailRear: 1.22,
+  ),
+  WildlifePoseSample(
+    bodyLength: .86,
+    bodyHeight: .65,
+    headOffset: -.06,
+    muzzleLength: .53,
+    earHeight: .44,
+    foreReach: -.03,
+    hindReach: .32,
+    tailLength: 1.20,
+    tailLift: -.15,
+    tailThickness: .29,
+    headForward: .60,
+    tailRear: 1.20,
+  ),
+  WildlifePoseSample(
+    bodyLength: .95,
+    bodyHeight: .58,
+    bodyLift: .08,
+    headOffset: .03,
+    muzzleLength: .54,
+    earHeight: .43,
+    foreReach: .15,
+    hindReach: -.32,
+    tailLength: 1.26,
+    tailLift: .01,
+    tailThickness: .29,
+    headForward: .61,
+    tailRear: 1.26,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.04,
+    bodyHeight: .54,
+    bodyLift: .36,
+    headOffset: .07,
+    muzzleLength: .55,
+    earHeight: .42,
+    foreReach: .58,
+    hindReach: -.48,
+    foreLift: .30,
+    hindLift: .38,
+    tailLength: 1.31,
+    tailLift: .15,
+    tailThickness: .30,
+    headForward: .62,
+    tailRear: 1.31,
+    isFlight: true,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.01,
+    bodyHeight: .55,
+    bodyLift: .18,
+    headOffset: .06,
+    muzzleLength: .55,
+    earHeight: .43,
+    foreReach: .64,
+    hindReach: -.15,
+    foreLift: .06,
+    hindLift: .18,
+    tailLength: 1.29,
+    tailLift: .10,
+    tailThickness: .30,
+    headForward: .62,
+    tailRear: 1.29,
+  ),
+  WildlifePoseSample(
+    bodyLength: .94,
+    bodyHeight: .60,
+    bodyLift: .04,
+    muzzleLength: .53,
+    earHeight: .44,
+    foreReach: .24,
+    hindReach: .05,
+    tailLength: 1.24,
+    tailLift: -.02,
+    tailThickness: .29,
+    headForward: .61,
+    tailRear: 1.24,
   ),
 ];
 
+// Lateral V3 air poses: one large near wing sweeps behind the horizontal
+// body; a smaller far wing only supplies depth, never emblem symmetry.
 const _birdPoses = [
   WildlifePoseSample(
-    bodyLength: .68,
-    bodyHeight: .34,
-    wingSpan: .82,
-    wingUp: 1.18,
-    wingDown: .14,
-    wingFold: .78,
+    bodyLength: .72,
+    bodyHeight: .33,
+    wingSpan: 1.02,
+    wingUp: .88,
+    wingDown: .08,
+    wingFold: .44,
+    farWingSpan: .32,
+    headForward: .46,
+    tailRear: .48,
   ),
   WildlifePoseSample(
-    bodyLength: .70,
+    bodyLength: .73,
+    bodyHeight: .33,
+    wingSpan: 1.12,
+    wingUp: .48,
+    wingDown: .12,
+    wingFold: .32,
+    farWingSpan: .36,
+    headForward: .46,
+    tailRear: .49,
+  ),
+  WildlifePoseSample(
+    bodyLength: .74,
+    bodyHeight: .32,
+    wingSpan: 1.26,
+    wingUp: .12,
+    wingDown: .12,
+    wingFold: .18,
+    farWingSpan: .40,
+    headForward: .47,
+    tailRear: .50,
+  ),
+  WildlifePoseSample(
+    bodyLength: .73,
     bodyHeight: .34,
-    wingSpan: 1.08,
-    wingUp: .62,
-    wingDown: .20,
-    wingFold: .48,
+    wingSpan: 1.16,
+    wingUp: .06,
+    wingDown: .78,
+    wingFold: .25,
+    farWingSpan: .34,
+    headForward: .47,
+    tailRear: .49,
   ),
   WildlifePoseSample(
     bodyLength: .72,
-    bodyHeight: .32,
-    wingSpan: 1.48,
-    wingUp: .16,
-    wingDown: .16,
-    wingFold: .16,
-  ),
-  WildlifePoseSample(
-    bodyLength: .70,
-    bodyHeight: .36,
-    wingSpan: 1.32,
-    wingUp: .10,
-    wingDown: 1.12,
-    wingFold: .32,
-  ),
-  WildlifePoseSample(
-    bodyLength: .68,
-    bodyHeight: .36,
-    wingSpan: 1.12,
-    wingUp: .10,
-    wingDown: .62,
-    wingFold: .52,
-  ),
-  WildlifePoseSample(
-    bodyLength: .70,
     bodyHeight: .34,
-    wingSpan: 1.18,
-    wingUp: .28,
-    wingDown: .28,
-    wingFold: .34,
+    wingSpan: 1.00,
+    wingUp: .06,
+    wingDown: .45,
+    wingFold: .38,
+    farWingSpan: .30,
+    headForward: .46,
+    tailRear: .48,
+  ),
+  WildlifePoseSample(
+    bodyLength: .73,
+    bodyHeight: .33,
+    wingSpan: 1.08,
+    wingUp: .22,
+    wingDown: .24,
+    wingFold: .30,
+    farWingSpan: .34,
+    headForward: .46,
+    tailRear: .49,
   ),
 ];
 
 const _batPoses = [
   WildlifePoseSample(
-    bodyLength: .48,
-    bodyHeight: .52,
-    wingSpan: .78,
-    wingUp: 1.16,
-    wingDown: .08,
-    wingFold: .92,
-  ),
-  WildlifePoseSample(
-    bodyLength: .50,
-    bodyHeight: .52,
-    wingSpan: 1.02,
-    wingUp: .68,
-    wingDown: .22,
-    wingFold: .68,
-  ),
-  WildlifePoseSample(
-    bodyLength: .52,
+    bodyLength: .58,
     bodyHeight: .50,
-    wingSpan: 1.48,
-    wingUp: .22,
-    wingDown: .28,
-    wingFold: .26,
+    wingSpan: .98,
+    wingUp: .92,
+    wingDown: .06,
+    wingFold: .62,
+    farWingSpan: .28,
+    headForward: .34,
+    tailRear: .32,
   ),
   WildlifePoseSample(
-    bodyLength: .50,
-    bodyHeight: .54,
-    wingSpan: 1.34,
-    wingUp: .08,
-    wingDown: 1.24,
-    wingFold: .22,
+    bodyLength: .59,
+    bodyHeight: .50,
+    wingSpan: 1.10,
+    wingUp: .52,
+    wingDown: .12,
+    wingFold: .48,
+    farWingSpan: .32,
+    headForward: .34,
+    tailRear: .33,
   ),
   WildlifePoseSample(
-    bodyLength: .48,
-    bodyHeight: .56,
-    wingSpan: .96,
-    wingUp: .08,
-    wingDown: .72,
-    wingFold: .72,
+    bodyLength: .60,
+    bodyHeight: .49,
+    wingSpan: 1.28,
+    wingUp: .16,
+    wingDown: .18,
+    wingFold: .20,
+    farWingSpan: .38,
+    headForward: .35,
+    tailRear: .34,
   ),
   WildlifePoseSample(
-    bodyLength: .50,
+    bodyLength: .59,
+    bodyHeight: .51,
+    wingSpan: 1.18,
+    wingUp: .05,
+    wingDown: .96,
+    wingFold: .18,
+    farWingSpan: .33,
+    headForward: .35,
+    tailRear: .33,
+  ),
+  WildlifePoseSample(
+    bodyLength: .58,
     bodyHeight: .52,
-    wingSpan: 1.12,
-    wingUp: .34,
-    wingDown: .36,
-    wingFold: .50,
+    wingSpan: .94,
+    wingUp: .05,
+    wingDown: .52,
+    wingFold: .52,
+    farWingSpan: .27,
+    headForward: .34,
+    tailRear: .32,
+  ),
+  WildlifePoseSample(
+    bodyLength: .59,
+    bodyHeight: .50,
+    wingSpan: 1.04,
+    wingUp: .24,
+    wingDown: .28,
+    wingFold: .38,
+    farWingSpan: .30,
+    headForward: .34,
+    tailRear: .33,
   ),
 ];
 
@@ -767,10 +840,10 @@ WildlifePoseSample wildlifePoseFor(WildlifeKind kind, double phase) {
 
 /// Locomotion is measured in cycles per second, independent of traversal.
 double wildlifeCycleFrequencyFor(WildlifeKind kind) => switch (kind) {
-  WildlifeKind.cat => 5.6,
-  WildlifeKind.fox => 5.1,
-  WildlifeKind.birds => 7.0,
-  WildlifeKind.bat => 10.5,
+  WildlifeKind.cat => 3.2,
+  WildlifeKind.fox => 2.9,
+  WildlifeKind.birds => 3.6,
+  WildlifeKind.bat => 5.2,
 };
 
 double wildlifeCycleCountForTraversal(WildlifeEventPlan plan, double width) =>
@@ -1087,28 +1160,8 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
   }
 
   void _drawBird(Canvas canvas, Paint paint, WildlifePoseSample pose) {
-    const scale = 7.4;
-    _drawWingPair(canvas, paint, pose, scale, false);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(0, pose.wingDown * scale * .05),
-        width: pose.bodyLength * scale,
-        height: pose.bodyHeight * scale,
-      ),
-      paint,
-    );
-    canvas.drawCircle(Offset(pose.bodyLength * scale * .48, -.5), 1.1, paint);
-    final tail = Path()
-      ..moveTo(-pose.bodyLength * scale * .42, 0)
-      ..lineTo(-pose.bodyLength * scale * .82, 1.5)
-      ..lineTo(-pose.bodyLength * scale * .36, 1.4)
-      ..close();
-    canvas.drawPath(tail, paint);
-  }
-
-  void _drawBat(Canvas canvas, Paint paint, WildlifePoseSample pose) {
-    const scale = 8.2;
-    _drawWingPair(canvas, paint, pose, scale, true);
+    const scale = 8.0;
+    _drawBirdFarWing(canvas, paint, pose, scale);
     canvas.drawOval(
       Rect.fromCenter(
         center: const Offset(0, 0),
@@ -1117,41 +1170,129 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
       ),
       paint,
     );
+    final head = Offset(pose.headForward * scale, -.35);
+    canvas.drawCircle(head, 1.15, paint);
+    final beak = Path()
+      ..moveTo(head.dx + 1, head.dy)
+      ..lineTo(head.dx + 2.25, head.dy + .35)
+      ..lineTo(head.dx + 1, head.dy + .75)
+      ..close();
+    canvas.drawPath(beak, paint);
+    final tail = Path()
+      ..moveTo(-pose.bodyLength * scale * .42, 0)
+      ..lineTo(-pose.tailRear * scale, 1.7)
+      ..lineTo(-pose.bodyLength * scale * .34, 1.45)
+      ..close();
+    canvas.drawPath(tail, paint);
+    _drawBirdNearWing(canvas, paint, pose, scale);
   }
 
-  void _drawWingPair(
+  void _drawBat(Canvas canvas, Paint paint, WildlifePoseSample pose) {
+    const scale = 8.4;
+    _drawBatFarWing(canvas, paint, pose, scale);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: const Offset(0, 0),
+        width: pose.bodyLength * scale,
+        height: pose.bodyHeight * scale,
+      ),
+      paint,
+    );
+    final head = Offset(pose.headForward * scale, -.35);
+    canvas.drawCircle(head, 1.05, paint);
+    final rear = Path()
+      ..moveTo(-pose.bodyLength * scale * .38, -.2)
+      ..lineTo(-pose.tailRear * scale, .85)
+      ..lineTo(-pose.bodyLength * scale * .32, 1.15)
+      ..close();
+    canvas.drawPath(rear, paint);
+    _drawBatNearWing(canvas, paint, pose, scale);
+  }
+
+  void _drawBirdFarWing(
     Canvas canvas,
     Paint paint,
     WildlifePoseSample pose,
     double scale,
-    bool isBat,
+  ) {
+    final span = pose.farWingSpan * scale;
+    final wing = Path()
+      ..moveTo(-scale * .08, -.1)
+      ..quadraticBezierTo(-span, -pose.wingUp * scale * .48, -span * .86, .2)
+      ..quadraticBezierTo(
+        -span * .40,
+        pose.wingDown * scale * .36,
+        -scale * .08,
+        .45,
+      )
+      ..close();
+    canvas.drawPath(wing, paint);
+  }
+
+  void _drawBirdNearWing(
+    Canvas canvas,
+    Paint paint,
+    WildlifePoseSample pose,
+    double scale,
   ) {
     final span = pose.wingSpan * scale;
-    final up = pose.wingUp * scale;
-    final down = pose.wingDown * scale;
-    final fold = pose.wingFold * scale;
-    for (final side in [-1.0, 1.0]) {
-      final root = Offset(side * pose.bodyLength * scale * .20, 0);
-      final leading = Offset(side * span, -up);
-      final outer = Offset(side * span * (isBat ? .94 : .78), down);
-      final trailing = Offset(side * span * .38, down + fold * .26);
-      final wing = Path()..moveTo(root.dx, root.dy);
-      if (isBat) {
-        wing
-          ..lineTo(leading.dx, leading.dy)
-          ..lineTo(side * span * .78, down + fold * .14)
-          ..lineTo(outer.dx, outer.dy)
-          ..lineTo(side * span * .43, down + fold * .58)
-          ..lineTo(trailing.dx, trailing.dy)
-          ..close();
-      } else {
-        wing
-          ..quadraticBezierTo(leading.dx, leading.dy, outer.dx, outer.dy)
-          ..quadraticBezierTo(trailing.dx, trailing.dy, root.dx, root.dy)
-          ..close();
-      }
-      canvas.drawPath(wing, paint);
-    }
+    final wing = Path()
+      ..moveTo(-scale * .02, -.28)
+      ..quadraticBezierTo(
+        -span * .58,
+        -pose.wingUp * scale,
+        -span,
+        -pose.wingUp * scale * .50,
+      )
+      ..quadraticBezierTo(
+        -span * .88,
+        pose.wingDown * scale,
+        -span * .38,
+        pose.wingDown * scale + pose.wingFold * scale * .18,
+      )
+      ..quadraticBezierTo(
+        -span * .14,
+        pose.wingFold * scale * .10,
+        scale * .06,
+        .32,
+      )
+      ..close();
+    canvas.drawPath(wing, paint);
+  }
+
+  void _drawBatFarWing(
+    Canvas canvas,
+    Paint paint,
+    WildlifePoseSample pose,
+    double scale,
+  ) {
+    final span = pose.farWingSpan * scale;
+    final wing = Path()
+      ..moveTo(-scale * .04, -.12)
+      ..lineTo(-span, -pose.wingUp * scale * .45)
+      ..lineTo(-span * .78, pose.wingDown * scale * .28)
+      ..lineTo(-span * .34, pose.wingFold * scale * .22)
+      ..close();
+    canvas.drawPath(wing, paint);
+  }
+
+  void _drawBatNearWing(
+    Canvas canvas,
+    Paint paint,
+    WildlifePoseSample pose,
+    double scale,
+  ) {
+    final span = pose.wingSpan * scale;
+    final wing = Path()
+      ..moveTo(-scale * .02, -.24)
+      ..lineTo(-span * .68, -pose.wingUp * scale)
+      ..lineTo(-span, -pose.wingUp * scale * .38)
+      ..lineTo(-span * .84, pose.wingDown * scale)
+      ..lineTo(-span * .52, pose.wingDown * scale + pose.wingFold * scale * .48)
+      ..lineTo(-span * .24, pose.wingFold * scale * .30)
+      ..lineTo(scale * .03, .30)
+      ..close();
+    canvas.drawPath(wing, paint);
   }
 
   @override

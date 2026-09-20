@@ -231,7 +231,7 @@ void main() {
     },
   );
 
-  test('V2 pose samples are deterministic, normalized, and wrap cleanly', () {
+  test('V3 pose samples are deterministic, normalized, and wrap cleanly', () {
     for (final kind in WildlifeKind.values) {
       final first = wildlifePoseFor(kind, .37);
       final repeated = wildlifePoseFor(kind, .37);
@@ -255,7 +255,18 @@ void main() {
     }
   });
 
-  test('CAT V2 poses compress, extend, fly, and change limbs and tail', () {
+  test('V3 frequencies are calm, canonical, and shared by traversal plans', () {
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.cat), 3.2);
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.fox), 2.9);
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.birds), 3.6);
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.bat), 5.2);
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.cat), lessThan(5.6));
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.fox), lessThan(5.1));
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.birds), lessThan(7));
+    expect(wildlifeCycleFrequencyFor(WildlifeKind.bat), lessThan(10.5));
+  });
+
+  test('V3 CAT poses compress, extend, fly, and change limbs and tail', () {
     final gather = wildlifePoseFor(WildlifeKind.cat, 1 / 6);
     final flight = wildlifePoseFor(WildlifeKind.cat, 3 / 6);
     final reach = wildlifePoseFor(WildlifeKind.cat, 4 / 6);
@@ -269,7 +280,7 @@ void main() {
   });
 
   test(
-    'FOX V2 gallop is distinct from CAT with stronger extension and tail',
+    'V3 FOX gallop is distinct from CAT with stronger controlled extension and tail',
     () {
       final foxGather = wildlifePoseFor(WildlifeKind.fox, 1 / 6);
       final foxFlight = wildlifePoseFor(WildlifeKind.fox, 3 / 6);
@@ -285,7 +296,7 @@ void main() {
     },
   );
 
-  test('BIRD and BAT use distinct whole-wing key-pose cycles', () {
+  test('V3 BIRD and BAT use distinct whole-wing key-pose cycles', () {
     final birdUp = wildlifePoseFor(WildlifeKind.birds, 0);
     final birdLevel = wildlifePoseFor(WildlifeKind.birds, 2 / 6);
     final birdDown = wildlifePoseFor(WildlifeKind.birds, 3 / 6);
@@ -300,6 +311,45 @@ void main() {
       wildlifeCycleFrequencyFor(WildlifeKind.bat),
       greaterThan(wildlifeCycleFrequencyFor(WildlifeKind.birds)),
     );
+  });
+
+  test(
+    'V3 air species use a lateral head-tail axis and subordinate far wing',
+    () {
+      for (final kind in [WildlifeKind.birds, WildlifeKind.bat]) {
+        for (final phase in [0.0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6]) {
+          final pose = wildlifePoseFor(kind, phase);
+          expect(pose.headForward, greaterThan(0));
+          expect(pose.tailRear, greaterThan(0));
+          expect(pose.wingSpan, greaterThan(pose.farWingSpan));
+          expect(pose.bodyLength, greaterThan(pose.bodyHeight));
+        }
+      }
+    },
+  );
+
+  test('V3 deformation stays bounded and continuous across the cycle seam', () {
+    double bodyRange(WildlifeKind kind) {
+      final values = [
+        for (var index = 0; index < 6; index++)
+          wildlifePoseFor(kind, index / 6).bodyLength,
+      ];
+      return values.reduce((a, b) => a > b ? a : b) -
+          values.reduce((a, b) => a < b ? a : b);
+    }
+
+    final catDelta = bodyRange(WildlifeKind.cat);
+    final foxDelta = bodyRange(WildlifeKind.fox);
+    expect(catDelta, inInclusiveRange(.10, .18));
+    expect(foxDelta, inInclusiveRange(.12, .22));
+    expect(foxDelta, greaterThan(catDelta));
+    for (final kind in [WildlifeKind.cat, WildlifeKind.fox]) {
+      final before = wildlifePoseFor(kind, .999);
+      final after = wildlifePoseFor(kind, 0);
+      expect((before.bodyLength - after.bodyLength).abs(), lessThan(.04));
+      expect((before.headForward - after.headForward).abs(), lessThan(.04));
+      expect((before.tailLength - after.tailLength).abs(), lessThan(.04));
+    }
   });
 
   test('gait and flap cycle counts are independent from travel width', () {
