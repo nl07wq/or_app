@@ -231,6 +231,86 @@ void main() {
     },
   );
 
+  test('V2 pose samples are deterministic, normalized, and wrap cleanly', () {
+    for (final kind in WildlifeKind.values) {
+      final first = wildlifePoseFor(kind, .37);
+      final repeated = wildlifePoseFor(kind, .37);
+      final wrapped = wildlifePoseFor(kind, 1.37);
+      expect(repeated.bodyLength, first.bodyLength);
+      expect(wrapped.bodyLength, closeTo(first.bodyLength, .000001));
+      for (final value in [
+        first.bodyLength,
+        first.bodyHeight,
+        first.bodyLift,
+        first.foreReach,
+        first.hindReach,
+        first.tailLength,
+        first.wingSpan,
+        first.wingUp,
+        first.wingDown,
+      ]) {
+        expect(value.isFinite, isTrue);
+        expect(value.abs(), lessThan(3));
+      }
+    }
+  });
+
+  test('CAT V2 poses compress, extend, fly, and change limbs and tail', () {
+    final gather = wildlifePoseFor(WildlifeKind.cat, 1 / 6);
+    final flight = wildlifePoseFor(WildlifeKind.cat, 3 / 6);
+    final reach = wildlifePoseFor(WildlifeKind.cat, 4 / 6);
+    expect(gather.bodyLength, lessThan(flight.bodyLength));
+    expect(flight.isFlight, isTrue);
+    expect(flight.foreLift, greaterThan(0));
+    expect(flight.hindLift, greaterThan(0));
+    expect(gather.hindReach, isNot(flight.hindReach));
+    expect(flight.foreReach, greaterThan(gather.foreReach));
+    expect(reach.tailLift, isNot(gather.tailLift));
+  });
+
+  test(
+    'FOX V2 gallop is distinct from CAT with stronger extension and tail',
+    () {
+      final foxGather = wildlifePoseFor(WildlifeKind.fox, 1 / 6);
+      final foxFlight = wildlifePoseFor(WildlifeKind.fox, 3 / 6);
+      final catGather = wildlifePoseFor(WildlifeKind.cat, 1 / 6);
+      final catFlight = wildlifePoseFor(WildlifeKind.cat, 3 / 6);
+      expect(
+        foxFlight.bodyLength - foxGather.bodyLength,
+        greaterThan(catFlight.bodyLength - catGather.bodyLength),
+      );
+      expect(foxFlight.muzzleLength, greaterThan(0));
+      expect(foxFlight.tailThickness, greaterThan(catFlight.tailThickness));
+      expect(foxFlight.isFlight, isTrue);
+    },
+  );
+
+  test('BIRD and BAT use distinct whole-wing key-pose cycles', () {
+    final birdUp = wildlifePoseFor(WildlifeKind.birds, 0);
+    final birdLevel = wildlifePoseFor(WildlifeKind.birds, 2 / 6);
+    final birdDown = wildlifePoseFor(WildlifeKind.birds, 3 / 6);
+    final batFolded = wildlifePoseFor(WildlifeKind.bat, 0);
+    final batExtended = wildlifePoseFor(WildlifeKind.bat, 2 / 6);
+    expect(birdUp.wingUp, greaterThan(birdLevel.wingUp));
+    expect(birdLevel.wingSpan, greaterThan(birdUp.wingSpan));
+    expect(birdDown.wingDown, greaterThan(birdLevel.wingDown));
+    expect(batExtended.wingSpan, greaterThan(batFolded.wingSpan));
+    expect(batFolded.wingFold, greaterThan(birdUp.wingFold));
+    expect(
+      wildlifeCycleFrequencyFor(WildlifeKind.bat),
+      greaterThan(wildlifeCycleFrequencyFor(WildlifeKind.birds)),
+    );
+  });
+
+  test('gait and flap cycle counts are independent from travel width', () {
+    for (final kind in WildlifeKind.values) {
+      final plan = wildlifePreviewPlan(kind: kind, leftToRight: true);
+      expect(wildlifeCycleCountForTraversal(plan, 320), greaterThan(4));
+      expect(wildlifeCycleCountForTraversal(plan, 390), greaterThan(4));
+      expect(wildlifeCycleCountForTraversal(plan, 900), greaterThan(4));
+    }
+  });
+
   testWidgets('day and night flock plans use bounded programmatic counts', (
     tester,
   ) async {

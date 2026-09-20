@@ -411,6 +411,373 @@ class _DashboardAmbientWildlifePreviewStageState
   );
 }
 
+/// A normalized, whole-silhouette sample from one species' locomotion cycle.
+///
+/// The renderer reconstructs body, limbs, tail, and wings from these shared
+/// landmarks rather than translating a stable icon with moving appendages.
+@immutable
+class WildlifePoseSample {
+  const WildlifePoseSample({
+    this.bodyLength = 1,
+    this.bodyHeight = .5,
+    this.bodyLift = 0,
+    this.headOffset = 0,
+    this.muzzleLength = 0,
+    this.earHeight = 0,
+    this.foreReach = 0,
+    this.hindReach = 0,
+    this.foreLift = 0,
+    this.hindLift = 0,
+    this.tailLength = 0,
+    this.tailLift = 0,
+    this.tailThickness = 0,
+    this.wingSpan = 0,
+    this.wingUp = 0,
+    this.wingDown = 0,
+    this.wingFold = 0,
+    this.isFlight = false,
+  });
+
+  final double bodyLength;
+  final double bodyHeight;
+  final double bodyLift;
+  final double headOffset;
+  final double muzzleLength;
+  final double earHeight;
+  final double foreReach;
+  final double hindReach;
+  final double foreLift;
+  final double hindLift;
+  final double tailLength;
+  final double tailLift;
+  final double tailThickness;
+  final double wingSpan;
+  final double wingUp;
+  final double wingDown;
+  final double wingFold;
+  final bool isFlight;
+
+  static WildlifePoseSample lerp(
+    WildlifePoseSample a,
+    WildlifePoseSample b,
+    double t,
+  ) => WildlifePoseSample(
+    bodyLength: _lerp(a.bodyLength, b.bodyLength, t),
+    bodyHeight: _lerp(a.bodyHeight, b.bodyHeight, t),
+    bodyLift: _lerp(a.bodyLift, b.bodyLift, t),
+    headOffset: _lerp(a.headOffset, b.headOffset, t),
+    muzzleLength: _lerp(a.muzzleLength, b.muzzleLength, t),
+    earHeight: _lerp(a.earHeight, b.earHeight, t),
+    foreReach: _lerp(a.foreReach, b.foreReach, t),
+    hindReach: _lerp(a.hindReach, b.hindReach, t),
+    foreLift: _lerp(a.foreLift, b.foreLift, t),
+    hindLift: _lerp(a.hindLift, b.hindLift, t),
+    tailLength: _lerp(a.tailLength, b.tailLength, t),
+    tailLift: _lerp(a.tailLift, b.tailLift, t),
+    tailThickness: _lerp(a.tailThickness, b.tailThickness, t),
+    wingSpan: _lerp(a.wingSpan, b.wingSpan, t),
+    wingUp: _lerp(a.wingUp, b.wingUp, t),
+    wingDown: _lerp(a.wingDown, b.wingDown, t),
+    wingFold: _lerp(a.wingFold, b.wingFold, t),
+    isFlight: t < .5 ? a.isFlight : b.isFlight,
+  );
+}
+
+double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+const _catPoses = [
+  WildlifePoseSample(
+    bodyLength: .84,
+    bodyHeight: .64,
+    headOffset: -.03,
+    earHeight: .30,
+    foreReach: -.18,
+    hindReach: .28,
+    tailLength: .82,
+    tailLift: -.18,
+    tailThickness: .11,
+  ),
+  WildlifePoseSample(
+    bodyLength: .76,
+    bodyHeight: .70,
+    headOffset: -.10,
+    earHeight: .31,
+    foreReach: -.05,
+    hindReach: .42,
+    tailLength: .76,
+    tailLift: -.30,
+    tailThickness: .12,
+  ),
+  WildlifePoseSample(
+    bodyLength: .94,
+    bodyHeight: .54,
+    bodyLift: .10,
+    headOffset: .04,
+    earHeight: .29,
+    foreReach: .16,
+    hindReach: -.42,
+    tailLength: .90,
+    tailLift: .05,
+    tailThickness: .12,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.22,
+    bodyHeight: .42,
+    bodyLift: .44,
+    headOffset: .11,
+    earHeight: .27,
+    foreReach: .64,
+    hindReach: -.58,
+    foreLift: .42,
+    hindLift: .52,
+    tailLength: 1.04,
+    tailLift: .24,
+    tailThickness: .11,
+    isFlight: true,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.10,
+    bodyHeight: .46,
+    bodyLift: .24,
+    headOffset: .10,
+    earHeight: .28,
+    foreReach: .70,
+    hindReach: -.20,
+    foreLift: .08,
+    hindLift: .24,
+    tailLength: .98,
+    tailLift: .14,
+    tailThickness: .11,
+  ),
+  WildlifePoseSample(
+    bodyLength: .90,
+    bodyHeight: .58,
+    bodyLift: .04,
+    earHeight: .30,
+    foreReach: .28,
+    hindReach: .10,
+    tailLength: .85,
+    tailLift: -.08,
+    tailThickness: .12,
+  ),
+];
+
+const _foxPoses = [
+  WildlifePoseSample(
+    bodyLength: .78,
+    bodyHeight: .68,
+    headOffset: -.08,
+    muzzleLength: .52,
+    earHeight: .46,
+    foreReach: -.22,
+    hindReach: .36,
+    tailLength: 1.18,
+    tailLift: -.25,
+    tailThickness: .28,
+  ),
+  WildlifePoseSample(
+    bodyLength: .70,
+    bodyHeight: .76,
+    headOffset: -.16,
+    muzzleLength: .54,
+    earHeight: .48,
+    foreReach: -.08,
+    hindReach: .52,
+    tailLength: 1.10,
+    tailLift: -.40,
+    tailThickness: .30,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.02,
+    bodyHeight: .52,
+    bodyLift: .14,
+    headOffset: .06,
+    muzzleLength: .55,
+    earHeight: .45,
+    foreReach: .20,
+    hindReach: -.50,
+    tailLength: 1.28,
+    tailLift: .04,
+    tailThickness: .29,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.42,
+    bodyHeight: .40,
+    bodyLift: .54,
+    headOffset: .15,
+    muzzleLength: .58,
+    earHeight: .42,
+    foreReach: .78,
+    hindReach: -.72,
+    foreLift: .48,
+    hindLift: .60,
+    tailLength: 1.42,
+    tailLift: .30,
+    tailThickness: .30,
+    isFlight: true,
+  ),
+  WildlifePoseSample(
+    bodyLength: 1.26,
+    bodyHeight: .45,
+    bodyLift: .28,
+    headOffset: .14,
+    muzzleLength: .56,
+    earHeight: .43,
+    foreReach: .82,
+    hindReach: -.28,
+    foreLift: .10,
+    hindLift: .30,
+    tailLength: 1.36,
+    tailLift: .16,
+    tailThickness: .30,
+  ),
+  WildlifePoseSample(
+    bodyLength: .92,
+    bodyHeight: .62,
+    bodyLift: .06,
+    muzzleLength: .53,
+    earHeight: .46,
+    foreReach: .30,
+    hindReach: .08,
+    tailLength: 1.22,
+    tailLift: -.08,
+    tailThickness: .29,
+  ),
+];
+
+const _birdPoses = [
+  WildlifePoseSample(
+    bodyLength: .68,
+    bodyHeight: .34,
+    wingSpan: .82,
+    wingUp: 1.18,
+    wingDown: .14,
+    wingFold: .78,
+  ),
+  WildlifePoseSample(
+    bodyLength: .70,
+    bodyHeight: .34,
+    wingSpan: 1.08,
+    wingUp: .62,
+    wingDown: .20,
+    wingFold: .48,
+  ),
+  WildlifePoseSample(
+    bodyLength: .72,
+    bodyHeight: .32,
+    wingSpan: 1.48,
+    wingUp: .16,
+    wingDown: .16,
+    wingFold: .16,
+  ),
+  WildlifePoseSample(
+    bodyLength: .70,
+    bodyHeight: .36,
+    wingSpan: 1.32,
+    wingUp: .10,
+    wingDown: 1.12,
+    wingFold: .32,
+  ),
+  WildlifePoseSample(
+    bodyLength: .68,
+    bodyHeight: .36,
+    wingSpan: 1.12,
+    wingUp: .10,
+    wingDown: .62,
+    wingFold: .52,
+  ),
+  WildlifePoseSample(
+    bodyLength: .70,
+    bodyHeight: .34,
+    wingSpan: 1.18,
+    wingUp: .28,
+    wingDown: .28,
+    wingFold: .34,
+  ),
+];
+
+const _batPoses = [
+  WildlifePoseSample(
+    bodyLength: .48,
+    bodyHeight: .52,
+    wingSpan: .78,
+    wingUp: 1.16,
+    wingDown: .08,
+    wingFold: .92,
+  ),
+  WildlifePoseSample(
+    bodyLength: .50,
+    bodyHeight: .52,
+    wingSpan: 1.02,
+    wingUp: .68,
+    wingDown: .22,
+    wingFold: .68,
+  ),
+  WildlifePoseSample(
+    bodyLength: .52,
+    bodyHeight: .50,
+    wingSpan: 1.48,
+    wingUp: .22,
+    wingDown: .28,
+    wingFold: .26,
+  ),
+  WildlifePoseSample(
+    bodyLength: .50,
+    bodyHeight: .54,
+    wingSpan: 1.34,
+    wingUp: .08,
+    wingDown: 1.24,
+    wingFold: .22,
+  ),
+  WildlifePoseSample(
+    bodyLength: .48,
+    bodyHeight: .56,
+    wingSpan: .96,
+    wingUp: .08,
+    wingDown: .72,
+    wingFold: .72,
+  ),
+  WildlifePoseSample(
+    bodyLength: .50,
+    bodyHeight: .52,
+    wingSpan: 1.12,
+    wingUp: .34,
+    wingDown: .36,
+    wingFold: .50,
+  ),
+];
+
+/// Samples one of six organic key poses and interpolates to its successor.
+WildlifePoseSample wildlifePoseFor(WildlifeKind kind, double phase) {
+  final poses = switch (kind) {
+    WildlifeKind.cat => _catPoses,
+    WildlifeKind.fox => _foxPoses,
+    WildlifeKind.birds => _birdPoses,
+    WildlifeKind.bat => _batPoses,
+  };
+  final wrapped = phase - phase.floorToDouble();
+  final position = wrapped * poses.length;
+  final index = position.floor() % poses.length;
+  return WildlifePoseSample.lerp(
+    poses[index],
+    poses[(index + 1) % poses.length],
+    position - position.floorToDouble(),
+  );
+}
+
+/// Locomotion is measured in cycles per second, independent of traversal.
+double wildlifeCycleFrequencyFor(WildlifeKind kind) => switch (kind) {
+  WildlifeKind.cat => 5.6,
+  WildlifeKind.fox => 5.1,
+  WildlifeKind.birds => 7.0,
+  WildlifeKind.bat => 10.5,
+};
+
+double wildlifeCycleCountForTraversal(WildlifeEventPlan plan, double width) =>
+    wildlifeCycleFrequencyFor(plan.kind) *
+    plan.durationForWidth(width).inMilliseconds /
+    Duration.millisecondsPerSecond;
+
 /// Custom-programmatic wildlife silhouettes. The painter has no asset or
 /// glyph dependencies and only repaints while an event controller is active.
 class DashboardAmbientWildlifePainter extends CustomPainter {
@@ -449,11 +816,21 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     switch (event.kind) {
       case WildlifeKind.cat:
         _withDirection(canvas, Offset(x, size.height - 5), direction, () {
-          _drawCat(canvas, silhouette, t, event.phaseSeed);
+          _drawQuadruped(
+            canvas,
+            silhouette,
+            WildlifeKind.cat,
+            _poseAt(event, t, size.width),
+          );
         });
       case WildlifeKind.fox:
         _withDirection(canvas, Offset(x, size.height - 5), direction, () {
-          _drawFox(canvas, silhouette, t, event.phaseSeed);
+          _drawQuadruped(
+            canvas,
+            silhouette,
+            WildlifeKind.fox,
+            _poseAt(event, t, size.width),
+          );
         });
       case WildlifeKind.birds:
         _drawFlock(canvas, silhouette, size, x, t, event, false);
@@ -475,85 +852,189 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawCat(Canvas canvas, Paint paint, double t, double seed) {
-    final cycle = math.sin((t * 7 + seed) * math.pi * 2);
-    final bounce = math.sin((t * 14 + seed) * math.pi * 2) * .8;
-    final body = Rect.fromCenter(
-      center: Offset(0, -9 + bounce),
-      width: 16 + cycle * 1.4,
-      height: 7,
+  WildlifePoseSample _poseAt(
+    WildlifeEventPlan event,
+    double travelProgress,
+    double stageWidth,
+  ) {
+    final elapsedSeconds =
+        event.durationForWidth(stageWidth).inMilliseconds /
+        Duration.millisecondsPerSecond *
+        travelProgress;
+    return wildlifePoseFor(
+      event.kind,
+      elapsedSeconds * wildlifeCycleFrequencyFor(event.kind) + event.phaseSeed,
     );
-    canvas.drawOval(body, paint);
-    canvas.drawCircle(Offset(10, -13 + bounce), 3.2, paint);
-    final ears = Path()
-      ..moveTo(8, -15 + bounce)
-      ..lineTo(9, -19 + bounce)
-      ..lineTo(11, -15 + bounce)
-      ..moveTo(11, -15 + bounce)
-      ..lineTo(13, -18 + bounce)
-      ..lineTo(13.5, -14 + bounce);
-    canvas.drawPath(ears, paint);
-    _drawLegs(canvas, paint, bounce, cycle, 1.8, 5.2);
-    final tail = Path()
-      ..moveTo(-8, -10 + bounce)
-      ..quadraticBezierTo(-15, -14 - cycle * 2, -16, -7 + cycle * 2);
-    canvas.drawPath(tail, _strokeFor(paint, 2));
   }
 
-  void _drawFox(Canvas canvas, Paint paint, double t, double seed) {
-    final cycle = math.sin((t * 8 + seed) * math.pi * 2);
-    final bounce = math.sin((t * 16 + seed) * math.pi * 2) * .9;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(-1, -10 + bounce),
-        width: 22 + cycle * 2.2,
-        height: 7.5,
-      ),
-      paint,
-    );
-    final head = Path()
-      ..moveTo(10, -14 + bounce)
-      ..lineTo(16, -13 + bounce)
-      ..lineTo(19, -10 + bounce)
-      ..lineTo(12, -8 + bounce)
-      ..close();
-    canvas.drawPath(head, paint);
-    final ears = Path()
-      ..moveTo(10, -14 + bounce)
-      ..lineTo(11, -20 + bounce)
-      ..lineTo(14, -14 + bounce)
-      ..moveTo(14, -14 + bounce)
-      ..lineTo(16, -19 + bounce)
-      ..lineTo(17, -13 + bounce);
-    canvas.drawPath(ears, paint);
-    final tail = Path()
-      ..moveTo(-11, -10 + bounce)
-      ..quadraticBezierTo(-19, -18 - cycle * 2, -24, -10 + cycle * 2)
-      ..quadraticBezierTo(-19, -5, -12, -7 + bounce)
-      ..close();
-    canvas.drawPath(tail, paint);
-    _drawLegs(canvas, paint, bounce, cycle, 2.4, 6.5);
-  }
-
-  void _drawLegs(
+  void _drawQuadruped(
     Canvas canvas,
     Paint paint,
-    double bounce,
-    double cycle,
-    double stride,
-    double separation,
+    WildlifeKind kind,
+    WildlifePoseSample pose,
   ) {
-    final legPaint = _strokeFor(paint, 1.8);
-    for (final leg in [
-      (-separation, cycle),
-      (-separation / 2, -cycle),
-      (separation / 2, -cycle),
-      (separation, cycle),
-    ]) {
-      final hipX = leg.$1;
-      final footX = hipX + leg.$2 * stride;
-      canvas.drawLine(Offset(hipX, -6 + bounce), Offset(footX, 0), legPaint);
+    final isFox = kind == WildlifeKind.fox;
+    final scale = isFox ? 16.0 : 14.0;
+    final length = pose.bodyLength * scale;
+    final height = pose.bodyHeight * scale;
+    final center = Offset(0, -scale * (.78 + pose.bodyLift));
+    final left = center.dx - length / 2;
+    final right = center.dx + length / 2;
+    final top = center.dy - height / 2;
+    final bottom = center.dy + height / 2;
+    final body = Path()
+      ..moveTo(left, center.dy)
+      ..quadraticBezierTo(left + length * .18, top, center.dx, top)
+      ..quadraticBezierTo(
+        right - length * .16,
+        top - scale * .04,
+        right,
+        center.dy - height * .16,
+      )
+      ..quadraticBezierTo(right - length * .12, bottom, center.dx, bottom)
+      ..quadraticBezierTo(
+        left + length * .12,
+        bottom + scale * .03,
+        left,
+        center.dy,
+      )
+      ..close();
+    canvas.drawPath(body, paint);
+
+    final tailBase = Offset(left + scale * .08, center.dy);
+    _drawTail(canvas, paint, tailBase, pose, scale, isFox);
+    _drawLeg(
+      canvas,
+      paint,
+      Offset(right - length * .23, bottom - scale * .05),
+      pose.foreReach,
+      pose.foreLift,
+      scale,
+    );
+    _drawLeg(
+      canvas,
+      paint,
+      Offset(right - length * .05, bottom - scale * .02),
+      pose.foreReach - .12,
+      pose.foreLift * .8,
+      scale,
+    );
+    _drawLeg(
+      canvas,
+      paint,
+      Offset(left + length * .25, bottom - scale * .05),
+      pose.hindReach,
+      pose.hindLift,
+      scale,
+    );
+    _drawLeg(
+      canvas,
+      paint,
+      Offset(left + length * .06, bottom - scale * .02),
+      pose.hindReach + .12,
+      pose.hindLift * .8,
+      scale,
+    );
+    _drawQuadrupedHead(canvas, paint, right, top, center, pose, scale, isFox);
+  }
+
+  void _drawLeg(
+    Canvas canvas,
+    Paint paint,
+    Offset shoulderOrHip,
+    double reach,
+    double lift,
+    double scale,
+  ) {
+    final foot = Offset(shoulderOrHip.dx + reach * scale, -lift * scale);
+    final knee = Offset(
+      (shoulderOrHip.dx + foot.dx) / 2 - reach * scale * .16,
+      (shoulderOrHip.dy + foot.dy) / 2 + scale * .10,
+    );
+    final leg = _strokeFor(paint, 1.7);
+    canvas.drawLine(shoulderOrHip, knee, leg);
+    canvas.drawLine(knee, foot, leg);
+  }
+
+  void _drawTail(
+    Canvas canvas,
+    Paint paint,
+    Offset base,
+    WildlifePoseSample pose,
+    double scale,
+    bool isFox,
+  ) {
+    final tip = Offset(
+      base.dx - pose.tailLength * scale,
+      base.dy - pose.tailLift * scale,
+    );
+    final control = Offset(
+      base.dx - pose.tailLength * scale * .52,
+      base.dy - (pose.tailLift + .42) * scale,
+    );
+    if (!isFox) {
+      final tail = Path()
+        ..moveTo(base.dx, base.dy)
+        ..quadraticBezierTo(control.dx, control.dy, tip.dx, tip.dy);
+      canvas.drawPath(tail, _strokeFor(paint, 1.8));
+      return;
     }
+    final thickness = pose.tailThickness * scale;
+    final tail = Path()
+      ..moveTo(base.dx, base.dy + thickness * .25)
+      ..quadraticBezierTo(control.dx, control.dy - thickness, tip.dx, tip.dy)
+      ..quadraticBezierTo(
+        control.dx - thickness * .20,
+        control.dy + thickness,
+        base.dx,
+        base.dy + thickness,
+      )
+      ..close();
+    canvas.drawPath(tail, paint);
+  }
+
+  void _drawQuadrupedHead(
+    Canvas canvas,
+    Paint paint,
+    double bodyRight,
+    double bodyTop,
+    Offset center,
+    WildlifePoseSample pose,
+    double scale,
+    bool isFox,
+  ) {
+    final headCenter = Offset(
+      bodyRight + scale * .15,
+      center.dy - scale * (.18 + pose.headOffset),
+    );
+    if (isFox) {
+      final head = Path()
+        ..moveTo(bodyRight - scale * .08, headCenter.dy - scale * .22)
+        ..lineTo(
+          headCenter.dx + pose.muzzleLength * scale,
+          headCenter.dy - scale * .05,
+        )
+        ..lineTo(
+          headCenter.dx + pose.muzzleLength * scale + scale * .12,
+          headCenter.dy + scale * .10,
+        )
+        ..lineTo(bodyRight + scale * .04, headCenter.dy + scale * .26)
+        ..close();
+      canvas.drawPath(head, paint);
+    } else {
+      canvas.drawCircle(headCenter, scale * .23, paint);
+    }
+    final ears = Path()
+      ..moveTo(headCenter.dx - scale * .18, bodyTop + scale * .12)
+      ..lineTo(headCenter.dx - scale * .08, bodyTop - pose.earHeight * scale)
+      ..lineTo(headCenter.dx + scale * .02, bodyTop + scale * .12)
+      ..moveTo(headCenter.dx + scale * .04, bodyTop + scale * .10)
+      ..lineTo(
+        headCenter.dx + scale * .17,
+        bodyTop - pose.earHeight * scale * .88,
+      )
+      ..lineTo(headCenter.dx + scale * .25, bodyTop + scale * .18);
+    canvas.drawPath(ears, paint);
   }
 
   Paint _strokeFor(Paint source, double width) => Paint()
@@ -586,51 +1067,91 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
         Offset(x, y.clamp(5.0, size.height - 20).toDouble()),
         direction,
         () {
+          final elapsedSeconds =
+              event.durationForWidth(size.width).inMilliseconds /
+              Duration.millisecondsPerSecond *
+              t;
+          final kind = isBat ? WildlifeKind.bat : WildlifeKind.birds;
+          final pose = wildlifePoseFor(
+            kind,
+            elapsedSeconds * wildlifeCycleFrequencyFor(kind) + phase,
+          );
           if (isBat) {
-            _drawBat(canvas, paint, t, phase);
+            _drawBat(canvas, paint, pose);
           } else {
-            _drawBird(canvas, paint, t, phase);
+            _drawBird(canvas, paint, pose);
           }
         },
       );
     }
   }
 
-  void _drawBird(Canvas canvas, Paint paint, double t, double phase) {
-    final flap = math.sin((t * 7 + phase) * math.pi * 2);
+  void _drawBird(Canvas canvas, Paint paint, WildlifePoseSample pose) {
+    const scale = 7.4;
+    _drawWingPair(canvas, paint, pose, scale, false);
     canvas.drawOval(
-      Rect.fromCenter(center: const Offset(0, 0), width: 5, height: 2.6),
+      Rect.fromCenter(
+        center: Offset(0, pose.wingDown * scale * .05),
+        width: pose.bodyLength * scale,
+        height: pose.bodyHeight * scale,
+      ),
       paint,
     );
-    canvas.drawCircle(const Offset(2.8, -.5), 1.1, paint);
-    final wing = Path()
-      ..moveTo(-.5, 0)
-      ..quadraticBezierTo(-4, -4 - flap * 2.2, -6, -1 - flap * 1.4)
-      ..quadraticBezierTo(-3, 1, -.5, 0)
-      ..moveTo(.2, 0)
-      ..quadraticBezierTo(-1.5, 4 + flap * 2.2, -4, 2 + flap * 1.4)
-      ..quadraticBezierTo(-2, .5, .2, 0);
-    canvas.drawPath(wing, paint);
+    canvas.drawCircle(Offset(pose.bodyLength * scale * .48, -.5), 1.1, paint);
+    final tail = Path()
+      ..moveTo(-pose.bodyLength * scale * .42, 0)
+      ..lineTo(-pose.bodyLength * scale * .82, 1.5)
+      ..lineTo(-pose.bodyLength * scale * .36, 1.4)
+      ..close();
+    canvas.drawPath(tail, paint);
   }
 
-  void _drawBat(Canvas canvas, Paint paint, double t, double phase) {
-    final flap = math.sin((t * 11 + phase) * math.pi * 2);
+  void _drawBat(Canvas canvas, Paint paint, WildlifePoseSample pose) {
+    const scale = 8.2;
+    _drawWingPair(canvas, paint, pose, scale, true);
     canvas.drawOval(
-      Rect.fromCenter(center: const Offset(0, 0), width: 3.5, height: 4),
+      Rect.fromCenter(
+        center: const Offset(0, 0),
+        width: pose.bodyLength * scale,
+        height: pose.bodyHeight * scale,
+      ),
       paint,
     );
-    final wings = Path()
-      ..moveTo(-1, 0)
-      ..lineTo(-7, -4 - flap * 2.5)
-      ..lineTo(-9, 2)
-      ..lineTo(-4, 3 + flap)
-      ..close()
-      ..moveTo(1, 0)
-      ..lineTo(7, -4 - flap * 2.5)
-      ..lineTo(9, 2)
-      ..lineTo(4, 3 + flap)
-      ..close();
-    canvas.drawPath(wings, paint);
+  }
+
+  void _drawWingPair(
+    Canvas canvas,
+    Paint paint,
+    WildlifePoseSample pose,
+    double scale,
+    bool isBat,
+  ) {
+    final span = pose.wingSpan * scale;
+    final up = pose.wingUp * scale;
+    final down = pose.wingDown * scale;
+    final fold = pose.wingFold * scale;
+    for (final side in [-1.0, 1.0]) {
+      final root = Offset(side * pose.bodyLength * scale * .20, 0);
+      final leading = Offset(side * span, -up);
+      final outer = Offset(side * span * (isBat ? .94 : .78), down);
+      final trailing = Offset(side * span * .38, down + fold * .26);
+      final wing = Path()..moveTo(root.dx, root.dy);
+      if (isBat) {
+        wing
+          ..lineTo(leading.dx, leading.dy)
+          ..lineTo(side * span * .78, down + fold * .14)
+          ..lineTo(outer.dx, outer.dy)
+          ..lineTo(side * span * .43, down + fold * .58)
+          ..lineTo(trailing.dx, trailing.dy)
+          ..close();
+      } else {
+        wing
+          ..quadraticBezierTo(leading.dx, leading.dy, outer.dx, outer.dy)
+          ..quadraticBezierTo(trailing.dx, trailing.dy, root.dx, root.dy)
+          ..close();
+      }
+      canvas.drawPath(wing, paint);
+    }
   }
 
   @override
