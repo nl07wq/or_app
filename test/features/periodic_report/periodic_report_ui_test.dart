@@ -70,6 +70,32 @@ void main() {
     expect(opened, isFalse);
   });
 
+  testWidgets(
+    'Sunday report route uses the canonical Periodic Report workspace',
+    (tester) async {
+      await _install(operationDate: '2026-08-31');
+      await _pump(
+        tester,
+        width: 390,
+        child: PeriodicReportPage(
+          initialType: PeriodicReportType.weekly,
+          initialAnchor: DateTime(2026, 8, 30),
+        ),
+      );
+
+      expect(find.byType(PeriodicReportWorkspace), findsOneWidget);
+      expect(find.text('PERIODIC REPORT'), findsOneWidget);
+      final weeklyPanel = tester.widget<PeriodicReportPanel>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is PeriodicReportPanel &&
+              widget.reportType == PeriodicReportType.weekly,
+        ),
+      );
+      expect(weeklyPanel.initialAnchor, DateTime(2026, 8, 30));
+    },
+  );
+
   test('presentation formatter preserves numeric meaning', () {
     expect(periodicReportDecimal(30485.04), '30,485.0');
     expect(periodicReportDecimal(-30485.04), '-30,485.0');

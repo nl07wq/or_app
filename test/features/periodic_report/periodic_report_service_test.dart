@@ -69,6 +69,103 @@ void main() {
     },
   );
 
+  test(
+    'manual and Sunday anchors prepare the same canonical weekly contract',
+    () async {
+      final manualFixture = await _fixture(now);
+      final sundayFixture = await _fixture(now);
+      final manual = await manualFixture.service.prepare(
+        type: PeriodicReportType.weekly,
+        // COMMAND CENTER on the following Monday resolves this completed week.
+        anchor: DateTime(2026, 8, 24),
+      );
+      final sunday = await sundayFixture.service.prepare(
+        type: PeriodicReportType.weekly,
+        // Sunday FINALIZE supplies the same completed week from its final date.
+        anchor: DateTime(2026, 8, 30),
+      );
+
+      expect(sunday.facts.periodId, manual.facts.periodId);
+      expect(sunday.facts.endDate, manual.facts.endDate);
+      expect(sunday.facts.reportType, PeriodicReportType.weekly);
+      expect(sunday.facts.toJson(), manual.facts.toJson());
+      for (final prompt in [manual.prompt, sunday.prompt]) {
+        expect(prompt, contains('schemaVersion "2.0"'));
+        expect(prompt, contains('exchangeType "periodicReport"'));
+        expect(prompt, contains('"reportType": "weekly"'));
+        expect(prompt, isNot(contains('commanderIntentEvaluation')));
+        expect(prompt, isNot(contains('domainEvaluations')));
+        expect(prompt, isNot(contains('crossAnalysis')));
+        expect(prompt, isNot(contains('executionEvaluation')));
+        expect(prompt, isNot(contains('nextDayHandoff')));
+      }
+    },
+  );
+
+  test(
+    'canonical weekly response imports through manual and Sunday anchors',
+    () async {
+      final manualFixture = await _fixture(now);
+      final sundayFixture = await _fixture(now);
+      final manual = await manualFixture.service.prepare(
+        type: PeriodicReportType.weekly,
+        anchor: DateTime(2026, 8, 24),
+      );
+      final sunday = await sundayFixture.service.prepare(
+        type: PeriodicReportType.weekly,
+        anchor: DateTime(2026, 8, 30),
+      );
+
+      Future<PeriodicReportPreview> preview(
+        _Fixture fixture,
+        PeriodicReportPreparation preparation,
+        DateTime anchor,
+        String exchangeId,
+      ) {
+        final response = fixture.container.reportSyncCodec.create(
+          direction: ReportSyncDirection.response,
+          schemaVersion: ReportSyncEnvelope.importSchemaVersion2,
+          exchangeType: ReportSyncExchangeType.periodicReport,
+          exchangeId: exchangeId,
+          operationDate: preparation.facts.endDate,
+          createdAt: now,
+          payload: {
+            'operationDate': preparation.facts.endDate,
+            'periodId': preparation.facts.periodId,
+            'reportType': preparation.facts.reportType.stableId,
+            'sourceDigest': ReportSyncCanonicalService.digest(
+              preparation.facts.toJson(),
+            ),
+            'analysis': _analysis('canonical').toJson(),
+          },
+        );
+        return fixture.service.preview(
+          type: PeriodicReportType.weekly,
+          anchor: anchor,
+          rawResponse: fixture.container.reportSyncCodec.encode(response),
+        );
+      }
+
+      final manualPreview = await preview(
+        manualFixture,
+        manual,
+        DateTime(2026, 8, 24),
+        'manual-weekly-response',
+      );
+      final sundayPreview = await preview(
+        sundayFixture,
+        sunday,
+        DateTime(2026, 8, 30),
+        'sunday-weekly-response',
+      );
+      final manualRecord = await manualFixture.service.apply(manualPreview);
+      final sundayRecord = await sundayFixture.service.apply(sundayPreview);
+
+      expect(manualRecord.periodStart, sundayRecord.periodStart);
+      expect(manualRecord.analysis.toJson(), sundayRecord.analysis.toJson());
+    },
+  );
+
   test('imports Rev 1 and Rev 2 and preserves Rev 1', () async {
     final fixture = await _fixture(now);
     final prepared = await fixture.service.prepare(

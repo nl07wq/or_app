@@ -34,8 +34,11 @@ class PeriodicReportPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('${_label(initialType)} REPORT')),
-    body: PeriodicReportPanel(
-      reportType: initialType,
+    // A pushed report must use the same workspace and panel implementation as
+    // COMMAND CENTER.  The entry point may supply a completed-period anchor,
+    // but it must never select a second prompt/import contract.
+    body: PeriodicReportWorkspace(
+      initialType: initialType,
       initialAnchor: initialAnchor,
       onImported: onImported,
     ),
@@ -43,21 +46,31 @@ class PeriodicReportPage extends StatelessWidget {
 }
 
 class PeriodicReportWorkspace extends StatelessWidget {
-  const PeriodicReportWorkspace({super.key});
+  const PeriodicReportWorkspace({
+    super.key,
+    this.initialType = PeriodicReportType.weekly,
+    this.initialAnchor,
+    this.onImported,
+  });
+
+  final PeriodicReportType initialType;
+  final DateTime? initialAnchor;
+  final VoidCallback? onImported;
 
   @override
-  Widget build(BuildContext context) => const DefaultTabController(
+  Widget build(BuildContext context) => DefaultTabController(
     length: 3,
+    initialIndex: initialType.index,
     child: Column(
       children: [
-        Padding(
+        const Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SectionHeader(
             icon: Symbols.calendar_month,
             title: 'PERIODIC REPORT',
           ),
         ),
-        TabBar(
+        const TabBar(
           tabs: [
             Tab(text: 'WEEKLY'),
             Tab(text: 'MONTHLY'),
@@ -67,9 +80,33 @@ class PeriodicReportWorkspace extends StatelessWidget {
         Expanded(
           child: TabBarView(
             children: [
-              PeriodicReportPanel(reportType: PeriodicReportType.weekly),
-              PeriodicReportPanel(reportType: PeriodicReportType.monthly),
-              PeriodicReportPanel(reportType: PeriodicReportType.yearly),
+              PeriodicReportPanel(
+                reportType: PeriodicReportType.weekly,
+                initialAnchor: initialType == PeriodicReportType.weekly
+                    ? initialAnchor
+                    : null,
+                onImported: initialType == PeriodicReportType.weekly
+                    ? onImported
+                    : null,
+              ),
+              PeriodicReportPanel(
+                reportType: PeriodicReportType.monthly,
+                initialAnchor: initialType == PeriodicReportType.monthly
+                    ? initialAnchor
+                    : null,
+                onImported: initialType == PeriodicReportType.monthly
+                    ? onImported
+                    : null,
+              ),
+              PeriodicReportPanel(
+                reportType: PeriodicReportType.yearly,
+                initialAnchor: initialType == PeriodicReportType.yearly
+                    ? initialAnchor
+                    : null,
+                onImported: initialType == PeriodicReportType.yearly
+                    ? onImported
+                    : null,
+              ),
             ],
           ),
         ),
