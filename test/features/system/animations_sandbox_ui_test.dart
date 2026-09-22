@@ -8,6 +8,7 @@ import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/cat_trace_decomposition_poc.dart';
+import 'package:or_app/features/system/pages/cat_trace_motion_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
@@ -105,7 +106,7 @@ void main() {
   testWidgets(
     'CAT TRACE PIPELINE POC is a static sandbox-only Bezier preview',
     (tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -135,16 +136,16 @@ void main() {
       ]) {
         expect(find.byKey(ValueKey(key)), findsOneWidget);
       }
-      await tester.drag(find.byType(ListView), const Offset(0, -700));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('cat-trace-poc-high')));
+      final high = find.byKey(const ValueKey('cat-trace-poc-high'));
+      await tester.scrollUntilVisible(high, 300);
+      await tester.tap(high);
       await tester.pump();
       final tracePainter = tester.widget<CustomPaint>(canvas).painter!;
       expect(tracePainter, isA<CatTraceVectorPainter>());
       expect(find.textContaining('HIGH · RDP 1.5px'), findsOneWidget);
-      await tester.drag(find.byType(ListView), const Offset(0, -180));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('cat-trace-poc-scale-4')));
+      final scale = find.byKey(const ValueKey('cat-trace-poc-scale-4'));
+      await tester.scrollUntilVisible(scale, 300);
+      await tester.tap(scale);
       await tester.pump();
       expect(
         (tester.widget<CustomPaint>(canvas).painter! as CatTraceVectorPainter)
@@ -153,7 +154,7 @@ void main() {
       );
       expect(
         find.textContaining('Production Wildlife is not connected'),
-        findsOneWidget,
+        findsWidgets,
       );
       expect(tester.takeException(), isNull);
     },
@@ -351,10 +352,63 @@ void main() {
     expect(roundTrip.disagreement, closeTo(baselineDisagreement, .000000001));
   });
 
+  test('CAT TRACE motion preserves canonical C and is cyclic', () {
+    final motion = CatTraceMotionPoc();
+    expect(motion.decomposition.sourceLevel.sourcePointCount, 85);
+    final neutral = motion.canonicalNeutralPath();
+    final metrics = CatTraceReconstructionMetrics.fromPaths(
+      original: motion.originalPath(),
+      reconstructed: neutral,
+      width: 256,
+      height: 128,
+    );
+    expect(metrics.iou, greaterThanOrEqualTo(.99));
+    expect(metrics.iou, greaterThanOrEqualTo(.995));
+    expect(metrics.disagreement, lessThan(.005));
+
+    final first = CatTraceMotionSample.at(0);
+    final last = CatTraceMotionSample.at(1);
+    expect(first.foreNearUpper, closeTo(last.foreNearUpper, .000000001));
+    expect(first.hindNearLower, closeTo(last.hindNearLower, .000000001));
+    expect(first.tailTip, closeTo(last.tailTip, .000000001));
+    expect(first.torsoOffsetY, closeTo(last.torsoOffsetY, .000000001));
+
+    final originalBounds = motion.originalPath().getBounds();
+    for (final phase in [0.0, .1, .25, .5, .75, .9]) {
+      final sample = CatTraceMotionSample.at(phase);
+      expect(
+        CatTraceMotionIntegrity.fromSample(
+          motion: motion,
+          sample: sample,
+        ).isStructurallyValid,
+        isTrue,
+      );
+      final paths = motion.pathsFor(sample);
+      expect(paths.length, CatTraceMotionSegment.values.length);
+      for (final path in paths.values) {
+        final bounds = path.getBounds();
+        expect(
+          [
+            bounds.left,
+            bounds.top,
+            bounds.right,
+            bounds.bottom,
+          ].every((value) => value.isFinite),
+          isTrue,
+        );
+      }
+    }
+    expect(motion.originalPath().getBounds(), originalBounds);
+    final reach = CatTraceMotionSample.at(.25);
+    final push = CatTraceMotionSample.at(.75);
+    expect(reach.foreNearUpper.sign, isNot(push.foreNearUpper.sign));
+    expect(reach.foreNearUpper, isNot(reach.foreFarUpper));
+  });
+
   testWidgets('CAT TRACE decomposition exposes C/C′ static comparison modes', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -370,10 +424,8 @@ void main() {
     ]) {
       expect(find.byKey(ValueKey(key)), findsOneWidget);
     }
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
-    await tester.pump();
     final decomposed = find.byKey(const ValueKey('cat-trace-poc-decomposed'));
-    await tester.ensureVisible(decomposed);
+    await tester.scrollUntilVisible(decomposed, 300);
     await tester.tap(decomposed);
     await tester.pump();
     final canvas = find.byKey(const ValueKey('cat-trace-poc-canvas'));
@@ -388,7 +440,7 @@ void main() {
       'cat-trace-poc-scale-4',
     ]) {
       final scaleControl = find.byKey(ValueKey(key));
-      await tester.ensureVisible(scaleControl);
+      await tester.scrollUntilVisible(scaleControl, 300);
       await tester.tap(scaleControl);
       await tester.pump();
       expect(tester.takeException(), isNull);
@@ -449,6 +501,55 @@ void main() {
     expect(find.textContaining('FORE NEAR · 0°'), findsOneWidget);
   });
 
+  testWidgets('CAT TRACE motion controls animate and reset deterministically', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('cat-trace-motion-poc-section')),
+      350,
+    );
+    final canvas = find.byKey(const ValueKey('cat-trace-motion-canvas'));
+    expect(canvas, findsOneWidget);
+    for (final key in [
+      'cat-trace-motion-play-pause',
+      'cat-trace-motion-neutral',
+      'cat-trace-motion-speed-0.5',
+      'cat-trace-motion-speed-1.0',
+      'cat-trace-motion-scale-1',
+      'cat-trace-motion-scale-2',
+      'cat-trace-motion-scale-4',
+      'cat-trace-motion-normal',
+      'cat-trace-motion-joints',
+      'cat-trace-motion-seamOverlap',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    for (final key in [
+      'cat-trace-motion-play-pause',
+      'cat-trace-motion-speed-0.5',
+      'cat-trace-motion-scale-4',
+      'cat-trace-motion-joints',
+      'cat-trace-motion-neutral',
+    ]) {
+      final control = find.byKey(ValueKey(key));
+      await tester.ensureVisible(control);
+      await tester.pump();
+      await tester.tap(control);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(tester.takeException(), isNull);
+    }
+    expect(
+      tester.widget<CustomPaint>(canvas).painter,
+      isA<CatTraceMotionPainter>(),
+    );
+    expect(find.textContaining('NEUTRAL · ROOT OVERLAP OK'), findsOneWidget);
+  });
+
   testWidgets(
     'CAT TRACE POC comparison controls remain usable at narrow widths',
     (tester) async {
@@ -493,6 +594,31 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('cat-trace-articulation-reset')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('CAT TRACE motion controls remain usable responsively', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 3000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-trace-motion-poc-section')),
+        350,
+      );
+      expect(
+        find.byKey(const ValueKey('cat-trace-motion-canvas')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('cat-trace-motion-play-pause')),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);

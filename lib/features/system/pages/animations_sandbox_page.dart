@@ -11,6 +11,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'cat_trace_decomposition_poc.dart';
+import 'cat_trace_motion_poc.dart';
 import 'cat_trace_poc_data.dart';
 import 'pixel_lab_page.dart';
 
@@ -162,6 +163,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         const _AmbientWildlifeSandboxSection(),
         AppSpacing.gapXL,
         const _CatTracePipelinePocSection(),
+        AppSpacing.gapXL,
+        const _CatTraceMotionPocSection(),
       ],
     ),
   );
@@ -699,6 +702,195 @@ class _CatTracePipelinePocSectionState
   }
 }
 
+class _CatTraceMotionPocSection extends StatefulWidget {
+  const _CatTraceMotionPocSection();
+
+  @override
+  State<_CatTraceMotionPocSection> createState() =>
+      _CatTraceMotionPocSectionState();
+}
+
+class _CatTraceMotionPocSectionState extends State<_CatTraceMotionPocSection>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final CatTraceMotionPoc _motion = CatTraceMotionPoc();
+  var _playing = false;
+  var _neutral = true;
+  var _speed = 1.0;
+  var _scale = 1;
+  var _diagnostic = CatTraceMotionDiagnostic.normal;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _durationForSpeed);
+    _controller.addListener(() {
+      if (mounted && _playing) setState(() {});
+    });
+  }
+
+  Duration get _durationForSpeed => Duration(
+    milliseconds: (CatTraceMotionPoc.cycleDuration.inMilliseconds / _speed)
+        .round(),
+  );
+
+  void _playPause() {
+    setState(() {
+      _neutral = false;
+      _playing = !_playing;
+      if (_playing) {
+        _controller.repeat();
+      } else {
+        _controller.stop();
+      }
+    });
+  }
+
+  void _setSpeed(double speed) {
+    setState(() {
+      final wasPlaying = _playing;
+      _controller.stop();
+      _speed = speed;
+      _controller.duration = _durationForSpeed;
+      if (wasPlaying) _controller.repeat();
+    });
+  }
+
+  void _resetNeutral() {
+    setState(() {
+      _controller.stop();
+      _controller.value = 0;
+      _playing = false;
+      _neutral = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sample = _neutral
+        ? CatTraceMotionSample.neutral()
+        : CatTraceMotionSample.at(_controller.value);
+    final integrity = CatTraceMotionIntegrity.fromSample(
+      motion: _motion,
+      sample: sample,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.directions_walk_outlined,
+          title: 'CAT TRACE MOTION POC',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('cat-trace-motion-poc-section'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('SANDBOX ONLY · ARTICULATED BRISK WALK'),
+              AppSpacing.gapSM,
+              SizedBox(
+                height: 190,
+                child: CustomPaint(
+                  key: const ValueKey('cat-trace-motion-canvas'),
+                  painter: CatTraceMotionPainter(
+                    motion: _motion,
+                    sample: sample,
+                    diagnostic: _diagnostic,
+                    presentationScale: _scale,
+                  ),
+                ),
+              ),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _TracePocChoice(
+                    key: const ValueKey('cat-trace-motion-play-pause'),
+                    label: _playing ? 'PAUSE' : 'PLAY',
+                    selected: _playing,
+                    onPressed: _playPause,
+                  ),
+                  _TracePocChoice(
+                    key: const ValueKey('cat-trace-motion-neutral'),
+                    label: 'NEUTRAL',
+                    selected: _neutral,
+                    onPressed: _resetNeutral,
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('PLAYBACK'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final speed in [0.5, 1.0])
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-motion-speed-$speed'),
+                      label: '${speed.toStringAsFixed(1)}×',
+                      selected: _speed == speed,
+                      onPressed: () => _setSpeed(speed),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('INSPECTION SCALE'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final scale in [1, 2, 4])
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-motion-scale-$scale'),
+                      label: '$scale×',
+                      selected: _scale == scale,
+                      onPressed: () => setState(() => _scale = scale),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('DIAGNOSTIC'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final diagnostic in CatTraceMotionDiagnostic.values)
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-motion-${diagnostic.name}'),
+                      label: diagnostic.label,
+                      selected: _diagnostic == diagnostic,
+                      onPressed: () => setState(() => _diagnostic = diagnostic),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Text(
+                '${_neutral ? 'NEUTRAL' : 'PHASE ${(_controller.value * 100).round()}%'} · '
+                '${integrity.isStructurallyValid ? 'ROOT OVERLAP OK' : 'ROOT OVERLAP FAIL'} · '
+                '${CatTraceMotionPoc.cycleDuration.inMilliseconds}ms at 1.0×',
+                key: const ValueKey('cat-trace-motion-metrics'),
+              ),
+              AppSpacing.gapSM,
+              const Text(
+                'Canonical traced C is immutable. Production Wildlife is not connected.',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 enum _CatTracePocMode {
   reconstructed,
   high,
@@ -1169,6 +1361,130 @@ class CatTraceDecompositionPainter extends CustomPainter {
   bool shouldRepaint(covariant CatTraceDecompositionPainter oldDelegate) =>
       oldDelegate.decomposition != decomposition ||
       oldDelegate.display != display ||
+      oldDelegate.presentationScale != presentationScale;
+}
+
+enum CatTraceMotionDiagnostic { normal, joints, seamOverlap }
+
+extension on CatTraceMotionDiagnostic {
+  String get label => switch (this) {
+    CatTraceMotionDiagnostic.normal => 'NORMAL',
+    CatTraceMotionDiagnostic.joints => 'SKELETON / JOINTS',
+    CatTraceMotionDiagnostic.seamOverlap => 'SEAM / OVERLAP',
+  };
+}
+
+/// Renders the same normalized articulated geometry at every inspection scale.
+class CatTraceMotionPainter extends CustomPainter {
+  const CatTraceMotionPainter({
+    required this.motion,
+    required this.sample,
+    required this.diagnostic,
+    required this.presentationScale,
+  });
+
+  final CatTraceMotionPoc motion;
+  final CatTraceMotionSample sample;
+  final CatTraceMotionDiagnostic diagnostic;
+  final int presentationScale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..color = const Color(0xFF101010)
+        ..isAntiAlias = true,
+    );
+    final points = motion.decomposition.sourceLevel.points;
+    final maxY = points.map((point) => point.dy).reduce(math.max);
+    final base = math.min(size.width * .88 / 4, size.height * .82 / (maxY * 4));
+    final scale = base * presentationScale;
+    final paths = motion.pathsFor(sample);
+    canvas.save();
+    canvas.translate(
+      (size.width - scale) / 2,
+      (size.height - maxY * scale) / 2,
+    );
+    canvas.scale(scale);
+    const far = [
+      CatTraceMotionSegment.foreFarUpper,
+      CatTraceMotionSegment.foreFarLower,
+      CatTraceMotionSegment.hindFarUpper,
+      CatTraceMotionSegment.hindFarLower,
+    ];
+    const core = [
+      CatTraceMotionSegment.torso,
+      CatTraceMotionSegment.headNeck,
+      CatTraceMotionSegment.tailRoot,
+      CatTraceMotionSegment.tailMid,
+      CatTraceMotionSegment.tailTip,
+    ];
+    const near = [
+      CatTraceMotionSegment.foreNearUpper,
+      CatTraceMotionSegment.foreNearLower,
+      CatTraceMotionSegment.hindNearUpper,
+      CatTraceMotionSegment.hindNearLower,
+    ];
+    final silhouette = Paint()
+      ..color = const Color(0xFFB8B8B8)
+      ..isAntiAlias = true;
+    if (sample.isNeutral) {
+      canvas.drawPath(motion.canonicalNeutralPath(), silhouette);
+    } else {
+      for (final segment in [...far, ...core, ...near]) {
+        canvas.drawPath(paths[segment]!, silhouette);
+      }
+    }
+    if (diagnostic == CatTraceMotionDiagnostic.joints) {
+      final dots = [
+        CatTraceMotionSegment.foreNearUpper.pivot,
+        const Offset(.125, .360),
+        CatTraceMotionSegment.hindNearUpper.pivot,
+        const Offset(.750, .350),
+        CatTraceMotionSegment.tailRoot.pivot,
+        const Offset(.800, .225),
+        const Offset(.895, .215),
+      ];
+      for (final dot in dots) {
+        canvas.drawCircle(
+          dot,
+          2.5 / scale,
+          Paint()
+            ..color = const Color(0xFF4ECDC4)
+            ..isAntiAlias = true,
+        );
+      }
+    }
+    if (diagnostic == CatTraceMotionDiagnostic.seamOverlap) {
+      const colors = [
+        Color(0xFF4ECDC4),
+        Color(0xFFF6C445),
+        Color(0xFFB388FF),
+        Color(0xFFFF8A65),
+        Color(0xFF80CBC4),
+        Color(0xFFFFCC80),
+      ];
+      var index = 0;
+      for (final segment in CatTraceMotionSegment.values) {
+        canvas.drawPath(
+          paths[segment]!,
+          Paint()
+            ..color = colors[index++ % colors.length]
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1 / scale
+            ..isAntiAlias = true,
+        );
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CatTraceMotionPainter oldDelegate) =>
+      oldDelegate.motion != motion ||
+      oldDelegate.sample != sample ||
+      oldDelegate.diagnostic != diagnostic ||
       oldDelegate.presentationScale != presentationScale;
 }
 
