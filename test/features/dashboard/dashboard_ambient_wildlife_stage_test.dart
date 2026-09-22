@@ -428,7 +428,7 @@ void main() {
   );
 
   test(
-    'V5 CAT neutral anatomy is a deterministic, independent feline profile',
+    'V5 CAT neutral anatomy is deterministic, independent, and structurally safe',
     () {
       final cat = wildlifeNeutralCatGeometry;
 
@@ -437,8 +437,8 @@ void main() {
       expect(cat.headBounds.center.dx, greaterThan(cat.torsoBounds.center.dx));
       expect(cat.tailTip.dx, lessThan(cat.torsoBounds.left));
 
-      // A shallow torso over grounded, long limbs prevents the former
-      // barrel-body/short-leg V4 reading at production scale.
+      // These are broad safety envelopes only. Static contour refinement does
+      // not accept or freeze final CAT proportions before motion integration.
       final torsoLength = cat.torsoBounds.width;
       final torsoDepth = cat.torsoBounds.height;
       final foreLegLength = cat.shoulder.dy.abs();
@@ -447,6 +447,19 @@ void main() {
       expect(foreLegLength / torsoDepth, greaterThan(.85));
       expect(hindLegLength / torsoDepth, greaterThan(.85));
       expect(cat.headBounds.width, lessThan(torsoLength * .70));
+
+      expect(
+        cat.curvedContourRegions,
+        containsAll({
+          'skullNeck',
+          'neckShoulder',
+          'dorsalBack',
+          'chestAbdomen',
+          'abdominalTuck',
+          'thighHock',
+          'tailEnvelope',
+        }),
+      );
 
       // The rear chain bends through a hock rather than terminating as a
       // straight pillar; both compact paws share the ground baseline.

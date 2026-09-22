@@ -980,6 +980,7 @@ class WildlifeNeutralCatGeometry {
     required this.tailTip,
     required this.tailThickness,
     required this.components,
+    required this.curvedContourRegions,
   });
 
   final Rect torsoBounds;
@@ -993,6 +994,11 @@ class WildlifeNeutralCatGeometry {
   final Offset tailTip;
   final double tailThickness;
   final List<WildlifeNeutralCatComponent> components;
+
+  /// Named organic regions reconstructed with Bezier contours at render time.
+  /// The normalized component points remain topology guards; they are not
+  /// exposed as straight visual edges.
+  final Set<String> curvedContourRegions;
 }
 
 /// A closed, normalized CAT-neutral component. Components are intentionally
@@ -1081,6 +1087,15 @@ const wildlifeNeutralCatGeometry = WildlifeNeutralCatGeometry(
   tailRoot: Offset(-1.02, -.18),
   tailTip: Offset(-2.30, -.74),
   tailThickness: .07,
+  curvedContourRegions: {
+    'skullNeck',
+    'neckShoulder',
+    'dorsalBack',
+    'chestAbdomen',
+    'abdominalTuck',
+    'thighHock',
+    'tailEnvelope',
+  },
   components: [
     WildlifeNeutralCatComponent(
       name: 'core',
@@ -1253,7 +1268,9 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     if (neutral != null && !size.isEmpty) {
       _drawNeutral(
         canvas: canvas,
-        silhouette: Paint()..color = palette.silhouette,
+        silhouette: Paint()
+          ..color = palette.silhouette
+          ..isAntiAlias = true,
         size: size,
         kind: neutral,
       );
@@ -1267,7 +1284,9 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     final x = event.leftToRight
         ? -30 + travel * t
         : size.width + 30 - travel * t;
-    final silhouette = Paint()..color = palette.silhouette;
+    final silhouette = Paint()
+      ..color = palette.silhouette
+      ..isAntiAlias = true;
     switch (event.kind) {
       case WildlifeKind.cat:
         _withDirection(canvas, Offset(x, size.height - 5), direction, () {
@@ -1329,10 +1348,10 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     });
   }
 
-  /// V5.0.1 CAT neutral is independent of the run cycle. It intentionally
-  /// layers safe, closed filled regions with deep anatomical root overlap:
-  /// far limbs, tail, core mass, then near limbs. This prevents the V5 single
-  /// contour from folding back through its own tail and leg concavities.
+  /// V5.0.2 CAT neutral is independent of the run cycle. It intentionally
+  /// layers safe, closed filled regions with deep anatomical root overlap.
+  /// The topology landmarks guard against folds, while the visible anatomy is
+  /// rebuilt as restrained Bezier contours rather than polygon edges.
   void _drawNeutralCat(Canvas canvas, Paint paint) {
     const s = 15.0;
     const order = [
@@ -1348,14 +1367,278 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
         component.name: component,
     };
     for (final name in order) {
-      final component = components[name]!;
-      final path = Path()
-        ..addPolygon([
-          for (final point in component.points)
-            Offset(point.dx * s, point.dy * s),
-        ], true);
-      canvas.drawPath(path, paint);
+      canvas.drawPath(_neutralCatContour(name, s, components[name]!), paint);
     }
+  }
+
+  Path _neutralCatContour(
+    String name,
+    double scale,
+    WildlifeNeutralCatComponent fallback,
+  ) {
+    final path = Path();
+    switch (name) {
+      case 'core':
+        path
+          ..moveTo(.86 * scale, -.64 * scale)
+          // Short muzzle, jaw, and rounded skull.
+          ..quadraticBezierTo(
+            .76 * scale,
+            -.73 * scale,
+            .66 * scale,
+            -.77 * scale,
+          )
+          // Ear tips are intentional, but their roots flow into the skull.
+          ..lineTo(.60 * scale, -1.02 * scale)
+          ..quadraticBezierTo(
+            .52 * scale,
+            -.86 * scale,
+            .46 * scale,
+            -.77 * scale,
+          )
+          ..lineTo(.25 * scale, -1.05 * scale)
+          ..quadraticBezierTo(
+            .20 * scale,
+            -.84 * scale,
+            .14 * scale,
+            -.72 * scale,
+          )
+          // Neck through shoulder and one low-amplitude dorsal line.
+          ..cubicTo(
+            -.06 * scale,
+            -.67 * scale,
+            -.30 * scale,
+            -.80 * scale,
+            -.53 * scale,
+            -.80 * scale,
+          )
+          ..cubicTo(
+            -.76 * scale,
+            -.80 * scale,
+            -.96 * scale,
+            -.70 * scale,
+            -1.07 * scale,
+            -.55 * scale,
+          )
+          // Pelvis into the curved chest/abdomen/tuck return.
+          ..cubicTo(
+            -1.11 * scale,
+            -.46 * scale,
+            -1.05 * scale,
+            -.34 * scale,
+            -.96 * scale,
+            -.30 * scale,
+          )
+          ..cubicTo(
+            -.78 * scale,
+            -.22 * scale,
+            -.60 * scale,
+            -.23 * scale,
+            -.45 * scale,
+            -.28 * scale,
+          )
+          ..cubicTo(
+            -.30 * scale,
+            -.35 * scale,
+            -.18 * scale,
+            -.43 * scale,
+            -.06 * scale,
+            -.44 * scale,
+          )
+          ..cubicTo(
+            .08 * scale,
+            -.46 * scale,
+            .17 * scale,
+            -.45 * scale,
+            .25 * scale,
+            -.54 * scale,
+          )
+          ..cubicTo(
+            .38 * scale,
+            -.66 * scale,
+            .63 * scale,
+            -.56 * scale,
+            .86 * scale,
+            -.64 * scale,
+          )
+          ..close();
+      case 'tail':
+        path
+          ..moveTo(-1.12 * scale, -.64 * scale)
+          ..cubicTo(
+            -1.48 * scale,
+            -.88 * scale,
+            -1.93 * scale,
+            -.96 * scale,
+            -2.30 * scale,
+            -.74 * scale,
+          )
+          ..quadraticBezierTo(
+            -2.38 * scale,
+            -.67 * scale,
+            -2.31 * scale,
+            -.61 * scale,
+          )
+          ..cubicTo(
+            -1.92 * scale,
+            -.49 * scale,
+            -1.46 * scale,
+            -.48 * scale,
+            -.94 * scale,
+            -.39 * scale,
+          )
+          ..quadraticBezierTo(
+            -1.04 * scale,
+            -.51 * scale,
+            -1.12 * scale,
+            -.64 * scale,
+          )
+          ..close();
+      case 'farHindLeg':
+        path
+          ..moveTo(-1.04 * scale, -.57 * scale)
+          ..cubicTo(
+            -.90 * scale,
+            -.59 * scale,
+            -.76 * scale,
+            -.52 * scale,
+            -.68 * scale,
+            -.39 * scale,
+          )
+          ..quadraticBezierTo(
+            -.76 * scale,
+            -.20 * scale,
+            -.66 * scale,
+            -.04 * scale,
+          )
+          ..quadraticBezierTo(-.57 * scale, .03 * scale, -.48 * scale, 0)
+          ..quadraticBezierTo(
+            -.43 * scale,
+            -.08 * scale,
+            -.54 * scale,
+            -.17 * scale,
+          )
+          ..cubicTo(
+            -.56 * scale,
+            -.33 * scale,
+            -.55 * scale,
+            -.48 * scale,
+            -.68 * scale,
+            -.57 * scale,
+          )
+          ..close();
+      case 'farForeLeg':
+        path
+          ..moveTo(-.10 * scale, -.54 * scale)
+          ..quadraticBezierTo(
+            .00 * scale,
+            -.59 * scale,
+            .08 * scale,
+            -.51 * scale,
+          )
+          ..cubicTo(
+            .13 * scale,
+            -.34 * scale,
+            .14 * scale,
+            -.18 * scale,
+            .11 * scale,
+            -.07 * scale,
+          )
+          ..quadraticBezierTo(.15 * scale, .03 * scale, .25 * scale, 0)
+          ..quadraticBezierTo(
+            .30 * scale,
+            -.08 * scale,
+            .21 * scale,
+            -.16 * scale,
+          )
+          ..cubicTo(
+            .19 * scale,
+            -.32 * scale,
+            .18 * scale,
+            -.47 * scale,
+            .17 * scale,
+            -.54 * scale,
+          )
+          ..close();
+      case 'nearHindLeg':
+        path
+          ..moveTo(-1.05 * scale, -.58 * scale)
+          ..cubicTo(
+            -.82 * scale,
+            -.61 * scale,
+            -.58 * scale,
+            -.55 * scale,
+            -.45 * scale,
+            -.39 * scale,
+          )
+          ..quadraticBezierTo(
+            -.47 * scale,
+            -.25 * scale,
+            -.62 * scale,
+            -.10 * scale,
+          )
+          ..quadraticBezierTo(
+            -.74 * scale,
+            -.01 * scale,
+            -.67 * scale,
+            .01 * scale,
+          )
+          ..quadraticBezierTo(-.56 * scale, .04 * scale, -.47 * scale, 0)
+          ..quadraticBezierTo(
+            -.34 * scale,
+            -.08 * scale,
+            -.44 * scale,
+            -.18 * scale,
+          )
+          ..cubicTo(
+            -.42 * scale,
+            -.34 * scale,
+            -.42 * scale,
+            -.50 * scale,
+            -.55 * scale,
+            -.60 * scale,
+          )
+          ..close();
+      case 'nearForeLeg':
+        path
+          ..moveTo(.03 * scale, -.56 * scale)
+          ..quadraticBezierTo(
+            .17 * scale,
+            -.60 * scale,
+            .24 * scale,
+            -.52 * scale,
+          )
+          ..cubicTo(
+            .31 * scale,
+            -.34 * scale,
+            .34 * scale,
+            -.18 * scale,
+            .31 * scale,
+            -.08 * scale,
+          )
+          ..quadraticBezierTo(.37 * scale, .04 * scale, .49 * scale, 0)
+          ..quadraticBezierTo(
+            .59 * scale,
+            -.08 * scale,
+            .43 * scale,
+            -.17 * scale,
+          )
+          ..cubicTo(
+            .37 * scale,
+            -.34 * scale,
+            .29 * scale,
+            -.48 * scale,
+            .24 * scale,
+            -.54 * scale,
+          )
+          ..close();
+      default:
+        path.addPolygon([
+          for (final landmark in fallback.points)
+            Offset(landmark.dx * scale, landmark.dy * scale),
+        ], true);
+    }
+    return path;
   }
 
   void _withDirection(
