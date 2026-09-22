@@ -2,6 +2,25 @@ import 'package:flutter/material.dart';
 
 import 'training_dot_matrix_title.dart';
 
+abstract final class TrainingLedBackGeometry {
+  const TrainingLedBackGeometry._();
+
+  static const matrixColumns = 9;
+  static const matrixRows = 7;
+  static const activeColumns = 6;
+  static const dotPitch = 2.4;
+  static const dotRadius = .78;
+  static const pattern = <String>[
+    '000001000',
+    '000111000',
+    '001111000',
+    '111111000',
+    '001111000',
+    '000111000',
+    '000001000',
+  ];
+}
+
 /// A standard Back affordance rendered as a compact Training LED matrix.
 ///
 /// Only activation of the visible AppBar control uses the scroll-out motion;
@@ -104,31 +123,25 @@ class _LedTrianglePainter extends CustomPainter {
 
   final Color activeColor;
 
-  static const _rows = <String>[
-    '0001000',
-    '0011000',
-    '0111000',
-    '1111000',
-    '0111000',
-    '0011000',
-    '0001000',
-  ];
-
   @override
   void paint(Canvas canvas, Size size) {
-    const pitch = 2.4;
-    const radius = .78;
+    const pitch = TrainingLedBackGeometry.dotPitch;
+    const radius = TrainingLedBackGeometry.dotRadius;
     final origin = Offset(
-      (size.width - 4 * pitch) / 2,
-      (size.height - 7 * pitch) / 2,
+      (size.width - TrainingLedBackGeometry.activeColumns * pitch) / 2,
+      (size.height - TrainingLedBackGeometry.matrixRows * pitch) / 2,
     );
     final bloom = Paint()..color = activeColor.withValues(alpha: .24);
     final body = Paint()..color = activeColor;
     final core = Paint()
       ..color = Color.lerp(activeColor, Colors.white, .72) ?? Colors.white;
-    for (var row = 0; row < _rows.length; row++) {
-      for (var column = 0; column < _rows[row].length; column++) {
-        if (_rows[row][column] != '1') continue;
+    for (var row = 0; row < TrainingLedBackGeometry.pattern.length; row++) {
+      for (
+        var column = 0;
+        column < TrainingLedBackGeometry.pattern[row].length;
+        column++
+      ) {
+        if (TrainingLedBackGeometry.pattern[row][column] != '1') continue;
         final center = Offset(
           origin.dx + column * pitch + radius,
           origin.dy + row * pitch + radius,

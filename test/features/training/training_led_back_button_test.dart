@@ -5,6 +5,22 @@ import 'package:or_app/features/training/widgets/training_dot_matrix_title.dart'
 import 'package:or_app/features/training/widgets/training_led_back_button.dart';
 
 void main() {
+  test('widens only the LED triangle matrix rear/base', () {
+    expect(TrainingLedBackGeometry.matrixColumns, 9);
+    expect(TrainingLedBackGeometry.matrixRows, 7);
+    expect(TrainingLedBackGeometry.activeColumns, 6);
+    expect(TrainingLedBackGeometry.dotPitch, 2.4);
+    expect(TrainingLedBackGeometry.dotRadius, .78);
+    expect(TrainingLedBackGeometry.pattern, hasLength(7));
+    expect(
+      TrainingLedBackGeometry.pattern.every(
+        (row) => row.length == TrainingLedBackGeometry.matrixColumns,
+      ),
+      isTrue,
+    );
+    expect(TrainingLedBackGeometry.pattern[3], '111111000');
+  });
+
   testWidgets('renders a white LED triangle with standard Back semantics', (
     tester,
   ) async {

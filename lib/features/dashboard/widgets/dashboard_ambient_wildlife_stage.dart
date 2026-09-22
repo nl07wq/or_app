@@ -314,12 +314,14 @@ class DashboardAmbientWildlifePreviewStage extends StatefulWidget {
     required this.requestId,
     this.neutralKind,
     this.neutralLeftToRight = true,
+    this.neutralScale = 1,
   });
 
   final WildlifeEventPlan? plan;
   final int requestId;
   final WildlifeKind? neutralKind;
   final bool neutralLeftToRight;
+  final double neutralScale;
 
   @override
   State<DashboardAmbientWildlifePreviewStage> createState() =>
@@ -413,6 +415,7 @@ class _DashboardAmbientWildlifePreviewStageState
                       palette: DashboardAmbientWildlifePalette.dark,
                       neutralKind: _reducedMotion ? null : widget.neutralKind,
                       neutralLeftToRight: widget.neutralLeftToRight,
+                      neutralScale: widget.neutralScale,
                     ),
                     willChange:
                         _activePlan != null && widget.neutralKind == null,
@@ -976,6 +979,7 @@ class WildlifeNeutralCatGeometry {
     required this.tailRoot,
     required this.tailTip,
     required this.tailThickness,
+    required this.components,
   });
 
   final Rect torsoBounds;
@@ -988,11 +992,84 @@ class WildlifeNeutralCatGeometry {
   final Offset tailRoot;
   final Offset tailTip;
   final double tailThickness;
+  final List<WildlifeNeutralCatComponent> components;
+}
+
+/// A closed, normalized CAT-neutral component. Components are intentionally
+/// safe filled regions; visual unity comes from root overlap, not a fragile
+/// single winding path across every concave anatomical feature.
+@immutable
+class WildlifeNeutralCatComponent {
+  const WildlifeNeutralCatComponent({required this.name, required this.points});
+
+  final String name;
+  final List<Offset> points;
+
+  bool get hasFinitePoints =>
+      points.every((point) => point.dx.isFinite && point.dy.isFinite);
+
+  double get signedArea {
+    var sum = 0.0;
+    for (var index = 0; index < points.length; index++) {
+      final current = points[index];
+      final next = points[(index + 1) % points.length];
+      sum += current.dx * next.dy - next.dx * current.dy;
+    }
+    return sum / 2;
+  }
+
+  /// Closed convex/concave component outlines must never cross themselves.
+  /// Adjacent segments share an intended endpoint and are ignored.
+  bool get hasSelfIntersection {
+    for (var first = 0; first < points.length; first++) {
+      final firstNext = (first + 1) % points.length;
+      for (var second = first + 1; second < points.length; second++) {
+        final secondNext = (second + 1) % points.length;
+        if (first == second ||
+            firstNext == second ||
+            secondNext == first ||
+            first == 0 && secondNext == 0) {
+          continue;
+        }
+        if (_segmentsIntersect(
+          points[first],
+          points[firstNext],
+          points[second],
+          points[secondNext],
+        )) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  Rect get bounds {
+    final xs = points.map((point) => point.dx);
+    final ys = points.map((point) => point.dy);
+    return Rect.fromLTRB(
+      xs.reduce(math.min),
+      ys.reduce(math.min),
+      xs.reduce(math.max),
+      ys.reduce(math.max),
+    );
+  }
+}
+
+double _cross(Offset a, Offset b, Offset c) =>
+    (b.dx - a.dx) * (c.dy - a.dy) - (b.dy - a.dy) * (c.dx - a.dx);
+
+bool _segmentsIntersect(Offset a, Offset b, Offset c, Offset d) {
+  final first = _cross(a, b, c);
+  final second = _cross(a, b, d);
+  final third = _cross(c, d, a);
+  final fourth = _cross(c, d, b);
+  return first * second < 0 && third * fourth < 0;
 }
 
 /// V5 CAT-neutral source-of-truth geometry. Positive x is the travel-facing
-/// direction; y=0 is the ground baseline. The single painted outer envelope
-/// below is derived from these broad anatomical regions, not run-cycle poses.
+/// direction; y=0 is the ground baseline. It is not derived from run-cycle
+/// poses. V5.0.1 uses overlapping closed components to avoid self-intersection.
 const wildlifeNeutralCatGeometry = WildlifeNeutralCatGeometry(
   torsoBounds: Rect.fromLTRB(-1.02, -.55, .18, -.18),
   headBounds: Rect.fromLTRB(.15, -.88, .93, -.28),
@@ -1002,8 +1079,99 @@ const wildlifeNeutralCatGeometry = WildlifeNeutralCatGeometry(
   hindPaw: Offset(-.39, 0),
   hock: Offset(-.48, -.34),
   tailRoot: Offset(-1.02, -.18),
-  tailTip: Offset(-2.30, -.42),
+  tailTip: Offset(-2.30, -.74),
   tailThickness: .07,
+  components: [
+    WildlifeNeutralCatComponent(
+      name: 'core',
+      points: [
+        Offset(.84, -.65),
+        Offset(.65, -.78),
+        Offset(.60, -1.02),
+        Offset(.46, -.76),
+        Offset(.25, -1.05),
+        Offset(.14, -.72),
+        Offset(-.05, -.66),
+        Offset(-.50, -.82),
+        Offset(-.98, -.68),
+        Offset(-1.10, -.48),
+        Offset(-1.04, -.30),
+        Offset(-.75, -.23),
+        Offset(-.45, -.27),
+        Offset(-.10, -.43),
+        Offset(.12, -.43),
+        Offset(.27, -.60),
+        Offset(.54, -.55),
+      ],
+    ),
+    WildlifeNeutralCatComponent(
+      name: 'farHindLeg',
+      points: [
+        Offset(-1.04, -.57),
+        Offset(-.82, -.55),
+        Offset(-.66, -.35),
+        Offset(-.72, -.12),
+        Offset(-.66, 0),
+        Offset(-.48, 0),
+        Offset(-.45, -.09),
+        Offset(-.55, -.16),
+        Offset(-.48, -.38),
+        Offset(-.68, -.57),
+      ],
+    ),
+    WildlifeNeutralCatComponent(
+      name: 'farForeLeg',
+      points: [
+        Offset(-.10, -.54),
+        Offset(.05, -.54),
+        Offset(.12, -.10),
+        Offset(.11, 0),
+        Offset(.24, 0),
+        Offset(.26, -.10),
+        Offset(.17, -.54),
+      ],
+    ),
+    WildlifeNeutralCatComponent(
+      name: 'tail',
+      points: [
+        Offset(-1.10, -.65),
+        Offset(-1.58, -.93),
+        Offset(-2.30, -.74),
+        Offset(-2.35, -.62),
+        Offset(-1.65, -.54),
+        Offset(-.94, -.39),
+      ],
+    ),
+    WildlifeNeutralCatComponent(
+      name: 'nearHindLeg',
+      points: [
+        Offset(-1.05, -.58),
+        Offset(-.73, -.58),
+        Offset(-.45, -.38),
+        Offset(-.48, -.23),
+        Offset(-.62, -.10),
+        Offset(-.67, 0),
+        Offset(-.48, 0),
+        Offset(-.36, -.08),
+        Offset(-.44, -.17),
+        Offset(-.34, -.42),
+        Offset(-.55, -.60),
+      ],
+    ),
+    WildlifeNeutralCatComponent(
+      name: 'nearForeLeg',
+      points: [
+        Offset(.03, -.56),
+        Offset(.22, -.54),
+        Offset(.32, -.12),
+        Offset(.31, 0),
+        Offset(.48, 0),
+        Offset(.55, -.08),
+        Offset(.42, -.15),
+        Offset(.24, -.54),
+      ],
+    ),
+  ],
 );
 
 WildlifeQuadrupedGeometry wildlifeQuadrupedGeometryFor(
@@ -1058,6 +1226,7 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     required this.palette,
     this.neutralKind,
     this.neutralLeftToRight = true,
+    this.neutralScale = 1,
   }) : super(repaint: progress);
 
   final WildlifeEventPlan? plan;
@@ -1065,6 +1234,7 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
   final DashboardAmbientWildlifePalette palette;
   final WildlifeKind? neutralKind;
   final bool neutralLeftToRight;
+  final double neutralScale;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1140,7 +1310,10 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     _withDirection(canvas, origin, direction, () {
       switch (kind) {
         case WildlifeKind.cat:
+          canvas.save();
+          canvas.scale(neutralScale);
           _drawNeutralCat(canvas, silhouette);
+          canvas.restore();
         case WildlifeKind.fox:
           _drawQuadruped(
             canvas,
@@ -1156,46 +1329,33 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     });
   }
 
-  /// V5 CAT neutral is intentionally independent of the run-cycle renderer.
-  /// One outer envelope carries the neck, torso, legs, digitigrade hind limb,
-  /// abdomen, and tail: it is not a collection of visible primitives.
+  /// V5.0.1 CAT neutral is independent of the run cycle. It intentionally
+  /// layers safe, closed filled regions with deep anatomical root overlap:
+  /// far limbs, tail, core mass, then near limbs. This prevents the V5 single
+  /// contour from folding back through its own tail and leg concavities.
   void _drawNeutralCat(Canvas canvas, Paint paint) {
     const s = 15.0;
-    final cat = Path()
-      // nose, forehead and compact paired ears
-      ..moveTo(s * .76, -s * .68)
-      ..lineTo(s * .93, -s * .62)
-      ..lineTo(s * .82, -s * .54)
-      ..lineTo(s * .73, -s * .38)
-      ..lineTo(s * .62, -s * .85)
-      ..lineTo(s * .48, -s * .47)
-      ..lineTo(s * .27, -s * .88)
-      ..lineTo(s * .15, -s * .43)
-      // short neck, shoulder, shallow back and pelvis
-      ..quadraticBezierTo(s * .02, -s * .42, -s * .06, -s * .34)
-      ..quadraticBezierTo(-s * .32, -s * .55, -s * .66, -s * .43)
-      ..quadraticBezierTo(-s * .91, -s * .36, -s * 1.02, -s * .18)
-      // long slender tail: outer and return contours
-      ..quadraticBezierTo(-s * 1.76, -s * .02, -s * 2.30, -s * .42)
-      ..quadraticBezierTo(-s * 1.88, -s * .04, -s * 1.02, -s * .08)
-      // thigh, knee, angled hock and compact rear paw
-      ..quadraticBezierTo(-s * .86, -s * .10, -s * .70, -s * .18)
-      ..lineTo(-s * .55, -s * .42)
-      ..lineTo(-s * .43, -s * .34)
-      ..lineTo(-s * .48, 0)
-      ..lineTo(-s * .30, 0)
-      ..lineTo(-s * .20, -s * .07)
-      // abdominal tuck and long forelimb
-      ..quadraticBezierTo(-s * .12, -s * .30, s * .05, -s * .28)
-      ..lineTo(s * .16, 0)
-      ..lineTo(s * .34, 0)
-      ..lineTo(s * .40, -s * .07)
-      ..lineTo(s * .29, -s * .36)
-      // chest and lower neck reconnect into the muzzle
-      ..quadraticBezierTo(s * .49, s * .01, s * .54, -s * .28)
-      ..quadraticBezierTo(s * .67, -s * .38, s * .76, -s * .68)
-      ..close();
-    canvas.drawPath(cat, paint);
+    const order = [
+      'farHindLeg',
+      'farForeLeg',
+      'tail',
+      'core',
+      'nearHindLeg',
+      'nearForeLeg',
+    ];
+    final components = {
+      for (final component in wildlifeNeutralCatGeometry.components)
+        component.name: component,
+    };
+    for (final name in order) {
+      final component = components[name]!;
+      final path = Path()
+        ..addPolygon([
+          for (final point in component.points)
+            Offset(point.dx * s, point.dy * s),
+        ], true);
+      canvas.drawPath(path, paint);
+    }
   }
 
   void _withDirection(
@@ -1680,5 +1840,6 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
       oldDelegate.plan != plan ||
       oldDelegate.palette != palette ||
       oldDelegate.neutralKind != neutralKind ||
-      oldDelegate.neutralLeftToRight != neutralLeftToRight;
+      oldDelegate.neutralLeftToRight != neutralLeftToRight ||
+      oldDelegate.neutralScale != neutralScale;
 }

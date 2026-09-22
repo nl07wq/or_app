@@ -183,6 +183,7 @@ class _AmbientWildlifeSandboxSectionState
   WildlifeEventPlan? _plan;
   var _leftToRight = true;
   var _neutral = false;
+  var _neutralZoomed = false;
   var _requestId = 0;
   var _nextAutoKind = 0;
 
@@ -225,6 +226,12 @@ class _AmbientWildlifeSandboxSectionState
                     ? (_plan?.kind ?? WildlifeKind.cat)
                     : null,
                 neutralLeftToRight: _leftToRight,
+                neutralScale:
+                    _neutral &&
+                        (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat &&
+                        _neutralZoomed
+                    ? 2
+                    : 1,
               ),
               AppSpacing.gapMD,
               const Text('MODE'),
@@ -250,6 +257,33 @@ class _AmbientWildlifeSandboxSectionState
                   ),
                 ],
               ),
+              if (_neutral &&
+                  (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat) ...[
+                AppSpacing.gapMD,
+                const Text('CAT NEUTRAL INSPECTION'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-neutral-normal'),
+                        label: 'NORMAL',
+                        selected: !_neutralZoomed,
+                        onPressed: () => setState(() => _neutralZoomed = false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-neutral-2x'),
+                        label: '2× PREVIEW',
+                        selected: _neutralZoomed,
+                        onPressed: () => setState(() => _neutralZoomed = true),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               AppSpacing.gapMD,
               const Text('DIRECTION'),
               AppSpacing.gapSM,

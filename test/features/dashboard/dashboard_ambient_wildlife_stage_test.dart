@@ -464,6 +464,66 @@ void main() {
       expect(attachmentEnvelope.contains(cat.hip), isTrue);
       expect(attachmentEnvelope.contains(cat.tailRoot), isTrue);
       expect(cat.headBounds.left, lessThanOrEqualTo(cat.torsoBounds.right));
+
+      expect(
+        cat.components.map((component) => component.name),
+        containsAll([
+          'core',
+          'farHindLeg',
+          'farForeLeg',
+          'tail',
+          'nearHindLeg',
+          'nearForeLeg',
+        ]),
+      );
+      for (final component in cat.components) {
+        expect(component.hasFinitePoints, isTrue, reason: component.name);
+        expect(
+          component.bounds.width,
+          greaterThan(.05),
+          reason: component.name,
+        );
+        expect(
+          component.bounds.height,
+          greaterThan(.05),
+          reason: component.name,
+        );
+        expect(
+          component.signedArea.abs(),
+          greaterThan(.005),
+          reason: component.name,
+        );
+        expect(component.hasSelfIntersection, isFalse, reason: component.name);
+      }
+
+      final core = cat.components.singleWhere(
+        (component) => component.name == 'core',
+      );
+      expect(core.bounds.inflate(.08).contains(cat.shoulder), isTrue);
+      expect(core.bounds.inflate(.08).contains(cat.hip), isTrue);
+      expect(core.bounds.inflate(.08).contains(cat.tailRoot), isTrue);
+
+      // Horizontal mirroring preserves every component's finite bounds and
+      // area magnitude; only winding direction changes.
+      for (final component in cat.components) {
+        final mirrored = component.points
+            .map((point) => Offset(-point.dx, point.dy))
+            .toList(growable: false);
+        final minX = mirrored
+            .map((point) => point.dx)
+            .reduce((a, b) => a < b ? a : b);
+        final maxX = mirrored
+            .map((point) => point.dx)
+            .reduce((a, b) => a > b ? a : b);
+        final minY = mirrored
+            .map((point) => point.dy)
+            .reduce((a, b) => a < b ? a : b);
+        final maxY = mirrored
+            .map((point) => point.dy)
+            .reduce((a, b) => a > b ? a : b);
+        expect(maxX - minX, closeTo(component.bounds.width, .000001));
+        expect(maxY - minY, closeTo(component.bounds.height, .000001));
+      }
     },
   );
 

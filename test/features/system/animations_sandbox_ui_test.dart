@@ -184,6 +184,26 @@ void main() {
               as DashboardAmbientWildlifePainter;
       expect(neutral.neutralKind, WildlifeKind.cat);
       expect(neutral.plan, isNull);
+      expect(
+        find.byKey(const ValueKey('wildlife-preview-neutral-normal')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('wildlife-preview-neutral-2x')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('wildlife-preview-neutral-2x')),
+      );
+      await tester.pump();
+      final zoomedNeutral =
+          tester
+                  .widget<CustomPaint>(
+                    find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
+                  )
+                  .painter!
+              as DashboardAmbientWildlifePainter;
+      expect(zoomedNeutral.neutralScale, 2);
 
       await tester.tap(
         find.byKey(const ValueKey('wildlife-preview-mode-motion')),
