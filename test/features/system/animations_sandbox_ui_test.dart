@@ -288,6 +288,69 @@ void main() {
     expect(metrics.reconstructedPixels, greaterThan(0));
   });
 
+  test('CAT TRACE articulation is deterministic and retains root overlap', () {
+    final decomposition = CatTraceDecomposition.medium();
+    final original = decomposition.originalPath();
+    const baselineIou = .9998342175;
+    const baselineDisagreement = .0000305176;
+
+    for (final target in CatTraceArticulationTarget.values) {
+      expect(target.pivot.dx.isFinite && target.pivot.dy.isFinite, isTrue);
+      expect(target.maximumAngleDegrees, greaterThan(0));
+      for (final position in CatTraceArticulationPosition.values) {
+        final pose = CatTraceArticulationPose(
+          target: target,
+          position: position,
+        );
+        expect(
+          pose.angleDegrees,
+          target.maximumAngleDegrees * position.multiplier,
+        );
+        final component = decomposition.components.singleWhere(
+          (candidate) => candidate.id == target.componentId,
+        );
+        final transformed = pose.componentPath(
+          component: component,
+          original: original,
+        );
+        final bounds = transformed.getBounds();
+        expect(
+          [
+            bounds.left,
+            bounds.top,
+            bounds.right,
+            bounds.bottom,
+          ].every((value) => value.isFinite),
+          isTrue,
+        );
+        expect(
+          CatTraceArticulationIntegrity.fromPose(
+            decomposition: decomposition,
+            pose: pose,
+          ).isStructurallyValid,
+          isTrue,
+        );
+      }
+    }
+
+    const neutral = CatTraceArticulationPose(
+      target: CatTraceArticulationTarget.foreNear,
+      position: CatTraceArticulationPosition.neutral,
+    );
+    final component = decomposition.components.singleWhere(
+      (candidate) => candidate.id == neutral.target.componentId,
+    );
+    expect(
+      neutral
+          .componentPath(component: component, original: original)
+          .getBounds(),
+      component.pathFrom(original).getBounds(),
+    );
+    final roundTrip = decomposition.measure(width: 256, height: 128);
+    expect(roundTrip.iou, closeTo(baselineIou, .000000001));
+    expect(roundTrip.disagreement, closeTo(baselineDisagreement, .000000001));
+  });
+
   testWidgets('CAT TRACE decomposition exposes C/C′ static comparison modes', (
     tester,
   ) async {
@@ -332,6 +395,60 @@ void main() {
     }
   });
 
+  testWidgets('CAT TRACE articulation controls are static and resettable', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('cat-trace-articulation-poc-section')),
+      350,
+    );
+    final canvas = find.byKey(const ValueKey('cat-trace-articulation-canvas'));
+    expect(canvas, findsOneWidget);
+    for (final key in [
+      'cat-trace-articulation-foreNear',
+      'cat-trace-articulation-hindNear',
+      'cat-trace-articulation-tail',
+      'cat-trace-articulation-headNeck',
+      'cat-trace-articulation-min',
+      'cat-trace-articulation-neutral',
+      'cat-trace-articulation-max',
+      'cat-trace-articulation-reset',
+      'cat-trace-articulation-normal',
+      'cat-trace-articulation-rootPivot',
+      'cat-trace-articulation-seamOverlap',
+      'cat-trace-articulation-scale-1',
+      'cat-trace-articulation-scale-2',
+      'cat-trace-articulation-scale-4',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
+    for (final key in [
+      'cat-trace-articulation-tail',
+      'cat-trace-articulation-max',
+      'cat-trace-articulation-rootPivot',
+      'cat-trace-articulation-scale-4',
+      'cat-trace-articulation-reset',
+    ]) {
+      final control = find.byKey(ValueKey(key));
+      await tester.ensureVisible(control);
+      await tester.tap(control);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }
+    expect(
+      tester.widget<CustomPaint>(canvas).painter,
+      isA<CatTraceArticulationPainter>(),
+    );
+    expect(find.textContaining('FORE NEAR · 0°'), findsOneWidget);
+  });
+
   testWidgets(
     'CAT TRACE POC comparison controls remain usable at narrow widths',
     (tester) async {
@@ -356,6 +473,31 @@ void main() {
       }
     },
   );
+
+  testWidgets('CAT TRACE articulation controls remain usable responsively', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 2600);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-trace-articulation-poc-section')),
+        350,
+      );
+      expect(
+        find.byKey(const ValueKey('cat-trace-articulation-canvas')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('cat-trace-articulation-reset')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets(
     'ANIMATIONS SANDBOX provides immediate production wildlife previews',

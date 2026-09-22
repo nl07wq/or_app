@@ -467,6 +467,9 @@ class _CatTracePipelinePocSectionState
     width: 256,
     height: 128,
   );
+  var _articulationTarget = CatTraceArticulationTarget.foreNear;
+  var _articulationPosition = CatTraceArticulationPosition.neutral;
+  var _articulationDiagnostic = CatTraceArticulationDiagnostic.normal;
 
   @override
   Widget build(BuildContext context) {
@@ -489,6 +492,14 @@ class _CatTracePipelinePocSectionState
         presentationScale: _inspectionScale,
       ),
     };
+    final articulationPose = CatTraceArticulationPose(
+      target: _articulationTarget,
+      position: _articulationPosition,
+    );
+    final articulationIntegrity = CatTraceArticulationIntegrity.fromPose(
+      decomposition: _decomposition,
+      pose: articulationPose,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -554,9 +565,131 @@ class _CatTracePipelinePocSectionState
                           'IoU ${(level.iou * 100).toStringAsFixed(2)}%',
                 key: const ValueKey('cat-trace-poc-metrics'),
               ),
+              if (_mode == _CatTracePocMode.diff) ...[
+                AppSpacing.gapSM,
+                const Text(
+                  'RAW XOR · 4× may make anti-aliased subpixel differences appear more prominent.',
+                ),
+              ],
               AppSpacing.gapSM,
               const Text(
                 'Original asset is not bundled. Production Wildlife is not connected.',
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapMD,
+        OperationCard(
+          key: const ValueKey('cat-trace-articulation-poc-section'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('ARTICULATION POC · SINGLE COMPONENT · STATIC'),
+              AppSpacing.gapSM,
+              SizedBox(
+                height: 190,
+                child: CustomPaint(
+                  key: const ValueKey('cat-trace-articulation-canvas'),
+                  painter: CatTraceArticulationPainter(
+                    decomposition: _decomposition,
+                    pose: articulationPose,
+                    diagnostic: _articulationDiagnostic,
+                    presentationScale: _inspectionScale,
+                  ),
+                ),
+              ),
+              AppSpacing.gapSM,
+              const Text('TARGET'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final target in CatTraceArticulationTarget.values)
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-articulation-${target.name}'),
+                      label: target.label,
+                      selected: _articulationTarget == target,
+                      onPressed: () => setState(() {
+                        _articulationTarget = target;
+                        _articulationPosition =
+                            CatTraceArticulationPosition.neutral;
+                      }),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('ANGLE'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final position in CatTraceArticulationPosition.values)
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-articulation-${position.name}'),
+                      label: position.label,
+                      selected: _articulationPosition == position,
+                      onPressed: () =>
+                          setState(() => _articulationPosition = position),
+                    ),
+                  _TracePocChoice(
+                    key: const ValueKey('cat-trace-articulation-reset'),
+                    label: 'NEUTRAL RESET',
+                    selected: false,
+                    onPressed: () => setState(() {
+                      _articulationTarget = CatTraceArticulationTarget.foreNear;
+                      _articulationPosition =
+                          CatTraceArticulationPosition.neutral;
+                    }),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('DIAGNOSTIC'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final diagnostic
+                      in CatTraceArticulationDiagnostic.values)
+                    _TracePocChoice(
+                      key: ValueKey(
+                        'cat-trace-articulation-${diagnostic.name}',
+                      ),
+                      label: diagnostic.label,
+                      selected: _articulationDiagnostic == diagnostic,
+                      onPressed: () =>
+                          setState(() => _articulationDiagnostic = diagnostic),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('ARTICULATION SCALE'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final scale in [1, 2, 4])
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-articulation-scale-$scale'),
+                      label: '$scale×',
+                      selected: _inspectionScale == scale,
+                      onPressed: () => setState(() => _inspectionScale = scale),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Text(
+                '${_articulationTarget.label} · '
+                '${articulationPose.angleDegrees.toStringAsFixed(0)}° · '
+                '${articulationIntegrity.isStructurallyValid ? 'ROOT OVERLAP OK' : 'ROOT OVERLAP FAIL'}',
+                key: const ValueKey('cat-trace-articulation-metrics'),
+              ),
+              AppSpacing.gapSM,
+              const Text(
+                'Rigid pivot test only. No gait, interpolation, or Production Wildlife connection.',
               ),
             ],
           ),
@@ -1036,6 +1169,115 @@ class CatTraceDecompositionPainter extends CustomPainter {
   bool shouldRepaint(covariant CatTraceDecompositionPainter oldDelegate) =>
       oldDelegate.decomposition != decomposition ||
       oldDelegate.display != display ||
+      oldDelegate.presentationScale != presentationScale;
+}
+
+enum CatTraceArticulationDiagnostic { normal, rootPivot, seamOverlap }
+
+extension on CatTraceArticulationDiagnostic {
+  String get label => switch (this) {
+    CatTraceArticulationDiagnostic.normal => 'NORMAL',
+    CatTraceArticulationDiagnostic.rootPivot => 'ROOT / PIVOT',
+    CatTraceArticulationDiagnostic.seamOverlap => 'SEAM / OVERLAP',
+  };
+}
+
+/// Sandbox-only rigid articulation view. A single selected component receives
+/// a pivot transform; every other C' component stays at its neutral geometry.
+class CatTraceArticulationPainter extends CustomPainter {
+  const CatTraceArticulationPainter({
+    required this.decomposition,
+    required this.pose,
+    required this.diagnostic,
+    required this.presentationScale,
+  });
+
+  final CatTraceDecomposition decomposition;
+  final CatTraceArticulationPose pose;
+  final CatTraceArticulationDiagnostic diagnostic;
+  final int presentationScale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..color = const Color(0xFF101010)
+        ..isAntiAlias = true,
+    );
+    final points = decomposition.sourceLevel.points;
+    final maxY = points.map((point) => point.dy).reduce(math.max);
+    final base = math.min(size.width * .88 / 4, size.height * .82 / (maxY * 4));
+    final scale = base * presentationScale;
+    canvas.save();
+    canvas.translate(
+      (size.width - scale) / 2,
+      (size.height - maxY * scale) / 2,
+    );
+    canvas.scale(scale);
+
+    final original = decomposition.originalPath();
+    final paths = [
+      for (final component in decomposition.components)
+        pose.componentPath(component: component, original: original),
+    ];
+    final silhouette = Paint()
+      ..color = const Color(0xFFB8B8B8)
+      ..isAntiAlias = true;
+    for (final path in paths) {
+      canvas.drawPath(path, silhouette);
+    }
+
+    if (diagnostic == CatTraceArticulationDiagnostic.rootPivot) {
+      final integrity = CatTraceArticulationIntegrity.fromPose(
+        decomposition: decomposition,
+        pose: pose,
+      );
+      canvas.drawRect(
+        integrity.rootOverlapBounds,
+        Paint()
+          ..color = const Color(0xFFF6C445)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1 / scale
+          ..isAntiAlias = true,
+      );
+      canvas.drawCircle(
+        pose.target.pivot,
+        3 / scale,
+        Paint()
+          ..color = const Color(0xFF4ECDC4)
+          ..isAntiAlias = true,
+      );
+    }
+    if (diagnostic == CatTraceArticulationDiagnostic.seamOverlap) {
+      const colors = [
+        Color(0xFF4ECDC4),
+        Color(0xFFF6C445),
+        Color(0xFFB388FF),
+        Color(0xFFFF8A65),
+        Color(0xFF80CBC4),
+        Color(0xFFFFCC80),
+        Color(0xFF90CAF9),
+      ];
+      for (var index = 0; index < paths.length; index++) {
+        canvas.drawPath(
+          paths[index],
+          Paint()
+            ..color = colors[index]
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1 / scale
+            ..isAntiAlias = true,
+        );
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CatTraceArticulationPainter oldDelegate) =>
+      oldDelegate.decomposition != decomposition ||
+      oldDelegate.pose != pose ||
+      oldDelegate.diagnostic != diagnostic ||
       oldDelegate.presentationScale != presentationScale;
 }
 

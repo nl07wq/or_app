@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import 'cat_trace_poc_data.dart';
@@ -251,4 +254,154 @@ class CatTraceReconstructionMetrics {
   final double disagreement;
   final int originalPixels;
   final int reconstructedPixels;
+}
+
+/// A deliberately discrete, single-component pose for the next POC gate.
+/// It never mutates canonical trace samples or component clipping geometry.
+@immutable
+class CatTraceArticulationPose {
+  const CatTraceArticulationPose({
+    required this.target,
+    required this.position,
+  });
+
+  final CatTraceArticulationTarget target;
+  final CatTraceArticulationPosition position;
+
+  double get angleDegrees => position.multiplier * target.maximumAngleDegrees;
+  double get angleRadians => angleDegrees * math.pi / 180;
+  bool get isNeutral => position == CatTraceArticulationPosition.neutral;
+
+  Path componentPath({
+    required CatTraceComponent component,
+    required Path original,
+  }) {
+    final path = component.pathFrom(original);
+    if (component.id != target.componentId || isNeutral) return path;
+    final pivot = target.pivot;
+    final cosine = math.cos(angleRadians);
+    final sine = math.sin(angleRadians);
+    final translateX = pivot.dx - cosine * pivot.dx + sine * pivot.dy;
+    final translateY = pivot.dy - sine * pivot.dx - cosine * pivot.dy;
+    return path.transform(
+      Float64List.fromList([
+        cosine,
+        sine,
+        0,
+        0,
+        -sine,
+        cosine,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        translateX,
+        translateY,
+        0,
+        1,
+      ]),
+    );
+  }
+}
+
+enum CatTraceArticulationTarget { foreNear, hindNear, tail, headNeck }
+
+extension CatTraceArticulationTargetMetadata on CatTraceArticulationTarget {
+  CatTraceComponentId get componentId => switch (this) {
+    CatTraceArticulationTarget.foreNear => CatTraceComponentId.forelegNear,
+    CatTraceArticulationTarget.hindNear => CatTraceComponentId.hindLegNear,
+    CatTraceArticulationTarget.tail => CatTraceComponentId.tail,
+    CatTraceArticulationTarget.headNeck => CatTraceComponentId.headNeck,
+  };
+
+  Offset get pivot => switch (this) {
+    CatTraceArticulationTarget.foreNear => const Offset(.205, .295),
+    CatTraceArticulationTarget.hindNear => const Offset(.700, .270),
+    CatTraceArticulationTarget.tail => const Offset(.690, .185),
+    CatTraceArticulationTarget.headNeck => const Offset(.205, .185),
+  };
+
+  double get maximumAngleDegrees => switch (this) {
+    CatTraceArticulationTarget.foreNear => 8,
+    CatTraceArticulationTarget.hindNear => 8,
+    CatTraceArticulationTarget.tail => 10,
+    CatTraceArticulationTarget.headNeck => 5,
+  };
+
+  String get label => switch (this) {
+    CatTraceArticulationTarget.foreNear => 'FORE NEAR',
+    CatTraceArticulationTarget.hindNear => 'HIND NEAR',
+    CatTraceArticulationTarget.tail => 'TAIL',
+    CatTraceArticulationTarget.headNeck => 'HEAD / NECK',
+  };
+}
+
+enum CatTraceArticulationPosition { min, neutral, max }
+
+extension CatTraceArticulationPositionMetadata on CatTraceArticulationPosition {
+  double get multiplier => switch (this) {
+    CatTraceArticulationPosition.min => -1,
+    CatTraceArticulationPosition.neutral => 0,
+    CatTraceArticulationPosition.max => 1,
+  };
+
+  String get label => switch (this) {
+    CatTraceArticulationPosition.min => 'MIN',
+    CatTraceArticulationPosition.neutral => 'NEUTRAL',
+    CatTraceArticulationPosition.max => 'MAX',
+  };
+}
+
+/// Structural checks for a static, transformed single component.
+@immutable
+class CatTraceArticulationIntegrity {
+  const CatTraceArticulationIntegrity({
+    required this.hasFiniteBounds,
+    required this.hasRootOverlap,
+    required this.rootOverlapBounds,
+  });
+
+  factory CatTraceArticulationIntegrity.fromPose({
+    required CatTraceDecomposition decomposition,
+    required CatTraceArticulationPose pose,
+  }) {
+    final original = decomposition.originalPath();
+    final component = decomposition.components.singleWhere(
+      (candidate) => candidate.id == pose.target.componentId,
+    );
+    final torso = decomposition.components.singleWhere(
+      (candidate) => candidate.id == CatTraceComponentId.torso,
+    );
+    final transformed = pose.componentPath(
+      component: component,
+      original: original,
+    );
+    final rootOverlap = Path.combine(
+      PathOperation.intersect,
+      torso.pathFrom(original),
+      transformed,
+    ).getBounds();
+    final bounds = transformed.getBounds();
+    final hasFiniteBounds = [
+      bounds.left,
+      bounds.top,
+      bounds.right,
+      bounds.bottom,
+    ].every((value) => value.isFinite);
+    return CatTraceArticulationIntegrity(
+      hasFiniteBounds: hasFiniteBounds,
+      hasRootOverlap:
+          !rootOverlap.isEmpty &&
+          rootOverlap.width * rootOverlap.height > .000001,
+      rootOverlapBounds: rootOverlap,
+    );
+  }
+
+  final bool hasFiniteBounds;
+  final bool hasRootOverlap;
+  final Rect rootOverlapBounds;
+
+  bool get isStructurallyValid => hasFiniteBounds && hasRootOverlap;
 }
