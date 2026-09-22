@@ -851,6 +851,70 @@ double wildlifeCycleCountForTraversal(WildlifeEventPlan plan, double width) =>
     plan.durationForWidth(width).inMilliseconds /
     Duration.millisecondsPerSecond;
 
+/// The anatomical attachment frame shared by the renderer and continuity
+/// tests. Roots intentionally sit inside the torso instead of on its edge so
+/// interpolation cannot turn a running animal into disconnected primitives.
+@immutable
+class WildlifeQuadrupedGeometry {
+  const WildlifeQuadrupedGeometry({
+    required this.body,
+    required this.headCenter,
+    required this.shoulderRoot,
+    required this.hipRoot,
+    required this.tailRoot,
+    required this.scale,
+  });
+
+  final Rect body;
+  final Offset headCenter;
+  final Offset shoulderRoot;
+  final Offset hipRoot;
+  final Offset tailRoot;
+  final double scale;
+}
+
+WildlifeQuadrupedGeometry wildlifeQuadrupedGeometryFor(
+  WildlifeKind kind,
+  double phase,
+) {
+  assert(kind == WildlifeKind.cat || kind == WildlifeKind.fox);
+  final pose = wildlifePoseFor(kind, phase);
+  return _quadrupedGeometryFromPose(kind, pose);
+}
+
+WildlifeQuadrupedGeometry _quadrupedGeometryFromPose(
+  WildlifeKind kind,
+  WildlifePoseSample pose,
+) {
+  final scale = kind == WildlifeKind.fox ? 16.0 : 14.0;
+  final length = pose.bodyLength * scale;
+  final height = pose.bodyHeight * scale;
+  final center = Offset(0, -scale * (.78 + pose.bodyLift));
+  final body = Rect.fromCenter(center: center, width: length, height: height);
+  return WildlifeQuadrupedGeometry(
+    body: body,
+    // The head overlaps the forward chest rather than meeting it at a point.
+    headCenter: Offset(
+      body.right + scale * .04,
+      center.dy - scale * (.18 + pose.headOffset),
+    ),
+    // Roots deliberately begin inside the chest/pelvis mass.
+    shoulderRoot: Offset(body.right - length * .22, body.bottom - height * .30),
+    hipRoot: Offset(body.left + length * .23, body.bottom - height * .28),
+    tailRoot: Offset(body.left + scale * .20, center.dy + height * .05),
+    scale: scale,
+  );
+}
+
+/// V3 used 10px horizontal / 4px vertical follower offsets. V3.1 preserves
+/// the formation but gives full wing envelopes room to read independently.
+Offset wildlifeFormationOffsetFor(WildlifeKind kind, int index) {
+  assert(kind == WildlifeKind.birds || kind == WildlifeKind.bat);
+  final horizontal = kind == WildlifeKind.birds ? 14.0 : 15.0;
+  final vertical = kind == WildlifeKind.birds ? 5.5 : 6.0;
+  return Offset(index * horizontal, index * vertical);
+}
+
 /// Custom-programmatic wildlife silhouettes. The painter has no asset or
 /// glyph dependencies and only repaints while an event controller is active.
 class DashboardAmbientWildlifePainter extends CustomPainter {
@@ -947,14 +1011,16 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     WildlifePoseSample pose,
   ) {
     final isFox = kind == WildlifeKind.fox;
-    final scale = isFox ? 16.0 : 14.0;
-    final length = pose.bodyLength * scale;
-    final height = pose.bodyHeight * scale;
-    final center = Offset(0, -scale * (.78 + pose.bodyLift));
-    final left = center.dx - length / 2;
-    final right = center.dx + length / 2;
-    final top = center.dy - height / 2;
-    final bottom = center.dy + height / 2;
+    final geometry = _quadrupedGeometryFromPose(kind, pose);
+    final scale = geometry.scale;
+    final bodyRect = geometry.body;
+    final length = bodyRect.width;
+    final height = bodyRect.height;
+    final center = bodyRect.center;
+    final left = bodyRect.left;
+    final right = bodyRect.right;
+    final top = bodyRect.top;
+    final bottom = bodyRect.bottom;
     final body = Path()
       ..moveTo(left, center.dy)
       ..quadraticBezierTo(left + length * .18, top, center.dx, top)
@@ -972,22 +1038,12 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
         center.dy,
       )
       ..close();
-    canvas.drawPath(body, paint);
-
-    final tailBase = Offset(left + scale * .08, center.dy);
-    _drawTail(canvas, paint, tailBase, pose, scale, isFox);
+    // Far limbs sit behind the torso. Their roots still overlap it, avoiding
+    // a hinge seam when the silhouette changes between poses.
     _drawLeg(
       canvas,
       paint,
-      Offset(right - length * .23, bottom - scale * .05),
-      pose.foreReach,
-      pose.foreLift,
-      scale,
-    );
-    _drawLeg(
-      canvas,
-      paint,
-      Offset(right - length * .05, bottom - scale * .02),
+      Offset(geometry.shoulderRoot.dx - length * .12, geometry.shoulderRoot.dy),
       pose.foreReach - .12,
       pose.foreLift * .8,
       scale,
@@ -995,20 +1051,31 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     _drawLeg(
       canvas,
       paint,
-      Offset(left + length * .25, bottom - scale * .05),
-      pose.hindReach,
-      pose.hindLift,
+      Offset(geometry.hipRoot.dx - length * .12, geometry.hipRoot.dy),
+      pose.hindReach + .12,
+      pose.hindLift * .8,
+      scale,
+    );
+    canvas.drawPath(body, paint);
+    _drawTail(canvas, paint, geometry.tailRoot, pose, scale, isFox);
+    // Near limbs are filled mass rather than disconnected line segments.
+    _drawLeg(
+      canvas,
+      paint,
+      geometry.shoulderRoot,
+      pose.foreReach,
+      pose.foreLift,
       scale,
     );
     _drawLeg(
       canvas,
       paint,
-      Offset(left + length * .06, bottom - scale * .02),
-      pose.hindReach + .12,
-      pose.hindLift * .8,
+      geometry.hipRoot,
+      pose.hindReach,
+      pose.hindLift,
       scale,
     );
-    _drawQuadrupedHead(canvas, paint, right, top, center, pose, scale, isFox);
+    _drawQuadrupedHead(canvas, paint, geometry, pose, isFox);
   }
 
   void _drawLeg(
@@ -1024,9 +1091,25 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
       (shoulderOrHip.dx + foot.dx) / 2 - reach * scale * .16,
       (shoulderOrHip.dy + foot.dy) / 2 + scale * .10,
     );
-    final leg = _strokeFor(paint, 1.7);
-    canvas.drawLine(shoulderOrHip, knee, leg);
-    canvas.drawLine(knee, foot, leg);
+    final upper = scale * .13;
+    final lower = scale * .075;
+    final leg = Path()
+      ..moveTo(shoulderOrHip.dx - upper, shoulderOrHip.dy - upper * .20)
+      ..quadraticBezierTo(knee.dx - lower, knee.dy, foot.dx - lower, foot.dy)
+      ..quadraticBezierTo(
+        foot.dx,
+        foot.dy + lower * .55,
+        foot.dx + lower,
+        foot.dy,
+      )
+      ..quadraticBezierTo(
+        knee.dx + lower,
+        knee.dy,
+        shoulderOrHip.dx + upper,
+        shoulderOrHip.dy + upper * .20,
+      )
+      ..close();
+    canvas.drawPath(leg, paint);
   }
 
   void _drawTail(
@@ -1047,9 +1130,9 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     );
     if (!isFox) {
       final tail = Path()
-        ..moveTo(base.dx, base.dy)
+        ..moveTo(base.dx + scale * .12, base.dy + scale * .06)
         ..quadraticBezierTo(control.dx, control.dy, tip.dx, tip.dy);
-      canvas.drawPath(tail, _strokeFor(paint, 1.8));
+      canvas.drawPath(tail, _strokeFor(paint, 2.2));
       return;
     }
     final thickness = pose.tailThickness * scale;
@@ -1069,17 +1152,30 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
   void _drawQuadrupedHead(
     Canvas canvas,
     Paint paint,
-    double bodyRight,
-    double bodyTop,
-    Offset center,
+    WildlifeQuadrupedGeometry geometry,
     WildlifePoseSample pose,
-    double scale,
     bool isFox,
   ) {
-    final headCenter = Offset(
-      bodyRight + scale * .15,
-      center.dy - scale * (.18 + pose.headOffset),
-    );
+    final scale = geometry.scale;
+    final bodyRight = geometry.body.right;
+    final bodyTop = geometry.body.top;
+    final headCenter = geometry.headCenter;
+    final neck = Path()
+      ..moveTo(bodyRight - scale * .22, geometry.body.center.dy - scale * .25)
+      ..quadraticBezierTo(
+        bodyRight + scale * .12,
+        headCenter.dy - scale * .25,
+        headCenter.dx + scale * .10,
+        headCenter.dy,
+      )
+      ..quadraticBezierTo(
+        bodyRight + scale * .08,
+        headCenter.dy + scale * .25,
+        bodyRight - scale * .20,
+        geometry.body.center.dy + scale * .22,
+      )
+      ..close();
+    canvas.drawPath(neck, paint);
     if (isFox) {
       final head = Path()
         ..moveTo(bodyRight - scale * .08, headCenter.dy - scale * .22)
@@ -1097,17 +1193,21 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     } else {
       canvas.drawCircle(headCenter, scale * .23, paint);
     }
-    final ears = Path()
+    final rearEar = Path()
       ..moveTo(headCenter.dx - scale * .18, bodyTop + scale * .12)
       ..lineTo(headCenter.dx - scale * .08, bodyTop - pose.earHeight * scale)
       ..lineTo(headCenter.dx + scale * .02, bodyTop + scale * .12)
+      ..close();
+    final frontEar = Path()
       ..moveTo(headCenter.dx + scale * .04, bodyTop + scale * .10)
       ..lineTo(
         headCenter.dx + scale * .17,
         bodyTop - pose.earHeight * scale * .88,
       )
-      ..lineTo(headCenter.dx + scale * .25, bodyTop + scale * .18);
-    canvas.drawPath(ears, paint);
+      ..lineTo(headCenter.dx + scale * .25, bodyTop + scale * .18)
+      ..close();
+    canvas.drawPath(rearEar, paint);
+    canvas.drawPath(frontEar, paint);
   }
 
   Paint _strokeFor(Paint source, double width) => Paint()
@@ -1129,10 +1229,14 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     final direction = event.leftToRight ? 1.0 : -1.0;
     for (var index = 0; index < event.count; index++) {
       final phase = event.phaseSeed + index * .19;
-      final x = baseX - direction * index * 10;
+      final offset = wildlifeFormationOffsetFor(
+        isBat ? WildlifeKind.bat : WildlifeKind.birds,
+        index,
+      );
+      final x = baseX - direction * offset.dx;
       final y =
           (isBat ? 16.0 : 13.0) +
-          index * 4 +
+          offset.dy +
           math.sin((t * (isBat ? 4.2 : 2.2) + phase) * math.pi * 2) *
               (isBat ? 3.0 : 1.6);
       _withDirection(

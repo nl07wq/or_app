@@ -352,6 +352,68 @@ void main() {
     }
   });
 
+  test(
+    'V3.1 quadruped attachments remain cohesive at 24 interpolated phases',
+    () {
+      for (final kind in [WildlifeKind.cat, WildlifeKind.fox]) {
+        final bodyAreas = <double>[];
+        for (var index = 0; index < 24; index++) {
+          final geometry = wildlifeQuadrupedGeometryFor(kind, index / 24);
+          final body = geometry.body;
+          final rootTolerance = geometry.scale * .02;
+          final neckEnvelope = body.inflate(geometry.scale * .28);
+
+          expect(geometry.headCenter.dx.isFinite, isTrue);
+          expect(geometry.headCenter.dy.isFinite, isTrue);
+          expect(neckEnvelope.contains(geometry.headCenter), isTrue);
+          expect(
+            body.inflate(rootTolerance).contains(geometry.shoulderRoot),
+            isTrue,
+          );
+          expect(
+            body.inflate(rootTolerance).contains(geometry.hipRoot),
+            isTrue,
+          );
+          expect(
+            body.inflate(rootTolerance).contains(geometry.tailRoot),
+            isTrue,
+          );
+          bodyAreas.add(body.width * body.height);
+        }
+        final minimum = bodyAreas.reduce((a, b) => a < b ? a : b);
+        final maximum = bodyAreas.reduce((a, b) => a > b ? a : b);
+        expect(maximum / minimum, lessThan(1.35));
+      }
+    },
+  );
+
+  test('V3.1 flock offsets give full wing envelopes more room', () {
+    final bird = wildlifeFormationOffsetFor(WildlifeKind.birds, 1);
+    final bat = wildlifeFormationOffsetFor(WildlifeKind.bat, 1);
+    expect(bird.dx, greaterThan(10));
+    expect(bird.dy, greaterThan(4));
+    expect(bat.dx, greaterThan(10));
+    expect(bat.dy, greaterThan(4));
+    expect(bird.dx, lessThan(20));
+    expect(bat.dx, lessThan(20));
+    for (final width in [320.0, 390.0, 900.0]) {
+      expect(
+        wildlifePreviewPlan(
+          kind: WildlifeKind.birds,
+          leftToRight: true,
+        ).durationForWidth(width),
+        isNotNull,
+      );
+      expect(
+        wildlifePreviewPlan(
+          kind: WildlifeKind.bat,
+          leftToRight: true,
+        ).durationForWidth(width),
+        isNotNull,
+      );
+    }
+  });
+
   test('gait and flap cycle counts are independent from travel width', () {
     for (final kind in WildlifeKind.values) {
       final plan = wildlifePreviewPlan(kind: kind, leftToRight: true);
