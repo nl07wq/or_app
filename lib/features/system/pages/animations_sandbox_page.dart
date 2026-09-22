@@ -10,6 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
+import 'cat_trace_poc_data.dart';
 import 'pixel_lab_page.dart';
 
 const _bootSequenceAssets = [
@@ -448,47 +449,156 @@ const catTracePocFidelity = CatTracePocFidelity(
   },
 );
 
-class _CatTracePipelinePocSection extends StatelessWidget {
+class _CatTracePipelinePocSection extends StatefulWidget {
   const _CatTracePipelinePocSection();
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const SectionHeader(
-        icon: Icons.gesture_outlined,
-        title: 'CAT TRACE PIPELINE POC',
-      ),
-      AppSpacing.gapSM,
-      OperationCard(
-        key: const ValueKey('cat-trace-poc-section'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('SANDBOX ONLY · STATIC BEZIER SILHOUETTE'),
-            AppSpacing.gapSM,
-            SizedBox(
-              height: 190,
-              child: CustomPaint(
-                key: const ValueKey('cat-trace-poc-canvas'),
-                painter: const CatTracePocPainter(),
-              ),
-            ),
-            AppSpacing.gapSM,
-            const Text(
-              'Original asset is not bundled. Production Wildlife is not connected.',
-            ),
-          ],
+  State<_CatTracePipelinePocSection> createState() =>
+      _CatTracePipelinePocSectionState();
+}
+
+class _CatTracePipelinePocSectionState
+    extends State<_CatTracePipelinePocSection> {
+  var _mode = _CatTracePocMode.reconstructed;
+  var _inspectionScale = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final level = _mode.level;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.gesture_outlined,
+          title: 'CAT TRACE PIPELINE POC',
         ),
-      ),
-    ],
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('cat-trace-poc-section'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('SANDBOX ONLY · STATIC VECTOR COMPARISON'),
+              AppSpacing.gapSM,
+              SizedBox(
+                height: 190,
+                child: CustomPaint(
+                  key: const ValueKey('cat-trace-poc-canvas'),
+                  painter: _mode == _CatTracePocMode.reconstructed
+                      ? CatTracePocPainter(presentationScale: _inspectionScale)
+                      : CatTraceVectorPainter(
+                          level: level!,
+                          presentationScale: _inspectionScale,
+                        ),
+                ),
+              ),
+              AppSpacing.gapSM,
+              const Text('VECTOR MODE'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final mode in _CatTracePocMode.values)
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-poc-${mode.name}'),
+                      label: mode.label,
+                      selected: _mode == mode,
+                      onPressed: () => setState(() => _mode = mode),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('INSPECTION SCALE'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final scale in [1, 2, 4])
+                    _TracePocChoice(
+                      key: ValueKey('cat-trace-poc-scale-$scale'),
+                      label: '$scale×',
+                      selected: _inspectionScale == scale,
+                      onPressed: () => setState(() => _inspectionScale = scale),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Text(
+                level == null
+                    ? 'RECONSTRUCTED CONTROL · authored Bezier · source metric unavailable'
+                    : '${level.name} · RDP ${level.tolerance}px · '
+                          '${level.sourcePointCount} points · '
+                          'IoU ${(level.iou * 100).toStringAsFixed(2)}%',
+                key: const ValueKey('cat-trace-poc-metrics'),
+              ),
+              AppSpacing.gapSM,
+              const Text(
+                'Original asset is not bundled. Production Wildlife is not connected.',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _CatTracePocMode { reconstructed, high, medium, low }
+
+extension on _CatTracePocMode {
+  String get name => switch (this) {
+    _CatTracePocMode.reconstructed => 'reconstructed',
+    _CatTracePocMode.high => 'high',
+    _CatTracePocMode.medium => 'medium',
+    _CatTracePocMode.low => 'low',
+  };
+
+  String get label => switch (this) {
+    _CatTracePocMode.reconstructed => 'A · RECONSTRUCTED',
+    _CatTracePocMode.high => 'B · TRACE HIGH',
+    _CatTracePocMode.medium => 'C · TRACE MEDIUM',
+    _CatTracePocMode.low => 'D · TRACE LOW',
+  };
+
+  CatTraceVectorLevel? get level => switch (this) {
+    _CatTracePocMode.reconstructed => null,
+    _CatTracePocMode.high => generatedCatTraceVectorLevels[0],
+    _CatTracePocMode.medium => generatedCatTraceVectorLevels[1],
+    _CatTracePocMode.low => generatedCatTraceVectorLevels[2],
+  };
+}
+
+class _TracePocChoice extends StatelessWidget {
+  const _TracePocChoice({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton(
+    onPressed: onPressed,
+    style: selected
+        ? OutlinedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          )
+        : null,
+    child: Text(label),
   );
 }
 
 /// Simplified original Bezier reconstruction of the user-supplied walking CAT
 /// silhouette. This POC has no dependency on production wildlife geometry.
 class CatTracePocPainter extends CustomPainter {
-  const CatTracePocPainter();
+  const CatTracePocPainter({this.presentationScale = 4});
+
+  final int presentationScale;
 
   @override
   void paint(Canvas canvas, Size size) {

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -103,6 +104,10 @@ void main() {
   testWidgets(
     'CAT TRACE PIPELINE POC is a static sandbox-only Bezier preview',
     (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
 
       await tester.scrollUntilVisible(
@@ -117,6 +122,33 @@ void main() {
       expect(
         tester.widget<CustomPaint>(canvas).painter,
         isA<CatTracePocPainter>(),
+      );
+      for (final key in [
+        'cat-trace-poc-reconstructed',
+        'cat-trace-poc-high',
+        'cat-trace-poc-medium',
+        'cat-trace-poc-low',
+        'cat-trace-poc-scale-1',
+        'cat-trace-poc-scale-2',
+        'cat-trace-poc-scale-4',
+      ]) {
+        expect(find.byKey(ValueKey(key)), findsOneWidget);
+      }
+      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('cat-trace-poc-high')));
+      await tester.pump();
+      final tracePainter = tester.widget<CustomPaint>(canvas).painter!;
+      expect(tracePainter, isA<CatTraceVectorPainter>());
+      expect(find.textContaining('HIGH · RDP 1.5px'), findsOneWidget);
+      await tester.drag(find.byType(ListView), const Offset(0, -180));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('cat-trace-poc-scale-4')));
+      await tester.pump();
+      expect(
+        (tester.widget<CustomPaint>(canvas).painter! as CatTraceVectorPainter)
+            .presentationScale,
+        4,
       );
       expect(
         find.textContaining('Production Wildlife is not connected'),
@@ -144,6 +176,70 @@ void main() {
       }),
     );
   });
+
+  test(
+    'CAT TRACE POC vector levels derive monotonically from one raw contour',
+    () {
+      const report = catTraceSourceReport;
+      final levels = generatedCatTraceVectorLevels;
+      expect(report.sourceWidth, 1280);
+      expect(report.sourceHeight, 640);
+      expect(report.luminanceThreshold, 128);
+      expect(report.openingKernel, 3);
+      expect(report.rawContourPointCount, 5480);
+      expect(
+        levels.map((level) => level.tolerance),
+        orderedEquals([1.5, 4, 9]),
+      );
+      expect(
+        levels.map((level) => level.sourcePointCount),
+        orderedEquals([151, 85, 58]),
+      );
+      expect(levels[0].iou, greaterThan(levels[1].iou));
+      expect(levels[1].iou, greaterThan(levels[2].iou));
+      expect(levels.every((level) => level.disagreement < .06), isTrue);
+      for (final level in levels) {
+        expect(level.points, isNotEmpty);
+        expect(
+          level.points.every((point) => point.dx.isFinite && point.dy.isFinite),
+          isTrue,
+        );
+        expect(
+          level.points.every((point) => point.dx >= 0 && point.dy >= 0),
+          isTrue,
+        );
+        expect(
+          level.points.every((point) => point.dx <= 1 && point.dy <= 1),
+          isTrue,
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'CAT TRACE POC comparison controls remain usable at narrow widths',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final width in [320.0, 390.0]) {
+        tester.view.physicalSize = Size(width, 1800);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          const MaterialApp(home: AnimationsSandboxPage()),
+        );
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('cat-trace-poc-section')),
+          300,
+        );
+        expect(
+          find.byKey(const ValueKey('cat-trace-poc-canvas')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('cat-trace-poc-low')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets(
     'ANIMATIONS SANDBOX provides immediate production wildlife previews',
