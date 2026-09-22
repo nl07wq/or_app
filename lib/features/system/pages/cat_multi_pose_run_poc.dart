@@ -45,7 +45,9 @@ class CatMultiPoseRun {
       final start = input[(segment - 1) % input.length];
       final end = input[segment % input.length];
       final span = lengths[segment] - lengths[segment - 1];
-      final local = span == 0 ? 0 : (target - lengths[segment - 1]) / span;
+      final double local = span == 0
+          ? 0.0
+          : (target - lengths[segment - 1]) / span;
       return Offset.lerp(start, end, local)!;
     });
   }
