@@ -101,6 +101,51 @@ void main() {
   });
 
   testWidgets(
+    'CAT TRACE PIPELINE POC is a static sandbox-only Bezier preview',
+    (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-trace-poc-section')),
+        300,
+      );
+      expect(find.text('CAT TRACE PIPELINE POC'), findsOneWidget);
+      final canvas = find.byKey(const ValueKey('cat-trace-poc-canvas'));
+      expect(canvas, findsOneWidget);
+      expect(tester.getSize(canvas).height, 190);
+      expect(tester.getSize(canvas).width, greaterThan(200));
+      expect(
+        tester.widget<CustomPaint>(canvas).painter,
+        isA<CatTracePocPainter>(),
+      );
+      expect(
+        find.textContaining('Production Wildlife is not connected'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  test('CAT TRACE POC preserves broad supplied-silhouette contour cues', () {
+    final fidelity = catTracePocFidelity;
+    expect(fidelity.headToBodyLength, inInclusiveRange(.16, .22));
+    expect(fidelity.bodyDepthToLength, inInclusiveRange(.28, .38));
+    expect(fidelity.tailReachPastPelvis, inInclusiveRange(.25, .36));
+    expect(fidelity.curveSegmentCount, greaterThanOrEqualTo(20));
+    expect(
+      fidelity.referenceFeatures,
+      containsAll({
+        'shortMuzzle',
+        'pairedEars',
+        'lowDorsalLine',
+        'raisedTaperedTail',
+        'articulatedForeleg',
+        'articulatedHindLeg',
+      }),
+    );
+  });
+
+  testWidgets(
     'ANIMATIONS SANDBOX provides immediate production wildlife previews',
     (tester) async {
       tester.view.physicalSize = const Size(390, 1800);

@@ -158,6 +158,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         ),
         AppSpacing.gapXL,
         const _AmbientWildlifeSandboxSection(),
+        AppSpacing.gapXL,
+        const _CatTracePipelinePocSection(),
       ],
     ),
   );
@@ -406,6 +408,324 @@ class _WildlifePreviewOption extends StatelessWidget {
       child: Text(label),
     ),
   );
+}
+
+/// Sandbox-only calibration data for the supplied CAT silhouette reference.
+/// Values are normalized against the reference's visible silhouette bounds;
+/// no source image is bundled, rendered, or used by production wildlife.
+@immutable
+class CatTracePocFidelity {
+  const CatTracePocFidelity({
+    required this.headToBodyLength,
+    required this.bodyDepthToLength,
+    required this.tailReachPastPelvis,
+    required this.curveSegmentCount,
+    required this.referenceFeatures,
+  });
+
+  final double headToBodyLength;
+  final double bodyDepthToLength;
+  final double tailReachPastPelvis;
+  final int curveSegmentCount;
+  final Set<String> referenceFeatures;
+}
+
+/// The POC is deliberately separate from DashboardAmbientWildlifePainter.
+/// Its metrics record broad contour relationships observed in the supplied
+/// source, rather than copying an image asset or retaining pixel coordinates.
+const catTracePocFidelity = CatTracePocFidelity(
+  headToBodyLength: .19,
+  bodyDepthToLength: .34,
+  tailReachPastPelvis: .31,
+  curveSegmentCount: 24,
+  referenceFeatures: {
+    'shortMuzzle',
+    'pairedEars',
+    'lowDorsalLine',
+    'raisedTaperedTail',
+    'articulatedForeleg',
+    'articulatedHindLeg',
+  },
+);
+
+class _CatTracePipelinePocSection extends StatelessWidget {
+  const _CatTracePipelinePocSection();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(
+        icon: Icons.gesture_outlined,
+        title: 'CAT TRACE PIPELINE POC',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        key: const ValueKey('cat-trace-poc-section'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('SANDBOX ONLY · STATIC BEZIER SILHOUETTE'),
+            AppSpacing.gapSM,
+            SizedBox(
+              height: 190,
+              child: CustomPaint(
+                key: const ValueKey('cat-trace-poc-canvas'),
+                painter: const CatTracePocPainter(),
+              ),
+            ),
+            AppSpacing.gapSM,
+            const Text(
+              'Original asset is not bundled. Production Wildlife is not connected.',
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// Simplified original Bezier reconstruction of the user-supplied walking CAT
+/// silhouette. This POC has no dependency on production wildlife geometry.
+class CatTracePocPainter extends CustomPainter {
+  const CatTracePocPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()
+      ..color = const Color(0xFF101010)
+      ..isAntiAlias = true;
+    final silhouette = Paint()
+      ..color = const Color(0xFFB8B8B8)
+      ..isAntiAlias = true;
+    canvas.drawRect(Offset.zero & size, background);
+    canvas.drawPath(_outline(size), silhouette);
+  }
+
+  Path _outline(Size size) {
+    final path = Path()
+      // Nose, short muzzle, chin, and the descending throat.
+      ..moveTo(size.width * .075, size.height * .555)
+      ..cubicTo(
+        size.width * .064,
+        size.height * .535,
+        size.width * .072,
+        size.height * .505,
+        size.width * .102,
+        size.height * .465,
+      )
+      ..cubicTo(
+        size.width * .108,
+        size.height * .400,
+        size.width * .126,
+        size.height * .335,
+        size.width * .166,
+        size.height * .300,
+      )
+      // Two pointed ears flow back into a compact skull.
+      ..lineTo(size.width * .145, size.height * .130)
+      ..quadraticBezierTo(
+        size.width * .185,
+        size.height * .170,
+        size.width * .205,
+        size.height * .255,
+      )
+      ..lineTo(size.width * .190, size.height * .075)
+      ..quadraticBezierTo(
+        size.width * .245,
+        size.height * .175,
+        size.width * .260,
+        size.height * .265,
+      )
+      // Neck, shoulder, and restrained low dorsal contour.
+      ..cubicTo(
+        size.width * .318,
+        size.height * .295,
+        size.width * .345,
+        size.height * .410,
+        size.width * .390,
+        size.height * .430,
+      )
+      ..cubicTo(
+        size.width * .535,
+        size.height * .440,
+        size.width * .645,
+        size.height * .345,
+        size.width * .760,
+        size.height * .425,
+      )
+      // Pelvis through the tail's raised, tapered outer envelope.
+      ..cubicTo(
+        size.width * .825,
+        size.height * .470,
+        size.width * .845,
+        size.height * .565,
+        size.width * .905,
+        size.height * .585,
+      )
+      ..cubicTo(
+        size.width * .948,
+        size.height * .600,
+        size.width * .968,
+        size.height * .520,
+        size.width * .982,
+        size.height * .455,
+      )
+      ..quadraticBezierTo(
+        size.width * .997,
+        size.height * .385,
+        size.width * .962,
+        size.height * .370,
+      )
+      ..cubicTo(
+        size.width * .925,
+        size.height * .405,
+        size.width * .904,
+        size.height * .485,
+        size.width * .848,
+        size.height * .500,
+      )
+      ..cubicTo(
+        size.width * .812,
+        size.height * .510,
+        size.width * .780,
+        size.height * .470,
+        size.width * .734,
+        size.height * .435,
+      )
+      // Near hind leg: thigh, hock, compact paw.
+      ..cubicTo(
+        size.width * .715,
+        size.height * .535,
+        size.width * .730,
+        size.height * .625,
+        size.width * .760,
+        size.height * .690,
+      )
+      ..cubicTo(
+        size.width * .785,
+        size.height * .745,
+        size.width * .805,
+        size.height * .790,
+        size.width * .800,
+        size.height * .845,
+      )
+      ..quadraticBezierTo(
+        size.width * .782,
+        size.height * .885,
+        size.width * .747,
+        size.height * .875,
+      )
+      ..quadraticBezierTo(
+        size.width * .735,
+        size.height * .855,
+        size.width * .758,
+        size.height * .825,
+      )
+      ..cubicTo(
+        size.width * .727,
+        size.height * .765,
+        size.width * .692,
+        size.height * .700,
+        size.width * .661,
+        size.height * .640,
+      )
+      // Curved abdominal return and planted far hind leg.
+      ..cubicTo(
+        size.width * .565,
+        size.height * .625,
+        size.width * .475,
+        size.height * .625,
+        size.width * .382,
+        size.height * .640,
+      )
+      ..cubicTo(
+        size.width * .385,
+        size.height * .720,
+        size.width * .392,
+        size.height * .790,
+        size.width * .390,
+        size.height * .845,
+      )
+      ..quadraticBezierTo(
+        size.width * .382,
+        size.height * .885,
+        size.width * .340,
+        size.height * .878,
+      )
+      ..quadraticBezierTo(
+        size.width * .325,
+        size.height * .855,
+        size.width * .348,
+        size.height * .825,
+      )
+      ..cubicTo(
+        size.width * .340,
+        size.height * .755,
+        size.width * .315,
+        size.height * .695,
+        size.width * .292,
+        size.height * .650,
+      )
+      // Chest into a reaching foreleg and rounded paw.
+      ..cubicTo(
+        size.width * .270,
+        size.height * .630,
+        size.width * .250,
+        size.height * .655,
+        size.width * .230,
+        size.height * .690,
+      )
+      ..cubicTo(
+        size.width * .185,
+        size.height * .735,
+        size.width * .132,
+        size.height * .760,
+        size.width * .110,
+        size.height * .820,
+      )
+      ..quadraticBezierTo(
+        size.width * .085,
+        size.height * .875,
+        size.width * .065,
+        size.height * .862,
+      )
+      ..quadraticBezierTo(
+        size.width * .052,
+        size.height * .846,
+        size.width * .078,
+        size.height * .815,
+      )
+      ..cubicTo(
+        size.width * .095,
+        size.height * .750,
+        size.width * .135,
+        size.height * .700,
+        size.width * .190,
+        size.height * .640,
+      )
+      ..cubicTo(
+        size.width * .225,
+        size.height * .600,
+        size.width * .230,
+        size.height * .555,
+        size.width * .202,
+        size.height * .525,
+      )
+      ..cubicTo(
+        size.width * .170,
+        size.height * .515,
+        size.width * .130,
+        size.height * .540,
+        size.width * .075,
+        size.height * .555,
+      )
+      ..close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(covariant CatTracePocPainter oldDelegate) => false;
 }
 
 class BootSequencePreviewPage extends StatefulWidget {
