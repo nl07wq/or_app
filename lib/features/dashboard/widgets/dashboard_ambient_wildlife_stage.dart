@@ -959,6 +959,53 @@ class WildlifeQuadrupedGeometry {
   final double scale;
 }
 
+/// Canonical V5 CAT-neutral landmarks, normalized to shoulder-to-hip torso
+/// length. This is intentionally independent of the animated CAT pose set:
+/// the Sandbox neutral diagnostic evaluates this anatomy before any gait is
+/// allowed to influence its proportions.
+@immutable
+class WildlifeNeutralCatGeometry {
+  const WildlifeNeutralCatGeometry({
+    required this.torsoBounds,
+    required this.headBounds,
+    required this.shoulder,
+    required this.hip,
+    required this.forePaw,
+    required this.hindPaw,
+    required this.hock,
+    required this.tailRoot,
+    required this.tailTip,
+    required this.tailThickness,
+  });
+
+  final Rect torsoBounds;
+  final Rect headBounds;
+  final Offset shoulder;
+  final Offset hip;
+  final Offset forePaw;
+  final Offset hindPaw;
+  final Offset hock;
+  final Offset tailRoot;
+  final Offset tailTip;
+  final double tailThickness;
+}
+
+/// V5 CAT-neutral source-of-truth geometry. Positive x is the travel-facing
+/// direction; y=0 is the ground baseline. The single painted outer envelope
+/// below is derived from these broad anatomical regions, not run-cycle poses.
+const wildlifeNeutralCatGeometry = WildlifeNeutralCatGeometry(
+  torsoBounds: Rect.fromLTRB(-1.02, -.55, .18, -.18),
+  headBounds: Rect.fromLTRB(.15, -.88, .93, -.28),
+  shoulder: Offset(.05, -.34),
+  hip: Offset(-.70, -.34),
+  forePaw: Offset(.25, 0),
+  hindPaw: Offset(-.39, 0),
+  hock: Offset(-.48, -.34),
+  tailRoot: Offset(-1.02, -.18),
+  tailTip: Offset(-1.72, -.37),
+  tailThickness: .07,
+);
+
 WildlifeQuadrupedGeometry wildlifeQuadrupedGeometryFor(
   WildlifeKind kind,
   double phase,
@@ -1094,6 +1141,7 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
       final pose = wildlifeNeutralPoseFor(kind);
       switch (kind) {
         case WildlifeKind.cat:
+          _drawNeutralCat(canvas, silhouette);
         case WildlifeKind.fox:
           _drawQuadruped(canvas, silhouette, kind, pose);
         case WildlifeKind.birds:
@@ -1102,6 +1150,48 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
           _drawBat(canvas, silhouette, pose);
       }
     });
+  }
+
+  /// V5 CAT neutral is intentionally independent of the run-cycle renderer.
+  /// One outer envelope carries the neck, torso, legs, digitigrade hind limb,
+  /// abdomen, and tail: it is not a collection of visible primitives.
+  void _drawNeutralCat(Canvas canvas, Paint paint) {
+    const s = 15.0;
+    final cat = Path()
+      // nose, forehead and compact paired ears
+      ..moveTo(s * .76, -s * .68)
+      ..lineTo(s * .93, -s * .62)
+      ..lineTo(s * .82, -s * .54)
+      ..lineTo(s * .73, -s * .38)
+      ..lineTo(s * .62, -s * .85)
+      ..lineTo(s * .48, -s * .47)
+      ..lineTo(s * .27, -s * .88)
+      ..lineTo(s * .15, -s * .43)
+      // short neck, shoulder, shallow back and pelvis
+      ..quadraticBezierTo(s * .02, -s * .42, -s * .06, -s * .34)
+      ..quadraticBezierTo(-s * .32, -s * .55, -s * .66, -s * .43)
+      ..quadraticBezierTo(-s * .91, -s * .36, -s * 1.02, -s * .18)
+      // long slender tail: outer and return contours
+      ..quadraticBezierTo(-s * 1.48, -s * .02, -s * 1.72, -s * .37)
+      ..quadraticBezierTo(-s * 1.50, -s * .04, -s * 1.02, -s * .08)
+      // thigh, knee, angled hock and compact rear paw
+      ..quadraticBezierTo(-s * .86, -s * .10, -s * .70, -s * .18)
+      ..lineTo(-s * .55, -s * .42)
+      ..lineTo(-s * .43, -s * .34)
+      ..lineTo(-s * .48, 0)
+      ..lineTo(-s * .30, 0)
+      ..lineTo(-s * .20, -s * .07)
+      // abdominal tuck and long forelimb
+      ..quadraticBezierTo(-s * .12, -s * .30, s * .05, -s * .28)
+      ..lineTo(s * .16, 0)
+      ..lineTo(s * .34, 0)
+      ..lineTo(s * .40, -s * .07)
+      ..lineTo(s * .29, -s * .36)
+      // chest and lower neck reconnect into the muzzle
+      ..quadraticBezierTo(s * .49, s * .01, s * .54, -s * .28)
+      ..quadraticBezierTo(s * .67, -s * .38, s * .76, -s * .68)
+      ..close();
+    canvas.drawPath(cat, paint);
   }
 
   void _withDirection(

@@ -427,6 +427,46 @@ void main() {
     },
   );
 
+  test(
+    'V5 CAT neutral anatomy is a deterministic, independent feline profile',
+    () {
+      final cat = wildlifeNeutralCatGeometry;
+
+      // The neutral anatomy is not an arbitrary point in the run cycle.
+      expect(identical(cat, wildlifeNeutralCatGeometry), isTrue);
+      expect(cat.headBounds.center.dx, greaterThan(cat.torsoBounds.center.dx));
+      expect(cat.tailTip.dx, lessThan(cat.torsoBounds.left));
+
+      // A shallow torso over grounded, long limbs prevents the former
+      // barrel-body/short-leg V4 reading at production scale.
+      final torsoLength = cat.torsoBounds.width;
+      final torsoDepth = cat.torsoBounds.height;
+      final foreLegLength = cat.shoulder.dy.abs();
+      final hindLegLength = cat.hip.dy.abs();
+      expect(torsoDepth / torsoLength, lessThan(.35));
+      expect(foreLegLength / torsoDepth, greaterThan(.85));
+      expect(hindLegLength / torsoDepth, greaterThan(.85));
+      expect(cat.headBounds.width, lessThan(torsoLength * .70));
+
+      // The rear chain bends through a hock rather than terminating as a
+      // straight pillar; both compact paws share the ground baseline.
+      expect(cat.hock.dx, greaterThan(cat.hip.dx));
+      expect(cat.hock.dy, lessThan(cat.hindPaw.dy));
+      expect(cat.forePaw.dy, 0);
+      expect(cat.hindPaw.dy, 0);
+      expect(cat.tailTip.distance, greaterThan(torsoLength));
+      expect(cat.tailThickness, lessThan(torsoDepth * .25));
+
+      // Attachment landmarks overlap the core envelope; no neutral anatomy
+      // is allowed to float as a separately visible part.
+      final attachmentEnvelope = cat.torsoBounds.inflate(.08);
+      expect(attachmentEnvelope.contains(cat.shoulder), isTrue);
+      expect(attachmentEnvelope.contains(cat.hip), isTrue);
+      expect(attachmentEnvelope.contains(cat.tailRoot), isTrue);
+      expect(cat.headBounds.left, lessThanOrEqualTo(cat.torsoBounds.right));
+    },
+  );
+
   test('V4 anatomy remains attached and bounded at 48 dense cycle phases', () {
     for (final kind in WildlifeKind.values) {
       for (var index = 0; index < 48; index++) {
