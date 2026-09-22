@@ -1261,6 +1261,7 @@ class _SituationAnalysisSection extends StatelessWidget {
         title: 'BODY',
         body: analysis.body,
         display: analysis.bodyDisplay,
+        bodyMeasurementDisplay: true,
       ),
       _AnalysisBlock(
         icon: Icons.bedtime_outlined,
@@ -1295,6 +1296,7 @@ class _AnalysisBlock extends StatelessWidget {
     required this.title,
     required this.body,
     required this.display,
+    this.bodyMeasurementDisplay = false,
     this.showDivider = true,
   });
 
@@ -1302,6 +1304,7 @@ class _AnalysisBlock extends StatelessWidget {
   final String title;
   final String body;
   final MorningBriefSectionDisplay? display;
+  final bool bodyMeasurementDisplay;
   final bool showDivider;
 
   @override
@@ -1329,7 +1332,10 @@ class _AnalysisBlock extends StatelessWidget {
                   if (display == null)
                     _ReadableText(body)
                   else
-                    _StructuredAnalysisText(display: display!),
+                    _StructuredAnalysisText(
+                      display: display!,
+                      bodyMeasurementDisplay: bodyMeasurementDisplay,
+                    ),
                 ],
               ),
             ),
@@ -1342,15 +1348,23 @@ class _AnalysisBlock extends StatelessWidget {
 }
 
 class _StructuredAnalysisText extends StatelessWidget {
-  const _StructuredAnalysisText({required this.display});
+  const _StructuredAnalysisText({
+    required this.display,
+    this.bodyMeasurementDisplay = false,
+  });
 
   final MorningBriefSectionDisplay display;
+  final bool bodyMeasurementDisplay;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _ReadableText(display.primaryText),
+      _ReadableText(
+        bodyMeasurementDisplay
+            ? formatMorningBriefBodyDisplay(display.primaryText)
+            : display.primaryText,
+      ),
       if (display.supportingText != null) ...[
         const SizedBox(height: 8),
         _ReadableText(display.supportingText!, supporting: true),

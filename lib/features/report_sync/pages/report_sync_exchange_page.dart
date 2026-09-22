@@ -551,12 +551,10 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           : importedMealCount == null
           ? 'COMPLETE · READ-BACK VERIFIED'
           : '$importedMealCount件のMEALを取り込みました';
-      final request = await _gateway.prepareRequest(
-        widget.exchangeType,
-        targetDate: _usesTargetDate ? _targetDateController.text : null,
-      );
-      _request = request;
-      _history = await _gateway.history(widget.exchangeType);
+      // The transaction above is the import boundary.  Do not perform a new
+      // source/readiness preparation inside the same failure path: an error
+      // while refreshing a page that is about to close must not relabel a
+      // verified, committed DAILY BRIEF as an unexpected import failure.
       widget.onApplied?.call();
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();

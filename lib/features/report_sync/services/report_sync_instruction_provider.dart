@@ -288,7 +288,7 @@ packageDigestはnullにしてください。Digestを計算せず、Placeholder�
 Unknown Field、旧Schema 1.0 Field、argoComment、actionIdを追加しないでください。situationAnalysisを単一Stringにしないでください。
 situationAnalysisのbody/recovery/condition/work/carryover/overallと、bodyDisplay/recoveryDisplay/conditionDisplay/workDisplay、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actionsをすべて返してください。
 body/recovery/condition/workは従来どおりSection全体の日本語分析文です。各DisplayはprimaryTextとsupportingTextだけを持ち、primaryTextにはSTATUS SOURCEの明示Fact、supportingTextには対応する分析文だけを入れてください。Factと分析を後から文字列分割できる形式へ連結しないでください。
-bodyDisplay.primaryTextは「体重: 値kg  体脂肪率: 値%」形式とし、前日比とBody分析はbodyDisplay.supportingTextへ入れてください。
+bodyDisplay.primaryTextは「体重: 値kg  体脂肪率: 値%」形式とし、STATUS SOURCEでweightKgまたはbodyFatPercentがnullの場合は、その値を推測・0・null文字列へ変換せず、それぞれ「体重: —」「体脂肪率: —」としてください。前日比とBody分析はbodyDisplay.supportingTextへ入れてください。
 recoveryDisplay.primaryTextは「睡眠時間: H:MM  睡眠スコア: 値」形式とし、sleepDurationMinutesをH:MMへ変換してください。sleepScoreがnullの場合は0へ変換せず「睡眠スコア: 仮眠」としてください。Recovery分析はrecoveryDisplay.supportingTextへ入れてください。
 Recovery分析では、睡眠時間を直近平均ではなく適正範囲7:00–9:00とまず比較してください。短すぎる睡眠と長すぎる睡眠はいずれも時間要素を下げ得ます。適正範囲を超えた睡眠時間は、直近平均を上回っていても自動的に好材料として扱わず、睡眠スコアを独立した質の根拠として併記してください。医学的な診断はしないでください。
 conditionDisplay.primaryTextは「足底筋膜炎: LV.n」形式とし、FOOT PAIN LEVELの数値を使用してください。Condition分析はconditionDisplay.supportingTextへ入れてください。

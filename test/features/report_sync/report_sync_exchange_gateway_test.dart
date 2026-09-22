@@ -1001,6 +1001,10 @@ Map<String, Object?> _morningBriefPayload(
   'content': {
     'situationAnalysis': {
       'body': '体重と体脂肪率は正式記録どおりです。',
+      'bodyDisplay': {
+        'primaryText': '体重: 70kg  体脂肪率: 20%',
+        'supportingText': '正式STATUSの値を確認しました。',
+      },
       'recovery': '睡眠時間と睡眠スコアを確認しました。',
       'condition': '足の痛みを考慮します。',
       'work': '勤務時間を考慮します。',
@@ -1014,7 +1018,7 @@ Map<String, Object?> _morningBriefPayload(
       'rationale': '足の痛みが記録されているためです。',
       'execution': null,
     },
-    'operationStatus': 'green',
+    'operationStatus': 'yellow',
     'commanderIntent': '回復を守りながら重要事項を確実に進めます。',
     'actions': const [
       {'text': '足の状態を確認してから行動します。', 'priority': 'high'},

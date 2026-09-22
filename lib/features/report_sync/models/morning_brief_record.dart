@@ -1,5 +1,17 @@
 import 'report_sync_record_utils.dart';
 
+/// Presentation-only guard for legacy/generated BODY display text. Structured
+/// body facts remain owned by STATUS; this never parses prose into data.
+String formatMorningBriefBodyDisplay(String value) => value
+    .replaceAll(
+      RegExp(r'\b(?:null|undefined|nan)\s*kg\b', caseSensitive: false),
+      '—',
+    )
+    .replaceAll(
+      RegExp(r'\b(?:null|undefined|nan)\s*%', caseSensitive: false),
+      '—',
+    );
+
 enum MorningBriefOperationStatus {
   green('green'),
   yellow('yellow'),

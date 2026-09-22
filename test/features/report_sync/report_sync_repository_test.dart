@@ -19,6 +19,28 @@ import 'package:or_app/features/status/repositories/indexed_db_status_repository
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  test(
+    'Daily Brief BODY display never renders missing measurements as null',
+    () {
+      expect(
+        formatMorningBriefBodyDisplay('体重: 95kg  体脂肪率: 32%'),
+        '体重: 95kg  体脂肪率: 32%',
+      );
+      expect(
+        formatMorningBriefBodyDisplay('体重: nullkg  体脂肪率: null%'),
+        '体重: —  体脂肪率: —',
+      );
+      expect(
+        formatMorningBriefBodyDisplay('体重: 95kg  体脂肪率: null%'),
+        '体重: 95kg  体脂肪率: —',
+      );
+      expect(
+        formatMorningBriefBodyDisplay('体重: nullkg  体脂肪率: 32%'),
+        '体重: —  体脂肪率: 32%',
+      );
+    },
+  );
+
   final timestamp = DateTime.utc(2026, 8, 2, 12);
   const digest =
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
