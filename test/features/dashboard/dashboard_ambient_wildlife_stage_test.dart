@@ -454,7 +454,7 @@ void main() {
       expect(cat.hock.dy, lessThan(cat.hindPaw.dy));
       expect(cat.forePaw.dy, 0);
       expect(cat.hindPaw.dy, 0);
-      expect(cat.tailTip.distance, greaterThan(torsoLength));
+      expect((cat.tailTip - cat.tailRoot).distance, greaterThan(torsoLength));
       expect(cat.tailThickness, lessThan(torsoDepth * .25));
 
       // Attachment landmarks overlap the core envelope; no neutral anatomy

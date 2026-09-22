@@ -1002,7 +1002,7 @@ const wildlifeNeutralCatGeometry = WildlifeNeutralCatGeometry(
   hindPaw: Offset(-.39, 0),
   hock: Offset(-.48, -.34),
   tailRoot: Offset(-1.02, -.18),
-  tailTip: Offset(-1.72, -.37),
+  tailTip: Offset(-2.30, -.42),
   tailThickness: .07,
 );
 
@@ -1172,8 +1172,8 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
       ..quadraticBezierTo(-s * .32, -s * .55, -s * .66, -s * .43)
       ..quadraticBezierTo(-s * .91, -s * .36, -s * 1.02, -s * .18)
       // long slender tail: outer and return contours
-      ..quadraticBezierTo(-s * 1.48, -s * .02, -s * 1.72, -s * .37)
-      ..quadraticBezierTo(-s * 1.50, -s * .04, -s * 1.02, -s * .08)
+      ..quadraticBezierTo(-s * 1.76, -s * .02, -s * 2.30, -s * .42)
+      ..quadraticBezierTo(-s * 1.88, -s * .04, -s * 1.02, -s * .08)
       // thigh, knee, angled hock and compact rear paw
       ..quadraticBezierTo(-s * .86, -s * .10, -s * .70, -s * .18)
       ..lineTo(-s * .55, -s * .42)
