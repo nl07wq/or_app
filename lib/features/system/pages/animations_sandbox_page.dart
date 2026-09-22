@@ -12,6 +12,8 @@ import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'cat_trace_decomposition_poc.dart';
 import 'cat_trace_motion_poc.dart';
+import 'cat_multi_pose_run_poc.dart';
+import 'cat_multi_pose_trace_data.dart';
 import 'cat_trace_poc_data.dart';
 import 'pixel_lab_page.dart';
 
@@ -165,6 +167,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         const _CatTracePipelinePocSection(),
         AppSpacing.gapXL,
         const _CatTraceMotionPocSection(),
+        AppSpacing.gapXL,
+        const _CatMultiPoseRunPocSection(),
       ],
     ),
   );
@@ -889,6 +893,155 @@ class _CatTraceMotionPocSectionState extends State<_CatTraceMotionPocSection>
       ],
     );
   }
+}
+
+class _CatMultiPoseRunPocSection extends StatefulWidget {
+  const _CatMultiPoseRunPocSection();
+  @override
+  State<_CatMultiPoseRunPocSection> createState() =>
+      _CatMultiPoseRunPocSectionState();
+}
+
+class _CatMultiPoseRunPocSectionState extends State<_CatMultiPoseRunPocSection>
+    with SingleTickerProviderStateMixin {
+  final _run = CatMultiPoseRun();
+  late final AnimationController _controller;
+  CatMultiPose? _pose = CatMultiPose.a;
+  var _speed = 1.0;
+  var _scale = 1;
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: CatMultiPoseRun.cycleDuration,
+    )..addListener(() => mounted ? setState(() {}) : null);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final points = _pose == null
+        ? _run.pointsAt(_controller.value)
+        : _run.pointsForPose(_pose!);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.directions_run,
+          title: 'CAT MULTI-POSE TRACE RUN POC',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('cat-multipose-run-poc'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 190,
+                child: CustomPaint(
+                  key: const ValueKey('cat-multipose-canvas'),
+                  painter: _CatMultiPosePainter(points, _scale),
+                ),
+              ),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final pose in CatMultiPose.values)
+                    _TracePocChoice(
+                      label: 'POSE ${pose.name.toUpperCase()}',
+                      selected: _pose == pose,
+                      onPressed: () => setState(() => _pose = pose),
+                    ),
+                  _TracePocChoice(
+                    label: 'MOTION',
+                    selected: _pose == null,
+                    onPressed: () => setState(() => _pose = null),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                children: [
+                  _TracePocChoice(
+                    label: _controller.isAnimating ? 'PAUSE' : 'PLAY',
+                    selected: _controller.isAnimating,
+                    onPressed: () => setState(() {
+                      _pose = null;
+                      _controller.isAnimating
+                          ? _controller.stop()
+                          : _controller.repeat();
+                    }),
+                  ),
+                  for (final s in [0.5, 1.0])
+                    _TracePocChoice(
+                      label: '${s}×',
+                      selected: _speed == s,
+                      onPressed: () => setState(() {
+                        _speed = s;
+                        _controller.duration = Duration(
+                          milliseconds: (720 / s).round(),
+                        );
+                        if (_controller.isAnimating) _controller.repeat();
+                      }),
+                    ),
+                  for (final s in [1, 2, 4])
+                    _TracePocChoice(
+                      label: '$s×',
+                      selected: _scale == s,
+                      onPressed: () => setState(() => _scale = s),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Text(
+                _pose == null
+                    ? 'A → B → C → D → A · vector interpolation'
+                    : '${_pose!.name.toUpperCase()} · ${catMultiPoseTraces.singleWhere((x) => x.pose == _pose).pointCount} points',
+              ),
+              const Text(
+                'SANDBOX ONLY · source rasters are not runtime assets.',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CatMultiPosePainter extends CustomPainter {
+  const _CatMultiPosePainter(this.points, this.scale);
+  final List<Offset> points;
+  final int scale;
+  @override
+  void paint(Canvas c, Size s) {
+    c.drawRect(Offset.zero & s, Paint()..color = const Color(0xFF101010));
+    final p = Path()..addPolygon(points, true);
+    final k = math.min(s.width * .88, s.height * .75) * scale;
+    c.save();
+    c.translate((s.width - k) / 2, (s.height - k * .48) / 2);
+    c.scale(k);
+    c.drawPath(
+      p,
+      Paint()
+        ..color = const Color(0xFFB8B8B8)
+        ..isAntiAlias = true,
+    );
+    c.restore();
+  }
+
+  @override
+  bool shouldRepaint(_CatMultiPosePainter o) =>
+      o.points != points || o.scale != scale;
 }
 
 enum _CatTracePocMode {
