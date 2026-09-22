@@ -838,6 +838,66 @@ class CatTracePocPainter extends CustomPainter {
   bool shouldRepaint(covariant CatTracePocPainter oldDelegate) => false;
 }
 
+/// Mechanically-derived POC-B renderer. Its cubic handles are calculated from
+/// adjacent traced contour samples; no anatomy landmarks are authored here.
+class CatTraceVectorPainter extends CustomPainter {
+  const CatTraceVectorPainter({
+    required this.level,
+    required this.presentationScale,
+  });
+
+  final CatTraceVectorLevel level;
+  final int presentationScale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()
+      ..color = const Color(0xFF101010)
+      ..isAntiAlias = true;
+    final silhouette = Paint()
+      ..color = const Color(0xFFB8B8B8)
+      ..isAntiAlias = true;
+    canvas.drawRect(Offset.zero & size, background);
+    canvas.drawPath(_pathFor(size), silhouette);
+  }
+
+  Path _pathFor(Size size) {
+    final points = level.points;
+    final maxY = points.map((point) => point.dy).reduce(math.max);
+    final base = math.min(size.width * .88 / 4, size.height * .82 / (maxY * 4));
+    final scale = base * presentationScale;
+    final offset = Offset(
+      (size.width - scale) / 2,
+      (size.height - maxY * scale) / 2,
+    );
+    Offset at(Offset point) =>
+        Offset(offset.dx + point.dx * scale, offset.dy + point.dy * scale);
+    final path = Path()..moveTo(at(points.first).dx, at(points.first).dy);
+    for (var index = 0; index < points.length; index++) {
+      final previous = at(points[(index - 1 + points.length) % points.length]);
+      final current = at(points[index]);
+      final next = at(points[(index + 1) % points.length]);
+      final afterNext = at(points[(index + 2) % points.length]);
+      final firstControl = current + (next - previous) / 6;
+      final secondControl = next - (afterNext - current) / 6;
+      path.cubicTo(
+        firstControl.dx,
+        firstControl.dy,
+        secondControl.dx,
+        secondControl.dy,
+        next.dx,
+        next.dy,
+      );
+    }
+    return path..close();
+  }
+
+  @override
+  bool shouldRepaint(covariant CatTraceVectorPainter oldDelegate) =>
+      oldDelegate.level != level ||
+      oldDelegate.presentationScale != presentationScale;
+}
+
 class BootSequencePreviewPage extends StatefulWidget {
   const BootSequencePreviewPage({super.key});
 
