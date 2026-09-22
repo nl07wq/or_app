@@ -1138,16 +1138,20 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
           : size.height / 2,
     );
     _withDirection(canvas, origin, direction, () {
-      final pose = wildlifeNeutralPoseFor(kind);
       switch (kind) {
         case WildlifeKind.cat:
           _drawNeutralCat(canvas, silhouette);
         case WildlifeKind.fox:
-          _drawQuadruped(canvas, silhouette, kind, pose);
+          _drawQuadruped(
+            canvas,
+            silhouette,
+            kind,
+            wildlifeNeutralPoseFor(kind),
+          );
         case WildlifeKind.birds:
-          _drawBird(canvas, silhouette, pose);
+          _drawBird(canvas, silhouette, wildlifeNeutralPoseFor(kind));
         case WildlifeKind.bat:
-          _drawBat(canvas, silhouette, pose);
+          _drawBat(canvas, silhouette, wildlifeNeutralPoseFor(kind));
       }
     });
   }
