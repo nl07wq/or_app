@@ -146,6 +146,14 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const ValueKey('wildlife-preview-mode-motion')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const ValueKey('wildlife-preview-direction-ltr')),
         findsOneWidget,
       );
@@ -153,7 +161,7 @@ void main() {
         find.byKey(const ValueKey('wildlife-preview-direction-rtl')),
         findsOneWidget,
       );
-      expect(find.text('CURRENT: IDLE / L → R'), findsOneWidget);
+      expect(find.text('CURRENT: CAT / MOTION / L → R'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
       await tester.pump();
@@ -161,7 +169,26 @@ void main() {
         find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
         findsOneWidget,
       );
-      expect(find.text('CURRENT: CAT / L → R'), findsOneWidget);
+      expect(find.text('CURRENT: CAT / MOTION / L → R'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
+      );
+      await tester.pump();
+      final neutral =
+          tester
+                  .widget<CustomPaint>(
+                    find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
+                  )
+                  .painter!
+              as DashboardAmbientWildlifePainter;
+      expect(neutral.neutralKind, WildlifeKind.cat);
+      expect(neutral.plan, isNull);
+
+      await tester.tap(
+        find.byKey(const ValueKey('wildlife-preview-mode-motion')),
+      );
+      await tester.pump();
 
       await tester.tap(find.byKey(const ValueKey('wildlife-preview-fox')));
       await tester.pump();

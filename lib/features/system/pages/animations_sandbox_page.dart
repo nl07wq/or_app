@@ -182,6 +182,7 @@ class _AmbientWildlifeSandboxSectionState
 
   WildlifeEventPlan? _plan;
   var _leftToRight = true;
+  var _neutral = false;
   var _requestId = 0;
   var _nextAutoKind = 0;
 
@@ -220,6 +221,34 @@ class _AmbientWildlifeSandboxSectionState
               DashboardAmbientWildlifePreviewStage(
                 plan: _plan,
                 requestId: _requestId,
+                neutralKind: _neutral
+                    ? (_plan?.kind ?? WildlifeKind.cat)
+                    : null,
+                neutralLeftToRight: _leftToRight,
+              ),
+              AppSpacing.gapMD,
+              const Text('MODE'),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-mode-motion'),
+                      label: 'MOTION',
+                      selected: !_neutral,
+                      onPressed: () => setState(() => _neutral = false),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-preview-mode-neutral'),
+                      label: 'NEUTRAL',
+                      selected: _neutral,
+                      onPressed: () => setState(() => _neutral = true),
+                    ),
+                  ),
+                ],
               ),
               AppSpacing.gapMD,
               const Text('DIRECTION'),
@@ -306,7 +335,7 @@ class _AmbientWildlifeSandboxSectionState
               Text(
                 reducedMotion
                     ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
-                    : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'IDLE'} / $_directionLabel',
+                    : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'CAT'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
                 key: const ValueKey('ambient-wildlife-preview-state'),
                 textAlign: TextAlign.center,
               ),

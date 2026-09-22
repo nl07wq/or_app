@@ -371,27 +371,90 @@ void main() {
     },
   );
 
-  test('V3 deformation stays bounded and continuous across the cycle seam', () {
-    double bodyRange(WildlifeKind kind) {
-      final values = [
-        for (var index = 0; index < 6; index++)
-          wildlifePoseFor(kind, index / 6).bodyLength,
-      ];
-      return values.reduce((a, b) => a > b ? a : b) -
-          values.reduce((a, b) => a < b ? a : b);
-    }
+  test(
+    'V4 anatomy keeps torso deformation restrained across the cycle seam',
+    () {
+      double bodyRange(WildlifeKind kind) {
+        final values = [
+          for (var index = 0; index < 6; index++)
+            wildlifePoseFor(kind, index / 6).bodyLength,
+        ];
+        return values.reduce((a, b) => a > b ? a : b) -
+            values.reduce((a, b) => a < b ? a : b);
+      }
 
-    final catDelta = bodyRange(WildlifeKind.cat);
-    final foxDelta = bodyRange(WildlifeKind.fox);
-    expect(catDelta, inInclusiveRange(.10, .18));
-    expect(foxDelta, inInclusiveRange(.12, .22));
-    expect(foxDelta, greaterThan(catDelta));
-    for (final kind in [WildlifeKind.cat, WildlifeKind.fox]) {
-      final before = wildlifePoseFor(kind, .999);
-      final after = wildlifePoseFor(kind, 0);
-      expect((before.bodyLength - after.bodyLength).abs(), lessThan(.04));
-      expect((before.headForward - after.headForward).abs(), lessThan(.04));
-      expect((before.tailLength - after.tailLength).abs(), lessThan(.04));
+      final catDelta = bodyRange(WildlifeKind.cat);
+      final foxDelta = bodyRange(WildlifeKind.fox);
+      expect(catDelta, lessThanOrEqualTo(.10));
+      expect(foxDelta, lessThanOrEqualTo(.12));
+      expect(foxDelta, greaterThan(catDelta));
+      for (final kind in [WildlifeKind.cat, WildlifeKind.fox]) {
+        final before = wildlifePoseFor(kind, .999);
+        final after = wildlifePoseFor(kind, 0);
+        expect((before.bodyLength - after.bodyLength).abs(), lessThan(.04));
+        expect((before.headForward - after.headForward).abs(), lessThan(.04));
+        expect((before.tailLength - after.tailLength).abs(), lessThan(.04));
+      }
+    },
+  );
+
+  test(
+    'V4 neutral profiles retain distinct natural anatomical proportions',
+    () {
+      final cat = wildlifeNeutralPoseFor(WildlifeKind.cat);
+      final fox = wildlifeNeutralPoseFor(WildlifeKind.fox);
+      final bird = wildlifeNeutralPoseFor(WildlifeKind.birds);
+      final bat = wildlifeNeutralPoseFor(WildlifeKind.bat);
+
+      // Long-legged, compact-headed feline; the lean fox is longer, with a
+      // larger ear/muzzle/tail identity rather than being an enlarged cat.
+      expect(cat.bodyHeight, lessThan(.5));
+      expect(cat.headForward, lessThan(cat.bodyLength * .30));
+      expect(cat.tailLength, greaterThan(cat.bodyLength));
+      expect(fox.bodyLength, greaterThan(cat.bodyLength));
+      expect(fox.muzzleLength, greaterThan(cat.muzzleLength));
+      expect(fox.earHeight, greaterThan(cat.earHeight));
+      expect(fox.tailThickness, greaterThan(cat.tailThickness * 2));
+
+      // A compact bird has almost no neck proxy between head and torso; bat
+      // body mass stays compact while its membrane envelope dominates.
+      expect(bird.headForward, lessThan(bird.bodyLength));
+      expect(bird.bodyLength / bird.bodyHeight, greaterThan(2));
+      expect(bird.wingSpan, greaterThan(bird.bodyLength));
+      expect(bat.bodyLength / bat.bodyHeight, lessThan(1.3));
+      expect(bat.wingSpan, greaterThan(bat.bodyLength));
+      expect(bat.farWingSpan, lessThan(bat.wingSpan));
+    },
+  );
+
+  test('V4 anatomy remains attached and bounded at 48 dense cycle phases', () {
+    for (final kind in WildlifeKind.values) {
+      for (var index = 0; index < 48; index++) {
+        final pose = wildlifePoseFor(kind, index / 48);
+        for (final value in [
+          pose.bodyLength,
+          pose.bodyHeight,
+          pose.headForward,
+          pose.tailRear,
+          pose.wingSpan,
+          pose.farWingSpan,
+        ]) {
+          expect(value.isFinite, isTrue);
+          expect(value.abs(), lessThan(3));
+        }
+        if (kind == WildlifeKind.cat || kind == WildlifeKind.fox) {
+          final geometry = wildlifeQuadrupedGeometryFor(kind, index / 48);
+          final envelope = geometry.body.inflate(geometry.scale * .30);
+          expect(envelope.contains(geometry.headCenter), isTrue);
+          expect(envelope.contains(geometry.shoulderRoot), isTrue);
+          expect(envelope.contains(geometry.hipRoot), isTrue);
+          expect(envelope.contains(geometry.tailRoot), isTrue);
+        } else {
+          expect(pose.headForward, greaterThan(0));
+          expect(pose.tailRear, greaterThan(0));
+          expect(pose.wingSpan, greaterThan(pose.farWingSpan));
+        }
+      }
     }
   });
 
